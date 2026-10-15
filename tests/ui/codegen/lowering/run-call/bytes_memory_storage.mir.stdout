@@ -4,48 +4,49 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 4
-    mstore v0+32, 0x6162636400000000000000000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x6162636400000000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
-    v1 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v1
-    v2 = and v1, 1
-    v3 = eq v2, 1
-    v4 = sub 0, v2
-    v5 = or 127, v4
-    v6 = shr 1, v1
-    v7 = and v6, v5
-    v8 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v8
-    v9 = and v8, 1
-    v10 = eq v9, 1
-    v11 = sub 0, v9
-    v12 = or 127, v11
-    v13 = shr 1, v8
-    v14 = and v13, v12
-    v15 = lt 0, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    jumpi v10, bb1, bb2
+    v2 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v2
+    v3 = and v2, 1
+    v4 = eq v3, 1
+    v5 = sub 0, v3
+    v6 = or 127, v5
+    v7 = shr 1, v2
+    v8 = and v7, v6
+    v9 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v9
+    v10 = and v9, 1
+    v11 = eq v10, 1
+    v12 = sub 0, v10
+    v13 = or 127, v12
+    v14 = shr 1, v9
+    v15 = and v14, v13
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    jumpi v11, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v17 = storage_array_data_slot 0
-    v18 = shr 5, 0
-    v19 = add v17, v18
+    v18 = storage_array_data_slot 0
+    v19 = shr 5, 0
+    v20 = add v18, v19
     jump bb3
   bb3:
-    v20 = phi [bb1: v19], [bb2: 0]
-    v21 = and 0, 31
-    v22 = sub 31, v21
-    v23 = sload v20 !metadata(storage=symbolic(v20))
-    v24 = mul v22, 8
-    v25 = shr v24, v23
-    v26 = shl 248, v25
-    v27 = shr 248, v26
-    v28 = trunc i256 v27 to i8
-    v29 = zext i8 v28 to i256
-    v30 = checked_add u256, v7, v29
-    ret v30
+    v21 = phi [bb1: v20], [bb2: 0]
+    v22 = and 0, 31
+    v23 = sub 31, v22
+    v24 = sload v21 !metadata(storage=symbolic(v21))
+    v25 = mul v23, 8
+    v26 = shr v25, v24
+    v27 = shl 248, v26
+    v28 = shr 248, v27
+    v29 = trunc i256 v28 to i8
+    v30 = zext i8 v29 to i256
+    v31 = checked_add u256, v8, v30
+    ret v31
 }
 
 fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

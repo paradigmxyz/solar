@@ -19,10 +19,11 @@ fn @read(arg0: slice<calldata>) -> i256 [pure] {
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = extract_value slice<calldata>, arg0, 0
-    v5 = calldataload v4+2
-    v6 = byte 0, v5
-    v7 = shl 248, v6
-    ret v7
+    v5 = ptradd v4, 2
+    v6 = calldataload v5
+    v7 = byte 0, v6
+    v8 = shl 248, v7
+    ret v8
 }
 
 fn @invoke(arg0: slice<calldata>) -> i256 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
@@ -45,30 +46,31 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>], abi
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0x700000000000000000000000000000000000000000000000000000000000000
-    mstore8 v2+34, v6
-    v7 = address
-    v8 = gas
-    v9 = abi_encode [memory_bytes], selector 0xa651425900000000000000000000000000000000000000000000000000000000, args v2
-    v10 = extract_value slice<memory>, v9, 0
-    v11 = extract_value slice<memory>, v9, 1
-    v12 = zext i160 v7 to i256
-    v13 = call v8, v12, 0, v10, v11, 0, 32
-    jumpi v13, bb2, bb1
+    v7 = ptradd v2, 34
+    mstore8 v7, v6
+    v8 = address
+    v9 = gas
+    v10 = abi_encode [memory_bytes], selector 0xa651425900000000000000000000000000000000000000000000000000000000, args v2
+    v11 = extract_value slice<memory>, v10, 0
+    v12 = extract_value slice<memory>, v10, 1
+    v13 = zext i160 v8 to i256
+    v14 = call v9, v13, 0, v11, v12, 0, 32
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v14 = returndatasize
-    v15 = lt v14, 32
-    icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = shl 8, v17
-    v19 = eq v18, 0
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = shr 248, v17
-    v22 = trunc i256 v21 to i8
-    ret v22
+    v15 = returndatasize
+    v16 = lt v15, 32
+    icall revert_if<tuple_data_too_short>, v16
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = shl 8, v18
+    v20 = eq v19, 0
+    v21 = eq v20, false
+    icall revert_if<empty>, v21
+    v22 = shr 248, v18
+    v23 = trunc i256 v22 to i8
+    ret v23
 }
 
 fn @internal_dispatcher_p_slice_calldata_r_bytes1(arg0: i256, arg1: slice<calldata>) -> i256 [function_pointer_dispatcher] {

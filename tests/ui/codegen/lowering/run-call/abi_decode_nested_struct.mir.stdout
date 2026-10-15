@@ -6,118 +6,158 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v1 = alloc 160
     v2 = sext i24 60 to i256
     mstore v1, 0x15cf58144ef33af1e14b5208015d11f9143e27b9
-    mstore v1+32, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
-    mstore v1+64, 0xbb8
-    mstore v1+96, v2
-    mstore v1+128, 0
-    v3 = ptrtoint ptr<memory> v1 to i256
-    v4 = alloc 128
-    v5 = sext i24 0xffff88 to i256
-    v6 = sext i24 120 to i256
-    mstore v4, v5
-    mstore v4+32, v6
-    mstore v4+64, 0xde0b6b3a7640000
-    mstore v4+96, 0
-    v7 = ptrtoint ptr<memory> v4 to i256
-    v8 = alloc 32
-    mstore v8, 0
-    v9 = ptrtoint ptr<memory> v8 to i256
+    v3 = ptradd v1, 32
+    mstore v3, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
+    v4 = ptradd v1, 64
+    mstore v4, 0xbb8
+    v5 = ptradd v1, 96
+    mstore v5, v2
+    v6 = ptradd v1, 128
+    mstore v6, 0
+    v7 = ptrtoint ptr<memory> v1 to i256
+    v8 = alloc 128
+    v9 = sext i24 0xffff88 to i256
+    v10 = sext i24 120 to i256
+    mstore v8, v9
+    v11 = ptradd v8, 32
+    mstore v11, v10
+    v12 = ptradd v8, 64
+    mstore v12, 0xde0b6b3a7640000
+    v13 = ptradd v8, 96
+    mstore v13, 0
+    v14 = ptrtoint ptr<memory> v8 to i256
+    v15 = alloc 32
+    mstore v15, 0
+    v16 = ptrtoint ptr<memory> v15 to i256
     mstore v0, 0x7fa9385be102ac3eac297483dd6233d62b3e1496
-    mstore v0+32, v3
-    mstore v0+64, v7
-    mstore v0+96, v9
-    mstore v0+128, 0
-    mstore v0+160, 0
-    v10 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes, word<bool>, word<bool>>], object, args v0
-    v11 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes, bool, bool>], v10
-    v12 = mload v11
-    v13 = trunc i256 v12 to i160
-    v14 = mload v0
-    v15 = trunc i256 v14 to i160
-    v16 = eq v13, v15
-    icall require<short_string>, v16, 6, 0x73656e6465720000000000000000000000000000000000000000000000000000
-    v17 = mload v11+32, ptr<memory>
-    v18 = mload v17
-    v19 = trunc i256 v18 to i160
-    v20 = mload v0+32, ptr<memory>
-    v21 = mload v20
-    v22 = trunc i256 v21 to i160
-    v23 = eq v19, v22
-    icall require<short_string>, v23, 2, 0x6330000000000000000000000000000000000000000000000000000000000000
-    v24 = mload v11+32, ptr<memory>
-    v25 = mload v24+32
-    v26 = trunc i256 v25 to i160
-    v27 = mload v0+32, ptr<memory>
-    v28 = mload v27+32
-    v29 = trunc i256 v28 to i160
-    v30 = eq v26, v29
-    icall require<short_string>, v30, 2, 0x6331000000000000000000000000000000000000000000000000000000000000
-    v31 = mload v11+32, ptr<memory>
-    v32 = mload v31+64
-    v33 = trunc i256 v32 to i24
-    v34 = mload v0+32, ptr<memory>
-    v35 = mload v34+64
-    v36 = trunc i256 v35 to i24
-    v37 = eq v33, v36
-    icall require<short_string>, v37, 3, 0x6665650000000000000000000000000000000000000000000000000000000000
-    v38 = mload v11+32, ptr<memory>
-    v39 = mload v38+96
-    v40 = trunc i256 v39 to i24
-    v41 = mload v0+32, ptr<memory>
-    v42 = mload v41+96
-    v43 = trunc i256 v42 to i24
-    v44 = eq v40, v43
-    icall require<short_string>, v44, 2, 0x7473000000000000000000000000000000000000000000000000000000000000
-    v45 = mload v11+32, ptr<memory>
-    v46 = mload v45+128
+    v17 = ptradd v0, 32
+    mstore v17, v7
+    v18 = ptradd v0, 64
+    mstore v18, v14
+    v19 = ptradd v0, 96
+    mstore v19, v16
+    v20 = ptradd v0, 128
+    mstore v20, 0
+    v21 = ptradd v0, 160
+    mstore v21, 0
+    v22 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes, word<bool>, word<bool>>], object, args v0
+    v23 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes, bool, bool>], v22
+    v24 = mload v23
+    v25 = trunc i256 v24 to i160
+    v26 = mload v0
+    v27 = trunc i256 v26 to i160
+    v28 = eq v25, v27
+    icall require<short_string>, v28, 6, 0x73656e6465720000000000000000000000000000000000000000000000000000
+    v29 = ptradd v23, 32
+    v30 = mload v29, ptr<memory>
+    v31 = mload v30
+    v32 = trunc i256 v31 to i160
+    v33 = ptradd v0, 32
+    v34 = mload v33, ptr<memory>
+    v35 = mload v34
+    v36 = trunc i256 v35 to i160
+    v37 = eq v32, v36
+    icall require<short_string>, v37, 2, 0x6330000000000000000000000000000000000000000000000000000000000000
+    v38 = ptradd v23, 32
+    v39 = mload v38, ptr<memory>
+    v40 = ptradd v39, 32
+    v41 = mload v40
+    v42 = trunc i256 v41 to i160
+    v43 = ptradd v0, 32
+    v44 = mload v43, ptr<memory>
+    v45 = ptradd v44, 32
+    v46 = mload v45
     v47 = trunc i256 v46 to i160
-    v48 = mload v0+32, ptr<memory>
-    v49 = mload v48+128
-    v50 = trunc i256 v49 to i160
-    v51 = eq v47, v50
-    icall require<short_string>, v51, 5, 0x686f6f6b73000000000000000000000000000000000000000000000000000000
-    v52 = mload v11+64, ptr<memory>
-    v53 = mload v52
-    v54 = trunc i256 v53 to i24
-    v55 = eq v54, i24 0xffff88
-    icall require<short_string>, v55, 2, 0x746c000000000000000000000000000000000000000000000000000000000000
-    v56 = mload v11+64, ptr<memory>
-    v57 = mload v56+32
+    v48 = eq v42, v47
+    icall require<short_string>, v48, 2, 0x6331000000000000000000000000000000000000000000000000000000000000
+    v49 = ptradd v23, 32
+    v50 = mload v49, ptr<memory>
+    v51 = ptradd v50, 64
+    v52 = mload v51
+    v53 = trunc i256 v52 to i24
+    v54 = ptradd v0, 32
+    v55 = mload v54, ptr<memory>
+    v56 = ptradd v55, 64
+    v57 = mload v56
     v58 = trunc i256 v57 to i24
-    v59 = eq v58, i24 120
-    icall require<short_string>, v59, 2, 0x7475000000000000000000000000000000000000000000000000000000000000
-    v60 = mload v11+64, ptr<memory>
-    v61 = mload v60+64
-    v62 = eq v61, 0xde0b6b3a7640000
-    icall require<short_string>, v62, 2, 0x6c64000000000000000000000000000000000000000000000000000000000000
-    v63 = mload v11+96, ptr<memory>
-    v64 = mload v63
-    v65 = eq v64, 0
-    icall require<short_string>, v65, 2, 0x6864000000000000000000000000000000000000000000000000000000000000
-    v66 = mload v11+128
-    v67 = eq v66, 0
-    v68 = eq v67, false
-    v69 = eq v68, false
-    jumpi v69, bb1, bb2
+    v59 = eq v53, v58
+    icall require<short_string>, v59, 3, 0x6665650000000000000000000000000000000000000000000000000000000000
+    v60 = ptradd v23, 32
+    v61 = mload v60, ptr<memory>
+    v62 = ptradd v61, 96
+    v63 = mload v62
+    v64 = trunc i256 v63 to i24
+    v65 = ptradd v0, 32
+    v66 = mload v65, ptr<memory>
+    v67 = ptradd v66, 96
+    v68 = mload v67
+    v69 = trunc i256 v68 to i24
+    v70 = eq v64, v69
+    icall require<short_string>, v70, 2, 0x7473000000000000000000000000000000000000000000000000000000000000
+    v71 = ptradd v23, 32
+    v72 = mload v71, ptr<memory>
+    v73 = ptradd v72, 128
+    v74 = mload v73
+    v75 = trunc i256 v74 to i160
+    v76 = ptradd v0, 32
+    v77 = mload v76, ptr<memory>
+    v78 = ptradd v77, 128
+    v79 = mload v78
+    v80 = trunc i256 v79 to i160
+    v81 = eq v75, v80
+    icall require<short_string>, v81, 5, 0x686f6f6b73000000000000000000000000000000000000000000000000000000
+    v82 = ptradd v23, 64
+    v83 = mload v82, ptr<memory>
+    v84 = mload v83
+    v85 = trunc i256 v84 to i24
+    v86 = eq v85, i24 0xffff88
+    icall require<short_string>, v86, 2, 0x746c000000000000000000000000000000000000000000000000000000000000
+    v87 = ptradd v23, 64
+    v88 = mload v87, ptr<memory>
+    v89 = ptradd v88, 32
+    v90 = mload v89
+    v91 = trunc i256 v90 to i24
+    v92 = eq v91, i24 120
+    icall require<short_string>, v92, 2, 0x7475000000000000000000000000000000000000000000000000000000000000
+    v93 = ptradd v23, 64
+    v94 = mload v93, ptr<memory>
+    v95 = ptradd v94, 64
+    v96 = mload v95
+    v97 = eq v96, 0xde0b6b3a7640000
+    icall require<short_string>, v97, 2, 0x6c64000000000000000000000000000000000000000000000000000000000000
+    v98 = ptradd v23, 96
+    v99 = mload v98, ptr<memory>
+    v100 = mload v99
+    v101 = eq v100, 0
+    icall require<short_string>, v101, 2, 0x6864000000000000000000000000000000000000000000000000000000000000
+    v102 = ptradd v23, 128
+    v103 = mload v102
+    v104 = eq v103, 0
+    v105 = eq v104, false
+    v106 = eq v105, false
+    jumpi v106, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v70 = mload v11+160
-    v71 = eq v70, 0
-    v72 = eq v71, false
-    v73 = eq v72, false
+    v107 = ptradd v23, 160
+    v108 = mload v107
+    v109 = eq v108, 0
+    v110 = eq v109, false
+    v111 = eq v110, false
     jump bb3
   bb3:
-    v74 = phi [bb1: v73], [bb2: false]
-    icall require<short_string>, v74, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
-    v75 = mload v0+32, ptr<memory>
-    v76 = mload v11+32, ptr<memory>
-    v77 = ptrtoint ptr<memory> v75 to i256
-    v78 = keccak256 v77, 160
-    v79 = ptrtoint ptr<memory> v76 to i256
-    v80 = keccak256 v79, 160
-    v81 = eq v78, v80
-    icall require<short_string>, v81, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
+    v112 = phi [bb1: v111], [bb2: false]
+    icall require<short_string>, v112, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
+    v113 = ptradd v0, 32
+    v114 = mload v113, ptr<memory>
+    v115 = ptradd v23, 32
+    v116 = mload v115, ptr<memory>
+    v117 = ptrtoint ptr<memory> v114 to i256
+    v118 = keccak256 v117, 160
+    v119 = ptrtoint ptr<memory> v116 to i256
+    v120 = keccak256 v119, 160
+    v121 = eq v118, v120
+    icall require<short_string>, v121, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -129,40 +169,48 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     v1 = alloc 160
     v2 = sext i24 60 to i256
     mstore v1, 0x15cf58144ef33af1e14b5208015d11f9143e27b9
-    mstore v1+32, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
-    mstore v1+64, 0xbb8
-    mstore v1+96, v2
-    mstore v1+128, 0
-    v3 = ptrtoint ptr<memory> v1 to i256
-    v4 = alloc 32
-    mstore v4, 0
-    v5 = ptrtoint ptr<memory> v4 to i256
+    v3 = ptradd v1, 32
+    mstore v3, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
+    v4 = ptradd v1, 64
+    mstore v4, 0xbb8
+    v5 = ptradd v1, 96
+    mstore v5, v2
+    v6 = ptradd v1, 128
+    mstore v6, 0
+    v7 = ptrtoint ptr<memory> v1 to i256
+    v8 = alloc 32
+    mstore v8, 0
+    v9 = ptrtoint ptr<memory> v8 to i256
     mstore v0, 0x7fa9385be102ac3eac297483dd6233d62b3e1496
-    mstore v0+32, v3
-    mstore v0+64, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff88
-    mstore v0+96, v5
-    v6 = mload v0+32, ptr<memory>
-    v7 = ptrtoint ptr<memory> v6 to i256
-    v8 = keccak256 v7, 160
-    v9 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word, memory_bytes>], object, args v0
-    v10 = address
-    v11 = gas
-    v12 = abi_encode [memory_bytes], selector 0x3c12b05c00000000000000000000000000000000000000000000000000000000, args v9
-    v13 = extract_value slice<memory>, v12, 0
-    v14 = extract_value slice<memory>, v12, 1
-    v15 = zext i160 v10 to i256
-    v16 = staticcall v11, v15, v13, v14, 0, 32
-    jumpi v16, bb2, bb1
+    v10 = ptradd v0, 32
+    mstore v10, v7
+    v11 = ptradd v0, 64
+    mstore v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff88
+    v12 = ptradd v0, 96
+    mstore v12, v9
+    v13 = ptradd v0, 32
+    v14 = mload v13, ptr<memory>
+    v15 = ptrtoint ptr<memory> v14 to i256
+    v16 = keccak256 v15, 160
+    v17 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word, memory_bytes>], object, args v0
+    v18 = address
+    v19 = gas
+    v20 = abi_encode [memory_bytes], selector 0x3c12b05c00000000000000000000000000000000000000000000000000000000, args v17
+    v21 = extract_value slice<memory>, v20, 0
+    v22 = extract_value slice<memory>, v20, 1
+    v23 = zext i160 v18 to i256
+    v24 = staticcall v19, v23, v21, v22, 0, 32
+    jumpi v24, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = returndatasize
-    v18 = lt v17, 32
-    icall revert_if<tuple_data_too_short>, v18
-    v19 = add 0, 0
-    v20 = mload v19
-    v21 = eq v8, v20
-    icall require<short_string>, v21, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
+    v25 = returndatasize
+    v26 = lt v25, 32
+    icall revert_if<tuple_data_too_short>, v26
+    v27 = add 0, 0
+    v28 = mload v27
+    v29 = eq v16, v28
+    icall require<short_string>, v29, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -190,10 +238,11 @@ fn @inner(arg0: slice<calldata>) -> i256 [selector=0x3c12b05c, pure, abi_params=
     v15 = extract_value slice<calldata>, arg0, 1
     calldatacopy v13, v14, v15
     v16 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, i256, bytes>], v12
-    v17 = mload v16+32, ptr<memory>
-    v18 = ptrtoint ptr<memory> v17 to i256
-    v19 = keccak256 v18, 160
-    ret v19
+    v17 = ptradd v16, 32
+    v18 = mload v17, ptr<memory>
+    v19 = ptrtoint ptr<memory> v18 to i256
+    v20 = keccak256 v19, 160
+    ret v20
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===
@@ -217,56 +266,63 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v0 = alloc 160
     v1 = sext i24 60 to i256
     mstore v0, 0x15cf58144ef33af1e14b5208015d11f9143e27b9
-    mstore v0+32, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
-    mstore v0+64, 0xbb8
-    mstore v0+96, v1
-    mstore v0+128, 0
-    v2 = alloc 128
-    v3 = sext i24 0xffff88 to i256
-    v4 = sext i24 120 to i256
-    mstore v2, v3
-    mstore v2+32, v4
-    mstore v2+64, 0xde0b6b3a7640000
-    mstore v2+96, 0
-    v5 = ptrtoint ptr<memory> v0 to i256
-    v6 = keccak256 v5, 160
-    v7 = address
-    v8 = gas
-    v9 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word<u160>], selector 0x128e91fc00000000000000000000000000000000000000000000000000000000, args v0, 1
-    v10 = extract_value slice<memory>, v9, 0
-    v11 = extract_value slice<memory>, v9, 1
-    v12 = zext i160 v7 to i256
-    v13 = staticcall v8, v12, v10, v11, 0, 32
-    jumpi v13, bb2, bb1
+    v2 = ptradd v0, 32
+    mstore v2, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
+    v3 = ptradd v0, 64
+    mstore v3, 0xbb8
+    v4 = ptradd v0, 96
+    mstore v4, v1
+    v5 = ptradd v0, 128
+    mstore v5, 0
+    v6 = alloc 128
+    v7 = sext i24 0xffff88 to i256
+    v8 = sext i24 120 to i256
+    mstore v6, v7
+    v9 = ptradd v6, 32
+    mstore v9, v8
+    v10 = ptradd v6, 64
+    mstore v10, 0xde0b6b3a7640000
+    v11 = ptradd v6, 96
+    mstore v11, 0
+    v12 = ptrtoint ptr<memory> v0 to i256
+    v13 = keccak256 v12, 160
+    v14 = address
+    v15 = gas
+    v16 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word<u160>], selector 0x128e91fc00000000000000000000000000000000000000000000000000000000, args v0, 1
+    v17 = extract_value slice<memory>, v16, 0
+    v18 = extract_value slice<memory>, v16, 1
+    v19 = zext i160 v14 to i256
+    v20 = staticcall v15, v19, v17, v18, 0, 32
+    jumpi v20, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v14 = returndatasize
-    v15 = lt v14, 32
-    icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = address
-    v19 = gas
-    v20 = alloc 32
-    mstore v20, 0
-    v21 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v2, v20
-    v22 = extract_value slice<memory>, v21, 0
-    v23 = extract_value slice<memory>, v21, 1
-    v24 = zext i160 v18 to i256
-    v25 = staticcall v19, v24, v22, v23, 0, 32
-    jumpi v25, bb4, bb3
+    v21 = returndatasize
+    v22 = lt v21, 32
+    icall revert_if<tuple_data_too_short>, v22
+    v23 = add 0, 0
+    v24 = mload v23
+    v25 = address
+    v26 = gas
+    v27 = alloc 32
+    mstore v27, 0
+    v28 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v6, v27
+    v29 = extract_value slice<memory>, v28, 0
+    v30 = extract_value slice<memory>, v28, 1
+    v31 = zext i160 v25 to i256
+    v32 = staticcall v26, v31, v29, v30, 0, 32
+    jumpi v32, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v26 = returndatasize
-    v27 = lt v26, 32
-    icall revert_if<tuple_data_too_short>, v27
-    v28 = add 0, 0
-    v29 = mload v28
-    v30 = eq v17, v6
-    icall require<short_string>, v30, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
-    v31 = eq v29, v6
-    icall require<short_string>, v31, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
+    v33 = returndatasize
+    v34 = lt v33, 32
+    icall revert_if<tuple_data_too_short>, v34
+    v35 = add 0, 0
+    v36 = mload v35
+    v37 = eq v24, v13
+    icall require<short_string>, v37, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
+    v38 = eq v36, v13
+    icall require<short_string>, v38, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
     ret 1
 }

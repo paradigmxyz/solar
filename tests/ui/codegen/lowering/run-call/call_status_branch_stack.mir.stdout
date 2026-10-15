@@ -21,9 +21,12 @@ fn @get(arg0: i256) -> ptr<memory> [selector=0x9507d39a, pure, abi_params=[u256]
     v4 = checked_add u256, arg0, 3
     v5 = checked_add u256, arg0, 4
     mstore v1, v2
-    mstore v1+32, v3
-    mstore v1+64, v4
-    mstore v1+96, v5
+    v6 = ptradd v1, 32
+    mstore v6, v3
+    v7 = ptradd v1, 64
+    mstore v7, v4
+    v8 = ptradd v1, 96
+    mstore v8, v5
     ret v1
 }
 
@@ -68,10 +71,11 @@ fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[u256], ab
     v9 = make_memory_slice v5, 128
     v10 = abi_decode [tuple<u256, u256, u256, u256>], v9
     v11 = mload v10
-    v12 = mload v10+32
-    v13 = checked_add u256, v11, v12
-    v14 = checked_sub u256, v13, 1
-    ret v14
+    v12 = ptradd v10, 32
+    v13 = mload v12
+    v14 = checked_add u256, v11, v13
+    v15 = checked_sub u256, v14, 1
+    ret v15
 }
 
 fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -92,8 +96,10 @@ fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[u256], abi
     icall revert_if<tuple_data_too_short>, v8
     v9 = make_memory_slice v5, 128
     v10 = abi_decode [tuple<u256, u256, u256, u256>], v9
-    v11 = mload v10+64
-    v12 = mload v10+96
-    v13 = checked_add u256, v11, v12
-    ret v13
+    v11 = ptradd v10, 64
+    v12 = mload v11
+    v13 = ptradd v10, 96
+    v14 = mload v13
+    v15 = checked_add u256, v12, v14
+    ret v15
 }

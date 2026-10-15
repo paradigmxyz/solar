@@ -46,7 +46,8 @@ fn @zeroWord() -> ptr<memory> [selector=0x4c092794, pure, abi_params=[], abi_ret
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 32
-    mstore v0+32, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
     ret v0
 }
 

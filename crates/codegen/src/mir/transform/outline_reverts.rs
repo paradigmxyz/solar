@@ -125,7 +125,7 @@ fn constant_revert_shape(func: &Function, block_idx: usize) -> Option<RevertShap
     };
     let mut stores = SmallVec::with_capacity(block.instructions.len());
     for &inst_id in &block.instructions {
-        let InstKind::Store(store_offset, 0, value) = func.inst(inst_id).kind else {
+        let InstKind::Store(store_offset, value) = func.inst(inst_id).kind else {
             return None;
         };
         stores.push((imm(store_offset)?, imm(value)?));

@@ -26,7 +26,8 @@ fn @agg() -> ptr<memory> [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=
     v3 = lt 1, 2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    mstore v0+32, 22
+    v5 = ptradd v0, 32
+    mstore v5, 22
     ret v0
 }
 
@@ -182,12 +183,13 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v23 = lt 1, 2
     v24 = eq v23, false
     icall panic_if<0x32>, v24
-    v25 = mload v19+32
-    v26 = checked_add u256, v22, v25
+    v25 = ptradd v19, 32
+    v26 = mload v25
+    v27 = checked_add u256, v22, v26
     jump bb5
   bb5:
-    v27 = phi [bb3: v26], [bb6: 7]
-    ret v27
+    v28 = phi [bb3: v27], [bb6: 7]
+    ret v28
 }
 
 fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

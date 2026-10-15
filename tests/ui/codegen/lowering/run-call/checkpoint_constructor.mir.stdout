@@ -15,7 +15,7 @@ fn @constructor(arg0: ptr<memory>, arg1: i160, arg2: i96) [constructor, abi_para
     storeimmutable offset, arg2
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v14]
+    v0 = phi [bb0: 0], [bb3: v15]
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
     v3 = phi [bb0: arg1], [bb3: v3]
@@ -33,14 +33,15 @@ fn @constructor(arg0: ptr<memory>, arg1: i160, arg2: i96) [constructor, abi_para
     icall panic_if<0x32>, v8
     v9 = shl 5, v0
     v10 = ptradd v1, v9
-    v11 = mload v10+32
-    v12 = trunc i256 v11 to i96
-    v13 = icall @mint, v3, v12
+    v11 = ptradd v10, 32
+    v12 = mload v11
+    v13 = trunc i256 v12 to i96
+    v14 = icall @mint, v3, v13
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v0, 1
+    v15 = checked_add u256, v0, 1
     jump bb1
 }
 
@@ -81,30 +82,32 @@ fn @push(arg0: i256, arg1: i96, arg2: i160) {
     v10 = zext i96 arg1 to i256
     v11 = zext i160 arg2 to i256
     mstore v9, v10
-    mstore v9+32, v11
-    v12 = sload arg0 !metadata(storage=symbolic(arg0))
-    v13 = gt v12, 0xffffffffffffffff
-    icall panic_if<0x41>, v13
-    v14 = add v12, 1
-    v15 = storage_array_data_slot arg0
-    v16 = add v15, v12
-    v17 = mload v9
-    v18 = sload v16 !metadata(storage=symbolic(v16))
-    v19 = not 0xffffffffffffffffffffffff
-    v20 = and v18, v19
-    v21 = and v17, 0xffffffffffffffffffffffff
-    v22 = or v20, v21
-    sstore v16, v22 !metadata(storage=symbolic(v16))
-    v23 = mload v9+32
-    v24 = shl 96, 0xffffffffffffffffffffffffffffffffffffffff
-    v25 = sload v16 !metadata(storage=symbolic(v16))
-    v26 = not v24
-    v27 = and v25, v26
-    v28 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
-    v29 = shl 96, v28
-    v30 = or v27, v29
-    sstore v16, v30 !metadata(storage=symbolic(v16))
-    sstore arg0, v14 !metadata(storage=symbolic(arg0))
+    v12 = ptradd v9, 32
+    mstore v12, v11
+    v13 = sload arg0 !metadata(storage=symbolic(arg0))
+    v14 = gt v13, 0xffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 1
+    v16 = storage_array_data_slot arg0
+    v17 = add v16, v13
+    v18 = mload v9
+    v19 = sload v17 !metadata(storage=symbolic(v17))
+    v20 = not 0xffffffffffffffffffffffff
+    v21 = and v19, v20
+    v22 = and v18, 0xffffffffffffffffffffffff
+    v23 = or v21, v22
+    sstore v17, v23 !metadata(storage=symbolic(v17))
+    v24 = ptradd v9, 32
+    v25 = mload v24
+    v26 = shl 96, 0xffffffffffffffffffffffffffffffffffffffff
+    v27 = sload v17 !metadata(storage=symbolic(v17))
+    v28 = not v26
+    v29 = and v27, v28
+    v30 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
+    v31 = shl 96, v30
+    v32 = or v29, v31
+    sstore v17, v32 !metadata(storage=symbolic(v17))
+    sstore arg0, v15 !metadata(storage=symbolic(arg0))
     ret
 }
 
@@ -188,56 +191,58 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    mstore v0+32, 0xf52
-    v4 = mload v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    mstore v0+64, 6
-    v7 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, 0x1234, 0x48b
-    v8 = extract_value slice<memory>, v7, 1
-    v9 = datasize CheckpointTarget_creation_code_0
-    v10 = add v9, v8
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = add v10, 31
-    v13 = lt v12, v10
+    v4 = ptradd v0, 32
+    mstore v4, 0xf52
+    v5 = mload v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    mstore v8, 6
+    v9 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, 0x1234, 0x48b
+    v10 = extract_value slice<memory>, v9, 1
+    v11 = datasize CheckpointTarget_creation_code_0
+    v12 = add v11, v10
+    v13 = lt v12, v11
     icall panic_if<0x41>, v13
-    v14 = not 31
-    v15 = and v12, v14
-    v16 = alloc v15
-    datacopy CheckpointTarget_creation_code_0, v16, v9
-    v17 = extract_value slice<memory>, v7, 0
-    v18 = ptrtoint ptr<memory> v16 to i256
-    v19 = add v18, v9
-    mcopy v19, v17, v8 !metadata(memory=heap)
-    v20 = create 0, v16, v10
-    v21 = ne v20, i160 0
-    jumpi v21, bb2, bb1
+    v14 = add v12, 31
+    v15 = lt v14, v12
+    icall panic_if<0x41>, v15
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc v17
+    datacopy CheckpointTarget_creation_code_0, v18, v11
+    v19 = extract_value slice<memory>, v9, 0
+    v20 = ptrtoint ptr<memory> v18 to i256
+    v21 = add v20, v11
+    mcopy v21, v19, v10 !metadata(memory=heap)
+    v22 = create 0, v18, v12
+    v23 = ne v22, i160 0
+    jumpi v23, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v22 = gas
-    v23 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
-    v24 = extract_value slice<memory>, v23, 0
-    v25 = extract_value slice<memory>, v23, 1
-    v26 = zext i160 v20 to i256
-    v27 = staticcall v22, v26, v24, v25, 0, 32
-    jumpi v27, bb4, bb3
+    v24 = gas
+    v25 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
+    v26 = extract_value slice<memory>, v25, 0
+    v27 = extract_value slice<memory>, v25, 1
+    v28 = zext i160 v22 to i256
+    v29 = staticcall v24, v28, v26, v27, 0, 32
+    jumpi v29, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v28 = returndatasize
-    v29 = lt v28, 32
-    icall revert_if<tuple_data_too_short>, v29
-    v30 = add 0, 0
-    v31 = mload v30
-    v32 = shr 96, v31
-    v33 = eq v32, 0
-    v34 = eq v33, false
-    icall revert_if<empty>, v34
-    v35 = trunc i256 v31 to i96
-    ret v35
+    v30 = returndatasize
+    v31 = lt v30, 32
+    icall revert_if<tuple_data_too_short>, v31
+    v32 = add 0, 0
+    v33 = mload v32
+    v34 = shr 96, v33
+    v35 = eq v34, 0
+    v36 = eq v35, false
+    icall revert_if<empty>, v36
+    v37 = trunc i256 v33 to i96
+    ret v37
 }
 
 fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {

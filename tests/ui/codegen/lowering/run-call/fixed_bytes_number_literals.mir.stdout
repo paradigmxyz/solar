@@ -121,16 +121,18 @@ fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_ret
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 6
-    mstore v0+32, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
-    v1 = mload v0+32
-    v2 = mload v0
-    v3 = lt v2, 4
-    v4 = sub 4, v2
-    v5 = mul 8, v4
-    v6 = shl v5, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v7 = select v3, v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v8 = and v1, v7
-    ret v8
+    v1 = ptradd v0, 32
+    mstore v1, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
+    v2 = ptradd v0, 32
+    v3 = mload v2
+    v4 = mload v0
+    v5 = lt v4, 4
+    v6 = sub 4, v4
+    v7 = mul 8, v6
+    v8 = shl v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v9 = select v5, v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v10 = and v3, v9
+    ret v10
 }
 
 fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -138,26 +140,28 @@ fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[],
     v0 = icall @returnBytes
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
-    v3 = mload v2+32
-    v4 = mload v2
-    v5 = lt v4, 32
-    v6 = sub 32, v4
-    v7 = mul 8, v6
-    v8 = shl v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v9 = select v5, v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v10 = and v3, v9
-    v11 = shr 248, v10
-    ret v11
+    v3 = ptradd v2, 32
+    v4 = mload v3
+    v5 = mload v2
+    v6 = lt v5, 32
+    v7 = sub 32, v5
+    v8 = mul 8, v7
+    v9 = shl v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v10 = select v6, v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = and v4, v10
+    v12 = shr 248, v11
+    ret v12
 }
 
 fn @returnBytes() -> struct0 [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 1
-    mstore v0+32, 0xe00000000000000000000000000000000000000000000000000000000000000
-    v1 = insert_value struct0, undef struct0, 0, true
-    v2 = insert_value struct0, v1, 1, v0
-    ret v2
+    v1 = ptradd v0, 32
+    mstore v1, 0xe00000000000000000000000000000000000000000000000000000000000000
+    v2 = insert_value struct0, undef struct0, 0, true
+    v3 = insert_value struct0, v2, 1, v0
+    ret v3
 }
 
 fn @takeSlice(arg0: slice<calldata>) -> i256 [selector=0x4f4c8d8b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -190,22 +194,23 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
     v1 = gas
     v2 = alloc 64 !metadata(preserves_fmp)
     mstore v2, 9
-    mstore v2+32, 0x1122334455667788990000000000000000000000000000000000000000000000
-    v3 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
-    v6 = zext i160 v0 to i256
-    v7 = staticcall v1, v6, v4, v5, 0, 32
-    jumpi v7, bb2, bb1
+    v3 = ptradd v2, 32
+    mstore v3, 0x1122334455667788990000000000000000000000000000000000000000000000
+    v4 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
+    v7 = zext i160 v0 to i256
+    v8 = staticcall v1, v7, v5, v6, 0, 32
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    ret v11
+    v9 = returndatasize
+    v10 = lt v9, 32
+    icall revert_if<tuple_data_too_short>, v10
+    v11 = add 0, 0
+    v12 = mload v11
+    ret v12
 }
 
 fn @stringAddressCast() -> i160 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {

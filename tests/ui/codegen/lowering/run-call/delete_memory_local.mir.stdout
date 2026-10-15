@@ -8,18 +8,19 @@ fn @length(arg0: i1) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], abi_
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    mstore v0+32, 7
+    v4 = ptradd v0, 32
+    mstore v4, 7
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v4 = alloc 32
-    mstore v4, 0
+    v5 = alloc 32
+    mstore v5, 0
     jump bb3
   bb3:
-    v5 = phi [bb1: v4], [bb2: v0]
-    v6 = mload v5
-    ret v6
+    v6 = phi [bb1: v5], [bb2: v0]
+    v7 = mload v6
+    ret v7
 }
 
 fn @lengthAfterDirtyScratch() -> i256 [selector=0x0b1ce329, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

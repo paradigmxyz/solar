@@ -38,6 +38,7 @@ fn @at(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xc78126ad, pure, abi_pa
     icall panic_if<0x32>, v2
     v3 = shl 5, arg1
     v4 = ptradd arg0, v3
-    v5 = mload v4+32
-    ret v5
+    v5 = ptradd v4, 32
+    v6 = mload v5
+    ret v6
 }

@@ -31,9 +31,10 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<3
     v0 = lt 2, 3
     v1 = eq v0, false
     icall panic_if<0x32>, v1
-    v2 = mload arg0+64
-    v3 = checked_add u256, v2, arg1
-    v4 = checked_sub u256, v3, 3
-    sstore 0, v4 !metadata(storage=slot(0))
+    v2 = ptradd arg0, 64
+    v3 = mload v2
+    v4 = checked_add u256, v3, arg1
+    v5 = checked_sub u256, v4, 3
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }

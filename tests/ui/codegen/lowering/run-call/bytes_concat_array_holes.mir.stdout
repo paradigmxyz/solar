@@ -10,37 +10,43 @@ fn @chunksAndHash() -> struct0 [pure] {
     mstore v0, 20
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v5]
+    v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 20
     jumpi v2, bb2, bb3
   bb3:
-    v6 = alloc 96 !metadata(preserves_fmp)
-    mstore v6, 40
-    mstore v6+32, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
-    mstore v6+64, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
-    v7 = mload v0
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = ptrtoint ptr<memory> v6 to i256
-    mstore v0+32, v10
-    v11 = alloc 64 !metadata(preserves_fmp)
-    mstore v11, 4
-    mstore v11+32, 0x7461696c00000000000000000000000000000000000000000000000000000000
-    v12 = mload v0
-    v13 = lt 15, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = ptrtoint ptr<memory> v11 to i256
-    mstore v0+512, v15
-    v16 = insert_value struct0, undef struct0, 0, v0
-    v17 = insert_value struct0, v16, 1, 7
-    ret v17
+    v7 = alloc 96 !metadata(preserves_fmp)
+    mstore v7, 40
+    v8 = ptradd v7, 32
+    mstore v8, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
+    v9 = ptradd v7, 64
+    mstore v9, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
+    v10 = mload v0
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptrtoint ptr<memory> v7 to i256
+    v14 = ptradd v0, 32
+    mstore v14, v13
+    v15 = alloc 64 !metadata(preserves_fmp)
+    mstore v15, 4
+    v16 = ptradd v15, 32
+    mstore v16, 0x7461696c00000000000000000000000000000000000000000000000000000000
+    v17 = mload v0
+    v18 = lt 15, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptrtoint ptr<memory> v15 to i256
+    v21 = ptradd v0, 512
+    mstore v21, v20
+    v22 = insert_value struct0, undef struct0, 0, v0
+    v23 = insert_value struct0, v22, 1, 7
+    ret v23
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
-    mstore v4+32, 96
-    v5 = add v1, 1
+    v5 = ptradd v4, 32
+    mstore v5, 96
+    v6 = add v1, 1
     jump bb1
 }
 
@@ -52,9 +58,9 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     jump bb1
   bb1:
     v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: ptr<memory> 96], [bb3: v23]
+    v4 = phi [bb0: ptr<memory> 96], [bb3: v25]
     v5 = phi [bb0: v1], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v24]
+    v6 = phi [bb0: 0], [bb3: v26]
     v7 = phi [bb0: 0], [bb3: v7]
     v8 = mload v5
     v9 = lt v6, v8
@@ -62,12 +68,12 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
   bb5:
     jump bb2
   bb2:
-    v25 = ptradd v4, 32
-    v26 = mload v4
-    v27 = keccak256 v25, v26
-    v28 = insert_value struct1, undef struct1, 0, v27
-    v29 = insert_value struct1, v28, 1, v3
-    ret v29
+    v27 = ptradd v4, 32
+    v28 = mload v4
+    v29 = keccak256 v27, v28
+    v30 = insert_value struct1, undef struct1, 0, v29
+    v31 = insert_value struct1, v30, 1, v3
+    ret v31
   bb4:
     v10 = mload v5
     v11 = lt v6, v10
@@ -75,25 +81,27 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     icall panic_if<0x32>, v12
     v13 = shl 5, v6
     v14 = ptradd v5, v13
-    v15 = mload v14+32
-    v16 = inttoptr i256 v15 to ptr<memory>
-    v17 = eq v15, 0
-    jumpi v17, bb7, bb8
+    v15 = ptradd v14, 32
+    v16 = mload v15
+    v17 = inttoptr i256 v16 to ptr<memory>
+    v18 = eq v16, 0
+    jumpi v18, bb7, bb8
   bb7:
-    v18 = alloc 32
-    mstore v18, 0
-    v19 = shl 5, v6
-    v20 = ptradd v5, v19
-    v21 = ptrtoint ptr<memory> v18 to i256
-    mstore v20+32, v21
+    v19 = alloc 32
+    mstore v19, 0
+    v20 = shl 5, v6
+    v21 = ptradd v5, v20
+    v22 = ptradd v21, 32
+    v23 = ptrtoint ptr<memory> v19 to i256
+    mstore v22, v23
     jump bb8
   bb8:
-    v22 = phi [bb4: v16], [bb7: v18]
-    v23 = abi_encode_packed (bytes v4, bytes v22)
+    v24 = phi [bb4: v17], [bb7: v19]
+    v25 = abi_encode_packed (bytes v4, bytes v24)
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v24 = checked_add u256, v6, 1
+    v26 = checked_add u256, v6, 1
     jump bb1
 }

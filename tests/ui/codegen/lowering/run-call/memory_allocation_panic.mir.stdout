@@ -49,13 +49,15 @@ fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_r
     v2 = lt 1, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    mstore v0+64, 42
-    v4 = mload v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = mload v0+64
-    ret v7
+    v4 = ptradd v0, 64
+    mstore v4, 42
+    v5 = mload v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    v9 = mload v8
+    ret v9
 }
 
 fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -64,60 +66,64 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     mstore v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v5]
+    v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v6 = mul arg0, 1
-    v7 = eq 1, 0
-    v8 = div v6, 1
-    v9 = eq v8, arg0
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = add v6, 1
-    v14 = lt v13, v6
-    icall panic_if<0x41>, v14
-    v15 = mul v13, 32
-    v16 = eq 32, 0
-    v17 = div v15, 32
-    v18 = eq v17, v13
-    v19 = or v16, v18
-    v20 = zext i1 v19 to i256
-    v21 = eq v20, 0
-    icall panic_if<0x41>, v21
-    v22 = alloc zeroed checked v15
-    mstore v22, arg0
-    v23 = mload v0
-    v24 = lt 0, v23
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = ptrtoint ptr<memory> v22 to i256
-    mstore v0+32, v26
-    v27 = mload v0
-    v28 = lt 0, v27
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = mload v0+32
-    v31 = inttoptr i256 v30 to ptr<memory>
-    v32 = eq v30, 0
-    jumpi v32, bb4, bb5
+    v7 = mul arg0, 1
+    v8 = eq 1, 0
+    v9 = div v7, 1
+    v10 = eq v9, arg0
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = add v7, 1
+    v15 = lt v14, v7
+    icall panic_if<0x41>, v15
+    v16 = mul v14, 32
+    v17 = eq 32, 0
+    v18 = div v16, 32
+    v19 = eq v18, v14
+    v20 = or v17, v19
+    v21 = zext i1 v20 to i256
+    v22 = eq v21, 0
+    icall panic_if<0x41>, v22
+    v23 = alloc zeroed checked v16
+    mstore v23, arg0
+    v24 = mload v0
+    v25 = lt 0, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = ptrtoint ptr<memory> v23 to i256
+    v28 = ptradd v0, 32
+    mstore v28, v27
+    v29 = mload v0
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = ptradd v0, 32
+    v33 = mload v32
+    v34 = inttoptr i256 v33 to ptr<memory>
+    v35 = eq v33, 0
+    jumpi v35, bb4, bb5
   bb4:
-    v33 = alloc 32
-    mstore v33, 0
-    v34 = ptrtoint ptr<memory> v33 to i256
-    mstore v0+32, v34
+    v36 = alloc 32
+    mstore v36, 0
+    v37 = ptradd v0, 32
+    v38 = ptrtoint ptr<memory> v36 to i256
+    mstore v37, v38
     jump bb5
   bb5:
-    v35 = phi [bb3: v31], [bb4: v33]
-    v36 = mload v35
-    ret v36
+    v39 = phi [bb3: v34], [bb4: v36]
+    v40 = mload v39
+    ret v40
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
-    mstore v4+32, 96
-    v5 = add v1, 1
+    v5 = ptradd v4, 32
+    mstore v5, 96
+    v6 = add v1, 1
     jump bb1
 }
 
@@ -146,20 +152,22 @@ fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[
     mstore v16, arg0
     jump bb1
   bb1:
-    v17 = phi [bb0: 0], [bb2: v23]
+    v17 = phi [bb0: 0], [bb2: v25]
     v18 = lt v17, arg0
     jumpi v18, bb2, bb3
   bb3:
-    v24 = mload v16
-    ret v24
+    v26 = mload v16
+    ret v26
   bb2:
     v19 = alloc 64 !metadata(preserves_fmp)
     mstore v19, 0
-    mstore v19+32, 96
-    v20 = shl 5, v17
-    v21 = ptradd v16, v20
-    v22 = ptrtoint ptr<memory> v19 to i256
-    mstore v21+32, v22
-    v23 = add v17, 1
+    v20 = ptradd v19, 32
+    mstore v20, 96
+    v21 = shl 5, v17
+    v22 = ptradd v16, v21
+    v23 = ptradd v22, 32
+    v24 = ptrtoint ptr<memory> v19 to i256
+    mstore v23, v24
+    v25 = add v17, 1
     jump bb1
 }

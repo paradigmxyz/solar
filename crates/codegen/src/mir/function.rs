@@ -196,7 +196,7 @@ impl Function {
     pub(crate) fn memory_object_load(&self, value: ValueId) -> bool {
         matches!(self.value(value), Value::Inst(inst) if matches!(
             self.inst(*inst).kind,
-            InstKind::Load(address, _, PtrLocation::Memory)
+            InstKind::Load(address, PtrLocation::Memory)
                 if self.object_address(address).is_some_and(|(object, _)| {
                     self.value_ty(object) == Some(MirType::MEMPTR)
                 })
@@ -224,7 +224,7 @@ impl Function {
     /// `mstore object, len`, also through a pointer cast.
     #[must_use]
     pub(crate) fn memory_length_store(&self, inst: InstId) -> Option<(ValueId, ValueId)> {
-        let InstKind::Store(address, 0, len) = self.inst(inst).kind else { return None };
+        let InstKind::Store(address, len) = self.inst(inst).kind else { return None };
         match self.object_address(address) {
             Some((object, 0)) if self.value_ty(object) == Some(MirType::MEMPTR) => {
                 Some((object, len))
@@ -269,48 +269,31 @@ impl Function {
         self.value_u64(size)
     }
 
-    /// Resolves the address `address + offset` of a memory access to the object it points into and
-    /// its byte offset from the object start, as [`Self::object_address`] does.
-    #[must_use]
-    pub(crate) fn object_access(&self, address: ValueId, offset: u64) -> Option<(ValueId, u64)> {
-        let (object, base) = self.object_address(address)?;
-        Some((object, base.checked_add(offset)?))
-    }
-
-    /// Resolves the address of a runtime-indexed word, `ptradd base, shl 5, index`, to the object
-    /// it points into, the byte offset of word zero from the object start, and the index.
+    /// Resolves the address of a runtime-indexed word, `ptradd base, shl 5, index` with constant
+    /// offsets around it, to the object it points into, the byte offset of word zero from the
+    /// object start, and the index.
     #[must_use]
     pub(crate) fn element_address(&self, address: ValueId) -> Option<(ValueId, u64, ValueId)> {
+        let (address, outer) = self.object_address(address)?;
         let Value::Inst(inst) = self.value(address) else { return None };
         let InstKind::PtrAdd(base, offset) = self.inst(*inst).kind else { return None };
         let index = self.word_index(offset)?;
         let (object, offset) = self.object_address(base)?;
-        Some((object, offset, index))
+        Some((object, offset.checked_add(outer)?, index))
     }
 
-    /// Resolves the address of a word access at `address + offset` to the object it reaches, the
-    /// word-aligned byte offset of the word (of word zero for a runtime index), and the index, if
-    /// any.
+    /// Resolves the address of a word access to the object it reaches, the word-aligned byte offset
+    /// of the word (of word zero for a runtime index), and the index, if any.
     #[must_use]
-    pub(crate) fn word_access(
-        &self,
-        address: ValueId,
-        offset: u64,
-    ) -> Option<(ValueId, u64, Option<ValueId>)> {
+    pub(crate) fn word_access(&self, address: ValueId) -> Option<(ValueId, u64, Option<ValueId>)> {
         let (object, offset, index) = match self.element_address(address) {
-            Some((object, base, index)) => (object, base.checked_add(offset)?, Some(index)),
+            Some((object, offset, index)) => (object, offset, Some(index)),
             None => {
-                let (object, offset) = self.object_access(address, offset)?;
+                let (object, offset) = self.object_address(address)?;
                 (object, offset, None)
             }
         };
         super::memory::EvmMemoryLayout::word_slot(offset).map(|_| (object, offset, index))
-    }
-
-    /// Returns the address `address + offset` of a memory access when it is a constant.
-    #[must_use]
-    pub(crate) fn constant_address(&self, address: ValueId, offset: u64) -> Option<u64> {
-        self.value_u64(address)?.checked_add(offset)
     }
 
     /// Returns whether an instruction only derives an address from another one, as

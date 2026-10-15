@@ -228,15 +228,16 @@ fn @memoryCopy() -> i256 [selector=0x2dbaeee9, abi_params=[], abi_returns=[word]
     v7 = lt 0, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    mstore v5+32, 9
-    v9 = sload 1 !metadata(storage=slot(1))
-    v10 = lt 0, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = storage_array_data_slot 1
-    v13 = add v12, 0
-    v14 = sload v13 !metadata(storage=symbolic(v12))
-    ret v14
+    v9 = ptradd v5, 32
+    mstore v9, 9
+    v10 = sload 1 !metadata(storage=slot(1))
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = storage_array_data_slot 1
+    v14 = add v13, 0
+    v15 = sload v14 !metadata(storage=symbolic(v13))
+    ret v15
 }
 
 fn @returnArray() -> ptr<memory> [selector=0x3cac14c8, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {

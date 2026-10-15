@@ -607,8 +607,8 @@ fn return_values_are_fresh(
     let Value::Inst(inst) = func.value(*value) else { return false };
     match func.inst(*inst).kind {
         InstKind::Alloc { .. } => true,
-        InstKind::Load(address, offset, PtrLocation::Memory)
-            if func.constant_address(address, offset) == Some(EvmMemoryLayout::FMP_SLOT)
+        InstKind::Load(address, PtrLocation::Memory)
+            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
                 && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite) =>
         {
             true
@@ -1640,7 +1640,7 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
 fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
     match kind {
         InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => false,
-        InstKind::Store(address, offset, _) => !literal_word_in_bounds(func, *address, *offset),
+        InstKind::Store(address, _) => !literal_word_in_bounds(func, *address),
         InstKind::MSize => true,
         _ => matches!(
             kind.effect_kind(),
@@ -1656,11 +1656,9 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
 
 /// A store to a different object is disjoint only inside its fresh allocation. An
 /// unknown or wrapping offset can overwrite a preceding object.
-fn literal_word_in_bounds(func: &Function, address: ValueId, offset: u64) -> bool {
-    let Some((object, offset)) = func.object_access(address, offset) else { return false };
-    offset
-        .checked_add(32)
-        .is_some_and(|end| func.alloc_size(object).is_some_and(|size| end <= size))
+fn literal_word_in_bounds(func: &Function, address: ValueId) -> bool {
+    let Some((object, base)) = func.object_address(address) else { return false };
+    base.checked_add(32).is_some_and(|end| func.alloc_size(object).is_some_and(|size| end <= size))
 }
 
 /// Instructions other than its allocation that use a literal object or an address into it.
@@ -1701,8 +1699,8 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
         }
         // Payload offset and stored word.
         let (offset, word) = match func.inst(inst).kind {
-            InstKind::Store(address, store_offset, word) => {
-                let (base, offset) = func.object_access(address, store_offset)?;
+            InstKind::Store(address, word) => {
+                let (base, offset) = func.object_address(address)?;
                 (base == object).then_some(())?;
                 if offset == 0 {
                     if length.replace(func.value_u64(word)?).is_some() {

@@ -1127,8 +1127,8 @@ fn is_small_literal_return(func: &Function) -> bool {
         if func.is_object_derivation(inst) {
             continue;
         }
-        let InstKind::Store(address, offset, value) = func.inst(inst).kind else { return false };
-        match func.object_access(address, offset) {
+        let InstKind::Store(address, value) = func.inst(inst).kind else { return false };
+        match func.object_address(address) {
             Some((base, 0)) if base == object && length.is_none() => {
                 length = func.value_u64(value);
             }
@@ -1435,7 +1435,7 @@ fn is_memory_wrapper(func: &Function) -> bool {
                 func.inst(inst).kind,
                 InstKind::Add(..)
                     | InstKind::Sub(..)
-                    | InstKind::Load(.., PtrLocation::Memory)
+                    | InstKind::Load(_, PtrLocation::Memory)
                     | InstKind::Store(..)
                     | InstKind::Store8(..)
             )
@@ -1613,10 +1613,6 @@ fn estimate_inst_cost(
     if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
         let op = kind.op();
         if select::opcode_lowering(&op).is_some() {
-            // An access at an immediate offset first adds it to the address.
-            if kind.access_offset().is_some_and(|offset| offset != 0) {
-                return (target.op(&op, |_| None).plus(seq(&[op::ADD])), 2);
-            }
             return (target.op(&op, |_| None), 1);
         }
     }
@@ -2594,9 +2590,8 @@ fn forward_inline_return_loads(
                     offsets.insert(value, offset);
                 }
             }
-            InstKind::Load(address, load_offset, PtrLocation::Memory) => {
-                if let Some(offset) =
-                    offsets.get(&address).and_then(|&offset| offset.checked_add(load_offset))
+            InstKind::Load(address, PtrLocation::Memory) => {
+                if let Some(&offset) = offsets.get(&address)
                     && offset >= 32
                     && offset % 32 == 0
                     && let Some(&value) =

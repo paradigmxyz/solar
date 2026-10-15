@@ -32,15 +32,15 @@ fn @encode3d(arg0: slice<calldata>) -> i256 [selector=0x92a57dfa, pure, abi_para
     mstore v22, v0
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb6: v106]
+    v23 = phi [bb0: 0], [bb6: v109]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
-    v107 = abi_encode [memory_array<memory_array<memory_array<word<u8>>>>], scratch, args v22
-    v108 = extract_value slice<memory>, v107, 0
-    v109 = extract_value slice<memory>, v107, 1
-    v110 = keccak256 v108, v109
-    ret v110
+    v110 = abi_encode [memory_array<memory_array<memory_array<word<u8>>>>], scratch, args v22
+    v111 = extract_value slice<memory>, v110, 0
+    v112 = extract_value slice<memory>, v110, 1
+    v113 = keccak256 v111, v112
+    ret v113
   bb2:
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
@@ -83,15 +83,16 @@ fn @encode3d(arg0: slice<calldata>) -> i256 [selector=0x92a57dfa, pure, abi_para
     mstore v56, v40
     jump bb4
   bb4:
-    v57 = phi [bb2: 0], [bb9: v102]
+    v57 = phi [bb2: 0], [bb9: v104]
     v58 = lt v57, v40
     jumpi v58, bb5, bb6
   bb6:
-    v103 = ptrtoint ptr<memory> v56 to i256
-    v104 = shl 5, v23
-    v105 = ptradd v22, v104
-    mstore v105+32, v103
-    v106 = add v23, 1
+    v105 = ptrtoint ptr<memory> v56 to i256
+    v106 = shl 5, v23
+    v107 = ptradd v22, v106
+    v108 = ptradd v107, 32
+    mstore v108, v105
+    v109 = add v23, 1
     jump bb1
   bb5:
     v59 = mul v57, 32
@@ -132,15 +133,16 @@ fn @encode3d(arg0: slice<calldata>) -> i256 [selector=0x92a57dfa, pure, abi_para
     mstore v87, v71
     jump bb7
   bb7:
-    v88 = phi [bb5: 0], [bb8: v98]
+    v88 = phi [bb5: 0], [bb8: v99]
     v89 = lt v88, v71
     jumpi v89, bb8, bb9
   bb9:
-    v99 = ptrtoint ptr<memory> v87 to i256
-    v100 = shl 5, v57
-    v101 = ptradd v56, v100
-    mstore v101+32, v99
-    v102 = add v57, 1
+    v100 = ptrtoint ptr<memory> v87 to i256
+    v101 = shl 5, v57
+    v102 = ptradd v56, v101
+    v103 = ptradd v102, 32
+    mstore v103, v100
+    v104 = add v57, 1
     jump bb4
   bb8:
     v90 = mul v88, 32
@@ -152,8 +154,9 @@ fn @encode3d(arg0: slice<calldata>) -> i256 [selector=0x92a57dfa, pure, abi_para
     icall revert_if<empty>, v95
     v96 = shl 5, v88
     v97 = ptradd v87, v96
-    mstore v97+32, v92
-    v98 = add v88, 1
+    v98 = ptradd v97, 32
+    mstore v98, v92
+    v99 = add v88, 1
     jump bb7
 }
 
@@ -189,15 +192,15 @@ fn @encodeFixed(arg0: slice<calldata>) -> i256 [selector=0x8942c5a0, pure, abi_p
     mstore v22, v0
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb6: v93]
+    v23 = phi [bb0: 0], [bb6: v95]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
-    v94 = abi_encode [memory_array<array<2, memory_array<word<u16>>>>], scratch, args v22
-    v95 = extract_value slice<memory>, v94, 0
-    v96 = extract_value slice<memory>, v94, 1
-    v97 = keccak256 v95, v96
-    ret v97
+    v96 = abi_encode [memory_array<array<2, memory_array<word<u16>>>>], scratch, args v22
+    v97 = extract_value slice<memory>, v96, 0
+    v98 = extract_value slice<memory>, v96, 1
+    v99 = keccak256 v97, v98
+    ret v99
   bb2:
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
@@ -223,15 +226,16 @@ fn @encodeFixed(arg0: slice<calldata>) -> i256 [selector=0x8942c5a0, pure, abi_p
     v43 = alloc 64
     jump bb4
   bb4:
-    v44 = phi [bb2: 0], [bb9: v89]
+    v44 = phi [bb2: 0], [bb9: v90]
     v45 = lt v44, 2
     jumpi v45, bb5, bb6
   bb6:
-    v90 = ptrtoint ptr<memory> v43 to i256
-    v91 = shl 5, v23
-    v92 = ptradd v22, v91
-    mstore v92+32, v90
-    v93 = add v23, 1
+    v91 = ptrtoint ptr<memory> v43 to i256
+    v92 = shl 5, v23
+    v93 = ptradd v22, v92
+    v94 = ptradd v93, 32
+    mstore v94, v91
+    v95 = add v23, 1
     jump bb1
   bb5:
     v46 = mul v44, 32
@@ -272,15 +276,15 @@ fn @encodeFixed(arg0: slice<calldata>) -> i256 [selector=0x8942c5a0, pure, abi_p
     mstore v74, v58
     jump bb7
   bb7:
-    v75 = phi [bb5: 0], [bb8: v85]
+    v75 = phi [bb5: 0], [bb8: v86]
     v76 = lt v75, v58
     jumpi v76, bb8, bb9
   bb9:
-    v86 = ptrtoint ptr<memory> v74 to i256
-    v87 = shl 5, v44
-    v88 = ptradd v43, v87
-    mstore v88, v86
-    v89 = add v44, 1
+    v87 = ptrtoint ptr<memory> v74 to i256
+    v88 = shl 5, v44
+    v89 = ptradd v43, v88
+    mstore v89, v87
+    v90 = add v44, 1
     jump bb4
   bb8:
     v77 = mul v75, 32
@@ -292,7 +296,8 @@ fn @encodeFixed(arg0: slice<calldata>) -> i256 [selector=0x8942c5a0, pure, abi_p
     icall revert_if<empty>, v82
     v83 = shl 5, v75
     v84 = ptradd v74, v83
-    mstore v84+32, v79
-    v85 = add v75, 1
+    v85 = ptradd v84, 32
+    mstore v85, v79
+    v86 = add v75, 1
     jump bb7
 }

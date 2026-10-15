@@ -391,26 +391,12 @@ fn display_inst_kind<'a>(
         func: &Function,
     ) -> fmt::Result {
         write!(f, "{}", kind.mnemonic())?;
-        // An access's immediate offset follows its address, the first operand: `mload v0+32`.
-        let offset = kind.access_offset().filter(|&offset| offset != 0);
         let operands = kind.operands();
         if !operands.is_empty() {
             write!(
                 f,
                 " {}",
-                operands
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, operand)| {
-                        fmt::from_fn(move |f| {
-                            write!(f, "{}", display_val(operand, func))?;
-                            match offset {
-                                Some(offset) if index == 0 => write!(f, "+{offset}"),
-                                _ => Ok(()),
-                            }
-                        })
-                    })
-                    .format(", ")
+                operands.into_iter().map(|operand| display_val(operand, func)).format(", ")
             )?;
         }
         Ok(())

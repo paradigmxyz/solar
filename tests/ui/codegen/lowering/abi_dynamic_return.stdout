@@ -4,7 +4,8 @@ fn @bytesLiteral() -> ptr<memory> [selector=0x96115be7, pure, abi_params=[], abi
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 3
-    mstore v0+32, 0x102030000000000000000000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -12,6 +13,7 @@ fn @stringLiteral() -> ptr<memory> [selector=0xb5d549e9, pure, abi_params=[], ab
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 5
-    mstore v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     ret v0
 }

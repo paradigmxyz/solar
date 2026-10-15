@@ -186,20 +186,21 @@ fn @_tryParseSlices(arg0: slice<calldata>) -> struct5 [pure] {
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = mload v3+32
-    v9 = byte 0, v8
-    v10 = shl 248, v9
-    v11 = shr 248, v10
-    v12 = trunc i256 v11 to i8
-    v13 = zext i8 v12 to i256
-    v14 = ptrtoint ptr<memory> v4 to i256
-    v15 = add v14, 32
-    v16 = mload v15
-    v17 = shr 96, v16
-    v18 = insert_value struct5, undef struct5, 0, v1
-    v19 = insert_value struct5, v18, 1, v13
-    v20 = insert_value struct5, v19, 2, v17
-    ret v20
+    v8 = ptradd v3, 32
+    v9 = mload v8
+    v10 = byte 0, v9
+    v11 = shl 248, v10
+    v12 = shr 248, v11
+    v13 = trunc i256 v12 to i8
+    v14 = zext i8 v13 to i256
+    v15 = ptrtoint ptr<memory> v4 to i256
+    v16 = add v15, 32
+    v17 = mload v16
+    v18 = shr 96, v17
+    v19 = insert_value struct5, undef struct5, 0, v1
+    v20 = insert_value struct5, v19, 1, v14
+    v21 = insert_value struct5, v20, 2, v18
+    ret v21
 }
 
 fn @_splitSlices(arg0: slice<calldata>) -> struct6 [pure] {

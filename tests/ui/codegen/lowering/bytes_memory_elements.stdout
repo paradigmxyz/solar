@@ -11,34 +11,38 @@ fn @alloc() -> i256 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[word
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
-    mstore8 v2+37, v6
-    v7 = mload v2
-    v8 = lt 95, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = byte 0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore8 v2+127, v10
-    v11 = ptradd v2, 32
-    v12 = mload v2
-    v13 = keccak256 v11, v12
-    ret v13
+    v7 = ptradd v2, 37
+    mstore8 v7, v6
+    v8 = mload v2
+    v9 = lt 95, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = byte 0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v12 = ptradd v2, 127
+    mstore8 v12, v11
+    v13 = ptradd v2, 32
+    v14 = mload v2
+    v15 = keccak256 v13, v14
+    ret v15
 }
 
 fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 10
-    mstore v0+32, 0x1020304050607080900000000000000000000000000000000000000000000
-    v1 = mload v0
-    v2 = lt 5, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
-    mstore8 v0+37, v4
-    v5 = ptradd v0, 32
-    v6 = mload v0
-    v7 = keccak256 v5, v6
-    ret v7
+    v1 = ptradd v0, 32
+    mstore v1, 0x1020304050607080900000000000000000000000000000000000000000000
+    v2 = mload v0
+    v3 = lt 5, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
+    v6 = ptradd v0, 37
+    mstore8 v6, v5
+    v7 = ptradd v0, 32
+    v8 = mload v0
+    v9 = keccak256 v7, v8
+    ret v9
 }
 
 fn @allocDynamic(arg0: i256) -> i256 [selector=0x2ab2abe8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -62,14 +66,16 @@ fn @readWrite(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [selector=0x4b2
     icall panic_if<0x32>, v2
     v3 = byte 0, arg2
     v4 = ptradd arg0, arg1
-    mstore8 v4+32, v3
-    v5 = mload arg0
-    v6 = lt arg1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = ptradd arg0, arg1
-    v9 = mload v8+32
-    v10 = byte 0, v9
-    v11 = shl 248, v10
-    ret v11
+    v5 = ptradd v4, 32
+    mstore8 v5, v3
+    v6 = mload arg0
+    v7 = lt arg1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd arg0, arg1
+    v10 = ptradd v9, 32
+    v11 = mload v10
+    v12 = byte 0, v11
+    v13 = shl 248, v12
+    ret v13
 }

@@ -21,22 +21,18 @@ load from `ptr`, an access takes a pointer into the location it reads or a raw
 `i256` address, and so does every memory range operand of `keccak256`, `log`,
 the calls, `create`, and raw `return` and `revert`. `lower-evm-shaped` erases
 pointer types: every pointer becomes the word it holds, and the casts between
-the two disappear. An access also
-takes an immediate byte offset, written `mload v0+32` or `mstore v0+32, v1`, which
-adds to the address as `ptradd` does for a pointer and as `add` does for a word.
-It keeps a constant field or element access to one instruction;
-`lower-memory-objects` turns a nonzero offset into an `add`, so every offset is
-zero in the lowered phase.
+the two disappear. A field or element access is a `ptradd` and an access at the
+result; analyses decompose an address through its `ptradd` chain.
 
 `ptradd p, n` addresses `n` bytes into the object `p` points into and keeps
 its type. Like an LLVM `getelementptr inbounds nuw`, it does not wrap: semantic
 lowering emits it only for addresses inside the object, so alias analysis
 places an access at a runtime offset at or after `p`, and assembly's raw
 arithmetic uses `add` on words instead. A fixed array or struct has no length
-word, so field or element `i` is the word at `v0+32 * i`, and at
+word, so field or element `i` is the word at `ptradd v0, 32 * i`, and at
 `ptradd v0, shl 5, i` for a runtime index. A dynamic memory object (`bytes`,
 `string`, `T[] memory`) is a `ptr<memory>` to its length word, which assembly can
-read and rewrite: `mload v0` reads the length, the payload starts at `v0+32`, and
+read and rewrite: `mload v0` reads the length, the payload starts at `ptradd v0, 32`, and
 element `i` of a word array is the word 32 bytes past `ptradd v0, shl 5, i`.
 Where a slice value is needed, `make_memory_slice` pairs the payload pointer
 with the length; `extract_value` projects its pointer (field 0) and length

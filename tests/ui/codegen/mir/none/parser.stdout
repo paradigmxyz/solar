@@ -225,13 +225,3 @@
       ret v3
   }
   
-  fn @access_offsets(arg0: ptr<memory>, arg1: i256) {
-    bb0:
-      v0 = mload arg0+32
-      v1 = mload arg0+64, ptr<memory>
-      v2 = calldataload arg1+4
-      mstore v1+32, v0
-      mstore8 arg0+1, v2
-      stop
-  }
-  

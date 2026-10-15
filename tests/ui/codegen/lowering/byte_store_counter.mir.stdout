@@ -31,7 +31,7 @@ fn @encodeImpl(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb1:
     v7 = phi [bb0: arg0], [bb3: v7]
     v8 = phi [bb0: v6], [bb3: v8]
-    v9 = phi [bb0: 0], [bb3: v45]
+    v9 = phi [bb0: 0], [bb3: v48]
     v10 = mload v7
     v11 = lt v9, v10
     jumpi v11, bb4, bb5
@@ -45,46 +45,49 @@ fn @encodeImpl(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = ptradd v7, v9
-    v16 = mload v15+32
-    v17 = byte 0, v16
-    v18 = shl 248, v17
-    v19 = shr 248, v18
-    v20 = trunc i256 v19 to i8
-    v21 = zext i8 v20 to i256
-    v22 = shr 4, v21
-    v23 = lt v22, 16
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = byte v22, 0x3031323334353637383961626364656600000000000000000000000000000000
-    v26 = shl 248, v25
-    v27 = checked_mul u256, 2, v9
-    v28 = mload v8
-    v29 = lt v27, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = byte 0, v26
-    v32 = ptradd v8, v27
-    mstore8 v32+32, v31
-    v33 = and v21, 15
-    v34 = lt v33, 16
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = byte v33, 0x3031323334353637383961626364656600000000000000000000000000000000
-    v37 = shl 248, v36
-    v38 = checked_mul u256, 2, v9
-    v39 = checked_add u256, v38, 1
-    v40 = mload v8
-    v41 = lt v39, v40
-    v42 = eq v41, false
-    icall panic_if<0x32>, v42
-    v43 = byte 0, v37
-    v44 = ptradd v8, v39
-    mstore8 v44+32, v43
+    v16 = ptradd v15, 32
+    v17 = mload v16
+    v18 = byte 0, v17
+    v19 = shl 248, v18
+    v20 = shr 248, v19
+    v21 = trunc i256 v20 to i8
+    v22 = zext i8 v21 to i256
+    v23 = shr 4, v22
+    v24 = lt v23, 16
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = byte v23, 0x3031323334353637383961626364656600000000000000000000000000000000
+    v27 = shl 248, v26
+    v28 = checked_mul u256, 2, v9
+    v29 = mload v8
+    v30 = lt v28, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = byte 0, v27
+    v33 = ptradd v8, v28
+    v34 = ptradd v33, 32
+    mstore8 v34, v32
+    v35 = and v22, 15
+    v36 = lt v35, 16
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = byte v35, 0x3031323334353637383961626364656600000000000000000000000000000000
+    v39 = shl 248, v38
+    v40 = checked_mul u256, 2, v9
+    v41 = checked_add u256, v40, 1
+    v42 = mload v8
+    v43 = lt v41, v42
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = byte 0, v39
+    v46 = ptradd v8, v41
+    v47 = ptradd v46, 32
+    mstore8 v47, v45
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v45 = checked_add u256, v9, 1
+    v48 = checked_add u256, v9, 1
     jump bb1
 }
 
@@ -108,7 +111,7 @@ fn @scanImpl(arg0: ptr<memory>) -> i1 [pure] {
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v13]
+    v1 = phi [bb0: 0], [bb3: v14]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = mload v0
     v4 = lt v1, v3
@@ -123,11 +126,12 @@ fn @scanImpl(arg0: ptr<memory>) -> i1 [pure] {
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, v1
-    v9 = mload v8+32
-    v10 = byte 0, v9
-    v11 = shl 248, v10
-    v12 = gt v11, 0x7f00000000000000000000000000000000000000000000000000000000000000
-    jumpi v12, bb7, bb8
+    v9 = ptradd v8, 32
+    v10 = mload v9
+    v11 = byte 0, v10
+    v12 = shl 248, v11
+    v13 = gt v12, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v13, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -135,7 +139,7 @@ fn @scanImpl(arg0: ptr<memory>) -> i1 [pure] {
   bb6:
     jump bb3
   bb3:
-    v13 = checked_add u256, v1, 1
+    v14 = checked_add u256, v1, 1
     jump bb1
   bb7:
     ret false
@@ -146,7 +150,7 @@ fn @firstHigh(arg0: ptr<memory>) -> i256 [selector=0xec31a730, pure, abi_params=
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v13]
+    v1 = phi [bb0: 0], [bb3: v14]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = mload v0
     v4 = lt v1, v3
@@ -154,19 +158,20 @@ fn @firstHigh(arg0: ptr<memory>) -> i256 [selector=0xec31a730, pure, abi_params=
   bb5:
     jump bb2
   bb2:
-    v14 = mload v0
-    ret v14
+    v15 = mload v0
+    ret v15
   bb4:
     v5 = mload v0
     v6 = lt v1, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, v1
-    v9 = mload v8+32
-    v10 = byte 0, v9
-    v11 = shl 248, v10
-    v12 = gt v11, 0x7f00000000000000000000000000000000000000000000000000000000000000
-    jumpi v12, bb7, bb8
+    v9 = ptradd v8, 32
+    v10 = mload v9
+    v11 = byte 0, v10
+    v12 = shl 248, v11
+    v13 = gt v12, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v13, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -174,7 +179,7 @@ fn @firstHigh(arg0: ptr<memory>) -> i256 [selector=0xec31a730, pure, abi_params=
   bb6:
     jump bb3
   bb3:
-    v13 = checked_add u256, v1, 1
+    v14 = checked_add u256, v1, 1
     jump bb1
   bb7:
     ret v1
@@ -192,7 +197,7 @@ fn @checkedScan(arg0: i256) -> i1 [selector=0xf2609747, pure, abi_params=[u256],
     jump bb1
   bb1:
     v5 = phi [bb0: 0], [bb3: v5]
-    v6 = phi [bb0: i8 0], [bb3: v21]
+    v6 = phi [bb0: i8 0], [bb3: v22]
     v7 = phi [bb0: arg0], [bb3: v7]
     v8 = phi [bb0: v4], [bb3: v8]
     v9 = mload v8
@@ -210,11 +215,12 @@ fn @checkedScan(arg0: i256) -> i1 [selector=0xf2609747, pure, abi_params=[u256],
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v8, v12
-    v17 = mload v16+32
-    v18 = byte 0, v17
-    v19 = shl 248, v18
-    v20 = gt v19, 0x7f00000000000000000000000000000000000000000000000000000000000000
-    jumpi v20, bb7, bb8
+    v17 = ptradd v16, 32
+    v18 = mload v17
+    v19 = byte 0, v18
+    v20 = shl 248, v19
+    v21 = gt v20, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v21, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -222,7 +228,7 @@ fn @checkedScan(arg0: i256) -> i1 [selector=0xf2609747, pure, abi_params=[u256],
   bb6:
     jump bb3
   bb3:
-    v21 = checked_add u8, v6, i8 1
+    v22 = checked_add u8, v6, i8 1
     jump bb1
   bb7:
     ret false

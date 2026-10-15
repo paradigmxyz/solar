@@ -6,30 +6,34 @@ fn @structArray(arg0: i256) -> ptr<memory> [selector=0x0f634b74, pure, abi_param
     mstore v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v7]
+    v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v8 = alloc 64
-    v9 = checked_add u256, arg0, 1
-    mstore v8, arg0
-    mstore v8+32, v9
-    v10 = mload v0
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = ptrtoint ptr<memory> v8 to i256
-    mstore v0+32, v13
+    v10 = alloc 64
+    v11 = checked_add u256, arg0, 1
+    mstore v10, arg0
+    v12 = ptradd v10, 32
+    mstore v12, v11
+    v13 = mload v0
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptrtoint ptr<memory> v10 to i256
+    v17 = ptradd v0, 32
+    mstore v17, v16
     ret v0
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0
-    mstore v3+32, 0
-    v4 = shl 5, v1
-    v5 = ptradd v0, v4
-    v6 = ptrtoint ptr<memory> v3 to i256
-    mstore v5+32, v6
-    v7 = add v1, 1
+    v4 = ptradd v3, 32
+    mstore v4, 0
+    v5 = shl 5, v1
+    v6 = ptradd v0, v5
+    v7 = ptradd v6, 32
+    v8 = ptrtoint ptr<memory> v3 to i256
+    mstore v7, v8
+    v9 = add v1, 1
     jump bb1
 }
 
@@ -39,42 +43,44 @@ fn @nestedArray(arg0: i256) -> ptr<memory> [selector=0x5abcbd75, pure, abi_param
     mstore v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v5]
+    v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v6 = mul arg0, 1
-    v7 = eq 1, 0
-    v8 = div v6, 1
-    v9 = eq v8, arg0
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = add v6, 1
-    v14 = lt v13, v6
-    icall panic_if<0x41>, v14
-    v15 = mul v13, 32
-    v16 = eq 32, 0
-    v17 = div v15, 32
-    v18 = eq v17, v13
-    v19 = or v16, v18
-    v20 = zext i1 v19 to i256
-    v21 = eq v20, 0
-    icall panic_if<0x41>, v21
-    v22 = alloc zeroed checked v15
-    mstore v22, arg0
-    v23 = mload v0
-    v24 = lt 0, v23
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = ptrtoint ptr<memory> v22 to i256
-    mstore v0+32, v26
+    v7 = mul arg0, 1
+    v8 = eq 1, 0
+    v9 = div v7, 1
+    v10 = eq v9, arg0
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = add v7, 1
+    v15 = lt v14, v7
+    icall panic_if<0x41>, v15
+    v16 = mul v14, 32
+    v17 = eq 32, 0
+    v18 = div v16, 32
+    v19 = eq v18, v14
+    v20 = or v17, v19
+    v21 = zext i1 v20 to i256
+    v22 = eq v21, 0
+    icall panic_if<0x41>, v22
+    v23 = alloc zeroed checked v16
+    mstore v23, arg0
+    v24 = mload v0
+    v25 = lt 0, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = ptrtoint ptr<memory> v23 to i256
+    v28 = ptradd v0, 32
+    mstore v28, v27
     ret v0
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
-    mstore v4+32, 96
-    v5 = add v1, 1
+    v5 = ptradd v4, 32
+    mstore v5, 96
+    v6 = add v1, 1
     jump bb1
 }

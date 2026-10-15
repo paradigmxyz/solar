@@ -153,14 +153,15 @@ fn @dynamicBytes(arg0: slice<calldata>) -> struct0 [selector=0x925ccb10, pure, a
     icall panic_if<0x32>, v31
     v32 = extract_value slice<calldata>, v25, 0
     v33 = extract_value slice<calldata>, v25, 0
-    v34 = calldataload v33+1
-    v35 = byte 0, v34
-    v36 = shl 248, v35
-    v37 = shr 248, v36
-    v38 = trunc i256 v37 to i8
-    v39 = zext i8 v38 to i256
-    v40 = insert_value struct0, undef struct0, 0, v27
-    v41 = insert_value struct0, v40, 1, v28
-    v42 = insert_value struct0, v41, 2, v39
-    ret v42
+    v34 = ptradd v33, 1
+    v35 = calldataload v34
+    v36 = byte 0, v35
+    v37 = shl 248, v36
+    v38 = shr 248, v37
+    v39 = trunc i256 v38 to i8
+    v40 = zext i8 v39 to i256
+    v41 = insert_value struct0, undef struct0, 0, v27
+    v42 = insert_value struct0, v41, 1, v28
+    v43 = insert_value struct0, v42, 2, v40
+    ret v43
 }

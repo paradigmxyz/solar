@@ -5,29 +5,34 @@ fn @dirty() -> ptr<memory> [pure] {
     v0 = alloc 192 !metadata(preserves_fmp)
     memory_zero v0, 192
     mstore v0, 1
-    mstore v0+32, 1
-    v1 = lt i8 1, i8 2
-    v2 = eq v1, false
-    icall panic_if<0x21>, v2
-    mstore v0+64, 1
-    mstore v0+96, 1
-    v3 = sext i8 255 to i256
-    mstore v0+128, v3
-    mstore v0+160, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v4 = ptrtoint ptr<memory> v0 to i256
-    mstore v0, 511
-    v5 = ptrtoint ptr<memory> v0 to i256
-    v6 = add v5, 32
-    mstore v6, 258
-    v7 = ptrtoint ptr<memory> v0 to i256
-    v8 = add v7, 96
-    mstore v8, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v1 = ptradd v0, 32
+    mstore v1, 1
+    v2 = lt i8 1, i8 2
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
+    v4 = ptradd v0, 64
+    mstore v4, 1
+    v5 = ptradd v0, 96
+    mstore v5, 1
+    v6 = sext i8 255 to i256
+    v7 = ptradd v0, 128
+    mstore v7, v6
+    v8 = ptradd v0, 160
+    mstore v8, 0x1234000000000000000000000000000000000000000000000000000000000000
     v9 = ptrtoint ptr<memory> v0 to i256
-    v10 = add v9, 128
-    mstore v10, 254
-    v11 = ptrtoint ptr<memory> v0 to i256
-    v12 = add v11, 160
-    mstore v12, 0x1234567800000000000000000000000000000000000000000000000000000000
+    mstore v0, 511
+    v10 = ptrtoint ptr<memory> v0 to i256
+    v11 = add v10, 32
+    mstore v11, 258
+    v12 = ptrtoint ptr<memory> v0 to i256
+    v13 = add v12, 96
+    mstore v13, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v14 = ptrtoint ptr<memory> v0 to i256
+    v15 = add v14, 128
+    mstore v15, 254
+    v16 = ptrtoint ptr<memory> v0 to i256
+    v17 = add v16, 160
+    mstore v17, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -49,23 +54,25 @@ fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    mstore v0+32, 3
-    v4 = mload v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    mstore v0+64, 4
-    v7 = ptrtoint ptr<memory> v0 to i256
-    v8 = add v7, 32
-    mstore v8, 0xff03
+    v4 = ptradd v0, 32
+    mstore v4, 3
+    v5 = mload v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    mstore v8, 4
     v9 = ptrtoint ptr<memory> v0 to i256
-    v10 = add v9, 64
-    mstore v10, 260
-    v11 = abi_encode [memory_array<word<u8>>], scratch, args v0
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = keccak256 v12, v13
-    ret v14
+    v10 = add v9, 32
+    mstore v10, 0xff03
+    v11 = ptrtoint ptr<memory> v0 to i256
+    v12 = add v11, 64
+    mstore v12, 260
+    v13 = abi_encode [memory_array<word<u8>>], scratch, args v0
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
+    v16 = keccak256 v14, v15
+    ret v16
 }
 
 fn @encodeBadEnum() -> ptr<memory> [selector=0xc72bddb9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

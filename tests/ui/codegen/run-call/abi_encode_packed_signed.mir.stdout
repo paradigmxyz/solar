@@ -90,11 +90,12 @@ fn @signedUserMemory() -> i256 [selector=0xe8190462, pure, abi_params=[], abi_re
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = sext i16 0xffff to i256
-    mstore v0+32, v4
-    v5 = ptrtoint ptr<memory> v0 to i256
-    v6 = add v5, 32
-    v7 = mload v6
-    ret v7
+    v5 = ptradd v0, 32
+    mstore v5, v4
+    v6 = ptrtoint ptr<memory> v0 to i256
+    v7 = add v6, 32
+    v8 = mload v7
+    ret v8
 }
 
 fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -134,7 +135,7 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
     jump bb1
   bb1:
     v32 = phi [bb0: v31], [bb3: v32]
-    v33 = phi [bb0: 0], [bb3: v45]
+    v33 = phi [bb0: 0], [bb3: v46]
     v34 = phi [bb0: 0], [bb3: v34]
     v35 = mload v32
     v36 = lt v33, v35
@@ -149,11 +150,12 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
     v39 = eq v38, false
     icall panic_if<0x32>, v39
     v40 = ptradd v32, v33
-    v41 = mload v40+32
-    v42 = byte 0, v41
-    v43 = shl 248, v42
-    v44 = ne v43, 0xff00000000000000000000000000000000000000000000000000000000000000
-    jumpi v44, bb7, bb8
+    v41 = ptradd v40, 32
+    v42 = mload v41
+    v43 = byte 0, v42
+    v44 = shl 248, v43
+    v45 = ne v44, 0xff00000000000000000000000000000000000000000000000000000000000000
+    jumpi v45, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -161,7 +163,7 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
   bb6:
     jump bb3
   bb3:
-    v45 = checked_add u256, v33, 1
+    v46 = checked_add u256, v33, 1
     jump bb1
   bb7:
     ret false
@@ -174,10 +176,11 @@ fn @firstByteInt8(arg0: i8, arg1: i8) -> i256 [selector=0xdf400c36, pure, abi_pa
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = mload v0+32
-    v5 = byte 0, v4
-    v6 = shl 248, v5
-    ret v6
+    v4 = ptradd v0, 32
+    v5 = mload v4
+    v6 = byte 0, v5
+    v7 = shl 248, v6
+    ret v7
 }
 
 fn @firstByteInt16(arg0: i8, arg1: i16) -> i256 [selector=0x3ed4619b, pure, abi_params=[u8, i16], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
@@ -187,10 +190,11 @@ fn @firstByteInt16(arg0: i8, arg1: i16) -> i256 [selector=0x3ed4619b, pure, abi_
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = mload v0+32
-    v5 = byte 0, v4
-    v6 = shl 248, v5
-    ret v6
+    v4 = ptradd v0, 32
+    v5 = mload v4
+    v6 = byte 0, v5
+    v7 = shl 248, v6
+    ret v7
 }
 
 fn @firstByteInt32(arg0: i8, arg1: i32) -> i256 [selector=0x538ea5fe, pure, abi_params=[u8, i32], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
@@ -200,10 +204,11 @@ fn @firstByteInt32(arg0: i8, arg1: i32) -> i256 [selector=0x538ea5fe, pure, abi_
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = mload v0+32
-    v5 = byte 0, v4
-    v6 = shl 248, v5
-    ret v6
+    v4 = ptradd v0, 32
+    v5 = mload v4
+    v6 = byte 0, v5
+    v7 = shl 248, v6
+    ret v7
 }
 
 fn @firstByteSigned16() -> i256 [selector=0x951569ca, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
@@ -213,10 +218,11 @@ fn @firstByteSigned16() -> i256 [selector=0x951569ca, pure, abi_params=[], abi_r
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = mload v0+32
-    v5 = byte 0, v4
-    v6 = shl 248, v5
-    ret v6
+    v4 = ptradd v0, 32
+    v5 = mload v4
+    v6 = byte 0, v5
+    v7 = shl 248, v6
+    ret v7
 }
 
 fn @packedHash(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0x4ef47d0a, pure, abi_params=[u8, i16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -260,10 +266,11 @@ fn @mutatedInput() -> ptr<memory> [selector=0x7d98764f, pure, abi_params=[], abi
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 3
-    mstore v0+32, 0x102030000000000000000000000000000000000000000000000000000000000
-    v1 = icall @shorten, v0
-    v2 = abi_encode_packed (bytes v0, u8 v1)
-    ret v2
+    v1 = ptradd v0, 32
+    mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000
+    v2 = icall @shorten, v0
+    v3 = abi_encode_packed (bytes v0, u8 v2)
+    ret v3
 }
 
 fn @shorten(arg0: ptr<memory>) -> i8 [pure] {

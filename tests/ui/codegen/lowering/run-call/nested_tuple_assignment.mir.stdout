@@ -50,29 +50,32 @@ fn @arrayChoice(arg0: i1) -> struct2 [selector=0xce7c4148, pure, abi_params=[boo
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    mstore v0+32, 7
-    v5 = mload v1
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    mstore v1+32, 9
+    v5 = ptradd v0, 32
+    mstore v5, 7
+    v6 = mload v1
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v1, 32
+    mstore v9, 9
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v8 = sext i8 255 to i16
+    v10 = sext i8 255 to i16
     jump bb3
   bb3:
-    v9 = phi [bb1: v0], [bb2: v1]
-    v10 = phi [bb1: v8], [bb2: i16 256]
-    v11 = mload v9
-    v12 = lt 0, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = mload v9+32
-    v15 = insert_value struct2, undef struct2, 0, v14
-    v16 = insert_value struct2, v15, 1, v10
-    ret v16
+    v11 = phi [bb1: v0], [bb2: v1]
+    v12 = phi [bb1: v10], [bb2: i16 256]
+    v13 = mload v11
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v11, 32
+    v17 = mload v16
+    v18 = insert_value struct2, undef struct2, 0, v17
+    v19 = insert_value struct2, v18, 1, v12
+    ret v19
 }
 
 fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[bool], abi_returns=[word, word<i16>], abi_return_params=[u256, i16]] {
@@ -81,41 +84,43 @@ fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[boo
     v1 = gas
     v2 = alloc 64 !metadata(preserves_fmp)
     mstore v2, 2
-    mstore v2+32, 0x708000000000000000000000000000000000000000000000000000000000000
-    v3 = alloc 64 !metadata(preserves_fmp)
-    mstore v3, 2
-    mstore v3+32, 0x90a000000000000000000000000000000000000000000000000000000000000
-    v4 = zext i1 arg0 to i256
-    v5 = abi_encode [word<bool>, memory_bytes, memory_bytes], selector 0xe745f2b200000000000000000000000000000000000000000000000000000000, args v4, v2, v3
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v0 to i256
-    v9 = staticcall v1, v8, v6, v7, v6, 64
-    jumpi v9, bb2, bb1
+    v3 = ptradd v2, 32
+    mstore v3, 0x708000000000000000000000000000000000000000000000000000000000000
+    v4 = alloc 64 !metadata(preserves_fmp)
+    mstore v4, 2
+    v5 = ptradd v4, 32
+    mstore v5, 0x90a000000000000000000000000000000000000000000000000000000000000
+    v6 = zext i1 arg0 to i256
+    v7 = abi_encode [word<bool>, memory_bytes, memory_bytes], selector 0xe745f2b200000000000000000000000000000000000000000000000000000000, args v6, v2, v4
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
+    v10 = zext i160 v0 to i256
+    v11 = staticcall v1, v10, v8, v9, v8, 64
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v10 = returndatasize
-    v11 = lt v10, 64
-    icall revert_if<tuple_data_too_short>, v11
-    v12 = ptrtoint ptr<memory> v6 to i256
-    v13 = add v12, 0
-    v14 = mload v13
-    v15 = ptrtoint ptr<memory> v6 to i256
-    v16 = add v15, 32
-    v17 = mload v16
-    v18 = signextend 1, v17
-    v19 = eq v17, v18
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = trunc i256 v17 to i16
-    v22 = insert_value struct2, undef struct2, 0, v14
-    v23 = insert_value struct2, v22, 1, v21
-    v24 = extract_value struct2, v23, 0
-    v25 = extract_value struct2, v23, 1
-    v26 = insert_value struct2, undef struct2, 0, v24
-    v27 = insert_value struct2, v26, 1, v25
-    ret v27
+    v12 = returndatasize
+    v13 = lt v12, 64
+    icall revert_if<tuple_data_too_short>, v13
+    v14 = ptrtoint ptr<memory> v8 to i256
+    v15 = add v14, 0
+    v16 = mload v15
+    v17 = ptrtoint ptr<memory> v8 to i256
+    v18 = add v17, 32
+    v19 = mload v18
+    v20 = signextend 1, v19
+    v21 = eq v19, v20
+    v22 = eq v21, false
+    icall revert_if<empty>, v22
+    v23 = trunc i256 v19 to i16
+    v24 = insert_value struct2, undef struct2, 0, v16
+    v25 = insert_value struct2, v24, 1, v23
+    v26 = extract_value struct2, v25, 0
+    v27 = extract_value struct2, v25, 1
+    v28 = insert_value struct2, undef struct2, 0, v26
+    v29 = insert_value struct2, v28, 1, v27
+    ret v29
 }
 
 fn @slicePair(arg0: i1, arg1: slice<calldata>, arg2: slice<calldata>) -> struct2 [selector=0xe745f2b2, pure, abi_params=[bool, bytes, bytes], abi_returns=[word, word<i16>], abi_return_params=[u256, i16]] {
@@ -239,47 +244,53 @@ fn @assign() -> struct5 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 1
-    mstore v0+32, 0x3000000000000000000000000000000000000000000000000000000000000000
-    v1 = alloc 64 !metadata(preserves_fmp)
-    mstore v1, 1
-    mstore v1+32, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x3000000000000000000000000000000000000000000000000000000000000000
     v2 = alloc 64 !metadata(preserves_fmp)
     mstore v2, 1
-    mstore v2+32, 0x3200000000000000000000000000000000000000000000000000000000000000
-    v3 = mload v0
-    v4 = lt 0, v3
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = mload v0+32
-    v7 = byte 0, v6
-    v8 = shl 248, v7
-    v9 = shr 248, v8
-    v10 = trunc i256 v9 to i8
-    v11 = zext i8 v10 to i256
-    v12 = mload v1
-    v13 = lt 0, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = mload v1+32
-    v16 = byte 0, v15
-    v17 = shl 248, v16
-    v18 = shr 248, v17
-    v19 = trunc i256 v18 to i8
-    v20 = zext i8 v19 to i256
-    v21 = mload v2
-    v22 = lt 0, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = mload v2+32
-    v25 = byte 0, v24
-    v26 = shl 248, v25
-    v27 = shr 248, v26
-    v28 = trunc i256 v27 to i8
-    v29 = zext i8 v28 to i256
-    v30 = insert_value struct5, undef struct5, 0, v11
-    v31 = insert_value struct5, v30, 1, v20
-    v32 = insert_value struct5, v31, 2, v29
-    ret v32
+    v3 = ptradd v2, 32
+    mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v4 = alloc 64 !metadata(preserves_fmp)
+    mstore v4, 1
+    v5 = ptradd v4, 32
+    mstore v5, 0x3200000000000000000000000000000000000000000000000000000000000000
+    v6 = mload v0
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v0, 32
+    v10 = mload v9
+    v11 = byte 0, v10
+    v12 = shl 248, v11
+    v13 = shr 248, v12
+    v14 = trunc i256 v13 to i8
+    v15 = zext i8 v14 to i256
+    v16 = mload v2
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = ptradd v2, 32
+    v20 = mload v19
+    v21 = byte 0, v20
+    v22 = shl 248, v21
+    v23 = shr 248, v22
+    v24 = trunc i256 v23 to i8
+    v25 = zext i8 v24 to i256
+    v26 = mload v4
+    v27 = lt 0, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = ptradd v4, 32
+    v30 = mload v29
+    v31 = byte 0, v30
+    v32 = shl 248, v31
+    v33 = shr 248, v32
+    v34 = trunc i256 v33 to i8
+    v35 = zext i8 v34 to i256
+    v36 = insert_value struct5, undef struct5, 0, v15
+    v37 = insert_value struct5, v36, 1, v25
+    v38 = insert_value struct5, v37, 2, v35
+    ret v38
 }
 
 fn @swap() -> struct6 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {

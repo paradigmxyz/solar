@@ -115,36 +115,37 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v20 = gas
     v21 = alloc 64 !metadata(preserves_fmp)
     mstore v21, 16
-    mstore v21+32, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
-    v22 = abi_encode [word, word, word, memory_bytes], selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v21
-    v23 = extract_value slice<memory>, v22, 0
-    v24 = extract_value slice<memory>, v22, 1
-    v25 = zext i160 v18 to i256
-    v26 = extcodesize v25
-    v27 = eq v26, 0
-    icall revert_if<target_contract_has_no_code>, v27
-    v28 = zext i160 v18 to i256
-    v29 = call v20, v28, 0, v23, v24, 0, 0
-    jumpi v29, bb6, bb5
+    v22 = ptradd v21, 32
+    mstore v22, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
+    v23 = abi_encode [word, word, word, memory_bytes], selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v21
+    v24 = extract_value slice<memory>, v23, 0
+    v25 = extract_value slice<memory>, v23, 1
+    v26 = zext i160 v18 to i256
+    v27 = extcodesize v26
+    v28 = eq v27, 0
+    icall revert_if<target_contract_has_no_code>, v28
+    v29 = zext i160 v18 to i256
+    v30 = call v20, v29, 0, v24, v25, 0, 0
+    jumpi v30, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v30 = gas
-    v31 = abi_encode [], selector 0x7c2efcba00000000000000000000000000000000000000000000000000000000
-    v32 = extract_value slice<memory>, v31, 0
-    v33 = extract_value slice<memory>, v31, 1
-    v34 = zext i160 v18 to i256
-    v35 = staticcall v30, v34, v32, v33, 0, 32
-    jumpi v35, bb8, bb7
+    v31 = gas
+    v32 = abi_encode [], selector 0x7c2efcba00000000000000000000000000000000000000000000000000000000
+    v33 = extract_value slice<memory>, v32, 0
+    v34 = extract_value slice<memory>, v32, 1
+    v35 = zext i160 v18 to i256
+    v36 = staticcall v31, v35, v33, v34, 0, 32
+    jumpi v36, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v36 = returndatasize
-    v37 = lt v36, 32
-    icall revert_if<tuple_data_too_short>, v37
-    v38 = add 0, 0
-    v39 = mload v38
-    v40 = eq v39, 76
-    icall require<short_string>, v40, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v37 = returndatasize
+    v38 = lt v37, 32
+    icall revert_if<tuple_data_too_short>, v38
+    v39 = add 0, 0
+    v40 = mload v39
+    v41 = eq v40, 76
+    icall require<short_string>, v41, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

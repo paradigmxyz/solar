@@ -32,7 +32,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     mstore v22, v0
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v65]
+    v23 = phi [bb0: 0], [bb2: v66]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
@@ -86,8 +86,9 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     v62 = ptrtoint ptr<memory> v56 to i256
     v63 = shl 5, v23
     v64 = ptradd v22, v63
-    mstore v64+32, v62
-    v65 = add v23, 1
+    v65 = ptradd v64, 32
+    mstore v65, v62
+    v66 = add v23, 1
     jump bb1
 }
 
@@ -103,12 +104,14 @@ fn @sumMemory(arg0: ptr<memory>) -> i256 [selector=0x13201b5d, pure, abi_params=
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = mload arg0+32
-    v4 = mload arg0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = mload arg0+64
-    v8 = checked_add u256, v3, v7
-    ret v8
+    v3 = ptradd arg0, 32
+    v4 = mload v3
+    v5 = mload arg0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd arg0, 64
+    v9 = mload v8
+    v10 = checked_add u256, v4, v9
+    ret v10
 }

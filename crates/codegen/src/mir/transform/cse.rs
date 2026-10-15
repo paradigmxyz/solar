@@ -171,11 +171,10 @@ impl MirPass for FmpCse {
                 let mut cached = None;
                 for &inst in &block.instructions {
                     match &func.inst(inst).kind {
-                        InstKind::Load(ptr, offset, PtrLocation::Memory)
-                            if func.constant_address(
-                                mir_utils::resolve_replacement(*ptr, &replacements),
-                                *offset,
-                            ) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                        InstKind::Load(ptr, PtrLocation::Memory)
+                            if func
+                                .value_u64(mir_utils::resolve_replacement(*ptr, &replacements))
+                                == Some(EvmMemoryLayout::FMP_SLOT) =>
                         {
                             let result = func.inst_result_value(inst).unwrap();
                             if let Some(value) = cached {
@@ -186,11 +185,10 @@ impl MirPass for FmpCse {
                                 cached = Some(result);
                             }
                         }
-                        InstKind::Store(ptr, offset, value)
-                            if func.constant_address(
-                                mir_utils::resolve_replacement(*ptr, &replacements),
-                                *offset,
-                            ) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                        InstKind::Store(ptr, value)
+                            if func
+                                .value_u64(mir_utils::resolve_replacement(*ptr, &replacements))
+                                == Some(EvmMemoryLayout::FMP_SLOT) =>
                         {
                             cached = Some(mir_utils::resolve_replacement(*value, &replacements));
                         }
@@ -272,7 +270,7 @@ enum ExprKey {
     ExtractValue(OperandKey, u32),
     SLoad(StorageAlias),
     TLoad(StorageAlias),
-    CalldataLoad(OperandKey, u64),
+    CalldataLoad(OperandKey),
     ExtCodeSize(OperandKey),
     ExtCodeHash(OperandKey),
     BlockHash(OperandKey),
@@ -936,8 +934,8 @@ impl CommonSubexprEliminator {
         for &inst in side_effects.keys() {
             let kind = &func.inst(inst).kind;
             let stored = match *kind {
-                InstKind::Store(_, _, value)
-                | InstKind::Store8(_, _, value)
+                InstKind::Store(_, value)
+                | InstKind::Store8(_, value)
                 | InstKind::SStore(_, value)
                 | InstKind::TStore(_, value) => Some(value),
                 _ => None,
@@ -1078,14 +1076,9 @@ impl CommonSubexprEliminator {
     ) -> Option<(ExprKey, ValueId)> {
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
         match *kind {
-            InstKind::Store(addr, offset, stored) => {
-                let key = self.memory_range_key(
-                    func,
-                    inst_id,
-                    value(addr),
-                    offset,
-                    LocationSize::Const(32),
-                )?;
+            InstKind::Store(addr, stored) => {
+                let key =
+                    self.memory_range_key(func, inst_id, value(addr), LocationSize::Const(32))?;
                 Some((ExprKey::MLoad(key), value(stored)))
             }
             _ => None,
@@ -1190,9 +1183,7 @@ impl CommonSubexprEliminator {
             // Unary operations
             InstKind::Not(a) => Some(ExprKey::Not(operand(*a))),
             InstKind::Clz(a) => Some(ExprKey::Clz(operand(*a))),
-            InstKind::Load(a, offset, PtrLocation::Calldata) => {
-                Some(ExprKey::CalldataLoad(operand(*a), *offset))
-            }
+            InstKind::Load(a, PtrLocation::Calldata) => Some(ExprKey::CalldataLoad(operand(*a))),
             InstKind::ExtCodeSize(a) => Some(ExprKey::ExtCodeSize(operand(*a))),
             InstKind::ExtCodeHash(a) => Some(ExprKey::ExtCodeHash(operand(*a))),
             InstKind::Balance(a) => Some(ExprKey::Balance(operand(*a))),
@@ -1207,14 +1198,9 @@ impl CommonSubexprEliminator {
                 operand(*else_value),
             )),
 
-            InstKind::Load(addr, offset, PtrLocation::Memory) => {
-                let key = self.memory_range_key(
-                    func,
-                    inst_id,
-                    value(*addr),
-                    *offset,
-                    LocationSize::Const(32),
-                )?;
+            InstKind::Load(addr, PtrLocation::Memory) => {
+                let key =
+                    self.memory_range_key(func, inst_id, value(*addr), LocationSize::Const(32))?;
                 Some(ExprKey::MLoad(key))
             }
             InstKind::Fmp => Some(ExprKey::MLoad(Self::fmp_range_key())),
@@ -1222,7 +1208,7 @@ impl CommonSubexprEliminator {
                 let size = value(*size);
                 let size =
                     func.value_u64(size).map_or(LocationSize::Dynamic(size), LocationSize::Const);
-                let key = self.memory_range_key(func, inst_id, value(*offset), 0, size)?;
+                let key = self.memory_range_key(func, inst_id, value(*offset), size)?;
                 Some(ExprKey::Keccak256(key))
             }
             InstKind::MappingSlot(key, slot) => {
@@ -1501,10 +1487,9 @@ impl CommonSubexprEliminator {
         func: &Function,
         inst_id: InstId,
         addr: ValueId,
-        offset: u64,
         size: LocationSize,
     ) -> Option<MemRangeKey> {
-        self.alias().memory_location(func, inst_id, addr, offset, size)
+        self.alias().memory_location(func, inst_id, addr, size)
     }
 
     fn fmp_range_key() -> MemRangeKey {

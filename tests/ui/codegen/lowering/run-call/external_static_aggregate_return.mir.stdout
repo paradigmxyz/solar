@@ -7,12 +7,14 @@ fn @makeStruct(arg0: i256) -> ptr<memory> [selector=0x62dc8436, pure, abi_params
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 0
-    mstore v0+32, 0
-    v1 = alloc 64
-    v2 = checked_add u256, arg0, 1
-    mstore v1, arg0
-    mstore v1+32, v2
-    ret v1
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = alloc 64
+    v3 = checked_add u256, arg0, 1
+    mstore v2, arg0
+    v4 = ptradd v2, 32
+    mstore v4, v3
+    ret v2
 }
 
 fn @makeArray(arg0: i256) -> ptr<memory> [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[array<3, word>], abi_return_params=[array<3, u256>]] {
@@ -22,9 +24,11 @@ fn @makeArray(arg0: i256) -> ptr<memory> [selector=0x9510f212, pure, abi_params=
     v1 = alloc 96
     mstore v1, arg0
     v2 = checked_add u256, arg0, 1
-    mstore v1+32, v2
-    v3 = checked_add u256, arg0, 2
-    mstore v1+64, v3
+    v3 = ptradd v1, 32
+    mstore v3, v2
+    v4 = checked_add u256, arg0, 2
+    v5 = ptradd v1, 64
+    mstore v5, v4
     ret v1
 }
 
@@ -32,15 +36,17 @@ fn @makePair(arg0: i256) -> struct0 [selector=0xf4d7be11, pure, abi_params=[u256
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 0
-    mstore v0+32, 0
-    v1 = alloc 64
-    v2 = checked_add u256, arg0, 1
-    mstore v1, arg0
-    mstore v1+32, v2
-    v3 = checked_add u256, arg0, 2
-    v4 = insert_value struct0, undef struct0, 0, v1
-    v5 = insert_value struct0, v4, 1, v3
-    ret v5
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = alloc 64
+    v3 = checked_add u256, arg0, 1
+    mstore v2, arg0
+    v4 = ptradd v2, 32
+    mstore v4, v3
+    v5 = checked_add u256, arg0, 2
+    v6 = insert_value struct0, undef struct0, 0, v2
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }
 
 fn @narrow() -> i256 [selector=0xe3b21a7a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -68,9 +74,10 @@ fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[u25
     v10 = make_memory_slice v5, 64
     v11 = abi_decode [tuple<u256, u256>], v10
     v12 = mload v11
-    v13 = mload v11+32
-    v14 = checked_add u256, v12, v13
-    ret v14
+    v13 = ptradd v11, 32
+    v14 = mload v13
+    v15 = checked_add u256, v12, v14
+    ret v15
 }
 
 fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -99,14 +106,16 @@ fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[u256
     v15 = lt 1, 3
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = mload v11+32
-    v18 = checked_add u256, v14, v17
-    v19 = lt 2, 3
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = mload v11+64
-    v22 = checked_add u256, v18, v21
-    ret v22
+    v17 = ptradd v11, 32
+    v18 = mload v17
+    v19 = checked_add u256, v14, v18
+    v20 = lt 2, 3
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptradd v11, 64
+    v23 = mload v22
+    v24 = checked_add u256, v19, v23
+    ret v24
 }
 
 fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -134,9 +143,10 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     v10 = make_memory_slice v5, 64
     v11 = abi_decode [tuple<u256, u256>], v10
     v12 = mload v11
-    v13 = mload v11+32
-    v14 = checked_add u256, v12, v13
-    ret v14
+    v13 = ptradd v11, 32
+    v14 = mload v13
+    v15 = checked_add u256, v12, v14
+    ret v15
   bb3:
     ret 0
 }
@@ -167,10 +177,11 @@ fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[u256]
     v16 = extract_value struct0, v15, 0
     v17 = extract_value struct0, v15, 1
     v18 = mload v16
-    v19 = mload v16+32
-    v20 = checked_add u256, v18, v19
-    v21 = checked_add u256, v20, v17
-    ret v21
+    v19 = ptradd v16, 32
+    v20 = mload v19
+    v21 = checked_add u256, v18, v20
+    v22 = checked_add u256, v21, v17
+    ret v22
 }
 
 fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -193,7 +204,8 @@ fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns
     v10 = make_memory_slice v5, 64
     v11 = abi_decode [tuple<u256, u256>], v10
     v12 = mload v11
-    v13 = mload v11+32
-    v14 = checked_add u256, v12, v13
-    ret v14
+    v13 = ptradd v11, 32
+    v14 = mload v13
+    v15 = checked_add u256, v12, v14
+    ret v15
 }

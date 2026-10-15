@@ -21,9 +21,10 @@ fn @constructor() [constructor] {
     storeimmutable answer, v6
     v7 = alloc 64 !metadata(preserves_fmp)
     mstore v7, 1
-    mstore v7+32, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v8 = icall @toShort, v7
-    storeimmutable shortWord, v8
+    v8 = ptradd v7, 32
+    mstore v8, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v9 = icall @toShort, v7
+    storeimmutable shortWord, v9
     ret
 }
 

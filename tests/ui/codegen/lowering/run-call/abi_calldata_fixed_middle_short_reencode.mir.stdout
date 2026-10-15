@@ -39,25 +39,25 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     mstore v24, v2
     jump bb1
   bb1:
-    v25 = phi [bb0: 0], [bb6: v89]
+    v25 = phi [bb0: 0], [bb6: v90]
     v26 = lt v25, v2
     jumpi v26, bb2, bb3
   bb3:
-    v90 = abi_encode [memory_array<array<2, memory_array<word>>>], selector 0x3573c23c00000000000000000000000000000000000000000000000000000000, args v24
-    v91 = extract_value slice<memory>, v90, 0
-    v92 = extract_value slice<memory>, v90, 1
-    v93 = zext i160 v0 to i256
-    v94 = staticcall v1, v93, v91, v92, 0, 32
-    jumpi v94, bb8, bb7
+    v91 = abi_encode [memory_array<array<2, memory_array<word>>>], selector 0x3573c23c00000000000000000000000000000000000000000000000000000000, args v24
+    v92 = extract_value slice<memory>, v91, 0
+    v93 = extract_value slice<memory>, v91, 1
+    v94 = zext i160 v0 to i256
+    v95 = staticcall v1, v94, v92, v93, 0, 32
+    jumpi v95, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v95 = returndatasize
-    v96 = lt v95, 32
-    icall revert_if<tuple_data_too_short>, v96
-    v97 = add 0, 0
-    v98 = mload v97
-    ret v98
+    v96 = returndatasize
+    v97 = lt v96, 32
+    icall revert_if<tuple_data_too_short>, v97
+    v98 = add 0, 0
+    v99 = mload v98
+    ret v99
   bb2:
     v27 = mul v25, 32
     v28 = ptrtoint ptr<calldata> v3 to i256
@@ -90,8 +90,9 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     v86 = ptrtoint ptr<memory> v45 to i256
     v87 = shl 5, v25
     v88 = ptradd v24, v87
-    mstore v88+32, v86
-    v89 = add v25, 1
+    v89 = ptradd v88, 32
+    mstore v89, v86
+    v90 = add v25, 1
     jump bb1
   bb5:
     v48 = mul v46, 32

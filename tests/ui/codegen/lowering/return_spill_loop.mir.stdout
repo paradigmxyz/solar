@@ -17,74 +17,82 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = byte 0, v5
-    mstore8 v2+32, v9
-    v10 = mload v2
-    v11 = lt 1, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
-    mstore8 v2+33, v13
-    v14 = mload v2
-    v15 = lt 2, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
-    mstore8 v2+34, v17
-    v18 = icall @copy, v2, 34
-    v19 = mload v18
-    v20 = lt 0, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = mload v18+32
-    v23 = byte 0, v22
-    v24 = shl 248, v23
-    v25 = shr 248, v24
-    v26 = trunc i256 v25 to i8
-    v27 = zext i8 v26 to i256
-    v28 = mload v18
-    v29 = lt 1, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = mload v18+33
-    v32 = byte 0, v31
-    v33 = shl 248, v32
-    v34 = shr 248, v33
-    v35 = trunc i256 v34 to i8
-    v36 = zext i8 v35 to i256
-    v37 = mload v18
-    v38 = lt 2, v37
-    v39 = eq v38, false
-    icall panic_if<0x32>, v39
-    v40 = mload v18+34
-    v41 = byte 0, v40
-    v42 = shl 248, v41
-    v43 = shr 248, v42
-    v44 = trunc i256 v43 to i8
-    v45 = zext i8 v44 to i256
-    v46 = insert_value struct0, undef struct0, 0, v27
-    v47 = insert_value struct0, v46, 1, v36
-    v48 = insert_value struct0, v47, 2, v45
-    ret v48
+    v10 = ptradd v2, 32
+    mstore8 v10, v9
+    v11 = mload v2
+    v12 = lt 1, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
+    v15 = ptradd v2, 33
+    mstore8 v15, v14
+    v16 = mload v2
+    v17 = lt 2, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+    v20 = ptradd v2, 34
+    mstore8 v20, v19
+    v21 = icall @copy, v2, 34
+    v22 = mload v21
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd v21, 32
+    v26 = mload v25
+    v27 = byte 0, v26
+    v28 = shl 248, v27
+    v29 = shr 248, v28
+    v30 = trunc i256 v29 to i8
+    v31 = zext i8 v30 to i256
+    v32 = mload v21
+    v33 = lt 1, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = ptradd v21, 33
+    v36 = mload v35
+    v37 = byte 0, v36
+    v38 = shl 248, v37
+    v39 = shr 248, v38
+    v40 = trunc i256 v39 to i8
+    v41 = zext i8 v40 to i256
+    v42 = mload v21
+    v43 = lt 2, v42
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = ptradd v21, 34
+    v46 = mload v45
+    v47 = byte 0, v46
+    v48 = shl 248, v47
+    v49 = shr 248, v48
+    v50 = trunc i256 v49 to i8
+    v51 = zext i8 v50 to i256
+    v52 = insert_value struct0, undef struct0, 0, v31
+    v53 = insert_value struct0, v52, 1, v41
+    v54 = insert_value struct0, v53, 2, v51
+    ret v54
 }
 
 fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 3
-    mstore v0+32, 0x2222330000000000000000000000000000000000000000000000000000000000
-    v1 = icall @copy, v0, 34
-    v2 = icall @copy, v1, 221
-    v3 = mload v2
-    v4 = lt 1, v3
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = mload v2+33
-    v7 = byte 0, v6
-    v8 = shl 248, v7
-    v9 = shr 248, v8
-    v10 = trunc i256 v9 to i8
-    v11 = zext i8 v10 to i256
-    ret v11
+    v1 = ptradd v0, 32
+    mstore v1, 0x2222330000000000000000000000000000000000000000000000000000000000
+    v2 = icall @copy, v0, 34
+    v3 = icall @copy, v2, 221
+    v4 = mload v3
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = ptradd v3, 33
+    v8 = mload v7
+    v9 = byte 0, v8
+    v10 = shl 248, v9
+    v11 = shr 248, v10
+    v12 = trunc i256 v11 to i8
+    v13 = zext i8 v12 to i256
+    ret v13
 }
 
 fn @run(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x194e10ce, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

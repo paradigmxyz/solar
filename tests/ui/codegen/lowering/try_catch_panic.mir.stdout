@@ -79,7 +79,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     revert v15, v16
   bb4:
     v25 = ptradd v11, 36
-    v26 = mload v11+36
+    v26 = mload v25
     ret v26
   bb1:
     jump bb3
@@ -122,7 +122,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     revert v15, v16
   bb4:
     v25 = ptradd v11, 36
-    v26 = mload v11+36
+    v26 = mload v25
     ret v26
   bb1:
     jump bb3

@@ -44,65 +44,68 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    mstore v0+32, 42
-    v4 = mload v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    mstore v0+64, 99
+    v4 = ptradd v0, 32
+    mstore v4, 42
+    v5 = mload v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    mstore v8, 99
     jump bb1
   bb1:
-    v7 = phi [bb0: 0], [bb3: v38]
-    v8 = phi [bb0: ptr<memory> 96], [bb3: v33]
-    v9 = phi [bb0: 0], [bb3: v9]
-    v10 = phi [bb0: v0], [bb3: v34]
-    v11 = lt v7, 2
-    jumpi v11, bb4, bb5
+    v9 = phi [bb0: 0], [bb3: v41]
+    v10 = phi [bb0: ptr<memory> 96], [bb3: v35]
+    v11 = phi [bb0: 0], [bb3: v11]
+    v12 = phi [bb0: v0], [bb3: v36]
+    v13 = lt v9, 2
+    jumpi v13, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret 1
   bb4:
-    v12 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v8, v10
-    v13 = address
-    v14 = gas
-    v15 = address_call v13, v12, gas v14
-    v16 = icall returndata_bytes<>
-    v17 = eq v15, false
-    icall revert_if<empty>, v17
-    v18 = abi_decode [bytes32], v16
-    v19 = abi_encode [memory_bytes, memory_array<word>], scratch, args v8, v10
-    v20 = extract_value slice<memory>, v19, 0
-    v21 = extract_value slice<memory>, v19, 1
-    v22 = keccak256 v20, v21
-    v23 = eq v18, v22
-    v24 = eq v23, false
-    icall revert_if<empty>, v24
-    v25 = address
-    v26 = gas
-    v27 = abi_encode [], selector 0x4c8fe52600000000000000000000000000000000000000000000000000000000
-    v28 = extract_value slice<memory>, v27, 0
-    v29 = extract_value slice<memory>, v27, 1
-    v30 = zext i160 v25 to i256
-    v31 = staticcall v26, v30, v28, v29, 0, 0
-    jumpi v31, bb8, bb7
+    v14 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v10, v12
+    v15 = address
+    v16 = gas
+    v17 = address_call v15, v14, gas v16
+    v18 = icall returndata_bytes<>
+    v19 = eq v17, false
+    icall revert_if<empty>, v19
+    v20 = abi_decode [bytes32], v18
+    v21 = abi_encode [memory_bytes, memory_array<word>], scratch, args v10, v12
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
+    v24 = keccak256 v22, v23
+    v25 = eq v20, v24
+    v26 = eq v25, false
+    icall revert_if<empty>, v26
+    v27 = address
+    v28 = gas
+    v29 = abi_encode [], selector 0x4c8fe52600000000000000000000000000000000000000000000000000000000
+    v30 = extract_value slice<memory>, v29, 0
+    v31 = extract_value slice<memory>, v29, 1
+    v32 = zext i160 v27 to i256
+    v33 = staticcall v28, v32, v30, v31, 0, 0
+    jumpi v33, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v32 = icall returndata_bytes<>
-    v33 = abi_decode [bytes], v32
-    v34 = alloc zeroed checked 128
-    mstore v34, 3
-    v35 = mload v34
-    v36 = lt 2, v35
-    v37 = eq v36, false
-    icall panic_if<0x32>, v37
-    mstore v34+96, 123
+    v34 = icall returndata_bytes<>
+    v35 = abi_decode [bytes], v34
+    v36 = alloc zeroed checked 128
+    mstore v36, 3
+    v37 = mload v36
+    v38 = lt 2, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = ptradd v36, 96
+    mstore v40, 123
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v38 = checked_add u256, v7, 1
+    v41 = checked_add u256, v9, 1
     jump bb1
 }
 
@@ -141,111 +144,120 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = shl 64, v19
-    mstore v0+32, v22
-    v23 = lt 1, 2
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = mload v0+32
-    v26 = shr 64, v25
-    v27 = lt 0, 2
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = mload v0
-    v30 = shr 64, v29
-    v31 = and v30, 0xffffffff
-    v32 = shl 224, v31
-    v33 = abi_encode [], object, selector v32
-    v34 = lt 1, 2
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = mload v0+32
-    v37 = shr 64, v36
-    v38 = and v37, 0xffffffff
-    v39 = shl 224, v38
-    v40 = abi_encode [], object, selector v39
-    v41 = and v26, 0xffffffff
+    v23 = ptradd v0, 32
+    mstore v23, v22
+    v24 = lt 1, 2
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = ptradd v0, 32
+    v27 = mload v26
+    v28 = shr 64, v27
+    v29 = lt 0, 2
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = mload v0
+    v32 = shr 64, v31
+    v33 = and v32, 0xffffffff
+    v34 = shl 224, v33
+    v35 = abi_encode [], object, selector v34
+    v36 = lt 1, 2
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = ptradd v0, 32
+    v39 = mload v38
+    v40 = shr 64, v39
+    v41 = and v40, 0xffffffff
     v42 = shl 224, v41
     v43 = abi_encode [], object, selector v42
-    v44 = mload v33
-    v45 = eq v44, 4
-    jumpi v45, bb3, bb4
+    v44 = and v28, 0xffffffff
+    v45 = shl 224, v44
+    v46 = abi_encode [], object, selector v45
+    v47 = mload v35
+    v48 = eq v47, 4
+    jumpi v48, bb3, bb4
   bb4:
     jump bb5
   bb3:
-    v46 = mload v40
-    v47 = eq v46, 4
+    v49 = mload v43
+    v50 = eq v49, 4
     jump bb5
   bb5:
-    v48 = phi [bb3: v47], [bb4: false]
-    jumpi v48, bb6, bb7
+    v51 = phi [bb3: v50], [bb4: false]
+    jumpi v51, bb6, bb7
   bb7:
     jump bb8
   bb6:
-    v49 = mload v43
-    v50 = eq v49, 4
+    v52 = mload v46
+    v53 = eq v52, 4
     jump bb8
   bb8:
-    v51 = phi [bb6: v50], [bb7: false]
-    v52 = eq v51, false
-    icall panic_if<0x1>, v52
-    v53 = mload v33+32
-    v54 = mload v33
-    v55 = lt v54, 4
-    v56 = sub 4, v54
-    v57 = mul 8, v56
-    v58 = shl v57, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v59 = select v55, v58, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v60 = and v53, v59
-    v61 = mload v40+32
-    v62 = mload v40
-    v63 = lt v62, 4
-    v64 = sub 4, v62
-    v65 = mul 8, v64
-    v66 = shl v65, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v67 = select v63, v66, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v68 = and v61, v67
-    v69 = eq v60, v68
-    v70 = eq v69, false
-    icall panic_if<0x1>, v70
-    v71 = mload v33+32
-    v72 = mload v33
-    v73 = lt v72, 4
-    v74 = sub 4, v72
-    v75 = mul 8, v74
-    v76 = shl v75, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v77 = select v73, v76, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v78 = and v71, v77
-    v79 = mload v43+32
-    v80 = mload v43
-    v81 = lt v80, 4
-    v82 = sub 4, v80
-    v83 = mul 8, v82
-    v84 = shl v83, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v85 = select v81, v84, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v86 = and v79, v85
-    v87 = eq v78, v86
-    v88 = eq v87, false
-    icall panic_if<0x1>, v88
-    v89 = mload v33+32
-    v90 = mload v33
-    v91 = lt v90, 4
-    v92 = sub 4, v90
-    v93 = mul 8, v92
-    v94 = shl v93, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v95 = select v91, v94, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v96 = and v89, v95
-    v97 = and v26, 0xffffffff
-    v98 = shl 224, v97
-    v99 = eq v96, v98
-    v100 = eq v99, false
-    icall panic_if<0x1>, v100
-    v101 = mload v33+32
-    v102 = mload v33
-    v103 = lt v102, 4
-    v104 = sub 4, v102
-    v105 = mul 8, v104
-    v106 = shl v105, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v107 = select v103, v106, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v108 = and v101, v107
-    ret v108
+    v54 = phi [bb6: v53], [bb7: false]
+    v55 = eq v54, false
+    icall panic_if<0x1>, v55
+    v56 = ptradd v35, 32
+    v57 = mload v56
+    v58 = mload v35
+    v59 = lt v58, 4
+    v60 = sub 4, v58
+    v61 = mul 8, v60
+    v62 = shl v61, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v63 = select v59, v62, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v64 = and v57, v63
+    v65 = ptradd v43, 32
+    v66 = mload v65
+    v67 = mload v43
+    v68 = lt v67, 4
+    v69 = sub 4, v67
+    v70 = mul 8, v69
+    v71 = shl v70, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v72 = select v68, v71, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v73 = and v66, v72
+    v74 = eq v64, v73
+    v75 = eq v74, false
+    icall panic_if<0x1>, v75
+    v76 = ptradd v35, 32
+    v77 = mload v76
+    v78 = mload v35
+    v79 = lt v78, 4
+    v80 = sub 4, v78
+    v81 = mul 8, v80
+    v82 = shl v81, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v83 = select v79, v82, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v84 = and v77, v83
+    v85 = ptradd v46, 32
+    v86 = mload v85
+    v87 = mload v46
+    v88 = lt v87, 4
+    v89 = sub 4, v87
+    v90 = mul 8, v89
+    v91 = shl v90, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v92 = select v88, v91, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v93 = and v86, v92
+    v94 = eq v84, v93
+    v95 = eq v94, false
+    icall panic_if<0x1>, v95
+    v96 = ptradd v35, 32
+    v97 = mload v96
+    v98 = mload v35
+    v99 = lt v98, 4
+    v100 = sub 4, v98
+    v101 = mul 8, v100
+    v102 = shl v101, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v103 = select v99, v102, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v104 = and v97, v103
+    v105 = and v28, 0xffffffff
+    v106 = shl 224, v105
+    v107 = eq v104, v106
+    v108 = eq v107, false
+    icall panic_if<0x1>, v108
+    v109 = ptradd v35, 32
+    v110 = mload v109
+    v111 = mload v35
+    v112 = lt v111, 4
+    v113 = sub 4, v111
+    v114 = mul 8, v113
+    v115 = shl v114, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v116 = select v112, v115, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v117 = and v110, v116
+    ret v117
 }

@@ -655,14 +655,15 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v2, v8
-    v13 = mload v12+32
-    v14 = byte 0, v13
-    v15 = shl 248, v14
-    v16 = shr 248, v15
-    v17 = trunc i256 v16 to i8
-    v18 = insert_value struct1, undef struct1, 0, v17
-    v19 = insert_value struct1, v18, 1, 1
-    ret v19
+    v13 = ptradd v12, 32
+    v14 = mload v13
+    v15 = byte 0, v14
+    v16 = shl 248, v15
+    v17 = shr 248, v16
+    v18 = trunc i256 v17 to i8
+    v19 = insert_value struct1, undef struct1, 0, v18
+    v20 = insert_value struct1, v19, 1, 1
+    ret v20
 }
 
 fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -684,10 +685,11 @@ fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u2
     icall panic_if<0x32>, v10
     v11 = shl 5, v7
     v12 = ptradd v0, v11
-    v13 = mload v12+32
-    v14 = insert_value struct0, undef struct0, 0, v13
-    v15 = insert_value struct0, v14, 1, 1
-    ret v15
+    v13 = ptradd v12, 32
+    v14 = mload v13
+    v15 = insert_value struct0, undef struct0, 0, v14
+    v16 = insert_value struct0, v15, 1, 1
+    ret v16
 }
 
 fn @scratchPackedHash(arg0: i256) -> i256 [selector=0x7e6eb03d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -716,13 +718,15 @@ fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_para
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    mstore v0+32, v1
-    v5 = mload v0
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = mload v0+32
-    ret v8
+    v5 = ptradd v0, 32
+    mstore v5, v1
+    v6 = mload v0
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v0, 32
+    v10 = mload v9
+    ret v10
 }
 
 fn @scratchEncoded(arg0: i256) -> i256 [selector=0xde1fc784, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

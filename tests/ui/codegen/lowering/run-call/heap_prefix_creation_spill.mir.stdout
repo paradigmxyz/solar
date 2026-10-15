@@ -29,27 +29,28 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb2:
     v9 = alloc 64 !metadata(preserves_fmp)
     mstore v9, 15
-    mstore v9+32, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
-    v10 = zext i160 v7 to i256
-    v11 = icall @_cloneDeterministic, v10, v9, 1
-    v12 = trunc i256 v11 to i160
-    v13 = gas
-    v14 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v15 = extract_value slice<memory>, v14, 0
-    v16 = extract_value slice<memory>, v14, 1
-    v17 = zext i160 v12 to i256
-    v18 = staticcall v13, v17, v15, v16, 0, 32
-    jumpi v18, bb4, bb3
+    v10 = ptradd v9, 32
+    mstore v10, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
+    v11 = zext i160 v7 to i256
+    v12 = icall @_cloneDeterministic, v11, v9, 1
+    v13 = trunc i256 v12 to i160
+    v14 = gas
+    v15 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v16 = extract_value slice<memory>, v15, 0
+    v17 = extract_value slice<memory>, v15, 1
+    v18 = zext i160 v13 to i256
+    v19 = staticcall v14, v18, v16, v17, 0, 32
+    jumpi v19, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = returndatasize
-    v20 = lt v19, 32
-    icall revert_if<tuple_data_too_short>, v20
-    v21 = add 0, 0
-    v22 = mload v21
-    v23 = eq v22, 7
-    icall require<short_string>, v23, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
+    v20 = returndatasize
+    v21 = lt v20, 32
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = add 0, 0
+    v23 = mload v22
+    v24 = eq v23, 7
+    icall require<short_string>, v24, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     ret 1
 }
 

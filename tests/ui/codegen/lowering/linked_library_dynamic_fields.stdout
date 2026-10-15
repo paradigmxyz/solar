@@ -221,11 +221,10 @@ bb1:
   swap 1
   swap 3
   calldatacopy
+  dup 1
   push 64
-  dup 4
+  dup 5
   add
-  swap 1
-  dup 2
   mstore
   push 96
   dup 5
@@ -327,7 +326,6 @@ bb15 [loop]:
   pop
   pop
   pop
-  mload
   mload
   push 0x3e8
   dup 2

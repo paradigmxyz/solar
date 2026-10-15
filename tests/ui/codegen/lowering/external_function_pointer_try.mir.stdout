@@ -58,10 +58,11 @@ fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x76ea4d37, pure, abi_params=[t
     v0 = mload arg0
     v1 = alloc 64 !metadata(preserves_fmp)
     mstore v1, 2
-    mstore v1+32, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v2 = insert_value struct0, undef struct0, 0, v0
-    v3 = insert_value struct0, v2, 1, v1
-    ret v3
+    v2 = ptradd v1, 32
+    mstore v2, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v3 = insert_value struct0, undef struct0, 0, v0
+    v4 = insert_value struct0, v3, 1, v1
+    ret v4
 }
 
 fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
@@ -83,10 +84,11 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
   bb4:
     v14 = alloc 64 !metadata(preserves_fmp)
     mstore v14, 6
-    mstore v14+32, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v15 = insert_value struct0, undef struct0, 0, 0
-    v16 = insert_value struct0, v15, 1, v14
-    ret v16
+    v15 = ptradd v14, 32
+    mstore v15, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v16 = insert_value struct0, undef struct0, 0, 0
+    v17 = insert_value struct0, v16, 1, v14
+    ret v17
   bb1:
     v8 = icall returndata_bytes<>
     v9 = abi_decode [u256, bytes], v8
@@ -96,9 +98,9 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     v13 = insert_value struct0, v12, 1, v11
     ret v13
   bb3:
-    v17 = insert_value struct0, undef struct0, 0, 0
-    v18 = insert_value struct0, v17, 1, ptr<memory> 96
-    ret v18
+    v18 = insert_value struct0, undef struct0, 0, 0
+    v19 = insert_value struct0, v18, 1, ptr<memory> 96
+    ret v19
 }
 
 fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

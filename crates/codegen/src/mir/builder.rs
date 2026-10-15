@@ -776,26 +776,25 @@ impl<'a> FunctionBuilder<'a> {
                 FrameMode::MultiReturn => MemoryRegion::Scratch,
             });
         }
-        let (addr, offset) = match *kind {
-            InstKind::Load(addr, offset, PtrLocation::Memory)
-            | InstKind::Store(addr, offset, _)
-            | InstKind::Store8(addr, offset, _) => (addr, offset),
-            InstKind::Keccak256(addr, _) => (addr, 0),
+        let addr = match *kind {
+            InstKind::Load(addr, PtrLocation::Memory)
+            | InstKind::Store(addr, _)
+            | InstKind::Store8(addr, _)
+            | InstKind::Keccak256(addr, _) => addr,
             InstKind::Copy(dest, ..)
             | InstKind::CodeCopy(dest, _, _)
-            | InstKind::ExtCodeCopy(_, dest, _, _) => (dest, 0),
+            | InstKind::ExtCodeCopy(_, dest, _, _) => dest,
             _ => return None,
         };
-        Some(self.memory_region_for_addr(addr, offset))
+        Some(self.memory_region_for_addr(addr))
     }
 
-    fn memory_region_for_addr(&self, addr: ValueId, offset: u64) -> MemoryRegion {
+    fn memory_region_for_addr(&self, addr: ValueId) -> MemoryRegion {
         match self.func.value(addr) {
             Value::Immediate(imm)
-                if imm.as_u256().is_some_and(|value| {
-                    value.saturating_add(U256::from(offset))
-                        < U256::from(EvmMemoryLayout::HEAP_START)
-                }) =>
+                if imm
+                    .as_u256()
+                    .is_some_and(|value| value < U256::from(EvmMemoryLayout::HEAP_START)) =>
             {
                 MemoryRegion::Scratch
             }
@@ -983,15 +982,15 @@ impl<'a> FunctionBuilder<'a> {
         ty: MirType,
     ) -> ValueId {
         let offset = self.imm(field.saturating_mul(EvmMemoryLayout::WORD_SIZE));
-        let (address, offset, location) = self.object_address(object, 0, offset);
-        self.load_as(address, offset, location, ty)
+        let (address, location) = self.object_address(object, 0, offset);
+        self.load_as(address, location, ty)
     }
 
     /// Stores a direct struct field.
     pub(crate) fn memory_store_field(&mut self, object: ValueId, field: u64, value: ValueId) {
         let offset = self.imm(field.saturating_mul(EvmMemoryLayout::WORD_SIZE));
-        let (address, offset, _) = self.object_address(object, 0, offset);
-        self.store_at(address, offset, value);
+        let (address, _) = self.object_address(object, 0, offset);
+        self.store(address, value);
     }
 
     /// Loads an array element.
@@ -1013,17 +1012,16 @@ impl<'a> FunctionBuilder<'a> {
         ty: MirType,
     ) -> ValueId {
         let offset = self.word_offset(index);
-        let (address, offset, location) =
-            self.object_address(object, Self::header_size(layout), offset);
-        self.load_as(address, offset, location, ty)
+        let (address, location) = self.object_address(object, Self::header_size(layout), offset);
+        self.load_as(address, location, ty)
     }
 
     /// Loads one byte from a bytes object or slice.
     pub(crate) fn memory_load_byte(&mut self, value: ValueId, index: ValueId) -> ValueId {
         // byte = byte 0, (mload|calldataload|returndataload (data + index))
-        let (address, offset, location) =
+        let (address, location) =
             self.object_address(value, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, index);
-        let word = self.load_as(address, offset, location, MirType::I256);
+        let word = self.load(address, location);
         let zero = self.imm(0);
         self.byte(zero, word)
     }
@@ -1037,8 +1035,8 @@ impl<'a> FunctionBuilder<'a> {
         value: ValueId,
     ) {
         let offset = self.word_offset(index);
-        let (address, offset, _) = self.object_address(object, Self::header_size(layout), offset);
-        self.store_at(address, offset, value);
+        let (address, _) = self.object_address(object, Self::header_size(layout), offset);
+        self.store(address, value);
     }
 
     /// Returns the byte offset of word `index`, folded like [`Self::cast`] for an immediate.
@@ -1063,32 +1061,31 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Returns the address `offset` bytes past `header` in a memory object, or `offset` bytes into
-    /// a slice's data, as a base and an immediate byte offset for a memory access, with the
-    /// location it reads. An object base stays a pointer; a constant offset joins the header in
-    /// the immediate.
+    /// a slice's data, with the location it reads. An object address stays a pointer, folding a
+    /// constant offset into the header.
     fn object_address(
         &mut self,
         value: ValueId,
         header: u64,
         offset: ValueId,
-    ) -> (ValueId, u64, PtrLocation) {
+    ) -> (ValueId, PtrLocation) {
         if let Some(location) = self.func.value_slice_location(value) {
             let data = self.slice_ptr(value);
             if let Some(offset) = self.func.value_u64(offset) {
-                return (data, offset, location);
+                return (self.address_value(data, offset), location);
             }
             // address = add (extract_value value, 0), offset
-            return (self.add(data, offset), 0, location);
+            return (self.add(data, offset), location);
         }
         if let Some(offset) = self.func.value_u64(offset) {
-            return (value, header.saturating_add(offset), PtrLocation::Memory);
+            return (self.address_value(value, header.saturating_add(offset)), PtrLocation::Memory);
         }
-        // address = ptradd object, offset
-        (self.ptradd(value, offset), header, PtrLocation::Memory)
+        // address = ptradd (ptradd object, offset), header
+        let element = self.ptradd(value, offset);
+        (self.address_value(element, header), PtrLocation::Memory)
     }
 
-    /// Returns `base + offset` as one address value, for an operation that takes no immediate
-    /// offset.
+    /// Returns `base + offset` as one address value: a `ptradd` of a pointer, an `add` of a word.
     pub(crate) fn address_value(&mut self, base: ValueId, offset: u64) -> ValueId {
         if offset == 0 || !self.func.value_ty(base).is_some_and(MirType::is_pointer) {
             // address = add base, offset
@@ -1099,18 +1096,12 @@ impl<'a> FunctionBuilder<'a> {
         self.ptradd(base, offset)
     }
 
-    /// Loads a word at `address + offset` as a pointer when `ty` is one, and as a word otherwise.
-    fn load_as(
-        &mut self,
-        address: ValueId,
-        offset: u64,
-        location: PtrLocation,
-        ty: MirType,
-    ) -> ValueId {
+    /// Loads a word as a pointer when `ty` is one, and as a word otherwise.
+    fn load_as(&mut self, address: ValueId, location: PtrLocation, ty: MirType) -> ValueId {
         let result = if ty == MirType::MEMPTR { ty } else { MirType::I256 };
-        let (address, offset) = self.access_base(address, offset);
-        // result = mload|calldataload|returndataload address+offset
-        self.emit_inst(InstKind::Load(address, offset, location), Some(result))
+        let address = self.access_address(address);
+        // result = mload|calldataload|returndataload address
+        self.emit_inst(InstKind::Load(address, location), Some(result))
     }
 
     /// Returns the pointer an access address casts to a word, so the access takes the pointer.
@@ -1124,20 +1115,6 @@ impl<'a> FunctionBuilder<'a> {
         address
     }
 
-    /// Returns the base and immediate offset of an access at `address + offset`, folding a
-    /// constant `ptradd` of the address into the offset.
-    fn access_base(&self, address: ValueId, offset: u64) -> (ValueId, u64) {
-        let address = self.access_address(address);
-        // mload (ptradd pointer, k)+offset -> mload pointer+(k + offset)
-        if let Value::Inst(inst) = self.func.value(address)
-            && let InstKind::PtrAdd(pointer, delta) = self.func.inst(*inst).kind
-            && let Some(offset) = self.func.value_u64(delta).and_then(|k| k.checked_add(offset))
-        {
-            return (pointer, offset);
-        }
-        (address, offset)
-    }
-
     /// Offsets a pointer by `offset` bytes; a raw word offsets as a `ptr<memory>`.
     pub(crate) fn ptradd(&mut self, ptr: ValueId, offset: ValueId) -> ValueId {
         // result = ptradd ptr, offset
@@ -1147,23 +1124,22 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Stores one byte in a bytes object.
     pub(crate) fn memory_store_byte(&mut self, object: ValueId, index: ValueId, value: ValueId) {
-        let (address, offset, _) =
-            self.object_address(object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, index);
-        self.store8_at(address, offset, value);
+        let (address, _) = self.object_address(object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, index);
+        self.store8(address, value);
     }
 
     /// Stores one word at a byte offset in a bytes object.
     pub(crate) fn memory_store_word(&mut self, object: ValueId, offset: ValueId, value: ValueId) {
-        let (address, offset, _) =
+        let (address, _) =
             self.object_address(object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, offset);
-        self.store_at(address, offset, value);
+        self.store(address, value);
     }
 
     /// Loads one word at a byte offset from a memory or calldata slice.
     pub(crate) fn slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
-        let (address, offset, location) =
+        let (address, location) =
             self.object_address(slice, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, offset);
-        self.load_as(address, offset, location, MirType::I256)
+        self.load(address, location)
     }
 
     /// Copies a slice into a dynamic memory object's payload.
@@ -1184,9 +1160,8 @@ impl<'a> FunctionBuilder<'a> {
         offset: ValueId,
         source: ValueId,
     ) {
-        let (destination, offset, _) =
+        let (destination, _) =
             self.object_address(object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, offset);
-        let destination = self.address_value(destination, offset);
         self.copy_slice(destination, source);
     }
 
@@ -1422,31 +1397,21 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits a word load from memory or calldata.
     pub(crate) fn load(&mut self, ptr: ValueId, location: PtrLocation) -> ValueId {
-        self.load_as(ptr, 0, location, MirType::I256)
+        self.load_as(ptr, location, MirType::I256)
     }
 
     /// Emits a word store to memory.
     pub(crate) fn store(&mut self, ptr: ValueId, value: ValueId) {
-        self.store_at(ptr, 0, value);
-    }
-
-    /// Emits a word store to memory at `ptr + offset`.
-    pub(crate) fn store_at(&mut self, ptr: ValueId, offset: u64, value: ValueId) {
-        let (ptr, offset) = self.access_base(ptr, offset);
-        // mstore ptr+offset, value
-        self.emit_void_inst(InstKind::Store(ptr, offset, value));
+        let ptr = self.access_address(ptr);
+        // mstore ptr, value
+        self.emit_void_inst(InstKind::Store(ptr, value));
     }
 
     /// Emits a byte store to memory.
     pub(crate) fn store8(&mut self, ptr: ValueId, value: ValueId) {
-        self.store8_at(ptr, 0, value);
-    }
-
-    /// Emits a byte store to memory at `ptr + offset`.
-    pub(crate) fn store8_at(&mut self, ptr: ValueId, offset: u64, value: ValueId) {
-        let (ptr, offset) = self.access_base(ptr, offset);
-        // mstore8 ptr+offset, value
-        self.emit_void_inst(InstKind::Store8(ptr, offset, value));
+        let ptr = self.access_address(ptr);
+        // mstore8 ptr, value
+        self.emit_void_inst(InstKind::Store8(ptr, value));
     }
 
     /// Emits a copy into memory.

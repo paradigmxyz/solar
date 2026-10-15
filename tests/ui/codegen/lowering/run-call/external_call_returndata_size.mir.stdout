@@ -11,7 +11,8 @@ fn @f() -> ptr<memory> [selector=0x26121ff0, pure, abi_params=[], abi_returns=[a
     v3 = lt 1, 20
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    mstore v0+32, 43
+    v5 = ptradd v0, 32
+    mstore v5, 43
     ret v0
 }
 

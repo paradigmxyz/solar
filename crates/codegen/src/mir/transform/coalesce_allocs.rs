@@ -131,31 +131,29 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
         | EffectKind::ImmutableRead
         | EffectKind::ImmutableWrite => true,
         EffectKind::MemoryRead => match &inst.kind {
-            InstKind::Load(addr, offset, PtrLocation::Memory) => {
-                range_avoids_fmp(func, *addr, *offset, Some(EvmMemoryLayout::WORD_SIZE))
+            InstKind::Load(addr, PtrLocation::Memory) => {
+                range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
             }
-            InstKind::Keccak256(addr, len) => {
-                range_avoids_fmp(func, *addr, 0, func.value_u64(*len))
-            }
+            InstKind::Keccak256(addr, len) => range_avoids_fmp(func, *addr, func.value_u64(*len)),
             // `Fmp` and `MSize` observe the allocation frontier; the object
             // and mapping forms are gone by this point in the pipeline.
             _ => false,
         },
         EffectKind::MemoryWrite => match &inst.kind {
-            InstKind::Store(addr, offset, _) => {
-                range_avoids_fmp(func, *addr, *offset, Some(EvmMemoryLayout::WORD_SIZE))
+            InstKind::Store(addr, _) => {
+                range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
             }
-            InstKind::Store8(addr, offset, _) => range_avoids_fmp(func, *addr, *offset, Some(1)),
+            InstKind::Store8(addr, _) => range_avoids_fmp(func, *addr, Some(1)),
             InstKind::MemoryZero(addr, len)
             | InstKind::Copy(addr, _, len, PtrLocation::Calldata | PtrLocation::Returndata)
             | InstKind::DataCopy(_, addr, len)
             | InstKind::CodeCopy(addr, _, len)
             | InstKind::ExtCodeCopy(_, addr, _, len) => {
-                range_avoids_fmp(func, *addr, 0, func.value_u64(*len))
+                range_avoids_fmp(func, *addr, func.value_u64(*len))
             }
             InstKind::Copy(dest, src, len, PtrLocation::Memory) => {
                 let len = func.value_u64(*len);
-                range_avoids_fmp(func, *dest, 0, len) && range_avoids_fmp(func, *src, 0, len)
+                range_avoids_fmp(func, *dest, len) && range_avoids_fmp(func, *src, len)
             }
             // `SetFmp` moves the frontier; non-member `Alloc` shapes and the
             // remaining aggregate writes stay conservative barriers.
@@ -168,11 +166,11 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
     }
 }
 
-/// Returns whether `[addr + offset, addr + offset + len)` provably avoids the FMP word.
+/// Returns whether `[addr, addr + len)` provably avoids the FMP word.
 ///
 /// `len` is `None` when the access length is not a compile-time constant.
-fn range_avoids_fmp(func: &Function, addr: ValueId, offset: u64, len: Option<u64>) -> bool {
-    !AliasAnalysis::range_may_overlap_fmp(func, addr, offset, len)
+fn range_avoids_fmp(func: &Function, addr: ValueId, len: Option<u64>) -> bool {
+    !AliasAnalysis::range_may_overlap_fmp(func, addr, len)
 }
 
 /// Rewrites a collected group into one fused allocation plus constant offsets.

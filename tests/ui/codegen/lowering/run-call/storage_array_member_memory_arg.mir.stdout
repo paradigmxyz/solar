@@ -49,17 +49,17 @@ fn @consume(arg0: ptr<memory>) -> struct0 [pure] {
     jump bb1
   bb1:
     v1 = phi [bb0: v0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v13]
+    v2 = phi [bb0: 0], [bb3: v14]
     v3 = phi [bb0: arg0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v12]
+    v4 = phi [bb0: 0], [bb3: v13]
     v5 = lt v2, v1
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v14 = insert_value struct0, undef struct0, 0, v1
-    v15 = insert_value struct0, v14, 1, v4
-    ret v15
+    v15 = insert_value struct0, undef struct0, 0, v1
+    v16 = insert_value struct0, v15, 1, v4
+    ret v16
   bb4:
     v6 = mload v3
     v7 = lt v2, v6
@@ -67,13 +67,14 @@ fn @consume(arg0: ptr<memory>) -> struct0 [pure] {
     icall panic_if<0x32>, v8
     v9 = shl 5, v2
     v10 = ptradd v3, v9
-    v11 = mload v10+32
-    v12 = checked_add u256, v4, v11
+    v11 = ptradd v10, 32
+    v12 = mload v11
+    v13 = checked_add u256, v4, v12
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v13 = checked_add u256, v2, 1
+    v14 = checked_add u256, v2, 1
     jump bb1
 }
 

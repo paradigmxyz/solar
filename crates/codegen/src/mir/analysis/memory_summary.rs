@@ -706,8 +706,8 @@ fn local_summary(
             }
 
             match kind {
-                InstKind::Store(_, _, value)
-                | InstKind::Store8(_, _, value)
+                InstKind::Store(_, value)
+                | InstKind::Store8(_, value)
                 | InstKind::SStore(_, value)
                 | InstKind::TStore(_, value)
                 | InstKind::SetFmp(value)
@@ -817,8 +817,8 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
             InstKind::Fmp
             | InstKind::MSize
             | InstKind::ICall { function: Callee::Function(_), .. } => true,
-            InstKind::Load(address, offset, PtrLocation::Memory) => {
-                func.constant_address(*address, *offset) == Some(EvmMemoryLayout::FMP_SLOT)
+            InstKind::Load(address, PtrLocation::Memory) => {
+                func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT)
             }
             _ => false,
         };
@@ -878,9 +878,8 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
         InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize | InstKind::MappingSlotBytes(..) => {
             true
         }
-        InstKind::Load(address, offset, PtrLocation::Memory)
-        | InstKind::Store(address, offset, _) => {
-            func.constant_address(address, offset) == Some(EvmMemoryLayout::FMP_SLOT)
+        InstKind::Load(address, PtrLocation::Memory) | InstKind::Store(address, _) => {
+            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
         _ => false,
     }
@@ -889,16 +888,14 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
         InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
-        InstKind::Store(address, offset, value) => {
-            if func.constant_address(address, offset) != Some(EvmMemoryLayout::FMP_SLOT) {
+        InstKind::Store(address, value) => {
+            if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
                 return false;
             }
             !is_monotonic_fmp_advance(func, value)
         }
-        InstKind::Store8(address, offset, _) => {
-            func.constant_address(address, offset) == Some(EvmMemoryLayout::FMP_SLOT)
-        }
-        InstKind::Copy(address, ..)
+        InstKind::Store8(address, _)
+        | InstKind::Copy(address, ..)
         | InstKind::MemoryZero(address, _)
         | InstKind::CodeCopy(address, _, _) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
@@ -946,8 +943,8 @@ fn is_fmp_derived(
 
     let result = match func.value(value) {
         Value::Inst(inst_id) => match func.inst(*inst_id).kind.clone() {
-            InstKind::Load(address, offset, PtrLocation::Memory) => {
-                func.constant_address(address, offset) == Some(EvmMemoryLayout::FMP_SLOT)
+            InstKind::Load(address, PtrLocation::Memory) => {
+                func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
             }
             InstKind::Add(first, second) => {
                 (is_fmp_derived(func, first, visiting, anchor, supported)

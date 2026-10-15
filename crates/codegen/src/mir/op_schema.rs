@@ -686,7 +686,7 @@ macro_rules! define_mir_ops {
                 $(#[when($when_pattern:pat => { $( $when_field:ident : $when_value:expr ),+ $(,)? })])*
                 $(#[commutative($lhs:ident, $rhs:ident)])?
                 $(#[builder($builder:ident $(, $void:ident)?)])?
-                $(#[raw_memory($( $access:ident($address:ident $(+ $address_offset:ident)?, $size:tt) $(if $guard:expr)? ),+)])?
+                $(#[raw_memory($( $access:ident($address:ident, $size:tt) $(if $guard:expr)? ),+)])?
                 #[operand_types($func:ident => $operand_types:expr)]
                 $variant:ident
                 $( ( $( $operand:ident : $operand_ty:ty ),+ $(,)? ) )?
@@ -814,25 +814,20 @@ macro_rules! define_mir_ops {
                 }
             }
 
-            /// Visits each raw memory range the operation reads or writes at an address, with the
-            /// address, its immediate byte offset, and the size, reads before writes. Operations
-            /// that reach memory only through slices, frames, or the free memory pointer have none.
+            /// Visits each raw memory range the operation reads or writes, with its address and
+            /// size, reads before writes. Operations that reach memory only through
+            /// slices, frames, or the free memory pointer have none.
             #[allow(unused_variables)]
             pub(crate) fn visit_raw_memory(
                 &self,
-                mut f: impl FnMut(RawMemoryAccess, ValueId, u64, RawMemorySize),
+                mut f: impl FnMut(RawMemoryAccess, ValueId, RawMemorySize),
             ) {
                 match self {
                     $(
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
                             $( $(
                                 if true $( && $guard )? {
-                                    f(
-                                        RawMemoryAccess::$access,
-                                        *$address,
-                                        0 $(+ *$address_offset)?,
-                                        raw_memory_size!($size),
-                                    );
+                                    f(RawMemoryAccess::$access, *$address, raw_memory_size!($size));
                                 }
                             )+ )?
                         }
@@ -1557,10 +1552,9 @@ define_mir_ops! {
     Ne(a: ValueId, b: ValueId),
 
     // Memory operations
-    /// Load the word at `ptr + offset` from memory or calldata. Like an LLVM load from `ptr`, the
-    /// address may be a pointer into the same location; lowering casts it at the opcode boundary.
-    /// The immediate byte `offset` adds to `ptr` as `ptradd` does for a pointer and as `add` does
-    /// for a word, and is zero in the lowered phase.
+    /// Load the word at `ptr` from memory, calldata, or returndata. Like an LLVM load from `ptr`,
+    /// the address may be a pointer into the same location; lowering casts it at the opcode
+    /// boundary.
     #[mir_op(
         mnemonic = "mload",
         result = Word,
@@ -1570,18 +1564,18 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
-    #[when(InstKind::Load(_, _, PtrLocation::Calldata) => {
+    #[when(InstKind::Load(_, PtrLocation::Calldata) => {
         mnemonic: "calldataload",
         effect: EffectKind::EnvironmentRead,
     })]
-    #[when(InstKind::Load(_, _, PtrLocation::Returndata) => {
+    #[when(InstKind::Load(_, PtrLocation::Returndata) => {
         mnemonic: "returndataload",
         effect: EffectKind::EnvironmentRead,
     })]
-    #[raw_memory(Read(ptr + offset, 32) if *location == PtrLocation::Memory)]
+    #[raw_memory(Read(ptr, 32) if *location == PtrLocation::Memory)]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location)]))]
-    Load(ptr: ValueId, offset: u64, location: PtrLocation),
-    /// Store a word to memory at `ptr + offset`, which may be a `ptr<memory>`, as for `mload`.
+    Load(ptr: ValueId, location: PtrLocation),
+    /// Store a word to memory at `ptr`, which may be a `ptr<memory>`, as for `mload`.
     #[mir_op(
         mnemonic = "mstore",
         result = None,
@@ -1591,10 +1585,10 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
-    #[raw_memory(Write(ptr + offset, 32))]
+    #[raw_memory(Write(ptr, 32))]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, PtrLocation::Memory), MirType::I256]))]
-    Store(ptr: ValueId, offset: u64, value: ValueId),
-    /// Store the low byte of `value` to memory at `ptr + offset`, as for `mstore`.
+    Store(ptr: ValueId, value: ValueId),
+    /// Store the low byte of `value` to memory at `ptr`, as for `mstore`.
     #[mir_op(
         mnemonic = "mstore8",
         result = None,
@@ -1604,9 +1598,9 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
-    #[raw_memory(Write(ptr + offset, 1))]
+    #[raw_memory(Write(ptr, 1))]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, PtrLocation::Memory), MirType::I256]))]
-    Store8(ptr: ValueId, offset: u64, value: ValueId),
+    Store8(ptr: ValueId, value: ValueId),
     /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
     #[mir_op(
         mnemonic = "memory_zero",

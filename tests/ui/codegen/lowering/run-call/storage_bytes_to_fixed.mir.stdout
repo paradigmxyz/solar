@@ -236,45 +236,46 @@ fn @arrayElement() -> i256 [selector=0x050651a8, abi_params=[], abi_returns=[wor
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 2
-    mstore v0+32, 0x102000000000000000000000000000000000000000000000000000000000000
-    v1 = sload 3 !metadata(storage=slot(3))
-    v2 = gt v1, 0xffffffffffffffff
-    icall panic_if<0x41>, v2
-    v3 = add v1, 1
-    v4 = storage_array_data_slot 3
-    v5 = add v4, v1
-    icall @store_storage_bytes, v5, v0
-    sstore 3, v3 !metadata(storage=slot(3))
-    v6 = sload 3 !metadata(storage=slot(3))
-    v7 = lt 0, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = storage_array_data_slot 3
-    v10 = add v9, 0
-    v11 = sload v10 !metadata(storage=symbolic(v9))
-    validate_storage_bytes v11
-    v12 = and v11, 1
-    v13 = eq v12, 1
-    v14 = sub 0, v12
-    v15 = or 127, v14
-    v16 = shr 1, v11
-    v17 = and v16, v15
-    jumpi v13, bb1, bb2
+    v1 = ptradd v0, 32
+    mstore v1, 0x102000000000000000000000000000000000000000000000000000000000000
+    v2 = sload 3 !metadata(storage=slot(3))
+    v3 = gt v2, 0xffffffffffffffff
+    icall panic_if<0x41>, v3
+    v4 = add v2, 1
+    v5 = storage_array_data_slot 3
+    v6 = add v5, v2
+    icall @store_storage_bytes, v6, v0
+    sstore 3, v4 !metadata(storage=slot(3))
+    v7 = sload 3 !metadata(storage=slot(3))
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = storage_array_data_slot 3
+    v11 = add v10, 0
+    v12 = sload v11 !metadata(storage=symbolic(v10))
+    validate_storage_bytes v12
+    v13 = and v12, 1
+    v14 = eq v13, 1
+    v15 = sub 0, v13
+    v16 = or 127, v15
+    v17 = shr 1, v12
+    v18 = and v17, v16
+    jumpi v14, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v18 = storage_array_data_slot v10
-    v19 = sload v18 !metadata(storage=symbolic(v18))
+    v19 = storage_array_data_slot v11
+    v20 = sload v19 !metadata(storage=symbolic(v19))
     jump bb3
   bb3:
-    v20 = phi [bb1: v19], [bb2: v11]
-    v21 = lt v17, 2
-    v22 = sub 2, v17
-    v23 = mul 8, v22
-    v24 = shl v23, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v25 = select v21, v24, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v26 = and v20, v25
-    ret v26
+    v21 = phi [bb1: v20], [bb2: v12]
+    v22 = lt v18, 2
+    v23 = sub 2, v18
+    v24 = mul 8, v23
+    v25 = shl v24, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v26 = select v22, v25, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v27 = and v21, v26
+    ret v27
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

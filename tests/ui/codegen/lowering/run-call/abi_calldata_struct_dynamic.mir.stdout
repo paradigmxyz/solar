@@ -32,15 +32,15 @@ fn @hash(arg0: slice<calldata>) -> i256 [selector=0x43298469, pure, abi_params=[
     mstore v22, v0
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v77]
+    v23 = phi [bb0: 0], [bb2: v78]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
-    v78 = abi_encode [memory_array<tuple<memory_array<word>>>], scratch, args v22
-    v79 = extract_value slice<memory>, v78, 0
-    v80 = extract_value slice<memory>, v78, 1
-    v81 = keccak256 v79, v80
-    ret v81
+    v79 = abi_encode [memory_array<tuple<memory_array<word>>>], scratch, args v22
+    v80 = extract_value slice<memory>, v79, 0
+    v81 = extract_value slice<memory>, v79, 1
+    v82 = keccak256 v80, v81
+    ret v82
   bb2:
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
@@ -105,8 +105,9 @@ fn @hash(arg0: slice<calldata>) -> i256 [selector=0x43298469, pure, abi_params=[
     v74 = ptrtoint ptr<memory> v40 to i256
     v75 = shl 5, v23
     v76 = ptradd v22, v75
-    mstore v76+32, v74
-    v77 = add v23, 1
+    v77 = ptradd v76, 32
+    mstore v77, v74
+    v78 = add v23, 1
     jump bb1
 }
 

@@ -1588,14 +1588,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
-    /// Parses the immediate byte offset of a memory access address, `+offset`, if present.
-    fn parse_address_offset(&mut self) -> PResult<'sess, u64> {
-        if !self.parser.eat(TokenKind::BinOp(BinOpToken::Plus)) {
-            return Ok(0);
-        }
-        Ok(self.parser.parse_uint()?.to::<u64>())
-    }
-
     fn parse_frame_slot_kind(&mut self) -> PResult<'sess, FrameSlotKind> {
         let kind = self.parser.parse_ident()?;
         if kind == sym::word {
@@ -1808,7 +1800,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Mload | kw::Calldataload | sym::returndataload => {
                 let location = mnemonic_location(mnemonic);
                 let ptr = self.parse_value(builder)?;
-                let offset = self.parse_address_offset()?;
                 let ty = if self.parser.eat(TokenKind::Comma) {
                     let ty = self.parse_type()?;
                     if ty != MirType::MEMPTR {
@@ -1818,17 +1809,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 } else {
                     MirType::I256
                 };
-                (InstKind::Load(ptr, offset, location), Some(ty))
+                (InstKind::Load(ptr, location), Some(ty))
             }
             kw::Mstore | kw::Mstore8 => {
                 let ptr = self.parse_value(builder)?;
-                let offset = self.parse_address_offset()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let value = self.parse_value(builder)?;
                 let kind = if mnemonic == kw::Mstore {
-                    InstKind::Store(ptr, offset, value)
+                    InstKind::Store(ptr, value)
                 } else {
-                    InstKind::Store8(ptr, offset, value)
+                    InstKind::Store8(ptr, value)
                 };
                 (kind, None)
             }

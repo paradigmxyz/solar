@@ -75,10 +75,11 @@ fn @matchesReference() -> i1 [selector=0xedf3feeb, pure, abi_params=[], abi_retu
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 12
-    mstore v0+32, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
-    v1 = icall @erc7201Reference, v0
-    v2 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v1
-    ret v2
+    v1 = ptradd v0, 32
+    mstore v1, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
+    v2 = icall @erc7201Reference, v0
+    v3 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v2
+    ret v3
 }
 
 fn @erc7201Reference(arg0: ptr<memory>) -> i256 [pure] {

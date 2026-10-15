@@ -135,14 +135,14 @@
 (decl ne (Value Value) Value)
 (extractor (ne a b) (inst (Op.Ne a b)))
 
-(decl load (Value u64 PtrLocation) Value)
-(extractor (load ptr offset location) (inst (Op.Load ptr offset location)))
+(decl load (Value PtrLocation) Value)
+(extractor (load ptr location) (inst (Op.Load ptr location)))
 
-(decl store (Value u64 Value) Value)
-(extractor (store ptr offset value) (inst (Op.Store ptr offset value)))
+(decl store (Value Value) Value)
+(extractor (store ptr value) (inst (Op.Store ptr value)))
 
-(decl store8 (Value u64 Value) Value)
-(extractor (store8 ptr offset value) (inst (Op.Store8 ptr offset value)))
+(decl store8 (Value Value) Value)
+(extractor (store8 ptr value) (inst (Op.Store8 ptr value)))
 
 (decl memoryzero (Value Value) Value)
 (extractor (memoryzero offset size) (inst (Op.MemoryZero offset size)))

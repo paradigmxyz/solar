@@ -13,28 +13,31 @@
 +     mstore v3, v4
 +     v5 = add v2, 1
 +     v6 = sload v5 !metadata(storage=offset(arg0, 2))
-+     mstore v3+32, v6
-+     v7 = ptrtoint ptr<memory> v3 to i256
-+     mstore v0+32, v7
-+     v8 = add arg0, 3
-+     v9 = alloc 64
++     v7 = ptradd v3, 32
++     mstore v7, v6
++     v8 = ptradd v0, 32
++     v9 = ptrtoint ptr<memory> v3 to i256
++     mstore v8, v9
++     v10 = add arg0, 3
++     v11 = alloc 64
 +     jump bb1
 +   bb1:
-+     v10 = phi [bb0: 0], [bb2: v17]
-+     v11 = lt v10, 2
-+     jumpi v11, bb2, bb3
++     v12 = phi [bb0: 0], [bb2: v19]
++     v13 = lt v12, 2
++     jumpi v13, bb2, bb3
 +   bb3:
-+     v18 = ptrtoint ptr<memory> v9 to i256
-+     mstore v0+64, v18
++     v20 = ptradd v0, 64
++     v21 = ptrtoint ptr<memory> v11 to i256
++     mstore v20, v21
       stop
 +   bb2:
-+     v12 = mul v10, 1
-+     v13 = add v8, v12
-+     v14 = sload v13 !metadata(storage=symbolic(v13))
-+     v15 = shl 5, v10
-+     v16 = ptradd v9, v15
-+     mstore v16, v14
-+     v17 = add v10, 1
++     v14 = mul v12, 1
++     v15 = add v10, v14
++     v16 = sload v15 !metadata(storage=symbolic(v15))
++     v17 = shl 5, v12
++     v18 = ptradd v11, v17
++     mstore v18, v16
++     v19 = add v12, 1
 +     jump bb1
   }
   
@@ -45,30 +48,33 @@
 +     v1 = mload v0
 +     sstore arg1, v1 !metadata(storage=symbolic(arg1))
 +     v2 = add arg1, 1
-+     v3 = mload v0+32
++     v3 = ptradd v0, 32
 +     v4 = mload v3
-+     sstore v2, v4 !metadata(storage=offset(arg1, 1))
-+     v5 = add v2, 1
-+     v6 = mload v3+32
-+     sstore v5, v6 !metadata(storage=offset(arg1, 2))
-+     v7 = add arg1, 3
-+     v8 = mload v0+64
++     v5 = mload v4
++     sstore v2, v5 !metadata(storage=offset(arg1, 1))
++     v6 = add v2, 1
++     v7 = add v4, 32
++     v8 = mload v7
++     sstore v6, v8 !metadata(storage=offset(arg1, 2))
++     v9 = add arg1, 3
++     v10 = ptradd v0, 64
++     v11 = mload v10
 +     jump bb1
 +   bb1:
-+     v9 = phi [bb0: 0], [bb2: v17]
-+     v10 = lt v9, 2
-+     jumpi v10, bb2, bb3
++     v12 = phi [bb0: 0], [bb2: v20]
++     v13 = lt v12, 2
++     jumpi v13, bb2, bb3
 +   bb3:
       stop
 +   bb2:
-+     v11 = mul v9, 1
-+     v12 = add v7, v11
-+     v13 = shl 5, v9
-+     v14 = inttoptr i256 v8 to ptr<memory>
-+     v15 = ptradd v14, v13
-+     v16 = mload v15
-+     sstore v12, v16 !metadata(storage=symbolic(v12))
-+     v17 = add v9, 1
++     v14 = mul v12, 1
++     v15 = add v9, v14
++     v16 = shl 5, v12
++     v17 = inttoptr i256 v11 to ptr<memory>
++     v18 = ptradd v17, v16
++     v19 = mload v18
++     sstore v15, v19 !metadata(storage=symbolic(v15))
++     v20 = add v12, 1
 +     jump bb1
   }
   

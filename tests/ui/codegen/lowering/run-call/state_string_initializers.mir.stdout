@@ -29,18 +29,20 @@ fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 11
-    mstore v0+32, 0x4e61746976654552433230000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x4e61746976654552433230000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
-    v1 = alloc 64 !metadata(preserves_fmp)
-    mstore v1, 6
-    mstore v1+32, 0x4e45524332300000000000000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 1, v1
-    v2 = sload 2 !metadata(storage=slot(2))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = and 18, 255
-    v6 = or v4, v5
-    sstore 2, v6 !metadata(storage=slot(2))
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 6
+    v3 = ptradd v2, 32
+    mstore v3, 0x4e45524332300000000000000000000000000000000000000000000000000000
+    icall @store_storage_bytes, 1, v2
+    v4 = sload 2 !metadata(storage=slot(2))
+    v5 = not 255
+    v6 = and v4, v5
+    v7 = and 18, 255
+    v8 = or v6, v7
+    sstore 2, v8 !metadata(storage=slot(2))
     ret
 }
 

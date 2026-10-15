@@ -587,7 +587,7 @@ impl StorageScalarPromoter {
                     .position(|&inst_id| inst_id == init_store)
                     .expect("candidate init store should be in the preheader");
                 temps.insert(candidate.candidate.slot, (candidate.temp_addr, init_pos));
-                func.inst_mut(init_store).kind = InstKind::Store(candidate.temp_addr, 0, *init);
+                func.inst_mut(init_store).kind = InstKind::Store(candidate.temp_addr, *init);
                 func.inst_mut(init_store).metadata.set_storage_alias(None);
                 self.stats.stores_promoted += 1;
             }
@@ -601,7 +601,7 @@ impl StorageScalarPromoter {
                 if let Some(&(temp_addr, init_pos)) = temps.get(&alias)
                     && pos > init_pos
                 {
-                    func.inst_mut(inst_id).kind = InstKind::Load(temp_addr, 0, PtrLocation::Memory);
+                    func.inst_mut(inst_id).kind = InstKind::Load(temp_addr, PtrLocation::Memory);
                     func.inst_mut(inst_id).metadata.set_storage_alias(None);
                     self.stats.loads_promoted += 1;
                 }
@@ -628,11 +628,11 @@ impl StorageScalarPromoter {
                         temps
                             .get(&alias)
                             .copied()
-                            .map(|temp| InstKind::Load(temp, 0, PtrLocation::Memory))
+                            .map(|temp| InstKind::Load(temp, PtrLocation::Memory))
                     }
                     InstKind::SStore(slot, value) => {
                         let alias = self.storage_alias(func, inst_id, *slot);
-                        temps.get(&alias).copied().map(|temp| InstKind::Store(temp, 0, *value))
+                        temps.get(&alias).copied().map(|temp| InstKind::Store(temp, *value))
                     }
                     _ => None,
                 };
@@ -670,12 +670,12 @@ impl StorageScalarPromoter {
                     InstKind::SLoad(slot)
                         if self.storage_alias(func, inst_id, *slot) == candidate.slot =>
                     {
-                        Some(InstKind::Load(temp_addr, 0, PtrLocation::Memory))
+                        Some(InstKind::Load(temp_addr, PtrLocation::Memory))
                     }
                     InstKind::SStore(slot, value)
                         if self.storage_alias(func, inst_id, *slot) == candidate.slot =>
                     {
-                        Some(InstKind::Store(temp_addr, 0, *value))
+                        Some(InstKind::Store(temp_addr, *value))
                     }
                     _ => None,
                 };
@@ -694,7 +694,7 @@ impl StorageScalarPromoter {
                         && matches!(func.inst(inst_id).kind, InstKind::Store(..))
                     {
                         let dirty_store =
-                            self.alloc_void_inst(func, InstKind::Store(dirty_addr, 0, dirty_value));
+                            self.alloc_void_inst(func, InstKind::Store(dirty_addr, dirty_value));
                         func.blocks[block_id].instructions.insert(index + 1, dirty_store);
                         index += 1;
                     }
@@ -728,7 +728,7 @@ impl StorageScalarPromoter {
         match candidate.init_store {
             Some(init_store) => {
                 if let InstKind::SStore(_, init) = &func.inst(init_store).kind {
-                    func.inst_mut(init_store).kind = InstKind::Store(promoted.temp_addr, 0, *init);
+                    func.inst_mut(init_store).kind = InstKind::Store(promoted.temp_addr, *init);
                     func.inst_mut(init_store).metadata.set_storage_alias(None);
                     self.stats.stores_promoted += 1;
                 }
@@ -745,7 +745,7 @@ impl StorageScalarPromoter {
                         && self.storage_alias(func, inst_id, *load_slot) == candidate.slot
                     {
                         func.inst_mut(inst_id).kind =
-                            InstKind::Load(promoted.temp_addr, 0, PtrLocation::Memory);
+                            InstKind::Load(promoted.temp_addr, PtrLocation::Memory);
                         func.inst_mut(inst_id).metadata.set_storage_alias(None);
                         self.stats.loads_promoted += 1;
                     }
@@ -761,8 +761,8 @@ impl StorageScalarPromoter {
                         InstKind::SLoad(candidate.slot_value),
                         MirType::I256,
                     );
-                    let store_inst = self
-                        .alloc_void_inst(func, InstKind::Store(promoted.temp_addr, 0, load_value));
+                    let store_inst =
+                        self.alloc_void_inst(func, InstKind::Store(promoted.temp_addr, load_value));
                     func.blocks[candidate.preheader]
                         .instructions
                         .insert(insert_pos + inserted, load_inst);
@@ -776,7 +776,7 @@ impl StorageScalarPromoter {
                 if let Some(dirty_addr) = promoted.dirty_addr {
                     let false_word = self.bool_word(func, false);
                     let dirty_store =
-                        self.alloc_void_inst(func, InstKind::Store(dirty_addr, 0, false_word));
+                        self.alloc_void_inst(func, InstKind::Store(dirty_addr, false_word));
                     func.blocks[candidate.preheader]
                         .instructions
                         .insert(insert_pos + inserted, dirty_store);
@@ -793,11 +793,8 @@ impl StorageScalarPromoter {
         temp_addr: ValueId,
     ) {
         let (load_inst, load_value) = func.alloc_value_inst(
-            Instruction::new(
-                InstKind::Load(temp_addr, 0, PtrLocation::Memory),
-                Some(MirType::I256),
-            )
-            .with_debug_info_dropped(),
+            Instruction::new(InstKind::Load(temp_addr, PtrLocation::Memory), Some(MirType::I256))
+                .with_debug_info_dropped(),
         );
         let store_inst = func.alloc_inst(
             Instruction::new(InstKind::SStore(slot_value, load_value), None)
@@ -838,11 +835,8 @@ impl StorageScalarPromoter {
         let continuation_instructions = old_instructions[split_pos..].to_vec();
 
         let (dirty_load_inst, dirty_value) = func.alloc_value_inst(
-            Instruction::new(
-                InstKind::Load(dirty_addr, 0, PtrLocation::Memory),
-                Some(MirType::I256),
-            )
-            .with_debug_info_dropped(),
+            Instruction::new(InstKind::Load(dirty_addr, PtrLocation::Memory), Some(MirType::I256))
+                .with_debug_info_dropped(),
         );
         exit_instructions.push(dirty_load_inst);
         // dirty_bool = ne dirty_word, 0
@@ -863,11 +857,8 @@ impl StorageScalarPromoter {
         });
 
         let (load_inst, load_value) = func.alloc_value_inst(
-            Instruction::new(
-                InstKind::Load(temp_addr, 0, PtrLocation::Memory),
-                Some(MirType::I256),
-            )
-            .with_debug_info_dropped(),
+            Instruction::new(InstKind::Load(temp_addr, PtrLocation::Memory), Some(MirType::I256))
+                .with_debug_info_dropped(),
         );
         let store_inst = func.alloc_inst(
             Instruction::new(InstKind::SStore(slot_value, load_value), None)

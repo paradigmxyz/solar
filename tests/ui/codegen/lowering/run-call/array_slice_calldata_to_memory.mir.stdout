@@ -57,8 +57,9 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x6575
     v44 = lt 0, v43
     v45 = eq v44, false
     icall panic_if<0x32>, v45
-    v46 = mload v38+32
-    ret v46
+    v46 = ptradd v38, 32
+    v47 = mload v46
+    ret v47
 }
 
 fn @first(arg0: ptr<memory>) -> i256 [pure] {
@@ -67,8 +68,9 @@ fn @first(arg0: ptr<memory>) -> i256 [pure] {
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = mload arg0+32
-    ret v3
+    v3 = ptradd arg0, 32
+    v4 = mload v3
+    ret v4
 }
 
 fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x4b1f0a4b, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -203,6 +205,7 @@ fn @literal(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x7
     v54 = lt 0, v53
     v55 = eq v54, false
     icall panic_if<0x32>, v55
-    v56 = mload v52+32
-    ret v56
+    v56 = ptradd v52, 32
+    v57 = mload v56
+    ret v57
 }

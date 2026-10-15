@@ -14,19 +14,19 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     v32 = calldatasize
     calldatacopy v26, v32, 192
     mstore v26, 160
-    v12 = add v26, 32
-    mstore v12, 1
-    v16 = add v26, 64
-    mstore v16, 28
-    v18 = add v26, 96
-    mstore v18, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v20 = add v26, 128
-    mstore v20, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v22 = add v26, 160
-    v5 = gas
-    v6 = staticcall v5, 1, v12, 128, v22, 32
-    v7 = mload v22
-    v33 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = add v26, 32
+    mstore v16, 1
+    v18 = add v26, 64
+    mstore v18, 28
+    v20 = add v26, 96
+    mstore v20, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
+    v22 = add v26, 128
+    mstore v22, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    v24 = add v26, 160
+    v9 = gas
+    v10 = staticcall v9, 1, v16, 128, v24, 32
+    v11 = mload v24
+    v33 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v33
     returndata 128, 32
   bb2:
@@ -48,19 +48,19 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     v32 = calldatasize
     calldatacopy v26, v32, 192
     mstore v26, 160
-    v12 = add v26, 32
-    mstore v12, 0
-    v16 = add v26, 64
+    v16 = add v26, 32
     mstore v16, 0
-    v18 = add v26, 96
+    v18 = add v26, 64
     mstore v18, 0
-    v20 = add v26, 128
+    v20 = add v26, 96
     mstore v20, 0
-    v22 = add v26, 160
-    v5 = gas
-    v6 = staticcall v5, 1, v12, 128, v22, 32
-    v7 = mload v22
-    v33 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v22 = add v26, 128
+    mstore v22, 0
+    v24 = add v26, 160
+    v9 = gas
+    v10 = staticcall v9, 1, v16, 128, v24, 32
+    v11 = mload v24
+    v33 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v33
     returndata 128, 32
   bb2:

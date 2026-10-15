@@ -60,7 +60,8 @@ fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_p
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 0
-    mstore v0+32, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
     jumpi arg0, bb1, bb2
   bb2:
     mstore v0, 11
@@ -71,33 +72,36 @@ fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_p
   bb3:
     jump bb4
   bb4:
-    v1 = phi [bb3: 0], [bb6: v13]
-    v2 = phi [bb3: arg0], [bb6: v2]
-    v3 = phi [bb3: v0], [bb6: v3]
-    v4 = phi [bb3: 0], [bb6: v4]
-    v5 = phi [bb3: arg1], [bb6: v5]
-    v6 = phi [bb3: 0], [bb6: v6]
-    v7 = lt v1, v5
-    jumpi v7, bb7, bb8
+    v2 = phi [bb3: 0], [bb6: v16]
+    v3 = phi [bb3: arg0], [bb6: v3]
+    v4 = phi [bb3: v0], [bb6: v4]
+    v5 = phi [bb3: 0], [bb6: v5]
+    v6 = phi [bb3: arg1], [bb6: v6]
+    v7 = phi [bb3: 0], [bb6: v7]
+    v8 = lt v2, v6
+    jumpi v8, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    v14 = mload v3+32
-    v15 = insert_value struct0, undef struct0, 0, v14
-    v16 = insert_value struct0, v15, 1, v2
-    ret v16
+    v17 = ptradd v4, 32
+    v18 = mload v17
+    v19 = insert_value struct0, undef struct0, 0, v18
+    v20 = insert_value struct0, v19, 1, v3
+    ret v20
   bb7:
-    v8 = mload v3
-    v9 = checked_add u256, v8, v1
-    mstore v3, v9
-    v10 = mload v3
-    v11 = mload v3+32
-    v12 = checked_add u256, v11, v10
-    mstore v3+32, v12
+    v9 = mload v4
+    v10 = checked_add u256, v9, v2
+    mstore v4, v10
+    v11 = mload v4
+    v12 = ptradd v4, 32
+    v13 = mload v12
+    v14 = checked_add u256, v13, v11
+    v15 = ptradd v4, 32
+    mstore v15, v14
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v13 = checked_add u256, v1, 1
+    v16 = checked_add u256, v2, 1
     jump bb4
 }

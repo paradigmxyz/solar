@@ -73,7 +73,7 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     jump bb3
   bb9:
     v33 = ptradd v10, 36
-    v34 = mload v10+36
+    v34 = mload v33
     jump bb3
   bb7:
     v23 = mload v10

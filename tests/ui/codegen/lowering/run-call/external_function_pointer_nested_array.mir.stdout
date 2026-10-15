@@ -6,80 +6,85 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = mload arg0+32
-    v4 = shr 64, v3
-    v5 = and v4, 0xffffffff
-    v6 = shl 224, v5
-    v7 = shr 32, v4
-    v8 = gas
-    v9 = abi_encode [], selector v6
-    v10 = extract_value slice<memory>, v9, 0
-    v11 = extract_value slice<memory>, v9, 1
-    v12 = call v8, v7, 0, v10, v11, 0, 0
-    jumpi v12, bb2, bb1
+    v3 = ptradd arg0, 32
+    v4 = mload v3
+    v5 = shr 64, v4
+    v6 = and v5, 0xffffffff
+    v7 = shl 224, v6
+    v8 = shr 32, v5
+    v9 = gas
+    v10 = abi_encode [], selector v7
+    v11 = extract_value slice<memory>, v10, 0
+    v12 = extract_value slice<memory>, v10, 1
+    v13 = call v9, v8, 0, v11, v12, 0, 0
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = icall returndata_bytes<>
-    v14 = abi_decode [function], v13
-    v15 = alloc 96 !metadata(preserves_fmp)
-    memory_zero v15, 96
-    v16 = lt 0, 3
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = shl 64, v14
-    mstore v15, v18
-    v19 = mload arg0
-    v20 = lt 1, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = mload arg0+64
-    v23 = shr 64, v22
-    v24 = and v23, 0xffffffff
-    v25 = shl 224, v24
-    v26 = shr 32, v23
-    v27 = gas
-    v28 = abi_encode [], selector v25
-    v29 = extract_value slice<memory>, v28, 0
-    v30 = extract_value slice<memory>, v28, 1
-    v31 = call v27, v26, 0, v29, v30, 0, 0
-    jumpi v31, bb4, bb3
+    v14 = icall returndata_bytes<>
+    v15 = abi_decode [function], v14
+    v16 = alloc 96 !metadata(preserves_fmp)
+    memory_zero v16, 96
+    v17 = lt 0, 3
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = shl 64, v15
+    mstore v16, v19
+    v20 = mload arg0
+    v21 = lt 1, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = ptradd arg0, 64
+    v24 = mload v23
+    v25 = shr 64, v24
+    v26 = and v25, 0xffffffff
+    v27 = shl 224, v26
+    v28 = shr 32, v25
+    v29 = gas
+    v30 = abi_encode [], selector v27
+    v31 = extract_value slice<memory>, v30, 0
+    v32 = extract_value slice<memory>, v30, 1
+    v33 = call v29, v28, 0, v31, v32, 0, 0
+    jumpi v33, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v32 = icall returndata_bytes<>
-    v33 = abi_decode [function], v32
-    v34 = lt 1, 3
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = shl 64, v33
-    mstore v15+32, v36
-    v37 = mload arg0
-    v38 = lt 2, v37
-    v39 = eq v38, false
-    icall panic_if<0x32>, v39
-    v40 = mload arg0+96
-    v41 = shr 64, v40
-    v42 = and v41, 0xffffffff
-    v43 = shl 224, v42
-    v44 = shr 32, v41
-    v45 = gas
-    v46 = abi_encode [], selector v43
-    v47 = extract_value slice<memory>, v46, 0
-    v48 = extract_value slice<memory>, v46, 1
-    v49 = call v45, v44, 0, v47, v48, 0, 0
-    jumpi v49, bb6, bb5
+    v34 = icall returndata_bytes<>
+    v35 = abi_decode [function], v34
+    v36 = lt 1, 3
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = shl 64, v35
+    v39 = ptradd v16, 32
+    mstore v39, v38
+    v40 = mload arg0
+    v41 = lt 2, v40
+    v42 = eq v41, false
+    icall panic_if<0x32>, v42
+    v43 = ptradd arg0, 96
+    v44 = mload v43
+    v45 = shr 64, v44
+    v46 = and v45, 0xffffffff
+    v47 = shl 224, v46
+    v48 = shr 32, v45
+    v49 = gas
+    v50 = abi_encode [], selector v47
+    v51 = extract_value slice<memory>, v50, 0
+    v52 = extract_value slice<memory>, v50, 1
+    v53 = call v49, v48, 0, v51, v52, 0, 0
+    jumpi v53, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v50 = icall returndata_bytes<>
-    v51 = abi_decode [function], v50
-    v52 = lt 2, 3
-    v53 = eq v52, false
-    icall panic_if<0x32>, v53
-    v54 = shl 64, v51
-    mstore v15+64, v54
-    ret v15
+    v54 = icall returndata_bytes<>
+    v55 = abi_decode [function], v54
+    v56 = lt 2, 3
+    v57 = eq v56, false
+    icall panic_if<0x32>, v57
+    v58 = shl 64, v55
+    v59 = ptradd v16, 64
+    mstore v59, v58
+    ret v16
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArray ===
@@ -96,7 +101,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     mstore v0, 3
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb3: v18]
+    v1 = phi [bb0: 0], [bb3: v19]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v4]
@@ -107,117 +112,120 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb5:
     jump bb2
   bb2:
-    v19 = address
-    v20 = zext i160 v19 to i256
-    v21 = shl 32, v20
-    v22 = or v21, 0x573a6b2f
-    v23 = mload v3
-    v24 = lt 0, v23
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = shl 64, v22
-    mstore v3+32, v26
-    v27 = abi_encode []
-    v28 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0
-    v29 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0, 31, aligned
-    v30 = alloc v29
-    datacopy ExternalFunctionPointerNestedArrayTarget_creation_code_0, v30, v28
-    v31 = extract_value slice<memory>, v27, 0
-    v32 = ptrtoint ptr<memory> v30 to i256
-    v33 = add v32, v28
-    mcopy v33, v31, 0 !metadata(memory=heap)
-    v34 = create 0, v30, v28
-    v35 = ne v34, i160 0
-    jumpi v35, bb8, bb7
+    v20 = address
+    v21 = zext i160 v20 to i256
+    v22 = shl 32, v21
+    v23 = or v22, 0x573a6b2f
+    v24 = mload v3
+    v25 = lt 0, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = shl 64, v23
+    v28 = ptradd v3, 32
+    mstore v28, v27
+    v29 = abi_encode []
+    v30 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0
+    v31 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0, 31, aligned
+    v32 = alloc v31
+    datacopy ExternalFunctionPointerNestedArrayTarget_creation_code_0, v32, v30
+    v33 = extract_value slice<memory>, v29, 0
+    v34 = ptrtoint ptr<memory> v32 to i256
+    v35 = add v34, v30
+    mcopy v35, v33, 0 !metadata(memory=heap)
+    v36 = create 0, v32, v30
+    v37 = ne v36, i160 0
+    jumpi v37, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v36 = gas
-    v37 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
-    v38 = extract_value slice<memory>, v37, 0
-    v39 = extract_value slice<memory>, v37, 1
-    v40 = alloc 96
-    v41 = zext i160 v34 to i256
-    v42 = call v36, v41, 0, v38, v39, v40, 96
-    jumpi v42, bb10, bb9
+    v38 = gas
+    v39 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
+    v40 = extract_value slice<memory>, v39, 0
+    v41 = extract_value slice<memory>, v39, 1
+    v42 = alloc 96
+    v43 = zext i160 v36 to i256
+    v44 = call v38, v43, 0, v40, v41, v42, 96
+    jumpi v44, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v43 = returndatasize
-    v44 = lt v43, 96
-    icall revert_if<tuple_data_too_short>, v44
-    v45 = make_memory_slice v40, 96
-    v46 = abi_decode [array<3, function>], v45
-    v47 = lt 0, 3
-    v48 = eq v47, false
-    icall panic_if<0x32>, v48
-    v49 = mload v46
-    v50 = shr 64, v49
-    v51 = and v50, 0xffffffff
-    v52 = shl 224, v51
-    v53 = shr 32, v50
-    v54 = gas
-    v55 = abi_encode [], selector v52
-    v56 = extract_value slice<memory>, v55, 0
-    v57 = extract_value slice<memory>, v55, 1
-    v58 = call v54, v53, 0, v56, v57, 0, 32
-    jumpi v58, bb12, bb11
+    v45 = returndatasize
+    v46 = lt v45, 96
+    icall revert_if<tuple_data_too_short>, v46
+    v47 = make_memory_slice v42, 96
+    v48 = abi_decode [array<3, function>], v47
+    v49 = lt 0, 3
+    v50 = eq v49, false
+    icall panic_if<0x32>, v50
+    v51 = mload v48
+    v52 = shr 64, v51
+    v53 = and v52, 0xffffffff
+    v54 = shl 224, v53
+    v55 = shr 32, v52
+    v56 = gas
+    v57 = abi_encode [], selector v54
+    v58 = extract_value slice<memory>, v57, 0
+    v59 = extract_value slice<memory>, v57, 1
+    v60 = call v56, v55, 0, v58, v59, 0, 32
+    jumpi v60, bb12, bb11
   bb11:
     revert_returndata
   bb12:
-    v59 = returndatasize
-    v60 = lt v59, 32
-    icall revert_if<tuple_data_too_short>, v60
-    v61 = add 0, 0
-    v62 = mload v61
-    v63 = lt 1, 3
-    v64 = eq v63, false
-    icall panic_if<0x32>, v64
-    v65 = mload v46+32
-    v66 = shr 64, v65
-    v67 = and v66, 0xffffffff
-    v68 = shl 224, v67
-    v69 = shr 32, v66
-    v70 = gas
-    v71 = abi_encode [], selector v68
-    v72 = extract_value slice<memory>, v71, 0
-    v73 = extract_value slice<memory>, v71, 1
-    v74 = call v70, v69, 0, v72, v73, 0, 32
-    jumpi v74, bb14, bb13
+    v61 = returndatasize
+    v62 = lt v61, 32
+    icall revert_if<tuple_data_too_short>, v62
+    v63 = add 0, 0
+    v64 = mload v63
+    v65 = lt 1, 3
+    v66 = eq v65, false
+    icall panic_if<0x32>, v66
+    v67 = ptradd v48, 32
+    v68 = mload v67
+    v69 = shr 64, v68
+    v70 = and v69, 0xffffffff
+    v71 = shl 224, v70
+    v72 = shr 32, v69
+    v73 = gas
+    v74 = abi_encode [], selector v71
+    v75 = extract_value slice<memory>, v74, 0
+    v76 = extract_value slice<memory>, v74, 1
+    v77 = call v73, v72, 0, v75, v76, 0, 32
+    jumpi v77, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v75 = returndatasize
-    v76 = lt v75, 32
-    icall revert_if<tuple_data_too_short>, v76
-    v77 = add 0, 0
-    v78 = mload v77
-    v79 = lt 2, 3
-    v80 = eq v79, false
-    icall panic_if<0x32>, v80
-    v81 = mload v46+64
-    v82 = shr 64, v81
-    v83 = and v82, 0xffffffff
-    v84 = shl 224, v83
-    v85 = shr 32, v82
-    v86 = gas
-    v87 = abi_encode [], selector v84
-    v88 = extract_value slice<memory>, v87, 0
-    v89 = extract_value slice<memory>, v87, 1
-    v90 = call v86, v85, 0, v88, v89, 0, 32
-    jumpi v90, bb16, bb15
+    v78 = returndatasize
+    v79 = lt v78, 32
+    icall revert_if<tuple_data_too_short>, v79
+    v80 = add 0, 0
+    v81 = mload v80
+    v82 = lt 2, 3
+    v83 = eq v82, false
+    icall panic_if<0x32>, v83
+    v84 = ptradd v48, 64
+    v85 = mload v84
+    v86 = shr 64, v85
+    v87 = and v86, 0xffffffff
+    v88 = shl 224, v87
+    v89 = shr 32, v86
+    v90 = gas
+    v91 = abi_encode [], selector v88
+    v92 = extract_value slice<memory>, v91, 0
+    v93 = extract_value slice<memory>, v91, 1
+    v94 = call v90, v89, 0, v92, v93, 0, 32
+    jumpi v94, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v91 = returndatasize
-    v92 = lt v91, 32
-    icall revert_if<tuple_data_too_short>, v92
-    v93 = add 0, 0
-    v94 = mload v93
-    v95 = insert_value struct0, undef struct0, 0, v62
-    v96 = insert_value struct0, v95, 1, v78
-    v97 = insert_value struct0, v96, 2, v94
-    ret v97
+    v95 = returndatasize
+    v96 = lt v95, 32
+    icall revert_if<tuple_data_too_short>, v96
+    v97 = add 0, 0
+    v98 = mload v97
+    v99 = insert_value struct0, undef struct0, 0, v64
+    v100 = insert_value struct0, v99, 1, v81
+    v101 = insert_value struct0, v100, 2, v98
+    ret v101
   bb4:
     v8 = address
     v9 = zext i160 v8 to i256
@@ -230,12 +238,13 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v15 = shl 64, v11
     v16 = shl 5, v1
     v17 = ptradd v3, v16
-    mstore v17+32, v15
+    v18 = ptradd v17, 32
+    mstore v18, v15
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v18 = checked_add u256, v1, 1
+    v19 = checked_add u256, v1, 1
     jump bb1
 }
 

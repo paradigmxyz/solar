@@ -13,7 +13,8 @@ fn @f(arg0: i256) -> ptr<memory> [selector=0xb3de648b, pure, abi_params=[u256], 
     v3 = lt 2, 5
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    mstore v0+64, 3
+    v5 = ptradd v0, 64
+    mstore v5, 3
     jump bb5
   bb5:
     jump bb4

@@ -12,10 +12,11 @@ fn @value(arg0: i1) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], ab
   bb3:
     v1 = alloc 64 !metadata(preserves_fmp)
     mstore v1, 2
-    mstore v1+32, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v2 = insert_value struct0, undef struct0, 0, 13
-    v3 = insert_value struct0, v2, 1, v1
-    ret v3
+    v2 = ptradd v1, 32
+    mstore v2, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v3 = insert_value struct0, undef struct0, 0, 13
+    v4 = insert_value struct0, v3, 1, v1
+    ret v4
   bb1:
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid

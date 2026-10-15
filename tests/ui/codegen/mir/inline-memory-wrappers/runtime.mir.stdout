@@ -43,7 +43,7 @@ fn @copy(arg0: ptr<memory>) -> ptr<memory> [pure] {
     jump bb1
   bb1:
     v6 = phi [bb0: v5], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v23]
+    v7 = phi [bb0: 0], [bb3: v25]
     v8 = phi [bb0: arg0], [bb3: v8]
     v9 = mload v8
     v10 = lt v7, v9
@@ -58,20 +58,22 @@ fn @copy(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = ptradd v8, v7
-    v15 = mload v14+32
-    v16 = byte 0, v15
-    v17 = shl 248, v16
-    v18 = mload v6
-    v19 = lt v7, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = byte 0, v17
-    v22 = ptradd v6, v7
-    mstore8 v22+32, v21
+    v15 = ptradd v14, 32
+    v16 = mload v15
+    v17 = byte 0, v16
+    v18 = shl 248, v17
+    v19 = mload v6
+    v20 = lt v7, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = byte 0, v18
+    v23 = ptradd v6, v7
+    v24 = ptradd v23, 32
+    mstore8 v24, v22
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v23 = checked_add u256, v7, 1
+    v25 = checked_add u256, v7, 1
     jump bb1
 }

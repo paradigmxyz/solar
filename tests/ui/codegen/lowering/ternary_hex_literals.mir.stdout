@@ -36,19 +36,21 @@ fn @pairHash(arg0: i1) -> i256 [selector=0x7e8b97e2, pure, abi_params=[bool], ab
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
-    v1 = alloc 64 !metadata(preserves_fmp)
-    mstore v1, 32
-    mstore v1+32, 0x863fcfbbee75e679d2a43818f377afc8a63590091c47f069b36b7cf8a4d4cad2
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 32
+    v3 = ptradd v2, 32
+    mstore v3, 0x863fcfbbee75e679d2a43818f377afc8a63590091c47f069b36b7cf8a4d4cad2
     jump bb3
   bb1:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 32
-    mstore v0+32, 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f
+    v1 = ptradd v0, 32
+    mstore v1, 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f
     jump bb3
   bb3:
-    v2 = phi [bb1: v0], [bb2: v1]
-    v3 = keccak256_packed (data hex"ff", bytes v2)
-    ret v3
+    v4 = phi [bb1: v0], [bb2: v2]
+    v5 = keccak256_packed (data hex"ff", bytes v4)
+    ret v5
 }
 
 fn @tuple(arg0: i1) -> struct0 [selector=0xea8ca604, pure, abi_params=[bool], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
@@ -94,6 +96,7 @@ fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, arg1
-    mstore v0+32, arg0
+    v1 = ptradd v0, 32
+    mstore v1, arg0
     ret v0
 }

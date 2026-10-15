@@ -31,7 +31,8 @@ contract NestedCalldataForward {
     // CHECK-DAG: abi_encode [memory_array<tuple<word, memory_bytes>>]
     // CHECK: [[OFF1:v[0-9]+]] = shl 5, {{v[0-9]+}}
     // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[ARR]], [[OFF1]]
-    // CHECK-NEXT: mstore [[ELEM]]+32, {{v[0-9]+}}
+    // CHECK-NEXT: [[ELEM_32:v[0-9]+]] = ptradd [[ELEM]], 32
+    // CHECK-NEXT: mstore [[ELEM_32]], {{v[0-9]+}}
     function forwardStructs(NestedItem[] calldata data, StructSink sink) external {
         sink.consume(data);
     }

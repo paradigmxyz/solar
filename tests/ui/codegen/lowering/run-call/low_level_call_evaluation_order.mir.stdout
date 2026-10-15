@@ -92,32 +92,34 @@ fn @captureAcrossCalls() -> struct0 [selector=0x23d1e290, abi_params=[], abi_ret
     v1 = gas
     v2 = alloc 64 !metadata(preserves_fmp)
     mstore v2, 3
-    mstore v2+32, 0x102030000000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v2
-    v4 = address_call v0, v3, gas v1
-    v5 = icall returndata_bytes<>
-    v6 = address
-    v7 = gas
-    v8 = alloc 64 !metadata(preserves_fmp)
-    mstore v8, 1
-    mstore v8+32, 0xab00000000000000000000000000000000000000000000000000000000000000
-    v9 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v8
-    v10 = address_call v6, v9, gas v7
-    v11 = icall returndata_bytes<>
-    jumpi v4, bb1, bb2
+    v3 = ptradd v2, 32
+    mstore v3, 0x102030000000000000000000000000000000000000000000000000000000000
+    v4 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v2
+    v5 = address_call v0, v4, gas v1
+    v6 = icall returndata_bytes<>
+    v7 = address
+    v8 = gas
+    v9 = alloc 64 !metadata(preserves_fmp)
+    mstore v9, 1
+    v10 = ptradd v9, 32
+    mstore v10, 0xab00000000000000000000000000000000000000000000000000000000000000
+    v11 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v9
+    v12 = address_call v7, v11, gas v8
+    v13 = icall returndata_bytes<>
+    jumpi v5, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v12 = phi [bb1: v10], [bb2: false]
-    v13 = eq v12, false
-    icall revert_if<empty>, v13
-    v14 = abi_decode [bytes], v5
-    v15 = abi_decode [bytes], v11
-    v16 = insert_value struct0, undef struct0, 0, v14
-    v17 = insert_value struct0, v16, 1, v15
-    ret v17
+    v14 = phi [bb1: v12], [bb2: false]
+    v15 = eq v14, false
+    icall revert_if<empty>, v15
+    v16 = abi_decode [bytes], v6
+    v17 = abi_decode [bytes], v13
+    v18 = insert_value struct0, undef struct0, 0, v16
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
 }
 
 fn @staticRead() -> struct1 [selector=0xf511364b, view, abi_params=[], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {
@@ -149,24 +151,26 @@ fn @preserveInput() -> struct0 [selector=0xd24f7044, abi_params=[], abi_returns=
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 3
-    mstore v0+32, 0x102030000000000000000000000000000000000000000000000000000000000
-    v1 = address
-    v2 = gas
-    v3 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v0
-    v4 = address_call v1, v3, gas v2
-    v5 = icall returndata_bytes<>
-    v6 = eq v4, false
-    icall revert_if<empty>, v6
-    v7 = mload v0
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = byte 0, 0x9900000000000000000000000000000000000000000000000000000000000000
-    mstore8 v0+32, v10
-    v11 = abi_decode [bytes], v5
-    v12 = insert_value struct0, undef struct0, 0, v11
-    v13 = insert_value struct0, v12, 1, v0
-    ret v13
+    v1 = ptradd v0, 32
+    mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000
+    v2 = address
+    v3 = gas
+    v4 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v0
+    v5 = address_call v2, v4, gas v3
+    v6 = icall returndata_bytes<>
+    v7 = eq v5, false
+    icall revert_if<empty>, v7
+    v8 = mload v0
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = byte 0, 0x9900000000000000000000000000000000000000000000000000000000000000
+    v12 = ptradd v0, 32
+    mstore8 v12, v11
+    v13 = abi_decode [bytes], v6
+    v14 = insert_value struct0, undef struct0, 0, v13
+    v15 = insert_value struct0, v14, 1, v0
+    ret v15
 }
 
 fn @failedCapture() -> struct1 [selector=0x5ee5463d, abi_params=[], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {

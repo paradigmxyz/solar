@@ -330,7 +330,7 @@ impl<'a> Planner<'a> {
         let mut publish = DenseBitSet::new_empty(func.num_insts());
         if func.instructions().any(|inst| {
             !skipped.contains(inst)
-                && matches!(func.inst(inst).kind, InstKind::Load(addr, _, PtrLocation::Memory)
+                && matches!(func.inst(inst).kind, InstKind::Load(addr, PtrLocation::Memory)
                     if func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
         }) {
             for (&inst, extras) in &projections {
@@ -2728,7 +2728,7 @@ fn call_projection(
     let mut base = None;
     for (offset, &inst) in tail.iter().enumerate() {
         let kind = &func.inst(inst).kind;
-        if let InstKind::Load(addr, _, PtrLocation::Memory) = *kind
+        if let InstKind::Load(addr, PtrLocation::Memory) = *kind
             && func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT)
         {
             base = Some((offset, inst));
@@ -2761,7 +2761,7 @@ fn call_projection(
                 tracked.insert(address);
                 elided.push(inst);
             }
-            InstKind::Load(addr, _, PtrLocation::Memory) if addresses.contains_key(addr) => {
+            InstKind::Load(addr, PtrLocation::Memory) if addresses.contains_key(addr) => {
                 let result = func.inst_result_value(inst)?;
                 if extras[addresses[addr] - 1].replace(result).is_some() {
                     return None;
@@ -2795,7 +2795,7 @@ pub(super) fn recomputable(
                 InstKind::Zext(_) | InstKind::PtrToInt(..) | InstKind::IntToPtr(_) => {
                     (Cost::ZERO, 0)
                 }
-                InstKind::Load(_, _, PtrLocation::Calldata) => (target.opcode(op::CALLDATALOAD), 1),
+                InstKind::Load(_, PtrLocation::Calldata) => (target.opcode(op::CALLDATALOAD), 1),
                 _ => {
                     let def = kind.op_def();
                     if !def.traits.contains(OpTraits::REMATERIALIZABLE)

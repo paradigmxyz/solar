@@ -3,15 +3,15 @@
 @phase lowered
 fn @three() [selector=0x1158e167, abi_wrapper, pure] {
   bb0:
-    v35 = icall @decode_calldata_type
-    v0 = mload v35
+    v38 = icall @decode_calldata_type
+    v0 = mload v38
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
   bb2:
-    v41 = add v35, 32
-    v5 = mload v41
-    v32 = shr 232, v5
-    mstore 128, v32
+    v44 = add v38, 32
+    v6 = mload v44
+    v35 = shr 232, v6
+    mstore 128, v35
     returndata 128, 32
   bb1:
     mstore 128, 0
@@ -20,15 +20,15 @@ fn @three() [selector=0x1158e167, abi_wrapper, pure] {
 
 fn @two() [selector=0x65313149, abi_wrapper, pure] {
   bb0:
-    v24 = icall @decode_calldata_type
-    v0 = mload v24
+    v26 = icall @decode_calldata_type
+    v0 = mload v26
     v1 = lt v0, 2
     jumpi v1, bb1, bb2
   bb2:
-    v30 = add v24, 32
-    v5 = mload v30
-    v21 = shr 240, v5
-    mstore 128, v21
+    v32 = add v26, 32
+    v6 = mload v32
+    v23 = shr 240, v6
+    mstore 128, v23
     returndata 128, 32
   bb1:
     mstore 128, 0
@@ -37,18 +37,18 @@ fn @two() [selector=0x65313149, abi_wrapper, pure] {
 
 fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
   bb0:
-    v24 = icall @decode_calldata_type
-    v0 = mload v24
+    v26 = icall @decode_calldata_type
+    v0 = mload v26
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
   bb2:
-    v30 = add v24, 32
-    v5 = mload v30
-    v6 = byte 0, v5
-    v11 = shl 8, v6
-    v16 = byte 2, v5
-    v21 = or v11, v16
-    mstore 128, v21
+    v32 = add v26, 32
+    v6 = mload v32
+    v7 = byte 0, v6
+    v12 = shl 8, v7
+    v18 = byte 2, v6
+    v23 = or v12, v18
+    mstore 128, v23
     returndata 128, 32
   bb1:
     mstore 128, 0
@@ -57,24 +57,24 @@ fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
 
 fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
   bb0:
-    v39 = icall @decode_calldata_type
-    v0 = mload v39
+    v43 = icall @decode_calldata_type
+    v0 = mload v43
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
   bb2:
-    v45 = add v39, 32
-    v5 = mload v45
-    v6 = byte 0, v5
-    v11 = shl 16, v6
-    v47 = add v39, 33
-    mstore8 v47, 74
-    v19 = mload v47
-    v20 = byte 0, v19
-    v25 = shl 8, v20
-    v26 = or v11, v25
-    v31 = byte 1, v19
-    v36 = or v26, v31
-    mstore 128, v36
+    v49 = add v43, 32
+    v6 = mload v49
+    v7 = byte 0, v6
+    v12 = shl 16, v7
+    v51 = add v43, 33
+    mstore8 v51, 74
+    v22 = mload v51
+    v23 = byte 0, v22
+    v28 = shl 8, v23
+    v29 = or v12, v28
+    v35 = byte 1, v22
+    v40 = or v29, v35
+    mstore 128, v40
     returndata 128, 32
   bb1:
     mstore 128, 0

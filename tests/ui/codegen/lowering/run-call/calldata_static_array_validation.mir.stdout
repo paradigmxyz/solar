@@ -114,9 +114,10 @@ fn @copyToMemory(arg0: slice<calldata>) -> i8 [selector=0x13aac4cb, pure, abi_pa
     v19 = lt 1, 2
     v20 = eq v19, false
     icall panic_if<0x32>, v20
-    v21 = mload v5+32
-    v22 = trunc i256 v21 to i8
-    ret v22
+    v21 = ptradd v5, 32
+    v22 = mload v21
+    v23 = trunc i256 v22 to i8
+    ret v23
   bb2:
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v0 to i256

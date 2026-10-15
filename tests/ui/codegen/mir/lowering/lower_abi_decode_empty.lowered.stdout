@@ -27,7 +27,7 @@
 +     v5 = slt v2, 32
 +     jumpi v5, bb1, bb2
 +   bb2:
-+     v6 = mload arg0+32
++     v6 = mload v1
 +     ret v6
 +   bb1:
 +     revert 0, 0

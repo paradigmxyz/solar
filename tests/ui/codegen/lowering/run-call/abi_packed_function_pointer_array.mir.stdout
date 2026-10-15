@@ -16,9 +16,10 @@ fn @memoryEncode() -> ptr<memory> [selector=0xe39243fb, pure, abi_params=[], abi
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = shl 64, v2
-    mstore v0+32, v6
-    v7 = abi_encode_packed (array<function> memoryarray<1> v0)
-    ret v7
+    v7 = ptradd v0, 32
+    mstore v7, v6
+    v8 = abi_encode_packed (array<function> memoryarray<1> v0)
+    ret v8
 }
 
 fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi_params=[array<_, function>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -53,12 +54,12 @@ fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi
     mstore v22, v0
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v36]
+    v23 = phi [bb0: 0], [bb2: v37]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
-    v37 = abi_encode_packed (array<function> memoryarray<1> v22)
-    ret v37
+    v38 = abi_encode_packed (array<function> memoryarray<1> v22)
+    ret v38
   bb2:
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
@@ -72,7 +73,8 @@ fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi
     v33 = shl 64, v32
     v34 = shl 5, v23
     v35 = ptradd v22, v34
-    mstore v35+32, v33
-    v36 = add v23, 1
+    v36 = ptradd v35, 32
+    mstore v36, v33
+    v37 = add v23, 1
     jump bb1
 }

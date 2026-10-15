@@ -30,7 +30,7 @@
 //!
 //! Only word-element arrays, contiguous low-bit masks, and `zext iN (trunc i256 x to iN) to
 //! i256` round trips are rewritten. A narrowing result with other typed uses stays in place.
-//! Runs early in the optimized phase, while access offsets and `ptradd` keep element addresses
+//! Runs early in the optimized phase, while `ptradd` keeps element addresses
 //! explicit and the call graph is explicit; removed masks lose their debug
 //! checkpoints rather than lending them to the loads.
 
@@ -188,12 +188,12 @@ impl MirPass for ElementCleanup {
 /// is tracked like any element. Every fixed array and struct has a constant size, so only a
 /// runtime-sized allocation is known to start with a length word.
 fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
-    let (InstKind::Load(address, offset, PtrLocation::Memory)
-    | InstKind::Store(address, offset, _)) = func.inst(inst).kind
+    let (InstKind::Load(address, PtrLocation::Memory) | InstKind::Store(address, _)) =
+        func.inst(inst).kind
     else {
         return None;
     };
-    let (object, offset, index) = func.word_access(address, offset)?;
+    let (object, offset, index) = func.word_access(address)?;
     let length = index.is_none() && offset == 0 && func.alloc_size(object).is_none();
     (!length && func.value_ty(object) == Some(MirType::MEMPTR)).then_some(object)
 }
@@ -257,7 +257,7 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
             {
                 0
             }
-            InstKind::Store(_, _, value)
+            InstKind::Store(_, value)
                 if word_element_object(func, inst).is_some_and(|object| {
                     objects.is_none_or(|objects| {
                         objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH)

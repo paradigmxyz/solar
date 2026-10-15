@@ -124,25 +124,3 @@ fn @merged_allocations() -> ptr<memory> {
     mstore v3, 0
     ret v1
 }
-
-// An access's immediate offset becomes an `add` to its address word.
-// CHECK-LABEL: {{^[ +].*}}fn @access_offsets{{[( ]}}
-// CHECK: + [[BASE:v[0-9]+]] = ptrtoint ptr<memory> arg0 to i256
-// CHECK-NEXT: + [[LOAD_ADDRESS:v[0-9]+]] = add [[BASE]], 32
-// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload [[LOAD_ADDRESS]]
-// CHECK: + [[STORE_ADDRESS:v[0-9]+]] = add {{v[0-9]+}}, 64
-// CHECK-NEXT: + mstore [[STORE_ADDRESS]], [[WORD]]
-// CHECK: + [[BYTE_ADDRESS:v[0-9]+]] = add {{v[0-9]+}}, 1
-// CHECK-NEXT: + mstore8 [[BYTE_ADDRESS]], [[WORD]]
-// CHECK-NEXT: + [[CALLDATA_ADDRESS:v[0-9]+]] = add arg1, 4
-// CHECK-NEXT: + {{v[0-9]+}} = calldataload [[CALLDATA_ADDRESS]]
-// CHECK-NOT: +{{.*}}+{{[0-9]+}}
-fn @access_offsets(arg0: ptr<memory>, arg1: i256) {
-  bb0:
-    v0 = mload arg0+32
-    mstore arg0+64, v0
-    mstore8 arg0+1, v0
-    v1 = calldataload arg1+4
-    mstore arg0, v1
-    stop
-}

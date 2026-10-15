@@ -55,7 +55,8 @@ fn @collect(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [select
     v39 = extract_value slice<calldata>, arg1, 1
     calldatacopy v37, v38, v39
     v40 = ptrtoint ptr<memory> v36 to i256
-    mstore v6+32, v40
+    v41 = ptradd v6, 32
+    mstore v41, v40
     ret v6
   bb2:
     v3 = shl 5, v1

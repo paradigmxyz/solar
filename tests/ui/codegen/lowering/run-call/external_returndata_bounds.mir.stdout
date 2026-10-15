@@ -10,20 +10,23 @@ fn @aggregate() -> ptr<memory> [selector=0xaf36778b, pure, abi_params=[], abi_re
     mstore v1, v3
     v4 = ptrtoint ptr<memory> v1 to i256
     mstore v0, v4
-    mstore v0+32, 0
-    v5 = mload v0, ptr<memory>
-    v6 = mload v5, ptr<memory>
-    v7 = lt 0, 2
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    mstore v6, 11
-    v9 = mload v0, ptr<memory>
-    v10 = mload v9, ptr<memory>
-    v11 = lt 1, 2
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    mstore v10+32, 22
-    mstore v0+32, 33
+    v5 = ptradd v0, 32
+    mstore v5, 0
+    v6 = mload v0, ptr<memory>
+    v7 = mload v6, ptr<memory>
+    v8 = lt 0, 2
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    mstore v7, 11
+    v10 = mload v0, ptr<memory>
+    v11 = mload v10, ptr<memory>
+    v12 = lt 1, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v11, 32
+    mstore v14, 22
+    v15 = ptradd v0, 32
+    mstore v15, 33
     ret v0
 }
 
@@ -60,12 +63,14 @@ fn @check(arg0: ptr<memory>) -> i256 [pure] {
     v8 = lt 1, 2
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = mload v7+32
-    v11 = eq v10, 22
-    icall require<short_string>, v11, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
-    v12 = mload arg0+32
-    v13 = eq v12, 33
-    icall require<short_string>, v13, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
+    v10 = ptradd v7, 32
+    v11 = mload v10
+    v12 = eq v11, 22
+    icall require<short_string>, v12, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
+    v13 = ptradd arg0, 32
+    v14 = mload v13
+    v15 = eq v14, 33
+    icall require<short_string>, v15, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -144,8 +149,9 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     v22 = lt 1, 2
     v23 = eq v22, false
     icall panic_if<0x32>, v23
-    v24 = mload v21+32
-    ret v24
+    v24 = ptradd v21, 32
+    v25 = mload v24
+    ret v25
 }
 
 fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

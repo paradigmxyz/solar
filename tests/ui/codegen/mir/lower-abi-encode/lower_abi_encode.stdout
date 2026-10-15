@@ -21,7 +21,7 @@
 +     v1 = alloc 96 !metadata(preserves_fmp)
 +     mstore v1, 64
 +     v2 = ptradd v1, 32
-+     mstore v1+32, arg0
++     mstore v2, arg0
 +     v3 = ptrtoint ptr<memory> v2 to i256
 +     v4 = add v3, 32
 +     mstore v4, arg1
@@ -35,9 +35,9 @@
 +     v1 = alloc 96 !metadata(preserves_fmp)
 +     mstore v1, 36
 +     v2 = ptradd v1, 32
-+     mstore v1+32, 0x1234567800000000000000000000000000000000000000000000000000000000
++     mstore v2, 0x1234567800000000000000000000000000000000000000000000000000000000
 +     v3 = ptradd v1, 36
-+     mstore v1+36, arg0
++     mstore v3, arg0
 +     ret v1
   }
   

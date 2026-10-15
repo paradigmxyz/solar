@@ -41,12 +41,14 @@ fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 10
-    mstore v0+32, 0x662875696e743235362900000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x662875696e743235362900000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
-    v1 = alloc 64 !metadata(preserves_fmp)
-    mstore v1, 10
-    mstore v1+32, 0x672875696e743235362900000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 1, v1
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 10
+    v3 = ptradd v2, 32
+    mstore v3, 0x672875696e743235362900000000000000000000000000000000000000000000
+    icall @store_storage_bytes, 1, v2
     ret
 }
 

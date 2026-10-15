@@ -448,7 +448,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::Zext(operand)
                 | InstKind::PtrToInt(operand, _)
                 | InstKind::IntToPtr(operand) => self.emit_materialized(func, *operand),
-                InstKind::Load(offset, _, PtrLocation::Calldata) => {
+                InstKind::Load(offset, PtrLocation::Calldata) => {
                     // <offset>; calldataload
                     self.emit_materialized(func, *offset);
                     self.asm.emit_op(op::CALLDATALOAD);

@@ -1177,18 +1177,18 @@ impl LoadRedundancyEliminator {
                 GenSource::Stored(value),
             )),
             // Stored words are integers, so a pointer load keeps its own type.
-            InstKind::Load(addr, offset, PtrLocation::Memory)
+            InstKind::Load(addr, PtrLocation::Memory)
                 if func.inst(inst_id).result_ty == Some(MirType::I256) =>
             {
-                self.mem_addr(func, inst_id, addr, offset, LocationSize::Const(32))
+                self.mem_addr(func, inst_id, addr, LocationSize::Const(32))
                     .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult))
             }
             InstKind::Fmp => Some((LoadKey::Memory(Self::fmp_addr()), GenSource::LoadResult)),
-            InstKind::Store(addr, offset, value) => self
-                .mem_addr(func, inst_id, addr, offset, LocationSize::Const(32))
+            InstKind::Store(addr, value) => self
+                .mem_addr(func, inst_id, addr, LocationSize::Const(32))
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {
-                let addr = self.mem_addr(func, inst_id, offset, 0, aa.location_size(func, size))?;
+                let addr = self.mem_addr(func, inst_id, offset, aa.location_size(func, size))?;
                 let size = match func.value_u64(size) {
                     Some(size) => KeccakSize::Const(size),
                     None => KeccakSize::Dyn(size),
@@ -1326,12 +1326,9 @@ impl LoadRedundancyEliminator {
         func: &Function,
         inst_id: InstId,
         addr: ValueId,
-        offset: u64,
         size: LocationSize,
     ) -> Option<MemoryAddress> {
-        self.alias()
-            .memory_location(func, inst_id, addr, offset, size)
-            .map(|location| location.address)
+        self.alias().memory_location(func, inst_id, addr, size).map(|location| location.address)
     }
 
     fn fmp_addr() -> MemoryAddress {

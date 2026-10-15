@@ -199,7 +199,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     jump bb21
   bb22:
     v92 = ptradd v78, 36
-    v93 = mload v78+36
+    v93 = mload v92
     v94 = checked_add u256, v64, 400
     jump bb21
   bb19:

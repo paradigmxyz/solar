@@ -5,26 +5,30 @@ fn @build(arg0: i256) -> ptr<memory> [selector=0x77fc2b19, pure, abi_params=[u25
     v0 = eq arg0, 0
     v1 = alloc 64 !metadata(preserves_fmp)
     mstore v1, 0
-    mstore v1+32, 0
+    v2 = ptradd v1, 32
+    mstore v2, 0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v3 = checked_sub u256, arg0, 1
-    v4 = icall @build, v3
-    v5 = alloc 64
-    v6 = mload v4
-    v7 = checked_add u256, v6, arg0
-    v8 = mload v4+32
-    v9 = checked_add u256, v8, 1
-    mstore v5, v7
-    mstore v5+32, v9
-    ret v5
+    v5 = checked_sub u256, arg0, 1
+    v6 = icall @build, v5
+    v7 = alloc 64
+    v8 = mload v6
+    v9 = checked_add u256, v8, arg0
+    v10 = ptradd v6, 32
+    v11 = mload v10
+    v12 = checked_add u256, v11, 1
+    mstore v7, v9
+    v13 = ptradd v7, 32
+    mstore v13, v12
+    ret v7
   bb1:
-    v2 = alloc 64
-    mstore v2, 0
-    mstore v2+32, 0
-    ret v2
+    v3 = alloc 64
+    mstore v3, 0
+    v4 = ptradd v3, 32
+    mstore v4, 0
+    ret v3
 }
 
 fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
@@ -55,7 +59,7 @@ fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[u25
     v17 = phi [bb0: arg0], [bb3: v17]
     v18 = phi [bb0: v16], [bb3: v18]
     v19 = phi [bb0: ptr<memory> 96], [bb3: v19]
-    v20 = phi [bb0: 0], [bb3: v28]
+    v20 = phi [bb0: 0], [bb3: v29]
     v21 = lt v20, v17
     jumpi v21, bb4, bb5
   bb5:
@@ -70,12 +74,13 @@ fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[u25
     icall panic_if<0x32>, v25
     v26 = shl 5, v20
     v27 = ptradd v18, v26
-    mstore v27+32, v22
+    v28 = ptradd v27, 32
+    mstore v28, v22
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v28 = checked_add u256, v20, 1
+    v29 = checked_add u256, v20, 1
     jump bb1
 }
 
@@ -94,10 +99,11 @@ fn @fillImpl(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     icall panic_if<0x32>, v5
     v6 = shl 5, arg1
     v7 = ptradd arg0, v6
-    mstore v7+32, v2
-    v8 = checked_add u256, arg1, 1
-    v9 = icall @fillImpl, arg0, v8
-    ret v9
+    v8 = ptradd v7, 32
+    mstore v8, v2
+    v9 = checked_add u256, arg1, 1
+    v10 = icall @fillImpl, arg0, v9
+    ret v10
   bb1:
     ret arg0
 }

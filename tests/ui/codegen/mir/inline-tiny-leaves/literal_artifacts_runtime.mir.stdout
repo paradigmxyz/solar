@@ -17,7 +17,8 @@ fn @version() -> ptr<memory> [selector=0x54fd4d50, pure, abi_params=[], abi_retu
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 1
-    mstore v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 

@@ -17,23 +17,24 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v7 = gas
     v8 = alloc 64 !metadata(preserves_fmp)
     mstore v8, 10
-    mstore v8+32, 0x74657374537472696e6700000000000000000000000000000000000000000000
-    v9 = abi_encode [memory_bytes], selector v5, args v8
-    v10 = extract_value slice<memory>, v9, 0
-    v11 = extract_value slice<memory>, v9, 1
-    v12 = call v7, v6, 0, v10, v11, 0, 32
-    jumpi v12, bb2, bb1
+    v9 = ptradd v8, 32
+    mstore v9, 0x74657374537472696e6700000000000000000000000000000000000000000000
+    v10 = abi_encode [memory_bytes], selector v5, args v8
+    v11 = extract_value slice<memory>, v10, 0
+    v12 = extract_value slice<memory>, v10, 1
+    v13 = call v7, v6, 0, v11, v12, 0, 32
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = lt v16, 2
-    v18 = eq v17, false
-    icall revert_if<empty>, v18
-    v19 = ne v16, 0
-    ret v19
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = lt v17, 2
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = ne v17, 0
+    ret v20
 }

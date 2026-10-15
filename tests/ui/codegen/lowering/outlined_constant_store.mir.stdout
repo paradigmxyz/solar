@@ -26,11 +26,13 @@ fn @narrow8(arg0: i256) -> i8 [selector=0x2da3006c, pure, abi_params=[u256], abi
     v1 = eq v0, false
     v2 = alloc 96 !metadata(preserves_fmp)
     mstore v2, 37
-    mstore v2+32, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2038
-    mstore v2+64, 0x2062697473000000000000000000000000000000000000000000000000000000
+    v3 = ptradd v2, 32
+    mstore v3, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2038
+    v4 = ptradd v2, 64
+    mstore v4, 0x2062697473000000000000000000000000000000000000000000000000000000
     icall require<error_string>, v1, v2
-    v3 = trunc i256 arg0 to i8
-    ret v3
+    v5 = trunc i256 arg0 to i8
+    ret v5
 }
 
 fn @narrow32(arg0: i256) -> i32 [selector=0xb5be099a, pure, abi_params=[u256], abi_returns=[word<u32>], abi_return_params=[u32]] {
@@ -39,11 +41,13 @@ fn @narrow32(arg0: i256) -> i32 [selector=0xb5be099a, pure, abi_params=[u256], a
     v1 = eq v0, false
     v2 = alloc 96 !metadata(preserves_fmp)
     mstore v2, 38
-    mstore v2+32, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2033
-    mstore v2+64, 0x3220626974730000000000000000000000000000000000000000000000000000
+    v3 = ptradd v2, 32
+    mstore v3, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2033
+    v4 = ptradd v2, 64
+    mstore v4, 0x3220626974730000000000000000000000000000000000000000000000000000
     icall require<error_string>, v1, v2
-    v3 = trunc i256 arg0 to i32
-    ret v3
+    v5 = trunc i256 arg0 to i32
+    ret v5
 }
 
 fn @narrow128(arg0: i256) -> i128 [selector=0x9646654f, pure, abi_params=[u256], abi_returns=[word<u128>], abi_return_params=[u128]] {
@@ -52,9 +56,11 @@ fn @narrow128(arg0: i256) -> i128 [selector=0x9646654f, pure, abi_params=[u256],
     v1 = eq v0, false
     v2 = alloc 96 !metadata(preserves_fmp)
     mstore v2, 39
-    mstore v2+32, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2031
-    mstore v2+64, 0x3238206269747300000000000000000000000000000000000000000000000000
+    v3 = ptradd v2, 32
+    mstore v3, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2031
+    v4 = ptradd v2, 64
+    mstore v4, 0x3238206269747300000000000000000000000000000000000000000000000000
     icall require<error_string>, v1, v2
-    v3 = trunc i256 arg0 to i128
-    ret v3
+    v5 = trunc i256 arg0 to i128
+    ret v5
 }

@@ -294,51 +294,63 @@ fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<
     v0 = alloc 160 !metadata(preserves_fmp)
     memory_zero v0, 160
     mstore v0, 96
-    mstore v0+64, 96
-    mstore v0+96, 96
-    v1 = alloc zeroed checked 128
-    mstore v1, 3
-    v2 = ptrtoint ptr<memory> v1 to i256
-    mstore v0, v2
-    v3 = mload v0, ptr<memory>
-    v4 = mload v3
-    v5 = lt 0, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    mstore v3+32, 0
-    v7 = mload v0, ptr<memory>
-    v8 = mload v7
-    v9 = lt 1, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    mstore v7+64, 1
-    v11 = mload v0, ptr<memory>
-    v12 = mload v11
-    v13 = lt 2, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    mstore v11+96, 2
-    mstore v0+32, 6
-    v15 = alloc 64 !metadata(preserves_fmp)
-    mstore v15, 10
-    mstore v15+32, 0x5374727563744e616d6500000000000000000000000000000000000000000000
-    v16 = ptrtoint ptr<memory> v15 to i256
-    mstore v0+64, v16
-    v17 = alloc 64 !metadata(preserves_fmp)
-    mstore v17, 4
-    mstore v17+32, 0x3132333400000000000000000000000000000000000000000000000000000000
-    v18 = ptrtoint ptr<memory> v17 to i256
-    mstore v0+96, v18
-    v19 = lt i8 1, i8 3
-    v20 = eq v19, false
-    icall panic_if<0x21>, v20
-    mstore v0+128, 1
-    v21 = address
-    v22 = gas
-    v23 = alloc 64 !metadata(preserves_fmp)
-    mstore v23, 8
-    mstore v23+32, 0x546573744e616d65000000000000000000000000000000000000000000000000
-    v24 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v23
-    v25 = address_call v21, v24, gas v22
-    ret v25
+    v1 = ptradd v0, 64
+    mstore v1, 96
+    v2 = ptradd v0, 96
+    mstore v2, 96
+    v3 = alloc zeroed checked 128
+    mstore v3, 3
+    v4 = ptrtoint ptr<memory> v3 to i256
+    mstore v0, v4
+    v5 = mload v0, ptr<memory>
+    v6 = mload v5
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v5, 32
+    mstore v9, 0
+    v10 = mload v0, ptr<memory>
+    v11 = mload v10
+    v12 = lt 1, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v10, 64
+    mstore v14, 1
+    v15 = mload v0, ptr<memory>
+    v16 = mload v15
+    v17 = lt 2, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = ptradd v15, 96
+    mstore v19, 2
+    v20 = ptradd v0, 32
+    mstore v20, 6
+    v21 = alloc 64 !metadata(preserves_fmp)
+    mstore v21, 10
+    v22 = ptradd v21, 32
+    mstore v22, 0x5374727563744e616d6500000000000000000000000000000000000000000000
+    v23 = ptrtoint ptr<memory> v21 to i256
+    v24 = ptradd v0, 64
+    mstore v24, v23
+    v25 = alloc 64 !metadata(preserves_fmp)
+    mstore v25, 4
+    v26 = ptradd v25, 32
+    mstore v26, 0x3132333400000000000000000000000000000000000000000000000000000000
+    v27 = ptrtoint ptr<memory> v25 to i256
+    v28 = ptradd v0, 96
+    mstore v28, v27
+    v29 = lt i8 1, i8 3
+    v30 = eq v29, false
+    icall panic_if<0x21>, v30
+    v31 = ptradd v0, 128
+    mstore v31, 1
+    v32 = address
+    v33 = gas
+    v34 = alloc 64 !metadata(preserves_fmp)
+    mstore v34, 8
+    v35 = ptradd v34, 32
+    mstore v35, 0x546573744e616d65000000000000000000000000000000000000000000000000
+    v36 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v34
+    v37 = address_call v32, v36, gas v33
+    ret v37
 }

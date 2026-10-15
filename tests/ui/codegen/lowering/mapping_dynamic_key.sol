@@ -51,7 +51,8 @@ contract MappingDynamicKeyPaths {
     // as the equivalent runtime key.
     // CHECK-LABEL: fn @setLit{{[( ]}}
     // CHECK: mstore [[LITERAL:v[0-9]+]], 5
-    // CHECK: mstore [[LITERAL]]+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    // CHECK: [[LITERAL_32:v[0-9]+]] = ptradd [[LITERAL]], 32
+    // CHECK-NEXT: mstore [[LITERAL_32]], 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes [[LITERAL]], 0
     // CHECK: sstore [[SLOT]], arg0
     function setLit(uint256 v) public {

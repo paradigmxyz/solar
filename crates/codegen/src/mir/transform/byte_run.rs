@@ -264,7 +264,7 @@ fn push_leaf(
     leaves: &mut Vec<Leaf>,
 ) -> bool {
     let Value::Inst(inst) = *func.value(word) else { return false };
-    let InstKind::Load(address, 0, PtrLocation::Memory) = func.inst(inst).kind else {
+    let InstKind::Load(address, PtrLocation::Memory) = func.inst(inst).kind else {
         return false;
     };
     // The read must be reachable from the root with no store in between. A
@@ -374,7 +374,7 @@ fn byte_read(func: &Function, inst: InstId) -> Option<(Vec<ValueId>, u64, ValueI
         return None;
     }
     let Value::Inst(load) = *func.value(word) else { return None };
-    let InstKind::Load(address, 0, PtrLocation::Memory) = func.inst(load).kind else { return None };
+    let InstKind::Load(address, PtrLocation::Memory) = func.inst(load).kind else { return None };
     let (base, offset) = address_key(func, address)?;
     Some((base, offset, word))
 }

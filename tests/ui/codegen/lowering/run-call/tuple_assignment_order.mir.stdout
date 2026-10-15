@@ -55,25 +55,29 @@ fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[],
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     mstore v0, 42
-    mstore v0+64, 4
-    mstore v0+32, v1
+    v10 = ptradd v0, 64
+    mstore v10, 4
+    v11 = ptradd v0, 32
+    mstore v11, v1
     mstore v0, 1
-    v10 = lt 2, 3
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = mload v0+64
-    v13 = lt 1, 3
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = mload v0+32
-    v16 = lt 0, 3
+    v12 = lt 2, 3
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v0, 64
+    v15 = mload v14
+    v16 = lt 1, 3
     v17 = eq v16, false
     icall panic_if<0x32>, v17
-    v18 = mload v0
-    v19 = insert_value struct1, undef struct1, 0, v12
-    v20 = insert_value struct1, v19, 1, v15
-    v21 = insert_value struct1, v20, 2, v18
-    ret v21
+    v18 = ptradd v0, 32
+    v19 = mload v18
+    v20 = lt 0, 3
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = mload v0
+    v23 = insert_value struct1, undef struct1, 0, v15
+    v24 = insert_value struct1, v23, 1, v19
+    v25 = insert_value struct1, v24, 2, v22
+    ret v25
 }
 
 fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -125,12 +129,13 @@ fn @sideEffectfulTargets() -> struct1 [selector=0x1a1f53e1, abi_params=[], abi_r
     v14 = lt 1, 2
     v15 = eq v14, false
     icall panic_if<0x32>, v15
-    v16 = mload v0+32
-    v17 = sload 0 !metadata(storage=slot(0))
-    v18 = insert_value struct1, undef struct1, 0, v13
-    v19 = insert_value struct1, v18, 1, v16
-    v20 = insert_value struct1, v19, 2, v17
-    ret v20
+    v16 = ptradd v0, 32
+    v17 = mload v16
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = insert_value struct1, undef struct1, 0, v13
+    v20 = insert_value struct1, v19, 1, v17
+    v21 = insert_value struct1, v20, 2, v18
+    ret v21
 }
 
 fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_returns=[word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1]] {
@@ -288,7 +293,8 @@ fn @constructor() [constructor] {
     sstore 1, 17 !metadata(storage=slot(1))
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 2
-    mstore v0+32, 0x7a7a000000000000000000000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x7a7a000000000000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 3, v0
     ret
 }

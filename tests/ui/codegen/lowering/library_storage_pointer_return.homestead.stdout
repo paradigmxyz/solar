@@ -36,10 +36,11 @@ fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storag
     memory_zero v0, 64
     v1 = alloc 64
     mstore v1, 1
-    mstore v1+32, 2
-    v2 = insert_value struct0, undef struct0, 0, arg0
-    v3 = insert_value struct0, v2, 1, v1
-    ret v3
+    v2 = ptradd v1, 32
+    mstore v2, 2
+    v3 = insert_value struct0, undef struct0, 0, arg0
+    v4 = insert_value struct0, v3, 1, v1
+    ret v4
 }
 
 fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[u256, storageptr]] {
@@ -266,10 +267,11 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v21 = lt 1, 2
     v22 = eq v21, false
     icall panic_if<0x32>, v22
-    v23 = mload v19+32
-    v24 = insert_value struct0, undef struct0, 0, v20
-    v25 = insert_value struct0, v24, 1, v23
-    ret v25
+    v23 = ptradd v19, 32
+    v24 = mload v23
+    v25 = insert_value struct0, undef struct0, 0, v20
+    v26 = insert_value struct0, v25, 1, v24
+    ret v26
 }
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

@@ -1,12 +1,11 @@
 //! Lower semantic memory objects and pointer arithmetic to physical word operations.
 //!
-//! `ptradd` becomes an integer `add` between pointer casts, and an access's immediate offset
-//! becomes an `add` to its address. Every memory access is already a `mload`, `mstore`, or `mcopy`
-//! at an address, so nothing else changes here. An EVM opcode whose operands do not match its
-//! types, as an integer `add` of a pointer, gets word operands and a word result cast back to the
-//! pointer, and the casts this leaves unused are removed; `lower-evm-shaped` later erases pointer
-//! types altogether. Unreachable blocks are removed first: their definitions need not obey SSA and
-//! can contain cast cycles.
+//! `ptradd` becomes an integer `add` between pointer casts. Every memory access is already a
+//! `mload`, `mstore`, or `mcopy` at an address, so nothing else changes here. An EVM opcode whose
+//! operands do not match its types, as an integer `add` of a pointer, gets word operands and a word
+//! result cast back to the pointer, and the casts this leaves unused are removed;
+//! `lower-evm-shaped` later erases pointer types altogether. Unreachable blocks are removed first:
+//! their definitions need not obey SSA and can contain cast cycles.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
@@ -66,7 +65,9 @@ fn lower_function(func: &mut Function) -> bool {
     let needs_lowering = func.arg_indices().any(|index| is_pointer(func.arg_ty(index)))
         || func.return_components().iter().copied().any(is_pointer)
         || func.live_values().any(|value| func.value_ty(value).is_some_and(is_pointer))
-        || func.instructions().any(|inst_id| func.inst(inst_id).kind.is_memory_object_op());
+        || func
+            .instructions()
+            .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::PtrAdd(..)));
     if !needs_lowering {
         return false;
     }
@@ -85,23 +86,6 @@ fn lower_function(func: &mut Function) -> bool {
                     let base = builder.cast(ptr, MirType::I256);
                     let address = builder.add(base, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::IntToPtr(address);
-                }
-                InstKind::Load(ptr, offset, _)
-                | InstKind::Store(ptr, offset, _)
-                | InstKind::Store8(ptr, offset, _)
-                    if offset != 0 =>
-                {
-                    // address = add (ptrtoint ptr), offset
-                    // load/store address, ...
-                    let address = builder.cast(ptr, MirType::I256);
-                    let address = builder.add_u64_offset(address, offset);
-                    if let InstKind::Load(ptr, offset, _)
-                    | InstKind::Store(ptr, offset, _)
-                    | InstKind::Store8(ptr, offset, _) =
-                        &mut builder.func_mut().inst_mut(inst).kind
-                    {
-                        (*ptr, *offset) = (address, 0);
-                    }
                 }
                 ref kind
                     if kind.evm_opcode().is_some()

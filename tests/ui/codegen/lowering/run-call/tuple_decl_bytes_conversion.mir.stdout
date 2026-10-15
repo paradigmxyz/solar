@@ -86,7 +86,8 @@ fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 5
-    mstore v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
     ret
 }

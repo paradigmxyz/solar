@@ -142,10 +142,9 @@ impl CopyElisionCx {
 
     fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
         let block = *self.indexed_stores.get(&inst)?;
-        let InstKind::Store(address, offset, _) = func.inst(inst).kind else { return None };
+        let InstKind::Store(address, _) = func.inst(inst).kind else { return None };
         // A dynamic object's elements follow its length word; a fixed one's start at it.
-        let (target, base, index) = func.element_address(address)?;
-        let data_offset = base.checked_add(offset)?;
+        let (target, data_offset, index) = func.element_address(address)?;
         if target == object
             && let [pred] = func.blocks[block].predecessors.as_slice()
             && let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -196,7 +195,7 @@ impl CopyElisionCx {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                if let InstKind::Store(address, ..) = inst.kind
+                if let InstKind::Store(address, _) = inst.kind
                     && func.element_address(address).is_some()
                 {
                     self.indexed_stores.insert(inst_id, block_id);
@@ -264,7 +263,7 @@ impl CopyElisionCx {
                 let inst = func.inst(inst_id);
                 match &inst.kind {
                     // Writes to the allocation: the address is a derived value.
-                    InstKind::Store(addr, _, value) => {
+                    InstKind::Store(addr, value) => {
                         if derived.contains(value) {
                             return None; // Storing an interior address elsewhere is a read/escape.
                         }
@@ -272,7 +271,7 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::Store8(addr, _, value) => {
+                    InstKind::Store8(addr, value) => {
                         if derived.contains(value) {
                             return None;
                         }
@@ -306,7 +305,7 @@ impl CopyElisionCx {
                         }
                     }
                     // Reads of the allocation keep every write.
-                    InstKind::Load(addr, _, PtrLocation::Memory)
+                    InstKind::Load(addr, PtrLocation::Memory)
                     | InstKind::ExtractValue {
                         ty: MirType::Slice(_),
                         aggregate: addr,

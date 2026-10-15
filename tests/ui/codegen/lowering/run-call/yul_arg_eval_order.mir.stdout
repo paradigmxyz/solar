@@ -23,18 +23,19 @@ fn @deployIdiom() -> i256 [selector=0x298d6964, abi_params=[], abi_returns=[word
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 20
-    mstore v0+32, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
     mstore 32, 0 !metadata(memory=scratch)
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = icall @doCreate, v1
-    v3 = mload 32 !metadata(memory=scratch)
-    v4 = extcodesize v3
-    v5 = mul v4, v2
-    v6 = eq v5, 0
-    v7 = zext i1 v6 to i256
-    v8 = eq v7, 0
-    v9 = zext i1 v8 to i256
-    ret v9
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = icall @doCreate, v2
+    v4 = mload 32 !metadata(memory=scratch)
+    v5 = extcodesize v4
+    v6 = mul v5, v3
+    v7 = eq v6, 0
+    v8 = zext i1 v7 to i256
+    v9 = eq v8, 0
+    v10 = zext i1 v9 to i256
+    ret v10
 }
 
 fn @eff() -> i256 {

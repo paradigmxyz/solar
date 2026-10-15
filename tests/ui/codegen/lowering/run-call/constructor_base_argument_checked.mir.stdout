@@ -223,7 +223,8 @@ fn @table() -> ptr<memory> [pure] {
     v3 = lt 1, 2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    mstore v0+32, 6
+    v5 = ptradd v0, 32
+    mstore v5, 6
     ret v0
 }
 

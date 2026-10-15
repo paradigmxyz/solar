@@ -79,8 +79,10 @@
 +     mstore v14, v42
 +     v43 = add v9, 32
 +     v44 = calldataload v43
-+     mstore v14+32, v44
-+     mstore v14+64, v9
++     v45 = ptradd v14, 32
++     mstore v45, v44
++     v46 = ptradd v14, 64
++     mstore v46, v9
 +     jump bb1
 +   bb1:
 +     v0 = mload v14
@@ -92,9 +94,9 @@
       v5 = add v2, v4
 -     ret v5
 +     mstore 128, v5
-+     v45 = add 128, 32
-+     v46 = sub v45, 128
-+     returndata 128, v46
++     v47 = add 128, 32
++     v48 = sub v47, 128
++     returndata 128, v48
 +   bb8:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)

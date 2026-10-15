@@ -19,7 +19,8 @@ fn @dynString() -> ptr<memory> [selector=0x2f4e7409, pure, abi_params=[], abi_re
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 5
-    mstore v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -27,10 +28,11 @@ fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[w
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 3
-    mstore v0+32, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v1 = insert_value struct0, undef struct0, 0, 11
-    v2 = insert_value struct0, v1, 1, v0
-    ret v2
+    v1 = ptradd v0, 32
+    mstore v1, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v2 = insert_value struct0, undef struct0, 0, 11
+    v3 = insert_value struct0, v2, 1, v0
+    ret v3
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicReturnUnused ===

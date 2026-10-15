@@ -253,41 +253,41 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     v11 = shr 5, v10
     v12 = add v7, 63
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v33 = mload 64 !metadata(memory=scratch)
-    v34 = add v33, v15
-    v35 = lt v34, v33
-    v36 = gt v34, 0xffffffffffffffff
-    v37 = or v35, v36
-    jumpi v37, bb9, bb8
+    v35 = mload 64 !metadata(memory=scratch)
+    v36 = add v35, v15
+    v37 = lt v36, v35
+    v38 = gt v36, 0xffffffffffffffff
+    v39 = or v37, v38
+    jumpi v39, bb9, bb8
   bb8:
-    mstore 64, v34 !metadata(memory=scratch)
-    mstore v33, v7
+    mstore 64, v36 !metadata(memory=scratch)
+    mstore v35, v7
     jumpi v3, bb4, bb3
   bb3:
     v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v28 = add v33, 32
-    mstore v28, v17
+    v30 = add v35, 32
+    mstore v30, v17
     jump bb5
   bb4:
     mstore 0, arg0 !metadata(memory=scratch)
-    v26 = keccak256 0, 32 !metadata(memory=scratch)
-    v39 = add v33, 32
-    v44 = shl 5, v11
-    v45 = add v33, v44
-    v46 = add v45, 32
+    v28 = keccak256 0, 32 !metadata(memory=scratch)
+    v43 = add v35, 32
+    v46 = shl 5, v11
+    v47 = add v35, v46
+    v48 = add v47, 32
     jump bb6
   bb6:
-    v40 = phi [bb4: v39], [bb7: v41]
-    v42 = phi [bb4: v26], [bb7: v43]
-    v20 = lt v40, v46
-    jumpi v20, bb7, bb5
+    v41 = phi [bb4: v28], [bb7: v42]
+    v44 = phi [bb4: v43], [bb7: v45]
+    v21 = lt v44, v48
+    jumpi v21, bb7, bb5
   bb5:
-    ret v33
+    ret v35
   bb7:
-    v22 = sload v42
-    mstore v40, v22
-    v41 = add v40, 32
-    v43 = add v42, 1
+    v23 = sload v41
+    mstore v44, v23
+    v42 = add v41, 1
+    v45 = add v44, 32
     jump bb6
   bb9:
     mstore 32, 65 !metadata(memory=scratch)

@@ -57,19 +57,20 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v1 = gas
     v2 = alloc 64 !metadata(preserves_fmp)
     mstore v2, 3
-    mstore v2+32, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [memory_bytes], selector 0x91e145ef00000000000000000000000000000000000000000000000000000000, args v2
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
-    v6 = zext i160 v0 to i256
-    v7 = call v1, v6, 0, v4, v5, 0, 0
-    jumpi v7, bb2, bb1
+    v3 = ptradd v2, 32
+    mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v4 = abi_encode [memory_bytes], selector 0x91e145ef00000000000000000000000000000000000000000000000000000000, args v2
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
+    v7 = zext i160 v0 to i256
+    v8 = call v1, v7, 0, v5, v6, 0, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = icall returndata_bytes<>
-    v9 = abi_decode [bytes], v8
-    ret v9
+    v9 = icall returndata_bytes<>
+    v10 = abi_decode [bytes], v9
+    ret v10
 }
 
 fn @encodeDynamic(arg0: slice<calldata>) -> ptr<memory> [selector=0x44a76707, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

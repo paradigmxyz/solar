@@ -97,473 +97,265 @@ fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
 fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
   bb0:
     v0 = mload arg0
-    v115 = mod v0, 3
-    v117 = sub 3, v115
-    v247 = ne v115, 0
-    v248 = zext i1 v247 to i256
-    v249 = mul v248, v117
-    v119 = add v0, 2
-    v120 = lt v119, v0
-    v121 = div v119, 3
-    v122 = shl 2, v121
-    v124 = shr 2, v122
-    v128 = ne v124, v121
-    v418 = or v120, v128
-    jumpi v418, bb24, bb25
+    v122 = mod v0, 3
+    v124 = sub 3, v122
+    v164 = ne v122, 0
+    v165 = zext i1 v164 to i256
+    v166 = mul v165, v124
+    v126 = add v0, 2
+    v127 = lt v126, v0
+    v128 = div v126, 3
+    v129 = shl 2, v128
+    v131 = shr 2, v129
+    v135 = ne v131, v128
+    v257 = or v127, v135
+    jumpi v257, bb24, bb25
   bb25:
     jumpi arg2, bb1, bb2
   bb1:
-    v129 = sub v122, v249
-    v130 = lt v122, v249
-    jumpi v130, bb24, bb2
+    v136 = sub v129, v166
+    v137 = lt v129, v166
+    jumpi v137, bb24, bb2
   bb2:
-    v10 = phi [bb1: v129], [bb25: v122]
+    v10 = phi [bb1: v136], [bb25: v129]
     v11 = add v10, 63
     v12 = lt v11, v10
     jumpi v12, bb14, bb15
   bb15:
     v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v408 = mload 64 !metadata(memory=scratch)
-    v409 = add v408, v14
-    v410 = lt v409, v408
-    v411 = gt v409, 0xffffffffffffffff
-    v412 = or v410, v411
-    jumpi v412, bb103, bb102
-  bb102:
-    mstore 64, v409 !metadata(memory=scratch)
-    v414 = calldatasize
-    calldatacopy v408, v414, v14
-    mstore v408, v10
-    v415 = add v408, 32
-    jump bb33
-  bb33:
-    v157 = phi [bb102: 0], [bb37: v186]
-    v158 = phi [bb102: 0], [bb37: v237]
-    v416 = phi [bb102: v415], [bb37: v417]
-    v245 = add v158, 2
-    v246 = lt v245, v0
-    jumpi v246, bb34, bb3
+    v247 = mload 64 !metadata(memory=scratch)
+    v248 = add v247, v14
+    v249 = lt v248, v247
+    v250 = gt v248, 0xffffffffffffffff
+    v251 = or v249, v250
+    jumpi v251, bb59, bb58
+  bb58:
+    mstore 64, v248 !metadata(memory=scratch)
+    v253 = calldatasize
+    calldatacopy v247, v253, v14
+    mstore v247, v10
+    v254 = add v247, 32
+    jump bb3
   bb3:
-    v18 = phi [bb33: v157], [bb11: v145]
-    v21 = phi [bb33: v158], [bb11: v147]
+    v18 = phi [bb58: 0], [bb11: v152]
+    v21 = phi [bb58: 0], [bb11: v154]
+    v255 = phi [bb58: v254], [bb11: v256]
     v26 = lt v21, v0
     jumpi v26, bb5, bb4
   bb4:
-    ret v408
+    ret v247
   bb5:
     v27 = mload arg0
     v28 = lt v21, v27
     jumpi v28, bb17, bb16
   bb17:
-    v355 = add arg0, v21
-    v356 = add v355, 32
-    v31 = mload v356
-    v32 = byte 0, v31
-    v37 = shl 16, v32
-    v151 = add v21, 1
-    v39 = lt v151, v0
-    jumpi v39, bb26, bb6
+    v220 = add arg0, v21
+    v221 = add v220, 32
+    v32 = mload v221
+    v33 = byte 0, v32
+    v38 = shl 16, v33
+    v158 = add v21, 1
+    v40 = lt v158, v0
+    jumpi v40, bb26, bb6
   bb26:
-    v42 = lt v151, v27
-    jumpi v42, bb18, bb16
+    v43 = lt v158, v27
+    jumpi v43, bb18, bb16
   bb18:
-    v358 = add arg0, v151
-    v359 = add v358, 32
-    v45 = mload v359
-    v46 = byte 0, v45
-    v51 = shl 8, v46
-    v52 = or v37, v51
+    v223 = add arg0, v158
+    v224 = add v223, 32
+    v47 = mload v224
+    v48 = byte 0, v47
+    v53 = shl 8, v48
+    v54 = or v38, v53
     jump bb6
   bb6:
-    v53 = phi [bb18: v52], [bb17: v37]
-    v133 = add v21, 2
-    v134 = lt v133, v21
-    jumpi v134, bb24, bb27
+    v55 = phi [bb18: v54], [bb17: v38]
+    v140 = add v21, 2
+    v57 = lt v140, v0
+    jumpi v57, bb27, bb7
   bb27:
-    v55 = lt v133, v0
-    jumpi v55, bb28, bb7
-  bb28:
-    v58 = lt v133, v27
-    jumpi v58, bb19, bb16
+    v60 = lt v140, v27
+    jumpi v60, bb19, bb16
   bb19:
-    v361 = add arg0, v133
-    v362 = add v361, 32
-    v61 = mload v362
-    v62 = byte 0, v61
-    v67 = or v53, v62
+    v226 = add arg0, v140
+    v227 = add v226, 32
+    v64 = mload v227
+    v65 = byte 0, v64
+    v70 = or v55, v65
     jump bb7
   bb7:
-    v68 = phi [bb19: v67], [bb27: v53]
-    v69 = shr 18, v68
-    jumpi arg1, bb47, bb49
-  bb47:
-    v250 = gt v69, 61
-    jumpi v250, bb48, bb49
-  bb49:
-    v255 = lt v69, 32
-    jumpi v255, bb50, bb51
-  bb51:
-    v258 = and v69, 31
-    v259 = byte v258, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
-    v260 = shl 248, v259
-    jump bb52
-  bb50:
-    v256 = byte v69, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
-    v257 = shl 248, v256
-    jump bb52
-  bb52:
-    v261 = phi [bb50: v257], [bb51: v260]
-    jump bb46
-  bb48:
-    v251 = eq v69, 62
-    v252 = zext i1 v251 to i256
-    v253 = mul v252, 0xce00000000000000000000000000000000000000000000000000000000000000
-    v254 = add v253, 0x5f00000000000000000000000000000000000000000000000000000000000000
-    jump bb46
-  bb46:
-    v262 = phi [bb48: v254], [bb52: v261]
-    v72 = mload v408
-    v73 = lt v18, v72
-    jumpi v73, bb20, bb16
-  bb20:
-    v75 = byte 0, v262
-    v364 = add v408, v18
-    v365 = add v364, 32
-    mstore8 v365, v75
-    v77 = shr 12, v68
-    v78 = and v77, 63
-    jumpi arg1, bb68, bb70
-  bb68:
-    v289 = gt v78, 61
-    jumpi v289, bb69, bb70
-  bb70:
-    v294 = lt v78, 32
-    jumpi v294, bb71, bb72
-  bb72:
-    v297 = and v78, 31
-    v298 = byte v297, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
-    v299 = shl 248, v298
-    jump bb73
-  bb71:
-    v295 = byte v78, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
-    v296 = shl 248, v295
-    jump bb73
-  bb73:
-    v300 = phi [bb71: v296], [bb72: v299]
-    jump bb67
-  bb69:
-    v290 = eq v78, 62
-    v291 = zext i1 v290 to i256
-    v292 = mul v291, 0xce00000000000000000000000000000000000000000000000000000000000000
-    v293 = add v292, 0x5f00000000000000000000000000000000000000000000000000000000000000
-    jump bb67
-  bb67:
-    v301 = phi [bb69: v293], [bb73: v300]
-    v153 = add v18, 1
-    v81 = mload v408
-    v82 = lt v153, v81
-    jumpi v82, bb21, bb16
-  bb21:
-    v84 = byte 0, v301
-    v367 = add v408, v153
-    v368 = add v367, 32
-    mstore8 v368, v84
-    v155 = add v18, 2
-    v156 = lt v155, v18
-    jumpi v156, bb24, bb32
-  bb32:
-    v87 = lt v155, v10
-    jumpi v87, bb29, bb8
-  bb29:
-    jumpi v39, bb9, bb10
-  bb9:
-    v90 = shr 6, v68
-    v91 = and v90, 63
-    jumpi arg1, bb54, bb56
-  bb54:
-    v263 = gt v91, 61
-    jumpi v263, bb55, bb56
-  bb56:
-    v268 = lt v91, 32
-    jumpi v268, bb57, bb58
-  bb58:
-    v271 = and v91, 31
-    v272 = byte v271, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
-    v273 = shl 248, v272
-    jump bb59
-  bb57:
-    v269 = byte v91, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
-    v270 = shl 248, v269
-    jump bb59
-  bb59:
-    v274 = phi [bb57: v270], [bb58: v273]
-    jump bb53
-  bb55:
-    v264 = eq v91, 62
-    v265 = zext i1 v264 to i256
-    v266 = mul v265, 0xce00000000000000000000000000000000000000000000000000000000000000
-    v267 = add v266, 0x5f00000000000000000000000000000000000000000000000000000000000000
-    jump bb53
-  bb53:
-    v275 = phi [bb55: v267], [bb59: v274]
-    jump bb10
-  bb10:
-    v93 = phi [bb53: v275], [bb29: 0x3d00000000000000000000000000000000000000000000000000000000000000]
-    v95 = mload v408
-    v96 = lt v155, v95
-    jumpi v96, bb22, bb16
-  bb22:
-    v98 = byte 0, v93
-    v370 = add v408, v155
-    v371 = add v370, 32
-    mstore8 v371, v98
-    jump bb8
-  bb8:
-    v139 = add v18, 3
-    v140 = lt v139, v18
-    jumpi v140, bb24, bb30
-  bb30:
-    v101 = lt v139, v10
-    jumpi v101, bb31, bb11
+    v71 = phi [bb19: v70], [bb6: v55]
+    v72 = shr 18, v71
+    jumpi arg1, bb31, bb33
   bb31:
-    jumpi v55, bb12, bb13
-  bb12:
-    v104 = and v68, 63
-    jumpi arg1, bb61, bb63
-  bb61:
-    v276 = gt v104, 61
-    jumpi v276, bb62, bb63
-  bb63:
-    v281 = lt v104, 32
-    jumpi v281, bb64, bb65
-  bb65:
-    v284 = and v104, 31
-    v285 = byte v284, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
-    v286 = shl 248, v285
-    jump bb66
-  bb64:
-    v282 = byte v104, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
-    v283 = shl 248, v282
-    jump bb66
-  bb66:
-    v287 = phi [bb64: v283], [bb65: v286]
-    jump bb60
-  bb62:
-    v277 = eq v104, 62
-    v278 = zext i1 v277 to i256
-    v279 = mul v278, 0xce00000000000000000000000000000000000000000000000000000000000000
-    v280 = add v279, 0x5f00000000000000000000000000000000000000000000000000000000000000
-    jump bb60
-  bb60:
-    v288 = phi [bb62: v280], [bb66: v287]
-    jump bb13
-  bb13:
-    v106 = phi [bb60: v288], [bb31: 0x3d00000000000000000000000000000000000000000000000000000000000000]
-    v108 = mload v408
-    v109 = lt v139, v108
-    jumpi v109, bb23, bb16
-  bb23:
-    v111 = byte 0, v106
-    v373 = add v408, v139
-    v374 = add v373, 32
-    mstore8 v374, v111
-    jump bb11
-  bb11:
-    v145 = add v18, 4
-    v146 = lt v145, v18
-    v147 = add v21, 3
-    v148 = lt v147, v21
-    v419 = or v146, v148
-    jumpi v419, bb24, bb3
-  bb34:
-    v160 = mload arg0
-    v161 = lt v158, v160
-    jumpi v161, bb39, bb16
-  bb39:
-    v376 = add arg0, v158
-    v377 = add v376, 32
-    v194 = mload v377
-    v195 = byte 0, v194
-    v198 = shl 16, v195
-    v199 = add v158, 1
-    v229 = lt v199, v160
-    jumpi v229, bb40, bb16
-  bb40:
-    v379 = add arg0, v199
-    v380 = add v379, 32
-    v202 = mload v380
-    v203 = byte 0, v202
-    v206 = shl 8, v203
-    v207 = or v198, v206
-    v231 = lt v245, v160
-    jumpi v231, bb41, bb16
-  bb41:
-    v382 = add arg0, v245
-    v383 = add v382, 32
-    v209 = mload v383
-    v210 = byte 0, v209
-    v213 = or v207, v210
-    v170 = shr 18, v213
-    jumpi arg1, bb89, bb91
-  bb89:
-    v328 = gt v170, 61
-    jumpi v328, bb90, bb91
-  bb91:
-    v333 = lt v170, 32
-    jumpi v333, bb92, bb93
-  bb93:
-    v336 = and v170, 31
-    v337 = byte v336, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
-    v338 = shl 248, v337
-    jump bb94
-  bb92:
-    v334 = byte v170, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
-    v335 = shl 248, v334
-    jump bb94
-  bb94:
-    v339 = phi [bb92: v335], [bb93: v338]
-    jump bb88
-  bb90:
-    v329 = eq v170, 62
-    v330 = zext i1 v329 to i256
-    v331 = mul v330, 0xce00000000000000000000000000000000000000000000000000000000000000
-    v332 = add v331, 0x5f00000000000000000000000000000000000000000000000000000000000000
-    jump bb88
-  bb88:
-    v340 = phi [bb90: v332], [bb94: v339]
-    v172 = mload v408
-    v173 = lt v157, v172
-    jumpi v173, bb42, bb16
-  bb42:
-    v214 = byte 0, v340
-    mstore8 v416, v214
-    v216 = shr 12, v213
-    v217 = and v216, 63
-    jumpi arg1, bb96, bb98
-  bb96:
-    v341 = gt v217, 61
-    jumpi v341, bb97, bb98
-  bb98:
-    v346 = lt v217, 32
-    jumpi v346, bb99, bb100
-  bb100:
-    v349 = and v217, 31
-    v350 = byte v349, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
-    v351 = shl 248, v350
-    jump bb101
-  bb99:
-    v347 = byte v217, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
-    v348 = shl 248, v347
-    jump bb101
-  bb101:
-    v352 = phi [bb99: v348], [bb100: v351]
-    jump bb95
-  bb97:
-    v342 = eq v217, 62
-    v343 = zext i1 v342 to i256
-    v344 = mul v343, 0xce00000000000000000000000000000000000000000000000000000000000000
-    v345 = add v344, 0x5f00000000000000000000000000000000000000000000000000000000000000
-    jump bb95
-  bb95:
-    v353 = phi [bb97: v345], [bb101: v352]
-    v219 = add v157, 1
-    v242 = mload v408
-    v243 = lt v219, v242
-    jumpi v243, bb43, bb16
-  bb43:
-    v221 = byte 0, v353
-    v389 = add v416, 1
-    mstore8 v389, v221
-    v223 = add v157, 2
-    v244 = lt v223, v10
-    jumpi v244, bb36, bb35
-  bb36:
-    v178 = shr 6, v213
-    v179 = and v178, 63
-    jumpi arg1, bb75, bb77
-  bb75:
-    v302 = gt v179, 61
-    jumpi v302, bb76, bb77
-  bb77:
-    v307 = lt v179, 32
-    jumpi v307, bb78, bb79
-  bb79:
-    v310 = and v179, 31
-    v311 = byte v310, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
-    v312 = shl 248, v311
-    jump bb80
-  bb78:
-    v308 = byte v179, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
-    v309 = shl 248, v308
-    jump bb80
-  bb80:
-    v313 = phi [bb78: v309], [bb79: v312]
-    jump bb74
-  bb76:
-    v303 = eq v179, 62
-    v304 = zext i1 v303 to i256
-    v305 = mul v304, 0xce00000000000000000000000000000000000000000000000000000000000000
-    v306 = add v305, 0x5f00000000000000000000000000000000000000000000000000000000000000
-    jump bb74
-  bb74:
-    v314 = phi [bb76: v306], [bb80: v313]
-    v234 = mload v408
-    v235 = lt v223, v234
-    jumpi v235, bb44, bb16
-  bb44:
-    v225 = byte 0, v314
-    v392 = add v416, 2
-    mstore8 v392, v225
-    jump bb35
+    v167 = gt v72, 61
+    jumpi v167, bb32, bb33
+  bb33:
+    v172 = lt v72, 32
+    jumpi v172, bb34, bb35
   bb35:
-    v176 = add v157, 3
-    v233 = lt v176, v10
-    jumpi v233, bb38, bb37
+    v175 = and v72, 31
+    v176 = byte v175, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
+    v177 = shl 248, v176
+    jump bb36
+  bb34:
+    v173 = byte v72, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
+    v174 = shl 248, v173
+    jump bb36
+  bb36:
+    v178 = phi [bb34: v174], [bb35: v177]
+    jump bb30
+  bb32:
+    v168 = eq v72, 62
+    v169 = zext i1 v168 to i256
+    v170 = mul v169, 0xce00000000000000000000000000000000000000000000000000000000000000
+    v171 = add v170, 0x5f00000000000000000000000000000000000000000000000000000000000000
+    jump bb30
+  bb30:
+    v179 = phi [bb32: v171], [bb36: v178]
+    v75 = mload v247
+    v76 = lt v18, v75
+    jumpi v76, bb20, bb16
+  bb20:
+    v78 = byte 0, v179
+    mstore8 v255, v78
+    v81 = shr 12, v71
+    v82 = and v81, 63
+    jumpi arg1, bb52, bb54
+  bb52:
+    v206 = gt v82, 61
+    jumpi v206, bb53, bb54
+  bb54:
+    v211 = lt v82, 32
+    jumpi v211, bb55, bb56
+  bb56:
+    v214 = and v82, 31
+    v215 = byte v214, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
+    v216 = shl 248, v215
+    jump bb57
+  bb55:
+    v212 = byte v82, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
+    v213 = shl 248, v212
+    jump bb57
+  bb57:
+    v217 = phi [bb55: v213], [bb56: v216]
+    jump bb51
+  bb53:
+    v207 = eq v82, 62
+    v208 = zext i1 v207 to i256
+    v209 = mul v208, 0xce00000000000000000000000000000000000000000000000000000000000000
+    v210 = add v209, 0x5f00000000000000000000000000000000000000000000000000000000000000
+    jump bb51
+  bb51:
+    v218 = phi [bb53: v210], [bb57: v217]
+    v160 = add v18, 1
+    v85 = mload v247
+    v86 = lt v160, v85
+    jumpi v86, bb21, bb16
+  bb21:
+    v88 = byte 0, v218
+    v233 = add v255, 1
+    mstore8 v233, v88
+    v162 = add v18, 2
+    v92 = lt v162, v10
+    jumpi v92, bb28, bb8
+  bb28:
+    jumpi v40, bb9, bb10
+  bb9:
+    v95 = shr 6, v71
+    v96 = and v95, 63
+    jumpi arg1, bb38, bb40
   bb38:
-    v188 = and v213, 63
-    jumpi arg1, bb82, bb84
-  bb82:
-    v315 = gt v188, 61
-    jumpi v315, bb83, bb84
-  bb84:
-    v320 = lt v188, 32
-    jumpi v320, bb85, bb86
-  bb86:
-    v323 = and v188, 31
-    v324 = byte v323, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
-    v325 = shl 248, v324
-    jump bb87
-  bb85:
-    v321 = byte v188, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
-    v322 = shl 248, v321
-    jump bb87
-  bb87:
-    v326 = phi [bb85: v322], [bb86: v325]
-    jump bb81
-  bb83:
-    v316 = eq v188, 62
-    v317 = zext i1 v316 to i256
-    v318 = mul v317, 0xce00000000000000000000000000000000000000000000000000000000000000
-    v319 = add v318, 0x5f00000000000000000000000000000000000000000000000000000000000000
-    jump bb81
-  bb81:
-    v327 = phi [bb83: v319], [bb87: v326]
-    v239 = mload v408
-    v240 = lt v176, v239
-    jumpi v240, bb45, bb16
-  bb16:
-    tail_call @revert_stub.9
-  bb45:
-    v227 = byte 0, v327
-    v395 = add v416, 3
-    mstore8 v395, v227
+    v180 = gt v96, 61
+    jumpi v180, bb39, bb40
+  bb40:
+    v185 = lt v96, 32
+    jumpi v185, bb41, bb42
+  bb42:
+    v188 = and v96, 31
+    v189 = byte v188, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
+    v190 = shl 248, v189
+    jump bb43
+  bb41:
+    v186 = byte v96, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
+    v187 = shl 248, v186
+    jump bb43
+  bb43:
+    v191 = phi [bb41: v187], [bb42: v190]
+    jump bb37
+  bb39:
+    v181 = eq v96, 62
+    v182 = zext i1 v181 to i256
+    v183 = mul v182, 0xce00000000000000000000000000000000000000000000000000000000000000
+    v184 = add v183, 0x5f00000000000000000000000000000000000000000000000000000000000000
     jump bb37
   bb37:
-    v186 = add v157, 4
-    v237 = add v158, 3
-    v417 = add v416, 4
-    jump bb33
-  bb103:
+    v192 = phi [bb39: v184], [bb43: v191]
+    jump bb10
+  bb10:
+    v98 = phi [bb37: v192], [bb28: 0x3d00000000000000000000000000000000000000000000000000000000000000]
+    v100 = mload v247
+    v101 = lt v162, v100
+    jumpi v101, bb22, bb16
+  bb22:
+    v103 = byte 0, v98
+    v236 = add v255, 2
+    mstore8 v236, v103
+    jump bb8
+  bb8:
+    v146 = add v18, 3
+    v107 = lt v146, v10
+    jumpi v107, bb29, bb11
+  bb29:
+    jumpi v57, bb12, bb13
+  bb12:
+    v110 = and v71, 63
+    jumpi arg1, bb45, bb47
+  bb45:
+    v193 = gt v110, 61
+    jumpi v193, bb46, bb47
+  bb47:
+    v198 = lt v110, 32
+    jumpi v198, bb48, bb49
+  bb49:
+    v201 = and v110, 31
+    v202 = byte v201, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
+    v203 = shl 248, v202
+    jump bb50
+  bb48:
+    v199 = byte v110, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
+    v200 = shl 248, v199
+    jump bb50
+  bb50:
+    v204 = phi [bb48: v200], [bb49: v203]
+    jump bb44
+  bb46:
+    v194 = eq v110, 62
+    v195 = zext i1 v194 to i256
+    v196 = mul v195, 0xce00000000000000000000000000000000000000000000000000000000000000
+    v197 = add v196, 0x5f00000000000000000000000000000000000000000000000000000000000000
+    jump bb44
+  bb44:
+    v205 = phi [bb46: v197], [bb50: v204]
+    jump bb13
+  bb13:
+    v112 = phi [bb44: v205], [bb29: 0x3d00000000000000000000000000000000000000000000000000000000000000]
+    v114 = mload v247
+    v115 = lt v146, v114
+    jumpi v115, bb23, bb16
+  bb16:
+    tail_call @revert_stub.9
+  bb23:
+    v117 = byte 0, v112
+    v239 = add v255, 3
+    mstore8 v239, v117
+    jump bb11
+  bb11:
+    v152 = add v18, 4
+    v154 = add v21, 3
+    v256 = add v255, 4
+    jump bb3
+  bb59:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -581,441 +373,441 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v1 = eq v0, 0
     jumpi v1, bb1, bb29
   bb29:
-    v133 = shr 2, v0
-    v134 = mul v133, 3
-    v141 = and v0, 3
-    v8 = ne v141, 0
+    v142 = shr 2, v0
+    v143 = mul v142, 3
+    v150 = and v0, 3
+    v8 = ne v150, 0
     jumpi v8, bb2, bb3
   bb3:
-    v146 = sub v0, 1
-    v409 = add arg0, v146
-    v410 = add v409, 32
-    v16 = mload v410
-    v17 = byte 0, v16
-    v19 = eq v17, 61
-    jumpi v19, bb5, bb6
+    v155 = sub v0, 1
+    v425 = add arg0, v155
+    v426 = add v425, 32
+    v17 = mload v426
+    v18 = byte 0, v17
+    v20 = eq v18, 61
+    jumpi v20, bb5, bb6
   bb5:
-    v148 = sub v134, 1
-    v149 = eq v134, 0
-    jumpi v149, bb30, bb6
+    v157 = sub v143, 1
+    v158 = eq v143, 0
+    jumpi v158, bb30, bb6
   bb6:
-    v21 = phi [bb5: v148], [bb3: v134]
-    v150 = sub v0, 2
-    v151 = lt v0, 2
-    jumpi v151, bb30, bb31
+    v22 = phi [bb5: v157], [bb3: v143]
+    v159 = sub v0, 2
+    v160 = lt v0, 2
+    jumpi v160, bb30, bb31
   bb31:
-    v433 = add arg0, v150
-    v434 = add v433, 32
-    v27 = mload v434
-    v28 = byte 0, v27
-    v30 = eq v28, 61
-    jumpi v30, bb7, bb8
+    v449 = add arg0, v159
+    v450 = add v449, 32
+    v29 = mload v450
+    v30 = byte 0, v29
+    v32 = eq v30, 61
+    jumpi v32, bb7, bb8
   bb7:
-    v152 = sub v21, 1
-    v153 = eq v21, 0
-    jumpi v153, bb30, bb8
+    v161 = sub v22, 1
+    v162 = eq v22, 0
+    jumpi v162, bb30, bb8
   bb8:
-    v32 = phi [bb7: v152], [bb31: v21]
+    v34 = phi [bb7: v161], [bb31: v22]
     jump bb4
   bb2:
-    v142 = sub v141, 1
-    v144 = add v134, v142
+    v151 = sub v150, 1
+    v153 = add v143, v151
     jump bb4
   bb4:
-    v33 = phi [bb2: v144], [bb8: v32]
-    v34 = add v33, 63
-    v37 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v473 = mload 64 !metadata(memory=scratch)
-    v474 = add v473, v37
-    v475 = lt v474, v473
-    v476 = gt v474, 0xffffffffffffffff
-    v477 = or v475, v476
-    jumpi v477, bb79, bb80
+    v35 = phi [bb2: v153], [bb8: v34]
+    v36 = add v35, 63
+    v39 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v489 = mload 64 !metadata(memory=scratch)
+    v490 = add v489, v39
+    v491 = lt v490, v489
+    v492 = gt v490, 0xffffffffffffffff
+    v493 = or v491, v492
+    jumpi v493, bb79, bb80
   bb80:
-    mstore 64, v474 !metadata(memory=scratch)
-    v479 = calldatasize
-    calldatacopy v473, v479, v37
-    mstore v473, v33
-    v486 = add arg0, 32
+    mstore 64, v490 !metadata(memory=scratch)
+    v495 = calldatasize
+    calldatacopy v489, v495, v39
+    mstore v489, v35
+    v502 = add arg0, 32
     jump bb39
   bb39:
-    v178 = phi [bb80: 0], [bb46: v259]
-    v179 = phi [bb80: 0], [bb46: v215]
-    v487 = phi [bb80: v486], [bb46: v488]
-    v262 = add v178, 3
-    v263 = lt v262, v0
-    jumpi v263, bb40, bb9
+    v187 = phi [bb80: 0], [bb46: v275]
+    v188 = phi [bb80: 0], [bb46: v224]
+    v503 = phi [bb80: v502], [bb46: v504]
+    v278 = add v187, 3
+    v279 = lt v278, v0
+    jumpi v279, bb40, bb9
   bb9:
-    v40 = phi [bb39: v178], [bb20: v174]
-    v46 = phi [bb39: v179], [bb20: v172]
-    v47 = lt v40, v0
-    jumpi v47, bb11, bb10
+    v42 = phi [bb39: v187], [bb20: v183]
+    v48 = phi [bb39: v188], [bb20: v181]
+    v49 = lt v42, v0
+    jumpi v49, bb11, bb10
   bb10:
-    ret v473
+    ret v489
   bb11:
-    v48 = mload arg0
-    v49 = lt v40, v48
-    jumpi v49, bb22, bb21
+    v50 = mload arg0
+    v51 = lt v42, v50
+    jumpi v51, bb22, bb21
   bb22:
-    v412 = add arg0, v40
-    v413 = add v412, 32
-    v52 = mload v413
-    v53 = byte 0, v52
-    v267 = lt v53, 32
-    jumpi v267, bb54, bb55
+    v428 = add arg0, v42
+    v429 = add v428, 32
+    v55 = mload v429
+    v56 = byte 0, v55
+    v283 = lt v56, 32
+    jumpi v283, bb54, bb55
   bb55:
-    v268 = gt v53, 127
-    jumpi v268, bb54, bb56
+    v284 = gt v56, 127
+    jumpi v284, bb54, bb56
   bb56:
-    v269 = lt v53, 64
-    v270 = lt v53, 96
-    v271 = zext i1 v270 to i256
-    v272 = mul v271, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
-    v273 = add v272, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v274 = zext i1 v269 to i256
-    v275 = mul v274, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
-    v276 = add v273, v275
-    v277 = and v53, 31
-    v278 = byte v277, v276
+    v285 = lt v56, 64
+    v286 = lt v56, 96
+    v287 = zext i1 v286 to i256
+    v288 = mul v287, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
+    v289 = add v288, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v290 = zext i1 v285 to i256
+    v291 = mul v290, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
+    v292 = add v289, v291
+    v293 = and v56, 31
+    v294 = byte v293, v292
     jump bb54
   bb54:
-    v281 = phi [bb22: 0], [bb55: 0], [bb56: v278]
-    v56 = shl 18, v281
-    v176 = add v40, 1
-    v58 = lt v176, v0
-    jumpi v58, bb32, bb12
+    v297 = phi [bb22: 0], [bb55: 0], [bb56: v294]
+    v59 = shl 18, v297
+    v185 = add v42, 1
+    v61 = lt v185, v0
+    jumpi v61, bb32, bb12
   bb32:
-    v61 = lt v176, v48
-    jumpi v61, bb23, bb21
+    v64 = lt v185, v50
+    jumpi v64, bb23, bb21
   bb23:
-    v415 = add arg0, v176
-    v416 = add v415, 32
-    v64 = mload v416
-    v65 = byte 0, v64
-    v285 = lt v65, 32
-    jumpi v285, bb57, bb58
+    v431 = add arg0, v185
+    v432 = add v431, 32
+    v68 = mload v432
+    v69 = byte 0, v68
+    v301 = lt v69, 32
+    jumpi v301, bb57, bb58
   bb58:
-    v286 = gt v65, 127
-    jumpi v286, bb57, bb59
+    v302 = gt v69, 127
+    jumpi v302, bb57, bb59
   bb59:
-    v287 = lt v65, 64
-    v288 = lt v65, 96
-    v289 = zext i1 v288 to i256
-    v290 = mul v289, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
-    v291 = add v290, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v292 = zext i1 v287 to i256
-    v293 = mul v292, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
-    v294 = add v291, v293
-    v295 = and v65, 31
-    v296 = byte v295, v294
+    v303 = lt v69, 64
+    v304 = lt v69, 96
+    v305 = zext i1 v304 to i256
+    v306 = mul v305, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
+    v307 = add v306, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v308 = zext i1 v303 to i256
+    v309 = mul v308, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
+    v310 = add v307, v309
+    v311 = and v69, 31
+    v312 = byte v311, v310
     jump bb57
   bb57:
-    v299 = phi [bb23: 0], [bb58: 0], [bb59: v296]
-    v68 = shl 12, v299
-    v69 = or v56, v68
+    v315 = phi [bb23: 0], [bb58: 0], [bb59: v312]
+    v72 = shl 12, v315
+    v73 = or v59, v72
     jump bb12
   bb12:
-    v70 = phi [bb57: v69], [bb54: v56]
-    v156 = add v40, 2
-    v157 = lt v156, v40
-    jumpi v157, bb30, bb33
+    v74 = phi [bb57: v73], [bb54: v59]
+    v165 = add v42, 2
+    v166 = lt v165, v42
+    jumpi v166, bb30, bb33
   bb33:
-    v72 = lt v156, v0
-    jumpi v72, bb34, bb13
+    v76 = lt v165, v0
+    jumpi v76, bb34, bb13
   bb34:
-    v75 = lt v156, v48
-    jumpi v75, bb24, bb21
+    v79 = lt v165, v50
+    jumpi v79, bb24, bb21
   bb24:
-    v418 = add arg0, v156
-    v419 = add v418, 32
-    v78 = mload v419
-    v79 = byte 0, v78
-    v303 = lt v79, 32
-    jumpi v303, bb60, bb61
+    v434 = add arg0, v165
+    v435 = add v434, 32
+    v83 = mload v435
+    v84 = byte 0, v83
+    v319 = lt v84, 32
+    jumpi v319, bb60, bb61
   bb61:
-    v304 = gt v79, 127
-    jumpi v304, bb60, bb62
+    v320 = gt v84, 127
+    jumpi v320, bb60, bb62
   bb62:
-    v305 = lt v79, 64
-    v306 = lt v79, 96
-    v307 = zext i1 v306 to i256
-    v308 = mul v307, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
-    v309 = add v308, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v310 = zext i1 v305 to i256
-    v311 = mul v310, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
-    v312 = add v309, v311
-    v313 = and v79, 31
-    v314 = byte v313, v312
+    v321 = lt v84, 64
+    v322 = lt v84, 96
+    v323 = zext i1 v322 to i256
+    v324 = mul v323, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
+    v325 = add v324, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v326 = zext i1 v321 to i256
+    v327 = mul v326, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
+    v328 = add v325, v327
+    v329 = and v84, 31
+    v330 = byte v329, v328
     jump bb60
   bb60:
-    v317 = phi [bb24: 0], [bb61: 0], [bb62: v314]
-    v82 = shl 6, v317
-    v83 = or v70, v82
+    v333 = phi [bb24: 0], [bb61: 0], [bb62: v330]
+    v87 = shl 6, v333
+    v88 = or v74, v87
     jump bb13
   bb13:
-    v84 = phi [bb60: v83], [bb33: v70]
-    v160 = add v40, 3
-    v161 = lt v160, v40
-    jumpi v161, bb30, bb35
+    v89 = phi [bb60: v88], [bb33: v74]
+    v169 = add v42, 3
+    v170 = lt v169, v42
+    jumpi v170, bb30, bb35
   bb35:
-    v86 = lt v160, v0
-    jumpi v86, bb36, bb14
+    v91 = lt v169, v0
+    jumpi v91, bb36, bb14
   bb36:
-    v89 = lt v160, v48
-    jumpi v89, bb25, bb21
+    v94 = lt v169, v50
+    jumpi v94, bb25, bb21
   bb25:
-    v421 = add arg0, v160
-    v422 = add v421, 32
-    v92 = mload v422
-    v93 = byte 0, v92
-    v321 = lt v93, 32
-    jumpi v321, bb63, bb64
+    v437 = add arg0, v169
+    v438 = add v437, 32
+    v98 = mload v438
+    v99 = byte 0, v98
+    v337 = lt v99, 32
+    jumpi v337, bb63, bb64
   bb64:
-    v322 = gt v93, 127
-    jumpi v322, bb63, bb65
+    v338 = gt v99, 127
+    jumpi v338, bb63, bb65
   bb65:
-    v323 = lt v93, 64
-    v324 = lt v93, 96
-    v325 = zext i1 v324 to i256
-    v326 = mul v325, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
-    v327 = add v326, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v328 = zext i1 v323 to i256
-    v329 = mul v328, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
-    v330 = add v327, v329
-    v331 = and v93, 31
-    v332 = byte v331, v330
+    v339 = lt v99, 64
+    v340 = lt v99, 96
+    v341 = zext i1 v340 to i256
+    v342 = mul v341, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
+    v343 = add v342, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v344 = zext i1 v339 to i256
+    v345 = mul v344, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
+    v346 = add v343, v345
+    v347 = and v99, 31
+    v348 = byte v347, v346
     jump bb63
   bb63:
-    v335 = phi [bb25: 0], [bb64: 0], [bb65: v332]
-    v96 = or v84, v335
+    v351 = phi [bb25: 0], [bb64: 0], [bb65: v348]
+    v102 = or v89, v351
     jump bb14
   bb14:
-    v97 = phi [bb63: v96], [bb35: v84]
-    v98 = lt v46, v33
-    jumpi v98, bb15, bb16
+    v103 = phi [bb63: v102], [bb35: v89]
+    v104 = lt v48, v35
+    jumpi v104, bb15, bb16
   bb15:
-    v480 = byte 29, v97
-    v103 = mload v473
-    v104 = lt v46, v103
-    jumpi v104, bb26, bb21
+    v496 = byte 29, v103
+    v109 = mload v489
+    v110 = lt v48, v109
+    jumpi v110, bb26, bb21
   bb26:
-    v424 = add v473, v46
-    v425 = add v424, 32
-    mstore8 v425, v480
+    v440 = add v489, v48
+    v441 = add v440, 32
+    mstore8 v441, v496
     jump bb16
   bb16:
-    v164 = add v46, 1
-    v165 = eq v164, 0
-    jumpi v165, bb30, bb37
+    v173 = add v48, 1
+    v174 = eq v173, 0
+    jumpi v174, bb30, bb37
   bb37:
-    v109 = lt v164, v33
-    jumpi v109, bb17, bb18
+    v116 = lt v173, v35
+    jumpi v116, bb17, bb18
   bb17:
-    v481 = byte 30, v97
-    v115 = mload v473
-    v116 = lt v164, v115
-    jumpi v116, bb27, bb21
+    v497 = byte 30, v103
+    v122 = mload v489
+    v123 = lt v173, v122
+    jumpi v123, bb27, bb21
   bb27:
-    v427 = add v473, v164
-    v428 = add v427, 32
-    mstore8 v428, v481
+    v443 = add v489, v173
+    v444 = add v443, 32
+    mstore8 v444, v497
     jump bb18
   bb18:
-    v168 = add v46, 2
-    v169 = lt v168, v46
-    jumpi v169, bb30, bb38
+    v177 = add v48, 2
+    v178 = lt v177, v48
+    jumpi v178, bb30, bb38
   bb38:
-    v121 = lt v168, v33
-    jumpi v121, bb19, bb20
+    v129 = lt v177, v35
+    jumpi v129, bb19, bb20
   bb19:
-    v482 = and v97, 255
-    v126 = mload v473
-    v127 = lt v168, v126
-    jumpi v127, bb28, bb21
+    v498 = and v103, 255
+    v134 = mload v489
+    v135 = lt v177, v134
+    jumpi v135, bb28, bb21
   bb28:
-    v430 = add v473, v168
-    v431 = add v430, 32
-    mstore8 v431, v482
+    v446 = add v489, v177
+    v447 = add v446, 32
+    mstore8 v447, v498
     jump bb20
   bb20:
-    v172 = add v46, 3
-    v173 = lt v172, v46
-    v174 = add v40, 4
-    v175 = lt v174, v40
-    v489 = or v173, v175
-    jumpi v489, bb30, bb9
+    v181 = add v48, 3
+    v182 = lt v181, v48
+    v183 = add v42, 4
+    v184 = lt v183, v42
+    v505 = or v182, v184
+    jumpi v505, bb30, bb9
   bb30:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb40:
-    v181 = mload arg0
-    v182 = lt v178, v181
-    jumpi v182, bb47, bb21
+    v190 = mload arg0
+    v191 = lt v187, v190
+    jumpi v191, bb47, bb21
   bb47:
-    v218 = mload v487
-    v219 = byte 0, v218
-    v339 = lt v219, 32
-    jumpi v339, bb66, bb67
+    v228 = mload v503
+    v229 = byte 0, v228
+    v355 = lt v229, 32
+    jumpi v355, bb66, bb67
   bb67:
-    v340 = gt v219, 127
-    jumpi v340, bb66, bb68
+    v356 = gt v229, 127
+    jumpi v356, bb66, bb68
   bb68:
-    v341 = lt v219, 64
-    v342 = lt v219, 96
-    v343 = zext i1 v342 to i256
-    v344 = mul v343, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
-    v345 = add v344, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v346 = zext i1 v341 to i256
-    v347 = mul v346, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
-    v348 = add v345, v347
-    v349 = and v219, 31
-    v350 = byte v349, v348
+    v357 = lt v229, 64
+    v358 = lt v229, 96
+    v359 = zext i1 v358 to i256
+    v360 = mul v359, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
+    v361 = add v360, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v362 = zext i1 v357 to i256
+    v363 = mul v362, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
+    v364 = add v361, v363
+    v365 = and v229, 31
+    v366 = byte v365, v364
     jump bb66
   bb66:
-    v353 = phi [bb47: 0], [bb67: 0], [bb68: v350]
-    v222 = shl 18, v353
-    v223 = add v178, 1
-    v248 = lt v223, v181
-    jumpi v248, bb48, bb21
+    v369 = phi [bb47: 0], [bb67: 0], [bb68: v366]
+    v232 = shl 18, v369
+    v233 = add v187, 1
+    v264 = lt v233, v190
+    jumpi v264, bb48, bb21
   bb48:
-    v440 = add v487, 1
-    v226 = mload v440
-    v227 = byte 0, v226
-    v357 = lt v227, 32
-    jumpi v357, bb69, bb70
+    v456 = add v503, 1
+    v237 = mload v456
+    v238 = byte 0, v237
+    v373 = lt v238, 32
+    jumpi v373, bb69, bb70
   bb70:
-    v358 = gt v227, 127
-    jumpi v358, bb69, bb71
+    v374 = gt v238, 127
+    jumpi v374, bb69, bb71
   bb71:
-    v359 = lt v227, 64
-    v360 = lt v227, 96
-    v361 = zext i1 v360 to i256
-    v362 = mul v361, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
-    v363 = add v362, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v364 = zext i1 v359 to i256
-    v365 = mul v364, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
-    v366 = add v363, v365
-    v367 = and v227, 31
-    v368 = byte v367, v366
+    v375 = lt v238, 64
+    v376 = lt v238, 96
+    v377 = zext i1 v376 to i256
+    v378 = mul v377, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
+    v379 = add v378, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v380 = zext i1 v375 to i256
+    v381 = mul v380, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
+    v382 = add v379, v381
+    v383 = and v238, 31
+    v384 = byte v383, v382
     jump bb69
   bb69:
-    v371 = phi [bb48: 0], [bb70: 0], [bb71: v368]
-    v230 = shl 12, v371
-    v231 = or v222, v230
-    v186 = add v178, 2
-    v250 = lt v186, v181
-    jumpi v250, bb49, bb21
+    v387 = phi [bb48: 0], [bb70: 0], [bb71: v384]
+    v241 = shl 12, v387
+    v242 = or v232, v241
+    v195 = add v187, 2
+    v266 = lt v195, v190
+    jumpi v266, bb49, bb21
   bb49:
-    v443 = add v487, 2
-    v233 = mload v443
-    v234 = byte 0, v233
-    v375 = lt v234, 32
-    jumpi v375, bb72, bb73
+    v459 = add v503, 2
+    v245 = mload v459
+    v246 = byte 0, v245
+    v391 = lt v246, 32
+    jumpi v391, bb72, bb73
   bb73:
-    v376 = gt v234, 127
-    jumpi v376, bb72, bb74
+    v392 = gt v246, 127
+    jumpi v392, bb72, bb74
   bb74:
-    v377 = lt v234, 64
-    v378 = lt v234, 96
-    v379 = zext i1 v378 to i256
-    v380 = mul v379, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
-    v381 = add v380, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v382 = zext i1 v377 to i256
-    v383 = mul v382, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
-    v384 = add v381, v383
-    v385 = and v234, 31
-    v386 = byte v385, v384
+    v393 = lt v246, 64
+    v394 = lt v246, 96
+    v395 = zext i1 v394 to i256
+    v396 = mul v395, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
+    v397 = add v396, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v398 = zext i1 v393 to i256
+    v399 = mul v398, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
+    v400 = add v397, v399
+    v401 = and v246, 31
+    v402 = byte v401, v400
     jump bb72
   bb72:
-    v389 = phi [bb49: 0], [bb73: 0], [bb74: v386]
-    v237 = shl 6, v389
-    v238 = or v231, v237
-    v252 = lt v262, v181
-    jumpi v252, bb50, bb21
+    v405 = phi [bb49: 0], [bb73: 0], [bb74: v402]
+    v249 = shl 6, v405
+    v250 = or v242, v249
+    v268 = lt v278, v190
+    jumpi v268, bb50, bb21
   bb50:
-    v446 = add v487, 3
-    v240 = mload v446
-    v241 = byte 0, v240
-    v393 = lt v241, 32
-    jumpi v393, bb75, bb76
+    v462 = add v503, 3
+    v253 = mload v462
+    v254 = byte 0, v253
+    v409 = lt v254, 32
+    jumpi v409, bb75, bb76
   bb76:
-    v394 = gt v241, 127
-    jumpi v394, bb75, bb77
+    v410 = gt v254, 127
+    jumpi v410, bb75, bb77
   bb77:
-    v395 = lt v241, 64
-    v396 = lt v241, 96
-    v397 = zext i1 v396 to i256
-    v398 = mul v397, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
-    v399 = add v398, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v400 = zext i1 v395 to i256
-    v401 = mul v400, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
-    v402 = add v399, v401
-    v403 = and v241, 31
-    v404 = byte v403, v402
+    v411 = lt v254, 64
+    v412 = lt v254, 96
+    v413 = zext i1 v412 to i256
+    v414 = mul v413, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
+    v415 = add v414, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v416 = zext i1 v411 to i256
+    v417 = mul v416, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
+    v418 = add v415, v417
+    v419 = and v254, 31
+    v420 = byte v419, v418
     jump bb75
   bb75:
-    v407 = phi [bb50: 0], [bb76: 0], [bb77: v404]
-    v244 = or v238, v407
-    v196 = lt v179, v33
-    jumpi v196, bb41, bb42
+    v423 = phi [bb50: 0], [bb76: 0], [bb77: v420]
+    v257 = or v250, v423
+    v205 = lt v188, v35
+    jumpi v205, bb41, bb42
   bb41:
-    v483 = byte 29, v244
-    v200 = mload v473
-    v201 = lt v179, v200
-    jumpi v201, bb51, bb21
+    v499 = byte 29, v257
+    v209 = mload v489
+    v210 = lt v188, v209
+    jumpi v210, bb51, bb21
   bb51:
-    v448 = add v473, v179
-    v449 = add v448, 32
-    mstore8 v449, v483
+    v464 = add v489, v188
+    v465 = add v464, 32
+    mstore8 v465, v499
     jump bb42
   bb42:
-    v202 = add v179, 1
-    v253 = lt v202, v33
-    jumpi v253, bb43, bb44
+    v211 = add v188, 1
+    v269 = lt v211, v35
+    jumpi v269, bb43, bb44
   bb43:
-    v484 = byte 30, v244
-    v254 = mload v473
-    v255 = lt v202, v254
-    jumpi v255, bb52, bb21
+    v500 = byte 30, v257
+    v270 = mload v489
+    v271 = lt v211, v270
+    jumpi v271, bb52, bb21
   bb52:
-    v451 = add v473, v202
-    v452 = add v451, 32
-    mstore8 v452, v484
+    v467 = add v489, v211
+    v468 = add v467, 32
+    mstore8 v468, v500
     jump bb44
   bb44:
-    v209 = add v179, 2
-    v256 = lt v209, v33
-    jumpi v256, bb45, bb46
+    v218 = add v188, 2
+    v272 = lt v218, v35
+    jumpi v272, bb45, bb46
   bb45:
-    v485 = and v244, 255
-    v257 = mload v473
-    v258 = lt v209, v257
-    jumpi v258, bb53, bb21
+    v501 = and v257, 255
+    v273 = mload v489
+    v274 = lt v218, v273
+    jumpi v274, bb53, bb21
   bb21:
     tail_call @revert_stub.9
   bb53:
-    v454 = add v473, v209
-    v455 = add v454, 32
-    mstore8 v455, v485
+    v470 = add v489, v218
+    v471 = add v470, 32
+    mstore8 v471, v501
     jump bb46
   bb46:
-    v215 = add v179, 3
-    v259 = add v178, 4
-    v488 = add v487, 4
+    v224 = add v188, 3
+    v275 = add v187, 4
+    v504 = add v503, 4
     jump bb39
   bb1:
-    v467 = mload 64 !metadata(memory=scratch)
-    v468 = add v467, 32
-    v469 = lt v468, v467
-    v470 = gt v468, 0xffffffffffffffff
-    v471 = or v469, v470
-    jumpi v471, bb79, bb78
+    v483 = mload 64 !metadata(memory=scratch)
+    v484 = add v483, 32
+    v485 = lt v484, v483
+    v486 = gt v484, 0xffffffffffffffff
+    v487 = or v485, v486
+    jumpi v487, bb79, bb78
   bb78:
-    mstore 64, v468 !metadata(memory=scratch)
-    mstore v467, 0
-    mstore v467, 0
-    ret v467
+    mstore 64, v484 !metadata(memory=scratch)
+    mstore v483, 0
+    mstore v483, 0
+    ret v483
   bb79:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

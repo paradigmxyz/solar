@@ -6,18 +6,20 @@ fn @nested(arg0: ptr<memory>) -> i256 [selector=0x798068af, pure, abi_params=[ar
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = mload arg0+32
-    v4 = inttoptr i256 v3 to ptr<memory>
-    v5 = eq v3, 0
-    jumpi v5, bb1, bb2
+    v3 = ptradd arg0, 32
+    v4 = mload v3
+    v5 = inttoptr i256 v4 to ptr<memory>
+    v6 = eq v4, 0
+    jumpi v6, bb1, bb2
   bb1:
-    v6 = alloc 32
-    mstore v6, 0
-    v7 = ptrtoint ptr<memory> v6 to i256
-    mstore arg0+32, v7
+    v7 = alloc 32
+    mstore v7, 0
+    v8 = ptradd arg0, 32
+    v9 = ptrtoint ptr<memory> v7 to i256
+    mstore v8, v9
     jump bb2
   bb2:
-    v8 = phi [bb0: v4], [bb1: v6]
-    v9 = mload v8
-    ret v9
+    v10 = phi [bb0: v5], [bb1: v7]
+    v11 = mload v10
+    ret v11
 }

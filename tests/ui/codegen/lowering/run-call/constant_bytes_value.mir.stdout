@@ -4,20 +4,24 @@ fn @length() -> i256 [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[wor
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 40
-    mstore v0+32, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
-    mstore v0+64, 0x102030405060708000000000000000000000000000000000000000000000000
-    v1 = mload v0
-    ret v1
+    v1 = ptradd v0, 32
+    mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+    v2 = ptradd v0, 64
+    mstore v2, 0x102030405060708000000000000000000000000000000000000000000000000
+    v3 = mload v0
+    ret v3
 }
 
 fn @firstWord() -> i256 [selector=0x20cb3a4a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 40
-    mstore v0+32, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
-    mstore v0+64, 0x102030405060708000000000000000000000000000000000000000000000000
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 32
-    v3 = mload v2
-    ret v3
+    v1 = ptradd v0, 32
+    mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+    v2 = ptradd v0, 64
+    mstore v2, 0x102030405060708000000000000000000000000000000000000000000000000
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    v5 = mload v4
+    ret v5
 }

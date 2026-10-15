@@ -66,9 +66,10 @@ fn @setLit(arg0: i256) [selector=0x3fffd95e, abi_params=[u256], abi_returns=[], 
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 5
-    mstore v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v1 = mapping_slot_bytes v0, 0
-    sstore v1, arg0 !metadata(storage=symbolic(v1))
+    v1 = ptradd v0, 32
+    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v2 = mapping_slot_bytes v0, 0
+    sstore v2, arg0 !metadata(storage=symbolic(v2))
     ret
 }
 
@@ -76,10 +77,12 @@ fn @setLitLong(arg0: i256) [selector=0x7490efc0, abi_params=[u256], abi_returns=
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 58
-    mstore v0+32, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    mstore v0+64, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
-    v1 = mapping_slot_bytes v0, 0
-    sstore v1, arg0 !metadata(storage=symbolic(v1))
+    v1 = ptradd v0, 32
+    mstore v1, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
+    v2 = ptradd v0, 64
+    mstore v2, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    v3 = mapping_slot_bytes v0, 0
+    sstore v3, arg0 !metadata(storage=symbolic(v3))
     ret
 }
 

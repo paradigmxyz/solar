@@ -34,14 +34,14 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     mstore v23, v1
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb2: v37]
+    v24 = phi [bb0: 0], [bb2: v38]
     v25 = lt v24, v1
     jumpi v25, bb2, bb3
   bb3:
-    v38 = ptrtoint ptr<memory> v23 to i256
-    mstore v0, v38
-    v39 = alloc 32 !metadata(preserves_fmp)
-    mstore v39, 96
+    v39 = ptrtoint ptr<memory> v23 to i256
+    mstore v0, v39
+    v40 = alloc 32 !metadata(preserves_fmp)
+    mstore v40, 96
     ret v0
   bb2:
     v26 = mul v24, 32
@@ -56,8 +56,9 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     v34 = shl 64, v33
     v35 = shl 5, v24
     v36 = ptradd v23, v35
-    mstore v36+32, v34
-    v37 = add v24, 1
+    v37 = ptradd v36, 32
+    mstore v37, v34
+    v38 = add v24, 1
     jump bb1
 }
 
@@ -106,88 +107,94 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl 64, v4
-    mstore v0+32, v8
-    v9 = address
-    v10 = zext i160 v9 to i256
-    v11 = shl 32, v10
-    v12 = or v11, 0xc5337ed4
-    v13 = mload v0
-    v14 = lt 1, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = shl 64, v12
-    mstore v0+64, v16
-    v17 = address
-    v18 = zext i160 v17 to i256
-    v19 = shl 32, v18
-    v20 = or v19, 0xafb0db5f
-    v21 = mload v0
-    v22 = lt 2, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = shl 64, v20
-    mstore v0+96, v24
-    v25 = sload 0 !metadata(storage=slot(0))
-    v26 = trunc i256 v25 to i160
-    v27 = gas
-    v28 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
-    v29 = extract_value slice<memory>, v28, 0
-    v30 = extract_value slice<memory>, v28, 1
-    v31 = zext i160 v26 to i256
-    v32 = staticcall v27, v31, v29, v30, 0, 0
-    jumpi v32, bb2, bb1
+    v9 = ptradd v0, 32
+    mstore v9, v8
+    v10 = address
+    v11 = zext i160 v10 to i256
+    v12 = shl 32, v11
+    v13 = or v12, 0xc5337ed4
+    v14 = mload v0
+    v15 = lt 1, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = shl 64, v13
+    v18 = ptradd v0, 64
+    mstore v18, v17
+    v19 = address
+    v20 = zext i160 v19 to i256
+    v21 = shl 32, v20
+    v22 = or v21, 0xafb0db5f
+    v23 = mload v0
+    v24 = lt 2, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = shl 64, v22
+    v27 = ptradd v0, 96
+    mstore v27, v26
+    v28 = sload 0 !metadata(storage=slot(0))
+    v29 = trunc i256 v28 to i160
+    v30 = gas
+    v31 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
+    v32 = extract_value slice<memory>, v31, 0
+    v33 = extract_value slice<memory>, v31, 1
+    v34 = zext i160 v29 to i256
+    v35 = staticcall v30, v34, v32, v33, 0, 0
+    jumpi v35, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v33 = icall returndata_bytes<>
-    v34 = abi_decode [tuple<array<_, function>>], v33
-    v35 = mload v34, ptr<memory>
-    v36 = mload v35
-    v37 = eq v36, 3
-    v38 = eq v37, false
-    icall revert_if<empty>, v38
-    v39 = mload v34, ptr<memory>
-    v40 = mload v39
-    v41 = lt 0, v40
-    v42 = eq v41, false
-    icall panic_if<0x32>, v42
-    v43 = mload v39+32
-    v44 = shr 64, v43
-    v45 = address
-    v46 = zext i160 v45 to i256
-    v47 = shl 32, v46
-    v48 = or v47, 0xd24c5a36
-    v49 = eq v44, v48
-    v50 = eq v49, false
-    icall revert_if<empty>, v50
-    v51 = mload v34, ptr<memory>
-    v52 = mload v51
-    v53 = lt 1, v52
+    v36 = icall returndata_bytes<>
+    v37 = abi_decode [tuple<array<_, function>>], v36
+    v38 = mload v37, ptr<memory>
+    v39 = mload v38
+    v40 = eq v39, 3
+    v41 = eq v40, false
+    icall revert_if<empty>, v41
+    v42 = mload v37, ptr<memory>
+    v43 = mload v42
+    v44 = lt 0, v43
+    v45 = eq v44, false
+    icall panic_if<0x32>, v45
+    v46 = ptradd v42, 32
+    v47 = mload v46
+    v48 = shr 64, v47
+    v49 = address
+    v50 = zext i160 v49 to i256
+    v51 = shl 32, v50
+    v52 = or v51, 0xd24c5a36
+    v53 = eq v48, v52
     v54 = eq v53, false
-    icall panic_if<0x32>, v54
-    v55 = mload v51+64
-    v56 = shr 64, v55
-    v57 = address
-    v58 = zext i160 v57 to i256
-    v59 = shl 32, v58
-    v60 = or v59, 0xc5337ed4
-    v61 = eq v56, v60
-    v62 = eq v61, false
-    icall revert_if<empty>, v62
-    v63 = mload v34, ptr<memory>
-    v64 = mload v63
-    v65 = lt 2, v64
-    v66 = eq v65, false
-    icall panic_if<0x32>, v66
-    v67 = mload v63+96
-    v68 = shr 64, v67
-    v69 = address
-    v70 = zext i160 v69 to i256
-    v71 = shl 32, v70
-    v72 = or v71, 0xafb0db5f
-    v73 = eq v68, v72
-    v74 = eq v73, false
-    icall revert_if<empty>, v74
+    icall revert_if<empty>, v54
+    v55 = mload v37, ptr<memory>
+    v56 = mload v55
+    v57 = lt 1, v56
+    v58 = eq v57, false
+    icall panic_if<0x32>, v58
+    v59 = ptradd v55, 64
+    v60 = mload v59
+    v61 = shr 64, v60
+    v62 = address
+    v63 = zext i160 v62 to i256
+    v64 = shl 32, v63
+    v65 = or v64, 0xc5337ed4
+    v66 = eq v61, v65
+    v67 = eq v66, false
+    icall revert_if<empty>, v67
+    v68 = mload v37, ptr<memory>
+    v69 = mload v68
+    v70 = lt 2, v69
+    v71 = eq v70, false
+    icall panic_if<0x32>, v71
+    v72 = ptradd v68, 96
+    v73 = mload v72
+    v74 = shr 64, v73
+    v75 = address
+    v76 = zext i160 v75 to i256
+    v77 = shl 32, v76
+    v78 = or v77, 0xafb0db5f
+    v79 = eq v74, v78
+    v80 = eq v79, false
+    icall revert_if<empty>, v80
     ret true
 }
 

@@ -719,9 +719,6 @@ impl Instruction {
             InstKind::StoreImmutable(..) => Some("immutable assignment"),
             InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
             InstKind::PtrAdd(..) => Some("pointer arithmetic"),
-            kind if kind.access_offset().is_some_and(|offset| offset != 0) => {
-                Some("pointer arithmetic")
-            }
             InstKind::Alloc { semantics, .. } => (!self.metadata.deferred_alloc()
                 || *semantics != AllocationSemantics::INTERNAL)
                 .then_some("abstract allocation"),
@@ -1090,24 +1087,6 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn has_side_effects(&self) -> bool {
         self.effects().must_execute(false)
-    }
-
-    /// Returns whether this instruction still carries a semantic memory-object operation:
-    /// pointer arithmetic or an access at an immediate offset.
-    #[must_use]
-    pub(crate) fn is_memory_object_op(&self) -> bool {
-        matches!(self, Self::PtrAdd(..)) || self.access_offset().is_some_and(|offset| offset != 0)
-    }
-
-    /// Returns the immediate byte offset of a `mload`, `mstore`, or `mstore8`.
-    #[must_use]
-    pub(crate) const fn access_offset(&self) -> Option<u64> {
-        match *self {
-            Self::Load(_, offset, _) | Self::Store(_, offset, _) | Self::Store8(_, offset, _) => {
-                Some(offset)
-            }
-            _ => None,
-        }
     }
 
     /// Returns a conservative effect classification for this instruction.

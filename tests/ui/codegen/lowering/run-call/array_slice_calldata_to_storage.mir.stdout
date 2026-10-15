@@ -69,26 +69,27 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
     sstore 0, v43 !metadata(storage=slot(0))
     jump bb6
   bb6:
-    v51 = phi [bb2: 0], [bb7: v58]
+    v51 = phi [bb2: 0], [bb7: v59]
     v52 = lt v51, v43
     jumpi v52, bb7, bb8
   bb8:
-    v59 = sload 0 !metadata(storage=slot(0))
-    v60 = lt 0, v59
-    v61 = eq v60, false
-    icall panic_if<0x32>, v61
-    v62 = storage_array_data_slot 0
-    v63 = add v62, 0
-    v64 = sload v63 !metadata(storage=symbolic(v62))
-    ret v64
+    v60 = sload 0 !metadata(storage=slot(0))
+    v61 = lt 0, v60
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = storage_array_data_slot 0
+    v64 = add v63, 0
+    v65 = sload v64 !metadata(storage=symbolic(v63))
+    ret v65
   bb7:
     v53 = shl 5, v51
     v54 = ptradd v38, v53
-    v55 = mload v54+32
-    v56 = storage_array_data_slot 0
-    v57 = add v56, v51
-    sstore v57, v55 !metadata(storage=symbolic(v57))
-    v58 = add v51, 1
+    v55 = ptradd v54, 32
+    v56 = mload v55
+    v57 = storage_array_data_slot 0
+    v58 = add v57, v51
+    sstore v58, v56 !metadata(storage=symbolic(v58))
+    v59 = add v51, 1
     jump bb6
   bb4:
     v48 = storage_array_data_slot 0

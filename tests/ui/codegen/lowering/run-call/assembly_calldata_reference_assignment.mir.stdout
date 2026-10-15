@@ -193,7 +193,7 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     mstore v26, v4
     jump bb1
   bb1:
-    v27 = phi [bb0: 0], [bb2: v46]
+    v27 = phi [bb0: 0], [bb2: v47]
     v28 = lt v27, v4
     jumpi v28, bb2, bb3
   bb3:
@@ -218,8 +218,9 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     v43 = ptrtoint ptr<memory> v38 to i256
     v44 = shl 5, v27
     v45 = ptradd v26, v44
-    mstore v45+32, v43
-    v46 = add v27, 1
+    v46 = ptradd v45, 32
+    mstore v46, v43
+    v47 = add v27, 1
     jump bb1
 }
 
@@ -259,7 +260,7 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     mstore v26, v4
     jump bb1
   bb1:
-    v27 = phi [bb0: 0], [bb2: v38]
+    v27 = phi [bb0: 0], [bb2: v39]
     v28 = lt v27, v4
     jumpi v28, bb2, bb3
   bb3:
@@ -275,8 +276,9 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     icall revert_if<empty>, v35
     v36 = shl 5, v27
     v37 = ptradd v26, v36
-    mstore v37+32, v32
-    v38 = add v27, 1
+    v38 = ptradd v37, 32
+    mstore v38, v32
+    v39 = add v27, 1
     jump bb1
 }
 
@@ -316,7 +318,7 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     mstore v26, v4
     jump bb1
   bb1:
-    v27 = phi [bb0: 0], [bb2: v69]
+    v27 = phi [bb0: 0], [bb2: v70]
     v28 = lt v27, v4
     jumpi v28, bb2, bb3
   bb3:
@@ -370,8 +372,9 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v66 = ptrtoint ptr<memory> v60 to i256
     v67 = shl 5, v27
     v68 = ptradd v26, v67
-    mstore v68+32, v66
-    v69 = add v27, 1
+    v69 = ptradd v68, 32
+    mstore v69, v66
+    v70 = add v27, 1
     jump bb1
 }
 

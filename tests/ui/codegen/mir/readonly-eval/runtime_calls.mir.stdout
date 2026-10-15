@@ -12,9 +12,10 @@ fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_retur
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 1
-    mstore v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v1 = icall @isEmpty, v0
-    ret v1
+    v1 = ptradd v0, 32
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v2 = icall @isEmpty, v0
+    ret v2
 }
 
 fn @isEmpty(arg0: ptr<memory>) -> i256 [pure] {
@@ -70,9 +71,10 @@ fn @constantShort() -> i256 [selector=0xe64f6587, pure, abi_params=[], abi_retur
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 1
-    mstore v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v1 = icall @short, v0
-    ret v1
+    v1 = ptradd v0, 32
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v2 = icall @short, v0
+    ret v2
 }
 
 fn @dynamicShort(arg0: ptr<memory>) -> i256 [selector=0x5def3fed, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {

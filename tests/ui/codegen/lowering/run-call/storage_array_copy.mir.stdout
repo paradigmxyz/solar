@@ -34,11 +34,12 @@ fn @copyState() -> struct0 [selector=0x183a6195, abi_params=[], abi_returns=[wor
     v17 = lt 0, v16
     v18 = eq v17, false
     icall panic_if<0x32>, v18
-    v19 = mload v15+32
-    v20 = mload v15
-    v21 = insert_value struct0, undef struct0, 0, v19
-    v22 = insert_value struct0, v21, 1, v20
-    ret v22
+    v19 = ptradd v15, 32
+    v20 = mload v19
+    v21 = mload v15
+    v22 = insert_value struct0, undef struct0, 0, v20
+    v23 = insert_value struct0, v22, 1, v21
+    ret v23
 }
 
 fn @copyReference() -> struct0 [selector=0x4cf1051d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -64,11 +65,12 @@ fn @copyReference() -> struct0 [selector=0x4cf1051d, abi_params=[], abi_returns=
     v12 = lt 0, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = mload v10+32
-    v15 = mload v10
-    v16 = insert_value struct0, undef struct0, 0, v14
-    v17 = insert_value struct0, v16, 1, v15
-    ret v17
+    v14 = ptradd v10, 32
+    v15 = mload v14
+    v16 = mload v10
+    v17 = insert_value struct0, undef struct0, 0, v15
+    v18 = insert_value struct0, v17, 1, v16
+    ret v18
 }
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
@@ -114,43 +116,50 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v21 = lt 0, v20
     v22 = eq v21, false
     icall panic_if<0x32>, v22
-    v23 = mload v19+32
-    v24 = inttoptr i256 v23 to ptr<memory>
-    v25 = eq v23, 0
-    jumpi v25, bb1, bb2
+    v23 = ptradd v19, 32
+    v24 = mload v23
+    v25 = inttoptr i256 v24 to ptr<memory>
+    v26 = eq v24, 0
+    jumpi v26, bb1, bb2
   bb1:
-    v26 = alloc 64
-    mstore v26, 0
-    mstore v26+32, 0
-    v27 = ptrtoint ptr<memory> v26 to i256
-    mstore v19+32, v27
+    v27 = alloc 64
+    mstore v27, 0
+    v28 = ptradd v27, 32
+    mstore v28, 0
+    v29 = ptradd v19, 32
+    v30 = ptrtoint ptr<memory> v27 to i256
+    mstore v29, v30
     jump bb2
   bb2:
-    v28 = phi [bb0: v24], [bb1: v26]
-    v29 = mload v28
-    v30 = mload v19
-    v31 = lt 0, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = mload v19+32
-    v34 = inttoptr i256 v33 to ptr<memory>
-    v35 = eq v33, 0
-    jumpi v35, bb3, bb4
+    v31 = phi [bb0: v25], [bb1: v27]
+    v32 = mload v31
+    v33 = mload v19
+    v34 = lt 0, v33
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = ptradd v19, 32
+    v37 = mload v36
+    v38 = inttoptr i256 v37 to ptr<memory>
+    v39 = eq v37, 0
+    jumpi v39, bb3, bb4
   bb3:
-    v36 = alloc 64
-    mstore v36, 0
-    mstore v36+32, 0
-    v37 = ptrtoint ptr<memory> v36 to i256
-    mstore v19+32, v37
+    v40 = alloc 64
+    mstore v40, 0
+    v41 = ptradd v40, 32
+    mstore v41, 0
+    v42 = ptradd v19, 32
+    v43 = ptrtoint ptr<memory> v40 to i256
+    mstore v42, v43
     jump bb4
   bb4:
-    v38 = phi [bb2: v34], [bb3: v36]
-    v39 = mload v38+32
-    v40 = mload v19
-    v41 = insert_value struct0, undef struct0, 0, v29
-    v42 = insert_value struct0, v41, 1, v39
-    v43 = insert_value struct0, v42, 2, v40
-    ret v43
+    v44 = phi [bb2: v38], [bb3: v40]
+    v45 = ptradd v44, 32
+    v46 = mload v45
+    v47 = mload v19
+    v48 = insert_value struct0, undef struct0, 0, v32
+    v49 = insert_value struct0, v48, 1, v46
+    v50 = insert_value struct0, v49, 2, v47
+    ret v50
 }
 
 fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
@@ -172,8 +181,8 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     v11 = storage_array_data_slot arg0
     jump bb1
   bb1:
-    v12 = phi [bb0: 0], [bb2: v22]
-    v13 = phi [bb0: v11], [bb2: v23]
+    v12 = phi [bb0: 0], [bb2: v24]
+    v13 = phi [bb0: v11], [bb2: v25]
     v14 = lt v12, v0
     jumpi v14, bb2, bb3
   bb3:
@@ -184,13 +193,15 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     mstore v15, v16
     v17 = add v13, 1
     v18 = sload v17 !metadata(storage=offset(v13, 1))
-    mstore v15+32, v18
-    v19 = shl 5, v12
-    v20 = ptradd v10, v19
-    v21 = ptrtoint ptr<memory> v15 to i256
-    mstore v20+32, v21
-    v22 = add v12, 1
-    v23 = add v13, 2
+    v19 = ptradd v15, 32
+    mstore v19, v18
+    v20 = shl 5, v12
+    v21 = ptradd v10, v20
+    v22 = ptradd v21, 32
+    v23 = ptrtoint ptr<memory> v15 to i256
+    mstore v22, v23
+    v24 = add v12, 1
+    v25 = add v13, 2
     jump bb1
 }
 
@@ -207,13 +218,14 @@ fn @smallInvalid() -> i256 [selector=0x7ab5e63b, abi_params=[], abi_returns=[wor
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = mload v1+32
-    v6 = lt v5, 2
-    v7 = eq v6, false
-    icall panic_if<0x21>, v7
-    v8 = trunc i256 v5 to i8
-    v9 = zext i8 v8 to i256
-    ret v9
+    v5 = ptradd v1, 32
+    v6 = mload v5
+    v7 = lt v6, 2
+    v8 = eq v7, false
+    icall panic_if<0x21>, v8
+    v9 = trunc i256 v6 to i8
+    v10 = zext i8 v9 to i256
+    ret v10
 }
 
 fn @largeValid() -> i256 [selector=0x9f458284, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -227,13 +239,14 @@ fn @largeValid() -> i256 [selector=0x9f458284, abi_params=[], abi_returns=[word]
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = mload v1+32
-    v6 = lt v5, 3
-    v7 = eq v6, false
-    icall panic_if<0x21>, v7
-    v8 = trunc i256 v5 to i8
-    v9 = zext i8 v8 to i256
-    ret v9
+    v5 = ptradd v1, 32
+    v6 = mload v5
+    v7 = lt v6, 3
+    v8 = eq v7, false
+    icall panic_if<0x21>, v8
+    v9 = trunc i256 v6 to i8
+    v10 = zext i8 v9 to i256
+    ret v10
 }
 
 fn @load_storage_packed_array_1_0_enum_2(arg0: i256) -> ptr<memory> {

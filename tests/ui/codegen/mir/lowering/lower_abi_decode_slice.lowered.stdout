@@ -111,7 +111,8 @@
 +     v5 = ptrtoint ptr<memory> arg0 to i256
 +     v6 = add v5, 32
 +     v7 = mload v6
-+     mstore v3+32, v7
++     v8 = ptradd v3, 32
++     mstore v8, v7
 +     ret v3
 +   bb1:
 +     revert 0, 0

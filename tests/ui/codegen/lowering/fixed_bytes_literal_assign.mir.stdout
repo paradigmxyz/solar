@@ -4,27 +4,30 @@ fn @patch(arg0: i1) -> i256 [selector=0x7f603a02, pure, abi_params=[bool], abi_r
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 2
-    mstore v0+32, 0x4142000000000000000000000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    mstore v1, 0x4142000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v1 = mload v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = byte 0, 0x2d00000000000000000000000000000000000000000000000000000000000000
-    mstore8 v0+32, v4
+    v2 = mload v0
+    v3 = lt 0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = byte 0, 0x2d00000000000000000000000000000000000000000000000000000000000000
+    v6 = ptradd v0, 32
+    mstore8 v6, v5
     jump bb3
   bb3:
-    v5 = mload v0
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = mload v0+32
-    v9 = byte 0, v8
-    v10 = shl 248, v9
-    ret v10
+    v7 = mload v0
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = ptradd v0, 32
+    v11 = mload v10
+    v12 = byte 0, v11
+    v13 = shl 248, v12
+    ret v13
 }
 
 fn @store() -> i256 [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {

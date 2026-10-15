@@ -13,11 +13,12 @@ fn @literal() [selector=0x1373185e, abi_params=[], abi_returns=[], abi_return_pa
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 5
-    mstore v0+32, 0x736f6c6172000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode [memory_bytes, word], args v0, 9
-    v2 = extract_value slice<memory>, v1, 0
-    v3 = extract_value slice<memory>, v1, 1
-    log v2, v3, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 2
+    v1 = ptradd v0, 32
+    mstore v1, 0x736f6c6172000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [memory_bytes, word], args v0, 9
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
+    log v3, v4, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 2
     ret
 }
 

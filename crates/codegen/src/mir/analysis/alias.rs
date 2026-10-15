@@ -590,29 +590,16 @@ impl AliasAnalysis {
         self.memory_address_with_depth(func, value, 0)
     }
 
-    /// Canonicalizes the address `value + offset` of a memory access.
-    #[must_use]
-    pub(crate) fn memory_address_at(
-        &self,
-        func: &Function,
-        value: ValueId,
-        offset: u64,
-    ) -> Option<MemoryAddress> {
-        self.memory_address(func, value)?.checked_add(offset)
-    }
-
-    /// Creates a memory location at `address + offset`, using instruction metadata to refine its
-    /// region.
+    /// Creates a memory location, using instruction metadata to refine its region.
     #[must_use]
     pub(crate) fn memory_location(
         &self,
         func: &Function,
         inst_id: InstId,
         address: ValueId,
-        offset: u64,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        let address = self.memory_address_at(func, address, offset)?;
+        let address = self.memory_address(func, address)?;
         Self::bounded_memory_location(func, Self::refine_region(func, inst_id, address), size)
     }
 
@@ -630,64 +617,65 @@ impl AliasAnalysis {
         address
     }
 
-    /// Returns the memory an access at `address + offset` may touch. Unlike
-    /// [`Self::memory_location`], which names the accessed word, this covers everything at or
-    /// after `base + offset` for an address `ptradd base, index` with a runtime index: `ptradd`
-    /// does not wrap, so the access stays inside the base's object.
+    /// Returns the memory an access at `address` may touch. Unlike [`Self::memory_location`],
+    /// which names the accessed word, this covers everything at or after `base + k` for an address
+    /// `ptradd (ptradd base, index), k` with a runtime index: `ptradd` does not wrap, so the
+    /// access stays inside the base's object.
     fn access_extent(
         &self,
         func: &Function,
         inst_id: InstId,
         address: ValueId,
-        offset: u64,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        let Some(base) = Self::runtime_offset_base(func, address) else {
-            return self.memory_location(func, inst_id, address, offset, size);
+        let Some(base) = self.runtime_offset_base(func, address) else {
+            return self.memory_location(func, inst_id, address, size);
         };
-        let base = self.memory_address_at(func, base, offset)?;
+        let base = base?;
         Some(MemoryLocation::new(Self::refine_region(func, inst_id, base), LocationSize::Unknown))
     }
 
-    /// Returns the memory an access at `address + offset` may touch, without instruction
-    /// metadata, as [`Self::access_extent`] does.
+    /// Returns the memory an access at `address` may touch, without instruction metadata, as
+    /// [`Self::access_extent`] does.
     #[must_use]
     pub(crate) fn bare_access_extent(
         &self,
         func: &Function,
         address: ValueId,
-        offset: u64,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        match Self::runtime_offset_base(func, address) {
-            Some(base) => Some(MemoryLocation::new(
-                self.memory_address_at(func, base, offset)?,
-                LocationSize::Unknown,
-            )),
-            None => self.bare_memory_location(func, address, offset, size),
+        match self.runtime_offset_base(func, address) {
+            Some(base) => Some(MemoryLocation::new(base?, LocationSize::Unknown)),
+            None => self.bare_memory_location(func, address, size),
         }
     }
 
-    /// Returns the base of `ptradd base, offset` with a runtime offset.
-    fn runtime_offset_base(func: &Function, address: ValueId) -> Option<ValueId> {
-        let Value::Inst(inst) = func.value(address) else { return None };
-        match func.inst(*inst).kind {
-            InstKind::PtrAdd(base, offset) if func.value_u64(offset).is_none() => Some(base),
-            _ => None,
-        }
+    /// Returns the address `base + k` of an address `ptradd (ptradd base, index), k` with a
+    /// runtime index and constant `ptradd`s `k` around it, or `None` without a runtime index.
+    fn runtime_offset_base(
+        &self,
+        func: &Function,
+        address: ValueId,
+    ) -> Option<Option<MemoryAddress>> {
+        // The canonical address of the chain is the runtime-indexed `ptradd` plus `k`.
+        let address = self.memory_address(func, address)?;
+        let MemoryBase::Value(indexed) = address.base else { return None };
+        let Value::Inst(inst) = func.value(indexed) else { return None };
+        let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else { return None };
+        func.value_u64(index).is_none().then(|| {
+            self.memory_address(func, base).and_then(|base| base.checked_add(address.offset))
+        })
     }
 
-    /// Creates a memory location at `address + offset` without instruction metadata.
+    /// Creates a memory location without instruction metadata.
     #[must_use]
     pub(crate) fn bare_memory_location(
         &self,
         func: &Function,
         address: ValueId,
-        offset: u64,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        let address = self.memory_address_at(func, address, offset)?;
-        Self::bounded_memory_location(func, address, size)
+        Self::bounded_memory_location(func, self.memory_address(func, address)?, size)
     }
 
     /// Retains allocation disjointness only when the complete access fits its allocation.
@@ -885,9 +873,9 @@ impl AliasAnalysis {
             | InstKind::ExtractValue { ty: MirType::Slice(_), index: MirType::SLICE_PTR_FIELD, .. }
             | InstKind::IntToPtr(..)
             | InstKind::PtrToInt(_, 256) => false,
-            InstKind::Load(address, _, PtrLocation::Memory) => operand != *address,
-            InstKind::Store(address, ..)
-            | InstKind::Store8(address, ..)
+            InstKind::Load(address, PtrLocation::Memory) => operand != *address,
+            InstKind::Store(address, _)
+            | InstKind::Store8(address, _)
             | InstKind::MemoryZero(address, _) => operand != *address,
             InstKind::Copy(dest, source, _, PtrLocation::Memory)
             | InstKind::StorageToMemory { memory: dest, storage: source, .. } => {
@@ -1018,12 +1006,11 @@ impl AliasAnalysis {
                 LocationSize::Const(scratch_words * EvmMemoryLayout::WORD_SIZE),
             ))));
         }
-        let read_memory = |effects: &mut ModRef, address, offset, size| {
+        let read_memory = |effects: &mut ModRef, address, size| {
             if let Some(location) = self.access_extent(
                 func,
                 inst_id,
                 resolve(address),
-                offset,
                 self.resolved_location_size(func, size, replacements),
             ) {
                 effects.read(Access::Location(Location::Memory(location)));
@@ -1040,17 +1027,16 @@ impl AliasAnalysis {
             if let Value::Inst(inst) = func.value(resolve(slice))
                 && let InstKind::MakeSlice { ptr, len, .. } = func.inst(*inst).kind
             {
-                read_memory(effects, ptr, 0, SizeOperand::Value(len));
+                read_memory(effects, ptr, SizeOperand::Value(len));
             } else {
                 effects.read_any(AddressSpace::Memory);
             }
         };
-        let write_memory = |effects: &mut ModRef, address, offset, size| {
+        let write_memory = |effects: &mut ModRef, address, size| {
             if let Some(location) = self.access_extent(
                 func,
                 inst_id,
                 resolve(address),
-                offset,
                 self.resolved_location_size(func, size, replacements),
             ) {
                 effects.write(Access::Location(Location::Memory(location)));
@@ -1060,17 +1046,17 @@ impl AliasAnalysis {
         };
 
         match *kind {
-            InstKind::Load(address, offset, PtrLocation::Memory) => {
-                read_memory(&mut effects, address, offset, SizeOperand::Const(32));
+            InstKind::Load(address, PtrLocation::Memory) => {
+                read_memory(&mut effects, address, SizeOperand::Const(32));
             }
-            InstKind::Store(address, offset, _) => {
-                write_memory(&mut effects, address, offset, SizeOperand::Const(32));
+            InstKind::Store(address, _) => {
+                write_memory(&mut effects, address, SizeOperand::Const(32));
             }
-            InstKind::Store8(address, offset, _) => {
-                write_memory(&mut effects, address, offset, SizeOperand::Const(1));
+            InstKind::Store8(address, _) => {
+                write_memory(&mut effects, address, SizeOperand::Const(1));
             }
             InstKind::MemoryZero(address, size) => {
-                write_memory(&mut effects, address, 0, SizeOperand::Value(size));
+                write_memory(&mut effects, address, SizeOperand::Value(size));
             }
             InstKind::Fmp => {
                 effects.read(Access::Location(Location::Memory(Self::fmp_location())));
@@ -1099,7 +1085,7 @@ impl AliasAnalysis {
                 if semantics.initialization == crate::mir::AllocationInitialization::Zeroed
                     && let Some(ptr) = func.inst_result_value(inst_id)
                 {
-                    write_memory(&mut effects, ptr, 0, SizeOperand::Value(size));
+                    write_memory(&mut effects, ptr, SizeOperand::Value(size));
                 }
             }
             InstKind::StorageBytesLoad(..) | InstKind::StorageArrayLoad { .. } => {
@@ -1130,7 +1116,7 @@ impl AliasAnalysis {
                 };
                 match (kind, args.as_ref()) {
                     (RequireKind::ErrorString, [_, value]) => {
-                        read_memory(&mut effects, *value, 0, SizeOperand::Unknown)
+                        read_memory(&mut effects, *value, SizeOperand::Unknown)
                     }
                     (RequireKind::CustomError(layout), _)
                         if layout.types.iter().any(Self::abi_type_reads_memory) =>
@@ -1145,7 +1131,7 @@ impl AliasAnalysis {
                 let InstKind::AbiEncode { args, layout, .. } = kind else { unreachable!() };
                 for (&arg, ty) in args.iter().zip(layout.types.iter()) {
                     if Self::abi_type_reads_memory(ty) {
-                        read_memory(&mut effects, arg, 0, SizeOperand::Unknown);
+                        read_memory(&mut effects, arg, SizeOperand::Unknown);
                     }
                 }
                 effects.write_any(AddressSpace::Memory);
@@ -1154,7 +1140,7 @@ impl AliasAnalysis {
                 if func.value_slice_location(data).is_some() {
                     read_memory_slice(&mut effects, data);
                 } else {
-                    read_memory(&mut effects, data, 0, SizeOperand::Unknown);
+                    read_memory(&mut effects, data, SizeOperand::Unknown);
                 }
                 effects.write_any(AddressSpace::Memory);
             }
@@ -1165,12 +1151,7 @@ impl AliasAnalysis {
                 let base =
                     self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
                 add_storage_range(&mut effects, base, layout.storage_slots(), false);
-                write_memory(
-                    &mut effects,
-                    *memory,
-                    0,
-                    SizeOperand::Const(layout.memory_words() * 32),
-                );
+                write_memory(&mut effects, *memory, SizeOperand::Const(layout.memory_words() * 32));
                 if layout.has_nested_layout() {
                     effects.write_any(AddressSpace::Memory);
                     let fmp = Access::Location(Location::Memory(Self::fmp_location()));
@@ -1188,7 +1169,6 @@ impl AliasAnalysis {
                     read_memory(
                         &mut effects,
                         *memory,
-                        0,
                         SizeOperand::Const(layout.memory_words() * 32),
                     );
                 }
@@ -1199,7 +1179,7 @@ impl AliasAnalysis {
             InstKind::StorageBytesStore(_, object) => {
                 effects.read_any(AddressSpace::Storage);
                 effects.write_any(AddressSpace::Storage);
-                read_memory(&mut effects, object, 0, SizeOperand::Unknown);
+                read_memory(&mut effects, object, SizeOperand::Unknown);
             }
             InstKind::StorageBytesStoreLiteral { .. } => {
                 effects.read_any(AddressSpace::Storage);
@@ -1213,23 +1193,23 @@ impl AliasAnalysis {
                 add_storage_range(&mut effects, base, layout.storage_slots(), true);
             }
             InstKind::Copy(dest, source, size, PtrLocation::Memory) => {
-                read_memory(&mut effects, source, 0, SizeOperand::Value(size));
-                write_memory(&mut effects, dest, 0, SizeOperand::Value(size));
+                read_memory(&mut effects, source, SizeOperand::Value(size));
+                write_memory(&mut effects, dest, SizeOperand::Value(size));
             }
             InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
             | InstKind::DataCopy(_, dest, size)
             | InstKind::CodeCopy(dest, _, size) => {
-                write_memory(&mut effects, dest, 0, SizeOperand::Value(size));
+                write_memory(&mut effects, dest, SizeOperand::Value(size));
             }
             InstKind::ExtCodeCopy(_, dest, _, size) => {
-                write_memory(&mut effects, dest, 0, SizeOperand::Value(size));
+                write_memory(&mut effects, dest, SizeOperand::Value(size));
             }
             InstKind::Keccak256(address, size) | InstKind::Log { offset: address, size, .. } => {
-                read_memory(&mut effects, address, 0, SizeOperand::Value(size));
+                read_memory(&mut effects, address, SizeOperand::Value(size));
             }
             InstKind::MappingSlotBytes(key, _) => {
                 if func.value_ty(key) == Some(MirType::MEMPTR) {
-                    read_memory(&mut effects, key, 0, SizeOperand::Unknown);
+                    read_memory(&mut effects, key, SizeOperand::Unknown);
                 }
                 effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                 effects.write_any(AddressSpace::Memory);
@@ -1275,8 +1255,8 @@ impl AliasAnalysis {
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
-                read_memory(&mut effects, args_offset, 0, SizeOperand::Value(args_size));
-                write_memory(&mut effects, ret_offset, 0, SizeOperand::Value(ret_size));
+                read_memory(&mut effects, args_offset, SizeOperand::Value(args_size));
+                write_memory(&mut effects, ret_offset, SizeOperand::Value(ret_size));
                 effects.read_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);
                 if !matches!(kind, InstKind::StaticCall { .. }) {
@@ -1332,7 +1312,7 @@ impl AliasAnalysis {
                 }
             }
             InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
-                read_memory(&mut effects, offset, 0, SizeOperand::Value(size));
+                read_memory(&mut effects, offset, SizeOperand::Value(size));
                 effects.read_any(AddressSpace::Storage);
                 effects.write_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);
@@ -1351,7 +1331,7 @@ impl AliasAnalysis {
         match *terminator {
             Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
                 if let Some(location) =
-                    self.bare_memory_location(func, offset, 0, self.location_size(func, size))
+                    self.bare_memory_location(func, offset, self.location_size(func, size))
                 {
                     effects.read(Access::Location(Location::Memory(location)));
                 } else {
@@ -1748,8 +1728,8 @@ impl AliasAnalysis {
         match func.inst(*inst_id).kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
             InstKind::Fmp | InstKind::Alloc { .. } => MemoryRegion::Heap,
-            InstKind::Load(address, offset, PtrLocation::Memory)
-                if func.constant_address(address, offset) == Some(EvmMemoryLayout::FMP_SLOT) =>
+            InstKind::Load(address, PtrLocation::Memory)
+                if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 MemoryRegion::Heap
             }
@@ -1859,26 +1839,22 @@ impl AliasAnalysis {
             InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),
-            InstKind::Store(address, offset, _) => {
-                Self::range_may_overlap_fmp(func, address, offset, Some(32))
-            }
-            InstKind::Store8(address, offset, _) => {
-                Self::range_may_overlap_fmp(func, address, offset, Some(1))
-            }
+            InstKind::Store(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),
+            InstKind::Store8(address, _) => Self::range_may_overlap_fmp(func, address, Some(1)),
             InstKind::Copy(dest, _, size, _)
             | InstKind::MemoryZero(dest, size)
             | InstKind::DataCopy(_, dest, size)
             | InstKind::CodeCopy(dest, _, size) => {
-                Self::range_may_overlap_fmp(func, dest, 0, func.value_u64(size))
+                Self::range_may_overlap_fmp(func, dest, func.value_u64(size))
             }
             InstKind::ExtCodeCopy(_, dest, _, size) => {
-                Self::range_may_overlap_fmp(func, dest, 0, func.value_u64(size))
+                Self::range_may_overlap_fmp(func, dest, func.value_u64(size))
             }
             InstKind::Call { ret_offset, ret_size, .. }
             | InstKind::CallCode { ret_offset, ret_size, .. }
             | InstKind::StaticCall { ret_offset, ret_size, .. }
             | InstKind::DelegateCall { ret_offset, ret_size, .. } => {
-                Self::range_may_overlap_fmp(func, ret_offset, 0, func.value_u64(ret_size))
+                Self::range_may_overlap_fmp(func, ret_offset, func.value_u64(ret_size))
             }
             _ => false,
         }
@@ -1888,14 +1864,12 @@ impl AliasAnalysis {
     pub(crate) fn range_may_overlap_fmp(
         func: &Function,
         address: ValueId,
-        offset: u64,
         size: Option<u64>,
     ) -> bool {
         if size == Some(0) {
             return false;
         }
         if let Some(address) = func.value_u64(address) {
-            let Some(address) = address.checked_add(offset) else { return true };
             let Some(size) = size else { return true };
             let Some(end) = address.checked_add(size) else { return true };
             let fmp_end = EvmMemoryLayout::FMP_SLOT + EvmMemoryLayout::WORD_SIZE;
@@ -1924,8 +1898,8 @@ impl AliasAnalysis {
             | InstKind::Alloc { .. }
             | InstKind::AbiEncode { .. }
             | InstKind::AbiDecode { .. } => Some(EvmMemoryLayout::HEAP_START),
-            InstKind::Load(address, offset, PtrLocation::Memory)
-                if func.constant_address(*address, *offset) == Some(EvmMemoryLayout::FMP_SLOT) =>
+            InstKind::Load(address, PtrLocation::Memory)
+                if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 Some(EvmMemoryLayout::HEAP_START)
             }

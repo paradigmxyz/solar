@@ -50,12 +50,14 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[
     v37 = slt v36, 32
     icall revert_if<calldata_tail_too_short>, v37
     v38 = calldataload v34
-    mstore v1+32, v38
-    v39 = mload v1, ptr<memory>
-    v40 = mload v39
-    v41 = mload v1+32
-    v42 = checked_add u256, v40, v41
-    ret v42
+    v39 = ptradd v1, 32
+    mstore v39, v38
+    v40 = mload v1, ptr<memory>
+    v41 = mload v40
+    v42 = ptradd v1, 32
+    v43 = mload v42
+    v44 = checked_add u256, v41, v43
+    ret v44
 }
 
 fn @encodeField(arg0: slice<calldata>) -> i256 [selector=0xbd1dd83b, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -101,13 +103,14 @@ fn @encodeField(arg0: slice<calldata>) -> i256 [selector=0xbd1dd83b, pure, abi_p
     v32 = lt 64, v31
     v33 = eq v32, false
     icall panic_if<0x32>, v33
-    v34 = mload v30+96
-    v35 = byte 0, v34
-    v36 = shl 248, v35
-    v37 = shr 248, v36
-    v38 = trunc i256 v37 to i8
-    v39 = zext i8 v38 to i256
-    ret v39
+    v34 = ptradd v30, 96
+    v35 = mload v34
+    v36 = byte 0, v35
+    v37 = shl 248, v36
+    v38 = shr 248, v37
+    v39 = trunc i256 v38 to i8
+    v40 = zext i8 v39 to i256
+    ret v40
 }
 
 fn @encodePackedField(arg0: slice<calldata>) -> i256 [selector=0xed098724, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -153,13 +156,14 @@ fn @encodePackedField(arg0: slice<calldata>) -> i256 [selector=0xed098724, pure,
     v32 = lt 0, v31
     v33 = eq v32, false
     icall panic_if<0x32>, v33
-    v34 = mload v30+32
-    v35 = byte 0, v34
-    v36 = shl 248, v35
-    v37 = shr 248, v36
-    v38 = trunc i256 v37 to i8
-    v39 = zext i8 v38 to i256
-    ret v39
+    v34 = ptradd v30, 32
+    v35 = mload v34
+    v36 = byte 0, v35
+    v37 = shl 248, v36
+    v38 = shr 248, v37
+    v39 = trunc i256 v38 to i8
+    v40 = zext i8 v39 to i256
+    ret v40
 }
 
 fn @hashField(arg0: slice<calldata>) -> i256 [selector=0xdd0f255f, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -400,9 +404,10 @@ fn @copyWords(arg0: slice<calldata>) -> i256 [selector=0x7ce58428, pure, abi_par
     v29 = lt 0, v28
     v30 = eq v29, false
     icall panic_if<0x32>, v30
-    v31 = mload v22+32
-    v32 = checked_add u256, v27, v31
-    ret v32
+    v31 = ptradd v22, 32
+    v32 = mload v31
+    v33 = checked_add u256, v27, v32
+    ret v33
 }
 
 fn @emitBytes(arg0: slice<calldata>) -> i256 [selector=0xc76f0635, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
@@ -459,28 +464,30 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     mstore v22, v0
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v60]
+    v23 = phi [bb0: 0], [bb2: v61]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
-    v61 = mload v22
-    v62 = lt 0, v61
-    v63 = eq v62, false
-    icall panic_if<0x32>, v63
-    v64 = mload v22+32
-    v65 = inttoptr i256 v64 to ptr<memory>
-    v66 = eq v64, 0
-    jumpi v66, bb4, bb5
+    v62 = mload v22
+    v63 = lt 0, v62
+    v64 = eq v63, false
+    icall panic_if<0x32>, v64
+    v65 = ptradd v22, 32
+    v66 = mload v65
+    v67 = inttoptr i256 v66 to ptr<memory>
+    v68 = eq v66, 0
+    jumpi v68, bb4, bb5
   bb4:
-    v67 = alloc 32
-    mstore v67, 0
-    v68 = ptrtoint ptr<memory> v67 to i256
-    mstore v22+32, v68
+    v69 = alloc 32
+    mstore v69, 0
+    v70 = ptradd v22, 32
+    v71 = ptrtoint ptr<memory> v69 to i256
+    mstore v70, v71
     jump bb5
   bb5:
-    v69 = phi [bb3: v65], [bb4: v67]
-    v70 = mload v69
-    ret v70
+    v72 = phi [bb3: v67], [bb4: v69]
+    v73 = mload v72
+    ret v73
   bb2:
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
@@ -524,7 +531,8 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v57 = ptrtoint ptr<memory> v53 to i256
     v58 = shl 5, v23
     v59 = ptradd v22, v58
-    mstore v59+32, v57
-    v60 = add v23, 1
+    v60 = ptradd v59, 32
+    mstore v60, v57
+    v61 = add v23, 1
     jump bb1
 }

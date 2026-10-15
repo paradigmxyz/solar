@@ -45,63 +45,72 @@ fn @roundTrip(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x00746047, p
     mstore v23, v1
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb2: v66]
+    v24 = phi [bb0: 0], [bb2: v67]
     v25 = lt v24, v1
     jumpi v25, bb2, bb3
   bb3:
-    v67 = ptrtoint ptr<memory> v23 to i256
+    v68 = ptrtoint ptr<memory> v23 to i256
     mstore v0, arg0
-    mstore v0+32, v67
-    v68 = icall @encodeFirst, v0
-    v69 = abi_decode [tuple<u256, array<_, array<_, u256>>>], v68
-    v70 = mload v69
-    v71 = mload v69+32, ptr<memory>
+    v69 = ptradd v0, 32
+    mstore v69, v68
+    v70 = icall @encodeFirst, v0
+    v71 = abi_decode [tuple<u256, array<_, array<_, u256>>>], v70
     v72 = mload v71
-    v73 = lt 0, v72
-    v74 = eq v73, false
-    icall panic_if<0x32>, v74
-    v75 = mload v71+32
-    v76 = inttoptr i256 v75 to ptr<memory>
-    v77 = eq v75, 0
-    jumpi v77, bb4, bb5
+    v73 = ptradd v71, 32
+    v74 = mload v73, ptr<memory>
+    v75 = mload v74
+    v76 = lt 0, v75
+    v77 = eq v76, false
+    icall panic_if<0x32>, v77
+    v78 = ptradd v74, 32
+    v79 = mload v78
+    v80 = inttoptr i256 v79 to ptr<memory>
+    v81 = eq v79, 0
+    jumpi v81, bb4, bb5
   bb4:
-    v78 = alloc 32
-    mstore v78, 0
-    v79 = ptrtoint ptr<memory> v78 to i256
-    mstore v71+32, v79
+    v82 = alloc 32
+    mstore v82, 0
+    v83 = ptradd v74, 32
+    v84 = ptrtoint ptr<memory> v82 to i256
+    mstore v83, v84
     jump bb5
   bb5:
-    v80 = phi [bb3: v76], [bb4: v78]
-    v81 = mload v80
-    v82 = lt 0, v81
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = mload v80+32
-    v85 = checked_add u256, v70, v84
-    v86 = mload v69+32, ptr<memory>
-    v87 = mload v86
-    v88 = lt 1, v87
-    v89 = eq v88, false
-    icall panic_if<0x32>, v89
-    v90 = mload v86+64
-    v91 = inttoptr i256 v90 to ptr<memory>
-    v92 = eq v90, 0
-    jumpi v92, bb6, bb7
+    v85 = phi [bb3: v80], [bb4: v82]
+    v86 = mload v85
+    v87 = lt 0, v86
+    v88 = eq v87, false
+    icall panic_if<0x32>, v88
+    v89 = ptradd v85, 32
+    v90 = mload v89
+    v91 = checked_add u256, v72, v90
+    v92 = ptradd v71, 32
+    v93 = mload v92, ptr<memory>
+    v94 = mload v93
+    v95 = lt 1, v94
+    v96 = eq v95, false
+    icall panic_if<0x32>, v96
+    v97 = ptradd v93, 64
+    v98 = mload v97
+    v99 = inttoptr i256 v98 to ptr<memory>
+    v100 = eq v98, 0
+    jumpi v100, bb6, bb7
   bb6:
-    v93 = alloc 32
-    mstore v93, 0
-    v94 = ptrtoint ptr<memory> v93 to i256
-    mstore v86+64, v94
+    v101 = alloc 32
+    mstore v101, 0
+    v102 = ptradd v93, 64
+    v103 = ptrtoint ptr<memory> v101 to i256
+    mstore v102, v103
     jump bb7
   bb7:
-    v95 = phi [bb5: v91], [bb6: v93]
-    v96 = mload v95
-    v97 = lt 0, v96
-    v98 = eq v97, false
-    icall panic_if<0x32>, v98
-    v99 = mload v95+32
-    v100 = checked_add u256, v85, v99
-    ret v100
+    v104 = phi [bb5: v99], [bb6: v101]
+    v105 = mload v104
+    v106 = lt 0, v105
+    v107 = eq v106, false
+    icall panic_if<0x32>, v107
+    v108 = ptradd v104, 32
+    v109 = mload v108
+    v110 = checked_add u256, v91, v109
+    ret v110
   bb2:
     v26 = mul v24, 32
     v27 = ptrtoint ptr<calldata> v2 to i256
@@ -151,7 +160,8 @@ fn @roundTrip(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x00746047, p
     v63 = ptrtoint ptr<memory> v57 to i256
     v64 = shl 5, v24
     v65 = ptradd v23, v64
-    mstore v65+32, v63
-    v66 = add v24, 1
+    v66 = ptradd v65, 32
+    mstore v66, v63
+    v67 = add v24, 1
     jump bb1
 }

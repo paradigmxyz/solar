@@ -25,7 +25,8 @@ fn @arr(arg0: i256) -> ptr<memory> [selector=0x71e5ee5f, pure, abi_params=[u256]
     memory_zero v0, 64
     v1 = alloc 64
     mstore v1, arg0
-    mstore v1+32, arg0
+    v2 = ptradd v1, 32
+    mstore v2, arg0
     ret v1
 }
 
@@ -39,13 +40,15 @@ fn @flagged(arg0: i256) -> ptr<memory> [selector=0xa370c668, pure, abi_params=[u
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 0
-    mstore v0+32, 0
-    v1 = alloc 64
-    v2 = ne arg0, 0
-    v3 = zext i1 v2 to i256
-    mstore v1, v3
-    mstore v1+32, arg0
-    ret v1
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = alloc 64
+    v3 = ne arg0, 0
+    v4 = zext i1 v3 to i256
+    mstore v2, v4
+    v5 = ptradd v2, 32
+    mstore v5, arg0
+    ret v2
 }
 
 fn @total(arg0: i256) -> i256 [selector=0xa2fc82bf, view, abi_params=[storageptr], abi_returns=[word], abi_return_params=[u256]] {
@@ -180,24 +183,25 @@ fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 0
-    mstore v0+32, 0
-    v1 = alloc 64
-    v2 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = gas
-    v6 = extcodesize 0x1111111111111111111111111111111111111111
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = delegatecall v5, 0x1111111111111111111111111111111111111111, v3, v4, v3, 64
-    jumpi v8, bb2, bb1
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = alloc 64
+    v3 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    v6 = gas
+    v7 = extcodesize 0x1111111111111111111111111111111111111111
+    v8 = eq v7, 0
+    icall revert_if<target_contract_has_no_code>, v8
+    v9 = delegatecall v6, 0x1111111111111111111111111111111111111111, v4, v5, v4, 64
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    mcopy v1, v3, 64
-    v9 = make_memory_slice v1, 64
-    v10 = abi_decode [tuple<bool, u256>], v9
-    ret v10
+    mcopy v2, v4, 64
+    v10 = make_memory_slice v2, 64
+    v11 = abi_decode [tuple<bool, u256>], v10
+    ret v11
 }
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

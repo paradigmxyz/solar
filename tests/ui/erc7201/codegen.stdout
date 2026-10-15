@@ -14,9 +14,10 @@ fn @memoryParam() -> i256 [selector=0x21aa88e0, pure, abi_params=[], abi_returns
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 12
-    mstore v0+32, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
-    v1 = icall erc7201<>, v0
-    ret v1
+    v1 = ptradd v0, 32
+    mstore v1, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
+    v2 = icall erc7201<>, v0
+    ret v2
 }
 
 fn @calldataParam(arg0: slice<calldata>) -> i256 [selector=0x7d4a24fb, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {

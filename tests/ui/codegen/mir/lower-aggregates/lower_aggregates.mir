@@ -8,10 +8,12 @@
 // CHECK: + [[VALUE:v[0-9]+]] = sload arg0
 // CHECK-NEXT: + mstore [[OBJECT]], [[VALUE]]
 // CHECK: + {{v[0-9]+}} = alloc 64
-// CHECK: + mstore [[OBJECT]]+32, {{v[0-9]+}}
+// CHECK: + [[OBJECT_32:v[0-9]+]] = ptradd [[OBJECT]], 32
+// CHECK: + mstore [[OBJECT_32]], {{v[0-9]+}}
 // CHECK: + [[FIXED:v[0-9]+]] = alloc 64
-// CHECK: + [[ARRAY:v[0-9]+]] = ptrtoint ptr<memory> [[FIXED]]
-// CHECK-NEXT: + mstore [[OBJECT]]+64, [[ARRAY]]
+// CHECK: + [[OBJECT_64:v[0-9]+]] = ptradd [[OBJECT]], 64
+// CHECK-NEXT: + [[ARRAY:v[0-9]+]] = ptrtoint ptr<memory> [[FIXED]]
+// CHECK-NEXT: + mstore [[OBJECT_64]], [[ARRAY]]
 fn @storage_to_memory(arg0: i256, arg1: i256) {
   bb0:
     v0 = inttoptr i256 arg1 to ptr<memory>
@@ -24,7 +26,8 @@ fn @storage_to_memory(arg0: i256, arg1: i256) {
 // CHECK: - memory_to_storage
 // CHECK: + [[VALUE:v[0-9]+]] = mload [[OBJECT]]
 // CHECK-NEXT: + sstore arg1, [[VALUE]]
-// CHECK: + {{v[0-9]+}} = mload [[OBJECT]]+64
+// CHECK: + [[OBJECT_64:v[0-9]+]] = ptradd [[OBJECT]], 64
+// CHECK-NEXT: + {{v[0-9]+}} = mload [[OBJECT_64]]
 fn @memory_to_storage(arg0: i256, arg1: i256) {
   bb0:
     v0 = inttoptr i256 arg0 to ptr<memory>

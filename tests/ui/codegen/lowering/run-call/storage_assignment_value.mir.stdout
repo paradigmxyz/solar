@@ -21,18 +21,19 @@ fn @assignmentLength() -> i256 [selector=0xbe0b35b4, abi_params=[], abi_returns=
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 4
-    mstore v0+32, 0x6162636400000000000000000000000000000000000000000000000000000000
-    v1 = ptrtoint ptr<memory> v0 to i256
+    v1 = ptradd v0, 32
+    mstore v1, 0x6162636400000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint ptr<memory> v0 to i256
     icall @store_storage_bytes, 0, v0
-    v2 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v2
-    v3 = and v2, 1
-    v4 = eq v3, 1
-    v5 = sub 0, v3
-    v6 = or 127, v5
-    v7 = shr 1, v2
-    v8 = and v7, v6
-    ret v8
+    v3 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v3
+    v4 = and v3, 1
+    v5 = eq v4, 1
+    v6 = sub 0, v4
+    v7 = or 127, v6
+    v8 = shr 1, v3
+    v9 = and v8, v7
+    ret v9
 }
 
 fn @assignmentStruct() -> ptr<memory> [selector=0x2e58a5e6, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -118,7 +119,8 @@ fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, arg1
-    mstore v0+32, arg0
+    v1 = ptradd v0, 32
+    mstore v1, arg0
     ret v0
 }
 

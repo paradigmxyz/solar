@@ -317,19 +317,3 @@ fn @bool_bitwise(arg0: i1, arg1: i1) -> i256 {
     v3 = zext i1 v2 to i256
     ret v3
 }
-
-// CHECK-LABEL: @access_offsets
-// CHECK: {{^ +}}[[WORD:v[0-9]+]] = mload arg0+32
-// CHECK: {{^ +}}[[POINTER:v[0-9]+]] = mload arg0+64, ptr<memory>
-// CHECK: {{^ +}}[[DATA:v[0-9]+]] = calldataload arg1+4
-// CHECK: {{^ +}}mstore [[POINTER]]+32, [[WORD]]
-// CHECK: {{^ +}}mstore8 arg0+1, [[DATA]]
-fn @access_offsets(arg0: ptr<memory>, arg1: i256) {
-  bb0:
-    v0 = mload arg0+32
-    v1 = mload arg0+64, ptr<memory>
-    v2 = calldataload arg1+4
-    mstore v1+32, v0
-    mstore8 arg0+1, v2
-    stop
-}

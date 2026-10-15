@@ -22,7 +22,7 @@ fn @fresh_array() -> ptr<memory> {
 // CHECK: + [[DESTINATION:v[0-9]+]] = ptradd [[OBJECT]], 64
 // CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[BYTES]]
 // CHECK: + mstore [[OBJECT]], 32
-// CHECK: + mstore [[OBJECT]]+32, [[ENCODE_LENGTH]]
+// CHECK: + mstore [[SOURCE]], [[ENCODE_LENGTH]]
 // CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
 // CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[OBJECT]], [[TOTAL]]
 fn @terminal() {

@@ -159,12 +159,12 @@ fn eligible(func: &Function) -> bool {
         && func.instructions().all(|id| {
             let kind = &func.inst(id).kind;
             match kind {
-                InstKind::Store(ptr, offset, _) => safe_constant_memory_write(func, *ptr, *offset),
+                InstKind::Store(ptr, _) => safe_constant_memory_write(func, *ptr),
                 // Full-width pointer casts emit no code.
                 InstKind::Phi(_)
                 | InstKind::IntToPtr(_)
                 | InstKind::PtrToInt(_, 256)
-                | InstKind::Load(.., PtrLocation::Calldata)
+                | InstKind::Load(_, PtrLocation::Calldata)
                 | InstKind::CalldataSize => true,
                 _ => {
                     kind.effect_kind() == EffectKind::Pure && opcode_lowering(&kind.op()).is_some()
@@ -196,8 +196,8 @@ fn eligible(func: &Function) -> bool {
 }
 
 /// Returns whether a constant word write stays within memory owned by the route.
-fn safe_constant_memory_write(func: &Function, pointer: crate::mir::ValueId, offset: u64) -> bool {
-    let Some(start) = func.constant_address(pointer, offset) else { return false };
+fn safe_constant_memory_write(func: &Function, pointer: crate::mir::ValueId) -> bool {
+    let Some(start) = func.value_u64(pointer) else { return false };
     let Some(end) = start.checked_add(EvmMemoryLayout::WORD_SIZE) else { return false };
     if end <= EvmMemoryLayout::HEAP_START {
         return true;

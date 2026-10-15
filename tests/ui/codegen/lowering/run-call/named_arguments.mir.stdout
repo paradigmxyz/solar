@@ -56,21 +56,23 @@ fn @structNamed() -> i256 [selector=0x486a2e72, abi_params=[], abi_returns=[word
     v1 = icall @tick, 1
     v2 = icall @tick, 2
     mstore v0, v2
-    mstore v0+32, v1
-    v3 = mload v0
-    sstore 1, v3 !metadata(storage=slot(1))
-    v4 = add 1, 1
-    v5 = mload v0+32
-    sstore v4, v5 !metadata(storage=slot(2))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = checked_mul u256, v6, 100
-    v8 = sload 1 !metadata(storage=slot(1))
-    v9 = checked_mul u256, v8, 10
-    v10 = checked_add u256, v7, v9
-    v11 = add 1, 1
-    v12 = sload v11 !metadata(storage=slot(2))
-    v13 = checked_add u256, v10, v12
-    ret v13
+    v3 = ptradd v0, 32
+    mstore v3, v1
+    v4 = mload v0
+    sstore 1, v4 !metadata(storage=slot(1))
+    v5 = add 1, 1
+    v6 = ptradd v0, 32
+    v7 = mload v6
+    sstore v5, v7 !metadata(storage=slot(2))
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = checked_mul u256, v8, 100
+    v10 = sload 1 !metadata(storage=slot(1))
+    v11 = checked_mul u256, v10, 10
+    v12 = checked_add u256, v9, v11
+    v13 = add 1, 1
+    v14 = sload v13 !metadata(storage=slot(2))
+    v15 = checked_add u256, v12, v14
+    ret v15
 }
 
 fn @structPositional() -> i256 [selector=0xa99479b5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -79,21 +81,23 @@ fn @structPositional() -> i256 [selector=0xa99479b5, abi_params=[], abi_returns=
     v1 = icall @tick, 1
     v2 = icall @tick, 2
     mstore v0, v1
-    mstore v0+32, v2
-    v3 = mload v0
-    sstore 1, v3 !metadata(storage=slot(1))
-    v4 = add 1, 1
-    v5 = mload v0+32
-    sstore v4, v5 !metadata(storage=slot(2))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = checked_mul u256, v6, 100
-    v8 = sload 1 !metadata(storage=slot(1))
-    v9 = checked_mul u256, v8, 10
-    v10 = checked_add u256, v7, v9
-    v11 = add 1, 1
-    v12 = sload v11 !metadata(storage=slot(2))
-    v13 = checked_add u256, v10, v12
-    ret v13
+    v3 = ptradd v0, 32
+    mstore v3, v2
+    v4 = mload v0
+    sstore 1, v4 !metadata(storage=slot(1))
+    v5 = add 1, 1
+    v6 = ptradd v0, 32
+    v7 = mload v6
+    sstore v5, v7 !metadata(storage=slot(2))
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = checked_mul u256, v8, 100
+    v10 = sload 1 !metadata(storage=slot(1))
+    v11 = checked_mul u256, v10, 10
+    v12 = checked_add u256, v9, v11
+    v13 = add 1, 1
+    v14 = sload v13 !metadata(storage=slot(2))
+    v15 = checked_add u256, v12, v14
+    ret v15
 }
 
 fn @callNamed() -> i256 [selector=0x89fca8e0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -152,15 +156,17 @@ fn @memoryStructNamed() -> i256 [selector=0x7b7c1324, abi_params=[], abi_returns
     v1 = icall @tick, 1
     v2 = icall @tick, 2
     mstore v0, v2
-    mstore v0+32, v1
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = checked_mul u256, v3, 100
-    v5 = mload v0
-    v6 = checked_mul u256, v5, 10
-    v7 = checked_add u256, v4, v6
-    v8 = mload v0+32
-    v9 = checked_add u256, v7, v8
-    ret v9
+    v3 = ptradd v0, 32
+    mstore v3, v1
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = checked_mul u256, v4, 100
+    v6 = mload v0
+    v7 = checked_mul u256, v6, 10
+    v8 = checked_add u256, v5, v7
+    v9 = ptradd v0, 32
+    v10 = mload v9
+    v11 = checked_add u256, v8, v10
+    ret v11
 }
 
 fn @eventNamed() -> i256 [selector=0xab104c47, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

@@ -357,7 +357,7 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                                         index as u64 * EvmMemoryLayout::WORD_SIZE,
                                     );
                                     values.push(builder.emit_inst(
-                                        InstKind::Load(offset, 0, PtrLocation::Memory),
+                                        InstKind::Load(offset, PtrLocation::Memory),
                                         Some(ty),
                                     ));
                                 }
