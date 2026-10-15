@@ -1047,7 +1047,10 @@ impl<'a> Planner<'a> {
         // The unreachable word itself, else a word above it: spilling one brings it closer to
         // the top.
         if let Some(position) = position
-            && let Some(victim) = sim.stack[position..].iter().copied().find_map(spillable)
+            && let Some(victim) = sim
+                .stack
+                .get(position..)
+                .and_then(|slots| slots.iter().copied().find_map(spillable))
         {
             return Some(victim);
         }

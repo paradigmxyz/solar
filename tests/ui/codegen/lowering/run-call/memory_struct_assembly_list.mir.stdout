@@ -300,23 +300,23 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v41 = sub v40, v38
     jump bb7
   bb7:
-    v42 = phi [bb3: v1], [bb11: v42]
-    v43 = phi [bb3: v41], [bb11: v43]
-    v44 = phi [bb3: arg1], [bb11: v44]
-    v45 = phi [bb3: arg2], [bb11: v45]
-    v46 = phi [bb3: v34], [bb11: v46]
-    v47 = phi [bb3: v39], [bb11: v47]
+    v42 = phi [bb3: arg0], [bb11: v42]
+    v43 = phi [bb3: arg1], [bb11: v43]
+    v44 = phi [bb3: arg2], [bb11: v44]
+    v45 = phi [bb3: v39], [bb11: v45]
+    v46 = phi [bb3: v1], [bb11: v46]
+    v47 = phi [bb3: v34], [bb11: v47]
     v48 = phi [bb3: v38], [bb11: v52]
-    v49 = phi [bb3: arg0], [bb11: v49]
+    v49 = phi [bb3: v41], [bb11: v49]
     jumpi true, bb9, bb10
   bb10:
     jump bb8
   bb9:
-    v50 = add v43, v48
+    v50 = add v49, v48
     v51 = mload v50
     mstore v48, v51
     v52 = add v48, 32
-    v53 = lt v52, v47
+    v53 = lt v52, v45
     v54 = zext i1 v53 to i256
     v55 = eq v54, 0
     v56 = zext i1 v55 to i256
@@ -332,13 +332,13 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     jump bb8
   bb8:
     v58 = phi [bb12: v52], [bb10: v48]
-    v59 = shl 3, v46
+    v59 = shl 3, v47
     v60 = sub 248, v59
-    v61 = shl v60, v42
-    v62 = mload v44
+    v61 = shl v60, v46
+    v62 = mload v43
     v63 = or v62, v61
-    mstore v44, v63
-    ret v47
+    mstore v43, v63
+    ret v45
   bb1:
     v7 = add 32, arg0
     v8 = mload v7
@@ -382,10 +382,10 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
     v5 = add arg1, 32
     jump bb4
   bb4:
-    v6 = phi [bb3: arg1], [bb8: v6], [bb15: v6], [bb17: v6], [bb18: v6], [bb21: v6]
-    v7 = phi [bb3: v5], [bb8: v47], [bb15: v28], [bb17: v32], [bb18: v38], [bb21: v44]
-    v8 = phi [bb3: arg0], [bb8: v8], [bb15: v8], [bb17: v8], [bb18: v8], [bb21: v8]
-    v9 = phi [bb3: 0], [bb8: v9], [bb15: v9], [bb17: v9], [bb18: v9], [bb21: v9]
+    v6 = phi [bb3: arg0], [bb8: v6], [bb15: v6], [bb17: v6], [bb18: v6], [bb21: v6]
+    v7 = phi [bb3: arg1], [bb8: v7], [bb15: v7], [bb17: v7], [bb18: v7], [bb21: v7]
+    v8 = phi [bb3: 0], [bb8: v8], [bb15: v8], [bb17: v8], [bb18: v8], [bb21: v8]
+    v9 = phi [bb3: v5], [bb8: v47], [bb15: v28], [bb17: v32], [bb18: v38], [bb21: v44]
     v10 = phi [bb3: arg0], [bb8: v12], [bb15: v12], [bb17: v12], [bb18: v12], [bb21: v12]
     jumpi true, bb6, bb7
   bb7:
@@ -427,19 +427,19 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb23:
     v45 = mload v12
     v46 = shr 48, v45
-    v47 = icall @encodeAddress, v46, v7
+    v47 = icall @encodeAddress, v46, v9
     jump bb8
   bb8:
     jump bb4
   bb21:
     v42 = mload v12
     v43 = shr 48, v42
-    v44 = icall @encodeList, v43, v7
+    v44 = icall @encodeList, v43, v9
     jump bb4
   bb18:
     v36 = mload v12
     v37 = shr 48, v36
-    v38 = icall @encodeBytes, v37, v7, 128
+    v38 = icall @encodeBytes, v37, v9, 128
     jump bb4
   bb12:
     v23 = eq v17, 0
@@ -452,19 +452,19 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
     v29 = mload v12
     v30 = shr 48, v29
     v31 = mload v30
-    v32 = icall @encodeUint, v31, v7
+    v32 = icall @encodeUint, v31, v9
     jump bb4
   bb15:
     v26 = mload v12
     v27 = shr 48, v26
-    v28 = icall @encodeUint, v27, v7
+    v28 = icall @encodeUint, v27, v9
     jump bb4
   bb9:
     jump bb5
   bb5:
     v48 = phi [bb9: v12], [bb7: v10]
-    v49 = add v6, 32
-    v50 = sub v7, v49
+    v49 = add v7, 32
+    v50 = sub v9, v49
     v51 = gt v50, 55
     v52 = zext i1 v51 to i256
     v53 = eq v52, 0
@@ -474,21 +474,21 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb25:
     jump bb26
   bb26:
-    mstore v6, v50
-    v65 = icall @encodeBytes, v6, v6, 192
+    mstore v7, v50
+    v65 = icall @encodeBytes, v7, v7, 192
     ret v65
   bb24:
     v56 = add v50, 192
-    mstore8 v6, v56
-    v57 = add v6, 32
+    mstore8 v7, v56
+    v57 = add v7, 32
     v58 = mload v57
-    v59 = add v6, 1
+    v59 = add v7, 1
     mstore v59, v58
-    v60 = add v6, 64
+    v60 = add v7, 64
     v61 = mload v60
-    v62 = add v6, 33
+    v62 = add v7, 33
     mstore v62, v61
-    v63 = add v6, 1
+    v63 = add v7, 1
     v64 = add v50, v63
     ret v64
   bb1:

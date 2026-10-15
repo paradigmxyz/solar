@@ -63,30 +63,20 @@ fn @abiEdge(arg0: slice<calldata>) -> i256 [selector=0xdff25446, pure, abi_param
     icall revert_if<calldata_tail_too_short>, v20
     v21 = inttoptr i256 v18 to ptr<calldata>
     v22 = make_calldata_slice v21, v15
-    v23 = extract_value slice<calldata>, v22, 0
-    v24 = extract_value slice<calldata>, v22, 1
-    v25 = calldatasize
-    v26 = gt v24, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = sub v25, v24
-    v28 = ptrtoint ptr<calldata> v23 to i256
-    v29 = sgt v28, v27
-    icall revert_if<calldata_tail_too_short>, v29
-    v30 = extract_value slice<calldata>, v22, 1
-    v31 = add v30, 63
-    v32 = lt v31, v30
-    icall panic_if<0x41>, v32
-    v33 = not 31
-    v34 = and v31, v33
-    v35 = alloc v34
-    mstore v35, v30
-    v36 = ptradd v35, 32
-    v37 = extract_value slice<calldata>, v22, 0
-    v38 = extract_value slice<calldata>, v22, 1
-    calldatacopy v36, v37, v38
-    v39 = abi_decode [array<_, tuple<address, u256, bytes>>], v35
-    v40 = mload v39
-    ret v40
+    v23 = extract_value slice<calldata>, v22, 1
+    v24 = extract_value slice<calldata>, v22, 0
+    v25 = add v23, 63
+    v26 = lt v25, v23
+    icall panic_if<0x41>, v26
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc v28
+    mstore v29, v23
+    v30 = ptradd v29, 32
+    calldatacopy v30, v24, v23 !metadata(memory=heap)
+    v31 = abi_decode [array<_, tuple<address, u256, bytes>>], v29
+    v32 = mload v31
+    ret v32
 }
 
 fn @_decodeBatch(arg0: slice<calldata>) -> slice<calldata> [pure] {

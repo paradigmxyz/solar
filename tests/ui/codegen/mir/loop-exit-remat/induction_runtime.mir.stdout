@@ -7,13 +7,13 @@ fn @previous(arg0: i256) -> i256 [selector=0x3c311f3c, pure, abi_params=[u256], 
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb5: v1]
-    v1 = phi [bb0: arg0], [bb5: v2]
+    v0 = phi [bb0: arg0], [bb5: v2]
+    v1 = phi [bb0: 0], [bb5: v0]
     jumpi true, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v2 = sub v1, 1
+    v2 = sub v0, 1
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
     v5 = ne v4, 0
@@ -27,9 +27,9 @@ fn @previous(arg0: i256) -> i256 [selector=0x3c311f3c, pure, abi_params=[u256], 
   bb6:
     jump bb2
   bb2:
-    v6 = phi [bb6: v1], [bb4: v0]
-    v7 = phi [bb6: v2], [bb4: v1]
-    ret v6
+    v6 = phi [bb6: v2], [bb4: v0]
+    v7 = phi [bb6: v0], [bb4: v1]
+    ret v7
 }
 
 fn @wrapping(arg0: i256) -> i256 [selector=0x45d1ad99, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -78,13 +78,13 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
     jump bb1
   bb1:
     v8 = phi [bb0: 0], [bb3: v21]
-    v9 = phi [bb0: v5], [bb3: v22]
-    v10 = phi [bb0: 0], [bb3: v25]
-    v11 = phi [bb0: 0], [bb3: v27]
-    v12 = phi [bb0: 0], [bb3: v23]
-    v13 = phi [bb0: v7], [bb3: v41]
-    v14 = phi [bb0: v0], [bb3: v28]
-    v15 = gt v13, v9
+    v9 = phi [bb0: 0], [bb3: v22]
+    v10 = phi [bb0: 0], [bb3: v23]
+    v11 = phi [bb0: 0], [bb3: v24]
+    v12 = phi [bb0: v0], [bb3: v25]
+    v13 = phi [bb0: v5], [bb3: v26]
+    v14 = phi [bb0: v7], [bb3: v41]
+    v15 = gt v14, v13
     v16 = zext i1 v15 to i256
     v17 = eq v16, 0
     v18 = zext i1 v17 to i256
@@ -96,21 +96,21 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
     v42 = lt 0, 4
     v43 = eq v42, false
     icall panic_if<0x32>, v43
-    v44 = mload v14
+    v44 = mload v12
     v45 = lt 1, 4
     v46 = eq v45, false
     icall panic_if<0x32>, v46
-    v47 = ptradd v14, 32
+    v47 = ptradd v12, 32
     v48 = mload v47
     v49 = lt 2, 4
     v50 = eq v49, false
     icall panic_if<0x32>, v50
-    v51 = ptradd v14, 64
+    v51 = ptradd v12, 64
     v52 = mload v51
     v53 = lt 3, 4
     v54 = eq v53, false
     icall panic_if<0x32>, v54
-    v55 = ptradd v14, 96
+    v55 = ptradd v12, 96
     v56 = mload v55
     v57 = insert_value struct0, undef struct0, 0, v44
     v58 = insert_value struct0, v57, 1, v48
@@ -118,19 +118,19 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
     v60 = insert_value struct0, v59, 3, v56
     ret v60
   bb4:
-    v20 = mload v13
+    v20 = mload v14
     jump bb7
   bb7:
     v21 = phi [bb4: v8], [bb11: v21]
     v22 = phi [bb4: v9], [bb11: v22]
-    v23 = phi [bb4: v12], [bb11: v23]
-    v24 = phi [bb4: v13], [bb11: v24]
-    v25 = phi [bb4: v10], [bb11: v25]
-    v26 = phi [bb4: v20], [bb11: v26]
-    v27 = phi [bb4: v11], [bb11: v27]
-    v28 = phi [bb4: v14], [bb11: v28]
-    v29 = phi [bb4: v13], [bb11: v34]
-    v30 = ptrtoint ptr<memory> v28 to i256
+    v23 = phi [bb4: v10], [bb11: v23]
+    v24 = phi [bb4: v11], [bb11: v24]
+    v25 = phi [bb4: v12], [bb11: v25]
+    v26 = phi [bb4: v13], [bb11: v26]
+    v27 = phi [bb4: v14], [bb11: v27]
+    v28 = phi [bb4: v20], [bb11: v28]
+    v29 = phi [bb4: v14], [bb11: v34]
+    v30 = ptrtoint ptr<memory> v25 to i256
     v31 = gt v29, v30
     v32 = zext i1 v31 to i256
     v33 = ne v32, 0
@@ -140,7 +140,7 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
   bb9:
     v34 = sub v29, 32
     v35 = mload v34
-    v36 = gt v35, v26
+    v36 = gt v35, v28
     v37 = zext i1 v36 to i256
     v38 = eq v37, 0
     v39 = zext i1 v38 to i256
@@ -156,11 +156,11 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
   bb12:
     jump bb8
   bb8:
-    mstore v29, v26
+    mstore v29, v28
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v41 = add v24, 32
+    v41 = add v27, 32
     jump bb1
 }

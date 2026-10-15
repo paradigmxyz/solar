@@ -180,10 +180,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        let external_argument = self.is_external_abi_argument(value);
+        let external_only = self.is_decoded_external_argument(value);
         let dirty = self.dirty_values.contains(&value);
-        let external_only = external_argument
-            && self.builder.func().attributes.visibility == solar_ast::Visibility::External;
         match ty.peel_refs().kind {
             // Aggregates are cleaned and validated word by word while encoding; copying them
             // into a canonical object first would duplicate the whole tree at every call site.
@@ -227,8 +225,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data_expr = &args[0];
         let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
         let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let data = self.lower_typed_expr(data_expr, memory_ty)?;
-        let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
+        let data = if lies_in_calldata(data_ty) {
+            let data = self.lower_expr(data_expr)?;
+            self.copy_calldata_bytes_unchecked(data)?
+        } else {
+            let data = self.lower_typed_expr(data_expr, memory_ty)?;
+            self.materialize_memory_argument(memory_ty, data, data_expr.span)?
+        };
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
         let layout = self.cx.module.intern_abi_param_layout(layout);
         let fields = decoded_types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
@@ -499,12 +502,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            if let Some(abi_type) = self.types.abi_type(ty) {
-                self.validate_calldata_bytes_argument(value, &abi_type);
-                self.validate_calldata_array_head(value, ty, &abi_type);
+            let abi_type = self.types.abi_type(ty);
+            if let Some(abi_type) = &abi_type {
+                self.check_calldata_array_size(value, ty, abi_type);
             }
             if self.needs_calldata_aggregate_validation(value, ty) {
-                value = self.materialize_calldata_argument(ty, value, expr.span)?;
+                // Packing takes no ABI argument's elements validated, so even those of an
+                // argument that only ABI decoding passes are validated here.
+                if abi_type.as_ref().is_some_and(Self::is_calldata_word_array) {
+                    self.validate_calldata_word_array(value, ty);
+                } else {
+                    value = self.materialize_calldata_argument(ty, value, expr.span)?;
+                }
             }
             if self.is_dynamic_bytes_type(ty) {
                 parts.push(PackedPart::Bytes(value));
@@ -932,8 +941,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let span = input.span;
         let memory_ty = self.cx.gcx.types.bytes_ref.memory;
         // input = materialize(bytes)
-        let input = self.lower_typed_expr(input, memory_ty)?;
-        let input = self.materialize_memory_argument(memory_ty, input, span)?;
+        let input_ty = self.cx.gcx.type_of_expr(input.id)?;
+        let input = if lies_in_calldata(input_ty) {
+            let input = self.lower_expr(input)?;
+            self.copy_calldata_bytes_unchecked(input)?
+        } else {
+            let input = self.lower_typed_expr(input, memory_ty)?;
+            self.materialize_memory_argument(memory_ty, input, span)?
+        };
         // result = sha256(input) / ripemd160(input)
         let kind = if builtin == Builtin::Sha256 {
             InstKind::builtin(crate::mir::Builtin::Sha256, [input])
@@ -959,5 +974,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
             Some(MirType::I256),
         ))
+    }
+}
+
+/// Whether the type is a calldata reference or a slice of one.
+fn lies_in_calldata(ty: Ty<'_>) -> bool {
+    match ty.kind {
+        TyKind::Slice(inner) => inner.is_ref_at(DataLocation::Calldata),
+        _ => ty.is_ref_at(DataLocation::Calldata),
     }
 }

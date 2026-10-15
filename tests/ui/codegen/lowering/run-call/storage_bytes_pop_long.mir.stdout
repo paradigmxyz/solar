@@ -4,9 +4,9 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v48]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = gt v0, 40
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v48]
+    v2 = gt v1, 40
     v3 = eq v2, false
     jumpi v3, bb4, bb5
   bb5:
@@ -15,9 +15,9 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     jump bb12
   bb12:
     v49 = phi [bb2: v0], [bb14: v49]
-    v50 = phi [bb2: 40], [bb14: v133]
-    v51 = phi [bb2: v1], [bb14: v51]
-    v52 = slt v50, 0
+    v50 = phi [bb2: v1], [bb14: v50]
+    v51 = phi [bb2: 40], [bb14: v133]
+    v52 = slt v51, 0
     v53 = eq v52, false
     jumpi v53, bb15, bb16
   bb16:
@@ -33,7 +33,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v58 = or 127, v57
     v59 = shr 1, v54
     v60 = and v59, v58
-    v61 = lt v50, v60
+    v61 = lt v51, v60
     v62 = eq v61, false
     icall panic_if<0x32>, v62
     jumpi v56, bb18, bb19
@@ -41,18 +41,18 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     jump bb20
   bb18:
     v63 = storage_array_data_slot 0
-    v64 = shr 5, v50
+    v64 = shr 5, v51
     v65 = add v63, v64
     jump bb20
   bb20:
     v66 = phi [bb18: v65], [bb19: 0]
-    v67 = and v50, 31
+    v67 = and v51, 31
     v68 = sub 31, v67
     v69 = sload v66 !metadata(storage=symbolic(v66))
     v70 = mul v68, 8
     v71 = shr v70, v69
     v72 = shl 248, v71
-    v73 = checked_add u256, v50, 1
+    v73 = checked_add u256, v51, 1
     v74 = trunc i256 v73 to i8
     v75 = zext i8 v74 to i256
     v76 = shl 248, v75
@@ -67,7 +67,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v83 = or 127, v82
     v84 = shr 1, v79
     v85 = and v84, v83
-    v86 = checked_add i256, v50, 1
+    v86 = checked_add i256, v51, 1
     v87 = eq v85, v86
     v88 = eq v87, false
     icall revert_if<empty>, v88
@@ -136,10 +136,10 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
   bb17:
     jump bb14
   bb14:
-    v133 = checked_sub i256, v50, 1
+    v133 = checked_sub i256, v51, 1
     jump bb12
   bb4:
-    v4 = checked_add u256, v0, 1
+    v4 = checked_add u256, v1, 1
     v5 = trunc i256 v4 to i8
     v6 = zext i8 v5 to i256
     v7 = shl 248, v6
@@ -204,6 +204,6 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
   bb6:
     jump bb3
   bb3:
-    v48 = checked_add u256, v0, 1
+    v48 = checked_add u256, v1, 1
     jump bb1
 }

@@ -74,8 +74,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb13
   bb13:
     v79 = phi [bb9: 0], [bb15: v104]
-    v80 = phi [bb9: 0], [bb15: v105]
-    v81 = phi [bb9: 0], [bb15: v81]
+    v80 = phi [bb9: 0], [bb15: v80]
+    v81 = phi [bb9: 0], [bb15: v105]
     v82 = phi [bb9: v0], [bb15: v82]
     v83 = phi [bb9: v1], [bb15: v83]
     v84 = lt 0, 1
@@ -83,7 +83,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v85
     v86 = mul 0, 3
     v87 = add v83, v86
-    v88 = lt v80, 10
+    v88 = lt v81, 10
     jumpi v88, bb16, bb17
   bb17:
     jump bb14
@@ -98,12 +98,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v90
     v91 = mul 0, 3
     v92 = add v83, v91
-    v93 = lt v80, 10
+    v93 = lt v81, 10
     v94 = eq v93, false
     icall panic_if<0x32>, v94
-    v95 = div v80, 4
+    v95 = div v81, 4
     v96 = add v92, v95
-    v97 = mod v80, 4
+    v97 = mod v81, 4
     v98 = mul v97, 8
     v99 = sload v96 !metadata(storage=symbolic(v96))
     v100 = mul v98, 8
@@ -115,7 +115,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb18:
     jump bb15
   bb15:
-    v105 = checked_add u256, v80, 1
+    v105 = checked_add u256, v81, 1
     jump bb13
   bb8:
     v54 = div v52, 4

@@ -74,8 +74,8 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     mstore v85, 33
     jump bb1
   bb1:
-    v4 = phi [bb10: 0], [bb2: v35]
-    v6 = lt v4, 33
+    v5 = phi [bb10: 0], [bb2: v35]
+    v6 = lt v5, 33
     jumpi v6, bb2, bb3
   bb3:
     v91 = mload 64
@@ -129,8 +129,8 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     mstore 128, v41
     returndata 128, 32
   bb2:
-    v35 = add v4, 1
-    v76 = add v85, v4
+    v35 = add v5, 1
+    v76 = add v85, v5
     v77 = add v76, 32
     mstore8 v77, v35
     jump bb1

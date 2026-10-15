@@ -140,14 +140,16 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     mstore v140, v51
     v148 = add v140, 32
     v151 = add v134, 32
-    v154 = shl 5, v51
-    v155 = add v140, v154
-    v156 = add v155, 32
+    v154 = gt v51, 0x20000000000000000
+    v155 = select v154, 0x20000000000000000, v51
+    v156 = shl 5, v155
+    v157 = add v140, v156
+    v158 = add v157, 32
     jump bb15
   bb15:
     v149 = phi [bb14: v148], [bb16: v150]
     v152 = phi [bb14: v151], [bb16: v153]
-    v63 = lt v149, v156
+    v63 = ne v149, v158
     jumpi v63, bb16, bb17
   bb17:
     v142 = mload 64 !metadata(memory=scratch)

@@ -272,14 +272,12 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     mstore 0, arg0 !metadata(memory=scratch)
     v28 = keccak256 0, 32 !metadata(memory=scratch)
     v43 = add v35, 32
-    v46 = shl 5, v11
-    v47 = add v35, v46
-    v48 = add v47, 32
+    v46 = add v28, v11
     jump bb6
   bb6:
     v41 = phi [bb4: v28], [bb7: v42]
     v44 = phi [bb4: v43], [bb7: v45]
-    v21 = lt v44, v48
+    v21 = ne v41, v46
     jumpi v21, bb7, bb5
   bb5:
     ret v35

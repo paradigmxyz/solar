@@ -36,9 +36,11 @@ contract CountDown {
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
     // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, [[ENTER:bb[0-9]+]]
     // CHECK: [[ENTER]]:
+    // CHECK-NEXT: {{v[0-9]+}} = phi
     // CHECK-NEXT: [[COUNTER:v[0-9]+]] = phi [{{bb[0-9]+}}: arg0], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK: jump [[HEADER:bb[0-9]+]]
     // CHECK-NEXT: [[HEADER]]:
+    // CHECK-NEXT: {{v[0-9]+}} = phi
     // CHECK-NEXT: phi {{\[}}[[ENTER]]: [[COUNTER]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
     function countDown(uint256 n) external pure returns (uint256 s) {
         assembly {

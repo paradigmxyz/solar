@@ -19,28 +19,28 @@ fn @entry() [entry] {
   bb31:
     jump bb43
   bb43:
-    v152 = phi [bb31: 5], [bb44: v175]
-    v153 = phi [bb31: 0], [bb44: v174]
-    v176 = add v152, 9
+    v152 = phi [bb31: 0], [bb44: v174]
+    v153 = phi [bb31: 5], [bb44: v175]
+    v176 = add v153, 9
     v177 = lt v176, v4
     jumpi v177, bb44, bb28
   bb28:
-    v43 = phi [bb43: v152], [bb30: v48]
-    v44 = phi [bb43: v153], [bb30: v47]
-    v45 = lt v43, v4
+    v43 = phi [bb43: v152], [bb30: v47]
+    v44 = phi [bb43: v153], [bb30: v48]
+    v45 = lt v44, v4
     jumpi v45, bb30, bb29
   bb29:
-    mstore 128, v44
+    mstore 128, v43
     returndata 128, 32
   bb30:
-    v46 = mul v44, 7
-    v47 = add v46, v43
-    v48 = add v43, 3
+    v46 = mul v43, 7
+    v47 = add v46, v44
+    v48 = add v44, 3
     jump bb28
   bb44:
-    v155 = mul v153, 7
-    v156 = add v155, v152
-    v157 = add v152, 3
+    v155 = mul v152, 7
+    v156 = add v155, v153
+    v157 = add v153, 3
     v161 = mul v156, 7
     v162 = add v161, v157
     v163 = add v157, 3
@@ -58,26 +58,26 @@ fn @entry() [entry] {
   bb27:
     jump bb41
   bb41:
-    v139 = phi [bb27: v4], [bb42: v149]
-    v140 = phi [bb27: 0], [bb42: v148]
-    v151 = lt v139, v5
+    v139 = phi [bb27: 0], [bb42: v148]
+    v140 = phi [bb27: v4], [bb42: v149]
+    v151 = lt v140, v5
     jumpi v151, bb42, bb24
   bb24:
-    v35 = phi [bb41: v139], [bb26: v39]
-    v36 = phi [bb41: v140], [bb26: v38]
-    v37 = gt v35, v5
+    v35 = phi [bb41: v139], [bb26: v38]
+    v36 = phi [bb41: v140], [bb26: v39]
+    v37 = gt v36, v5
     jumpi v37, bb25, bb26
   bb26:
-    v38 = add v36, v35
-    v39 = add v35, 1
+    v38 = add v35, v36
+    v39 = add v36, 1
     v40 = eq v39, 0
     jumpi v40, bb11, bb24
   bb25:
-    mstore 128, v36
+    mstore 128, v35
     returndata 128, 32
   bb42:
-    v142 = add v140, v139
-    v143 = add v139, 1
+    v142 = add v139, v140
+    v143 = add v140, 1
     v148 = add v142, v143
     v149 = add v143, 1
     v150 = eq v149, 0
@@ -89,29 +89,29 @@ fn @entry() [entry] {
   bb23:
     jump bb38
   bb38:
-    v113 = phi [bb23: 0], [bb40: v136]
-    v114 = phi [bb23: 0], [bb40: v134]
-    v137 = add v113, 3
+    v113 = phi [bb23: 0], [bb40: v134]
+    v114 = phi [bb23: 0], [bb40: v136]
+    v137 = add v114, 3
     v138 = lt v137, v4
     jumpi v138, bb39, bb19
   bb19:
-    v27 = phi [bb38: v113], [bb22: v32]
-    v28 = phi [bb38: v114], [bb22: v30]
-    v29 = lt v27, v4
+    v27 = phi [bb38: v113], [bb22: v30]
+    v28 = phi [bb38: v114], [bb22: v32]
+    v29 = lt v28, v4
     jumpi v29, bb21, bb20
   bb20:
-    mstore 128, v28
+    mstore 128, v27
     returndata 128, 32
   bb21:
-    v30 = add v28, v5
-    v31 = lt v30, v28
+    v30 = add v27, v5
+    v31 = lt v30, v27
     jumpi v31, bb11, bb22
   bb22:
-    v32 = add v27, 1
+    v32 = add v28, 1
     jump bb19
   bb39:
-    v116 = add v114, v5
-    v117 = lt v116, v114
+    v116 = add v113, v5
+    v117 = lt v116, v113
     v122 = add v116, v5
     v123 = lt v122, v116
     v184 = or v117, v123
@@ -123,7 +123,7 @@ fn @entry() [entry] {
     v186 = or v185, v135
     jumpi v186, bb11, bb40
   bb40:
-    v136 = add v113, 4
+    v136 = add v114, 4
     jump bb38
   bb3:
     v16 = calldatasize
@@ -183,34 +183,34 @@ fn @entry() [entry] {
   bb13:
     jump bb32
   bb32:
-    v49 = phi [bb13: 0], [bb34: v80]
-    v50 = phi [bb13: 0], [bb34: v78]
-    v81 = add v49, 3
+    v49 = phi [bb13: 0], [bb34: v78]
+    v50 = phi [bb13: 0], [bb34: v80]
+    v81 = add v50, 3
     v82 = lt v81, v4
     jumpi v82, bb33, bb8
   bb8:
-    v8 = phi [bb32: v49], [bb12: v15]
-    v9 = phi [bb32: v50], [bb12: v13]
-    v10 = lt v8, v4
+    v8 = phi [bb32: v49], [bb12: v13]
+    v9 = phi [bb32: v50], [bb12: v15]
+    v10 = lt v9, v4
     jumpi v10, bb10, bb9
   bb9:
-    mstore 128, v9
+    mstore 128, v8
     returndata 128, 32
   bb10:
-    v11 = mul v8, 3
+    v11 = mul v9, 3
     v12 = add v11, 1
-    v13 = add v9, v12
-    v14 = lt v13, v9
+    v13 = add v8, v12
+    v14 = lt v13, v8
     jumpi v14, bb11, bb12
   bb12:
-    v15 = add v8, 1
+    v15 = add v9, 1
     jump bb8
   bb33:
-    v52 = mul v49, 3
+    v52 = mul v50, 3
     v53 = add v52, 1
-    v54 = add v50, v53
-    v55 = lt v54, v50
-    v56 = add v49, 1
+    v54 = add v49, v53
+    v55 = lt v54, v49
+    v56 = add v50, 1
     v60 = mul v56, 3
     v61 = add v60, 1
     v62 = add v54, v61

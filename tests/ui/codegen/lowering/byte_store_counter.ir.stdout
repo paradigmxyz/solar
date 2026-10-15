@@ -533,7 +533,7 @@ bb49 [loop]:
 bb45 [loop]:
   dup 2
   dup 4
-  lt
+  sub
   push bb47
   jumpi
   push 1

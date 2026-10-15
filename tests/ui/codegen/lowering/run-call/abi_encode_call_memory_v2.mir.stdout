@@ -54,18 +54,18 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     mstore v8, 99
     jump bb1
   bb1:
-    v9 = phi [bb0: 0], [bb3: v41]
+    v9 = phi [bb0: 0], [bb3: v9]
     v10 = phi [bb0: ptr<memory> 96], [bb3: v35]
-    v11 = phi [bb0: 0], [bb3: v11]
-    v12 = phi [bb0: v0], [bb3: v36]
-    v13 = lt v9, 2
+    v11 = phi [bb0: v0], [bb3: v36]
+    v12 = phi [bb0: 0], [bb3: v41]
+    v13 = lt v12, 2
     jumpi v13, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret 1
   bb4:
-    v14 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v10, v12
+    v14 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v10, v11
     v15 = address
     v16 = gas
     v17 = address_call v15, v14, gas v16
@@ -73,7 +73,7 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v19 = eq v17, false
     icall revert_if<empty>, v19
     v20 = abi_decode [bytes32], v18
-    v21 = abi_encode [memory_bytes, memory_array<word>], scratch, args v10, v12
+    v21 = abi_encode [memory_bytes, memory_array<word>], scratch, args v10, v11
     v22 = extract_value slice<memory>, v21, 0
     v23 = extract_value slice<memory>, v21, 1
     v24 = keccak256 v22, v23
@@ -105,7 +105,7 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
   bb6:
     jump bb3
   bb3:
-    v41 = checked_add u256, v9, 1
+    v41 = checked_add u256, v12, 1
     jump bb1
 }
 
