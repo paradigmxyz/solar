@@ -507,9 +507,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.check_calldata_array_size(value, ty, abi_type);
             }
             if self.needs_calldata_aggregate_validation(value, ty) {
-                // Packing takes no ABI argument's elements validated, so even those of an
-                // argument that only ABI decoding passes are validated here.
-                if abi_type.as_ref().is_some_and(Self::is_calldata_word_array) {
+                // Packed encoding validates words even for ABI-decoded arguments, but static
+                // arrays retain zero-padded calldata reads instead of checking the source range.
+                if abi_type.as_ref().is_some_and(|abi_type| !abi_type.is_dynamic()) {
+                    // validate_static(ty, slice_ptr(value))
+                    let base = self.builder.slice_ptr(value);
+                    self.validate_calldata_static_value(ty, base);
+                } else if abi_type.as_ref().is_some_and(Self::is_calldata_word_array) {
                     self.validate_calldata_word_array(value, ty);
                 } else {
                     value = self.materialize_calldata_argument(ty, value, expr.span)?;

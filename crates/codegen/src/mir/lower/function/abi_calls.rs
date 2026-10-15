@@ -88,7 +88,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         true
     }
 
-    fn validate_calldata_static_value(&mut self, ty: Ty<'gcx>, base: ValueId) {
+    /// Validates static calldata words in place, retaining zero-padding beyond the input.
+    pub(super) fn validate_calldata_static_value(&mut self, ty: Ty<'gcx>, base: ValueId) {
         // validate_static(ty, base)
         let ty = ty.peel_refs();
         if let TyKind::Udvt(inner, _) = ty.kind {
