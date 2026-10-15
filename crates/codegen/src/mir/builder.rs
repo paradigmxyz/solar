@@ -251,16 +251,46 @@ impl<'a> FunctionBuilder<'a> {
             self.invalid();
             return;
         }
-        // Store the code first so every panic ends in the same tail.
-        // mstore(32, code); mstore(0, Panic.selector); revert(28, 36)
         let code = self.imm(code.as_u64());
-        let word = self.imm(32);
-        self.store(word, code);
-        let selector = self.imm(0x4e48_7b71_u64);
+        self.revert_scratch(U256::from(0x4e48_7b71_u64), &[code], true);
+    }
+
+    /// Reverts with a right-aligned 4-byte `selector` and its ABI `words` staged in the reserved
+    /// low memory: `mstore(0, selector)`, `mstore(32 * (i + 1), word_i)`, then
+    /// `revert(28, 4 + 32 * words.len())`.
+    ///
+    /// The stores are disjoint, so their order only decides what tail merging can share: what
+    /// changes between sites goes first. A `shared_selector`, used by every site of its payload
+    /// kind (`Panic`, `Error`), goes after the words, so a panic site reduces to its code and a
+    /// jump. A selector that names the error goes before them, so errors whose words are already
+    /// on the stack share the rest of the payload.
+    ///
+    /// Payloads over three words write past the heap start at `0x80`, which only a terminating
+    /// revert may do.
+    pub(crate) fn revert_scratch(
+        &mut self,
+        selector: U256,
+        words: &[ValueId],
+        shared_selector: bool,
+    ) {
+        let selector = self.imm(selector);
         let zero = self.imm(U256::ZERO);
-        self.store(zero, selector);
+        if !shared_selector {
+            // mstore(0, selector)
+            self.store(zero, selector);
+        }
+        // mstore(32 * (i + 1), word_i)
+        for (index, &word) in words.iter().enumerate() {
+            let offset = self.imm(32 * (index as u64 + 1));
+            self.store(offset, word);
+        }
+        if shared_selector {
+            // mstore(0, selector)
+            self.store(zero, selector);
+        }
+        // revert(28, 4 + 32 * words.len())
         let offset = self.imm(28);
-        let size = self.imm(36);
+        let size = self.imm(4 + 32 * words.len() as u64);
         self.revert(offset, size);
     }
 
@@ -373,31 +403,14 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Reverts with `abi_encode(Error(string), message)` for a constant `message`.
     fn revert_error_string(&mut self, message: &str) {
-        // mstore(0, Error(string).selector)
-        // mstore(4, 32)
-        // mstore(36, len)
-        // mstore(68 + 32 * i, word_i) for each 32-byte chunk of message
-        // revert(0, 68 + ceil32(len))
-        let selector = self.imm(ERROR_SELECTOR);
-        let zero = self.imm(0);
-        self.store(zero, selector);
-        let offset = self.imm(4);
-        let tuple_offset = self.imm(32);
-        self.store(offset, tuple_offset);
-        let length_offset = self.imm(36);
-        let length = self.imm(message.len() as u64);
-        self.store(length_offset, length);
-        let mut data_offset = 68u64;
+        // words = [32, len, chunk_0, ..., chunk_n]
+        let mut words = vec![self.imm(32), self.imm(message.len() as u64)];
         for chunk in message.as_bytes().chunks(32) {
             let mut word = [0u8; 32];
             word[..chunk.len()].copy_from_slice(chunk);
-            let offset = self.imm(data_offset);
-            let word = self.imm(U256::from_be_bytes(word));
-            self.store(offset, word);
-            data_offset += 32;
+            words.push(self.imm(U256::from_be_bytes(word)));
         }
-        let size = self.imm(data_offset);
-        self.revert(zero, size);
+        self.revert_scratch(ERROR_SELECTOR >> 224, &words, true);
     }
 
     pub(crate) fn branch_to_revert(

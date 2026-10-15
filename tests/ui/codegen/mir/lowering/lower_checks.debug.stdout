@@ -26,12 +26,12 @@
 -     icall revert_if_zero<tuple_data_too_short>, v2
 +     jumpi v2, bb7, bb6
 +   bb6:
-+     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 32 !metadata(memory=scratch)
-+     mstore 36, 34 !metadata(memory=scratch)
-+     mstore 68, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
-+     mstore 100, 0x7274000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     revert 0, 132
++     mstore 32, 32 !metadata(memory=scratch)
++     mstore 64, 34 !metadata(memory=scratch)
++     mstore 96, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
++     mstore 128, 0x7274000000000000000000000000000000000000000000000000000000000000
++     mstore 0, 0x8c379a0 !metadata(memory=scratch)
++     revert 28, 132
 +   bb7:
       mstore 96, v1
       jump bb3
@@ -54,10 +54,10 @@
 +   bb2:
 +     jumpi arg0, bb4, bb3
 +   bb3:
-+     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 32 !metadata(memory=scratch)
-+     mstore 36, 0 !metadata(memory=scratch)
-+     revert 0, 68
++     mstore 32, 32 !metadata(memory=scratch)
++     mstore 64, 0 !metadata(memory=scratch)
++     mstore 0, 0x8c379a0 !metadata(memory=scratch)
++     revert 28, 68
 +   bb4:
 +     jumpi arg0, bb6, bb5
 +   bb5:
@@ -102,10 +102,10 @@
 + 
 + fn @revert_error(arg0: i256, arg1: i256) {
 +   bb0:
-+     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 32 !metadata(memory=scratch)
-+     mstore 36, arg0 !metadata(memory=scratch)
-+     mstore 68, arg1 !metadata(memory=scratch)
-+     revert 0, 100
++     mstore 32, 32 !metadata(memory=scratch)
++     mstore 64, arg0 !metadata(memory=scratch)
++     mstore 96, arg1 !metadata(memory=scratch)
++     mstore 0, 0x8c379a0 !metadata(memory=scratch)
++     revert 28, 100
   }
   

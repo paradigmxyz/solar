@@ -11,13 +11,14 @@
 //! elimination. Other failures retain shared helpers. Instructions after an unconditional
 //! failure move to an unreachable continuation.
 //!
-//! Revert payloads are never read after the revert, so none of them reserves memory. A custom
-//! error with at most three word arguments stages its selector and words in the reserved low
-//! memory like a panic (`mstore(0, selector)`, `mstore(32 * (i + 1), word)`, `revert(28, size)`):
-//! the words are already evaluated SSA values, so clobbering the scratch, free-memory-pointer, and
-//! zero slots cannot change the payload, and a payload that does not reach the free-memory
-//! pointer slot lets the entry skip initializing it. Other custom errors and error strings encode
-//! at the free-memory pointer without advancing it.
+//! Revert payloads are never read after the revert, so none of them reserves memory. Panics,
+//! constant and short error strings, and custom errors with at most three word arguments stage
+//! their selector and words in the reserved low memory through `FunctionBuilder::revert_scratch`
+//! (`mstore(0, selector)`, `mstore(32 * (i + 1), word)`, `revert(28, size)`): the words are
+//! already evaluated SSA values, so clobbering the scratch, free-memory-pointer, and zero slots
+//! cannot change the payload, and a payload that does not reach the free-memory pointer slot lets
+//! the entry skip initializing it. Other custom errors and error strings encode at the
+//! free-memory pointer without advancing it.
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
@@ -189,17 +190,10 @@ fn emit_payload(
             builder.invalid();
         }
         RevertPayload::EmptyString => {
-            // mstore(0, Error.selector); mstore(4, 32); mstore(36, 0); revert(0, 68)
-            let selector = builder.imm(ERROR_SELECTOR);
-            let zero = builder.imm(0);
-            builder.store(zero, selector);
-            let offset = builder.imm(4);
+            // revert_scratch(Error.selector, [32, 0])
             let tuple_offset = builder.imm(32);
-            builder.store(offset, tuple_offset);
-            let length = builder.imm(36);
-            builder.store(length, zero);
-            let size = builder.imm(68);
-            builder.revert(zero, size);
+            let length = builder.imm(0);
+            builder.revert_scratch(ERROR_SELECTOR >> 224, &[tuple_offset, length], true);
         }
         RevertPayload::ErrorString(value) => {
             // payload = abi_encode_scratch(Error.selector, value)
@@ -219,19 +213,8 @@ fn emit_payload(
                 && values.len() <= MAX_SCRATCH_ERROR_WORDS
                 && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_)))
             {
-                // mstore(0, selector >> 224)
-                // mstore(32 * (i + 1), values[i])
-                // revert(28, 4 + 32 * values.len())
-                let selector = builder.imm(selector >> 224);
-                let zero = builder.imm(0);
-                builder.store(zero, selector);
-                for (index, &value) in values.iter().enumerate() {
-                    let offset = builder.imm(32 * (index as u64 + 1));
-                    builder.store(offset, value);
-                }
-                let offset = builder.imm(28);
-                let size = builder.imm(4 + 32 * values.len() as u64);
-                builder.revert(offset, size);
+                // revert_scratch(selector, values)
+                builder.revert_scratch(selector >> 224, &values, false);
                 return;
             }
             // payload = abi_encode_scratch(selector, values)
@@ -248,21 +231,10 @@ fn create_short_string_helper(module: &mut Module, context: &InstructionMetadata
     let mut function = Function::new(Ident::with_dummy_span(sym::revert_error));
     let mut builder = FunctionBuilder::new(&mut function);
     builder.set_debug_context(context);
-    // mstore(0, Error.selector); mstore(4, 32)
-    // mstore(36, length); mstore(68, data); revert(0, 100)
+    // revert_scratch(Error.selector, [32, length, data])
     let length = builder.add_param(MirType::I256);
     let value = builder.add_param(MirType::I256);
-    let selector = builder.imm(ERROR_SELECTOR);
-    let zero = builder.imm(0);
-    builder.store(zero, selector);
-    let offset = builder.imm(4);
     let tuple_offset = builder.imm(32);
-    builder.store(offset, tuple_offset);
-    let length_offset = builder.imm(36);
-    builder.store(length_offset, length);
-    let data_offset = builder.imm(68);
-    builder.store(data_offset, value);
-    let size = builder.imm(100);
-    builder.revert(zero, size);
+    builder.revert_scratch(ERROR_SELECTOR >> 224, &[tuple_offset, length, value], true);
     module.add_function(function)
 }
