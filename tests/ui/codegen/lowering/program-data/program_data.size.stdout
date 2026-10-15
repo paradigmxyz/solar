@@ -481,7 +481,15 @@ bb30:
   push bb36
   jump bb34
 bb34:
-  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  push 0x112233445566778899aabbccddeeff00
+  push 0
+  not
+  push 128
+  shr
+  push 0
+  not
+  div
+  mul
   swap 1
   jump
 bb22:
