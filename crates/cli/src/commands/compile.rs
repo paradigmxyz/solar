@@ -24,35 +24,39 @@ pub fn run_compiler_args(opts: CompileOpts) -> Result {
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
-    let control_flow = run_pipeline(
-        compiler,
-        |pcx| {
-            // Partition arguments into three categories:
-            // - `stdin`: `-`, occurrences after the first are ignored
-            // - remappings: `[context:]prefix=path`, already parsed as part of `CompileOpts`
-            // - paths: everything else
-            let mut seen_stdin = false;
-            let mut paths = Vec::new();
-            for arg in pcx.sess.opts.input.clone() {
-                if arg == "-" {
-                    if !seen_stdin {
-                        pcx.load_stdin()?;
-                    }
-                    seen_stdin = true;
-                    continue;
+    compile_and_emit(compiler, |pcx| {
+        // Partition arguments into three categories:
+        // - `stdin`: `-`, occurrences after the first are ignored
+        // - remappings: `[context:]prefix=path`, already parsed as part of `CompileOpts`
+        // - paths: everything else
+        let mut seen_stdin = false;
+        let mut paths = Vec::new();
+        for arg in pcx.sess.opts.input.clone() {
+            if arg == "-" {
+                if !seen_stdin {
+                    pcx.load_stdin()?;
                 }
-
-                if arg.contains('=') {
-                    continue;
-                }
-
-                paths.push(arg);
+                seen_stdin = true;
+                continue;
             }
 
-            pcx.par_load_files(paths)
-        },
-        |_| {},
-    )?;
+            if arg.contains('=') {
+                continue;
+            }
+
+            paths.push(arg);
+        }
+
+        pcx.par_load_files(paths)
+    })
+}
+
+/// Compiles the sources `load_sources` adds and emits the requested outputs.
+fn compile_and_emit(
+    compiler: &mut CompilerRef<'_>,
+    load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result,
+) -> Result {
+    let control_flow = run_pipeline(compiler, load_sources, |_| {})?;
     if control_flow.is_break() {
         return Ok(());
     }
@@ -180,4 +184,21 @@ fn check_source_unit_names<'a>(
 
 fn real_path(file: &SourceFile) -> &Path {
     file.name.as_real().unwrap_or(Path::new(""))
+}
+
+/// Compiles sources supplied by an embedder and emits the outputs requested by `sess.opts`.
+///
+/// `load_sources` replaces loading the files named by `sess.opts.input`. It can add in-memory
+/// sources and configure the parsing context's file resolver for imports. Compilation otherwise
+/// follows the command-line pipeline, using the session's flags and diagnostic emitter.
+///
+/// This entry point accepts Solidity and Yul sources, not Standard JSON or textual IR input.
+pub fn run_compiler_with_sources(
+    sess: Session,
+    load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result + Send,
+) -> Result {
+    if sess.opts.standard_json || !sess.opts.language.is_source() {
+        return Err(sess.dcx.err("source callbacks require Solidity or Yul input").emit());
+    }
+    run_compiler_session_with(sess, |compiler| compile_and_emit(compiler, load_sources), true)
 }
