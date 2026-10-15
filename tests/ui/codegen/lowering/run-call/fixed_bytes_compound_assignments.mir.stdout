@@ -46,8 +46,8 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
   bb0:
     v0 = not 31
     v1 = and 98, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 35
+    v2 = alloc zeroed checked v1
+    mstore v2, 35
     icall @store_storage_bytes, 0, v2
     v3 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v3
@@ -151,7 +151,7 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     ret v75
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

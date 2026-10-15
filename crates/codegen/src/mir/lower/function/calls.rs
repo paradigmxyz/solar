@@ -201,16 +201,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             // result = alloc(size, zeroed)
             // result.length = length
-            let object =
-                self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
-            self.builder.set_memory_object_len(object, len, layout.kind());
+            let object = self.builder.alloc(size, AllocationSemantics::SOLIDITY_ZEROED);
+            self.builder.set_memory_len(object, len);
             if let TyKind::DynArray(element) = ty.peel_refs().kind
                 && self.types.memory_layout(element).is_some()
             {
                 // for i in 0..length { object[i] = default(element) }
                 self.counted_loop(len, |this, index| {
                     let value = this.default_binding_value(element);
-                    this.builder.memory_object_store_element(object, layout, index, value);
+                    this.builder.memory_store_element(object, layout, index, value);
                     Some(())
                 })?;
             }
@@ -356,14 +355,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let rounded_len = self.builder.checked_add(total_len, padding);
             (total_len, self.builder.mask_padded_size(rounded_len))
         };
-        let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
+        let data = self.builder.alloc(allocation_size, AllocationSemantics::INTERNAL);
 
         // datacopy initcode(C), data, len
         self.builder.data_copy(DataRef::new(bytecode, 0), data, bytecode_len_value);
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
         // init = creation_bytecode ++ arguments
-        self.builder.copy_slice_data(SliceLocation::Memory, copy_dest, encoded_ptr, encoded_len);
+        self.builder.copy_heap(copy_dest, encoded_ptr, encoded_len, PtrLocation::Memory);
         // address = create|create2(value, init, init.length[, salt])
         let created = if let Some(salt) = salt {
             self.builder.create2(call_value, data, total_len, salt)
@@ -607,23 +606,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let zero = self.builder.imm(0);
             let word_and_length = match self.builder.func().value_ty(value) {
-                Some(MirType::MemPtr) => {
-                    let word = self.builder.memory_object_load_element(
-                        value,
-                        MemoryObjectLayout::Bytes,
-                        zero,
-                    );
-                    let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
-                    Some((word, length))
-                }
-                Some(MirType::Slice(SliceLocation::Calldata)) => {
-                    let word = self.builder.calldata_slice_load_word(value, zero);
-                    let length = self.builder.slice_len(value);
-                    Some((word, length))
-                }
-                Some(MirType::Slice(SliceLocation::Memory)) => {
-                    let word = self.builder.memory_slice_load_word(value, zero);
-                    let length = self.builder.slice_len(value);
+                Some(
+                    MirType::MEMPTR | MirType::Slice(PtrLocation::Calldata | PtrLocation::Memory),
+                ) => {
+                    let word = self.builder.slice_load_word(value, zero);
+                    let length = self.builder.memory_len(value);
                     Some((word, length))
                 }
                 _ => None,
@@ -657,12 +644,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let byte_value = match from.peel_refs().kind {
             TyKind::StringLiteral(..) => match self.builder.func().value_ty(value) {
-                Some(MirType::MemPtr) => Some(value),
+                Some(MirType::MEMPTR) => Some(value),
                 _ => return value,
             },
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 match self.builder.func().value_ty(value) {
-                    Some(MirType::MemPtr) => Some(value),
+                    Some(MirType::MEMPTR) => Some(value),
                     Some(MirType::Slice(_)) => Some(self.materialize_memory_slice(value)),
                     _ => return value,
                 }
@@ -672,7 +659,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = byte_value {
             // value = mload(bytes.data)
             let zero = self.builder.imm(U256::ZERO);
-            return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
+            return self.builder.slice_load_word(value, zero);
         }
         if let Some(source_size) = source_size {
             if source_size.bytes() > size.bytes() {
@@ -1327,7 +1314,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.imm(size_bytes);
         let above = self.builder.add(area, size);
         let zero = self.builder.imm(U256::ZERO);
-        self.builder.mstore(above, zero);
+        self.builder.store(above, zero);
     }
 
     /// Emits an external call of `selector` on `address` with the ABI-encoded `values`, and
@@ -1408,10 +1395,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // The output area overlays the arguments, so the values move out of it before the
                 // decoding allocates over them.
                 // mcopy(data, ret_offset, ret_size)
-                self.builder.mcopy(data, offset, size);
+                self.builder.copy(data, offset, size, PtrLocation::Memory);
             }
             // source = make_slice(data, size)
-            Some(self.builder.make_slice(data, size, SliceLocation::Memory))
+            Some(self.builder.make_slice(data, size, PtrLocation::Memory))
         } else if decode_returndata {
             if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
                 return report_error(self.cx.gcx, span, unsupported_returndata);
@@ -1462,9 +1449,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         layout: &AbiParamLayout,
     ) -> Option<(ValueId, ValueId)> {
         // size = head_size(layout)
-        // data = raw(size)
+        // data = alloc size
         let size = self.builder.imm(layout.checked_head_size()?);
-        let data = self.builder.alloc_raw(size, AllocationSemantics::INTERNAL);
+        let data = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         Some((data, size))
     }
 
@@ -1503,7 +1490,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|(index, &ty)| {
                 let value = self.load_static_abi_return_value(offset, index, returns.len());
                 self.validate_external_return_value(ty, value);
-                if matches!(types::TypeLowerer::mir_type(ty), MirType::MemPtr) {
+                if matches!(types::TypeLowerer::mir_type(ty), MirType::MEMPTR) {
                     self.load_static_abi_return_value_as(offset, index, returns.len(), ty)
                 } else {
                     value

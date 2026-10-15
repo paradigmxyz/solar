@@ -1,75 +1,80 @@
 // === ROOT/tests/ui/codegen/lowering/chained_calldata_slice.sol:ChainedCalldataSlice ===
 @module ChainedCalldataSlice
-fn @bytesChain(arg0: calldataslice) -> memptr [selector=0x2007c472, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @bytesChain(arg0: slice<calldata>) -> ptr<memory> [selector=0x2007c472, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub v1, 1
-    v7 = add v0, 1
+    v7 = ptradd v0, 1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
+    v9 = extract_value slice<calldata>, v8, 0
+    v10 = extract_value slice<calldata>, v8, 1
     v11 = gt v10, v10
     v12 = lt v10, 1
     v13 = or v11, v12
     v14 = zext i1 v13 to i256
     icall revert_if<empty>, v13
     v15 = sub v10, 1
-    v16 = add v9, 1
+    v16 = ptradd v9, 1
     v17 = make_calldata_slice v16, v15
-    v18 = slice_ptr v17
-    v19 = slice_len v17
+    v18 = extract_value slice<calldata>, v17, 0
+    v19 = extract_value slice<calldata>, v17, 1
     v20 = calldatasize
     v21 = gt v19, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v21
     v22 = sub v20, v19
-    v23 = sgt v18, v22
-    icall revert_if<calldata_tail_too_short>, v23
-    v24 = slice_len v17
-    v25 = add v24, 63
-    v26 = lt v25, v24
-    icall panic_if<0x41>, v26
-    v27 = not 31
-    v28 = and v25, v27
-    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
-    set_memory_object_len memorybytes, v29, v24
-    memory_object_copy_from_slice memorybytes, v29, v17
-    ret v29
+    v23 = ptrtoint ptr<calldata> v18 to i256
+    v24 = sgt v23, v22
+    icall revert_if<calldata_tail_too_short>, v24
+    v25 = extract_value slice<calldata>, v17, 1
+    v26 = add v25, 63
+    v27 = lt v26, v25
+    icall panic_if<0x41>, v27
+    v28 = not 31
+    v29 = and v26, v28
+    v30 = alloc v29
+    mstore v30, v25
+    v31 = ptradd v30, 32
+    v32 = extract_value slice<calldata>, v17, 0
+    v33 = extract_value slice<calldata>, v17, 1
+    calldatacopy v31, v32, v33
+    ret v30
 }
 
-fn @arrChain(arg0: calldataslice) -> i256 [selector=0x65df4193, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @arrChain(arg0: slice<calldata>) -> i256 [selector=0x65df4193, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub v1, 1
-    v7 = add v0, 32
+    v7 = ptradd v0, 32
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
+    v9 = extract_value slice<calldata>, v8, 0
+    v10 = extract_value slice<calldata>, v8, 1
     v11 = gt v10, v10
     v12 = lt v10, 1
     v13 = or v11, v12
     v14 = zext i1 v13 to i256
     icall revert_if<empty>, v13
     v15 = sub v10, 1
-    v16 = add v9, 32
+    v16 = ptradd v9, 32
     v17 = make_calldata_slice v16, v15
-    v18 = slice_len v17
+    v18 = extract_value slice<calldata>, v17, 1
     v19 = lt 0, v18
     v20 = eq v19, false
     icall panic_if<0x32>, v20
-    v21 = slice_ptr v17
-    v22 = add v21, 0
-    v23 = calldataload v22
-    ret v23
+    v21 = extract_value slice<calldata>, v17, 0
+    v22 = ptrtoint ptr<calldata> v21 to i256
+    v23 = add v22, 0
+    v24 = calldataload v23
+    ret v24
 }

@@ -1,5 +1,5 @@
 //@compile-flags: -Zmir-pipeline=none
-//~? ERROR: [fn0] [bb0, inst0] aggregate operand does not match its declared struct type
+//~? ERROR: [fn0] [bb0, inst0] aggregate operand does not match its declared type
 //~? ERROR: [fn1] [bb0, inst0] inserted value must have type `i1`
 //~? ERROR: [fn2] [bb0] return values do not match the signature
 //~? ERROR: [fn3] [bb0, inst0] `select` has incompatible scalar types; use an explicit cast
@@ -57,16 +57,16 @@ fn @mixed_return(arg0: struct0, arg1: i256) -> struct1 [return_abi=[struct0, i25
     ret arg0, arg1
 }
 
-fn @invalid_object_pointer(arg0: struct0) -> memptr {
+fn @invalid_object_pointer(arg0: struct0) -> ptr<memory> {
   bb0:
-    v0 = inttoptr struct0 arg0 to memptr
+    v0 = inttoptr struct0 arg0 to ptr<memory>
     ret v0
 }
 
 //~? ERROR: [fn8] [bb0, inst0] `zext` has incompatible scalar types; use an explicit cast
-fn @invalid_integer_extension(arg0: calldataslice) -> i256 {
+fn @invalid_integer_extension(arg0: slice<calldata>) -> i256 {
   bb0:
-    v0 = zext calldataslice arg0 to i256
+    v0 = zext slice<calldata> arg0 to i256
     ret v0
 }
 
@@ -130,17 +130,18 @@ fn @integer_ptrtoint(arg0: i256) -> i256 {
     ret v0
 }
 
-//~? ERROR: [fn18] [bb0, inst0] `memory_object_load_element` has incompatible scalar types; use an explicit cast
-fn @implicit_object_index(arg0: memptr, arg1: i1) -> i256 {
+//~? ERROR: [fn18] [bb0, inst0] `ptradd` has incompatible scalar types; use an explicit cast
+fn @implicit_object_index(arg0: ptr<memory>, arg1: i1) -> i256 {
   bb0:
-    v0 = memory_object_load_element memoryarray<1>, arg0, arg1
+    v1 = ptradd arg0, arg1
+    v0 = mload v1
     ret v0
 }
 
-//~? ERROR: [fn19] [bb0, inst0] `memory_object_store_word` has incompatible scalar types; use an explicit cast
-fn @implicit_object_value(arg0: memptr, arg1: i160) {
+//~? ERROR: [fn19] [bb0, inst0] `mstore` has incompatible scalar types; use an explicit cast
+fn @implicit_object_value(arg0: ptr<memory>, arg1: i160) {
   bb0:
-    memory_object_store_word memorybytes, arg0, 0, arg1
+    mstore arg0, arg1
     ret
 }
 
@@ -159,36 +160,36 @@ fn @implicit_check_condition(arg0: i256) {
 }
 
 //~? ERROR: [fn22] [bb0, inst0] `abi_encode` has incompatible scalar types; use an explicit cast
-fn @implicit_abi_word(arg0: i1) -> memoryslice {
+fn @implicit_abi_word(arg0: i1) -> slice<memory> {
   bb0:
     v0 = abi_encode [word], args arg0
     ret v0
 }
 
-//~? ERROR: [fn23] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
-fn @implicit_return_pointer(arg0: memptr) {
+//~? ERROR: [fn23] [bb0] raw return and revert operands must be a memory address and an `i256` size
+fn @implicit_return_pointer(arg0: ptr<calldata>) {
   bb0:
     returndata arg0, 32
 }
 
 //~? ERROR: [fn24] [bb0, inst0] ABI input location does not support its layout
-fn @dynamic_calldata_tuple(arg0: calldataslice) -> memoryslice {
+fn @dynamic_calldata_tuple(arg0: slice<calldata>) -> slice<memory> {
   bb0:
     v0 = abi_encode [tuple<calldata_bytes>], args arg0
     ret v0
 }
 
 //~? ERROR: [fn25] [bb0, inst0] ABI input location does not support its layout
-fn @nested_calldata_array(arg0: calldataslice) -> memoryslice {
+fn @nested_calldata_array(arg0: slice<calldata>) -> slice<memory> {
   bb0:
     v0 = abi_encode [calldata_array<calldata_array<word>>], args arg0
     ret v0
 }
 
-//~? ERROR: [fn26] [bb0, inst0] `memory_object_data` has incompatible scalar types; use an explicit cast
-fn @calldata_as_memory(arg0: calldataslice) -> memptr {
+//~? ERROR: [fn26] [bb0, inst0] `mload` has incompatible scalar types; use an explicit cast
+fn @calldata_as_memory(arg0: slice<calldata>) -> i256 {
   bb0:
-    v0 = memory_object_data memorybytes, arg0
+    v0 = mload arg0
     ret v0
 }
 

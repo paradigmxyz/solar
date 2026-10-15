@@ -25,7 +25,7 @@
 use crate::{
     backend::evm::select::opcode_lowering,
     mir::{
-        EffectKind, Function, FunctionBuilder, InstKind, MirType, Module, Terminator,
+        EffectKind, Function, FunctionBuilder, InstKind, MirType, Module, PtrLocation, Terminator,
         analysis::CallGraphInfo,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses},
@@ -127,7 +127,7 @@ fn inline_dispatch(module: &mut Module) -> bool {
         (0..argument_count)
             .map(|index| {
                 let offset = builder.imm(4 + index as u64 * EvmMemoryLayout::WORD_SIZE);
-                builder.calldataload(offset)
+                builder.load(offset, PtrLocation::Calldata)
             })
             .collect::<Box<[_]>>()
     };
@@ -159,8 +159,15 @@ fn eligible(func: &Function) -> bool {
         && func.instructions().all(|id| {
             let kind = &func.inst(id).kind;
             match kind {
-                InstKind::MStore(ptr, _) => safe_constant_memory_write(func, *ptr),
-                InstKind::Phi(_) | InstKind::CalldataLoad(_) | InstKind::CalldataSize => true,
+                InstKind::Store(ptr, _, PtrLocation::Memory) => {
+                    safe_constant_memory_write(func, *ptr)
+                }
+                // Full-width pointer casts emit no code.
+                InstKind::Phi(_)
+                | InstKind::IntToPtr(_)
+                | InstKind::PtrToInt(_, 256)
+                | InstKind::Load(_, PtrLocation::Calldata)
+                | InstKind::CalldataSize => true,
                 _ => {
                     kind.effect_kind() == EffectKind::Pure && opcode_lowering(&kind.op()).is_some()
                 }

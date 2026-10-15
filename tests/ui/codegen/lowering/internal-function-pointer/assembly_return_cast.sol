@@ -158,7 +158,7 @@ contract InternalFunctionPointerAssemblyReturnCast {
     // CHECK-LABEL: fn @internal_dispatcher_asm_p_u256_r_memorystruct(
     // CHECK: eq arg0, [[DECODE_PAIR]]
     // CHECK: [[WORD:v[0-9]+]] = icall @_decodePair, arg1
-    // CHECK-NEXT: inttoptr i256 [[WORD]] to memptr
+    // CHECK-NEXT: inttoptr i256 [[WORD]] to ptr<memory>
     //
     // A pointer that never touches assembly keeps the per-type dispatch.
     // CHECK-LABEL: fn @internal_dispatcher_p_u256_r_bool(

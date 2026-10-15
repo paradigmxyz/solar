@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol:C ===
 @module C
-fn @parseSel(arg0: memptr) -> i256 [pure] {
+fn @parseSel(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     ret v2
@@ -77,21 +77,22 @@ fn @readRaw(arg0: i256) -> i256 [pure] {
 fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 0
-    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v1, 1
-    v2 = memory_object_len memoryarray, v1
+    v1 = alloc zeroed checked 64
+    mstore v1, 1
+    v2 = mload v1
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = trunc i256 v0 to i160
     v6 = zext i160 v5 to i256
-    memory_object_store_element memoryarray<1>, v1, 0, v6
-    v7 = shl 160, 1
-    v8 = sub v7, 1
-    v9 = ptrtoint memptr v1 to i256
-    v10 = add v9, 32
-    v11 = mload v10
-    v12 = eq v11, v8
-    v13 = zext i1 v12 to i256
-    ret v13
+    v7 = ptradd v1, 32
+    mstore v7, v6
+    v8 = shl 160, 1
+    v9 = sub v8, 1
+    v10 = ptrtoint ptr<memory> v1 to i256
+    v11 = add v10, 32
+    v12 = mload v11
+    v13 = eq v12, v9
+    v14 = zext i1 v13 to i256
+    ret v14
 }

@@ -1,6 +1,6 @@
 //! MIR values.
 
-use super::{ArgIdx, InstId, MirType};
+use super::{ArgIdx, InstId, MirType, PtrLocation};
 use alloy_primitives::U256;
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{cmp::Ordering, fmt, num::NonZeroU32};
@@ -45,8 +45,8 @@ pub(crate) enum Immediate {
     Int(U256, NonZeroU32),
     /// A 256-bit integer constant.
     I256(U256),
-    /// A constant `memptr`, with no implied validity or aliasing guarantee.
-    Pointer(U256),
+    /// A constant pointer into a location, with no implied validity or aliasing guarantee.
+    Pointer(U256, PtrLocation),
 }
 
 impl Immediate {
@@ -69,7 +69,7 @@ impl Immediate {
                 );
                 Self::Int(value, bits)
             }
-            Some(MirType::MemPtr) => Self::Pointer(value),
+            Some(MirType::Ptr(location)) => Self::Pointer(value, location),
             _ => Self::I256(value),
         }
     }
@@ -81,7 +81,7 @@ impl Immediate {
             Self::I1(_) => MirType::I1,
             Self::I256(_) => MirType::I256,
             Self::Int(_, bits) => MirType::Int(*bits),
-            Self::Pointer(_) => MirType::MemPtr,
+            Self::Pointer(_, location) => MirType::Ptr(*location),
         }
     }
 
@@ -90,7 +90,7 @@ impl Immediate {
     pub(crate) fn as_u256(&self) -> Option<U256> {
         match self {
             Self::I1(b) => Some(U256::from(*b as u64)),
-            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v) => Some(*v),
+            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v, _) => Some(*v),
         }
     }
 }
@@ -99,7 +99,7 @@ impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::I1(b) => write!(f, "{b}"),
-            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v) => {
+            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v, _) => {
                 write!(f, "{v}")
             }
         }
@@ -111,7 +111,7 @@ impl Ord for Immediate {
         let rank = |value: &Self| match value {
             Self::I1(_) => 0,
             Self::I256(_) => 1,
-            Self::Pointer(_) => 2,
+            Self::Pointer(..) => 2,
             Self::Int(_, _) => 3,
         };
         rank(self).cmp(&rank(other)).then_with(|| match (self, other) {
@@ -120,7 +120,9 @@ impl Ord for Immediate {
             (Self::Int(a, a_bits), Self::Int(b, b_bits)) => {
                 a_bits.cmp(b_bits).then_with(|| a.cmp(b))
             }
-            (Self::Pointer(a), Self::Pointer(b)) => a.cmp(b),
+            (Self::Pointer(a, a_location), Self::Pointer(b, b_location)) => {
+                a_location.cmp(b_location).then_with(|| a.cmp(b))
+            }
             _ => Ordering::Equal,
         })
     }

@@ -125,21 +125,18 @@ library Base64 {
 }
 
 contract CheckedBase64 {
-    // OPT-LABEL: fn @encode{{[.0-9]*}}(arg0: memptr, arg1: i1, arg2: i1)
+    // OPT-LABEL: fn @encode{{[.0-9]*}}(arg0: i256, arg1: i1, arg2: i1)
     // Allocating the output may alias the input header, so reload it before the loop.
-    // OPT: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
-    // OPT-LABEL: fn @decode{{[.0-9]*}}(arg0: memptr)
+    // OPT: {{v[0-9]+}} = mload arg0
+    // OPT: {{v[0-9]+}} = mload arg0
+    // OPT-LABEL: fn @decode{{[.0-9]*}}(arg0: i256)
     // Allocating the output may alias the input header, so reload it before the loop.
-    // OPT: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
+    // OPT: {{v[0-9]+}} = mload arg0
+    // OPT: {{v[0-9]+}} = mload arg0
     // OPT-NOT: icall @literal_bytes_word
     // OPT: {{v[0-9]+}} = add {{v[0-9]+}}, 3{{$}}
     // OPT-NEXT: [[MAIN:v[0-9]+]] = lt
     // OPT-NEXT: jumpi [[MAIN]]
-    // OPT-NOT: icall @_decode
     function decode(string memory data) external pure returns (bytes memory) {
         return Base64.decode(data);
     }

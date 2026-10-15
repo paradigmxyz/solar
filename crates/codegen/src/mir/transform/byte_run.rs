@@ -58,7 +58,7 @@
 //! backward scan a block gives.
 
 use crate::mir::{
-    EffectKind, Function, Immediate, InstId, InstKind, Module, Value, ValueId,
+    EffectKind, Function, Immediate, InstId, InstKind, Module, PtrLocation, Value, ValueId,
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use alloy_primitives::U256;
@@ -235,7 +235,7 @@ fn collect(
     }
 }
 
-/// Whether an instruction extracts the low byte of an `mload`: a possible run leaf.
+/// Whether an instruction extracts the low byte of a `mload`: a possible run leaf.
 fn is_byte_leaf(func: &Function, kind: &InstKind) -> bool {
     let word = match *kind {
         InstKind::Byte(index, word) if func.value_u64(index) == Some(0) => word,
@@ -252,7 +252,7 @@ fn is_byte_leaf(func: &Function, kind: &InstKind) -> bool {
         }
         _ => return false,
     };
-    matches!(*func.value(word), Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::MLoad(_)))
+    matches!(*func.value(word), Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::Load(.., PtrLocation::Memory)))
 }
 
 /// Records one `mload` whose low byte the run combines.
@@ -264,7 +264,9 @@ fn push_leaf(
     leaves: &mut Vec<Leaf>,
 ) -> bool {
     let Value::Inst(inst) = *func.value(word) else { return false };
-    let InstKind::MLoad(address) = func.inst(inst).kind else { return false };
+    let InstKind::Load(address, PtrLocation::Memory) = func.inst(inst).kind else {
+        return false;
+    };
     // The read must be reachable from the root with no store in between. A
     // read may be shared with other users; only the interior nodes are
     // consumed, and the lowest address's read is kept.
@@ -372,7 +374,7 @@ fn byte_read(func: &Function, inst: InstId) -> Option<(Vec<ValueId>, u64, ValueI
         return None;
     }
     let Value::Inst(load) = *func.value(word) else { return None };
-    let InstKind::MLoad(address) = func.inst(load).kind else { return None };
+    let InstKind::Load(address, PtrLocation::Memory) = func.inst(load).kind else { return None };
     let (base, offset) = address_key(func, address)?;
     Some((base, offset, word))
 }

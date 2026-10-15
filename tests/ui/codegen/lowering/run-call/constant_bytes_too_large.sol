@@ -14,8 +14,8 @@ contract C {
     // CHECK-NOT: alloc
     // CHECK: icall @constant_
     // CHECK-LABEL: fn @constant_
-    // CHECK: alloc memorybytes, exact, zeroed
-    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 0x10001
+    // CHECK: [[BYTES:v[0-9]+]] = alloc zeroed
+    // CHECK: mstore [[BYTES]], 0x10001
     function length() public pure returns (uint256) {
         B;
         return B.length;

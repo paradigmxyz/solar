@@ -6,13 +6,15 @@ fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[array<134217727, u256>, u256]] {
+fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<134217727, u256>, u256]] {
   bb0:
     v0 = lt arg1, 0x7ffffff
     v1 = eq v0, false
     icall panic_if<0x32>, v1
-    v2 = memory_object_load_element memoryfixedarray<134217727, 1>, arg0, arg1
-    sstore 0, v2 !metadata(storage=slot(0))
+    v2 = shl 5, arg1
+    v3 = ptradd arg0, v2
+    v4 = mload v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }
 
@@ -24,14 +26,15 @@ fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[array<3, u256>, u256]] {
+fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<3, u256>, u256]] {
   bb0:
     v0 = lt 2, 3
     v1 = eq v0, false
     icall panic_if<0x32>, v1
-    v2 = memory_object_load_element memoryfixedarray<3, 1>, arg0, 2
-    v3 = checked_add u256, v2, arg1
-    v4 = checked_sub u256, v3, 3
-    sstore 0, v4 !metadata(storage=slot(0))
+    v2 = ptradd arg0, 64
+    v3 = mload v2
+    v4 = checked_add u256, v3, arg1
+    v5 = checked_sub u256, v4, 3
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }

@@ -345,7 +345,7 @@ fn @nested(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @pointer_counter{{[( ]}}
 // CHECK: + jump [[CHECK:bb[0-9]+]]
 // CHECK-NEXT: + [[CHECK]]:
-// CHECK: + [[WORD:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+// CHECK: + [[WORD:v[0-9]+]] = ptrtoint ptr<memory> {{v[0-9]+}} to i256
 // CHECK: + [[LEFT:v[0-9]+]] = sub v1, [[WORD]]
 // CHECK-NEXT: + [[BIT:v[0-9]+]] = and [[LEFT]], 1
 // CHECK-NEXT: + [[ODD:v[0-9]+]] = ne [[BIT]], 0
@@ -359,15 +359,15 @@ fn @nested(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + jump [[SECOND_HEADER:bb[0-9]+]]
 // CHECK-NEXT: + [[SECOND_HEADER]]:
 // CHECK: + [[SECOND]]:
-fn @pointer_counter(arg0: memptr, arg1: i256) -> i256 {
+fn @pointer_counter(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, arg1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb3: v8]
     v3 = phi [bb0: arg0], [bb3: v9]
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     v5 = ne v4, v1
     jumpi v5, bb3, bb2
   bb2:
@@ -376,7 +376,7 @@ fn @pointer_counter(arg0: memptr, arg1: i256) -> i256 {
     v6 = add v4, 1
     v7 = mload v6
     v8 = add v2, v7
-    v9 = inttoptr i256 v6 to memptr
+    v9 = inttoptr i256 v6 to ptr<memory>
     jump bb1
 }
 

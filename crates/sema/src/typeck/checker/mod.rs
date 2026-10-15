@@ -649,7 +649,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
                     if let Some(index) = index {
-                        let _ = self.check_expr_outside_lvalue_context(index, Some(index_ty));
+                        let index_ty =
+                            self.check_expr_outside_lvalue_context(index, Some(index_ty));
+                        self.check_index_bounds(expr.span, ty, index, index_ty);
                     } else {
                         self.dcx().emit_err(expr.span, "index expression cannot be omitted");
                     }
@@ -1319,6 +1321,40 @@ impl<'gcx> TypeChecker<'gcx> {
             TyKind::Mapping(key, value) => (key, value.with_loc_if_ref_opt(self.gcx, loc)),
             _ => return None,
         })
+    }
+
+    /// Reports a literal index past the end of a fixed-size array or of fixed bytes.
+    ///
+    /// Like solc, this only considers number literals, not constants. A negative or oversized
+    /// literal has already failed its conversion to `uint256`.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L3605-L3676>
+    fn check_index_bounds(
+        &self,
+        span: Span,
+        ty: Ty<'gcx>,
+        index: &hir::Expr<'_>,
+        index_ty: Ty<'gcx>,
+    ) {
+        let (len, code) = match ty.peel_refs().kind {
+            TyKind::Array(_, len) => (len, error_code!(3383)),
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
+                (U256::from(size.bytes()), error_code!(1859))
+            }
+            _ => return,
+        };
+        if index_ty.is_number_literal()
+            && let Ok(value) = self.gcx.early_const_eval().eval_int(index)
+            && let Some(value) = value.as_u256()
+            && value >= len
+        {
+            self.dcx()
+                .err("out of bounds array access")
+                .code(code)
+                .span(span)
+                .span_label(index.span, format!("the length is {len} but the index is {value}"))
+                .emit();
+        }
     }
 
     #[must_use]

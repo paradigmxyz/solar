@@ -60,16 +60,16 @@ fn @abiEncoding() -> i1 [selector=0xe9e87e69, view, abi_params=[], abi_returns=[
     v19 = and v12, v18
     v20 = or v19, v17
     v21 = abi_encode [function], scratch, args v20
-    v22 = slice_ptr v21
-    v23 = slice_len v21
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
     v24 = keccak256 v22, v23
     v25 = address
     v26 = zext i160 v25 to i256
     v27 = shl 32, v26
     v28 = or v27, 0xe2179b8e
     v29 = abi_encode [function], scratch, args v28
-    v30 = slice_ptr v29
-    v31 = slice_len v29
+    v30 = extract_value slice<memory>, v29, 0
+    v31 = extract_value slice<memory>, v29, 1
     v32 = keccak256 v30, v31
     v33 = eq v24, v32
     ret v33

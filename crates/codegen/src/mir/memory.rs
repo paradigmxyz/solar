@@ -4,27 +4,6 @@
 //! embedding these addresses. Inline assembly can still access the conventional
 //! words directly, so alias analysis and backend lowering share this policy.
 
-use crate::mir::{MemoryObjectKind, MemoryObjectLayout};
-
-/// Policy interface between semantic memory-object MIR and a physical target
-/// memory representation.
-pub(crate) trait MemoryLayoutPolicy {
-    /// Target word size in bytes.
-    const WORD_SIZE: u64;
-
-    /// Returns the byte offset of an object's logical length word.
-    fn object_length_offset(kind: MemoryObjectKind) -> Option<u64>;
-
-    /// Returns the byte offset of the first payload byte.
-    fn object_data_offset(kind: MemoryObjectKind) -> u64;
-
-    /// Returns the byte offset of a direct struct field.
-    fn field_offset(layout: MemoryObjectLayout, field: u64) -> Option<u64>;
-
-    /// Returns the byte stride of an array element.
-    fn element_stride(layout: MemoryObjectLayout) -> Option<u64>;
-}
-
 /// The selected physical EVM memory layout.
 pub(crate) struct EvmMemoryLayout;
 
@@ -47,6 +26,12 @@ impl EvmMemoryLayout {
     pub(crate) const INTERNAL_FRAME_HEADER_SIZE: u64 = 2 * Self::WORD_SIZE;
     /// Maximum memory pointer accepted by Solidity-compatible allocation.
     pub(crate) const MAX_ALLOCATION_END: u64 = u64::MAX;
+    /// Returns the word a word-aligned byte offset addresses.
+    #[must_use]
+    pub(crate) const fn word_slot(offset: u64) -> Option<u64> {
+        if offset.is_multiple_of(Self::WORD_SIZE) { Some(offset / Self::WORD_SIZE) } else { None }
+    }
+
     /// Returns whether an absolute address is in reserved low memory.
     #[must_use]
     pub(crate) const fn is_reserved(address: u64) -> bool {
@@ -60,40 +45,5 @@ impl EvmMemoryLayout {
             Some(value) => Some(value & !(Self::WORD_SIZE - 1)),
             None => None,
         }
-    }
-}
-
-impl MemoryLayoutPolicy for EvmMemoryLayout {
-    const WORD_SIZE: u64 = Self::WORD_SIZE;
-
-    fn object_length_offset(kind: MemoryObjectKind) -> Option<u64> {
-        match kind {
-            MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => Some(0),
-            MemoryObjectKind::FixedArray | MemoryObjectKind::Struct => None,
-        }
-    }
-
-    fn object_data_offset(kind: MemoryObjectKind) -> u64 {
-        match kind {
-            MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => Self::DYNAMIC_HEADER_SIZE,
-            MemoryObjectKind::FixedArray | MemoryObjectKind::Struct => 0,
-        }
-    }
-
-    fn field_offset(layout: MemoryObjectLayout, field: u64) -> Option<u64> {
-        let MemoryObjectLayout::Struct { fields } = layout else { return None };
-        (field < fields).then(|| field.saturating_mul(Self::WORD_SIZE))
-    }
-
-    fn element_stride(layout: MemoryObjectLayout) -> Option<u64> {
-        let words = match layout {
-            MemoryObjectLayout::DynamicArray { element_words }
-            | MemoryObjectLayout::FixedArray { element_words, .. } => element_words,
-            // Byte objects are addressed in word chunks for bulk materialization
-            // and zeroing. Byte-indexed access uses the dedicated byte helpers.
-            MemoryObjectLayout::Bytes => 1,
-            MemoryObjectLayout::Struct { .. } => return None,
-        };
-        u64::from(words).checked_mul(Self::WORD_SIZE)
     }
 }

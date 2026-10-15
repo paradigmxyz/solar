@@ -31,9 +31,9 @@ contract CalldataSliceYulBounds {
     // Trimming a slice in place: read back the new length after adjusting both
     // components.
     // CHECK-LABEL: fn @trimLen{{[( ]}}
-    // CHECK: slice_ptr
+    // CHECK: extract_value slice<calldata>, {{[^,]+}}, 0
     // CHECK: add {{.*}}, 4
-    // CHECK: slice_len
+    // CHECK: extract_value slice<calldata>, {{[^,]+}}, 1
     // CHECK: sub {{.*}}, 4
     // CHECK: make_calldata_slice
     function trimLen(bytes calldata x) external pure returns (uint256) {
@@ -49,7 +49,7 @@ contract CalldataSliceYulBounds {
     // the untaken path keeps the original length.
     // CHECK-LABEL: fn @conditional{{[( ]}}
     // CHECK: phi [
-    // CHECK: slice_len
+    // CHECK: extract_value slice<calldata>, {{[^,]+}}, 1
     function conditional(bytes calldata x) external pure returns (uint256) {
         bytes calldata y = x;
         if (x.length > 32) {

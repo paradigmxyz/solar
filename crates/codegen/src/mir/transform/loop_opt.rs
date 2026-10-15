@@ -48,10 +48,11 @@
 
 use crate::mir::{
     BlockId, Callee, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId,
-    InstKind, Instruction, MirType, Module, OpTraits, StorageAlias, Terminator, Value, ValueId,
+    InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
+    ValueId,
     analysis::{
-        Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location,
-        LocationSize, Loop, LoopAnalyzer, ScalarEvolution,
+        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
+        Loop, LoopAnalyzer, MemoryLocation, ScalarEvolution,
     },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
@@ -113,16 +114,17 @@ impl MirPass for Licm {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum StorageSpace {
-    Persistent,
-    Transient,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct AffineRange {
     base: Option<ValueId>,
     start: i128,
     end: i128,
+}
+
+/// What a hoist candidate's load reads: its extent and, when affine, its range.
+#[derive(Clone, Copy)]
+struct LoadRange {
+    location: Option<MemoryLocation>,
+    affine: Option<AffineRange>,
 }
 
 #[derive(Clone, Copy)]
@@ -480,31 +482,14 @@ impl LoopOptimizer {
             // MSIZE in the function could observe; on top of the dependence checks they must
             // also be guaranteed to execute so a zero-trip loop cannot start trapping (OOG
             // from speculated memory expansion) or paying for work it never did.
-            InstKind::MLoad(addr) => {
+            InstKind::Load(addr, PtrLocation::Memory) => {
                 return !self.function_observes_msize(func)
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
             }
-            // A semantic length read lowers to one word load of the object's
-            // header. Element, byte, and word stores address the payload that
-            // follows the header, so alias analysis can prove the loop leaves
-            // the length alone while the object identity is still explicit.
-            // An object layout does not prove that the header is allocated.
-            // As with raw loads, require execution on every path through the loop.
-            InstKind::MemoryObjectLen(..) => {
-                return !self.function_observes_msize(func)
-                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
-                    && !self.loop_may_write_read_locations(func, ctx, inst_id);
-            }
-            // These semantic memory reads lower to `mload` after LICM. Keep them in
-            // place until their physical address and width are explicit so a store
-            // in the loop cannot be missed by the dependence check above.
-            InstKind::MemoryObjectLoadField { .. }
-            | InstKind::MemoryObjectLoadElement { .. }
-            | InstKind::MemoryObjectLoadByte { .. }
-            | InstKind::MemorySliceLoadWord { .. }
-            | InstKind::Keccak256Bytes(_)
-            | InstKind::FrameLoad { .. } => return false,
+            // A frame slot's address is implicit until frame lowering. Keep the load in place so a
+            // store in the loop cannot be missed by the dependence check above.
+            InstKind::FrameLoad { .. } => return false,
             InstKind::Keccak256(offset, size) => {
                 return !self.function_observes_msize(func)
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
@@ -516,29 +501,12 @@ impl LoopOptimizer {
                     );
             }
             InstKind::MappingSlot(_, _)
-            | InstKind::MappingSlotMemory(_, _)
-            | InstKind::MappingSlotCalldata(_, _)
+            | InstKind::MappingSlotBytes(_, _)
             | InstKind::StorageArrayDataSlot(_)
             | InstKind::StorageArrayElementSlot { .. } => return false,
-            InstKind::SLoad(slot) => {
+            InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
-                    && !self.loop_may_mutate_storage_slot(
-                        func,
-                        ctx,
-                        inst_id,
-                        slot,
-                        StorageSpace::Persistent,
-                    );
-            }
-            InstKind::TLoad(slot) => {
-                return self.hoist_execution_guaranteed(func, inst_id, ctx)
-                    && !self.loop_may_mutate_storage_slot(
-                        func,
-                        ctx,
-                        inst_id,
-                        slot,
-                        StorageSpace::Transient,
-                    );
+                    && !self.loop_may_mutate_storage_slot(func, ctx, inst_id, slot, location);
             }
             InstKind::LoadImmutable(id) => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
@@ -669,12 +637,10 @@ impl LoopOptimizer {
 
     fn licm_profit(&self, func: &Function, inst_id: InstId) -> u16 {
         match func.inst(inst_id).kind {
-            InstKind::SLoad(_) => 100,
-            InstKind::TLoad(_) => 100,
+            InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient) => 100,
             InstKind::Keccak256(_, _) => 30,
             InstKind::MappingSlot(_, _)
-            | InstKind::MappingSlotMemory(_, _)
-            | InstKind::MappingSlotCalldata(_, _)
+            | InstKind::MappingSlotBytes(_, _)
             | InstKind::StorageArrayDataSlot(_)
             | InstKind::StorageArrayElementSlot { .. } => 30,
             InstKind::Exp(_, _) => 10,
@@ -686,7 +652,7 @@ impl LoopOptimizer {
             | InstKind::AddMod(_, _, _)
             | InstKind::MulMod(_, _, _)
             | InstKind::Clz(_) => 5,
-            InstKind::MLoad(_) | InstKind::CalldataLoad(_) | InstKind::MemoryObjectLen(_, _) => 3,
+            InstKind::Load(..) => 3,
             _ => 0,
         }
     }
@@ -769,20 +735,22 @@ impl LoopOptimizer {
         load_width: Option<u64>,
     ) -> bool {
         let aa = self.alias();
+        // The hoist candidate's address is loop-invariant, so its extent and affine range hold
+        // for every store the loop makes.
+        let load = load_width.map(|width| LoadRange {
+            location: aa.bare_access_extent(func, load_addr, LocationSize::Const(width)),
+            affine: self.affine_range(func, ctx, load_addr, width, None),
+        });
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match func.inst(inst_id).kind {
-                    InstKind::MStore(addr, _) => {
-                        if self.memory_ranges_may_alias(
-                            func, ctx, load_addr, load_width, addr, 32, block_id,
-                        ) {
+                    InstKind::Store(addr, _, PtrLocation::Memory) => {
+                        if self.memory_ranges_may_alias(func, ctx, load, addr, 32, block_id) {
                             return true;
                         }
                     }
-                    InstKind::MStore8(addr, _) => {
-                        if self.memory_ranges_may_alias(
-                            func, ctx, load_addr, load_width, addr, 1, block_id,
-                        ) {
+                    InstKind::Store8(addr, _) => {
+                        if self.memory_ranges_may_alias(func, ctx, load, addr, 1, block_id) {
                             return true;
                         }
                     }
@@ -800,47 +768,13 @@ impl LoopOptimizer {
         false
     }
 
-    /// Returns true if any loop instruction or terminator may write a location
-    /// that `load_inst` reads, or if that read is not a bounded location.
-    fn loop_may_write_read_locations(
-        &self,
-        func: &Function,
-        ctx: LoopOptContext<'_>,
-        load_inst: InstId,
-    ) -> bool {
-        let aa = self.alias();
-        let mut locations = ArrayVec::<Location, 4>::new();
-        for &access in aa.instruction_mod_ref(func, load_inst).reads() {
-            match access {
-                Access::Location(location) if !locations.is_full() => locations.push(location),
-                Access::Location(_) | Access::Any(_) => return true,
-            }
-        }
-        for block_id in &ctx.loop_data.blocks {
-            let block = &func.blocks[block_id];
-            for &inst_id in &block.instructions {
-                let effects = aa.instruction_mod_ref(func, inst_id);
-                if locations.iter().any(|&location| effects.may_write(aa, location)) {
-                    return true;
-                }
-            }
-            if let Some(terminator) = &block.terminator {
-                let effects = aa.terminator_mod_ref(func, terminator);
-                if locations.iter().any(|&location| effects.may_write(aa, location)) {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
     fn loop_may_mutate_storage_slot(
         &self,
         func: &Function,
         ctx: LoopOptContext<'_>,
         load_inst: InstId,
         load_slot: ValueId,
-        space: StorageSpace,
+        location: PtrLocation,
     ) -> bool {
         let aa = self.alias();
         let Some(load_alias) =
@@ -848,15 +782,15 @@ impl LoopOptimizer {
         else {
             return true;
         };
+        let Some(load) = Location::slot(location, load_alias) else { return true };
         if !self.can_use_storage_alias_for_licm(load_alias, ctx.loop_data) {
             return true;
         }
 
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                match (space, &func.inst(inst_id).kind) {
-                    (StorageSpace::Persistent, InstKind::SStore(slot, _))
-                    | (StorageSpace::Transient, InstKind::TStore(slot, _)) => {
+                match &func.inst(inst_id).kind {
+                    InstKind::Store(slot, _, store_location) if *store_location == location => {
                         let Some(store_alias) =
                             self.storage_alias_for_loop_value(func, inst_id, *slot, ctx.loop_data)
                         else {
@@ -865,24 +799,15 @@ impl LoopOptimizer {
                         if !self.can_use_storage_alias_for_licm(store_alias, ctx.loop_data) {
                             return true;
                         }
-                        let (load, store) = match space {
-                            StorageSpace::Persistent => {
-                                (Location::Storage(load_alias), Location::Storage(store_alias))
-                            }
-                            StorageSpace::Transient => {
-                                (Location::Transient(load_alias), Location::Transient(store_alias))
-                            }
+                        let Some(store) = Location::slot(location, store_alias) else {
+                            return true;
                         };
                         if aa.alias(load, store).may_alias() {
                             return true;
                         }
                     }
                     _ => {
-                        let location = match space {
-                            StorageSpace::Persistent => Location::Storage(load_alias),
-                            StorageSpace::Transient => Location::Transient(load_alias),
-                        };
-                        if aa.instruction_mod_ref(func, inst_id).may_write(aa, location) {
+                        if aa.instruction_mod_ref(func, inst_id).may_write(aa, load) {
                             return true;
                         }
                     }
@@ -916,31 +841,27 @@ impl LoopOptimizer {
         &self,
         func: &Function,
         ctx: LoopOptContext<'_>,
-        load_addr: ValueId,
-        load_width: Option<u64>,
+        load: Option<LoadRange>,
         write_addr: ValueId,
         write_width: u64,
         write_block: BlockId,
     ) -> bool {
-        let Some(load_width) = load_width else { return true };
+        let Some(load) = load else { return true };
         let aa = self.alias();
-        if let (Some(load), Some(write)) = (
-            aa.bare_memory_location(func, load_addr, LocationSize::Const(load_width)),
-            aa.bare_memory_location(func, write_addr, LocationSize::Const(write_width)),
-        ) {
-            match aa.memory_alias(load, write) {
+        if let Some(location) = load.location
+            && let Some(write) =
+                aa.bare_access_extent(func, write_addr, LocationSize::Const(write_width))
+        {
+            match aa.memory_alias(location, write) {
                 AliasResult::NoAlias => return false,
                 AliasResult::MustAlias | AliasResult::PartialAlias => return true,
                 AliasResult::MayAlias => {}
             }
         }
 
-        // The hoist candidate's address is loop-invariant, so its position
-        // never tightens the range. Scalar evolution can prove disjointness
-        // for affine loop addresses beyond value-local BasicAA.
-        let Some(load) = self.affine_range(func, ctx, load_addr, load_width, None) else {
-            return true;
-        };
+        // Scalar evolution can prove disjointness for affine loop addresses beyond value-local
+        // BasicAA.
+        let Some(load) = load.affine else { return true };
         let Some(write) = self.affine_range(func, ctx, write_addr, write_width, Some(write_block))
         else {
             return true;
@@ -1080,22 +1001,20 @@ impl LoopOptimizer {
                 let kind = &func.inst(user_inst).kind;
                 let mut address_operands = ArrayVec::<ValueId, 2>::new();
                 match kind {
-                    InstKind::MLoad(addr)
-                    | InstKind::MStore(addr, _)
-                    | InstKind::MStore8(addr, _)
-                    | InstKind::SLoad(addr)
-                    | InstKind::SStore(addr, _)
-                    | InstKind::TLoad(addr)
-                    | InstKind::TStore(addr, _)
-                    | InstKind::CalldataLoad(addr)
+                    InstKind::Load(addr, _)
+                    | InstKind::Store(addr, ..)
+                    | InstKind::Store8(addr, _)
                     | InstKind::Keccak256(addr, _)
-                    | InstKind::MappingSlotMemory(addr, _)
-                    | InstKind::CalldataCopy(addr, _, _)
+                    | InstKind::Copy(addr, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
                     | InstKind::DataCopy(_, addr, _)
                     | InstKind::CodeCopy(addr, _, _)
-                    | InstKind::ReturnDataCopy(addr, _, _)
                     | InstKind::ExtCodeCopy(_, addr, _, _) => address_operands.push(*addr),
-                    InstKind::MCopy(dst, src, _) => {
+                    InstKind::MappingSlotBytes(key, _)
+                        if func.value_ty(*key) == Some(MirType::MEMPTR) =>
+                    {
+                        address_operands.push(*key);
+                    }
+                    InstKind::Copy(dst, src, _, PtrLocation::Memory) => {
                         address_operands.push(*dst);
                         address_operands.push(*src);
                     }

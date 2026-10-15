@@ -1,135 +1,109 @@
 // === ROOT/tests/ui/codegen/run-call/calldata_string_slicing.sol:CalldataStringSlicing ===
 @module CalldataStringSlicing
-fn @slice(arg0: calldataslice, arg1: i256) -> memptr [selector=0x8b150516, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @slice(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x8b150516, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = gt arg1, v1
     v3 = lt arg1, 0
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub arg1, 0
-    v7 = add v0, 0
+    v7 = ptradd v0, 0
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = calldatasize
-    v12 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = sub v11, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = slice_len v8
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    icall panic_if<0x41>, v17
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v8
-    v21 = slice_ptr arg0
-    v22 = slice_len arg0
-    v23 = gt v22, v22
-    v24 = lt v22, arg1
-    v25 = or v23, v24
-    v26 = zext i1 v25 to i256
-    icall revert_if<empty>, v25
-    v27 = sub v22, arg1
-    v28 = add v21, arg1
-    v29 = make_calldata_slice v28, v27
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = calldatasize
-    v33 = gt v31, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v33
-    v34 = sub v32, v31
-    v35 = sgt v30, v34
-    icall revert_if<calldata_tail_too_short>, v35
-    v36 = slice_len v29
-    v37 = add v36, 63
-    v38 = lt v37, v36
-    icall panic_if<0x41>, v38
-    v39 = not 31
-    v40 = and v37, v39
-    v41 = alloc memorybytes, exact, uninitialized, infallible, v40
-    set_memory_object_len memorybytes, v41, v36
-    memory_object_copy_from_slice memorybytes, v41, v29
-    v42 = icall concat<memorybytes, memorybytes>, v20, v41
-    ret v42
+    v9 = extract_value slice<calldata>, arg0, 0
+    v10 = extract_value slice<calldata>, arg0, 1
+    v11 = gt v10, v10
+    v12 = lt v10, arg1
+    v13 = or v11, v12
+    v14 = zext i1 v13 to i256
+    icall revert_if<empty>, v13
+    v15 = sub v10, arg1
+    v16 = ptradd v9, arg1
+    v17 = make_calldata_slice v16, v15
+    v18 = abi_encode_packed (bytes v8, bytes v17)
+    ret v18
 }
 
-fn @segment(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selector=0xdfcfbb62, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @segment(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xdfcfbb62, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub arg2, arg1
-    v7 = add v0, arg1
+    v7 = ptradd v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
+    v9 = extract_value slice<calldata>, v8, 0
+    v10 = extract_value slice<calldata>, v8, 1
     v11 = calldatasize
     v12 = gt v10, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v12
     v13 = sub v11, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = slice_len v8
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    icall panic_if<0x41>, v17
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v8
-    ret v20
+    v14 = ptrtoint ptr<calldata> v9 to i256
+    v15 = sgt v14, v13
+    icall revert_if<calldata_tail_too_short>, v15
+    v16 = extract_value slice<calldata>, v8, 1
+    v17 = add v16, 63
+    v18 = lt v17, v16
+    icall panic_if<0x41>, v18
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = alloc v20
+    mstore v21, v16
+    v22 = ptradd v21, 32
+    v23 = extract_value slice<calldata>, v8, 0
+    v24 = extract_value slice<calldata>, v8, 1
+    calldatacopy v22, v23, v24
+    ret v21
 }
 
-fn @nested(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> memptr [selector=0xe1463c2d, pure, abi_params=[bytes, u256, u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @nested(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> ptr<memory> [selector=0xe1463c2d, pure, abi_params=[bytes, u256, u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub arg2, arg1
-    v7 = add v0, arg1
+    v7 = ptradd v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
+    v9 = extract_value slice<calldata>, v8, 0
+    v10 = extract_value slice<calldata>, v8, 1
     v11 = gt arg4, v10
     v12 = lt arg4, arg3
     v13 = or v11, v12
     v14 = zext i1 v13 to i256
     icall revert_if<empty>, v13
     v15 = sub arg4, arg3
-    v16 = add v9, arg3
+    v16 = ptradd v9, arg3
     v17 = make_calldata_slice v16, v15
-    v18 = slice_ptr v17
-    v19 = slice_len v17
+    v18 = extract_value slice<calldata>, v17, 0
+    v19 = extract_value slice<calldata>, v17, 1
     v20 = calldatasize
     v21 = gt v19, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v21
     v22 = sub v20, v19
-    v23 = sgt v18, v22
-    icall revert_if<calldata_tail_too_short>, v23
-    v24 = slice_len v17
-    v25 = add v24, 63
-    v26 = lt v25, v24
-    icall panic_if<0x41>, v26
-    v27 = not 31
-    v28 = and v25, v27
-    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
-    set_memory_object_len memorybytes, v29, v24
-    memory_object_copy_from_slice memorybytes, v29, v17
-    ret v29
+    v23 = ptrtoint ptr<calldata> v18 to i256
+    v24 = sgt v23, v22
+    icall revert_if<calldata_tail_too_short>, v24
+    v25 = extract_value slice<calldata>, v17, 1
+    v26 = add v25, 63
+    v27 = lt v26, v25
+    icall panic_if<0x41>, v27
+    v28 = not 31
+    v29 = and v26, v28
+    v30 = alloc v29
+    mstore v30, v25
+    v31 = ptradd v30, 32
+    v32 = extract_value slice<calldata>, v17, 0
+    v33 = extract_value slice<calldata>, v17, 1
+    calldatacopy v31, v32, v33
+    ret v30
 }

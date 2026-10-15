@@ -13,7 +13,8 @@
 //! - preserve SSA values across control flow with explicit phi insertion
 
 use crate::mir::{
-    BlockId, Callee, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, ValueId,
+    BlockId, Callee, Function, InstId, InstKind, Instruction, MirType, Module, PtrLocation,
+    Terminator, ValueId,
     analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
@@ -203,6 +204,8 @@ struct SlotSsaBuilder<'a> {
     info: &'a SlotAccessInfo,
     cfg: &'a CfgInfo,
     replacements: FxHashMap<ValueId, ValueId>,
+    /// Pointer loads that read their reaching word back through a cast.
+    casts: Vec<(InstId, ValueId)>,
     dead: GrowableBitSet<InstId>,
     phis: FxHashMap<BlockId, PendingPhi>,
     /// Blocks where this slot is live-in. Used to place phis only where the slot
@@ -232,7 +235,7 @@ impl FrameSlotPromoter {
         self.stats = FramePromotionStats::default();
         self.summaries.clear();
 
-        if Self::has_global_observation_barrier(func) {
+        if !Self::may_promote(func) {
             return self.stats;
         }
 
@@ -259,13 +262,22 @@ impl FrameSlotPromoter {
         self.stats
     }
 
-    /// `msize` observes the memory extent, which removing local-slot traffic
-    /// changes, so it stays a barrier. `gas()` is deliberately NOT one: exact
-    /// gas is never a semantic guarantee, and barring it blocked promotion in
-    /// every forwarding proxy, whose `delegatecall(gas(), ...)` is exactly the
-    /// construct that scribbles compiler locals and needs them off memory.
-    fn has_global_observation_barrier(func: &Function) -> bool {
-        func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize))
+    /// Only internal-frame slots and the external entry's locals promote, and both need a
+    /// frame. `msize` observes the memory extent, which removing local-slot traffic changes, so
+    /// it stays a barrier. `gas()` is deliberately NOT one: exact gas is never a semantic
+    /// guarantee, and barring it blocked promotion in every forwarding proxy, whose
+    /// `delegatecall(gas(), ...)` is exactly the construct that scribbles compiler locals and
+    /// needs them off memory.
+    fn may_promote(func: &Function) -> bool {
+        let mut has_frame = func.internal_frame_size != 0;
+        for inst_id in func.instructions() {
+            match func.inst(inst_id).kind {
+                InstKind::MSize => return false,
+                InstKind::InternalFrameAddr(_) => has_frame = true,
+                _ => {}
+            }
+        }
+        has_frame
     }
 
     fn collect_promotable_slots(
@@ -283,7 +295,7 @@ impl FrameSlotPromoter {
             for &inst_id in &block.instructions {
                 let kind = &func.inst(inst_id).kind;
                 match *kind {
-                    InstKind::MLoad(addr) => {
+                    InstKind::Load(addr, PtrLocation::Memory) => {
                         if let Some(slot) = Self::promotable_slot(func, aa, addr) {
                             accesses
                                 .entry(slot)
@@ -291,7 +303,7 @@ impl FrameSlotPromoter {
                                 .note_load(block_id, inst_id);
                         }
                     }
-                    InstKind::MStore(addr, value) => {
+                    InstKind::Store(addr, value, PtrLocation::Memory) => {
                         if let Some(slot) = Self::promotable_slot(func, aa, addr) {
                             accesses
                                 .entry(slot)
@@ -424,11 +436,11 @@ impl FrameSlotPromoter {
     ) -> bool {
         match *kind {
             InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => false,
-            InstKind::MLoad(addr) => {
+            InstKind::Load(addr, PtrLocation::Memory) => {
                 !Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
                     && Self::internal_frame_range_may_overlap(func, aa, addr, Some(32), slot_offset)
             }
-            InstKind::MStore(addr, value) => {
+            InstKind::Store(addr, value, PtrLocation::Memory) => {
                 (!Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
                     && Self::internal_frame_range_may_overlap(
                         func,
@@ -439,23 +451,24 @@ impl FrameSlotPromoter {
                     ))
                     || Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
             }
-            InstKind::MStore8(addr, _) => {
+            InstKind::Store8(addr, _) => {
                 Self::internal_frame_range_may_overlap(func, aa, addr, Some(1), slot_offset)
             }
             InstKind::Keccak256(addr, size)
-            | InstKind::Log0(addr, size)
+            | InstKind::Log { offset: addr, size, .. }
             | InstKind::MemoryZero(addr, size)
             | InstKind::DataCopy(_, addr, size)
-            | InstKind::ReturnDataCopy(addr, _, size)
             | InstKind::CodeCopy(addr, _, size)
-            | InstKind::CalldataCopy(addr, _, size) => Self::internal_frame_range_may_overlap(
-                func,
-                aa,
-                addr,
-                func.value_u64(size),
-                slot_offset,
-            ),
-            InstKind::MCopy(dest, src, size) => {
+            | InstKind::Copy(addr, _, size, PtrLocation::Calldata | PtrLocation::Returndata) => {
+                Self::internal_frame_range_may_overlap(
+                    func,
+                    aa,
+                    addr,
+                    func.value_u64(size),
+                    slot_offset,
+                )
+            }
+            InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
                 let size = func.value_u64(size);
                 Self::internal_frame_range_may_overlap(func, aa, dest, size, slot_offset)
                     || Self::internal_frame_range_may_overlap(func, aa, src, size, slot_offset)
@@ -464,16 +477,6 @@ impl FrameSlotPromoter {
                 func,
                 aa,
                 dest,
-                func.value_u64(size),
-                slot_offset,
-            ),
-            InstKind::Log1(addr, size, _)
-            | InstKind::Log2(addr, size, _, _)
-            | InstKind::Log3(addr, size, _, _, _)
-            | InstKind::Log4(addr, size, _, _, _, _) => Self::internal_frame_range_may_overlap(
-                func,
-                aa,
-                addr,
                 func.value_u64(size),
                 slot_offset,
             ),
@@ -541,35 +544,29 @@ impl FrameSlotPromoter {
         slot_addr: u64,
     ) -> bool {
         match *kind {
-            InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
+            InstKind::Load(addr, PtrLocation::Memory)
+            | InstKind::Store(addr, _, PtrLocation::Memory) => {
                 !Self::is_exact_external_slot_access(func, aa, addr, slot_addr)
                     && Self::external_range_reaches_slot(func, aa, addr, Some(32), slot_addr)
             }
-            InstKind::MStore8(addr, _) => {
+            InstKind::Store8(addr, _) => {
                 Self::external_range_reaches_slot(func, aa, addr, Some(1), slot_addr)
             }
             InstKind::Keccak256(addr, size)
-            | InstKind::Log0(addr, size)
+            | InstKind::Log { offset: addr, size, .. }
             | InstKind::MemoryZero(addr, size)
             | InstKind::DataCopy(_, addr, size)
-            | InstKind::ReturnDataCopy(addr, _, size)
             | InstKind::CodeCopy(addr, _, size)
-            | InstKind::CalldataCopy(addr, _, size) => {
+            | InstKind::Copy(addr, _, size, PtrLocation::Calldata | PtrLocation::Returndata) => {
                 Self::external_range_reaches_slot(func, aa, addr, func.value_u64(size), slot_addr)
             }
-            InstKind::MCopy(dest, src, size) => {
+            InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
                 let size = func.value_u64(size);
                 Self::external_range_reaches_slot(func, aa, dest, size, slot_addr)
                     || Self::external_range_reaches_slot(func, aa, src, size, slot_addr)
             }
             InstKind::ExtCodeCopy(_, dest, _, size) => {
                 Self::external_range_reaches_slot(func, aa, dest, func.value_u64(size), slot_addr)
-            }
-            InstKind::Log1(addr, size, _)
-            | InstKind::Log2(addr, size, _, _)
-            | InstKind::Log3(addr, size, _, _, _)
-            | InstKind::Log4(addr, size, _, _, _, _) => {
-                Self::external_range_reaches_slot(func, aa, addr, func.value_u64(size), slot_addr)
             }
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
@@ -596,10 +593,10 @@ impl FrameSlotPromoter {
             // pointer and stage data in scratch or heap memory; they never
             // reference a caller's compiler-owned absolute local slots.
             InstKind::ICall { function: Callee::Function(_), .. } => false,
-            InstKind::MappingSlotMemory(_, _)
-            | InstKind::AbiEncode { .. }
-            | InstKind::AbiDecode { .. }
-            | InstKind::MSize => true,
+            InstKind::MappingSlotBytes(key, _) if func.value_ty(key) == Some(MirType::MEMPTR) => {
+                true
+            }
+            InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } | InstKind::MSize => true,
             _ => false,
         }
     }
@@ -722,11 +719,12 @@ pub(super) fn promote_object_slots(func: &mut Function, slots: &[SlotAccessInfo]
         }
         builders.push(builder);
     }
-    // mstore field, value; ...; result = mload field => result = phi/reaching_value
+    // store field, value; ...; result = load field => result = phi/reaching_value
     let mut replacements = FxHashMap::default();
     let mut dead = GrowableBitSet::with_capacity(func.num_insts());
     for builder in builders {
         builder.apply_phis(func);
+        builder.apply_casts(func);
         replacements.extend(builder.replacements);
         for inst in builder.dead.iter() {
             dead.insert(inst);
@@ -745,6 +743,7 @@ impl<'a> SlotSsaBuilder<'a> {
             info,
             cfg,
             replacements: FxHashMap::default(),
+            casts: Vec::new(),
             dead: GrowableBitSet::with_capacity(instruction_count),
             phis: FxHashMap::default(),
             live_in: DenseBitSet::new_empty(info.use_blocks.domain_size()),
@@ -924,7 +923,8 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn apply(self, func: &mut Function) {
         self.apply_phis(func);
-        // result = mload slot => result = reaching_value
+        self.apply_casts(func);
+        // result = load slot => result = reaching_value
         func.replace_uses_canonicalized(&self.replacements);
 
         for block in func.blocks.iter_mut() {
@@ -999,12 +999,12 @@ impl<'a> SlotSsaBuilder<'a> {
         true
     }
 
-    /// Earlier slot promotions rewrite store operands. Read the live MStore
+    /// Earlier slot promotions rewrite store operands. Read the live store
     /// rather than its collection-time value; a semantic zero has no explicit
     /// value operand and keeps the scalar zero supplied by SROA.
     fn store_value(&self, func: &Function, inst: InstId) -> ValueId {
         match func.inst(inst).kind {
-            InstKind::MStore(_, value) => value,
+            InstKind::Store(_, value, PtrLocation::Memory) => value,
             InstKind::MemoryZero(..) => self.info.accesses[&inst].expect("zero defines the field"),
             _ => unreachable!("promoted definition must be a word store or zero fill"),
         }
@@ -1016,10 +1016,22 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn replace_load(&mut self, func: &Function, inst_id: InstId, value: ValueId) {
         if let Some(load_value) = func.inst_result_value(inst_id) {
-            self.replacements
-                .insert(load_value, mir_utils::resolve_replacement(value, &self.replacements));
-            self.dead.insert(inst_id);
+            let value = mir_utils::resolve_replacement(value, &self.replacements);
+            if func.value_ty(load_value) == func.value_ty(value) {
+                self.replacements.insert(load_value, value);
+                self.dead.insert(inst_id);
+            } else {
+                self.casts.push((inst_id, value));
+            }
             self.loads_promoted += 1;
+        }
+    }
+
+    /// Rewrites each pointer load into a cast of the word it reads.
+    fn apply_casts(&self, func: &mut Function) {
+        // result = load slot, ptr<memory> => result = inttoptr reaching_value to ptr<memory>
+        for &(inst, value) in &self.casts {
+            func.inst_mut(inst).replace_kind(InstKind::IntToPtr(value));
         }
     }
 
