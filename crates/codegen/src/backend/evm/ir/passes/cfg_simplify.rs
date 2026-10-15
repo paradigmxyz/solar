@@ -5,7 +5,8 @@
 //! jumps, redirects label-only jump thunks, removes unreachable blocks, and merges an
 //! unconditional predecessor into its sole unaddressed successor. A folded branch's taken copy
 //! lends the surviving block its hotness, loop membership and debug origins, as terminal
-//! deduplication does when it shares equal blocks. It repeats these steps because
+//! deduplication does when it shares equal blocks. Bodies containing `PC` are not equivalent
+//! across positions and retain their branches. It repeats these steps because
 //! each rewrite can expose another. Degenerate branches include both structural
 //! [`TerminatorKind::JumpI`] terminators and the physical `PUSH target; JUMPI; jump target` form
 //! emitted when edge-specific stack scheduling lowers one branch edge before EVM IR construction.

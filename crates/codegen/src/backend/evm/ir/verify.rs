@@ -58,6 +58,7 @@ use super::*;
 use crate::backend::evm::{codegen::MAX_STACK_DEPTH, op};
 use solar_config::EvmVersion;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::index_vec,
     map::{FxHashMap, FxHashSet},
 };
@@ -441,7 +442,7 @@ impl<'a> Verifier<'a> {
     ///
     /// See the module documentation for the bounds the walk propagates and for why only the
     /// post-cycle maximum stops at a cycle-closing edge.
-    fn verify_stack_ops(&self, module: &Module) {
+    fn verify_stack_ops(&self, module: &Module) -> IndexVec<BlockId, EntryDepths> {
         let mut reported = ReportedErrors::default();
         // The entry block starts with an empty stack unless it declares a depth, and any other
         // block that declares one is also entered at it.
@@ -526,6 +527,7 @@ impl<'a> Verifier<'a> {
                 }
             }
         }
+        entry_depths
     }
 
     fn apply_effect(
@@ -736,6 +738,77 @@ impl<'a> Verifier<'a> {
         let dcx = DiagCtxt::with_silent_emitter(None);
         Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module(module);
         dcx.has_errors().is_ok()
+    }
+
+    /// Returns upper entry depths proved by the direct-edge stack walk.
+    ///
+    /// The walk's finite cycle traversal is a candidate bound, not a proof: check that every
+    /// direct edge preserves it, including backedges. Growing cycles and pushed labels that
+    /// can be entered through unmodeled dynamic jumps, together with their successors, remain
+    /// unknown. Unknown bounds must not justify increasing a block's stack peak.
+    pub(super) fn stack_entry_upper_bounds(
+        module: &Module,
+        evm_version: EvmVersion,
+    ) -> IndexVec<BlockId, Option<usize>> {
+        let dcx = DiagCtxt::with_silent_emitter(None);
+        let depths = Verifier::for_evm_version(&dcx, evm_version).verify_stack_ops(module);
+        if dcx.has_errors().is_err() {
+            return index_vec![None; module.blocks.len()];
+        }
+        let mut upper = depths
+            .iter()
+            .map(|depth| depth.ingress_max.max(depth.cycle_max))
+            .collect::<IndexVec<BlockId, _>>();
+        let mut pending = Vec::new();
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            let Some(mut stack) = upper[block_id] else {
+                pending.push(block_id);
+                continue;
+            };
+            let mut check_edge = |target: BlockId, stack| {
+                if upper[target].is_some_and(|bound| stack > bound) {
+                    pending.push(target);
+                }
+            };
+            for (at, inst) in block.instructions.iter().enumerate() {
+                let effect = inst.stack_effect();
+                stack =
+                    stack.saturating_sub(usize::from(effect.inputs)) + usize::from(effect.outputs);
+                if inst.as_evm_opcode() == Some(op::JUMPI)
+                    && let Some(target) = at
+                        .checked_sub(1)
+                        .and_then(|previous| block.instructions[previous].pushed_block())
+                {
+                    check_edge(target, stack);
+                }
+            }
+            if let Some(term) = &block.terminator
+                && let Some(effect) = default_terminator_stack_effect(&term.kind)
+            {
+                stack =
+                    stack.saturating_sub(usize::from(effect.inputs)) + usize::from(effect.outputs);
+                term.kind.visit_targets(|target| check_edge(target, stack));
+            }
+        }
+        for block in &module.blocks {
+            for (at, inst) in block.instructions.iter().enumerate() {
+                if let Some(target) = inst.pushed_block()
+                    && !block.instructions.get(at + 1).is_some_and(|next| {
+                        matches!(next.as_evm_opcode(), Some(op::JUMP | op::JUMPI))
+                    })
+                {
+                    pending.push(target);
+                }
+            }
+        }
+        let mut unknown = DenseBitSet::new_empty(module.blocks.len());
+        while let Some(block_id) = pending.pop() {
+            if unknown.insert(block_id) {
+                upper[block_id] = None;
+                direct_successors(&module.blocks[block_id], &mut pending);
+            }
+        }
+        upper
     }
 }
 

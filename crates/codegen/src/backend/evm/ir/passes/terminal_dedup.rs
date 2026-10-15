@@ -22,13 +22,18 @@
 //!
 //! Shared code keeps source origins but drops function events that disagree between paths. Debug
 //! metadata does not participate in candidate selection or prevent executable-code sharing.
+//! Bodies containing `PC` cannot share: equal opcodes at different positions return different
+//! values. The branch-folding equivalence query observes the same restriction.
 
 use super::{
     EvmPass,
     cfg_simplify::is_direct_jump_label,
     utils::{MachineInstKey, is_terminal_boundary},
 };
-use crate::backend::evm::ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind};
+use crate::backend::evm::{
+    ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
+    op,
+};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -138,7 +143,9 @@ fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
 /// share its body.
 fn terminal_block_hash(block: &Block, redirectable: bool) -> Option<u64> {
     let terminator = &block.terminator.as_ref()?.kind;
-    if !is_terminal_boundary(terminator) && !redirectable {
+    if (!is_terminal_boundary(terminator) && !redirectable)
+        || block.instructions.iter().any(|inst| inst.as_evm_opcode() == Some(op::PC))
+    {
         return None;
     }
     let mut hasher = FxHasher::default();
@@ -153,10 +160,9 @@ fn terminal_block_hash(block: &Block, redirectable: bool) -> Option<u64> {
 /// Whether two candidate bodies have the same machine instructions and terminator.
 fn same_terminal_body(a: &Block, b: &Block) -> bool {
     a.instructions.len() == b.instructions.len()
-        && a.instructions
-            .iter()
-            .zip(&b.instructions)
-            .all(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
+        && a.instructions.iter().zip(&b.instructions).all(|(a, b)| {
+            a.as_evm_opcode() != Some(op::PC) && MachineInstKey::new(a) == MachineInstKey::new(b)
+        })
         && a.terminator.as_ref().map(|term| &term.kind)
             == b.terminator.as_ref().map(|term| &term.kind)
 }

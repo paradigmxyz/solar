@@ -8,11 +8,11 @@
 +   push 0
 +   not
 +   div
-+   push 48
 +   push 255
 +   push 0
 +   not
 +   div
++   push 48
 +   mul
     pop
     pop

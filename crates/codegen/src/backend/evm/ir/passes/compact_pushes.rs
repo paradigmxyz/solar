@@ -18,11 +18,17 @@
 //! fixed point. The default pipeline expands recipes once before structural cleanup because tail
 //! merging and outlining profit from the concrete instruction shape. Push reordering and
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
+//! Before increasing a literal's transient stack use, query upper entry depths from the stack
+//! verifier and account for each preceding instruction. Growing cycles and dynamically entered
+//! paths have unknown entry depths; there, keep the original straight-line path's peak as an upper
+//! bound. A physical conditional jump ends that path, since its taken edge can skip later stack
+//! growth. Keep the literal when the complete, recursively expanded recipe would overflow.
 
 use super::EvmPass;
 use crate::{
     backend::evm::{
-        ir::{Instruction, Metadata, Module},
+        codegen::MAX_STACK_DEPTH,
+        ir::{Instruction, Metadata, Module, verify::Verifier},
         op::{self, WORD_BYTES},
     },
     target::GasTier,
@@ -51,7 +57,10 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
-    for block in &mut module.blocks {
+    let mut limits = Vec::new();
+    let mut entry_depths = None;
+    for block_id in module.blocks.indices() {
+        let block = &module.blocks[block_id];
         let repeated = gcx.sess.opts.optimization.is_size() || block.metadata.hotness.is_cold();
         if !block.instructions.iter().any(|inst| {
             inst.concrete_immediate().is_some_and(|value| {
@@ -60,19 +69,61 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }) {
             continue;
         }
+        if entry_depths.is_none()
+            && block.instructions.iter().any(|inst| {
+                inst.concrete_immediate().is_some_and(|value| {
+                    ImmediateMaterialization::with_repeated(evm_version, value, repeated)
+                        .stack_peak()
+                        > 1
+                })
+            })
+        {
+            entry_depths = Some(Verifier::stack_entry_upper_bounds(module, evm_version));
+        }
+        let mut stack =
+            entry_depths.as_ref().and_then(|depths| depths[block_id]).unwrap_or(MAX_STACK_DEPTH);
+        // The original path must fit as well. Propagate its stack limit backwards, stopping at
+        // physical branches so growth on a fallthrough cannot justify growth on a taken edge.
+        limits.resize(block.instructions.len(), MAX_STACK_DEPTH);
+        let mut limit = MAX_STACK_DEPTH
+            - block
+                .terminator
+                .as_ref()
+                .map_or(0, |term| term.kind.lowering_stack_growth(module.next_block(block_id)));
+        for (at, inst) in block.instructions.iter().enumerate().rev() {
+            if inst
+                .as_evm_opcode()
+                .is_some_and(|opcode| opcode == op::JUMPI || op::is_terminal(opcode))
+            {
+                limit = MAX_STACK_DEPTH;
+            }
+            let effect = inst.stack_effect();
+            limit = (limit + usize::from(effect.inputs))
+                .saturating_sub(usize::from(effect.outputs))
+                .min(MAX_STACK_DEPTH);
+            limits[at] = limit;
+        }
+        let block = &mut module.blocks[block_id];
         scratch.clear();
         std::mem::swap(&mut block.instructions, &mut scratch);
         block.instructions.reserve(scratch.len());
-        for inst in scratch.drain(..) {
+        for (at, inst) in scratch.drain(..).enumerate() {
+            let effect = inst.stack_effect();
+            let (inputs, outputs) = (usize::from(effect.inputs), usize::from(effect.outputs));
+            let before = stack.min(limits[at]);
+            stack = before.saturating_sub(inputs) + outputs;
             let Some(value) = inst.concrete_immediate() else {
                 block.instructions.push(inst);
                 continue;
             };
             let materialization =
                 ImmediateMaterialization::with_repeated(evm_version, value, repeated);
-            if matches!(materialization.recipe, CompactPush::Literal) {
+            if matches!(materialization.recipe, CompactPush::Literal)
+                || materialization.stack_peak() > MAX_STACK_DEPTH - before
+            {
                 block.instructions.push(inst);
             } else {
+                // push value => selected_recipe(value)
                 materialize_selected(&mut block.instructions, materialization, &inst.metadata);
                 changed = true;
             }
@@ -155,12 +206,12 @@ impl ImmediateMaterialization {
                 self.child(U256::MAX).for_each_inner(f);
                 f(opcode(op::DIV));
             }
-            // factor; divisor; MAX; DIV; MUL
+            // divisor; MAX; DIV; factor; MUL
             CompactPush::Repeat { factor, divisor } => {
-                self.child(factor).for_each_inner(f);
                 self.child(divisor).for_each_inner(f);
                 self.child(U256::MAX).for_each_inner(f);
                 f(opcode(op::DIV));
+                self.child(factor).for_each_inner(f);
                 f(opcode(op::MUL));
             }
         }

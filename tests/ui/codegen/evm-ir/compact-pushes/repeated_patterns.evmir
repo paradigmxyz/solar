@@ -13,11 +13,11 @@
 // SIZE-NEXT: + push 0
 // SIZE-NEXT: + not
 // SIZE-NEXT: + div
-// SIZE-NEXT: + push 48
 // SIZE-NEXT: + push 255
 // SIZE-NEXT: + push 0
 // SIZE-NEXT: + not
 // SIZE-NEXT: + div
+// SIZE-NEXT: + push 48
 // SIZE-NEXT: + mul
 // GAS-LABEL: bb0:
 // GAS-NEXT: push 0x101010101010101010101010101010101010101010101010101010101010101
