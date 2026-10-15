@@ -64,7 +64,7 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     v28 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v62 = mload 64
     v63 = add v62, v28
-    mstore 64, v63
+    mstore 64, v63 !metadata(preserves_valid_fmp)
     mstore v62, v23
     v64 = mload 64
     v32 = add v64, 32
@@ -117,7 +117,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb39:
     v277 = mload 64
     v278 = add v277, 64
-    mstore 64, v278
+    mstore 64, v278 !metadata(preserves_valid_fmp)
     v3 = shl 5, v216
     v5 = shr 5, v3
     v9 = ne v5, v216
@@ -134,7 +134,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb12:
     v271 = mload 64
     v272 = add v271, v21
-    mstore 64, v272
+    mstore 64, v272 !metadata(preserves_valid_fmp)
     mstore v271, v216
     jump bb1
   bb1:
@@ -162,7 +162,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb25:
     v275 = mload 64
     v276 = add v275, 64
-    mstore 64, v276
+    mstore 64, v276 !metadata(preserves_valid_fmp)
     v129 = mload v122
     mstore v275, v129
     v130 = add v122, 32
@@ -216,7 +216,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb4:
     v267 = mload 64 !metadata(memory=scratch)
     v268 = add v267, 32
-    mstore 64, v268
+    mstore 64, v268 !metadata(preserves_valid_fmp)
     mstore v267, 0
     mstore v235, v267
     jump bb5
@@ -244,7 +244,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb6:
     v269 = mload 64
     v270 = add v269, 32
-    mstore 64, v270
+    mstore 64, v270 !metadata(preserves_valid_fmp)
     mstore v269, 0
     mstore v239, v269
     jump bb7
@@ -338,7 +338,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v55 = add v44, 32
     v273 = mload 64
     v274 = add v273, v55
-    mstore 64, v274
+    mstore 64, v274 !metadata(preserves_valid_fmp)
     mstore v273, v41
     v230 = add v273, 32
     calldatacopy v230, v45, v44
@@ -376,7 +376,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb2:
     v88 = mload 64
     v89 = add v88, 96
-    mstore 64, v89
+    mstore 64, v89 !metadata(preserves_valid_fmp)
     v8 = calldataload v2
     mstore v88, v8
     v9 = add v2, 32
@@ -483,7 +483,7 @@ fn @encodeFirst.body(arg0: i256) -> i256 [may_return_memory, pure] {
     v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v29 = mload 64
     v30 = add v29, v22
-    mstore 64, v30
+    mstore 64, v30 !metadata(preserves_valid_fmp)
     mstore v29, v17
     ret v29
   bb1:
@@ -562,7 +562,7 @@ fn @alloc(arg0: i256) -> i256 {
     v5 = or v3, v4
     jumpi v5, bb1, bb2
   bb2:
-    mstore 64, v2 !metadata(memory=scratch)
+    mstore 64, v2 !metadata(preserves_valid_fmp)
     ret v0
   bb1:
     mstore 32, 65 !metadata(memory=scratch)

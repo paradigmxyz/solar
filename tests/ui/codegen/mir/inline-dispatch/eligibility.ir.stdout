@@ -147,7 +147,7 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v20 = add v2, 32
     v63 = mload 64 !metadata(memory=scratch)
     v64 = add v63, v20
-    mstore 64, v64 !metadata(memory=scratch)
+    mstore 64, v64 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v63, v36
     v58 = add v63, 32
     calldatacopy v58, v31, v2

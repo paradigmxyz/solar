@@ -138,7 +138,7 @@ fn @default_struct_1() -> i256 [may_return_memory] {
   bb0:
     v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, 256
-    mstore 64, v30 !metadata(memory=scratch)
+    mstore 64, v30 !metadata(memory=scratch, preserves_valid_fmp)
     v26 = add v29, 64
     mstore v26, 0
     v20 = add v29, 128
@@ -171,7 +171,7 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb2:
     v44 = mload 64 !metadata(memory=scratch)
     v45 = add v44, 96
-    mstore 64, v45 !metadata(memory=scratch)
+    mstore 64, v45 !metadata(memory=scratch, preserves_valid_fmp)
     v8 = calldataload v2
     mstore v44, v8
     v9 = add v2, 32
@@ -224,7 +224,7 @@ fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb2:
     v20 = mload 64 !metadata(memory=scratch)
     v21 = add v20, 96
-    mstore 64, v21 !metadata(memory=scratch)
+    mstore 64, v21 !metadata(memory=scratch, preserves_valid_fmp)
     v8 = icall @decode_calldata_type.3, v2, v2
     mstore v20, v8
     v10 = add v2, 32
@@ -268,7 +268,7 @@ fn @alloc(arg0: i256) -> i256 {
     v5 = or v3, v4
     jumpi v5, bb1, bb2
   bb2:
-    mstore 64, v2 !metadata(memory=scratch)
+    mstore 64, v2 !metadata(memory=scratch, preserves_valid_fmp)
     ret v0
   bb1:
     mstore 32, 65 !metadata(memory=scratch)

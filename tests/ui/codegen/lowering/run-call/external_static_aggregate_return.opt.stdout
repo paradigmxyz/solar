@@ -12,7 +12,7 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
   bb4:
     v22 = mload 64 !metadata(memory=scratch)
     v23 = add v22, 64
-    mstore 64, v23 !metadata(memory=scratch)
+    mstore 64, v23 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v22, 0
     v19 = add v22, 32
     mstore v19, 0
@@ -44,7 +44,7 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
   bb5:
     v31 = mload 64 !metadata(memory=scratch)
     v32 = add v31, 192
-    mstore 64, v32 !metadata(memory=scratch)
+    mstore 64, v32 !metadata(memory=scratch, preserves_valid_fmp)
     v33 = calldatasize
     calldatacopy v31, v33, 96
     v30 = add v31, 96
@@ -92,7 +92,7 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
   bb5:
     v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, 64
-    mstore 64, v30 !metadata(memory=scratch)
+    mstore 64, v30 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v29, 0
     v25 = add v29, 32
     mstore v25, 0
@@ -138,7 +138,7 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     v1 = gas
     v38 = mload 64 !metadata(memory=scratch)
     v39 = add v38, 128
-    mstore 64, v39 !metadata(memory=scratch)
+    mstore 64, v39 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v38, 0x62dc843600000000000000000000000000000000000000000000000000000000
     v30 = add v38, 4
     mstore v30, arg0
@@ -183,7 +183,7 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
     v1 = gas
     v66 = mload 64 !metadata(memory=scratch)
     v67 = add v66, 160
-    mstore 64, v67 !metadata(memory=scratch)
+    mstore 64, v67 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v66, 0x9510f21200000000000000000000000000000000000000000000000000000000
     v52 = add v66, 4
     mstore v52, arg0
@@ -202,7 +202,7 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
   bb4:
     v64 = mload 64 !metadata(memory=scratch)
     v65 = add v64, 96
-    mstore 64, v65 !metadata(memory=scratch)
+    mstore 64, v65 !metadata(memory=scratch, preserves_valid_fmp)
     v72 = add v64, 96
     jump bb8
   bb8:
@@ -250,7 +250,7 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     v1 = gas
     v38 = mload 64 !metadata(memory=scratch)
     v39 = add v38, 128
-    mstore 64, v39 !metadata(memory=scratch)
+    mstore 64, v39 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v38, 0x62dc843600000000000000000000000000000000000000000000000000000000
     v30 = add v38, 4
     mstore v30, arg0
@@ -293,7 +293,7 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
     v1 = gas
     v60 = mload 64 !metadata(memory=scratch)
     v61 = add v60, 160
-    mstore 64, v61 !metadata(memory=scratch)
+    mstore 64, v61 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v60, 0xf4d7be1100000000000000000000000000000000000000000000000000000000
     v51 = add v60, 4
     mstore v51, arg0
@@ -342,7 +342,7 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     v1 = gas
     v36 = mload 64 !metadata(memory=scratch)
     v37 = add v36, 96
-    mstore 64, v37 !metadata(memory=scratch)
+    mstore 64, v37 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v36, 0xe3b21a7a00000000000000000000000000000000000000000000000000000000
     v35 = add v36, 32
     v7 = staticcall v1, v0, v36, 4, v35, 64
@@ -379,7 +379,7 @@ fn @decode_static(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v13 = mload 64 !metadata(memory=scratch)
     v14 = add v13, 64
-    mstore 64, v14 !metadata(memory=scratch)
+    mstore 64, v14 !metadata(memory=scratch, preserves_valid_fmp)
     v4 = mload arg0
     mstore v13, v4
     v6 = add arg0, 32

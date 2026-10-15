@@ -342,7 +342,7 @@ fn @alloc(arg0: i256) -> i256 {
     v5 = or v3, v4
     jumpi v5, bb1, bb2
   bb2:
-    mstore 64, v2 !metadata(memory=scratch)
+    mstore 64, v2 !metadata(memory=scratch, preserves_valid_fmp)
     ret v0
   bb1:
     mstore 32, 65 !metadata(memory=scratch)

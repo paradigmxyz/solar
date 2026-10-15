@@ -36,7 +36,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb9:
     v127 = mload 64
     v128 = add v127, 96
-    mstore 64, v128
+    mstore 64, v128 !metadata(preserves_valid_fmp)
     v31 = calldataload v24
     mstore v127, v31
     v32 = add v24, 32
@@ -82,7 +82,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb18:
     v129 = mload 64
     v130 = add v129, 96
-    mstore 64, v130
+    mstore 64, v130 !metadata(preserves_valid_fmp)
     v65 = calldataload v58
     mstore v129, v65
     v66 = add v58, 32
@@ -289,7 +289,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb29:
     v207 = mload 64
     v208 = add v207, 96
-    mstore 64, v208
+    mstore 64, v208 !metadata(preserves_valid_fmp)
     v86 = calldataload v79
     v87 = add v79, v86
     v88 = gt v86, 0xffffffffffffffff
@@ -303,7 +303,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb32:
     v209 = mload 64
     v210 = add v209, 96
-    mstore 64, v210
+    mstore 64, v210 !metadata(preserves_valid_fmp)
     v94 = calldataload v87
     mstore v209, v94
     v95 = add v87, 32
@@ -349,7 +349,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb39:
     v211 = mload 64
     v212 = add v211, 96
-    mstore 64, v212
+    mstore 64, v212 !metadata(preserves_valid_fmp)
     v128 = calldataload v121
     mstore v211, v128
     v129 = add v121, 32
@@ -458,7 +458,7 @@ fn @default_struct_1() -> i256 [may_return_memory] {
   bb0:
     v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, 256
-    mstore 64, v30
+    mstore 64, v30 !metadata(preserves_valid_fmp)
     v26 = add v29, 64
     mstore v26, 0
     v20 = add v29, 128
@@ -515,7 +515,7 @@ fn @alloc(arg0: i256) -> i256 {
     v5 = or v3, v4
     jumpi v5, bb1, bb2
   bb2:
-    mstore 64, v2 !metadata(memory=scratch)
+    mstore 64, v2 !metadata(preserves_valid_fmp)
     ret v0
   bb1:
     mstore 32, 65 !metadata(memory=scratch)

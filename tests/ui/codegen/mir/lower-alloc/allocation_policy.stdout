@@ -25,7 +25,7 @@
 +     v2 = mload 64 !metadata(memory=scratch)
 +     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch, span=10..20)
 +     v3 = add v2, 32
-+     mstore 64, v3 !metadata(memory=scratch)
++     mstore 64, v3 !metadata(memory=scratch, preserves_valid_fmp)
       v1 = ptrtoint ptr<memory> v0 to i256
       ret v1
 + }
@@ -41,7 +41,7 @@
 +     v6 = zext i1 v5 to i256
 +     jumpi v5, bb1, bb2
 +   bb2:
-+     mstore 64, v2 !metadata(memory=scratch)
++     mstore 64, v2 !metadata(memory=scratch, preserves_valid_fmp)
 +     ret v1
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)

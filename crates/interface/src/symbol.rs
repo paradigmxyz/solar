@@ -1186,6 +1186,7 @@ symbols! {
         phase,
         phi,
         preserves_fmp,
+        preserves_valid_fmp,
         ptr,
         ptrtoint,
         push,

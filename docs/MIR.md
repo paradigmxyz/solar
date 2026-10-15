@@ -653,6 +653,14 @@ results retain their allocation point because source code can observe the FMP bu
 Dynamic encoding also uses this requirement when it writes the output before
 reserving its final size. The flag round-trips through MIR text.
 
+Allocation lowering marks its FMP store `preserves_valid_fmp`: an initially
+valid pointer remains valid after the bump, as proved by the allocation producer
+or its runtime checks. This proof survives equivalent operand rewrites and
+inlining and round-trips through MIR text. It does not establish a valid pointer
+after arbitrary assembly resets. The `heap-floor` pass separately protects
+pointer reads after absolute assembly resets; stack scheduling preserves live
+spilled values across writes that can overlap their slots.
+
 Load PRE inserts reads only when the join prefix cannot revert, terminate, or
 diverge. Availability on one predecessor does not make it safe to execute a load
 before the check guarding its original path. A value already available on every

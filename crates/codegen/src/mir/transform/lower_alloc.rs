@@ -123,7 +123,7 @@ fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
         builder.branch(invalid, panic, continuation);
 
         builder.switch_to_block(continuation);
-        builder.store(slot, next);
+        store_fmp(&mut builder, next);
         builder.ret([ptr]);
 
         builder.switch_to_block(panic);
@@ -304,4 +304,6 @@ fn rewrite_as_fmp_store(
 fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: crate::mir::ValueId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     builder.store(slot, ptr);
+    let store = *builder.func().blocks[builder.current_block()].instructions.last().unwrap();
+    builder.func_mut().inst_mut(store).metadata.set_preserves_valid_fmp();
 }

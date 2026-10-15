@@ -1,5 +1,17 @@
 //@ codegen-matrix: standard
+//@ run-call: FrameForwarding::derived 7,4096 => 22
+//@ run-call: FrameForwarding::sweep 7,4096 => 7
+//@ run-call: FrameForwarding::sweep 7,0 => 7
 //@ run-call: Harness::run => 1
+//@ run-call: FrameForwarding::loopCallAfterCopy 3, 4096 => 33
+//@ run-call: FrameForwarding::loopCallAfterCopy 0, 4096 => 0
+//@ run-call: FrameForwarding::callAfterCopy 7, 4096 => 4104
+//@ run-call: FrameForwarding::callAfterCopy 7, 0 => 8
+//@ run-call: FrameForwarding::computedAfterCopy 7, 4096 => 49
+//@ run-call: FrameForwarding::computedAfterCopy 7, 0 => 35
+//@ run-call: FrameForwarding::run 7, 4096 => 7
+//@ run-call: FrameForwarding::branch 7, 4096, true => 8
+//@ run-call: FrameForwarding::branch 7, 4096, false => 9
 
 // A forwarding proxy sets the free-memory pointer low and
 // `calldatacopy(0, 0, calldatasize())` before `delegatecall`ing the copied
@@ -61,5 +73,105 @@ contract Harness {
         Impl(address(p)).setBig(10, 20, 30, hex"deadbeefdeadbeefdeadbeefdeadbeef");
         require(Impl(address(p)).v() == 76, "forward");
         return 1;
+    }
+}
+
+contract FrameForwarding {
+    function run(uint256 value, uint256 length) external pure returns (uint256) {
+        return forward(value, length);
+    }
+
+    function forward(uint256 value, uint256 length) internal pure returns (uint256) {
+        assembly { calldatacopy(0x80, calldatasize(), length) }
+        return value;
+    }
+
+    function branch(uint256 value, uint256 length, bool first) external pure returns (uint256) {
+        return forwardBranch(value, length, first);
+    }
+
+    function forwardBranch(uint256 value, uint256 length, bool first) internal pure returns (uint256) {
+        assembly { calldatacopy(0x80, calldatasize(), length) }
+        if (first) return value + 1;
+        return value + 2;
+    }
+
+    function derived(uint256 value, uint256 length) external pure returns (uint256) {
+        return forwardDerived(value, length);
+    }
+
+    function forwardDerived(uint256 value, uint256 length) internal pure returns (uint256) {
+        uint256 derivedValue = value * 3 + 1;
+        assembly { calldatacopy(0x80, calldatasize(), length) }
+        return derivedValue;
+    }
+
+    function sweep(uint256 value, uint256 length) external pure returns (uint256) {
+        return forwardSweep(value, length);
+    }
+
+    function forwardSweep(uint256 value, uint256 length) internal pure returns (uint256) {
+        assembly {
+            for { let ptr := 0 } lt(ptr, length) { ptr := add(ptr, 32) } {
+                mstore(ptr, 0)
+            }
+        }
+        return value;
+    }
+
+    function callAfterCopy(uint256 value, uint256 length) external pure returns (uint256) {
+        return forwardCall(value, length);
+    }
+
+    function forwardCall(uint256 value, uint256 length) internal pure returns (uint256) {
+        assembly { calldatacopy(0x80, calldatasize(), length) }
+        return consume(value, length) + 1;
+    }
+
+    // A second call site makes the callee use stack arguments even without optimization.
+    function consumeDirect(uint256 value, uint256 length) external pure returns (uint256) {
+        return consume(value, length);
+    }
+
+    function consume(uint256 value, uint256 length) internal pure returns (uint256) {
+        unchecked { return value + length; }
+    }
+
+    function loopCallAfterCopy(uint256 count, uint256 length) external view returns (uint256) {
+        return loopForward(count, length);
+    }
+
+    function loopForward(uint256 count, uint256 length) internal view returns (uint256 total) {
+        total = count;
+        bytes4 selector = this.seven.selector;
+        assembly {
+            for { let i := 0 } lt(i, count) { i := add(i, 1) } {
+                calldatacopy(0x80, calldatasize(), length)
+                if iszero(extcodesize(address())) { revert(0, 0) }
+                mstore(0, selector)
+                if iszero(staticcall(gas(), address(), 0, 4, 0, 32)) { revert(0, 0) }
+                total := add(total, add(count, mload(0)))
+            }
+        }
+    }
+
+    function computedAfterCopy(uint256 value, uint256 length) external pure returns (uint256) {
+        return forwardComputed(value, length);
+    }
+
+    function forwardComputed(uint256 value, uint256 length) internal pure returns (uint256) {
+        uint256 saved = value * 3;
+        assembly { calldatacopy(0x80, calldatasize(), length) }
+        if (length != 0) return consumeComputed(saved, saved, length) + value;
+        return consumeComputed(saved, value, length) + value;
+    }
+
+    function consumeComputed(uint256 first, uint256 second, uint256 length) internal pure returns (uint256 result) {
+        result = first;
+        for (uint256 i; i <= (length & 3); ++i) result += second;
+    }
+
+    function seven() external pure returns (uint256) {
+        return 7;
     }
 }

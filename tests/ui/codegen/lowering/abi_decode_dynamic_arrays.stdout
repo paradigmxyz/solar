@@ -122,7 +122,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
   bb14:
     v131 = mload 64 !metadata(memory=scratch)
     v132 = add v131, v54
-    mstore 64, v132 !metadata(memory=scratch)
+    mstore 64, v132 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v131, v51
     v137 = add v131, 32
     v140 = add v130, 32
@@ -493,7 +493,7 @@ fn @alloc(arg0: i256) -> i256 {
     v5 = or v3, v4
     jumpi v5, bb1, bb2
   bb2:
-    mstore 64, v2 !metadata(memory=scratch)
+    mstore 64, v2 !metadata(memory=scratch, preserves_valid_fmp)
     ret v0
   bb1:
     mstore 32, 65 !metadata(memory=scratch)

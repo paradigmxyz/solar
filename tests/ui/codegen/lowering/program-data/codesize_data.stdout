@@ -9,7 +9,7 @@ fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
   bb0:
     v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, 288
-    mstore 64, v30
+    mstore 64, v30 !metadata(preserves_valid_fmp)
     mstore v29, 241
     v22 = add v29, 256
     mstore v22, 0
@@ -34,7 +34,7 @@ fn @inner() [selector=0x4adb7729, abi_wrapper, pure] {
   bb0:
     v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, 224
-    mstore 64, v30
+    mstore 64, v30 !metadata(preserves_valid_fmp)
     mstore v29, 161
     v22 = add v29, 192
     mstore v22, 0

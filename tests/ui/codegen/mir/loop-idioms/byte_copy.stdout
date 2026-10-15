@@ -267,7 +267,7 @@ fn @_slice(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure]
   bb1:
     v66 = mload 64 !metadata(memory=scratch)
     v67 = add v66, 32
-    mstore 64, v67 !metadata(memory=scratch)
+    mstore 64, v67 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v66, 0
     ret v66
   bb2:
@@ -447,7 +447,7 @@ fn @alloc(arg0: i256) -> i256 {
     v5 = or v3, v4
     jumpi v5, bb1, bb2
   bb2:
-    mstore 64, v2 !metadata(memory=scratch)
+    mstore 64, v2 !metadata(memory=scratch, preserves_valid_fmp)
     ret v0
   bb1:
     mstore 32, 65 !metadata(memory=scratch)
