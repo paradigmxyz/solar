@@ -536,16 +536,17 @@ like `solc`'s `ConstantEvaluator`, with these exceptions:
 - An array length can read a constant declared after the array type, which
   `solc` rejects with error 5462.
 - When `solc` checks constant operands for a division by zero (1211) or a zero
-  `addmod` or `mulmod` modulus (4195), it also reports the arithmetic errors
-  (2643, 3667, 6020), long chains (5210) and `erc7201` arguments that are not
-  strings (9796) it finds in them. `solar` reports only 1211 or 4195.
+  `addmod` or `mulmod` modulus (4195), it reports the arithmetic errors (2643,
+  3667, 6020), long chains (5210) and `erc7201` arguments that are not strings
+  (9796) it finds in them instead. `solar` reports 1211 for such a dividend,
+  and nothing for such a divisor or modulus, whose uses revert at runtime.
 - A literal operation without a value in a constant that an array length
   reads, such as `1 / 0`, gets error 2271, as it does wherever the constant is
   used. `solc` reports it as 6020 when it evaluates the array length first.
 - An operation whose operand types have no common type, such as a typed shift
-  by a negative or signed amount or `uint8 + int8`, gets error 2271 from type
-  checking, and an array length that reads it gets 5462 and a base slot 1505.
-  `solc`'s evaluator reports one error 6020 instead.
+  by a negative or signed amount, gets error 2271 from type checking, and an
+  array length that reads it gets 5462 too. `solc`'s evaluator reports one
+  error 6020 instead.
 
 Rationale: the order of declarations does not change the value of a constant,
 and each error is reported once, where the expression is checked.

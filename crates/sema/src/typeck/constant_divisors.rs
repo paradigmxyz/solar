@@ -3,8 +3,8 @@
 //! This ports the division by zero (1211) and modulo zero (4195) checks of solc's
 //! `StaticAnalyzer`. They only apply to values that solc's constant evaluator computes, which
 //! [`Gcx::early_const_eval`] computes too: `x / 0` is not reported unless `x` is constant too, and
-//! neither are operands that only the full evaluation folds. A constant operand whose evaluation
-//! fails still gets 1211, where solc reports the operand's error; see TYPECK-020 in
+//! neither are operands that only the full evaluation folds. A constant dividend whose evaluation
+//! fails still gets 1211, where solc reports the dividend's error; see TYPECK-020 in
 //! `docs/SOLC_DIVERGENCE.md`.
 //!
 //! As in solc, this runs after type checking, before the view and pure checks, and only when no

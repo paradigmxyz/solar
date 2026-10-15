@@ -223,8 +223,8 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    /// Checks the type of the base slot of a storage layout specifier; `constant_values` checks its
-    /// value.
+    /// Checks that the base slot of a storage layout specifier is a constant integer;
+    /// `constant_values` checks its value.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeContractLevelChecker.cpp#L87-L194>
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
@@ -247,7 +247,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 .span(slot.span)
                 .span_label(slot.span, format!("found `{}`", ty.display(self.gcx)))
                 .emit();
+            return;
         }
+        let contract = self.contract.expect("storage layout specifier outside a contract");
+        self.results.base_slots.push((contract, slot));
     }
 
     fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
