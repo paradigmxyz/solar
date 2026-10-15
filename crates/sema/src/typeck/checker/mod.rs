@@ -75,8 +75,9 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
-    /// Whether we're checking the length of a fixed-size array type whose evaluation fails at a
-    /// literal operation, which the evaluation reports.
+    /// Whether we're checking a fixed-size array length that fails with an error solc's evaluator
+    /// reports. solc stops at that error, so type checking reports no failed literal operation in
+    /// it.
     in_failed_array_len: bool,
     /// The value components the enclosing statement discards, by expression.
     ///
@@ -275,11 +276,9 @@ impl<'gcx> TypeChecker<'gcx> {
     /// reports the others.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let fails = self
-            .gcx
-            .early_const_eval()
-            .eval_int(size)
-            .is_err_and(|err| err.kind.is_undefined_literal_op());
+        let fails = self.gcx.early_const_eval().eval_int_with_depth_limit(size).is_err_and(|err| {
+            !err.kind.is_unsupported() && !matches!(err.kind, EvalErrorKind::AlreadyEmitted(_))
+        });
         let prev = std::mem::replace(&mut self.in_failed_array_len, fails);
         let ty = self.check_expr(size);
         self.in_failed_array_len = prev;
@@ -454,7 +453,7 @@ impl<'gcx> TypeChecker<'gcx> {
                                 return ty;
                             }
                         }
-                        // The evaluation of the array length reports the failed operation.
+                        // The array length's evaluation reports its own error instead.
                         Err(err)
                             if self.in_failed_array_len && err.kind.is_undefined_literal_op() =>
                         {

@@ -17,7 +17,8 @@ contract C {
         }
     }
 
-    // A constant whose initializer reverts has no value either, also inside a Yul function.
+    // The check covers Yul functions too, and a constant whose initializer reverts has no value
+    // either.
     function g() external pure returns (uint256 r) {
         assembly {
             function h() -> v {

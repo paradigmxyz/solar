@@ -65,5 +65,13 @@ LL │         uint[uint32(bytes4(0x00000004))] memory h;
    │
    ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
-error: aborting due to 8 previous errors
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_unsupported.sol:LL:CC
+   │
+LL │         uint[C0 < 2 ? 1 : 2] memory i;
+   │              ━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error: aborting due to 9 previous errors
 

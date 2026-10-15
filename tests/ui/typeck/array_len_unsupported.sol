@@ -59,6 +59,7 @@ contract C {
         uint[M.C] memory f; //~ ERROR: failed to evaluate constant: unsupported expression
         uint[C40] memory g; //~ ERROR: failed to evaluate constant: constants are nested too deeply
         uint[uint32(bytes4(0x00000004))] memory h; //~ ERROR: failed to evaluate constant: unsupported expression
+        uint[C0 < 2 ? 1 : 2] memory i; //~ ERROR: failed to evaluate constant: unsupported expression
         a;
         b;
         c;
@@ -67,5 +68,6 @@ contract C {
         f;
         g;
         h;
+        i;
     }
 }

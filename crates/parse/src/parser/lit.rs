@@ -460,8 +460,8 @@ fn u256_from_str_radix(s: &str, base: Base) -> Option<U256> {
 
 fn big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<BigInt, LitError> {
     let too_large = || if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge };
-    // Leading zeros add digits but no bits to an integer. Those of a rational's digits are fraction
-    // digits, which widen its denominator.
+    // Leading zeros add digits but no bits to an integer. A rational's digits include its fraction,
+    // whose leading zeros widen its denominator.
     let s = match s.trim_start_matches('0') {
         "" => "0",
         digits if !rat => digits,

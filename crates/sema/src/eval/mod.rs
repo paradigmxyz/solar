@@ -14,8 +14,9 @@
 //!   and binary arithmetic, and `erc7201` of a string. It only uses name resolution and never
 //!   reaches a type, so type checking uses it for array lengths and literal arithmetic. The checks
 //!   after type checking use it for base slots and for what solc checks on the values its evaluator
-//!   computes, such as division by zero. Array lengths and base slots give up on constants nested
-//!   more than 32 deep like solc; see TYPECK-020 in `docs/SOLC_DIVERGENCE.md`.
+//!   computes, such as division by zero. Array lengths, base slots and the zero divisor checks give
+//!   up on constants nested more than 32 deep like solc; see TYPECK-020 in
+//!   `docs/SOLC_DIVERGENCE.md`.
 //! - [`Gcx::const_eval`] evaluates everything a constant initializer can contain, after type
 //!   checking, with the declarations it selected, such as the function in `this.f.selector`.
 //!   Codegen, base slots and other checks after type checking use it.
@@ -549,7 +550,7 @@ pub enum EvalErrorKind {
     /// Negating a value of an unsigned type.
     NegateUnsigned,
     /// A division or modulo by zero, of literals or of typed values, or a zero `addmod` or
-    /// `mulmod` modulus.
+    /// `mulmod` modulus. solc's evaluator reports only the literal one.
     DivisionByZero { literal: bool },
     /// A literal shift amount that solc gives no value.
     ShiftTooLarge,
@@ -608,9 +609,10 @@ impl EvalErrorKind {
         }
     }
 
-    /// Returns `true` if the evaluator gives no value but the expression is no error of its own:
-    /// runtime code computes it, as for `keccak256(type(C).creationCode)` or a byte array too large
-    /// to fold, or type checking reports it, as for `-x` of an unsigned `x`.
+    /// Returns `true` if solc's evaluator gives the expression no value and reports nothing,
+    /// because runtime code computes it or reverts, as for `keccak256(type(C).creationCode)`, a
+    /// byte array too large to fold or a typed division by zero, or because type checking
+    /// reports it, as for `-x` of an unsigned `x`.
     pub fn is_unsupported(&self) -> bool {
         match self {
             Self::ValueTooLarge
@@ -618,13 +620,14 @@ impl EvalErrorKind {
             | Self::UnsupportedBinaryOp
             | Self::UnsupportedExpr
             | Self::NonConstantVar
-            | Self::NegateUnsigned => true,
+            | Self::NegateUnsigned
+            | Self::DivisionByZero { literal: false } => true,
             Self::Cycle
             | Self::DepthLimit
             | Self::ArithmeticOverflow
             | Self::UnaryOverflow
             | Self::LiteralTooLarge
-            | Self::DivisionByZero { .. }
+            | Self::DivisionByZero { literal: true }
             | Self::ShiftTooLarge
             | Self::NegativeShift
             | Self::ExponentTooLarge

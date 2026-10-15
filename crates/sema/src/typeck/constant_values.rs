@@ -7,9 +7,9 @@
 //!   rejects, and its errors get solc's code for expressions its evaluator cannot evaluate, 1505;
 //!   see CONTRACT-001 in `docs/SOLC_DIVERGENCE.md`.
 //! - Inline assembly cannot read a constant without a value at compile time, error 7615. solc
-//!   accepts fewer constants; see TYPECK-013. Every use of such a constant calls a helper that runs
-//!   its initializer, which can allocate memory over data the assembly stored past the free memory
-//!   pointer.
+//!   accepts fewer constants; see TYPECK-013 in `docs/SOLC_DIVERGENCE.md`. Every use of such a
+//!   constant calls a helper that runs its initializer, which can allocate memory over data the
+//!   assembly stored past the free memory pointer.
 //!
 //! The checks that use [`Gcx::const_eval`] only run when no other error was reported: a constant
 //! with an error has no value. solc runs all of its base slot checks only then, and reports 7615
