@@ -960,4 +960,41 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(MirType::I256),
         ))
     }
+
+    /// `keccak256(abi.encode(..))` of one or two value-type words, hashed in scratch space like
+    /// the packed form. Function values and untyped literals keep the general encoder.
+    pub(super) fn lower_keccak_abi_encode_words(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+    ) -> Option<ValueId> {
+        if !(1..=2).contains(&exprs.len()) {
+            return None;
+        }
+        let tys = exprs
+            .iter()
+            .map(|expr| self.cx.gcx.type_of_expr(expr.id))
+            .collect::<Option<Vec<_>>>()?;
+        if !tys
+            .iter()
+            .all(|ty| ty.is_value_type() && !matches!(ty.kind, TyKind::Fn(_) | TyKind::Super(_)))
+        {
+            return None;
+        }
+        // words = clean(evaluate_arguments_in_order(args))
+        let parts = exprs
+            .iter()
+            .zip(tys)
+            .map(|(expr, ty)| {
+                let value = self.lower_typed_expr(expr, ty)?;
+                let value = self.canonicalize_abi_value(ty, value);
+                let value = self.builder.cast_word(value);
+                Some(PackedPart::Scalar { value, ty: crate::mir::ValueLayout::uint256() })
+            })
+            .collect::<Option<Box<[_]>>>()?;
+        // hash = keccak256_packed(words)
+        Some(
+            self.builder
+                .emit_inst(InstKind::AbiEncodePacked { parts, hash: true }, Some(MirType::I256)),
+        )
+    }
 }

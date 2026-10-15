@@ -944,7 +944,7 @@
 +   bb3:
 +     jump bb1
 +   bb1:
-+     v2 = abi_encode [memory_bytes], args arg0
++     v2 = abi_encode [memory_bytes], scratch, args arg0
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -981,7 +981,7 @@
       v0 = icall @canonicalAddresses
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<word>], args v1
++     v2 = abi_encode [memory_array<word>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -993,7 +993,7 @@
       v0 = icall @canonicalAddresses
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<word>], args v1
++     v2 = abi_encode [memory_array<word>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -1031,7 +1031,7 @@
       v0 = icall @canonicalAddressArrays
 -     ret v0
 +     v1 = icall @cleanup_return.37, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -1043,7 +1043,7 @@
       v0 = icall @canonicalAddressArrays
 -     ret v0
 +     v1 = icall @cleanup_return.37, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -1081,7 +1081,7 @@
       v0 = icall @dirtyAddressArrays
 -     ret v0
 +     v1 = icall @cleanup_return.37, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -1093,7 +1093,7 @@
       v0 = icall @dirtyAddressArrays
 -     ret v0
 +     v1 = icall @cleanup_return.37, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -1217,7 +1217,7 @@
       v0 = icall @dirtyAddressAliases
 -     ret v0
 +     v1 = icall @cleanup_return.37, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -1229,7 +1229,7 @@
       v0 = icall @dirtyAddressReloads
 -     ret v0
 +     v1 = icall @cleanup_return.37, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -1241,7 +1241,7 @@
       v0 = icall @escapingAddressArrays
 -     ret v0
 +     v1 = icall @cleanup_return.37, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -1382,7 +1382,7 @@
       v1 = icall @aliasedAddressContainer, v0, v0
 -     ret v1
 +     v2 = icall @cleanup_return.39, v1
-+     v3 = abi_encode [memory_array<word>], args v2
++     v3 = abi_encode [memory_array<word>], scratch, args v2
 +     v4 = extract_value slice<memory>, v3, 0
 +     v5 = extract_value slice<memory>, v3, 1
 +     returndata v4, v5
@@ -1395,7 +1395,7 @@
       mstore 0, 256
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<word>], args v1
++     v2 = abi_encode [memory_array<word>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -1528,7 +1528,7 @@
       v0 = icall @bypassedArrayLoop, arg0
 -     ret v0
 +     v5 = icall @cleanup_return.39, v0
-+     v6 = abi_encode [memory_array<word>], args v5
++     v6 = abi_encode [memory_array<word>], scratch, args v5
 +     v7 = extract_value slice<memory>, v6, 0
 +     v8 = extract_value slice<memory>, v6, 1
 +     returndata v7, v8
@@ -1542,7 +1542,7 @@
       v0 = icall @lateArrayLength
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<word>], args v1
++     v2 = abi_encode [memory_array<word>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
@@ -1617,7 +1617,7 @@
     bb0:
       v0 = icall @canonicalStorageAddresses, 0
 -     ret v0
-+     v1 = abi_encode [memory_array<word>], args v0
++     v1 = abi_encode [memory_array<word>], scratch, args v0
 +     v2 = extract_value slice<memory>, v1, 0
 +     v3 = extract_value slice<memory>, v1, 1
 +     returndata v2, v3
@@ -1678,7 +1678,7 @@
       v0 = icall @dirtyStorageAddresses, 0
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<word>], args v1
++     v2 = abi_encode [memory_array<word>], scratch, args v1
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
