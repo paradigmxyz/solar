@@ -42,6 +42,9 @@ uint constant D30 = D29;
 uint constant D31 = D30;
 uint constant D32 = D31;
 
+uint8 constant MAX8 = 255;
+uint8 constant OVERFLOW = MAX8 + 1;
+
 contract C {
     function member() public pure returns (uint, uint) {
         return (1 / L.Z, addmod(1, 2, L.Z));
@@ -53,6 +56,11 @@ contract C {
 
     function deep() public pure returns (uint) {
         return 1 / D32;
+    }
+
+    // solc reports the overflow in the operand; we report the division by zero.
+    function failedOperand() public pure returns (uint) {
+        return OVERFLOW / 0; //~ ERROR: division by zero
     }
 
     function shallow() public pure returns (uint, uint) {

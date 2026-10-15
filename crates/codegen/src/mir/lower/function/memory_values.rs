@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::link::{CodeKind, ContractCode, QualifiedName};
+use solar_interface::diagnostics::ErrorGuaranteed;
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
@@ -287,9 +288,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         contract_id: hir::ContractId,
         kind: CodeKind,
     ) -> Option<ValueId> {
-        // value = bytes(creation_bytecode(C) | runtime_bytecode(C))
-        let code = self.contract_code(span, contract_id, kind)?;
-        Some(Self::build_bytecode(&mut self.builder, code))
+        match self.contract_code(span, contract_id, kind) {
+            // value = bytes(creation_bytecode(C) | runtime_bytecode(C))
+            Ok(code) => Some(Self::build_bytecode(&mut self.builder, code)),
+            // value = error
+            Err(guar) => Some(self.builder.error_value(guar)),
+        }
     }
 
     /// Returns the deferred data for the creation or runtime bytecode of a contract that
@@ -299,20 +303,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         contract_id: hir::ContractId,
         kind: CodeKind,
-    ) -> Option<DataId> {
+    ) -> Result<DataId, ErrorGuaranteed> {
         let gcx = self.cx.gcx;
         let name = gcx.hir.contract(contract_id).name;
         if !self.cx.bytecode_dependencies.contains(contract_id) {
-            gcx.dcx()
+            return Err(gcx
+                .dcx()
                 .err(format!("codegen is missing {} for `{name}`", kind.keyword()))
                 .span(span)
                 .note("the contract is not a bytecode dependency of the contract being compiled")
-                .emit();
-            return None;
+                .emit());
         }
         let data_name = Symbol::intern(&format!("{name}_{}", kind.keyword()));
         let code = ContractCode { contract: QualifiedName::of_contract(gcx, contract_id), kind };
-        Some(self.cx.module.intern_contract_code(code, data_name))
+        Ok(self.cx.module.intern_contract_code(code, data_name))
     }
 
     pub(super) fn build_bytecode(builder: &mut FunctionBuilder<'_>, code: DataId) -> ValueId {

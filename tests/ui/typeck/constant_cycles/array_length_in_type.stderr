@@ -1,0 +1,40 @@
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/array_length_in_type.sol:LL:CC
+   │
+LL │ uint256 constant Y = X.length;
+   │                      ──────── evaluation of constant value failed here
+   ‡
+LL │     uint256[Y] values;
+   │             ━
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/array_length_in_type.sol:LL:CC
+   │
+LL │     uint256[B] values;
+   │             ━
+   ‡
+LL │ uint256 constant A = uint256(keccak256(abi.encode(new S[](1)))) % 4 + 1;
+   │                      ────────────────────────────────────────── evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/array_length_in_type.sol:LL:CC
+   │
+LL │ bytes constant X = abi.encode(new uint256[Y][](1));
+   │                                           ━
+LL │ uint256 constant Y = X.length;
+   │                      ──────── evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/array_length_in_type.sol:LL:CC
+   │
+LL │ uint256 constant Y = X.length;
+   ╰╴                     ━━━━━━━━
+
+error: aborting due to 4 previous errors
+

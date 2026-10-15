@@ -22,30 +22,24 @@ fn @fUint(arg0: i256, arg1: i256) -> struct0 [selector=0x432672b2, abi_params=[u
 
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_bytes v0
-    v2 = eq 0xe7eed6879ebbcc949780042a313916d5554b1d334cfdf13575d35c220c4a819, v1
-    jumpi v2, bb1, bb2
+    jumpi true, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v3 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
-    v4 = keccak256_bytes v3
-    v5 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
-    v6 = keccak256_bytes v5
-    v7 = eq v4, v6
+    v0 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
+    v1 = keccak256_bytes v0
+    v2 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
+    v3 = keccak256_bytes v2
+    v4 = eq v1, v3
     jump bb3
   bb3:
-    v8 = phi [bb1: v7], [bb2: false]
-    jumpi v8, bb4, bb5
+    v5 = phi [bb1: v4], [bb2: false]
+    jumpi v5, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v9 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
-    v10 = keccak256_bytes v9
-    v11 = eq 0x33f67098ce03cc52b18f520e7908cdea910975eeb6d6dd916ab902d18598bf5d, v10
     jump bb6
   bb6:
-    v12 = phi [bb4: v11], [bb5: false]
-    ret v12
+    v6 = phi [bb4: true], [bb5: false]
+    ret v6
 }
