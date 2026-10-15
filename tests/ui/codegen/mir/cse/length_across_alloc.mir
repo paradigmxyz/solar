@@ -1,0 +1,35 @@
+//@ compile-flags: -Zmir-pipeline=cse
+//@ filecheck:
+@module AllocationExtent
+
+// Initialization touches only the new allocation, even when its size is dynamic. Without a
+// lower-bound proof for the allocation, the FMP write may still alias its header.
+// CHECK-LABEL: fn @fresh
+// CHECK: {{^ +}}[[LEN:v[0-9]+]] = mload
+// CHECK: alloc zeroed checked arg0
+// CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload
+// CHECK: add [[LEN]], [[SECOND]]
+fn @fresh(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = mload v0
+    v2 = alloc zeroed checked arg0
+    v3 = mload v0
+    v4 = add v1, v3
+    ret v4
+}
+
+// Raw pointers may alias the FMP slot or a recycled allocation and retain both reads.
+// CHECK-LABEL: fn @raw
+// CHECK: {{^ +}}[[A:v[0-9]+]] = mload arg0
+// CHECK: alloc zeroed checked arg1
+// CHECK: {{^ +}}[[B:v[0-9]+]] = mload arg0
+// CHECK: add [[A]], [[B]]
+fn @raw(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    v1 = alloc zeroed checked arg1
+    v2 = mload arg0
+    v3 = add v0, v2
+    ret v3
+}

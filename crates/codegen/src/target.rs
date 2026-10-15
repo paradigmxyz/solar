@@ -15,7 +15,7 @@
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
-    mir::{BlockId, Function, Op, Value, ValueId},
+    mir::{BlockId, Function, Op, Terminator, Value, ValueId},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -638,11 +638,16 @@ impl Target {
                 }
             });
         }
-        let edges = block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());
-        for _ in 0..edges {
-            cost += self.label_push();
-            cost += self.opcode(op::JUMPI);
-            cost += self.opcode(op::JUMPDEST);
+        if let Some(terminator) = &block.terminator {
+            // An unconditional edge does not pay the conditional jump's higher gas price.
+            // Other CFG edges retain the conservative conditional-edge estimate.
+            if matches!(terminator, Terminator::Jump(_)) {
+                cost += self.jump();
+            } else {
+                for _ in 0..terminator.successors().len() {
+                    cost += self.branch();
+                }
+            }
         }
         cost
     }
@@ -687,14 +692,22 @@ impl Target {
             byte_saving > 0
         }
     }
+
+    /// Cost of a jump to a block, including the pushed label and the target's landing.
+    pub(crate) fn jump(self) -> Cost {
+        self.label_push() + self.opcode(op::JUMP) + self.opcode(op::JUMPDEST)
+    }
+
+    /// Cost of a conditional edge, including the pushed label and the target's landing.
+    pub(crate) fn branch(self) -> Cost {
+        self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{
-        Function, Immediate, InstKind, Instruction, MirType, PtrLocation, Terminator, Value,
-    };
+    use crate::mir::{Function, Immediate, InstKind, Instruction, MirType, PtrLocation, Value};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -896,9 +909,9 @@ mod tests {
         function.blocks[exit]
             .set_generated_terminator(Terminator::Return { values: smallvec::smallvec![sum] });
         // `add` with both pushes of its immediate, then a pushed label, a jump and a landing.
-        assert_eq!(target.block_code_estimate(&function, BlockId::ENTRY), Cost::new(23, 10));
+        assert_eq!(target.block_code_estimate(&function, BlockId::ENTRY), Cost::new(21, 10));
         assert_eq!(target.block_code_estimate(&function, exit), Cost::ZERO);
-        assert_eq!(target.code_estimate(&function), Cost::new(23, 10));
+        assert_eq!(target.code_estimate(&function), Cost::new(21, 10));
     }
 
     #[test]
@@ -940,5 +953,31 @@ mod tests {
         assert!(!target(Target::LOOP_COPY_MIN_RUNS - 1).copies_loops());
         assert!(target(Target::LOOP_COPY_MIN_RUNS).copies_loops());
         assert!(target(u64::from(u32::MAX)).copies_loops());
+    }
+
+    #[test]
+    fn control_flow_costs_distinguish_unconditional_edges() {
+        for version in
+            [EvmVersion::Homestead, EvmVersion::Paris, EvmVersion::Osaka, EvmVersion::Amsterdam]
+        {
+            let target = Target::with(version, OptimizationMode::Gas, 200);
+            assert_eq!(target.jump(), Cost::new(12, 5));
+            assert_eq!(target.branch(), Cost::new(14, 5));
+            let mut function = Function::new(Ident::DUMMY);
+            let then_block = function.alloc_block();
+            let else_block = function.alloc_block();
+            let condition = function.alloc_value(Value::Immediate(Immediate::I1(true)));
+            function.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::Branch {
+                condition,
+                then_block,
+                else_block,
+            });
+            assert_eq!(
+                target.block_code_estimate(&function, BlockId::ENTRY),
+                target.branch().times(2)
+            );
+            function.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::Jump(then_block));
+            assert_eq!(target.block_code_estimate(&function, BlockId::ENTRY), target.jump());
+        }
     }
 }

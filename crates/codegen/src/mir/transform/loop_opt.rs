@@ -52,7 +52,7 @@ use crate::mir::{
     ValueId,
     analysis::{
         AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
-        Loop, LoopAnalyzer, MemoryLocation, ScalarEvolution,
+        Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ScalarEvolution,
     },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
@@ -471,6 +471,10 @@ impl LoopOptimizer {
     fn can_hoist_safely(&self, func: &Function, inst_id: InstId, ctx: LoopOptContext<'_>) -> bool {
         let inst = func.inst(inst_id);
 
+        if matches!(inst.kind, InstKind::StorageArrayDataSlot(_) | InstKind::MappingSlot(..)) {
+            return self.slot_hash_scratch_is_private(func, inst_id)
+                && self.hoist_execution_guaranteed(func, inst_id, ctx);
+        }
         if inst.must_execute(false) {
             return false;
         }
@@ -1093,6 +1097,29 @@ impl LoopOptimizer {
         }
 
         result
+    }
+
+    /// Moving a fixed-width hash also moves its scratch writes and memory expansion. Require
+    /// no other observer or clobber of scratch in the whole function, including calls; retain
+    /// the existing must-execute proof so zero-trip loops do not acquire a hash.
+    fn slot_hash_scratch_is_private(&self, func: &Function, candidate: InstId) -> bool {
+        let Some(aa) = self.alias.as_deref() else { return false };
+        let scratch = Location::Memory(MemoryLocation::new(
+            MemoryAddress::absolute(0),
+            LocationSize::Const(crate::mir::memory::EvmMemoryLayout::FMP_SLOT),
+        ));
+        func.instructions().filter(|&inst| inst != candidate).all(|inst| {
+            let effects = aa.instruction_mod_ref(func, inst);
+            !effects.observes_gas()
+                && !effects.observes_memory_size()
+                && !effects.may_read(aa, scratch)
+                && !effects.may_write(aa, scratch)
+        }) && func.blocks.iter().all(|block| {
+            !matches!(
+                block.terminator,
+                Some(Terminator::ReturnData { .. } | Terminator::Revert { .. })
+            )
+        })
     }
 }
 

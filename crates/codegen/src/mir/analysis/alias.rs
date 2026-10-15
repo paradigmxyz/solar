@@ -1095,7 +1095,19 @@ impl AliasAnalysis {
                 if semantics.initialization == crate::mir::AllocationInitialization::Zeroed
                     && let Some(ptr) = func.inst_result_value(inst_id)
                 {
-                    write_memory(&mut effects, ptr, SizeOperand::Value(size));
+                    // The initialization writes exactly the allocation's own extent. Keep that
+                    // identity even for a dynamic size; arbitrary stores still require bounds.
+                    if let Some(address) = self.memory_address(func, resolve(ptr)) {
+                        let size = self.resolved_location_size(
+                            func,
+                            SizeOperand::Value(size),
+                            replacements,
+                        );
+                        let location = MemoryLocation::new(address, size);
+                        effects.write(Access::Location(Location::Memory(location)));
+                    } else {
+                        effects.write_any(AddressSpace::Memory);
+                    }
                 }
             }
             InstKind::StorageBytesLoad(..) | InstKind::StorageArrayLoad { .. } => {
