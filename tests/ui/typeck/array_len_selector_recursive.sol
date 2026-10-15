@@ -1,5 +1,5 @@
-// Selectors only fold for items that have one, and whose signature has ABI types, unlike recursive
-// structs outside of libraries. Type checking reports the others.
+// Array lengths cannot read selectors or interface IDs, which solc's evaluator does not compute,
+// whether or not the signatures have ABI types.
 struct A {
     B[] b;
 }
@@ -20,8 +20,7 @@ contract C {
     uint[internalFn.selector.length] internalSelector; //~ ERROR: failed to evaluate constant: unsupported expression
     //~^ ERROR: member `selector` not found
     uint[E.selector.length] errorSelector; //~ ERROR: failed to evaluate constant: unsupported expression
-    // The interface ID leaves out the function with a recursive type.
-    uint[type(I).interfaceId.length] interfaceId;
+    uint[type(I).interfaceId.length] interfaceId; //~ ERROR: failed to evaluate constant: unsupported expression
 }
 
 library L {
@@ -33,5 +32,5 @@ library L {
 }
 
 contract D {
-    uint[L.f.selector.length] librarySelector;
+    uint[L.f.selector.length] librarySelector; //~ ERROR: failed to evaluate constant: unsupported expression
 }

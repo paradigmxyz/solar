@@ -8,11 +8,39 @@ is a late lowering decision.
 
 ## Value types and conversions
 
-SSA values use integers (`iN`), opaque memory pointers (`memptr`), structs, or
-slices. A `memptr` carries a 256-bit memory address without implying validity,
-heap provenance, or non-wrapping pointer arithmetic. Memory objects are `memptr`
-values too: an access such as `memory_object_load_field memorystruct<3>, v0, 2`
-names the object layout itself, as LLVM loads name their type.
+SSA values use integers (`iN`), opaque pointers, structs, or slices. A pointer
+names the location it points into: `ptr<memory>`, `ptr<calldata>`, or
+`ptr<returndata>`. It carries a 256-bit address without implying validity or
+heap provenance.
+Memory objects are `ptr<memory>` values too, accessed with ordinary instructions:
+every word access is a load, a store, or `mstore8`, and every bulk copy into
+memory is a copy. One load, one store, and one copy instruction cover every
+location, storage and transient storage included, and each prints as the opcode
+its location selects: `mload`, `calldataload`, `returndataload`, `sload`, or
+`tload`; `mstore`, `sstore`, or `tstore`; and `mcopy`, `calldatacopy`, or
+`returndatacopy`. Storage and transient accesses take a slot word. Like an LLVM
+load from `ptr`, an access takes a pointer into the location it reads or a raw
+`i256` address, and so does every memory range operand of `keccak256`, `log`,
+the calls, `create`, and raw `return` and `revert`. `lower-evm-shaped` erases
+pointer types: every pointer becomes the word it holds, and the casts between
+the two disappear. A field or element access is a `ptradd` and an access at the
+result; analyses decompose an address through its `ptradd` chain.
+
+`ptradd p, n` addresses `n` bytes into the object `p` points into and keeps
+its type. Like an LLVM `getelementptr inbounds nuw`, it does not wrap: semantic
+lowering emits it only for addresses inside the object, so alias analysis
+places an access at a runtime offset at or after `p`, and assembly's raw
+arithmetic uses `add` on words instead. A fixed array or struct has no length
+word, so field or element `i` is the word at `ptradd v0, 32 * i`, and at
+`ptradd v0, shl 5, i` for a runtime index. A dynamic memory object (`bytes`,
+`string`, `T[] memory`) is a `ptr<memory>` to its length word, which assembly can
+read and rewrite: `mload v0` reads the length, the payload starts at `ptradd v0, 32`, and
+element `i` of a word array is the word 32 bytes past `ptradd v0, shl 5, i`.
+Where a slice value is needed, `make_memory_slice` pairs the payload pointer
+with the length; `extract_value` projects its pointer (field 0) and length
+(field 1) as it projects struct fields, and calldata and returndata slices work
+the same way, with a `ptr<calldata>` or `ptr<returndata>` pointer. At the
+calling convention a slice's pointer travels as a word.
 An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
 address arithmetic. Signedness and ABI encoding rules belong to operation and
 layout metadata. `void` denotes no function result.
@@ -45,8 +73,8 @@ and use `opcode source-type value to destination-type`:
 - `trunc i256 value to i160` keeps the low 160 bits.
 - `zext i160 value to i256` widens with zero bits.
 - `sext i160 value to i256` widens by copying the sign bit.
-- `ptrtoint memptr value to i256` exposes a pointer's bits; narrower results truncate.
-- `inttoptr i256 value to memptr` interprets integer bits as a pointer.
+- `ptrtoint ptr<memory> value to i256` exposes a pointer's bits; narrower results truncate.
+- `inttoptr i256 value to ptr<memory>` interprets integer bits as a pointer.
 
 `trunc i256 value to i1` keeps only the low bit. Use `ne value, 0` for
 nonzero truth conversion. Pointer casts establish no validity or ownership. Phi
@@ -74,8 +102,7 @@ every assignment proves that all stored bits fit the shorter encoding.
 
 The two representation phases and checked backend boundary are implemented.
 Shared instruction effects, checked arithmetic, conditional checks, revert payloads,
-precompiles, and concatenation
-now use the phase boundary. The remaining builtin families are described below.
+and precompiles now use the phase boundary. The remaining builtin families are described below.
 The CFG and aggregate contracts below also describe implemented behavior.
 
 Use two stable MIR representations, `semantic` and `lowered`, followed by the
@@ -86,7 +113,7 @@ or types a module may contain.
 | Representation | Contract | Main work |
 | --- | --- | --- |
 | Semantic MIR | Typed SSA, structs, slices, object references, semantic builtins, ordinary function calls; ABI and storage layouts remain explicit data. | Inline and specialize small functions, propagate constants, promote frame slots, simplify aggregates, remove redundant checks and memory/storage work. |
-| Lowered MIR | `i256`, `i1`, and `memptr` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
+| Lowered MIR | `i256` and `i1` SSA (pointers become the words they hold), explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive
@@ -136,7 +163,7 @@ HIR lowering should evaluate operands, resolve types and layouts, and emit a
 semantic operation for each runtime builtin. Builtins can stay opaque to
 passes that do not understand their internals while still exposing signatures,
 effects, and constant-folding rules. `ICall` targets distinguish function definitions
-from typed builtins. Concat, require, conditional checks, hashing precompiles,
+from typed builtins. Require, conditional checks, hashing precompiles,
 checked modular arithmetic, ERC-7201, send/transfer, and returndata capture pass
 evaluated values in the ordinary argument list. The builtin identity carries
 only static specialization data; runtime values never live in the callee.
@@ -144,7 +171,7 @@ Specializations print in angle brackets, including empty `<>` for fixed targets.
 Return signatures come from the callee. Expansion adds no runtime call overhead.
 
 ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
-allocations, checked arithmetic, packed encoding, concatenation, and precompiles follow this
+allocations, checked arithmetic, packed encoding, and precompiles follow this
 approach. `lower-arithmetic` expands checked word operations and exponentiation
 loops. Loop analysis recognizes checked unsigned word recurrences and affine
 expressions without removing their checks. When a checked update must stay live,
@@ -152,9 +179,10 @@ strength reduction adds at most one scaled address counter; extra plain-add or
 per-field counters can cost more than the arithmetic they replace. LICM also checks
 for exits hidden in semantic instructions before using a trip bound to move a load.
 Signed and narrow recurrences remain conservative.
-`lower-builtins` expands precompile buffers/calls, concatenation copies, and packed
-encoding. Packed arguments retain scalar widths and owned array layouts; length
-reads and packing loops run after argument evaluation. Packing checks each array
+`lower-builtins` expands precompile buffers/calls and packed encoding, which also
+implements `bytes.concat` and `string.concat`. Packed arguments retain scalar
+widths and owned array layouts; length reads and packing loops run after
+argument evaluation. Packing checks each array
 extent before entering its loop; the loop bound then proves that element offsets
 need no further overflow checks. Both bytes results and
 scratch hashes share the encoder. Solidity `addmod` and `mulmod` retain their
@@ -502,14 +530,14 @@ transforms justify their cost.
 
 `insert_value` and `extract_value` construct and project fixed SSA structs.
 They do not allocate storage, copy bytes, or imply an address. A slice field
-carries its pointer and length; a memory-object field carries a `memptr`, not a
+carries its pointer and length; a memory-object field carries a `ptr<memory>`, not a
 copy of the referenced object.
 
 A raw `i256` field can carry all bits of a pointer. Keep the conversion
 explicit: `ptrtoint` exposes pointer bits as an integer; `inttoptr` turns an
-integer into a `memptr` without proving validity or ownership. Neither operation
+integer into a `ptr<memory>` without proving validity or ownership. Neither operation
 allocates or copies memory. Field and element loads of a pointer produce a
-`memptr` directly, and later simplification removes redundant word casts. Alias
+`ptr<memory>` directly, and later simplification removes redundant word casts. Alias
 analysis follows their unchanged addresses.
 
 The verifier checks that semantic accesses receive pointers; the access itself

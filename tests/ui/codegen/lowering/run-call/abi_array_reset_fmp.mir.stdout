@@ -15,15 +15,15 @@ fn @encode(arg0: i256) -> i256 [selector=0xdeb21fa2, pure, abi_params=[u256], ab
     v6 = add v1, 128
     mstore v6, 5
     mstore 64, 128 !metadata(memory=scratch)
-    v7 = inttoptr i256 v1 to memptr
-    v8 = inttoptr i256 v1 to memptr
+    v7 = inttoptr i256 v1 to ptr<memory>
+    v8 = inttoptr i256 v1 to ptr<memory>
     v9 = abi_encode [memory_array<memory_array<word>>, memory_array<memory_array<word>>], object, args v7, v8
-    v10 = ptrtoint memptr v9 to i256
-    v11 = mload v10
-    v12 = ptrtoint memptr v9 to i256
+    v10 = ptrtoint ptr<memory> v9 to i256
+    v11 = mload v9
+    v12 = ptrtoint ptr<memory> v9 to i256
     v13 = add v12, 32
     v14 = add v13, v11
-    v15 = ptrtoint memptr v9 to i256
+    v15 = ptrtoint ptr<memory> v9 to i256
     v16 = add v15, 32
     jump bb1
   bb1:
@@ -42,7 +42,7 @@ fn @encode(arg0: i256) -> i256 [selector=0xdeb21fa2, pure, abi_params=[u256], ab
   bb5:
     jump bb2
   bb2:
-    v31 = memory_object_len memorybytes, v23
+    v31 = mload v23
     v32 = checked_add u256, v18, v31
     v33 = checked_add u256, v32, v17
     ret v33

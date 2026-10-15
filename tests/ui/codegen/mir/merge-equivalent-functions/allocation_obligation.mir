@@ -4,20 +4,20 @@
 
 // The same allocation operation can have different placement obligations.
 // CHECK-LABEL: fn @movable
-// CHECK: alloc raw, exact, uninitialized, infallible, 64{{$}}
+// CHECK: alloc 64{{$}}
 fn @movable() -> i256 {
   bb0:
-    v2 = alloc raw, exact, uninitialized, infallible, 64
-    v0 = ptrtoint memptr v2 to i256
+    v2 = alloc 64
+    v0 = ptrtoint ptr<memory> v2 to i256
     ret v0
 }
 
 // CHECK-LABEL: fn @reserved
-// CHECK: alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+// CHECK: alloc 64 !metadata(preserves_fmp)
 fn @reserved() -> i256 {
   bb0:
-    v3 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v0 = ptrtoint memptr v3 to i256
+    v3 = alloc 64 !metadata(preserves_fmp)
+    v0 = ptrtoint ptr<memory> v3 to i256
     ret v0
 }
 

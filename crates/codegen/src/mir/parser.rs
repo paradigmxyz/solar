@@ -35,14 +35,14 @@
 
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
-    AbiType, AddressCallKind, AllocationAlignment, AllocationFailure, AllocationInitialization,
-    AllocationKind, AllocationSemantics, BlockId, DataId, DataRef, DataSize, Disambiguator,
-    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate,
-    ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol,
-    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
-    StorageLayout, StorageLayoutRef, StructId, StructType, Terminator, Value, ValueId,
+    AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
+    BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode, FrameSlotKind,
+    Function, FunctionBuilder, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
+    InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
+    MemoryRegion, Module, StorageAlias, StorageField, StorageLayout, StorageLayoutRef, StructId,
+    StructType, Terminator, Value, ValueId,
 };
-use crate::mir::{AbiWordValidator, Callee, MirType, SliceLocation, TypeSize};
+use crate::mir::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
@@ -123,9 +123,14 @@ struct BlockLabel {
     reference_span: Option<Span>,
 }
 
-/// Pairs an operation with the result type its schema entry declares.
-fn schema_typed(kind: InstKind) -> (InstKind, Option<MirType>) {
-    let ty = kind.op_def().result.default_type();
+/// Pairs an operation with the result type its schema entry declares; a pointer result takes
+/// its operand's pointer type.
+fn schema_typed(func: &Function, kind: InstKind) -> (InstKind, Option<MirType>) {
+    let ty = if kind.op_def().result == super::ResultKind::Pointer {
+        kind.inferred_result_type(func)
+    } else {
+        kind.op_def().result.default_type()
+    };
     (kind, ty)
 }
 
@@ -413,7 +418,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 for &id in &instructions {
                     let instruction = function.inst(id);
                     let non_default = |ty| {
-                        matches!(ty, MirType::Struct(_) | MirType::Slice(_) | MirType::MemPtr)
+                        matches!(ty, MirType::Struct(_) | MirType::Slice(_) | MirType::Ptr(_))
                             || matches!(ty, MirType::Int(bits) if bits.get() != 256)
                     };
                     if explicit_results.contains(&(function_id, id))
@@ -422,7 +427,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         continue;
                     }
                     let ty = match &instruction.kind {
-                        kind if kind.op_def().result == super::ResultKind::Integer => {
+                        kind if matches!(
+                            kind.op_def().result,
+                            super::ResultKind::Integer | super::ResultKind::Pointer
+                        ) =>
+                        {
                             kind.inferred_result_type(function).filter(|&ty| non_default(ty))
                         }
                         InstKind::Select(_, a, b) => [*a, *b]
@@ -680,6 +689,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if id == sym::i1 {
             return Ok(MirType::I1);
         }
+        if id == sym::ptr {
+            return Ok(MirType::Ptr(self.parse_type_location()?));
+        }
+        if id == sym::slice {
+            return Ok(MirType::Slice(self.parse_type_location()?));
+        }
         if let Some(bits) = id.as_str().strip_prefix('i')
             && !bits.is_empty()
             && bits.bytes().all(|byte| byte.is_ascii_digit())
@@ -696,17 +711,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         let layout = self.parse_value_layout_from_ident(id)?;
         match layout {
-            super::ValueLayout::MemPtr
-            | super::ValueLayout::Slice(_)
-            | super::ValueLayout::Struct(_)
-            | super::ValueLayout::Void => Ok(layout.mir_type()),
-            super::ValueLayout::MemoryObject(_) => Err(self
-                .parser
-                .error(format!("`{id}` is an object layout; memory objects are `memptr` values"))),
+            super::ValueLayout::Struct(_) | super::ValueLayout::Void => Ok(layout.mir_type()),
+            super::ValueLayout::MemoryObject(_) => Err(self.parser.error(format!(
+                "`{id}` is an object layout; memory objects are `ptr<memory>` values"
+            ))),
             _ => Err(self
                 .parser
                 .error(format!("`{id}` is a layout type; use `iN` for a scalar SSA value"))),
         }
+    }
+
+    /// Parses the `<location>` argument of a `ptr` or `slice` type.
+    fn parse_type_location(&mut self) -> PResult<'sess, PtrLocation> {
+        self.parser.expect(TokenKind::Lt)?;
+        let id = self.parser.parse_ident()?;
+        let location = location_from_ident(id)
+            .ok_or_else(|| self.parser.error(format!("unknown location `{id}`")))?;
+        self.expect_gt()?;
+        Ok(location)
     }
 
     fn parse_value_layout(&mut self) -> PResult<'sess, super::ValueLayout> {
@@ -749,7 +771,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             match id {
                 kw::Bool => super::ValueLayout::Bool,
                 kw::Address => super::ValueLayout::Address,
-                sym::memptr => super::ValueLayout::MemPtr,
                 sym::memorybytes => super::ValueLayout::MemoryObject(MemoryObjectKind::Bytes),
                 sym::memoryarray => {
                     super::ValueLayout::MemoryObject(MemoryObjectKind::DynamicArray)
@@ -759,10 +780,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::memorystruct => super::ValueLayout::MemoryObject(MemoryObjectKind::Struct),
                 sym::storageptr => super::ValueLayout::StoragePtr,
-                sym::calldataptr => super::ValueLayout::CalldataPtr,
-                sym::memoryslice => super::ValueLayout::Slice(SliceLocation::Memory),
-                sym::calldataslice => super::ValueLayout::Slice(SliceLocation::Calldata),
-                sym::returndataslice => super::ValueLayout::Slice(SliceLocation::Returndata),
+                sym::ptr => match self.parse_type_location()? {
+                    PtrLocation::Memory => super::ValueLayout::MemPtr,
+                    PtrLocation::Calldata => super::ValueLayout::CalldataPtr,
+                    location => {
+                        return Err(self
+                            .parser
+                            .error(format!("`ptr<{location}>` is not a layout type")));
+                    }
+                },
+                sym::slice => super::ValueLayout::Slice(self.parse_type_location()?),
                 kw::Function => super::ValueLayout::Function,
                 sym::void => super::ValueLayout::Void,
                 _ => return Err(self.parser.error(format!("unknown type `{id}`"))),
@@ -826,7 +853,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.value_labels.insert(idx, value);
             return Ok(value);
         }
-        if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
+        if starts_typed_literal(ident, &self.parser.token().kind) {
             let ty = self.parse_type_from_ident(ident)?;
             let value = self.parser.parse_uint()?;
             if ty == MirType::I1 && value > alloy_primitives::U256::ONE {
@@ -997,17 +1024,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 AbiType::Word(Some(cleanup))
             }
             kw::Function => AbiType::Function,
-            sym::memory_bytes => AbiType::Bytes(SliceLocation::Memory),
-            sym::calldata_bytes => AbiType::Bytes(SliceLocation::Calldata),
-            sym::returndata_bytes => AbiType::Bytes(SliceLocation::Returndata),
+            sym::memory_bytes => AbiType::Bytes(PtrLocation::Memory),
+            sym::calldata_bytes => AbiType::Bytes(PtrLocation::Calldata),
+            sym::returndata_bytes => AbiType::Bytes(PtrLocation::Returndata),
             sym::memory_array | sym::calldata_array | sym::returndata_array => {
                 self.parser.expect(TokenKind::Lt)?;
                 let element = Box::new(self.parse_abi_type()?);
                 self.expect_gt()?;
                 let location = match name {
-                    sym::memory_array => SliceLocation::Memory,
-                    sym::calldata_array => SliceLocation::Calldata,
-                    sym::returndata_array => SliceLocation::Returndata,
+                    sym::memory_array => PtrLocation::Memory,
+                    sym::calldata_array => PtrLocation::Calldata,
+                    sym::returndata_array => PtrLocation::Returndata,
                     _ => unreachable!(),
                 };
                 AbiType::DynamicArray { element, location }
@@ -1398,10 +1425,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     || symbol == kw::False
                     || symbol == sym::err
                     || symbol == sym::undef
-                    || matches!(
-                        self.parser.look_ahead(1).kind,
-                        TokenKind::Literal(TokenLitKind::Integer, _)
-                    )
+                    || starts_typed_literal(symbol, &self.parser.look_ahead(1).kind)
                     || symbol
                         .as_str()
                         .strip_prefix("arg")
@@ -1571,13 +1595,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_frame_slot_kind(&mut self) -> PResult<'sess, FrameSlotKind> {
         let kind = self.parser.parse_ident()?;
-        Ok(match kind {
-            sym::word => FrameSlotKind::Word,
-            kw::Memory => FrameSlotKind::Slice(SliceLocation::Memory),
-            kw::Calldata => FrameSlotKind::Slice(SliceLocation::Calldata),
-            sym::returndata => FrameSlotKind::Slice(SliceLocation::Returndata),
-            _ => return Err(self.parser.error(format!("unknown frame slot kind `{kind}`"))),
-        })
+        if kind == sym::word {
+            return Ok(FrameSlotKind::Word);
+        }
+        location_from_ident(kind)
+            .map(FrameSlotKind::Slice)
+            .ok_or_else(|| self.parser.error(format!("unknown frame slot kind `{kind}`")))
     }
 
     fn parse_effect_kind(&self, value: Symbol) -> PResult<'sess, EffectKind> {
@@ -1658,270 +1681,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }};
             ($kind:ident($($operand:ident),*)) => {{
                 operands!($($operand),*);
-                let kind = InstKind::$kind($($operand),*);
-                let ty = kind.op_def().result.default_type();
-                (kind, ty)
+                schema_typed(builder.func(), InstKind::$kind($($operand),*))
             }};
         }
         let parsed = match mnemonic {
             // Free-memory pointer and allocation.
             sym::alloc => {
-                let name = self.parser.parse_ident()?;
-                let kind = match name {
-                    sym::raw => AllocationKind::Raw,
-                    _ => AllocationKind::Object(self.parse_memory_object_layout(name)?),
+                let initialization = if self.parser.eat_keyword(sym::zeroed) {
+                    AllocationInitialization::Zeroed
+                } else {
+                    AllocationInitialization::Uninitialized
                 };
-                self.parser.expect(TokenKind::Comma)?;
-                let alignment = match self.parser.parse_ident()? {
-                    sym::exact => AllocationAlignment::Exact,
-                    sym::word => AllocationAlignment::Word,
-                    other => {
-                        return Err(self
-                            .parser
-                            .error(format!("unknown allocation alignment `{other}`")));
-                    }
+                let failure = if self.parser.eat_keyword(sym::checked) {
+                    AllocationFailure::Checked
+                } else {
+                    AllocationFailure::Infallible
                 };
-                self.parser.expect(TokenKind::Comma)?;
-                let initialization = match self.parser.parse_ident()? {
-                    sym::uninitialized => AllocationInitialization::Uninitialized,
-                    sym::zeroed => AllocationInitialization::Zeroed,
-                    other => {
-                        return Err(self
-                            .parser
-                            .error(format!("unknown allocation initialization `{other}`")));
-                    }
-                };
-                self.parser.expect(TokenKind::Comma)?;
-                let failure = match self.parser.parse_ident()? {
-                    sym::infallible => AllocationFailure::Infallible,
-                    sym::panic => AllocationFailure::Panic,
-                    other => {
-                        return Err(self
-                            .parser
-                            .error(format!("unknown allocation failure `{other}`")));
-                    }
-                };
-                self.parser.expect(TokenKind::Comma)?;
                 let size = self.parse_value(builder)?;
-                let semantics = AllocationSemantics { alignment, initialization, failure };
-                (InstKind::Alloc { size, kind, semantics }, Some(kind.result_type()))
-            }
-
-            // Semantic memory-object accessors.
-            sym::memory_object_len => {
-                let name = self.parser.parse_ident()?;
-                let kind = self.parse_memory_object_layout(name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                (InstKind::MemoryObjectLen(object, kind), Some(MirType::I256))
-            }
-            sym::set_memory_object_len => {
-                let name = self.parser.parse_ident()?;
-                let kind = self.parse_memory_object_layout(name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let len = self.parse_value(builder)?;
-                (InstKind::SetMemoryObjectLen(object, len, kind), None)
-            }
-            sym::memory_object_data => {
-                let name = self.parser.parse_ident()?;
-                let kind = self.parse_memory_object_layout(name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                (InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
-            }
-            sym::memory_object_field_addr => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let field = self.parser.parse_uint()?;
-                let field = field
-                    .try_into()
-                    .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
-                (InstKind::MemoryObjectFieldAddr { object, layout, field }, Some(MirType::MemPtr))
-            }
-            sym::memory_object_element_addr => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let index = self.parse_value(builder)?;
-                (InstKind::MemoryObjectElementAddr { object, layout, index }, Some(MirType::MemPtr))
-            }
-            sym::memory_object_load_field => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let field = self
-                    .parser
-                    .parse_uint()?
-                    .try_into()
-                    .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
-                let ty = if self.parser.eat(TokenKind::Comma) {
-                    let ty = self.parse_type()?;
-                    if ty != MirType::MemPtr {
-                        return Err(self.parser.error("object load annotation must be `memptr`"));
-                    }
-                    ty
-                } else {
-                    MirType::I256
-                };
-                (InstKind::MemoryObjectLoadField { object, layout, field }, Some(ty))
-            }
-            sym::memory_object_store_field => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let field = self
-                    .parser
-                    .parse_uint()?
-                    .try_into()
-                    .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
-                self.parser.expect(TokenKind::Comma)?;
-                let value = self.parse_value(builder)?;
-                (InstKind::MemoryObjectStoreField { object, layout, field, value }, None)
-            }
-            sym::memory_object_load_element => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let index = self.parse_value(builder)?;
-                let ty = if self.parser.eat(TokenKind::Comma) {
-                    let ty = self.parse_type()?;
-                    if ty != MirType::MemPtr {
-                        return Err(self.parser.error("object load annotation must be `memptr`"));
-                    }
-                    ty
-                } else {
-                    MirType::I256
-                };
-                (InstKind::MemoryObjectLoadElement { object, layout, index }, Some(ty))
-            }
-            sym::memory_object_load_byte => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                if layout != crate::mir::MemoryObjectLayout::Bytes {
-                    return Err(self.parser.error("memory byte load requires a bytes object"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let index = self.parse_value(builder)?;
-                (InstKind::MemoryObjectLoadByte { object, index }, Some(MirType::I256))
-            }
-            sym::memory_object_store_element => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let index = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let value = self.parse_value(builder)?;
-                (InstKind::MemoryObjectStoreElement { object, layout, index, value }, None)
-            }
-            sym::memory_object_store_byte => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                if layout != crate::mir::MemoryObjectLayout::Bytes {
-                    return Err(self.parser.error("memory byte store requires a bytes object"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let index = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let value = self.parse_value(builder)?;
-                (InstKind::MemoryObjectStoreByte { object, index, value }, None)
-            }
-            sym::memory_object_store_word => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                if layout != crate::mir::MemoryObjectLayout::Bytes {
-                    return Err(self.parser.error("memory word store requires a bytes object"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let value = self.parse_value(builder)?;
-                (InstKind::MemoryObjectStoreWord { object, offset, value }, None)
-            }
-            sym::memory_slice_load_word => {
-                self.parser.expect(TokenKind::Ident(kw::Memory))?;
-                self.parser.expect(TokenKind::Comma)?;
-                let slice = self.parse_value(builder)?;
-                if builder.func().value_ty(slice) != Some(MirType::Slice(SliceLocation::Memory)) {
-                    return Err(self.parser.error("memory slice load requires a memory slice"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
-                (InstKind::MemorySliceLoadWord { slice, offset }, Some(MirType::I256))
-            }
-            sym::calldata_slice_load_word => {
-                self.parser.expect(TokenKind::Ident(kw::Calldata))?;
-                self.parser.expect(TokenKind::Comma)?;
-                let slice = self.parse_value(builder)?;
-                if builder.func().value_ty(slice) != Some(MirType::Slice(SliceLocation::Calldata)) {
-                    return Err(self.parser.error("calldata slice load requires a calldata slice"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
-                (InstKind::CalldataSliceLoadWord { slice, offset }, Some(MirType::I256))
-            }
-            sym::memory_object_copy_from_slice => {
-                let name = self.parser.parse_ident()?;
-                let kind = self.parse_memory_object_layout(name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let source = self.parse_value(builder)?;
-                (InstKind::MemoryObjectCopyFromSlice { object, kind, source }, None)
-            }
-            sym::memory_object_copy_from_slice_at => {
-                let name = self.parser.parse_ident()?;
-                let kind = self.parse_memory_object_layout(name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let source = self.parse_value(builder)?;
-                (InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source }, None)
-            }
-            sym::memory_object_copy => {
-                let destination_name = self.parser.parse_ident()?;
-                let destination_kind = self.parse_memory_object_layout(destination_name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let destination = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let source_name = self.parser.parse_ident()?;
-                let source_kind = self.parse_memory_object_layout(source_name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let source = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let length = self.parse_value(builder)?;
-                (
-                    InstKind::MemoryObjectCopy {
-                        destination,
-                        destination_kind,
-                        source,
-                        source_kind,
-                        length,
-                    },
-                    None,
-                )
+                let semantics = AllocationSemantics { initialization, failure };
+                (InstKind::Alloc { size, semantics }, Some(MirType::MEMPTR))
             }
 
             // Semantic ABI encoding.
@@ -1977,7 +1755,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Value::Inst(inst)
                         if matches!(builder.func().inst(*inst).kind, InstKind::ICall { function: super::Callee::Function(_), .. })
                 );
-                if !matches!(data_ty, Some(MirType::MemPtr | MirType::Slice(SliceLocation::Memory)))
+                if !matches!(data_ty, Some(MirType::MEMPTR | MirType::Slice(PtrLocation::Memory)))
                     && !pending_call
                 {
                     return Err(self.parser.error("ABI decode requires bytes or a memory slice"));
@@ -2024,18 +1802,47 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::ClearStorage { storage, layout }, None)
             }
 
+            kw::Mload | kw::Calldataload | sym::returndataload | kw::Sload | kw::Tload => {
+                let location = mnemonic_location(mnemonic);
+                let ptr = self.parse_value(builder)?;
+                let ty = if self.parser.eat(TokenKind::Comma) {
+                    let ty = self.parse_type()?;
+                    if ty != MirType::MEMPTR {
+                        return Err(self.parser.error("`mload` annotation must be `ptr<memory>`"));
+                    }
+                    ty
+                } else {
+                    MirType::I256
+                };
+                (InstKind::Load(ptr, location), Some(ty))
+            }
+            kw::Mstore | kw::Mstore8 | kw::Sstore | kw::Tstore => {
+                let ptr = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                let kind = if mnemonic == kw::Mstore8 {
+                    InstKind::Store8(ptr, value)
+                } else {
+                    InstKind::Store(ptr, value, mnemonic_location(mnemonic))
+                };
+                (kind, None)
+            }
+            kw::Mcopy | kw::Calldatacopy | kw::Returndatacopy => {
+                let location = mnemonic_location(mnemonic);
+                let dest = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let src = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let len = self.parse_value(builder)?;
+                (InstKind::Copy(dest, src, len, location), None)
+            }
+
             // Slices.
             sym::make_memory_slice | sym::make_calldata_slice | sym::make_returndata_slice => {
                 let ptr = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let len = self.parse_value(builder)?;
-                let location = if mnemonic == sym::make_memory_slice {
-                    SliceLocation::Memory
-                } else if mnemonic == sym::make_calldata_slice {
-                    SliceLocation::Calldata
-                } else {
-                    SliceLocation::Returndata
-                };
+                let location = mnemonic_location(mnemonic);
                 (InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
             }
 
@@ -2122,11 +1929,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                             self.expect_gt()?;
                             let source_name = self.parser.parse_ident()?;
                             let source = match source_name {
-                                kw::Memory => {
-                                    super::PackedArraySource::Slice(SliceLocation::Memory)
-                                }
+                                kw::Memory => super::PackedArraySource::Slice(PtrLocation::Memory),
                                 kw::Calldata => {
-                                    super::PackedArraySource::Slice(SliceLocation::Calldata)
+                                    super::PackedArraySource::Slice(PtrLocation::Calldata)
                                 }
                                 _ => super::PackedArraySource::Memory {
                                     layout: self.parse_memory_object_layout(source_name)?,
@@ -2152,7 +1957,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let hash = mnemonic == sym::keccak256_packed;
                 (
                     InstKind::AbiEncodePacked { parts: parts.into_boxed_slice(), hash },
-                    Some(if hash { MirType::I256 } else { MirType::MemPtr }),
+                    Some(if hash { MirType::I256 } else { MirType::MEMPTR }),
                 )
             }
             sym::validate_storage_bytes => inst!(ValidateStorageBytes(a)),
@@ -2170,7 +1975,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 };
                 self.parser.expect(TokenKind::Comma)?;
                 let slot = self.parse_value(builder)?;
-                (InstKind::StorageArrayLoad { slot, element, enum_variants }, Some(MirType::MemPtr))
+                (InstKind::StorageArrayLoad { slot, element, enum_variants }, Some(MirType::MEMPTR))
             }
             sym::store_storage_bytes_literal => {
                 let slot = self.parse_value(builder)?;
@@ -2181,7 +1986,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::store_storage_bytes => inst!(StorageBytesStore(a, b)),
             sym::clear_storage_words => inst!(StorageClearWords(a, b, c)),
             sym::load_storage_bytes => {
-                inst!(StorageBytesLoad(a) => MirType::MemPtr)
+                inst!(StorageBytesLoad(a) => MirType::MEMPTR)
             }
             sym::address_call | sym::address_staticcall | sym::address_delegatecall => {
                 operands!(address, input);
@@ -2207,14 +2012,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 (InstKind::AddressCall { kind, address, input, gas, value }, Some(MirType::I1))
             }
-            sym::keccak256_bytes => inst!(Keccak256Bytes(a) => MirType::I256),
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::I256),
-            sym::mapping_slot_memory => {
-                inst!(MappingSlotMemory(key, slot))
-            }
-            sym::mapping_slot_calldata => {
-                inst!(MappingSlotCalldata(key, slot))
-            }
+            sym::mapping_slot_bytes => inst!(MappingSlotBytes(key, slot) => MirType::I256),
             sym::storage_array_data_slot => {
                 inst!(StorageArrayDataSlot(slot))
             }
@@ -2234,20 +2033,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
             // Calls and creation.
             sym::icall => {
-                let function = if self.parser.eat_keyword(sym::concat) {
-                    self.parser.expect(TokenKind::Lt)?;
-                    let mut types = Vec::new();
-                    if !self.parser.eat(TokenKind::Gt) {
-                        loop {
-                            types.push(self.parse_value_layout()?);
-                            if self.parser.eat(TokenKind::Gt) {
-                                break;
-                            }
-                            self.parser.expect(TokenKind::Comma)?;
-                        }
-                    }
-                    super::Callee::Builtin(super::Builtin::Concat(types.into()))
-                } else if self.parser.check_keyword(sym::panic_if)
+                let function = if self.parser.check_keyword(sym::panic_if)
                     || self.parser.check_keyword(sym::panic_if_zero)
                     || self.parser.check_keyword(sym::revert_if)
                     || self.parser.check_keyword(sym::revert_if_zero)
@@ -2309,10 +2095,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     super::Callee::Builtin(
                         super::Builtin::Require(_) | super::Builtin::Check { .. },
                     ) => None,
-                    super::Callee::Builtin(super::Builtin::Concat(_)) => Some(MirType::MemPtr),
                     super::Callee::Builtin(super::Builtin::Transfer) => None,
                     super::Callee::Builtin(super::Builtin::ReturndataBytes) => {
-                        Some(MirType::MemPtr)
+                        Some(MirType::MEMPTR)
                     }
                     super::Callee::Builtin(
                         super::Builtin::Sha256
@@ -2333,7 +2118,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             sym::internal_frame_addr => {
                 let offset = self.parser.parse_uint()?.to::<u64>();
-                (InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
+                (InstKind::InternalFrameAddr(offset), Some(MirType::MEMPTR))
             }
             sym::frame_load => {
                 let mode = self.parse_frame_mode()?;
@@ -2355,11 +2140,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
 
             // Logs and SSA operations.
-            kw::Log0 => inst!(Log0(a, b)),
-            kw::Log1 => inst!(Log1(a, b, c)),
-            kw::Log2 => inst!(Log2(a, b, c, d)),
-            kw::Log3 => inst!(Log3(a, b, c, d, e)),
-            kw::Log4 => inst!(Log4(a, b, c, d, e, f)),
+            sym::log => {
+                let offset = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let size = self.parse_value(builder)?;
+                let mut topics = SmallVec::<[ValueId; LogTopics::MAX]>::new();
+                while self.parser.eat(TokenKind::Comma) {
+                    topics.push(self.parse_value(builder)?);
+                }
+                let topics = LogTopics::new(&topics)
+                    .ok_or_else(|| self.parser.error("a log has at most four topics"))?;
+                (InstKind::Log { offset, size, topics }, None)
+            }
             sym::select => {
                 let condition = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -2407,27 +2199,35 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (kind, Some(to))
             }
             sym::insert_value | sym::extract_value => {
-                let MirType::Struct(ty) = self.parse_type()? else {
-                    return Err(self.parser.error("expected a struct type"));
-                };
+                let ty = self.parse_type()?;
+                match ty {
+                    MirType::Struct(_) => {}
+                    MirType::Slice(_) if mnemonic == sym::extract_value => {}
+                    _ if mnemonic == sym::extract_value => {
+                        return Err(self.parser.error("expected a struct or slice type"));
+                    }
+                    _ => return Err(self.parser.error("expected a struct type")),
+                }
                 self.parser.expect(TokenKind::Comma)?;
                 let aggregate = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let index = self.parser.parse_uint()?;
                 let index = u32::try_from(index)
-                    .map_err(|_| self.parser.error("struct field index is too large"))?;
-                let field = self.struct_types[ty]
-                    .fields
-                    .get(index as usize)
-                    .copied()
-                    .ok_or_else(|| self.parser.error("struct field index is out of bounds"))?;
+                    .map_err(|_| self.parser.error("aggregate field index is too large"))?;
+                let field = match ty {
+                    MirType::Struct(id) => {
+                        self.struct_types[id].fields.get(index as usize).copied()
+                    }
+                    MirType::Slice(location) => {
+                        MirType::slice_fields(location).get(index as usize).copied()
+                    }
+                    _ => unreachable!(),
+                }
+                .ok_or_else(|| self.parser.error("aggregate field index is out of bounds"))?;
                 if mnemonic == sym::insert_value {
                     self.parser.expect(TokenKind::Comma)?;
                     let value = self.parse_value(builder)?;
-                    (
-                        InstKind::InsertValue { ty, aggregate, index, value },
-                        Some(MirType::Struct(ty)),
-                    )
+                    (InstKind::InsertValue { ty, aggregate, index, value }, Some(ty))
                 } else {
                     (InstKind::ExtractValue { ty, aggregate, index }, Some(field))
                 }
@@ -2475,7 +2275,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         }
                         operands.push(self.parse_value(builder)?);
                     }
-                    schema_typed(build(&operands))
+                    schema_typed(builder.func(), build(&operands))
                 }
                 None => {
                     return Err(self
@@ -2486,4 +2286,32 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         Ok(parsed)
     }
+}
+
+/// Returns the location a `ptr<...>`, `slice<...>`, or frame slot keyword names.
+fn location_from_ident(id: Symbol) -> Option<PtrLocation> {
+    match id {
+        kw::Memory => Some(PtrLocation::Memory),
+        kw::Calldata => Some(PtrLocation::Calldata),
+        sym::returndata => Some(PtrLocation::Returndata),
+        _ => None,
+    }
+}
+
+/// Returns the location a load, store, copy, or slice spelling accesses.
+fn mnemonic_location(mnemonic: Symbol) -> PtrLocation {
+    match mnemonic {
+        kw::Calldataload | kw::Calldatacopy | sym::make_calldata_slice => PtrLocation::Calldata,
+        sym::returndataload | kw::Returndatacopy | sym::make_returndata_slice => {
+            PtrLocation::Returndata
+        }
+        kw::Sload | kw::Sstore => PtrLocation::Storage,
+        kw::Tload | kw::Tstore => PtrLocation::Transient,
+        _ => PtrLocation::Memory,
+    }
+}
+
+/// Whether `ident` followed by `next` starts a typed literal: `i8 5`, `ptr<memory> 64`.
+fn starts_typed_literal(ident: Symbol, next: &TokenKind) -> bool {
+    ident == sym::ptr || matches!(next, TokenKind::Literal(TokenLitKind::Integer, _))
 }

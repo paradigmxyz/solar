@@ -1,8 +1,6 @@
 //! Opaque builtin call targets. Arguments use the ordinary internal-call operand list.
 
-use std::sync::Arc;
-
-use super::{AbiLayoutRef, ConcatPart, FunctionId, InstKind, RevertPayload, ValueId, ValueLayout};
+use super::{AbiLayoutRef, FunctionId, InstKind, RevertPayload, ValueId};
 
 /// An internal call targets either a MIR definition or a builtin specialization.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -38,8 +36,6 @@ pub(crate) enum Builtin {
     Transfer,
     /// Copy the current returndata into a fresh bytes object (empty before Byzantium).
     ReturndataBytes,
-    /// A thin shared pointer keeps ordinary call instructions compact.
-    Concat(Arc<Vec<ValueLayout>>),
 }
 
 /// Error payload type for a require call.
@@ -81,20 +77,6 @@ impl InstKind {
         // icall builtin require<kind>, condition, payload_arguments
         Self::builtin(Builtin::Require(kind), args)
     }
-
-    /// Builds an opaque concat call with its specialized parameter types.
-    pub(crate) fn concat(parts: Vec<ConcatPart>) -> Self {
-        let types = parts
-            .iter()
-            .map(|part| match part {
-                ConcatPart::Bytes(_) => ValueLayout::MemoryObject(super::MemoryObjectKind::Bytes),
-                ConcatPart::Fixed { size, .. } => ValueLayout::FixedBytes(*size),
-            })
-            .collect();
-        let args = parts.iter().map(ConcatPart::value).collect::<Box<[_]>>();
-        // result = icall builtin concat<types>, arguments
-        Self::builtin(Builtin::Concat(Arc::new(types)), args)
-    }
 }
 
 impl RequireKind {
@@ -127,7 +109,7 @@ impl Builtin {
             Self::CheckedAddMod | Self::CheckedMulMod => Some(3),
             Self::Send | Self::Transfer => Some(2),
             Self::ReturndataBytes => Some(0),
-            Self::Require(_) | Self::Check { .. } | Self::Concat(_) => None,
+            Self::Require(_) | Self::Check { .. } => None,
         }
     }
 }

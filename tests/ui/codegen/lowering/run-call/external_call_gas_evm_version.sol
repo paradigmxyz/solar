@@ -103,16 +103,16 @@ contract CallGasCalls {
     // HOMESTEAD-LABEL: fn @twoReturns
     // HOMESTEAD: create
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
-    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint ptr<memory> [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
     // HOMESTEAD: mstore [[ABOVE]], 0
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
     // TANGERINE-LABEL: fn @twoReturns
     // TANGERINE: [[GAS:v[0-9]+]] = gas
-    // TANGERINE: [[INPUT:v[0-9]+]] = slice_ptr
+    // TANGERINE: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // TANGERINE: call [[GAS]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
     function twoReturns() external returns (uint256) {
         (uint256 first, uint256 second) =
@@ -124,10 +124,10 @@ contract CallGasCalls {
     // HOMESTEAD-LABEL: fn @eightReturns
     // HOMESTEAD: create
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
-    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint ptr<memory> [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 256
     // HOMESTEAD: mstore [[ABOVE]], 0
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 256
@@ -150,7 +150,7 @@ contract CallGasCalls {
     // HOMESTEAD-LABEL: fn @aggregate
     // HOMESTEAD: create
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
-    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint ptr<memory> [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas

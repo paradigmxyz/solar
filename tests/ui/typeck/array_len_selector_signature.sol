@@ -1,5 +1,4 @@
-// A selector whose signature depends on a constant does not fold: the signature here depends on
-// the constant being evaluated.
+// An array length cannot read a selector, even one whose signature depends on the length.
 contract C {
     uint constant N = C.f.selector.length; //~ ERROR: initial value for constant variable has to be compile-time constant
 

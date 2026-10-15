@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-abi) ===
   @module LowerSlices
-- fn @entry(arg0: calldataslice) [selector=0x12345678] {
+- fn @entry(arg0: slice<calldata>) [selector=0x12345678] {
 + fn @entry() [selector=0x12345678, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
@@ -17,36 +17,37 @@
 +     revert 0, 0
   }
   
-  fn @len(arg0: calldataslice) -> i256 {
+  fn @len(arg0: slice<calldata>) -> i256 {
     bb0:
-      v0 = slice_len arg0
+      v0 = extract_value slice<calldata>, arg0, 1
       ret v0
   }
   
-  fn @tail(arg0: calldataslice, arg1: i256) -> i256 {
+  fn @tail(arg0: slice<calldata>, arg1: i256) -> i256 {
     bb0:
-      v0 = slice_ptr arg0
-      v1 = slice_len arg0
-      v2 = add v0, arg1
+      v0 = extract_value slice<calldata>, arg0, 0
+      v1 = extract_value slice<calldata>, arg0, 1
+      v2 = ptradd v0, arg1
       v3 = sub v1, arg1
       v4 = make_calldata_slice v2, v3
       v5 = icall @pair_len, v4
       ret v5
   }
   
-  fn @pair_len(arg0: calldataslice) -> i256 {
+  fn @pair_len(arg0: slice<calldata>) -> i256 {
     bb0:
-      v0 = slice_len arg0
+      v0 = extract_value slice<calldata>, arg0, 1
       ret v0
   }
   
-  fn @memory(arg0: i256, arg1: i256) -> i256 {
+  fn @memory(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
       v0 = make_memory_slice arg0, arg1
-      v1 = slice_ptr v0
-      v2 = slice_len v0
-      v3 = add v1, v2
-      ret v3
+      v1 = extract_value slice<memory>, v0, 0
+      v2 = extract_value slice<memory>, v0, 1
+      v3 = ptrtoint ptr<memory> v1 to i256
+      v4 = add v3, v2
+      ret v4
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (before lower-slices) ===
@@ -67,46 +68,50 @@
       revert 0, 0
   }
   
-- fn @len(arg0: calldataslice) -> i256 {
+- fn @len(arg0: slice<calldata>) -> i256 {
 + fn @len(arg0: i256) -> i256 {
     bb0:
--     v0 = slice_len arg0
+-     v0 = extract_value slice<calldata>, arg0, 1
 -     ret v0
 +     v1 = add arg0, 4
 +     v2 = calldataload v1
 +     ret v2
   }
   
-- fn @tail(arg0: calldataslice, arg1: i256) -> i256 {
+- fn @tail(arg0: slice<calldata>, arg1: i256) -> i256 {
 + fn @tail(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
--     v0 = slice_ptr arg0
--     v1 = slice_len arg0
--     v2 = add v0, arg1
+-     v0 = extract_value slice<calldata>, arg0, 0
+-     v1 = extract_value slice<calldata>, arg0, 1
+-     v2 = ptradd v0, arg1
 -     v3 = sub v1, arg1
 -     v4 = make_calldata_slice v2, v3
 -     v5 = icall @pair_len, v4
-+     v2 = add arg0, arg2
++     v0 = inttoptr i256 arg0 to ptr<calldata>
++     v2 = ptradd v0, arg2
 +     v3 = sub arg1, arg2
-+     v5 = icall @pair_len, v2, v3
++     v7 = ptrtoint ptr<calldata> v2 to i256
++     v5 = icall @pair_len, v7, v3
       ret v5
   }
   
-- fn @pair_len(arg0: calldataslice) -> i256 {
+- fn @pair_len(arg0: slice<calldata>) -> i256 {
 + fn @pair_len(arg0: i256, arg1: i256) -> i256 {
     bb0:
--     v0 = slice_len arg0
+-     v0 = extract_value slice<calldata>, arg0, 1
 -     ret v0
 +     ret arg1
   }
   
-  fn @memory(arg0: i256, arg1: i256) -> i256 {
+  fn @memory(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
 -     v0 = make_memory_slice arg0, arg1
--     v1 = slice_ptr v0
--     v2 = slice_len v0
--     v3 = add v1, v2
-+     v3 = add arg0, arg1
-      ret v3
+-     v1 = extract_value slice<memory>, v0, 0
+-     v2 = extract_value slice<memory>, v0, 1
+-     v3 = ptrtoint ptr<memory> v1 to i256
+-     v4 = add v3, v2
++     v3 = ptrtoint ptr<memory> arg0 to i256
++     v4 = add v3, arg1
+      ret v4
   }
   

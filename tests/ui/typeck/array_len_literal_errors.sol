@@ -10,5 +10,18 @@ contract C {
         uint[true ? 1 : 1 / 0] memory b; //~ ERROR: failed to evaluate constant: attempted to divide by zero
         a;
         b;
+        // Every type with the length reports it once.
+        new uint[1 / 0][](1); //~ ERROR: failed to evaluate constant: attempted to divide by zero
     }
+
+    // Like solc, a literal operation that has no value fails the length even next to an operand
+    // that does not evaluate.
+    function i() public view {
+        uint[block.number + 1 / 0] memory c; //~ ERROR: failed to evaluate constant: attempted to divide by zero
+        c;
+    }
+
+    // solc's evaluator stops at the first error in the length.
+    uint8 constant MAX8 = 255;
+    uint[(MAX8 + 1) + (1 / 0)] first; //~ ERROR: failed to evaluate constant: arithmetic overflow
 }

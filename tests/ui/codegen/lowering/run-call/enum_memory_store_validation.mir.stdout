@@ -7,13 +7,13 @@ fn @dirty() -> i256 [pure] {
 
 fn @structConstructor() -> i8 [selector=0x9b40f93f, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v1 = icall @dirty
     v2 = lt v1, 3
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    memory_object_store_field memorystruct<1>, v0, 0, v1
-    v4 = memory_object_load_field memorystruct<1>, v0, 0
+    mstore v0, v1
+    v4 = mload v0
     v5 = lt v4, 3
     v6 = eq v5, false
     icall panic_if<0x21>, v6
@@ -26,16 +26,16 @@ fn @structConstructor() -> i8 [selector=0x9b40f93f, pure, abi_params=[], abi_ret
 
 fn @arrayLiteral() -> i8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v1 = icall @dirty
     v2 = lt v1, 3
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v1
+    mstore v0, v1
     v4 = lt 0, 1
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
+    v6 = mload v0
     v7 = lt v6, 3
     v8 = eq v7, false
     icall panic_if<0x21>, v8
@@ -48,28 +48,30 @@ fn @arrayLiteral() -> i8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=
 
 fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
     v1 = icall @dirty
-    v2 = memory_object_len memoryarray, v0
+    v2 = mload v0
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = lt v1, 3
     v6 = eq v5, false
     icall panic_if<0x21>, v6
-    memory_object_store_element memoryarray<1>, v0, 0, v1
-    v7 = memory_object_len memoryarray, v0
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = memory_object_load_element memoryarray<1>, v0, 0
-    v11 = lt v10, 3
-    v12 = eq v11, false
-    icall panic_if<0x21>, v12
-    v13 = trunc i256 v10 to i8
-    v14 = lt v13, i8 3
-    v15 = eq v14, false
-    icall panic_if<0x21>, v15
-    ret v13
+    v7 = ptradd v0, 32
+    mstore v7, v1
+    v8 = mload v0
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = ptradd v0, 32
+    v12 = mload v11
+    v13 = lt v12, 3
+    v14 = eq v13, false
+    icall panic_if<0x21>, v14
+    v15 = trunc i256 v12 to i8
+    v16 = lt v15, i8 3
+    v17 = eq v16, false
+    icall panic_if<0x21>, v17
+    ret v15
 }

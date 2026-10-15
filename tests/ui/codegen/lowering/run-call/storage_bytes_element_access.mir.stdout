@@ -13,13 +13,13 @@ fn @_fill(arg0: i256) {
     icall panic_if<0x41>, v1
     v2 = not 31
     v3 = and v0, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, arg0
+    v4 = alloc zeroed checked v3
+    mstore v4, arg0
     jump bb1
   bb1:
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: v4], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v17]
+    v7 = phi [bb0: 0], [bb3: v19]
     v8 = lt v7, v5
     jumpi v8, bb4, bb5
   bb5:
@@ -32,17 +32,19 @@ fn @_fill(arg0: i256) {
     v10 = trunc i256 v9 to i8
     v11 = zext i8 v10 to i256
     v12 = shl 248, v11
-    v13 = memory_object_len memorybytes, v6
+    v13 = mload v6
     v14 = lt v7, v13
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = byte 0, v12
-    memory_object_store_byte memorybytes, v6, v7, v16
+    v17 = ptradd v6, v7
+    v18 = ptradd v17, 32
+    mstore8 v18, v16
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v17 = checked_add u256, v7, 1
+    v19 = checked_add u256, v7, 1
     jump bb1
 }
 
@@ -1408,7 +1410,7 @@ fn @deleteOob(arg0: i256) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[
     ret
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

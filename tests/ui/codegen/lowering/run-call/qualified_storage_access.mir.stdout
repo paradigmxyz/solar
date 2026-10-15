@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/qualified_storage_access.sol:QualifiedStorage ===
 @module QualifiedStorage
-fn @signers(arg0: i160) -> memptr [selector=0x736c0d5b, abi_params=[address], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
+fn @signers(arg0: i160) -> ptr<memory> [selector=0x736c0d5b, abi_params=[address], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -29,7 +29,7 @@ fn @signers(arg0: i160) -> memptr [selector=0x736c0d5b, abi_params=[address], ab
     ret v17
 }
 
-fn @load_storage_packed_array_20_0(arg0: i256) -> memptr {
+fn @load_storage_packed_array_20_0(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u160, arg0
     ret v0

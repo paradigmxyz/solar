@@ -18,15 +18,15 @@ fn @encode(arg0: i256) -> i256 [selector=0xdeb21fa2, pure, abi_params=[u256], ab
     v8 = sub 64, v7
     v9 = add v7, v8
     mstore v9, 128
-    v10 = inttoptr i256 v1 to memptr
-    v11 = inttoptr i256 v1 to memptr
+    v10 = inttoptr i256 v1 to ptr<memory>
+    v11 = inttoptr i256 v1 to ptr<memory>
     v12 = abi_encode [memory_array<memory_array<word>>, memory_array<memory_array<word>>], object, args v10, v11
-    v13 = ptrtoint memptr v12 to i256
-    v14 = mload v13
-    v15 = ptrtoint memptr v12 to i256
+    v13 = ptrtoint ptr<memory> v12 to i256
+    v14 = mload v12
+    v15 = ptrtoint ptr<memory> v12 to i256
     v16 = add v15, 32
     v17 = add v16, v14
-    v18 = ptrtoint memptr v12 to i256
+    v18 = ptrtoint ptr<memory> v12 to i256
     v19 = add v18, 32
     jump bb1
   bb1:
@@ -46,7 +46,7 @@ fn @encode(arg0: i256) -> i256 [selector=0xdeb21fa2, pure, abi_params=[u256], ab
   bb5:
     jump bb2
   bb2:
-    v35 = memory_object_len memorybytes, v20
+    v35 = mload v20
     v36 = checked_add u256, v21, v35
     v37 = checked_add u256, v36, v22
     ret v37
@@ -82,20 +82,21 @@ fn @readAfterRestore(arg0: i256) -> i256 [selector=0xbede715a, pure, abi_params=
     mstore v4, arg0
     mstore 64, v0 !metadata(memory=scratch)
     v5 = icall @doubleValue, arg0
-    v6 = inttoptr i256 v3 to memptr
+    v6 = inttoptr i256 v3 to ptr<memory>
     v7 = icall @readLow, v6
     v8 = checked_add u256, v7, v5
     ret v8
 }
 
-fn @readLow(arg0: memptr) -> i256 [selector=0x190d794c, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @readLow(arg0: ptr<memory>) -> i256 [selector=0x190d794c, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
+    v0 = mload arg0
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    ret v3
+    v3 = ptradd arg0, 32
+    v4 = mload v3
+    ret v4
 }
 
 fn @doubleValue(arg0: i256) -> i256 [selector=0x5fd2b883, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

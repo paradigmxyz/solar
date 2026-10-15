@@ -287,7 +287,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let object = self
                             .builder
                             .alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
-                        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+                        let data = self.builder.memory_data(object);
                         let zero = self.builder.imm(U256::ZERO);
                         self.builder.extcodecopy_heap(address, data, zero, length);
                         Some(object)
@@ -434,14 +434,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::MsgValue => Some(self.builder.callvalue()),
             Builtin::MsgSig => {
                 let offset = self.builder.imm(0);
-                let value = self.builder.calldataload(offset);
+                let value = self.builder.load(offset, PtrLocation::Calldata);
                 let mask = self.builder.imm(U256::MAX << 224);
                 Some(self.builder.and(value, mask))
             }
             Builtin::MsgData => {
                 let offset = self.builder.imm(0);
                 let length = self.builder.calldatasize();
-                Some(self.builder.make_slice(offset, length, SliceLocation::Calldata))
+                Some(self.builder.make_slice(offset, length, PtrLocation::Calldata))
             }
             Builtin::TxOrigin => Some(self.builder.origin()),
             Builtin::TxGasPrice => Some(self.builder.gasprice()),
@@ -615,7 +615,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let selector = self.lower_selector_word(&selector[0])?;
                 self.lower_abi_encode_builtin_args(rest, Some(selector))
             }
-            Builtin::AbiEncodePacked => self.lower_abi_encode_packed(args),
+            Builtin::AbiEncodePacked => self.lower_abi_encode_packed(builtin, args),
             Builtin::AbiEncodeWithSignature => self.lower_abi_encode_with_signature(args),
             Builtin::AbiEncodeCall => self.lower_abi_encode_call(args),
             Builtin::Blockhash | Builtin::Blobhash => {
@@ -640,8 +640,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::Erc7201 => self.lower_erc7201(args),
             Builtin::Sha256 | Builtin::Ripemd160 => self.lower_hash_precompile_call(builtin, args),
             Builtin::EcRecover => self.lower_ecrecover_call(args),
+            // `bytes.concat` and `string.concat` are packed encodings of their arguments.
             Builtin::StringConcat | Builtin::BytesConcat => {
-                self.lower_concat_builtin_call(builtin, args)
+                self.lower_abi_encode_packed(builtin, args)
             }
             Builtin::UdvtWrap => {
                 let value = self.builtin_args::<1>(builtin, &args)?.first()?;
@@ -687,14 +688,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_erc7201(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
         let argument = &self.builtin_args::<1>(Builtin::Erc7201, &args)?[0];
-        if let ExprKind::Lit(lit) = self.peel_bytes_conversion(argument).peel_parens().kind
-            && let LitKind::Str(_, bytes, _) = &lit.kind
-        {
-            let inner = U256::from_be_slice(keccak256(bytes.as_byte_str()).as_slice())
-                .wrapping_sub(U256::ONE);
-            let outer = U256::from_be_slice(keccak256(inner.to_be_bytes::<32>()).as_slice());
-            return Some(self.builder.imm(outer & !U256::from(0xff)));
-        }
         let argument_ty = self.cx.gcx.type_of_expr(argument.id)?;
         let memory_ty = argument_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let value = self.lower_typed_expr(argument, memory_ty)?;
@@ -704,66 +697,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             InstKind::builtin(crate::mir::Builtin::Erc7201, [value]),
             Some(MirType::I256),
         ))
-    }
-
-    fn lower_concat_builtin_call(
-        &mut self,
-        builtin: Builtin,
-        args: hir::CallArgs<'_>,
-    ) -> Option<ValueId> {
-        let exprs = self.variadic_builtin_args(builtin, &args)?;
-        let mut all_literals = Some(Vec::new());
-        let mut parts = Vec::with_capacity(exprs.len());
-        for expr in exprs {
-            let ty = self.cx.gcx.type_of_expr(expr.id)?;
-            match ty.peel_refs().kind {
-                TyKind::StringLiteral(..)
-                | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
-                | TyKind::Slice(_) => {
-                    if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
-                        && let LitKind::Str(_, bytes, _) = &lit.kind
-                    {
-                        let bytes = bytes.as_byte_str().to_vec();
-                        if let Some(all_literals) = &mut all_literals {
-                            all_literals.extend_from_slice(&bytes);
-                        }
-                        for chunk in bytes.chunks(32) {
-                            let value = self.lower_string_literal_word(chunk);
-                            parts.push(ConcatPart::Fixed {
-                                value,
-                                size: TypeSize::new_int_bits(chunk.len() as u16 * 8),
-                            });
-                        }
-                        continue;
-                    }
-                    all_literals = None;
-                    let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-                    let value = self.lower_typed_expr(expr, memory_ty)?;
-                    let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
-                    parts.push(ConcatPart::Bytes(value));
-                }
-                TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
-                    all_literals = None;
-                    let value = self.lower_expr(expr)?;
-                    parts.push(ConcatPart::Fixed { value, size });
-                }
-                _ => return self.cx.report_unsupported(expr.span, "concat argument"),
-            }
-        }
-
-        if let Some(bytes) = all_literals {
-            // output = bytes(concat(literals))
-            return Self::build_bytes_literal(
-                self.cx.gcx,
-                self.cx.module,
-                &mut self.builder,
-                &bytes,
-                AllocationSemantics::SOLIDITY_UNINITIALIZED,
-            );
-        }
-
-        // output = icall concat, parts
-        Some(self.builder.emit_inst(InstKind::concat(parts), Some(MirType::MemPtr)))
     }
 
     fn lower_yul_unit_builtin_call(
@@ -778,21 +711,35 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }};
         }
+        macro_rules! log {
+            ($($topic:ident),*) => {{
+                let [offset, size, $($topic),*] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.log(offset, size, &[$($topic),*]);
+                Some(())
+            }};
+        }
+        macro_rules! copy {
+            ($location:expr) => {{
+                let [dest, src, size] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.copy(dest, src, size, $location);
+                Some(())
+            }};
+        }
         match builtin {
-            Builtin::YulMstore => lower!(mstore(offset, value)),
-            Builtin::YulMstore8 => lower!(mstore8(offset, value)),
-            Builtin::YulMcopy => lower!(mcopy(dest, src, size)),
+            Builtin::YulMstore => lower!(store(offset, value)),
+            Builtin::YulMstore8 => lower!(store8(offset, value)),
+            Builtin::YulMcopy => copy!(PtrLocation::Memory),
             Builtin::YulSstore => lower!(sstore(slot, value)),
             Builtin::YulTstore => lower!(tstore(slot, value)),
-            Builtin::YulCalldatacopy => lower!(calldatacopy(dest, src, size)),
+            Builtin::YulCalldatacopy => copy!(PtrLocation::Calldata),
             Builtin::YulCodecopy => lower!(codecopy(dest, src, size)),
             Builtin::YulExtcodecopy => lower!(extcodecopy(address, dest, src, size)),
-            Builtin::YulReturndatacopy => lower!(returndatacopy(dest, src, size)),
-            Builtin::YulLog0 => lower!(log0(offset, size)),
-            Builtin::YulLog1 => lower!(log1(offset, size, topic1)),
-            Builtin::YulLog2 => lower!(log2(offset, size, topic1, topic2)),
-            Builtin::YulLog3 => lower!(log3(offset, size, topic1, topic2, topic3)),
-            Builtin::YulLog4 => lower!(log4(offset, size, topic1, topic2, topic3, topic4)),
+            Builtin::YulReturndatacopy => copy!(PtrLocation::Returndata),
+            Builtin::YulLog0 => log!(),
+            Builtin::YulLog1 => log!(topic1),
+            Builtin::YulLog2 => log!(topic1, topic2),
+            Builtin::YulLog3 => log!(topic1, topic2, topic3),
+            Builtin::YulLog4 => log!(topic1, topic2, topic3, topic4),
             Builtin::YulRevert => lower!(revert(offset, size)),
             Builtin::YulReturn => lower!(ret_data(offset, size)),
             Builtin::YulStop => lower!(stop()),
@@ -824,6 +771,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }};
         }
+        macro_rules! load {
+            ($location:expr) => {{
+                let [offset] = self.lower_builtin_args(builtin, &args)?;
+                Some(self.builder.load(offset, $location))
+            }};
+        }
         match builtin {
             Builtin::YulAdd => lower!(add(lhs, rhs)),
             Builtin::YulSub => lower!(sub(lhs, rhs)),
@@ -851,11 +804,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulAddmod => lower!(addmod(a, b, modulus)),
             Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
             Builtin::YulClz => lower!(clz(value)),
-            Builtin::YulMload => lower!(mload(offset)),
+            Builtin::YulMload => load!(PtrLocation::Memory),
             Builtin::YulMsize => lower!(msize()),
             Builtin::YulSload => lower!(sload(slot)),
             Builtin::YulTload => lower!(tload(slot)),
-            Builtin::YulCalldataload => lower!(calldataload(offset)),
+            Builtin::YulCalldataload => load!(PtrLocation::Calldata),
             Builtin::YulCalldatasize => lower!(calldatasize()),
             Builtin::YulCodesize => lower!(codesize()),
             Builtin::YulExtcodesize => lower!(extcodesize(address)),

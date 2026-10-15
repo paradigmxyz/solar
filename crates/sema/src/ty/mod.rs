@@ -3,6 +3,7 @@ use crate::{
     ast_lowering::SymbolResolver,
     ast_passes::number_literal_underscore_errors,
     builtins::{Builtin, members},
+    eval::EvalErrorKind,
     hir::{self, Hir, SourceId},
     typeck::override_checker::OverrideProxy,
 };
@@ -95,6 +96,8 @@ pub struct TypeckResults<'gcx> {
     /// The user-defined operator function a binary/unary operator expression
     /// resolves to, keyed by the operator expression's id.
     pub(crate) user_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
+    /// Contracts whose base slot is a constant integer, for `constant_values` to evaluate.
+    pub(crate) base_slots: Vec<(hir::ContractId, &'gcx hir::Expr<'gcx>)>,
 }
 
 /// The target selected for a call callee expression.
@@ -527,6 +530,11 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty(TyKind::StringLiteral(std::str::from_utf8(s).is_ok(), s.len()))
     }
 
+    /// Creates an integer literal type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits` does not fit in a `u16`, which literal arithmetic never needs.
     pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Ty<'gcx> {
         self.mk_ty_int_literal_with_fixed_bytes(negative, bits, None)
     }
@@ -755,6 +763,11 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn user_operator(self, id: hir::ExprId) -> Option<hir::FunctionId> {
         self.typeck_results.get()?.user_operator(id)
+    }
+
+    /// Returns the contracts whose base slot is a constant integer, with the base slot.
+    pub(crate) fn typeck_base_slots(self) -> &'gcx [(hir::ContractId, &'gcx hir::Expr<'gcx>)] {
+        self.typeck_results.get().map_or(&[], |results| &results.base_slots)
     }
 
     /// Returns whether sparse type-checker results are available for codegen queries.
@@ -1014,7 +1027,7 @@ impl<'gcx> Gcx<'gcx> {
             hir::TypeKind::Array(array) => {
                 let elem = self.type_of_hir_ty(&array.element);
                 match array.size {
-                    Some(size) => match self.const_eval().eval_array_len(size) {
+                    Some(size) => match self.early_const_eval().eval_array_len(size) {
                         Ok(size) => TyKind::Array(elem, size),
                         Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
                     },
@@ -1585,7 +1598,26 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Builds the error for a literal at `span` that is too large for any integer type.
     pub(crate) fn literal_too_large_err(self, span: Span) -> DiagBuilder<'gcx, ErrorGuaranteed> {
-        self.dcx().err("literal is too large for any integer type").span(span)
+        self.dcx().err(EvalErrorKind::LiteralTooLarge.msg()).span(span)
+    }
+
+    /// Builds the error for a builtin binary operator that does not apply to its operands.
+    pub(crate) fn binop_err(
+        self,
+        op: hir::BinOp,
+        (lhs_span, lhs): (Span, Ty<'gcx>),
+        (rhs_span, rhs): (Span, Ty<'gcx>),
+        assign: bool,
+    ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
+        let (lhs, rhs) = (lhs.display(self).to_string(), rhs.display(self).to_string());
+        let msg = format!("cannot apply builtin operator `{op}` to `{lhs}` and `{rhs}`");
+        let code = if assign { error_code!(7366) } else { error_code!(2271) };
+        self.dcx()
+            .err(msg)
+            .code(code)
+            .span(op.span)
+            .span_label(lhs_span, lhs)
+            .span_label(rhs_span, rhs)
     }
 }
 
@@ -2216,12 +2248,20 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     }
 
     // solc reports this as a fatal error, so the error type stops follow-up diagnostics. An array
-    // stays an array when its length fails to evaluate, so solc reports both errors.
+    // stays an array when its length fails to evaluate, so solc reports both errors, unless the
+    // innermost element type fails to resolve.
     // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
+    let innermost_element_resolves = || {
+        let hir::TypeKind::Array(mut array) = var.ty.kind else { return false };
+        while let hir::TypeKind::Array(inner) = array.element.kind {
+            array = inner;
+        }
+        !gcx.type_of_hir_ty(&array.element).references_error()
+    };
     if var.is_constant()
         && !ty.is_value_type()
         && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
-        && (!ty.references_error() || matches!(ty.kind, TyKind::Array(..)))
+        && (!ty.references_error() || innermost_element_resolves())
     {
         let guar = gcx
             .dcx()

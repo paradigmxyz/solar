@@ -3,31 +3,31 @@
 @phase lowered
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
-    v30 = mload 64 !metadata(memory=scratch)
-    v31 = add v30, 192
-    v32 = lt v31, v30
-    v33 = gt v31, 0xffffffffffffffff
-    v34 = or v32, v33
-    jumpi v34, bb2, bb1
+    v26 = mload 64 !metadata(memory=scratch)
+    v27 = add v26, 192
+    v28 = lt v27, v26
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb2, bb1
   bb1:
-    mstore 64, v31 !metadata(memory=scratch, preserves_valid_fmp)
-    v36 = calldatasize
-    calldatacopy v30, v36, 192
-    mstore v30, 160
-    v29 = add v30, 32
-    mstore v29, 1
-    v19 = add v29, 32
-    mstore v19, 28
-    v22 = add v29, 64
-    mstore v22, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v25 = add v29, 96
-    mstore v25, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v5 = add v29, 128
-    v6 = gas
-    v8 = staticcall v6, 1, v29, 128, v5, 32
-    v10 = mload v5
-    v37 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v37
+    mstore 64, v27 !metadata(memory=scratch, preserves_valid_fmp)
+    v32 = calldatasize
+    calldatacopy v26, v32, 192
+    mstore v26, 160
+    v16 = add v26, 32
+    mstore v16, 1
+    v18 = add v26, 64
+    mstore v18, 28
+    v20 = add v26, 96
+    mstore v20, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
+    v22 = add v26, 128
+    mstore v22, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    v24 = add v26, 160
+    v9 = gas
+    v10 = staticcall v9, 1, v16, 128, v24, 32
+    v11 = mload v24
+    v33 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v33
     returndata 128, 32
   bb2:
     mstore 32, 65 !metadata(memory=scratch)
@@ -37,31 +37,31 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
 
 fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
   bb0:
-    v30 = mload 64 !metadata(memory=scratch)
-    v31 = add v30, 192
-    v32 = lt v31, v30
-    v33 = gt v31, 0xffffffffffffffff
-    v34 = or v32, v33
-    jumpi v34, bb2, bb1
+    v26 = mload 64 !metadata(memory=scratch)
+    v27 = add v26, 192
+    v28 = lt v27, v26
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb2, bb1
   bb1:
-    mstore 64, v31 !metadata(memory=scratch, preserves_valid_fmp)
-    v36 = calldatasize
-    calldatacopy v30, v36, 192
-    mstore v30, 160
-    v29 = add v30, 32
-    mstore v29, 0
-    v19 = add v29, 32
-    mstore v19, 0
-    v22 = add v29, 64
+    mstore 64, v27 !metadata(memory=scratch, preserves_valid_fmp)
+    v32 = calldatasize
+    calldatacopy v26, v32, 192
+    mstore v26, 160
+    v16 = add v26, 32
+    mstore v16, 0
+    v18 = add v26, 64
+    mstore v18, 0
+    v20 = add v26, 96
+    mstore v20, 0
+    v22 = add v26, 128
     mstore v22, 0
-    v25 = add v29, 96
-    mstore v25, 0
-    v5 = add v29, 128
-    v6 = gas
-    v8 = staticcall v6, 1, v29, 128, v5, 32
-    v10 = mload v5
-    v37 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v37
+    v24 = add v26, 160
+    v9 = gas
+    v10 = staticcall v9, 1, v16, 128, v24, 32
+    v11 = mload v24
+    v33 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v33
     returndata 128, 32
   bb2:
     mstore 32, 65 !metadata(memory=scratch)

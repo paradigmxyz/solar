@@ -21,10 +21,10 @@ fn @choose(arg0: i1, arg1: i256, arg2: i256) -> struct0 [selector=0x28eac35d, pu
 
 fn @memoryChoice(arg0: i1, arg1: i256) -> struct1 [selector=0xe6b97384, pure, abi_params=[bool, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v1, 1
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = alloc zeroed checked 64
+    mstore v1, 1
     v2 = checked_add u256, 0, 1
     v3 = eq v2, 1
     jumpi v3, bb1, bb2
@@ -41,25 +41,33 @@ fn @memoryChoice(arg0: i1, arg1: i256) -> struct1 [selector=0xe6b97384, pure, ab
     jump bb6
   bb6:
     v5 = phi [bb4: v0], [bb5: v1]
-    v6 = memory_object_len memoryarray, v5
+    v6 = mload v5
     v7 = lt arg1, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = memory_object_load_element memoryarray<1>, v5, arg1
-    v10 = checked_add u256, v9, 7
-    memory_object_store_element memoryarray<1>, v5, arg1, v10
-    v11 = memory_object_len memoryarray, v0
-    v12 = lt 0, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = memory_object_load_element memoryarray<1>, v0, 0
-    v15 = memory_object_len memoryarray, v1
-    v16 = lt 0, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = memory_object_load_element memoryarray<1>, v1, 0
-    v19 = insert_value struct1, undef struct1, 0, v14
-    v20 = insert_value struct1, v19, 1, v18
-    v21 = insert_value struct1, v20, 2, v2
-    ret v21
+    v9 = shl 5, arg1
+    v10 = ptradd v5, v9
+    v11 = ptradd v10, 32
+    v12 = mload v11
+    v13 = checked_add u256, v12, 7
+    v14 = shl 5, arg1
+    v15 = ptradd v5, v14
+    v16 = ptradd v15, 32
+    mstore v16, v13
+    v17 = mload v0
+    v18 = lt 0, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptradd v0, 32
+    v21 = mload v20
+    v22 = mload v1
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd v1, 32
+    v26 = mload v25
+    v27 = insert_value struct1, undef struct1, 0, v21
+    v28 = insert_value struct1, v27, 1, v26
+    v29 = insert_value struct1, v28, 2, v2
+    ret v29
 }

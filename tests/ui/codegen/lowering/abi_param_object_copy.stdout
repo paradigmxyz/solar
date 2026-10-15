@@ -11,15 +11,15 @@ fn @storedWords(arg0: i256) -> i256 [selector=0x30038209, view, abi_params=[u256
     ret v4
 }
 
-fn @storedBytes() -> memptr [selector=0xbee7414c, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @storedBytes() -> ptr<memory> [selector=0xbee7414c, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 1
     ret v0
 }
 
-fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[array<_, u256>, bytes]] {
+fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[array<_, u256>, bytes]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
+    v0 = mload arg0
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, v0
     jumpi v2, bb1, bb2
@@ -35,18 +35,21 @@ fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[array<_, u
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb6
   bb6:
-    v8 = phi [bb2: 0], [bb7: v13]
+    v8 = phi [bb2: 0], [bb7: v16]
     v9 = lt v8, v0
     jumpi v9, bb7, bb8
   bb8:
     icall @store_storage_bytes, 1, arg1
     ret
   bb7:
-    v10 = memory_object_load_element memoryarray<1>, arg0, v8
-    v11 = storage_array_data_slot 0
-    v12 = add v11, v8
-    sstore v12, v10 !metadata(storage=symbolic(v12))
-    v13 = add v8, 1
+    v10 = shl 5, v8
+    v11 = ptradd arg0, v10
+    v12 = ptradd v11, 32
+    v13 = mload v12
+    v14 = storage_array_data_slot 0
+    v15 = add v14, v8
+    sstore v15, v13 !metadata(storage=symbolic(v15))
+    v16 = add v8, 1
     jump bb6
   bb4:
     v5 = storage_array_data_slot 0
@@ -56,7 +59,7 @@ fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[array<_, u
     jump bb3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

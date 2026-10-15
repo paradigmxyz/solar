@@ -140,7 +140,7 @@ fn @frame_caller() -> i256 {
 fn @frame_input(arg0: i256) -> i256 {
   bb0:
     v4 = internal_frame_addr 64
-    v0 = ptrtoint memptr v4 to i256
+    v0 = ptrtoint ptr<memory> v4 to i256
     mstore v0, 511
     v1 = and arg0, 255
     ret v1

@@ -38,7 +38,7 @@
 
 use crate::mir::{
     BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, MirType, Module,
-    RevertReason, Terminator, Value, ValueId, pass::MirPass,
+    PtrLocation, RevertReason, Terminator, Value, ValueId, pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_config::RevertStrings;
@@ -419,7 +419,7 @@ fn common_calldata_guard(
 /// Loads the 4-byte function selector from the first calldata word.
 fn load_selector(builder: &mut FunctionBuilder<'_>, has_bitwise_shifting: bool) -> ValueId {
     let zero = builder.imm(0);
-    let word = builder.calldataload(zero);
+    let word = builder.load(zero, PtrLocation::Calldata);
     if has_bitwise_shifting {
         let shift = builder.imm(224);
         builder.shr(shift, word)

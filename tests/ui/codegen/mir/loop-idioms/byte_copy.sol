@@ -22,11 +22,10 @@
 // The raw allocation frontier has no disjointness proof for the input header.
 // Keep the source bounds check and byte loop when that length cannot be reused.
 // CHECK-LABEL: fn @_slice
-// CHECK: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
-// CHECK: mload [[INPUT]]
-// CHECK: mload [[INPUT]]
+// CHECK: mload arg0
+// CHECK: mload arg0
 // CHECK: mstore8
-// CHECK-NOT: mcopy
+// CHECK-NOT: {{(^|[^a-z_])}}mcopy {{[^cr]}}
 
 contract Test {
     function slice(bytes memory s, uint256 start, uint256 end) public pure returns (bytes memory) {

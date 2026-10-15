@@ -343,7 +343,7 @@ fn @emptyRevert(arg0: i256) [selector=0xf7cad58b, pure, abi_params=[u256], abi_r
 
 fn @emptyLog(arg0: i256) [selector=0xade0865c, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    log0 arg0, 0
+    log arg0, 0
     ret
 }
 

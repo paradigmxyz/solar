@@ -182,7 +182,7 @@ use crate::{
     backend::evm::op,
     mir::{
         BlockId, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, Instruction,
-        MirType, Module, OpTraits, Terminator, Value, ValueId,
+        MirType, Module, OpTraits, PtrLocation, Terminator, Value, ValueId,
         analysis::{Loop, LoopAnalyzer, LoopInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
         utils::rebuild_predecessors,
@@ -406,7 +406,7 @@ fn rebuilt_at_use(func: &Function, value: ValueId) -> bool {
     let Some(kind) = inst_kind(func, value) else { return true };
     match kind {
         InstKind::Zext(inner) => rebuilt_at_use(func, *inner),
-        InstKind::CalldataLoad(offset) => func.value_u256(*offset).is_some(),
+        InstKind::Load(offset, PtrLocation::Calldata) => func.value_u256(*offset).is_some(),
         _ => {
             let def = kind.op_def();
             def.traits.contains(OpTraits::REMATERIALIZABLE) && def.effect != EffectKind::Pure
@@ -827,8 +827,7 @@ fn lifetime_saving(
         + target.dup().times(2)
         + target.opcode(op::PUSH2)
         + target.opcode(op::JUMPI);
-    let back_edge =
-        target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST);
+    let back_edge = target.jump();
     let skip = tested + back_edge;
     let groups = u32::try_from(trips / u64::from(factor)).unwrap_or(u32::MAX);
     let saving = match main_test {
@@ -1017,8 +1016,7 @@ fn plan_full(
         + target.dup().times(2)
         + target.opcode(op::PUSH2)
         + target.opcode(op::JUMPI);
-    let back_edge =
-        target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST);
+    let back_edge = target.jump();
     let trips = u32::try_from(trips).ok()?;
     let saving = (tested + back_edge).times(trips) + tested;
     let body: Cost = l

@@ -1,14 +1,16 @@
-error[5462]: array length must be greater than zero
+error[2643]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
    │
 LL │         uint256[1 << S256] memory a;
-   ╰╴                ━━━━━━━━━
+   ╰╴                ━━━━━━━━━ evaluation of constant value failed here
 
-error[5462]: array length must be greater than zero
+error[2643]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
    │
 LL │         uint256[(1 << S256) >> S256] memory b;
-   ╰╴                ━━━━━━━━━━━━━━━━━━━
+   │                 ━┬────────━━━━━━━━━
+   │                  │
+   ╰╴                 evaluation of constant value failed here
 
 error[2643]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
@@ -16,5 +18,29 @@ error[2643]: failed to evaluate constant: arithmetic overflow
 LL │         uint256[2 ** S256] memory c;
    ╰╴                ━━━━━━━━━ evaluation of constant value failed here
 
-error: aborting due to 3 previous errors
+error[5462]: failed to evaluate constant: unsupported binary operation
+   ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
+   │
+LL │         uint256[S8 << 256] memory d;
+   ╰╴                ━━━━━━━━━ evaluation of constant value failed here
+
+error[5462]: failed to evaluate constant: unsupported binary operation
+   ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
+   │
+LL │         uint256[S8 ** 300] memory e;
+   ╰╴                ━━━━━━━━━ evaluation of constant value failed here
+
+error[5462]: failed to evaluate constant: unsupported binary operation
+   ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
+   │
+LL │         uint256[S255 << 5000] memory f;
+   ╰╴                ━━━━━━━━━━━━ evaluation of constant value failed here
+
+error[5462]: failed to evaluate constant: unsupported binary operation
+   ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
+   │
+LL │         uint256[S255 ** 600] memory g;
+   ╰╴                ━━━━━━━━━━━ evaluation of constant value failed here
+
+error: aborting due to 7 previous errors
 

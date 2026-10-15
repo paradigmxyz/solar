@@ -1,0 +1,8 @@
+error[1211]: division by zero
+   ╭▸ ROOT/tests/ui/typeck/division_by_zero_view_pure.sol:LL:CC
+   │
+LL │         return s + 1 / ZERO;
+   ╰╴                   ━━━━━━━━
+
+error: aborting due to 1 previous error
+

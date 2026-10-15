@@ -1,6 +1,6 @@
-error: [fn0] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+error: [fn0] [bb0] raw return and revert operands must be a memory address and an `i256` size
 
-error: [fn1] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+error: [fn1] [bb0] raw return and revert operands must be a memory address and an `i256` size
 
 error: [fn2] [bb0] selfdestruct recipient must have type `i256`; use an explicit cast
 

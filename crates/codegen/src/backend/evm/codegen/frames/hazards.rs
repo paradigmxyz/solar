@@ -6,7 +6,7 @@ use super::{
         FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase, MemoryRegion, Module,
         Terminator, U256, Value, ValueId,
     },
-    LOW_MEMORY_BOUND,
+    LOW_MEMORY_BOUND, PtrLocation,
 };
 use crate::mir::Callee;
 
@@ -41,12 +41,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             (!below_spills).then_some(dest)
         };
         match func.inst(inst_id).kind {
-            InstKind::CalldataCopy(dest, _, size)
+            InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Memory)
             | InstKind::DataCopy(_, dest, size)
             | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ExtCodeCopy(_, dest, _, size)
-            | InstKind::MCopy(dest, _, size) => dynamic_range(dest, size),
-            InstKind::ReturnDataCopy(dest, offset, size) => {
+            | InstKind::ExtCodeCopy(_, dest, _, size) => dynamic_range(dest, size),
+            InstKind::Copy(dest, offset, size, PtrLocation::Returndata) => {
                 // `returndatacopy(_, returndatasize(), n)` is an OOG guard:
                 // `n == 0` writes nothing, while every nonzero length is out
                 // of bounds and traps before memory is modified.
@@ -67,7 +66,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // A fixed-width store through a loop-carried pointer that starts below the spill
             // area sweeps every slot the loop reaches; across the iterations it is as unbounded
             // as a variable-length copy.
-            InstKind::MStore(dest, _) | InstKind::MStore8(dest, _)
+            InstKind::Store(dest, _, PtrLocation::Memory) | InstKind::Store8(dest, _)
                 if Self::is_low_sweeping_pointer(func, dest) =>
             {
                 Some(dest)
@@ -200,7 +199,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 matches!(func.inst(inst_id).kind, InstKind::ICall { .. } | InstKind::SetFmp(_))
                     || matches!(
                         func.inst(inst_id).kind,
-                        InstKind::MStore(address, _)
+                        InstKind::Store(address, _, PtrLocation::Memory)
                             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
                     )
             });
@@ -356,7 +355,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 };
                 match &func.inst(*inst_id).kind {
                     InstKind::Fmp | InstKind::Alloc { .. } => Some(true),
-                    InstKind::MLoad(address)
+                    InstKind::Load(address, PtrLocation::Memory)
                         if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
                     {
                         Some(true)
@@ -382,11 +381,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     InstKind::And(first, second) if aligned_mask(*first) => {
                         derive(*second, visiting, memo)
-                    }
-                    InstKind::MemoryObjectData(object, _)
-                    | InstKind::MemoryObjectFieldAddr { object, .. }
-                    | InstKind::MemoryObjectElementAddr { object, .. } => {
-                        derive(*object, visiting, memo)
                     }
                     InstKind::Phi(incoming) => {
                         let mut grounded = false;
@@ -424,18 +418,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             Self::constant_memory_range_may_overlap_fmp(func.value_u64(offset), Some(size))
         };
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
-            InstKind::MLoad(offset) | InstKind::MStore(offset, _) => {
+            InstKind::Load(offset, PtrLocation::Memory)
+            | InstKind::Store(offset, _, PtrLocation::Memory) => {
                 overlaps_const(*offset, EvmMemoryLayout::WORD_SIZE)
             }
-            InstKind::MStore8(offset, _) => overlaps_const(*offset, 1),
+            InstKind::Store8(offset, _) => overlaps_const(*offset, 1),
             InstKind::MemoryZero(offset, size)
             | InstKind::Keccak256(offset, size)
-            | InstKind::CalldataCopy(offset, _, size)
+            | InstKind::Copy(offset, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
             | InstKind::DataCopy(_, offset, size)
             | InstKind::CodeCopy(offset, _, size)
-            | InstKind::ReturnDataCopy(offset, _, size)
             | InstKind::ExtCodeCopy(_, offset, _, size) => overlaps(*offset, *size),
-            InstKind::MCopy(dest, src, size) => overlaps(*dest, *size) || overlaps(*src, *size),
+            InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
+                overlaps(*dest, *size) || overlaps(*src, *size)
+            }
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
@@ -445,25 +441,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
                 overlaps(*offset, *size)
             }
-            InstKind::Log0(offset, size)
-            | InstKind::Log1(offset, size, _)
-            | InstKind::Log2(offset, size, _, _)
-            | InstKind::Log3(offset, size, _, _, _)
-            | InstKind::Log4(offset, size, _, _, _, _) => overlaps(*offset, *size),
+            InstKind::Log { offset, size, .. } => overlaps(*offset, *size),
             InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
             // These semantic memory operations are normally gone by the `lowered` phase. If
             // one remains, its complete accessed range is not represented as physical operands
             // here, so retain the Solidity memory invariant conservatively.
-            InstKind::MemoryObjectLen(_, _)
-            | InstKind::SetMemoryObjectLen(_, _, _)
-            | InstKind::MemoryObjectData(_, _)
-            | InstKind::MemoryObjectFieldAddr { .. }
-            | InstKind::MemoryObjectElementAddr { .. }
-            | InstKind::AbiEncode { .. }
+            InstKind::AbiEncode { .. }
             | InstKind::StorageToMemory { .. }
             | InstKind::MemoryToStorage { .. }
-            | InstKind::Keccak256Bytes(_)
-            | InstKind::MappingSlotMemory(_, _) => true,
+            | InstKind::MappingSlotBytes(_, _) => true,
             _ => false,
         }) {
             return true;

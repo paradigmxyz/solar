@@ -1051,7 +1051,7 @@ impl IndVarSimplifier {
     /// use of the primary offset, an add per use of a sibling offset, a latch
     /// update of two operations, and one loop-carried word beside the counter
     /// its exit test keeps alive. That word costs two operations, so a
-    /// single scaled use only breaks even and is left alone (the `copy` loop
+    /// single scaled use only breaks even and is left alone (the `mcopy` loop
     /// lost 1.2% carrying two such pointers, and charging one in loops with
     /// three carried words still cost every sorting kernel a few tenths of a
     /// percent), plus one for every word past four the loop already carries,

@@ -3,25 +3,34 @@
 @module LowerAggregates
 
 // CHECK-LABEL: {{^[ +].*}}fn @storage_to_memory{{[( ]}}
-// CHECK: {{^[ +].*}}[[OBJECT:v[0-9]+]] = inttoptr i256 arg1 to memptr
+// CHECK: {{^[ +].*}}[[OBJECT:v[0-9]+]] = inttoptr i256 arg1 to ptr<memory>
 // CHECK: - storage_to_memory
 // CHECK: + [[VALUE:v[0-9]+]] = sload arg0
-// CHECK: + memory_object_store_field memorystruct<3>, [[OBJECT]], 0, [[VALUE]]
+// CHECK-NEXT: + mstore [[OBJECT]], [[VALUE]]
+// CHECK: + {{v[0-9]+}} = alloc 64
+// CHECK: + [[OBJECT_32:v[0-9]+]] = ptradd [[OBJECT]], 32
+// CHECK: + mstore [[OBJECT_32]], {{v[0-9]+}}
+// CHECK: + [[FIXED:v[0-9]+]] = alloc 64
+// CHECK: + [[OBJECT_64:v[0-9]+]] = ptradd [[OBJECT]], 64
+// CHECK-NEXT: + [[ARRAY:v[0-9]+]] = ptrtoint ptr<memory> [[FIXED]]
+// CHECK-NEXT: + mstore [[OBJECT_64]], [[ARRAY]]
 fn @storage_to_memory(arg0: i256, arg1: i256) {
   bb0:
-    v0 = inttoptr i256 arg1 to memptr
+    v0 = inttoptr i256 arg1 to ptr<memory>
     storage_to_memory struct<word, struct<word, word>, array<2, word>>, arg0, v0
     stop
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @memory_to_storage{{[( ]}}
-// CHECK: {{^[ +].*}}[[OBJECT:v[0-9]+]] = inttoptr i256 arg0 to memptr
+// CHECK: {{^[ +].*}}[[OBJECT:v[0-9]+]] = inttoptr i256 arg0 to ptr<memory>
 // CHECK: - memory_to_storage
-// CHECK: + [[VALUE:v[0-9]+]] = memory_object_load_field memorystruct<3>, [[OBJECT]], 0
-// CHECK: + sstore arg1, [[VALUE]]
+// CHECK: + [[VALUE:v[0-9]+]] = mload [[OBJECT]]
+// CHECK-NEXT: + sstore arg1, [[VALUE]]
+// CHECK: + [[OBJECT_64:v[0-9]+]] = ptradd [[OBJECT]], 64
+// CHECK-NEXT: + {{v[0-9]+}} = mload [[OBJECT_64]]
 fn @memory_to_storage(arg0: i256, arg1: i256) {
   bb0:
-    v0 = inttoptr i256 arg0 to memptr
+    v0 = inttoptr i256 arg0 to ptr<memory>
     memory_to_storage struct<word, struct<word, word>, array<2, word>>, v0, arg1
     stop
 }

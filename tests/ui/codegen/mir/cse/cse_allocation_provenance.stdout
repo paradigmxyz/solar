@@ -3,10 +3,10 @@
   @module CseAllocationProvenance
   fn @fresh(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
-      v3 = ptrtoint memptr v2 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = alloc 32
+      v3 = ptrtoint ptr<memory> v2 to i256
       mstore v1, arg0
 -     v4 = mload v1
       mstore v3, arg1
@@ -18,13 +18,13 @@
   
   fn @reset(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, arg0
 -     v2 = mload v1
       set_fmp v0
-      v3 = alloc raw, exact, uninitialized, infallible, 32
-      v4 = ptrtoint memptr v3 to i256
+      v3 = alloc 32
+      v4 = ptrtoint ptr<memory> v3 to i256
       mstore v4, arg1
       v5 = mload v1
 -     v6 = add v2, v5
@@ -34,8 +34,8 @@
   
   fn @unbounded_heap_copy_keeps_reserved_load(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = mload 96
       mcopy v1, 0, arg0
       v3 = mload 96
@@ -45,10 +45,10 @@
   
   fn @unbounded_heap_copy_can_reach_other_allocation(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
-      v3 = ptrtoint memptr v2 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = alloc 32
+      v3 = ptrtoint ptr<memory> v2 to i256
       v4 = mload v3
       mcopy v1, 0, arg0
       v5 = mload v3
@@ -60,10 +60,10 @@
     bb0:
       jump bb1
     bb1:
-      v0 = inttoptr i256 0 to memptr
+      v0 = inttoptr i256 0 to ptr<memory>
       set_fmp v0
-      v1 = alloc raw, exact, uninitialized, infallible, 32
-      v2 = ptrtoint memptr v1 to i256
+      v1 = alloc 32
+      v2 = ptrtoint ptr<memory> v1 to i256
       v3 = mload 96
       mcopy v2, 128, 128
       v4 = mload 96
@@ -73,24 +73,26 @@
       ret v5
   }
   
-  fn @argument_header(arg0: memptr) -> i256 {
+  fn @argument_header(arg0: ptr<memory>) -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v1 = memory_object_len memorybytes, arg0
-      set_memory_object_len memorybytes, v0, 32
-      memory_object_store_byte memorybytes, v0, 0, 7
-      v2 = memory_object_len memorybytes, arg0
-      v3 = add v1, v2
-      ret v3
+      v0 = alloc 64
+      v1 = mload arg0
+      v2 = ptrtoint ptr<memory> v0 to i256
+      mstore v2, 32
+      v3 = ptradd v0, 32
+      mstore8 v3, 7
+      v4 = mload arg0
+      v5 = add v1, v4
+      ret v5
   }
   
-  fn @mapping_slot_memory_reset(arg0: i256, arg1: i256, arg2: memptr) -> i256 {
+  fn @mapping_slot_memory_reset(arg0: i256, arg1: i256, arg2: ptr<memory>) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
-      v2 = mapping_slot_memory arg2, arg1
-      v3 = alloc raw, exact, uninitialized, infallible, 32
-      v4 = ptrtoint memptr v3 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = mapping_slot_bytes arg2, arg1
+      v3 = alloc 32
+      v4 = ptrtoint ptr<memory> v3 to i256
       mstore v4, arg1
       mstore v1, arg0
       v5 = mload v4
@@ -98,13 +100,13 @@
       ret v6
   }
   
-  fn @mapping_slot_calldata_reset(arg0: i256, arg1: i256, arg2: calldataslice) -> i256 {
+  fn @mapping_slot_calldata_reset(arg0: i256, arg1: i256, arg2: slice<calldata>) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
-      v2 = mapping_slot_calldata arg2, arg1
-      v3 = alloc raw, exact, uninitialized, infallible, 32
-      v4 = ptrtoint memptr v3 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = mapping_slot_bytes arg2, arg1
+      v3 = alloc 32
+      v4 = ptrtoint ptr<memory> v3 to i256
       mstore v4, arg1
       mstore v1, arg0
       v5 = mload v4
@@ -114,18 +116,18 @@
   
   fn @call_reset(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
       icall @resetter, v0
-      v2 = alloc raw, exact, uninitialized, infallible, 32
-      v3 = ptrtoint memptr v2 to i256
+      v2 = alloc 32
+      v3 = ptrtoint ptr<memory> v2 to i256
       mstore v3, arg1
       mstore v1, arg0
       v4 = mload v3
       ret v4
   }
   
-  fn @resetter(arg0: memptr) {
+  fn @resetter(arg0: ptr<memory>) {
     bb0:
       set_fmp arg0
       ret

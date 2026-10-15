@@ -11,8 +11,8 @@ fn @init() [selector=0xe1c7392a, abi_params=[], abi_returns=[], abi_return_param
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -60,95 +60,40 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     v0 = abi_encode []
     v1 = datasize Impl_creation_code_0
     v2 = datasize Impl_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy Impl_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v3 = alloc v2
+    datacopy Impl_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = zext i160 v9 to i256
-    v12 = abi_encode [word<u160>], args v11
-    v13 = datasize Proxy_creation_code_1
-    v14 = datasize Proxy_creation_code_1, 32
-    v15 = datasize Proxy_creation_code_1, 63, aligned
-    v16 = alloc raw, exact, uninitialized, infallible, v15
-    v17 = ptrtoint memptr v16 to i256
-    datacopy Proxy_creation_code_1, v17, v13
-    v18 = slice_ptr v12
-    v19 = ptrtoint memptr v16 to i256
-    v20 = add v19, v13
-    mcopy v20, v18, 32 !metadata(memory=heap)
-    v21 = ptrtoint memptr v16 to i256
-    v22 = create 0, v21, v14
-    v23 = ne v22, i160 0
-    jumpi v23, bb4, bb3
-  bb3:
-    revert_returndata
-  bb4:
-    v24 = gas
-    v25 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
-    v26 = slice_ptr v25
-    v27 = slice_len v25
-    v28 = zext i160 v22 to i256
-    v29 = staticcall v24, v28, v26, v27, 0, 32
-    jumpi v29, bb6, bb5
-  bb5:
-    revert_returndata
-  bb6:
-    v30 = returndatasize
-    v31 = lt v30, 32
-    icall revert_if<tuple_data_too_short>, v31
-    v32 = add 0, 0
-    v33 = mload v32
-    ret v33
-}
-
-fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = abi_encode []
-    v1 = datasize Impl_creation_code_0
-    v2 = datasize Impl_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy Impl_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v11 = gas
-    v12 = abi_encode [], selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = zext i160 v9 to i256
-    v16 = extcodesize v15
-    v17 = eq v16, 0
-    icall revert_if<target_contract_has_no_code>, v17
-    v18 = zext i160 v9 to i256
-    v19 = call v11, v18, 0, v13, v14, 0, 0
+    v9 = zext i160 v7 to i256
+    v10 = abi_encode [word<u160>], args v9
+    v11 = datasize Proxy_creation_code_1
+    v12 = datasize Proxy_creation_code_1, 32
+    v13 = datasize Proxy_creation_code_1, 63, aligned
+    v14 = alloc v13
+    datacopy Proxy_creation_code_1, v14, v11
+    v15 = extract_value slice<memory>, v10, 0
+    v16 = ptrtoint ptr<memory> v14 to i256
+    v17 = add v16, v11
+    mcopy v17, v15, 32 !metadata(memory=heap)
+    v18 = create 0, v14, v12
+    v19 = ne v18, i160 0
     jumpi v19, bb4, bb3
   bb3:
     revert_returndata
   bb4:
     v20 = gas
     v21 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = zext i160 v9 to i256
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
+    v24 = zext i160 v18 to i256
     v25 = staticcall v20, v24, v22, v23, 0, 32
     jumpi v25, bb6, bb5
   bb5:
@@ -160,4 +105,53 @@ fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=
     v28 = add 0, 0
     v29 = mload v28
     ret v29
+}
+
+fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = datasize Impl_creation_code_0
+    v2 = datasize Impl_creation_code_0, 31, aligned
+    v3 = alloc v2
+    datacopy Impl_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = gas
+    v10 = abi_encode [], selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
+    v11 = extract_value slice<memory>, v10, 0
+    v12 = extract_value slice<memory>, v10, 1
+    v13 = zext i160 v7 to i256
+    v14 = extcodesize v13
+    v15 = eq v14, 0
+    icall revert_if<target_contract_has_no_code>, v15
+    v16 = zext i160 v7 to i256
+    v17 = call v9, v16, 0, v11, v12, 0, 0
+    jumpi v17, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v18 = gas
+    v19 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
+    v20 = extract_value slice<memory>, v19, 0
+    v21 = extract_value slice<memory>, v19, 1
+    v22 = zext i160 v7 to i256
+    v23 = staticcall v18, v22, v20, v21, 0, 32
+    jumpi v23, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = add 0, 0
+    v27 = mload v26
+    ret v27
 }

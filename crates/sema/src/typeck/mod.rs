@@ -18,6 +18,7 @@ use std::ops::ControlFlow;
 mod checker;
 mod constant_cycles;
 mod constant_divisors;
+mod constant_values;
 mod control_flow;
 pub(crate) mod override_checker;
 mod udvt;
@@ -56,10 +57,12 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     if typeck_ok {
         constant_cycles::check(gcx);
     }
+    constant_values::check(gcx);
     check_error_selector_collisions(gcx);
     control_flow::check(gcx);
-    view_pure_checker::check(gcx);
+    // solc's `StaticAnalyzer` runs before its `ViewPureChecker`.
     constant_divisors::check(gcx);
+    view_pure_checker::check(gcx);
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
@@ -141,6 +144,8 @@ fn merge_typeck_results<'gcx>(
     for (id, function) in new_results.user_operators {
         results.user_operators.insert(id, function);
     }
+
+    results.base_slots.extend(new_results.base_slots);
 }
 
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {
@@ -574,7 +579,7 @@ fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         }
     }
 
-    // Iterate over the items in declaration order to report them in the same order solc does.
+    // Iterate over the functions in declaration order to report them in the same order solc does.
     for f_id in contract.functions() {
         let f = gcx.hir.function(f_id);
 

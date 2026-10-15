@@ -1,21 +1,17 @@
 //! Evaluation of pure builtin functions.
 
 use super::{
-    EvalErrorKind as EE, erc7201_slot,
+    EvalErrorKind as EE,
     value::{BytesKind, ConstValue, FixedBytes, IntScalar, IntTy, ValueTy},
 };
 use crate::{builtins::Builtin, ty::Gcx};
-use alloy_primitives::{U256, keccak256};
+use alloy_primitives::{B256, U256, keccak256};
 use sha2::Digest;
 use solar_interface::ByteSymbol;
 
 /// Evaluates a call to `builtin` with the given argument values.
-pub(super) fn call(
-    gcx: Gcx<'_>,
-    builtin: Builtin,
-    args: Vec<ConstValue>,
-) -> Result<ConstValue, EE> {
-    Ok(match (builtin, &args[..]) {
+pub(super) fn call(gcx: Gcx<'_>, builtin: Builtin, args: &[ConstValue]) -> Result<ConstValue, EE> {
+    Ok(match (builtin, args) {
         (Builtin::Keccak256, [data]) => fixed_bytes(&keccak256(bytes(data)?).0),
         (Builtin::Sha256, [data]) => fixed_bytes(&sha2::Sha256::digest(bytes(data)?)),
         (Builtin::Ripemd160, [data]) => fixed_bytes(&ripemd::Ripemd160::digest(bytes(data)?)),
@@ -41,7 +37,7 @@ pub(super) fn call(
             let ConstValue::FixedBytes(selector) =
                 selector.clone().implicit_to(gcx, ValueTy::FixedBytes(4))?
             else {
-                unreachable!()
+                unreachable!("conversion to `bytes4` gives `bytes4`")
             };
             byte_array([selector.as_slice(), &abi_encode(args)?].concat())?
         }
@@ -241,4 +237,37 @@ fn packed(value: &ConstValue, data: &mut Vec<u8>) -> Result<(), EE> {
         ConstValue::Rational(_) => return Err(EE::Fractional),
     }
     Ok(())
+}
+
+/// Computes the ERC-7201 storage namespace base slot.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/units-and-global-variables.html#mathematical-and-cryptographic-functions>
+fn erc7201_slot(namespace_id: &[u8]) -> B256 {
+    let inner = keccak256(namespace_id);
+    let inner = U256::from_be_bytes(inner.0).wrapping_sub(U256::from(1));
+    let mut outer = keccak256(inner.to_be_bytes::<32>());
+    outer.0[31] = 0;
+    outer
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::b256;
+
+    #[test]
+    fn erc7201_slot_matches_eip_example() {
+        assert_eq!(
+            erc7201_slot(b"example.main"),
+            b256!("183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500")
+        );
+    }
+
+    #[test]
+    fn erc7201_slot_subtracts_from_full_inner_hash() {
+        assert_eq!(
+            erc7201_slot(b"85"),
+            b256!("06d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00")
+        );
+    }
 }

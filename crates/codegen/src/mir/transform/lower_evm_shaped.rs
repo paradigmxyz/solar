@@ -6,9 +6,10 @@
 //! results. It replaces eligible calls with [`Terminator::TailCall`]; other calls
 //! remain ordinary instructions followed by an unreachable `invalid` terminator.
 //!
-//! The pass then verifies all lowered-representation requirements and advances the
-//! module from semantic to lowered MIR. A failed check leaves its phase semantic
-//! and prevents the backend from consuming it.
+//! The pass then erases pointer types: every pointer becomes the `i256` word it holds and the
+//! casts between the two disappear, so the backend sees one value for each address. It verifies
+//! all lowered-representation requirements and advances the module from semantic to lowered MIR. A
+//! failed check leaves its phase semantic and prevents the backend from consuming it.
 //!
 //! Arguments ride along on the stack: the backend jumps with them in place and
 //! pushes no return address. Only bodied, selectorless, non-recursive callees
@@ -23,13 +24,17 @@
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
 
 use crate::mir::{
-    Callee, Function, InstKind, MirPhase, Module, Terminator,
+    Callee, Function, Immediate, InstKind, MirPhase, MirType, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, Liveness},
     pass::MirPass,
     transform::cfg_simplify::remove_unreachable_blocks,
     utils::{replace_terminator, split_edge},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::index_vec,
+    map::{FxHashMap, FxHashSet},
+};
 use std::cell::LazyCell;
 
 /// Shapes call edges and checks the final MIR phase transition.
@@ -185,10 +190,63 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
         }
     }
     for func in &mut module.functions {
+        erase_pointer_types(func);
         split_clobbering_phi_edges(func);
     }
 
     true
+}
+
+/// Retypes every pointer as the word it holds and drops the casts between the two, so the backend
+/// sees one value for each address.
+fn erase_pointer_types(func: &mut Function) {
+    let word = |ty: MirType| if ty.is_pointer() { MirType::I256 } else { ty };
+    for index in func.arg_indices() {
+        let ty = func.arg_ty(index);
+        func.set_arg_ty(index, word(ty));
+    }
+    let returns = func.return_abi().map(|abi| abi.iter().copied().map(word).collect::<Vec<_>>());
+    func.set_return_type(word(func.return_type()));
+    if let Some(returns) = returns {
+        func.set_return_abi(returns);
+    }
+    for index in 0..func.num_values() {
+        // ptr<location> literal -> i256 literal
+        match func.value_mut(ValueId::new(index)) {
+            Value::Immediate(immediate @ Immediate::Pointer(..)) => {
+                let word = immediate.as_u256().expect("pointer literals hold a word");
+                *immediate = Immediate::I256(word);
+            }
+            Value::Undef(ty) => *ty = word(*ty),
+            _ => {}
+        }
+    }
+    let mut replacements = FxHashMap::default();
+    let mut casts = FxHashSet::default();
+    for inst in func.instructions().collect::<Vec<_>>() {
+        let instruction = func.inst_mut(inst);
+        instruction.result_ty = instruction.result_ty.map(word);
+        match instruction.kind {
+            // word = ptrtoint pointer to i256 -> pointer
+            // pointer = inttoptr word to ptr<location> -> word
+            InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) => {
+                casts.insert(inst);
+                if let Some(result) = func.inst_result_value(inst) {
+                    replacements.insert(result, operand);
+                }
+            }
+            // narrow = ptrtoint pointer to iN -> trunc pointer to iN
+            InstKind::PtrToInt(operand, bits) => instruction.kind = InstKind::Trunc(operand, bits),
+            _ => {}
+        }
+    }
+    if casts.is_empty() {
+        return;
+    }
+    func.replace_uses_canonicalized(&replacements);
+    for block in &mut func.blocks {
+        block.instructions.retain(|inst| !casts.contains(inst));
+    }
 }
 
 fn split_clobbering_phi_edges(func: &mut Function) {

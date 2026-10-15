@@ -10,7 +10,7 @@ use num_bigint::{BigInt, BigUint, Sign};
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 use solar_ast::{ElementaryType, TypeSize};
-use solar_interface::ByteSymbol;
+use solar_interface::{ByteSymbol, Symbol, sym};
 use std::cmp::Ordering;
 
 // Literal arithmetic is exact like solc's rational numbers, which limit the
@@ -48,13 +48,23 @@ pub enum ConstValue {
     Array { elements: Box<[Self]>, dynamic: bool },
 }
 
-/// The bytecode of a [`ConstValue::Code`] value.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Which bytecode of a contract a value holds: `type(C).creationCode` or `type(C).runtimeCode`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CodeKind {
-    /// `type(C).creationCode`.
+    /// Deployment bytecode, including the initcode prefix.
     Creation,
-    /// `type(C).runtimeCode`.
+    /// Deployed runtime bytecode.
     Runtime,
+}
+
+impl CodeKind {
+    /// Returns the textual IR keyword.
+    pub fn keyword(self) -> Symbol {
+        match self {
+            Self::Creation => sym::creation_code,
+            Self::Runtime => sym::runtime_code,
+        }
+    }
 }
 
 /// The type of a [`ConstValue::Bytes`] value.
@@ -253,12 +263,12 @@ impl ConstValue {
             }
             (Self::Int(value), ValueTy::Enum(id)) => {
                 let index = value.as_u256().and_then(|index| u32::try_from(index).ok());
-                match index {
-                    Some(index) if (index as usize) < gcx.hir.enumm(id).variants.len() => {
-                        Self::Enum(id, index)
-                    }
-                    _ => return Err(EE::OutOfRange),
-                }
+                let Some(index) =
+                    index.filter(|&index| (index as usize) < gcx.hir.enumm(id).variants.len())
+                else {
+                    return Err(EE::OutOfRange);
+                };
+                Self::Enum(id, index)
             }
             (Self::FixedBytes(value), ValueTy::FixedBytes(size)) => {
                 Self::FixedBytes(value.resize(size))
@@ -341,7 +351,7 @@ impl ConstValue {
         Ok(match (self, rhs) {
             (Self::Int(lhs), Self::Int(rhs)) => match op {
                 _ if op.is_cmp() => {
-                    // Comparisons need a common type, like arithmetic.
+                    // A literal compared with a typed value needs a mobile type, like arithmetic.
                     IntScalar::binop_ty(&lhs, &rhs, op)?;
                     Self::Bool(compare(lhs.data.cmp(&rhs.data), op))
                 }
@@ -372,9 +382,10 @@ impl ConstValue {
                 };
                 Self::FixedBytes(FixedBytes::from_word(lhs.size, word))
             }
-            (Self::Address(lhs), Self::Address(rhs)) if op.is_cmp() => {
-                Self::Bool(compare(lhs.cmp(&rhs), op))
-            }
+            (
+                Self::Address(lhs) | Self::Contract(_, lhs),
+                Self::Address(rhs) | Self::Contract(_, rhs),
+            ) if op.is_cmp() => Self::Bool(compare(lhs.cmp(&rhs), op)),
             (Self::Enum(lhs_id, lhs), Self::Enum(rhs_id, rhs))
                 if lhs_id == rhs_id && op.is_cmp() =>
             {
@@ -438,7 +449,7 @@ fn literal_int_binop(l: BigInt, r: BigInt, op: BinOpKind) -> Result<BigInt, EE> 
                 l >> amount
             } else if l.is_zero() {
                 l
-            } else if l.bits() + u64::from(amount) > MAX_INTERMEDIATE_BITS {
+            } else if !shl_fits(&l, amount.into()) {
                 return Err(EE::ShiftTooLarge);
             } else {
                 l << amount
@@ -447,10 +458,20 @@ fn literal_int_binop(l: BigInt, r: BigInt, op: BinOpKind) -> Result<BigInt, EE> 
     })
 }
 
-/// Returns whether an integer's most significant bit is past index `MAX_INTERMEDIATE_BITS`, like
-/// solc allows.
+/// Returns whether an integer's most significant bit is past index `MAX_INTERMEDIATE_BITS`, the
+/// highest that solc allows.
 fn exceeds_precision(value: &BigInt) -> bool {
     value.magnitude().bits() > MAX_INTERMEDIATE_BITS + 1
+}
+
+/// Returns whether `value << amount` fits in the 4096 bits of solc's rational numbers.
+fn shl_fits(value: &BigInt, amount: u64) -> bool {
+    value.is_zero() || value.bits().saturating_add(amount) <= MAX_INTERMEDIATE_BITS
+}
+
+/// Returns whether `base ** exp` fits in the 4096 bits of solc's rational numbers.
+fn pow_fits(base: &BigInt, exp: u32) -> bool {
+    base.bits() <= 1 || base.bits().saturating_mul(exp.into()) <= MAX_INTERMEDIATE_BITS
 }
 
 /// Raises a number literal to an integer power by raising its numerator and denominator.
@@ -466,7 +487,7 @@ fn literal_pow(base: Ratio<BigInt>, exp: BigInt) -> Result<Ratio<BigInt>, EE> {
     let negative = exp.is_negative();
     let exp = u32::try_from(exp.magnitude()).map_err(|_| EE::ExponentTooLarge)?;
     let (numer, denom) = base.into_raw();
-    if [&numer, &denom].iter().any(|n| n.bits() * u64::from(exp) > MAX_INTERMEDIATE_BITS) {
+    if ![&numer, &denom].iter().all(|n| pow_fits(n, exp)) {
         return Err(EE::ExponentTooLarge);
     }
     let value = Ratio::new_raw(numer.pow(exp), denom.pow(exp));
@@ -611,7 +632,7 @@ impl FixedBytes {
         let size = match (&lhs, &rhs) {
             (ConstValue::FixedBytes(lhs), ConstValue::FixedBytes(rhs)) => lhs.size.max(rhs.size),
             (ConstValue::FixedBytes(value), _) | (_, ConstValue::FixedBytes(value)) => value.size,
-            _ => unreachable!(),
+            _ => unreachable!("not a `bytesN` operation: {lhs:?} and {rhs:?}"),
         };
         let convert = |value| match value {
             ConstValue::FixedBytes(value) if value.size <= size => Ok(value.resize(size)),
@@ -805,11 +826,11 @@ impl IntScalar {
         if let Some(value) = self.as_u256() {
             return Some(value);
         }
-        Some(U256::ZERO.wrapping_sub(Self::magnitude_u256(&self.data)?))
+        Some(Self::magnitude_u256(&self.data)?.wrapping_neg())
     }
 
-    /// Returns the bytes of the value in its type, `bytes` wide and in two's complement, for
-    /// packed ABI encoding.
+    /// Returns the bytes of the value in two's complement, as wide as its type, for packed ABI
+    /// encoding.
     pub(super) fn to_be_bytes(&self) -> Option<Vec<u8>> {
         let bytes = usize::from(self.ty?.size.bytes());
         let word = self.as_evm_word()?.to_be_bytes::<32>();
@@ -983,26 +1004,45 @@ impl IntScalar {
         })
     }
 
-    /// Returns whether solc's constant evaluator gives the binary operation the same value, or
-    /// reports the same error.
-    ///
-    /// solc gives no value to a shift by more than `u32::MAX` bits, and converts the shift amount
-    /// or exponent of a typed operand to its type first.
-    pub(super) fn solc_folds_binop(&self, r: &Self, op: BinOpKind) -> bool {
-        let fits_u32 = u32::try_from(&r.data).is_ok();
+    /// Returns the error of solc's constant evaluator where it does not give the binary operation
+    /// the same value or error.
+    pub(super) fn solc_binop(&self, r: &Self, op: BinOpKind) -> Result<(), EE> {
         match (op, self.ty, r.ty) {
             // solc reports the failed operations of two literals.
-            (_, None, None) => true,
-            // solc rejects a left shift that drops bits, which the EVM drops.
-            (BinOpKind::Shl, _, _) if !self.shl_keeps_bits(r) => false,
-            // solc converts the right operand of a typed shift or power to the left type.
-            (BinOpKind::Pow, Some(ty), _) => ty.contains(&r.data),
-            (BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar, Some(ty), _) => {
-                fits_u32 && ty.contains(&r.data)
+            (_, None, None) => Ok(()),
+            // Type checking and solc's evaluator reject signed and negative shift amounts, and solc
+            // gives no value to a shift by more than `u32::MAX` bits.
+            (op, ..)
+                if op.is_shift()
+                    && (r.is_negative()
+                        || r.ty.is_some_and(|ty| ty.signed)
+                        || u32::try_from(&r.data).is_err()) =>
+            {
+                Err(EE::UnsupportedBinaryOp)
             }
-            (BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar, None, Some(_)) => fits_u32,
-            _ => true,
+            // solc converts the right operand of a typed shift or power to the left type.
+            (op, Some(ty), _)
+                if (op.is_shift() || op == BinOpKind::Pow) && !ty.contains(&r.data) =>
+            {
+                Err(EE::UnsupportedBinaryOp)
+            }
+            // solc gives no value to a result beyond the 4096 bits of its rational numbers.
+            (BinOpKind::Shl, ..) if !self.solc_fits_shl(r) => Err(EE::UnsupportedBinaryOp),
+            (BinOpKind::Pow, ..) if !self.solc_fits_pow(r) => Err(EE::UnsupportedBinaryOp),
+            // solc rejects a typed left shift that drops bits, though the EVM drops them.
+            (BinOpKind::Shl, ..) if !self.shl_keeps_bits(r) => Err(EE::ArithmeticOverflow),
+            _ => Ok(()),
         }
+    }
+
+    /// Returns whether the left shift by `r` fits in the 4096 bits of solc's rational numbers.
+    fn solc_fits_shl(&self, r: &Self) -> bool {
+        u32::try_from(&r.data).is_ok_and(|amount| shl_fits(&self.data, amount.into()))
+    }
+
+    /// Returns whether the power `self ** r` fits in the 4096 bits of solc's rational numbers.
+    fn solc_fits_pow(&self, r: &Self) -> bool {
+        self.data.bits() <= 1 || u32::try_from(&r.data).is_ok_and(|exp| pow_fits(&self.data, exp))
     }
 
     /// Returns whether a typed left shift by `r` keeps every bit of this value in its type.
@@ -1024,7 +1064,8 @@ impl IntScalar {
         if op == BinOpKind::Shl
             && let Some(ty) = ty
         {
-            let amount = r.as_u256().ok_or(EE::NegativeShift)?;
+            // Type checking rejects signed and negative shift amounts.
+            let amount = r.as_u256().ok_or(EE::UnsupportedBinaryOp)?;
             let amount = u16::try_from(amount).unwrap_or(u16::MAX).min(ty.bits());
             return Self { data: self.data << amount, ty: Some(ty) }.explicit_to(ty);
         }
@@ -1079,10 +1120,7 @@ impl IntScalar {
         if r.data.is_zero() {
             return Self::checked(BigInt::one());
         }
-        if self.data.is_zero() {
-            return Ok(self);
-        }
-        if self.data.is_one() {
+        if self.data.is_zero() || self.data.is_one() {
             return Ok(self);
         }
         if self.data == BigInt::from(-1) {
@@ -1092,7 +1130,7 @@ impl IntScalar {
         let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
         let exp = u32::try_from(exp).map_err(|_| EE::ArithmeticOverflow)?;
         // Bound the result size before computing the power.
-        if self.data.magnitude().bits().saturating_mul(exp.into()) > MAX_INTERMEDIATE_BITS {
+        if !pow_fits(&self.data, exp) {
             return Err(EE::ArithmeticOverflow);
         }
         Self::checked(self.data.pow(exp))
