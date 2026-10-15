@@ -12,9 +12,10 @@
 //! - [`Gcx::early_const_eval`] evaluates what solc's `ConstantEvaluator` evaluates: number and
 //!   string literals, constants of integer, string and `bytes` types named by identifiers, unary
 //!   and binary arithmetic, and `erc7201` of a string. It only uses name resolution and never
-//!   reaches a type, so type checking uses it for array lengths, base slots and literal arithmetic.
-//!   Checks that solc runs on the values its evaluator computes, such as division by zero, use it
-//!   too, and give up on constants nested more than 32 deep like solc; see TYPECK-020 in
+//!   reaches a type, so type checking uses it for array lengths and literal arithmetic. The checks
+//!   after type checking use it for base slots and for what solc checks on the values its evaluator
+//!   computes, such as division by zero. Array lengths, base slots and the zero divisor checks give
+//!   up on constants nested more than 32 deep like solc; see TYPECK-020 in
 //!   `docs/SOLC_DIVERGENCE.md`.
 //! - [`Gcx::const_eval`] evaluates everything a constant initializer can contain, after type
 //!   checking, with the declarations it selected, such as the function in `this.f.selector`.
@@ -502,7 +503,7 @@ impl<'gcx> ConstEval<'gcx> {
             .span_label(err.span, "evaluation of constant value failed here");
         // Tell the user what solc's evaluator accepts in an array length.
         if cx == ConstContext::ArrayLength
-            && (err.kind.is_unsupported() || err.kind == EE::NotAnInteger)
+            && matches!(err.kind, EE::UnsupportedExpr | EE::NonConstantVar | EE::NotAnInteger)
         {
             diag = diag.help(
                 "array lengths take number literals, integer constants and arithmetic on them",
@@ -549,7 +550,7 @@ pub enum EvalErrorKind {
     /// Negating a value of an unsigned type.
     NegateUnsigned,
     /// A division or modulo by zero, of literals or of typed values, or a zero `addmod` or
-    /// `mulmod` modulus.
+    /// `mulmod` modulus. solc's evaluator reports only the literal one.
     DivisionByZero { literal: bool },
     /// A literal shift amount that solc gives no value.
     ShiftTooLarge,
@@ -608,22 +609,25 @@ impl EvalErrorKind {
         }
     }
 
-    /// Returns `true` if the evaluator does not compute a value that runtime code can compute,
-    /// such as `keccak256(type(C).creationCode)` or a byte array too large to fold.
+    /// Returns `true` if solc's evaluator gives the expression no value and reports nothing,
+    /// because runtime code computes it or reverts, as for `keccak256(type(C).creationCode)`, a
+    /// byte array too large to fold or a typed division by zero, or because type checking
+    /// reports it, as for `-x` of an unsigned `x`.
     pub fn is_unsupported(&self) -> bool {
         match self {
             Self::ValueTooLarge
             | Self::UnsupportedUnaryOp
             | Self::UnsupportedBinaryOp
             | Self::UnsupportedExpr
-            | Self::NonConstantVar => true,
+            | Self::NonConstantVar
+            | Self::NegateUnsigned
+            | Self::DivisionByZero { literal: false } => true,
             Self::Cycle
             | Self::DepthLimit
             | Self::ArithmeticOverflow
             | Self::UnaryOverflow
             | Self::LiteralTooLarge
-            | Self::NegateUnsigned
-            | Self::DivisionByZero { .. }
+            | Self::DivisionByZero { literal: true }
             | Self::ShiftTooLarge
             | Self::NegativeShift
             | Self::ExponentTooLarge

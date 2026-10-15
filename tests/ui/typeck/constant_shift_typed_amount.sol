@@ -9,6 +9,7 @@ contract C {
     uint16 constant S255 = 255;
     uint16 constant S256 = 256;
     uint8 constant S8 = 8;
+    uint16 constant ONE = 1;
 
     function tooWide() public pure {
         // Like solc, the shifts that drop the bit are error 2643.
@@ -35,8 +36,11 @@ contract C {
         uint256[(1 << S8) >> S8] memory a;
         uint256[3 ** S8] memory b;
         uint256[(1 << S255) >> S255] memory c;
+        // Powers of 1 fit, whatever the exponent.
+        uint256[ONE ** 5000] memory d;
         a[0] = 1;
         b[0] = 2;
         c[0] = 3;
+        d[0] = 4;
     }
 }

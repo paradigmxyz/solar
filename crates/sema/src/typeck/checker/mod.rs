@@ -75,8 +75,9 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
-    /// Whether we're checking the length of a fixed-size array type whose evaluation fails at a
-    /// literal operation, which the evaluation reports.
+    /// Whether we're checking a fixed-size array length that fails with an error solc's evaluator
+    /// reports. solc stops at that error, so type checking reports no failed literal operation in
+    /// it.
     in_failed_array_len: bool,
     /// The value components the enclosing statement discards, by expression.
     ///
@@ -223,8 +224,8 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    /// Checks the type of the base slot of a storage layout specifier; `constant_values` checks its
-    /// value.
+    /// Checks that the base slot of a storage layout specifier is a constant integer;
+    /// `constant_values` checks its value.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeContractLevelChecker.cpp#L87-L194>
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
@@ -247,7 +248,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 .span(slot.span)
                 .span_label(slot.span, format!("found `{}`", ty.display(self.gcx)))
                 .emit();
+            return;
         }
+        let contract = self.contract.expect("storage layout specifier outside a contract");
+        self.results.base_slots.push((contract, slot));
     }
 
     fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
@@ -272,11 +276,9 @@ impl<'gcx> TypeChecker<'gcx> {
     /// reports the others.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let fails = self
-            .gcx
-            .early_const_eval()
-            .eval_int(size)
-            .is_err_and(|err| err.kind.is_undefined_literal_op());
+        let fails = self.gcx.early_const_eval().eval_int_with_depth_limit(size).is_err_and(|err| {
+            !err.kind.is_unsupported() && !matches!(err.kind, EvalErrorKind::AlreadyEmitted(_))
+        });
         let prev = std::mem::replace(&mut self.in_failed_array_len, fails);
         let ty = self.check_expr(size);
         self.in_failed_array_len = prev;
@@ -451,7 +453,7 @@ impl<'gcx> TypeChecker<'gcx> {
                                 return ty;
                             }
                         }
-                        // The evaluation of the array length reports the failed operation.
+                        // The array length's evaluation reports its own error instead.
                         Err(err)
                             if self.in_failed_array_len && err.kind.is_undefined_literal_op() =>
                         {

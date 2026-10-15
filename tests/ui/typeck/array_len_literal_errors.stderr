@@ -14,6 +14,14 @@ LL │     function g(uint[true ? 1 : 1 / 0] memory) public {}
    │                                │
    ╰╴                               evaluation of constant value failed here
 
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │     uint[(MAX8 + 1) + (1 / 0)] first;
+   │          ━┬───────━━━━━━━━━━━
+   │           │
+   ╰╴          evaluation of constant value failed here
+
 error[6020]: failed to evaluate constant: attempted to divide by zero
    ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
    │
@@ -44,5 +52,5 @@ error[6020]: failed to evaluate constant: attempted to divide by zero
 LL │         new uint[1 / 0][](1);
    ╰╴                 ━━━━━ evaluation of constant value failed here
 
-error: aborting due to 6 previous errors
+error: aborting due to 7 previous errors
 

@@ -13,6 +13,10 @@ contract AttachedFunction layout at 2.f() { //~ ERROR: base slot of storage layo
     using L for *;
 }
 
+// A base slot that is not constant reports nothing else.
+uint8 constant ONE = 1;
+contract NotConstant layout at block.number + (ONE - 2) {} //~ ERROR: base slot of storage layout must be a compile-time constant expression
+
 contract StringLiteral layout at "MyLayoutBase" {} //~ ERROR: base slot of storage layout must evaluate to an integer
 contract HexStringLiteral layout at hex"616263" {} //~ ERROR: base slot of storage layout must evaluate to an integer
 contract FractionalDivision layout at 3/2 {} //~ ERROR: base slot of storage layout must evaluate to an integer
