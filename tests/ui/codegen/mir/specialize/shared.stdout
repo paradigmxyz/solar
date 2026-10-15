@@ -28,27 +28,23 @@
   
   fn @specialized_a(arg0: i256) -> i256 {
     bb0:
--     v0 = icall @mixed_helper, 0, arg0
-+     v0 = icall @mixed_helper.7, 0, arg0
+      v0 = icall @mixed_helper, 0, arg0
       ret v0
   }
   
   fn @specialized_b(arg0: i256) -> i256 {
     bb0:
--     v0 = icall @mixed_helper, 0, arg0
-+     v0 = icall @mixed_helper.7, 0, arg0
+      v0 = icall @mixed_helper, 0, arg0
       ret v0
   }
   
   fn @generic(arg0: i256, arg1: i256) -> i256 {
     bb0:
--     v0 = icall @mixed_helper, arg0, arg1
-+     v0 = icall @mixed_helper.6, arg0, arg1
+      v0 = icall @mixed_helper, arg0, arg1
       ret v0
   }
   
-- fn @mixed_helper(arg0: i256, arg1: i256) -> i256 {
-+ fn @mixed_helper.6(arg0: i256, arg1: i256) -> i256 {
+  fn @mixed_helper(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -59,12 +55,6 @@
       v1 = mul arg1, arg1
       v2 = mul v1, v1
       ret v2
-+ }
-+ 
-+ fn @mixed_helper.7(arg0: i256, arg1: i256) -> i256 {
-+   bb0:
-+     v3 = add arg1, 7
-+     ret v3
   }
   
 - // === ROOT/tests/ui/codegen/mir/specialize/shared.mir (before dead-arg-elim) ===
@@ -94,25 +84,23 @@
   
   fn @specialized_a(arg0: i256) -> i256 {
     bb0:
--     v0 = icall @mixed_helper.7, 0, arg0
-+     v0 = icall @mixed_helper.7, arg0
+      v0 = icall @mixed_helper, 0, arg0
       ret v0
   }
   
   fn @specialized_b(arg0: i256) -> i256 {
     bb0:
--     v0 = icall @mixed_helper.7, 0, arg0
-+     v0 = icall @mixed_helper.7, arg0
+      v0 = icall @mixed_helper, 0, arg0
       ret v0
   }
   
   fn @generic(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = icall @mixed_helper.6, arg0, arg1
+      v0 = icall @mixed_helper, arg0, arg1
       ret v0
   }
   
-  fn @mixed_helper.6(arg0: i256, arg1: i256) -> i256 {
+  fn @mixed_helper(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -123,13 +111,5 @@
       v1 = mul arg1, arg1
       v2 = mul v1, v1
       ret v2
-  }
-  
-- fn @mixed_helper.7(arg0: i256, arg1: i256) -> i256 {
-+ fn @mixed_helper.7(arg0: i256) -> i256 {
-    bb0:
--     v3 = add arg1, 7
-+     v3 = add arg0, 7
-      ret v3
   }
   

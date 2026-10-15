@@ -2716,8 +2716,10 @@ struct Projection {
 
 /// Binds the extra results of a multi-word call to the words it returns on the stack.
 ///
-/// MIR reads results `1..N` through the multi-return buffer: the pointer read and one offset
-/// load per used result follow the call with only pure instructions between.
+/// MIR reads results `1..N` through the multi-return buffer: the pointer read follows the call
+/// with only pure instructions between, and one offset load per used result follows it with
+/// only read-only instructions between. The buffer is reachable only through the pointer read,
+/// whose other uses reject the projection.
 fn call_projection(
     func: &Function,
     block: BlockId,
@@ -2771,7 +2773,7 @@ fn call_projection(
                 }
                 elided.push(inst);
             }
-            kind if kind.effect_kind() == EffectKind::Pure => {}
+            kind if kind.effect_kind().is_read_only() => {}
             _ => break,
         }
     }

@@ -1237,10 +1237,18 @@ fn is_node(kind: &InstKind) -> bool {
     let pure = definition.effect == EffectKind::Pure
         && !definition.has_side_effects
         && !matches!(kind, InstKind::Phi(_));
-    pure || matches!(
-        kind,
-        InstKind::Load(.., PtrLocation::Calldata) | InstKind::BlockHash(_) | InstKind::BlobHash(_)
-    )
+    // Stable context reads are rematerialized by the backend. Keep calldata size separate:
+    // merging it extends ABI-decoding live ranges and can introduce spills.
+    let frame_invariant = definition.effect == EffectKind::EnvironmentRead
+        && definition.traits.contains(OpTraits::REMATERIALIZABLE)
+        && !matches!(kind, InstKind::CalldataSize);
+    pure || frame_invariant
+        || matches!(
+            kind,
+            InstKind::Load(.., PtrLocation::Calldata)
+                | InstKind::BlockHash(_)
+                | InstKind::BlobHash(_)
+        )
 }
 
 /// Keeps constants on the right without reassociating or adding nodes.

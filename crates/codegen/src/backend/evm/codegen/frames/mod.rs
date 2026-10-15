@@ -998,7 +998,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         break;
                     }
                 }
-                kind if kind.effect_kind() == EffectKind::Pure => {}
+                kind if kind.effect_kind().is_read_only() => {}
                 _ => return None,
             }
         }

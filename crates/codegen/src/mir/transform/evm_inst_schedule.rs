@@ -290,19 +290,8 @@ impl EvmInstSchedule {
         }
 
         !inst.kind.effects().control.any()
-            && Self::is_movable_effect(inst.kind.effect_kind())
-            && inst.metadata.effect().is_none_or(Self::is_movable_effect)
-    }
-
-    fn is_movable_effect(effect: crate::mir::EffectKind) -> bool {
-        matches!(
-            effect,
-            crate::mir::EffectKind::Pure
-                | crate::mir::EffectKind::MemoryRead
-                | crate::mir::EffectKind::StorageRead
-                | crate::mir::EffectKind::TransientRead
-                | crate::mir::EffectKind::EnvironmentRead
-        )
+            && inst.kind.effect_kind().is_read_only()
+            && inst.metadata.effect().is_none_or(EffectKind::is_read_only)
     }
 
     /// Returns operands in the order their producers should run for EVM emission: deepest stack

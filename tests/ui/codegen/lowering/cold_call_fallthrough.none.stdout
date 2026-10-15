@@ -158,16 +158,16 @@ bb26:
 bb27 [cold]:
   invalid
 bb28:
-  push 0x8c379a000000000000000000000000000000000000000000000000000000000
-  push 0
-  mstore
   push 32
-  push 4
+  push 32
   mstore
-  push 36
+  push 64
   mstore
-  push 68
+  push 96
+  mstore
+  push 0x8c379a0
+  push 0
   mstore
   push 100
-  push 0
+  push 28
   revert
