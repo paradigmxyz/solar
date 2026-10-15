@@ -1,0 +1,8 @@
+error: `mload` annotation must be `ptr<memory>`
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_load_annotation.mir:LL:CC
+   │
+LL │     ret v0
+   ╰╴    ━━━
+
+error: aborting due to 1 previous error
+

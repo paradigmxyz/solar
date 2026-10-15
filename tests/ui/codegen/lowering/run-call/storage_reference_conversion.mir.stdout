@@ -224,22 +224,23 @@ fn @memoryCopy() -> i256 [selector=0x2dbaeee9, abi_params=[], abi_returns=[word]
     sstore v4, 1 !metadata(storage=symbolic(v4))
     sstore 1, v2 !metadata(storage=slot(1))
     v5 = icall @load_storage_word_array, 1
-    v6 = memory_object_len memoryarray, v5
+    v6 = mload v5
     v7 = lt 0, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    memory_object_store_element memoryarray<1>, v5, 0, 9
-    v9 = sload 1 !metadata(storage=slot(1))
-    v10 = lt 0, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = storage_array_data_slot 1
-    v13 = add v12, 0
-    v14 = sload v13 !metadata(storage=symbolic(v12))
-    ret v14
+    v9 = ptradd v5, 32
+    mstore v9, 9
+    v10 = sload 1 !metadata(storage=slot(1))
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = storage_array_data_slot 1
+    v14 = add v13, 0
+    v15 = sload v14 !metadata(storage=symbolic(v13))
+    ret v15
 }
 
-fn @returnArray() -> memptr [selector=0x3cac14c8, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @returnArray() -> ptr<memory> [selector=0x3cac14c8, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -332,9 +333,11 @@ fn @stringWrite() -> i1 [selector=0xbe9c4022, abi_params=[], abi_returns=[word<b
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     v24 = icall @load_storage_bytes, 8
-    v25 = keccak256_bytes v24
-    v26 = eq v25, 0x3a23e4bd396e5a1f6ca1e1e0a95873fc0dfa15493c9ae32d9772dc7c1838fa69
-    ret v26
+    v25 = ptradd v24, 32
+    v26 = mload v24
+    v27 = keccak256 v25, v26
+    v28 = eq v27, 0x3a23e4bd396e5a1f6ca1e1e0a95873fc0dfa15493c9ae32d9772dc7c1838fa69
+    ret v28
 }
 
 fn @stringPush() -> i256 [selector=0x2c6d0933, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -478,9 +481,11 @@ fn @longStringWrite() -> i1 [selector=0xe6b30d9b, abi_params=[], abi_returns=[wo
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     v24 = icall @load_storage_bytes, 8
-    v25 = keccak256_bytes v24
-    v26 = eq v25, 0x96d09c53053b9d611bf356cf2ed7bfdba5ff2593d53730b8c06d1d5408a38757
-    ret v26
+    v25 = ptradd v24, 32
+    v26 = mload v24
+    v27 = keccak256 v25, v26
+    v28 = eq v27, 0x96d09c53053b9d611bf356cf2ed7bfdba5ff2593d53730b8c06d1d5408a38757
+    ret v28
 }
 
 fn @longStringPush() -> i1 [selector=0x34665a4c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -557,12 +562,14 @@ fn @longStringPush() -> i1 [selector=0x34665a4c, abi_params=[], abi_returns=[wor
     jump bb8
   bb6:
     v48 = icall @load_storage_bytes, 8
-    v49 = keccak256_bytes v48
-    v50 = eq v49, 0x7a6f737e43d8df6b957106ab38e3ee7356f9640efbd029c659cfb25aa1f033a1
+    v49 = ptradd v48, 32
+    v50 = mload v48
+    v51 = keccak256 v49, v50
+    v52 = eq v51, 0x7a6f737e43d8df6b957106ab38e3ee7356f9640efbd029c659cfb25aa1f033a1
     jump bb8
   bb8:
-    v51 = phi [bb6: v50], [bb7: false]
-    ret v51
+    v53 = phi [bb6: v52], [bb7: false]
+    ret v53
 }
 
 fn @longStringPop() -> i1 [selector=0xd2953b6b, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -643,34 +650,40 @@ fn @longStringPop() -> i1 [selector=0xd2953b6b, abi_params=[], abi_returns=[word
     jump bb8
   bb6:
     v52 = icall @load_storage_bytes, 8
-    v53 = keccak256_bytes v52
-    v54 = eq v53, 0x3543932457eeb70fdd26eee26b08ef8d5b039e5d2936242e767026359c7bf7ea
+    v53 = ptradd v52, 32
+    v54 = mload v52
+    v55 = keccak256 v53, v54
+    v56 = eq v55, 0x3543932457eeb70fdd26eee26b08ef8d5b039e5d2936242e767026359c7bf7ea
     jump bb8
   bb8:
-    v55 = phi [bb6: v54], [bb7: false]
-    ret v55
+    v57 = phi [bb6: v56], [bb7: false]
+    ret v57
 }
 
 fn @bytesToString() -> i1 [selector=0x6ae58365, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     store_storage_bytes_literal 9, hex"616263"
     v0 = icall @load_storage_bytes, 9
-    v1 = keccak256_bytes v0
-    v2 = eq v1, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
-    ret v2
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    v4 = eq v3, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
+    ret v4
 }
 
 fn @bytesToStringConcat() -> i1 [selector=0xad6c47b6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     store_storage_bytes_literal 9, hex"616263"
     v0 = icall @load_storage_bytes, 9
-    v1 = icall concat<memorybytes, bytes1>, v0, 0x6400000000000000000000000000000000000000000000000000000000000000
-    v2 = keccak256_bytes v1
-    v3 = eq v2, 0x48bed44d1bcd124a28c27f343a817e5f5243190d3c52bf347daf876de1dbbf77
-    ret v3
+    v1 = abi_encode_packed (bytes v0, data hex"64")
+    v2 = ptradd v1, 32
+    v3 = mload v1
+    v4 = keccak256 v2, v3
+    v5 = eq v4, 0x48bed44d1bcd124a28c27f343a817e5f5243190d3c52bf347daf876de1dbbf77
+    ret v5
 }
 
-fn @returnString() -> memptr [selector=0x6cf43347, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @returnString() -> ptr<memory> [selector=0x6cf43347, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     store_storage_bytes_literal 9, hex"616263"
     v0 = icall @load_storage_bytes, 9
@@ -682,8 +695,8 @@ fn @encodeString() -> i1 [selector=0xed5df365, abi_params=[], abi_returns=[word<
     store_storage_bytes_literal 9, hex"616263"
     v0 = icall @load_storage_bytes, 9
     v1 = abi_encode [memory_bytes], scratch, args v0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = keccak256 v2, v3
     v5 = eq v4, 0x8907a120cfb0578047a2ea8420b2a4ea383710bac1b2bcb182476d4f8b7a5f51
     ret v5
@@ -693,19 +706,23 @@ fn @assignMemory() -> i1 [selector=0xcf39e051, abi_params=[], abi_returns=[word<
   bb0:
     store_storage_bytes_literal 9, hex"616263"
     v0 = icall @load_storage_bytes, 9
-    v1 = keccak256_bytes v0
-    v2 = eq v1, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
-    ret v2
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    v4 = eq v3, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
+    ret v4
 }
 
 fn @concatBytes() -> i1 [selector=0xceafa9e0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     store_storage_bytes_literal 8, hex"6162"
     v0 = icall @load_storage_bytes, 8
-    v1 = icall concat<memorybytes, bytes1>, v0, 0x6300000000000000000000000000000000000000000000000000000000000000
-    v2 = keccak256_bytes v1
-    v3 = eq v2, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
-    ret v3
+    v1 = abi_encode_packed (bytes v0, data hex"63")
+    v2 = ptradd v1, 32
+    v3 = mload v1
+    v4 = keccak256 v2, v3
+    v5 = eq v4, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
+    ret v5
 }
 
 fn @revertMessage() [selector=0x9d667c99, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -730,13 +747,13 @@ fn @fixedBytesValue() -> i256 [selector=0x2875668d, abi_params=[], abi_returns=[
     ret v7
 }
 
-fn @load_storage_word_array(arg0: i256) -> memptr {
+fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

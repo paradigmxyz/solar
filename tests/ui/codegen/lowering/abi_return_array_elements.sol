@@ -20,7 +20,7 @@ contract AbiReturnArrayElements {
     }
 
     // MIR-LABEL: fn @clean
-    // MIR: mcopy
+    // MIR: {{(^|[^a-z_])}}mcopy
     // MIR-NOT: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
     // MIR: returndata
     function clean(address[] memory a) external pure returns (address[] memory) {

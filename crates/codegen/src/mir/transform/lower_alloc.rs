@@ -8,11 +8,11 @@
 //! branches carry those effects. Source metadata stays on the original instruction.
 
 use crate::mir::{
-    AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId,
-    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode, ValueId,
-    memory::EvmMemoryLayout, pass::MirPass, transform::utils::redirect_successor_predecessors,
+    AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, Function,
+    FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode, PtrLocation,
+    ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    transform::utils::redirect_successor_predecessors,
 };
-use alloy_primitives::U256;
 use solar_sema::Gcx;
 
 /// Lowers `fmp`, `set_fmp`, and `alloc` instructions.
@@ -62,7 +62,7 @@ fn lower_function(func: &mut Function) -> bool {
                 matches!(
                     func.inst(*inst).kind,
                     InstKind::Alloc {
-                        semantics: AllocationSemantics { failure: AllocationFailure::Panic, .. },
+                        semantics: AllocationSemantics { failure: AllocationFailure::Checked, .. },
                         ..
                     }
                 ) && !func.inst(*inst).metadata.deferred_alloc()
@@ -92,7 +92,7 @@ fn lower_function(func: &mut Function) -> bool {
                     rewrite_as_fmp_store(&mut builder, inst, ptr);
                     builder.func_mut().blocks[block].instructions.push(inst);
                 }
-                InstKind::Alloc { size, semantics, .. } => {
+                InstKind::Alloc { size, semantics } => {
                     if builder.func().inst(inst).metadata.deferred_alloc() {
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
@@ -105,7 +105,6 @@ fn lower_function(func: &mut Function) -> bool {
                         .expect("allocation must produce a value");
                     rewrite_as_fmp_load(&mut builder, inst);
                     builder.func_mut().blocks[block].instructions.push(inst);
-                    let size = aligned_size(&mut builder, size, semantics.alignment).0;
                     let next = builder.add(ptr, size);
                     store_fmp(&mut builder, next);
                     initialize(&mut builder, ptr, size, semantics.initialization);
@@ -126,8 +125,8 @@ fn lower_checked_alloc(
     inst: InstId,
     ptr: ValueId,
 ) {
-    let InstKind::Alloc { size, semantics, .. } = func.inst(inst).kind else { unreachable!() };
-    debug_assert_eq!(semantics.failure, AllocationFailure::Panic);
+    let InstKind::Alloc { size, semantics } = func.inst(inst).kind else { unreachable!() };
+    debug_assert_eq!(semantics.failure, AllocationFailure::Checked);
 
     let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
     let tail = instructions.split_off(position + 1);
@@ -146,15 +145,11 @@ fn lower_checked_alloc(
     let mut builder = FunctionBuilder::new(func);
     builder.switch_to_block(block);
     rewrite_as_fmp_load(&mut builder, inst);
-    let (size, align_overflow) = aligned_size(&mut builder, size, semantics.alignment);
     let next = builder.add(ptr, size);
     let bump_overflow = builder.lt(next, ptr);
     let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
     let over_limit = builder.gt(next, limit);
-    let mut invalid = builder.or(bump_overflow, over_limit);
-    if let Some(align_overflow) = align_overflow {
-        invalid = builder.or(invalid, align_overflow);
-    }
+    let invalid = builder.or(bump_overflow, over_limit);
     builder.branch(invalid, panic, continuation);
 
     let tail = std::mem::take(&mut builder.func_mut().blocks[continuation].instructions);
@@ -165,25 +160,6 @@ fn lower_checked_alloc(
 
     builder.switch_to_block(panic);
     builder.panic(PanicCode::MemoryAllocationOverflow);
-}
-
-fn aligned_size(
-    builder: &mut FunctionBuilder<'_>,
-    size: ValueId,
-    alignment: AllocationAlignment,
-) -> (ValueId, Option<ValueId>) {
-    if alignment == AllocationAlignment::Exact {
-        return (size, None);
-    }
-    if let Some(size) = builder.func().value_u64(size)
-        && let Some(aligned) = EvmMemoryLayout::align_word(size)
-    {
-        return (builder.imm(aligned), None);
-    }
-    let mask = builder.imm(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-    let rounded = builder.add_u64_offset(size, EvmMemoryLayout::WORD_SIZE - 1);
-    let overflow = builder.lt(rounded, size);
-    (builder.and(rounded, mask), Some(overflow))
 }
 
 fn initialize(
@@ -207,13 +183,13 @@ fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::Inst
         if attached {
             builder.func_mut().blocks[block].instructions.pop();
         }
-        let ptr = builder.mload(slot);
+        let ptr = builder.load(slot, PtrLocation::Memory);
         if attached {
             builder.func_mut().blocks[block].instructions.push(inst);
         }
         InstKind::IntToPtr(ptr)
     } else {
-        InstKind::MLoad(slot)
+        InstKind::Load(slot, PtrLocation::Memory)
     };
     let instruction = builder.func_mut().inst_mut(inst);
     instruction.kind = kind;
@@ -232,7 +208,7 @@ fn rewrite_as_fmp_store(
     let ptr = builder.cast(ptr, MirType::I256);
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
-    instruction.kind = InstKind::MStore(slot, ptr);
+    instruction.kind = InstKind::Store(slot, ptr, PtrLocation::Memory);
     instruction.metadata.set_effect(None);
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
@@ -240,5 +216,5 @@ fn rewrite_as_fmp_store(
 
 fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: crate::mir::ValueId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
-    builder.mstore(slot, ptr);
+    builder.store(slot, ptr);
 }

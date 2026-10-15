@@ -7,7 +7,7 @@
 // recorded and the mload must stay in the loop.
 @module LicmMultiLatch
 // CHECK-LABEL: {{^[ +].*}}fn @multi_latch_mixed_step{{[( ]}}
-// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
 // CHECK: {{^[ +].*}}mload 288
 fn @multi_latch_mixed_step() -> i256 {
   bb0:

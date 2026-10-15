@@ -47,7 +47,7 @@ fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_pa
     jump bb3
   bb1:
     v18 = icall @_copy, 0x400
-    v19 = memory_object_len memorybytes, v18
+    v19 = mload v18
     v20 = shl 0, v19
     jump bb3
   bb3:
@@ -183,10 +183,10 @@ fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, 
   bb3:
     v2 = not 31
     v3 = and 0x43f, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, 0x400
-    v5 = ptrtoint memptr v4 to i256
-    v6 = mload v5
+    v4 = alloc zeroed checked v3
+    mstore v4, 0x400
+    v5 = ptrtoint ptr<memory> v4 to i256
+    v6 = mload v4
     v7 = mload 0x2400
     v8 = add v7, v6
     ret v8
@@ -312,9 +312,9 @@ fn @hashScratch.9(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a
     mstore 64, v0 !metadata(memory=scratch)
     v3 = not 31
     v4 = and 68, v3
-    v5 = alloc memorybytes, exact, zeroed, panic, v4
-    set_memory_object_len memorybytes, v5, 5
-    v6 = memory_object_len memorybytes, v5
+    v5 = alloc zeroed checked v4
+    mstore v5, 5
+    v6 = mload v5
     v7 = insert_value struct0, undef struct0, 0, v2
     v8 = insert_value struct0, v7, 1, v6
     ret v8
@@ -628,60 +628,68 @@ fn @hashLowObject(arg0: i256) -> struct0 [selector=0x32d84f21, pure, abi_params=
     v0 = calldataload 4
     mstore 64, v0 !metadata(memory=scratch)
     mstore 32, 32 !metadata(memory=scratch)
-    v1 = keccak256_bytes memptr 32
-    v2 = insert_value struct0, undef struct0, 0, v1
-    v3 = insert_value struct0, v2, 1, 1
-    ret v3
+    v1 = add 32, 32
+    v2 = mload 32 !metadata(memory=scratch)
+    v3 = keccak256 v1, v2
+    v4 = insert_value struct0, undef struct0, 0, v3
+    v5 = insert_value struct0, v4, 1, 1
+    ret v5
 }
 
 fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u256], abi_returns=[word<u8>, word], abi_return_params=[u8, u256]] {
   bb0:
     v0 = not 31
     v1 = and 64, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 1
+    v2 = alloc zeroed checked v1
+    mstore v2, 1
     v3 = not 0
-    v4 = ptrtoint memptr v2 to i256
-    mstore v4, v3
+    v4 = ptrtoint ptr<memory> v2 to i256
+    mstore v2, v3
     v5 = calldataload 4
     mstore 64, v5 !metadata(memory=scratch)
-    v6 = ptrtoint memptr v2 to i256
+    v6 = ptrtoint ptr<memory> v2 to i256
     v7 = add v6, 32
     v8 = sub 95, v7
-    v9 = memory_object_len memorybytes, v2
+    v9 = mload v2
     v10 = lt v8, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    v12 = memory_object_load_byte memorybytes, v2, v8
-    v13 = shl 248, v12
-    v14 = shr 248, v13
-    v15 = trunc i256 v14 to i8
-    v16 = insert_value struct1, undef struct1, 0, v15
-    v17 = insert_value struct1, v16, 1, 1
-    ret v17
+    v12 = ptradd v2, v8
+    v13 = ptradd v12, 32
+    v14 = mload v13
+    v15 = byte 0, v14
+    v16 = shl 248, v15
+    v17 = shr 248, v16
+    v18 = trunc i256 v17 to i8
+    v19 = insert_value struct1, undef struct1, 0, v18
+    v20 = insert_value struct1, v19, 1, 1
+    ret v20
 }
 
 fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
     v1 = not 0
-    v2 = ptrtoint memptr v0 to i256
-    mstore v2, v1
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v1
     v3 = calldataload 4
     mstore 64, v3 !metadata(memory=scratch)
-    v4 = ptrtoint memptr v0 to i256
+    v4 = ptrtoint ptr<memory> v0 to i256
     v5 = add v4, 32
     v6 = sub 64, v5
     v7 = shr 5, v6
-    v8 = memory_object_len memoryarray, v0
+    v8 = mload v0
     v9 = lt v7, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = memory_object_load_element memoryarray<1>, v0, v7
-    v12 = insert_value struct0, undef struct0, 0, v11
-    v13 = insert_value struct0, v12, 1, 1
-    ret v13
+    v11 = shl 5, v7
+    v12 = ptradd v0, v11
+    v13 = ptradd v12, 32
+    v14 = mload v13
+    v15 = insert_value struct0, undef struct0, 0, v14
+    v16 = insert_value struct0, v15, 1, 1
+    ret v16
 }
 
 fn @scratchPackedHash(arg0: i256) -> i256 [selector=0x7e6eb03d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -703,20 +711,22 @@ fn @scratchMappingKey(arg0: i256) -> i256 [selector=0x62573392, abi_params=[u256
 
 fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
     v1 = icall @_scratchWord
-    v2 = memory_object_len memoryarray, v0
+    v2 = mload v0
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    memory_object_store_element memoryarray<1>, v0, 0, v1
-    v5 = memory_object_len memoryarray, v0
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = memory_object_load_element memoryarray<1>, v0, 0
-    ret v8
+    v5 = ptradd v0, 32
+    mstore v5, v1
+    v6 = mload v0
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v0, 32
+    v10 = mload v9
+    ret v10
 }
 
 fn @scratchEncoded(arg0: i256) -> i256 [selector=0xde1fc784, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -763,9 +773,9 @@ fn @allocateAfterHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x
     icall panic_if<0x41>, v1
     v2 = not 31
     v3 = and v0, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, arg2
-    v5 = memory_object_len memorybytes, v4
+    v4 = alloc zeroed checked v3
+    mstore v4, arg2
+    v5 = mload v4
     ret v5
 }
 
@@ -793,7 +803,7 @@ fn @_putScratch() [pure] {
     ret
 }
 
-fn @_copy(arg0: i256) -> memptr [pure] {
+fn @_copy(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, arg0
@@ -802,7 +812,7 @@ fn @_copy(arg0: i256) -> memptr [pure] {
     v2 = add v0, 32
     v3 = add v2, arg0
     mstore 64, v3 !metadata(memory=scratch)
-    v4 = inttoptr i256 v0 to memptr
+    v4 = inttoptr i256 v0 to ptr<memory>
     ret v4
 }
 

@@ -24,7 +24,7 @@
 //! zeroings at constant addresses have replaced all of its bytes, as Seaport's token transfers do
 //! when they lay call data out over the slot, or execution ends.
 //!
-//! An `mload` of the slot reads the word as the pointer when the loaded word, or one computed from
+//! A `mload` of the slot reads the word as the pointer when the loaded word, or one computed from
 //! it, addresses or sizes memory or becomes the pointer again, in the function, in a callee it is
 //! passed to, or in a caller it is returned to, as every allocation in assembly does; a loaded word
 //! only compared, stored, hashed, encoded, used as a key or an index, or returned from an external
@@ -98,7 +98,7 @@
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionId,
     Immediate, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module,
-    RawMemoryAccess, RawMemorySize, SliceLocation, Terminator, Value, ValueId,
+    PtrLocation, RawMemoryAccess, RawMemorySize, Terminator, Value, ValueId,
     analysis::{AddressInput, absolute_address_inputs},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -168,7 +168,8 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
     for (func_id, func) in module.functions.iter_enumerated() {
         for (block, data) in func.blocks.iter_enumerated() {
             for (index, &inst_id) in data.instructions.iter().enumerate() {
-                if let InstKind::MStore(address, value) = func.inst(inst_id).kind
+                if let InstKind::Store(address, value, PtrLocation::Memory) =
+                    func.inst(inst_id).kind
                     && is_slot(func, address)
                     && func.value_ty(value) == Some(MirType::I256)
                     && uses.address_inputs(func_id)[value] != AddressInput::Other
@@ -206,8 +207,8 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
 
 /// Rewrites `mstore 64, v` into `mstore 64, max(v, heap_floor)`.
 fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
-    let InstKind::MStore(address, value) = func.inst(inst).kind else {
-        unreachable!("a floor store is an `mstore`")
+    let InstKind::Store(address, value, PtrLocation::Memory) = func.inst(inst).kind else {
+        unreachable!("a floor store is a `mstore`")
     };
     let metadata = func.inst(inst).metadata.clone();
     // floor = heap_floor
@@ -217,7 +218,7 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
     let position = index_in_block(func, block, inst);
     func.blocks[block].instructions.splice(position..position, clamp);
     // mstore 64, clamped
-    func.inst_mut(inst).kind = InstKind::MStore(address, clamped);
+    func.inst_mut(inst).kind = InstKind::Store(address, clamped, PtrLocation::Memory);
 }
 
 /// Raises the words a function's loads read from the slot, and the returned words its calls
@@ -294,7 +295,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             UseSite::Inst(inst) => {
                 let slot_store = matches!(
                     func.inst(*inst).kind,
-                    InstKind::MStore(address, _) if is_slot(func, address)
+                    InstKind::Store(address, _, PtrLocation::Memory) if is_slot(func, address)
                 );
                 let kind = &mut func.inst_mut(*inst).kind;
                 let mut raw = false;
@@ -302,7 +303,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
                     raw = true;
                     swap(operand);
                 });
-                if slot_store && let InstKind::MStore(_, value) = kind {
+                if slot_store && let InstKind::Store(_, value, PtrLocation::Memory) = kind {
                     swap(value);
                 }
                 if !raw {
@@ -345,9 +346,10 @@ fn clamp_slot(func: &mut Function, block: BlockId, before: Option<InstId>) {
     };
     let slot =
         func.alloc_value(Value::Immediate(Immediate::I256(U256::from(EvmMemoryLayout::FMP_SLOT))));
-    let (load, word) = func.alloc_value_inst(emit(InstKind::MLoad(slot), Some(MirType::I256)));
+    let (load, word) =
+        func.alloc_value_inst(emit(InstKind::Load(slot, PtrLocation::Memory), Some(MirType::I256)));
     let (clamp, clamped) = floor_max(func, word, &metadata);
-    let store = func.alloc_inst(emit(InstKind::MStore(slot, clamped), None));
+    let store = func.alloc_inst(emit(InstKind::Store(slot, clamped, PtrLocation::Memory), None));
     let position = before
         .map_or(func.blocks[block].instructions.len(), |inst| index_in_block(func, block, inst));
     // word = mload 64
@@ -419,7 +421,7 @@ fn returns_out_of_module(func: &Function, sites: &[CallSite]) -> bool {
 
 /// Whether a value of type `ty` refers to memory: a memory object or a memory slice.
 fn is_memory_reference(ty: Option<MirType>) -> bool {
-    matches!(ty, Some(MirType::MemPtr | MirType::Slice(SliceLocation::Memory)))
+    matches!(ty, Some(MirType::MEMPTR | MirType::Slice(PtrLocation::Memory)))
 }
 
 /// Whether a returned value holds integers alone, which an external function encodes as data.
@@ -482,21 +484,6 @@ fn slot_bytes(start: u64, size: u64) -> SlotBytes {
     bytes << (first - slot)
 }
 
-/// The index or offset that a memory-object operation adds to the object's address, with wrapping
-/// arithmetic, to reach the element, byte, or word it reads or writes.
-fn object_access_index(kind: &InstKind) -> Option<ValueId> {
-    match *kind {
-        InstKind::MemoryObjectLoadElement { index, .. }
-        | InstKind::MemoryObjectStoreElement { index, .. }
-        | InstKind::MemoryObjectLoadByte { index, .. }
-        | InstKind::MemoryObjectStoreByte { index, .. } => Some(index),
-        InstKind::MemoryObjectStoreWord { offset, .. }
-        | InstKind::MemorySliceLoadWord { offset, .. }
-        | InstKind::MemoryObjectCopyFromSliceAt { offset, .. } => Some(offset),
-        _ => None,
-    }
-}
-
 /// Whether lowering a semantic operation may read the free memory pointer. Pure computations,
 /// checks that revert with scratch data, and accesses to frames, storage slots, and memory that
 /// already exists never do; allocations, encodings, and the other builtins may.
@@ -506,22 +493,10 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
             kind,
             InstKind::FrameLoad { .. }
                 | InstKind::FrameStore { .. }
+                | InstKind::Load(..)
+                | InstKind::Store(.., PtrLocation::Memory)
+                | InstKind::Store8(..)
                 | InstKind::MemoryZero(..)
-                | InstKind::MemoryObjectLen(..)
-                | InstKind::SetMemoryObjectLen(..)
-                | InstKind::MemoryObjectLoadField { .. }
-                | InstKind::MemoryObjectStoreField { .. }
-                | InstKind::MemoryObjectLoadElement { .. }
-                | InstKind::MemoryObjectLoadByte { .. }
-                | InstKind::MemoryObjectStoreElement { .. }
-                | InstKind::MemoryObjectStoreByte { .. }
-                | InstKind::MemoryObjectStoreWord { .. }
-                | InstKind::MemoryObjectCopy { .. }
-                | InstKind::MemoryObjectCopyFromSlice { .. }
-                | InstKind::MemoryObjectCopyFromSliceAt { .. }
-                | InstKind::MemorySliceLoadWord { .. }
-                | InstKind::CalldataSliceLoadWord { .. }
-                | InstKind::Keccak256Bytes(..)
                 | InstKind::MappingSlot(..)
                 | InstKind::StorageArrayDataSlot(..)
                 | InstKind::StorageArrayElementSlot { .. }
@@ -574,7 +549,7 @@ fn module_heap_addresses(
             let mut params = DenseBitSet::new_empty(func.arg_indices().count());
             for index in func.arg_indices() {
                 let heap = if func.is_external_entry() {
-                    func.arg_ty(index) == MirType::MemPtr
+                    func.arg_ty(index) == MirType::MEMPTR
                 } else {
                     !call_sites[func_id].is_empty()
                 };
@@ -671,11 +646,13 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::Zext(_)
         | InstKind::IntToPtr(_)
         | InstKind::PtrToInt(..)
-        | InstKind::MemoryObjectData(..)
-        | InstKind::MemoryObjectFieldAddr { .. }
-        | InstKind::MemoryObjectElementAddr { .. } => true,
-        InstKind::MLoad(address) => is_slot(func, address),
-        _ => instruction.result_ty == Some(MirType::MemPtr),
+        | InstKind::PtrAdd(..)
+        | InstKind::ExtractValue {
+            ty: MirType::Slice(_), index: MirType::SLICE_PTR_FIELD, ..
+        }
+        | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
+        InstKind::Load(address, PtrLocation::Memory) => is_slot(func, address),
+        _ => instruction.result_ty == Some(MirType::MEMPTR),
     }
 }
 
@@ -688,15 +665,18 @@ fn computes_heap_address(func: &Function, kind: &InstKind, heap: &DenseBitSet<Va
     let offset = |value: ValueId| heap.contains(value) || func.value_u64(value).is_some();
     match kind {
         InstKind::Add(a, b) => heap.contains(*a) && offset(*b) || heap.contains(*b) && offset(*a),
+        InstKind::PtrAdd(base, delta) => heap.contains(*base) && offset(*delta),
         InstKind::Select(_, a, b) => heap.contains(*a) && heap.contains(*b),
         InstKind::Phi(incoming) => incoming.iter().all(|&(_, value)| heap.contains(value)),
         InstKind::Zext(operand) | InstKind::IntToPtr(operand) => heap.contains(*operand),
         InstKind::PtrToInt(operand, bits) => *bits >= 64 && heap.contains(*operand),
-        InstKind::MemoryObjectData(object, _) | InstKind::MemoryObjectFieldAddr { object, .. } => {
-            heap.contains(*object)
+        InstKind::ExtractValue {
+            ty: MirType::Slice(_),
+            aggregate: object,
+            index: MirType::SLICE_PTR_FIELD,
         }
-        InstKind::MemoryObjectElementAddr { object, index, .. } => {
-            heap.contains(*object) && func.value_u64(*index).is_some()
+        | InstKind::MakeSlice { ptr: object, location: PtrLocation::Memory, .. } => {
+            heap.contains(*object)
         }
         _ => true,
     }
@@ -737,6 +717,7 @@ fn is_derivation(kind: &InstKind) -> bool {
             | InstKind::Sext(..)
             | InstKind::IntToPtr(..)
             | InstKind::PtrToInt(..)
+            | InstKind::PtrAdd(..)
     )
 }
 
@@ -757,9 +738,9 @@ fn derives_from(kind: &InstKind, word: ValueId) -> bool {
 fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
     let mut raw = false;
     let mut pointer_uses = 0;
-    kind.visit_raw_memory(|_, offset, size| {
+    kind.visit_raw_memory(|_, address, size| {
         raw = true;
-        pointer_uses += usize::from(offset == word);
+        pointer_uses += usize::from(address == word);
         pointer_uses += usize::from(size == RawMemorySize::Value(word));
     });
     if !raw {
@@ -769,7 +750,7 @@ fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
         let pointer = is_memory_reference(func.value_ty(word));
         return Reads { pointer, data: !pointer };
     }
-    if let InstKind::MStore(address, value) = *kind
+    if let InstKind::Store(address, value, PtrLocation::Memory) = *kind
         && is_slot(func, address)
     {
         pointer_uses += usize::from(value == word);
@@ -1301,7 +1282,7 @@ impl<'a> PointerUses<'a> {
         let func = &module.functions[func_id];
         let inst = func.inst(inst_id);
         match inst.kind {
-            InstKind::MLoad(address) if is_slot(func, address) => {
+            InstKind::Load(address, PtrLocation::Memory) if is_slot(func, address) => {
                 let reads = self.load_reads(func_id, inst_id);
                 match (reads.pointer, reads.data) {
                     (true, true) => Effect::LoadsMixed,
@@ -1310,7 +1291,9 @@ impl<'a> PointerUses<'a> {
                     (false, false) => Effect::None,
                 }
             }
-            InstKind::MStore(address, _) if is_slot(func, address) => Effect::Replaces,
+            InstKind::Store(address, _, PtrLocation::Memory) if is_slot(func, address) => {
+                Effect::Replaces
+            }
             InstKind::SetFmp(_) => Effect::Replaces,
             InstKind::ICall { function: Callee::Function(callee), .. } => Effect::Calls(callee),
             // The compiler's own pointer reads and allocations, and the builtins and semantic
@@ -1323,13 +1306,13 @@ impl<'a> PointerUses<'a> {
                 // A copy reads its source before it writes its destination, and the visit
                 // yields reads first.
                 let mut reads = self.may_read_object_at_slot(func_id, &inst.kind, *written);
-                inst.kind.visit_raw_memory(|access, offset, size| match access {
+                inst.kind.visit_raw_memory(|access, address, size| match access {
                     RawMemoryAccess::Read => {
                         reads = reads
-                            || self.may_read_slot(func_id, offset, size.constant(func), *written);
+                            || self.may_read_slot(func_id, address, size.constant(func), *written);
                     }
                     RawMemoryAccess::Write => {
-                        if let Some(start) = func.value_u64(offset)
+                        if let Some(start) = func.value_u64(address)
                             && let Some(size) = size.constant(func)
                         {
                             *written |= slot_bytes(start, size);
@@ -1347,29 +1330,30 @@ impl<'a> PointerUses<'a> {
         }
     }
 
-    /// Returns whether a read of `size` bytes at `offset`, or of an unknown size, may cover a
+    /// Returns whether a read of `size` bytes at `address`, or of an unknown size, may cover a
     /// byte of the slot that still holds the stored word, given the bytes that later writes have
-    /// `written`. A computed offset may unless the function computes it from heap pointers.
+    /// `written`. A computed address may unless the function computes it from heap pointers.
     fn may_read_slot(
         &mut self,
         func_id: FunctionId,
-        offset: ValueId,
+        address: ValueId,
         size: Option<u64>,
         written: SlotBytes,
     ) -> bool {
         if size == Some(0) {
             return false;
         }
-        let Some(start) = self.module.functions[func_id].value_u64(offset) else {
-            return !self.heap_addresses(func_id).contains(offset);
+        let Some(start) = self.module.functions[func_id].value_u64(address) else {
+            return !self.heap_addresses(func_id).contains(address);
         };
         slot_bytes(start, size.unwrap_or(u64::MAX)) & !written != 0
     }
 
     /// Returns whether an operation that reads or writes memory objects may read a byte of the slot
-    /// that still holds the stored word, through an object or a memory slice it takes, or at an
-    /// index it computes. Its extent is unknown, so any object `may_read_slot` cannot place above
-    /// the slot may; a store into an object counts too, as the bytes it writes are unknown.
+    /// that still holds the stored word, through an object or a memory slice it takes. Its extent
+    /// is unknown, so any object `may_read_slot` cannot place above the slot may; a store into an
+    /// object counts too, as the bytes it writes are unknown. An address at an index the program
+    /// computes is not a heap address, so its raw access may read the slot.
     fn may_read_object_at_slot(
         &mut self,
         func_id: FunctionId,
@@ -1380,10 +1364,6 @@ impl<'a> PointerUses<'a> {
             return false;
         }
         let func = &self.module.functions[func_id];
-        // A computed index wraps the address around to any word, whatever the object.
-        if object_access_index(kind).is_some_and(|index| func.value_u64(index).is_none()) {
-            return written != WHOLE_SLOT;
-        }
         let mut objects = SmallVec::<[ValueId; 2]>::new();
         kind.visit_operands(|operand| {
             if is_memory_reference(func.value_ty(operand)) {

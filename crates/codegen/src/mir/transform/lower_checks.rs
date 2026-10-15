@@ -13,8 +13,8 @@
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
-    FunctionId, InstKind, InstructionMetadata, MirType, Module, RequireKind, RevertKind,
-    RevertPayload, SliceLocation, pass::MirPass, transform::utils::redirect_successor_predecessors,
+    FunctionId, InstKind, InstructionMetadata, MirType, Module, PtrLocation, RequireKind,
+    RevertKind, RevertPayload, pass::MirPass, transform::utils::redirect_successor_predecessors,
 };
 use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
@@ -180,12 +180,12 @@ fn emit_payload(
             // mstore(0, Error.selector); mstore(4, 32); mstore(36, 0); revert(0, 68)
             let selector = builder.imm(ERROR_SELECTOR);
             let zero = builder.imm(0);
-            builder.mstore(zero, selector);
+            builder.store(zero, selector);
             let offset = builder.imm(4);
             let tuple_offset = builder.imm(32);
-            builder.mstore(offset, tuple_offset);
+            builder.store(offset, tuple_offset);
             let length = builder.imm(36);
-            builder.mstore(length, zero);
+            builder.store(length, zero);
             let size = builder.imm(68);
             builder.revert(zero, size);
         }
@@ -194,7 +194,7 @@ fn emit_payload(
             // revert(payload.ptr, payload.len)
             let selector = builder.imm(ERROR_SELECTOR);
             let layout = Arc::new(AbiLayout::new(
-                vec![AbiType::Bytes(SliceLocation::Memory)].into_boxed_slice(),
+                vec![AbiType::Bytes(PtrLocation::Memory)].into_boxed_slice(),
             ));
             let encoded =
                 builder.abi_encode(layout, Some(selector), vec![value].into_boxed_slice());
@@ -223,14 +223,14 @@ fn create_short_string_helper(module: &mut Module, context: &InstructionMetadata
     let value = builder.add_param(MirType::I256);
     let selector = builder.imm(ERROR_SELECTOR);
     let zero = builder.imm(0);
-    builder.mstore(zero, selector);
+    builder.store(zero, selector);
     let offset = builder.imm(4);
     let tuple_offset = builder.imm(32);
-    builder.mstore(offset, tuple_offset);
+    builder.store(offset, tuple_offset);
     let length_offset = builder.imm(36);
-    builder.mstore(length_offset, length);
+    builder.store(length_offset, length);
     let data_offset = builder.imm(68);
-    builder.mstore(data_offset, value);
+    builder.store(data_offset, value);
     let size = builder.imm(100);
     builder.revert(zero, size);
     module.add_function(function)

@@ -3,44 +3,62 @@
   @module LiteralArtifacts
   fn @constructor() [constructor] {
     bb0:
-      v0 = icall @literal
-      v1 = memory_object_len memorybytes, v0
+-     v0 = icall @literal
+-     v1 = mload v0
++     v4 = alloc 64 !metadata(preserves_fmp)
++     v5 = ptrtoint ptr<memory> v4 to i256
++     mstore v5, 1
++     v6 = ptradd v4, 32
++     v7 = ptrtoint ptr<memory> v6 to i256
++     mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
++     v1 = mload v4
       sstore 0, v1
       v2 = icall @indirect
-      v3 = memory_object_len memorybytes, v2
+      v3 = mload v2
       sstore 3, v3
       stop
   }
   
-  fn @entry() -> memptr [selector=0x01020304] {
+  fn @entry() -> ptr<memory> [selector=0x01020304] {
     bb0:
-      v0 = icall @literal
+-     v0 = icall @literal
+-     ret v0
++     v1 = alloc 64 !metadata(preserves_fmp)
++     v2 = ptrtoint ptr<memory> v1 to i256
++     mstore v2, 1
++     v3 = ptradd v1, 32
++     v4 = ptrtoint ptr<memory> v3 to i256
++     mstore v4, 0x3100000000000000000000000000000000000000000000000000000000000000
++     ret v1
+  }
+  
+  fn @literal() -> ptr<memory> {
+    bb0:
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
-  fn @literal() -> memptr {
-    bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      v1 = memory_object_data memorybytes, v0
-      v2 = ptrtoint memptr v1 to i256
-      mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
-      ret v0
-  }
-  
-  fn @shared() -> memptr [selector=0x01020305] {
+  fn @shared() -> ptr<memory> [selector=0x01020305] {
     bb0:
       v0 = icall @shared_literal
       v1 = icall @shared_literal
-      memory_object_store_byte memorybytes, v0, 0, 65
+      v2 = ptradd v0, 32
+      mstore8 v2, 65
       ret v1
   }
   
-  fn @shared_literal() -> memptr {
+  fn @shared_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3200000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3200000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -49,73 +67,81 @@
       tail_call @tail_literal
   }
   
-  fn @call_entry() -> memptr [selector=0x01020307] {
+  fn @call_entry() -> ptr<memory> [selector=0x01020307] {
     bb0:
       v0 = icall @tail_literal
       ret v0
   }
   
-  fn @tail_literal() -> memptr {
+  fn @tail_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3300000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
-  fn @effect_entry() -> memptr [selector=0x01020308] {
+  fn @effect_entry() -> ptr<memory> [selector=0x01020308] {
     bb0:
       v0 = icall @effect_literal
       ret v0
   }
   
-  fn @effect_literal() -> memptr {
+  fn @effect_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3400000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3400000000000000000000000000000000000000000000000000000000000000
       sstore 1, 1
       ret v0
   }
   
-  fn @unknown() -> memptr {
+  fn @unknown() -> ptr<memory> {
     bb0:
       v0 = icall @indirect
       ret v0
   }
   
-  fn @indirect() -> memptr {
+  fn @indirect() -> ptr<memory> {
     bb0:
       v0 = icall @unknown_literal
       sstore 2, 1
       ret v0
   }
   
-  fn @unknown_entry() -> memptr [selector=0x01020309] {
+  fn @unknown_entry() -> ptr<memory> [selector=0x01020309] {
     bb0:
       v0 = icall @unknown_literal
       ret v0
   }
   
-  fn @unknown_literal() -> memptr {
+  fn @unknown_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3500000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3500000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
-  fn @preserved_entry() -> memptr [selector=0x0102030a] {
+  fn @preserved_entry() -> ptr<memory> [selector=0x0102030a] {
     bb0:
       v0 = icall @preserved_literal
       ret v0
   }
   
-  fn @preserved_literal() -> memptr {
+  fn @preserved_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3600000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64 !metadata(preserves_fmp)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3600000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -124,44 +150,58 @@
   @module LiteralArtifacts
   fn @constructor() [constructor] {
     bb0:
-      v0 = icall @literal
-      v1 = memory_object_len memorybytes, v0
+      v4 = alloc 64 !metadata(preserves_fmp)
+      v5 = ptrtoint ptr<memory> v4 to i256
+      mstore v5, 1
+      v6 = ptradd v4, 32
+      v7 = ptrtoint ptr<memory> v6 to i256
+      mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
+      v1 = mload v4
       sstore 0, v1
       v2 = icall @indirect
-      v3 = memory_object_len memorybytes, v2
+      v3 = mload v2
       sstore 3, v3
       stop
   }
   
-  fn @entry() -> memptr [selector=0x01020304] {
+  fn @entry() -> ptr<memory> [selector=0x01020304] {
     bb0:
-      v0 = icall @literal
-      ret v0
-  }
-  
-  fn @literal() -> memptr {
-    bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      v1 = memory_object_data memorybytes, v0
-      v2 = ptrtoint memptr v1 to i256
-      mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
-      ret v0
-  }
-  
-  fn @shared() -> memptr [selector=0x01020305] {
-    bb0:
-      v0 = icall @shared_literal
-      v1 = icall @shared_literal
-      memory_object_store_byte memorybytes, v0, 0, 65
+      v1 = alloc 64 !metadata(preserves_fmp)
+      v2 = ptrtoint ptr<memory> v1 to i256
+      mstore v2, 1
+      v3 = ptradd v1, 32
+      v4 = ptrtoint ptr<memory> v3 to i256
+      mstore v4, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v1
   }
   
-  fn @shared_literal() -> memptr {
+  fn @literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3200000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+      ret v0
+  }
+  
+  fn @shared() -> ptr<memory> [selector=0x01020305] {
+    bb0:
+      v0 = icall @shared_literal
+      v1 = icall @shared_literal
+      v2 = ptradd v0, 32
+      mstore8 v2, 65
+      ret v1
+  }
+  
+  fn @shared_literal() -> ptr<memory> {
+    bb0:
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3200000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -170,73 +210,81 @@
       tail_call @tail_literal
   }
   
-  fn @call_entry() -> memptr [selector=0x01020307] {
+  fn @call_entry() -> ptr<memory> [selector=0x01020307] {
     bb0:
       v0 = icall @tail_literal
       ret v0
   }
   
-  fn @tail_literal() -> memptr {
+  fn @tail_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3300000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
-  fn @effect_entry() -> memptr [selector=0x01020308] {
+  fn @effect_entry() -> ptr<memory> [selector=0x01020308] {
     bb0:
       v0 = icall @effect_literal
       ret v0
   }
   
-  fn @effect_literal() -> memptr {
+  fn @effect_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3400000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3400000000000000000000000000000000000000000000000000000000000000
       sstore 1, 1
       ret v0
   }
   
-  fn @unknown() -> memptr {
+  fn @unknown() -> ptr<memory> {
     bb0:
       v0 = icall @indirect
       ret v0
   }
   
-  fn @indirect() -> memptr {
+  fn @indirect() -> ptr<memory> {
     bb0:
       v0 = icall @unknown_literal
       sstore 2, 1
       ret v0
   }
   
-  fn @unknown_entry() -> memptr [selector=0x01020309] {
+  fn @unknown_entry() -> ptr<memory> [selector=0x01020309] {
     bb0:
       v0 = icall @unknown_literal
       ret v0
   }
   
-  fn @unknown_literal() -> memptr {
+  fn @unknown_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3500000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3500000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
-  fn @preserved_entry() -> memptr [selector=0x0102030a] {
+  fn @preserved_entry() -> ptr<memory> [selector=0x0102030a] {
     bb0:
       v0 = icall @preserved_literal
       ret v0
   }
   
-  fn @preserved_literal() -> memptr {
+  fn @preserved_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3600000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64 !metadata(preserves_fmp)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3600000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -245,44 +293,58 @@
   @module LiteralArtifacts
   fn @constructor() [constructor] {
     bb0:
-      v0 = icall @literal
-      v1 = memory_object_len memorybytes, v0
+      v4 = alloc 64 !metadata(preserves_fmp)
+      v5 = ptrtoint ptr<memory> v4 to i256
+      mstore v5, 1
+      v6 = ptradd v4, 32
+      v7 = ptrtoint ptr<memory> v6 to i256
+      mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
+      v1 = mload v4
       sstore 0, v1
       v2 = icall @indirect
-      v3 = memory_object_len memorybytes, v2
+      v3 = mload v2
       sstore 3, v3
       stop
   }
   
-  fn @entry() -> memptr [selector=0x01020304] {
+  fn @entry() -> ptr<memory> [selector=0x01020304] {
     bb0:
-      v0 = icall @literal
-      ret v0
-  }
-  
-  fn @literal() -> memptr {
-    bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      v1 = memory_object_data memorybytes, v0
-      v2 = ptrtoint memptr v1 to i256
-      mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
-      ret v0
-  }
-  
-  fn @shared() -> memptr [selector=0x01020305] {
-    bb0:
-      v0 = icall @shared_literal
-      v1 = icall @shared_literal
-      memory_object_store_byte memorybytes, v0, 0, 65
+      v1 = alloc 64 !metadata(preserves_fmp)
+      v2 = ptrtoint ptr<memory> v1 to i256
+      mstore v2, 1
+      v3 = ptradd v1, 32
+      v4 = ptrtoint ptr<memory> v3 to i256
+      mstore v4, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v1
   }
   
-  fn @shared_literal() -> memptr {
+  fn @literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3200000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      v3 = ptrtoint ptr<memory> v2 to i256
+      mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+      ret v0
+  }
+  
+  fn @shared() -> ptr<memory> [selector=0x01020305] {
+    bb0:
+      v0 = icall @shared_literal
+      v1 = icall @shared_literal
+      v2 = ptradd v0, 32
+      mstore8 v2, 65
+      ret v1
+  }
+  
+  fn @shared_literal() -> ptr<memory> {
+    bb0:
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3200000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -291,73 +353,81 @@
       tail_call @tail_literal
   }
   
-  fn @call_entry() -> memptr [selector=0x01020307] {
+  fn @call_entry() -> ptr<memory> [selector=0x01020307] {
     bb0:
       v0 = icall @tail_literal
       ret v0
   }
   
-  fn @tail_literal() -> memptr {
+  fn @tail_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3300000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
-  fn @effect_entry() -> memptr [selector=0x01020308] {
+  fn @effect_entry() -> ptr<memory> [selector=0x01020308] {
     bb0:
       v0 = icall @effect_literal
       ret v0
   }
   
-  fn @effect_literal() -> memptr {
+  fn @effect_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3400000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3400000000000000000000000000000000000000000000000000000000000000
       sstore 1, 1
       ret v0
   }
   
-  fn @unknown() -> memptr {
+  fn @unknown() -> ptr<memory> {
     bb0:
       v0 = icall @indirect
       ret v0
   }
   
-  fn @indirect() -> memptr {
+  fn @indirect() -> ptr<memory> {
     bb0:
       v0 = icall @unknown_literal
       sstore 2, 1
       ret v0
   }
   
-  fn @unknown_entry() -> memptr [selector=0x01020309] {
+  fn @unknown_entry() -> ptr<memory> [selector=0x01020309] {
     bb0:
       v0 = icall @unknown_literal
       ret v0
   }
   
-  fn @unknown_literal() -> memptr {
+  fn @unknown_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3500000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3500000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
-  fn @preserved_entry() -> memptr [selector=0x0102030a] {
+  fn @preserved_entry() -> ptr<memory> [selector=0x0102030a] {
     bb0:
       v0 = icall @preserved_literal
       ret v0
   }
   
-  fn @preserved_literal() -> memptr {
+  fn @preserved_literal() -> ptr<memory> {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      set_memory_object_len memorybytes, v0, 1
-      memory_object_store_word memorybytes, v0, 0, 0x3600000000000000000000000000000000000000000000000000000000000000
+      v0 = alloc 64 !metadata(preserves_fmp)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = ptradd v0, 32
+      mstore v2, 0x3600000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   

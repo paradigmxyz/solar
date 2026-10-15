@@ -10,7 +10,7 @@
 //! effects, including observations in predecessor blocks and transitive callees.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId,
+    BlockId, Function, InstId, InstKind, Module, PtrLocation, StorageAlias, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Liveness, Location},
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
@@ -34,7 +34,9 @@ impl MirPass for StorageLoadCse {
     ) -> bool {
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
-            if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::SLoad(..))) {
+            if func.instructions().any(|inst| {
+                matches!(func.inst(inst).kind, InstKind::Load(.., PtrLocation::Storage))
+            }) {
                 selected.insert(id);
             }
         }
@@ -144,7 +146,7 @@ impl StorageLoadCseCx {
         let mut gas_observed = gas.at_entry(block_id);
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
             match &func.inst(inst_id).kind {
-                InstKind::SLoad(slot) => {
+                InstKind::Load(slot, PtrLocation::Storage) => {
                     let alias = aa.storage_alias_after_replacements(
                         func,
                         inst_id,
@@ -173,7 +175,7 @@ impl StorageLoadCseCx {
                         state.cached_loads.insert(alias, (result, false));
                     }
                 }
-                InstKind::SStore(slot, value) => {
+                InstKind::Store(slot, value, PtrLocation::Storage) => {
                     let alias = aa.storage_alias_after_replacements(
                         func,
                         inst_id,
@@ -241,7 +243,11 @@ impl StorageLoadCseCx {
 
         func.for_each_instruction_mut(|_, inst| {
             mir_utils::replace_inst_uses_canonicalized(inst, replacements);
-            if matches!(inst.kind, InstKind::SLoad(_) | InstKind::SStore(_, _)) {
+            if matches!(
+                inst.kind,
+                InstKind::Load(_, PtrLocation::Storage)
+                    | InstKind::Store(_, _, PtrLocation::Storage)
+            ) {
                 inst.metadata.set_storage_alias(None);
             }
         });

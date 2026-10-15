@@ -17,7 +17,7 @@
 //! they can commit earlier writes without reaching the later overwrite.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Module, StorageAlias, Terminator, ValueId,
+    BlockId, Function, InstId, InstKind, Module, PtrLocation, StorageAlias, Terminator, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, Location, ModRef},
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
@@ -45,8 +45,9 @@ impl MirPass for StorageDse {
     ) -> bool {
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
-            if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::SStore(..)))
-            {
+            if func.instructions().any(|inst| {
+                matches!(func.inst(inst).kind, InstKind::Store(.., PtrLocation::Storage))
+            }) {
                 selected.insert(id);
             }
         }
@@ -180,7 +181,7 @@ impl StorageStoreEliminator {
                 later_writes.clear();
             }
             match &func.inst(inst_id).kind {
-                InstKind::SStore(slot, _) => {
+                InstKind::Store(slot, _, PtrLocation::Storage) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
                     if later_writes.contains(&alias) {
                         if let Some(dead) = &mut dead {
@@ -192,7 +193,7 @@ impl StorageStoreEliminator {
                     Self::remove_aliasing_set(aa, later_writes, alias);
                     later_writes.insert(alias);
                 }
-                InstKind::SLoad(slot) => {
+                InstKind::Load(slot, PtrLocation::Storage) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
                     Self::remove_aliasing_set(aa, later_writes, alias);
                 }
@@ -228,7 +229,7 @@ impl StorageStoreEliminator {
 
         for &inst_id in &func.blocks[block_id].instructions {
             match &func.inst(inst_id).kind {
-                InstKind::SStore(slot, value) => {
+                InstKind::Store(slot, value, PtrLocation::Storage) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
                     if stored_values.get(&alias).is_some_and(|&stored| stored == *value) {
                         dead.insert(inst_id);

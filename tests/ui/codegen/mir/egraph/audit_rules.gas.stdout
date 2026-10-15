@@ -187,14 +187,14 @@
   
   fn @empty_log(arg0: i256) {
     bb0:
--     log1 arg0, 0, 17
-+     log1 0, 0, 17
+-     log arg0, 0, 17
++     log 0, 0, 17
       ret
   }
   
   fn @nonempty_log(arg0: i256) {
     bb0:
-      log1 arg0, 1, 17
+      log arg0, 1, 17
       ret
   }
   
@@ -690,13 +690,13 @@
   
   fn @empty_log(arg0: i256) {
     bb0:
-      log1 0, 0, 17
+      log 0, 0, 17
       ret
   }
   
   fn @nonempty_log(arg0: i256) {
     bb0:
-      log1 arg0, 1, 17
+      log arg0, 1, 17
       ret
   }
   
@@ -1173,13 +1173,13 @@
   
   fn @empty_log(arg0: i256) {
     bb0:
-      log1 0, 0, 17
+      log 0, 0, 17
       ret
   }
   
   fn @nonempty_log(arg0: i256) {
     bb0:
-      log1 arg0, 1, 17
+      log arg0, 1, 17
       ret
   }
   

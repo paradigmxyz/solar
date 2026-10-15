@@ -5,11 +5,11 @@
   invalid: void //~? ERROR: immutable `invalid` cannot use type `void`
   narrow: u8
 
-//~? ERROR: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
-fn @invalid_store(arg0: memoryslice) {
+//~? ERROR: [fn0] non-word type `slice<memory>` survives the `lowered` phase boundary
+fn @invalid_store(arg0: slice<memory>) {
   bb0:
     storeimmutable narrow, arg0
-    //~? ERROR: [fn0] inst0 stores `memoryslice` value into immutable `narrow` of type `u8`
+    //~? ERROR: [fn0] inst0 stores `slice<memory>` value into immutable `narrow` of type `u8`
     //~? ERROR: [fn0] [bb0, inst0] immutable assignment instruction `storeimmutable` survives the `lowered` phase boundary
     stop
 }
