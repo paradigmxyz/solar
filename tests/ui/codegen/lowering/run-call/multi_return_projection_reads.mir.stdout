@@ -1,0 +1,210 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_projection_reads.sol:C ===
+@module C
+@types
+  struct0: {i160, i160, i160, i160}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc 128
+    mstore v0, 10
+    v1 = ptradd v0, 32
+    mstore v1, 11
+    v2 = ptradd v0, 64
+    mstore v2, 12
+    v3 = caller
+    v4 = zext i160 v3 to i256
+    v5 = ptradd v0, 96
+    mstore v5, v4
+    v6 = mapping_slot 1, 0
+    jump bb1
+  bb1:
+    v7 = phi [bb0: 0], [bb6: v33]
+    v8 = lt v7, 4
+    jumpi v8, bb2, bb3
+  bb3:
+    ret
+  bb2:
+    v9 = div v7, 1
+    v10 = add v6, v9
+    v11 = mod v7, 1
+    v12 = mul v11, 20
+    v13 = lt v7, 4
+    jumpi v13, bb4, bb5
+  bb5:
+    v25 = mul v12, 8
+    v26 = shl v25, 0xffffffffffffffffffffffffffffffffffffffff
+    v27 = sload v10 !metadata(storage=symbolic(v10))
+    v28 = not v26
+    v29 = and v27, v28
+    v30 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
+    v31 = shl v25, v30
+    v32 = or v29, v31
+    sstore v10, v32 !metadata(storage=symbolic(v10))
+    jump bb6
+  bb4:
+    v14 = shl 5, v7
+    v15 = ptradd v0, v14
+    v16 = mload v15
+    v17 = mul v12, 8
+    v18 = shl v17, 0xffffffffffffffffffffffffffffffffffffffff
+    v19 = sload v10 !metadata(storage=symbolic(v10))
+    v20 = not v18
+    v21 = and v19, v20
+    v22 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = shl v17, v22
+    v24 = or v21, v23
+    sstore v10, v24 !metadata(storage=symbolic(v10))
+    jump bb6
+  bb6:
+    v33 = add v7, 1
+    jump bb1
+}
+
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @resolve, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = extract_value struct0, v0, 2
+    v4 = extract_value struct0, v0, 3
+    v5 = caller
+    v6 = ne v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v7 = zext i160 v3 to i256
+    v8 = shl 16, v7
+    v9 = zext i160 v2 to i256
+    v10 = shl 8, v9
+    v11 = or v8, v10
+    v12 = zext i160 v1 to i256
+    v13 = or v11, v12
+    ret v13
+  bb1:
+    icall revert_if<empty>, true
+    invalid
+}
+
+fn @g(arg0: i256) -> i160 [selector=0xe420264a, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    v0 = icall @resolve, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = extract_value struct0, v0, 2
+    v4 = extract_value struct0, v0, 3
+    v5 = origin
+    v6 = eq v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v7 = phi [bb1: v1], [bb2: v4]
+    ret v7
+}
+
+fn @h(arg0: i256, arg1: i256) -> i256 [selector=0xa61510ae, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc 128
+    mstore v0, arg1
+    v1 = checked_add u256, arg1, 1
+    v2 = ptradd v0, 32
+    mstore v2, v1
+    v3 = checked_add u256, arg1, 2
+    v4 = ptradd v0, 64
+    mstore v4, v3
+    v5 = checked_add u256, arg1, 3
+    v6 = ptradd v0, 96
+    mstore v6, v5
+    v7 = icall @resolve, arg0
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = extract_value struct0, v7, 2
+    v11 = extract_value struct0, v7, 3
+    v12 = lt 3, 4
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v0, 96
+    v15 = mload v14
+    v16 = icall @mix, 7, v10, v15
+    v17 = ne v9, i160 0
+    jumpi v17, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v18 = zext i160 v8 to i256
+    v19 = checked_add u256, v16, v18
+    jump bb3
+  bb3:
+    v20 = phi [bb1: v19], [bb2: v16]
+    ret v20
+}
+
+fn @resolve(arg0: i256) -> struct0 [view] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = lt 0, 4
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = div 0, 1
+    v4 = add v0, v3
+    v5 = mod 0, 1
+    v6 = mul v5, 20
+    v7 = sload v4 !metadata(storage=symbolic(v4))
+    v8 = mul v6, 8
+    v9 = shr v8, v7
+    v10 = trunc i256 v9 to i160
+    v11 = lt 1, 4
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = div 1, 1
+    v14 = add v0, v13
+    v15 = mod 1, 1
+    v16 = mul v15, 20
+    v17 = sload v14 !metadata(storage=symbolic(v14))
+    v18 = mul v16, 8
+    v19 = shr v18, v17
+    v20 = trunc i256 v19 to i160
+    v21 = lt 2, 4
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = div 2, 1
+    v24 = add v0, v23
+    v25 = mod 2, 1
+    v26 = mul v25, 20
+    v27 = sload v24 !metadata(storage=symbolic(v24))
+    v28 = mul v26, 8
+    v29 = shr v28, v27
+    v30 = trunc i256 v29 to i160
+    v31 = lt 3, 4
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = div 3, 1
+    v34 = add v0, v33
+    v35 = mod 3, 1
+    v36 = mul v35, 20
+    v37 = sload v34 !metadata(storage=symbolic(v34))
+    v38 = mul v36, 8
+    v39 = shr v38, v37
+    v40 = trunc i256 v39 to i160
+    v41 = insert_value struct0, undef struct0, 0, v10
+    v42 = insert_value struct0, v41, 1, v20
+    v43 = insert_value struct0, v42, 2, v30
+    v44 = insert_value struct0, v43, 3, v40
+    ret v44
+}
+
+fn @mix(arg0: i256, arg1: i160, arg2: i256) -> i256 {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = checked_add u256, v0, arg0
+    sstore 1, v1 !metadata(storage=slot(1))
+    v2 = checked_mul u256, arg0, 0x10000
+    v3 = zext i160 arg1 to i256
+    v4 = checked_mul u256, v3, 256
+    v5 = checked_add u256, v2, v4
+    v6 = checked_add u256, v5, arg2
+    ret v6
+}
