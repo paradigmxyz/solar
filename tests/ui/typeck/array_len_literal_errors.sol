@@ -20,4 +20,8 @@ contract C {
         uint[block.number + 1 / 0] memory c; //~ ERROR: failed to evaluate constant: attempted to divide by zero
         c;
     }
+
+    // solc's evaluator stops at the first error in the length.
+    uint8 constant MAX8 = 255;
+    uint[(MAX8 + 1) + (1 / 0)] first; //~ ERROR: failed to evaluate constant: arithmetic overflow
 }

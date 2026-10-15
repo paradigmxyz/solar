@@ -471,7 +471,7 @@ fn shl_fits(value: &BigInt, amount: u64) -> bool {
 
 /// Returns whether `base ** exp` fits in the 4096 bits of solc's rational numbers.
 fn pow_fits(base: &BigInt, exp: u32) -> bool {
-    base.bits().saturating_mul(exp.into()) <= MAX_INTERMEDIATE_BITS
+    base.bits() <= 1 || base.bits().saturating_mul(exp.into()) <= MAX_INTERMEDIATE_BITS
 }
 
 /// Raises a number literal to an integer power by raising its numerator and denominator.

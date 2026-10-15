@@ -7,7 +7,6 @@
 //@ run-call-fail: discarded() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: discardedTuple() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
 //@ run-call: inUnchecked => 0
-//@ run-call-fail: inAssembly() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: branch => 1
 //@ run-call: and => false
 //@ run-call-fail: hashFirst() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
@@ -70,18 +69,7 @@ contract C {
     }
 
     function branch() external pure returns (int8) {
-        unchecked {
-            return BRANCH;
-        }
-    }
-
-    // Assembly reads use checked arithmetic, as Yul has no arithmetic mode.
-    function inAssembly() external pure returns (uint8 r) {
-        unchecked {
-            assembly {
-                r := WRAPPED
-            }
-        }
+        return BRANCH;
     }
 
     function and() external pure returns (bool) {

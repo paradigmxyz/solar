@@ -27,8 +27,12 @@ contract Operands {
     function f(uint x) public pure {
         uint[x + (ONE - 2)] memory a; //~ ERROR: failed to evaluate constant: arithmetic overflow
         uint[(ONE - 2) + x] memory b; //~ ERROR: failed to evaluate constant: arithmetic overflow
+        // solc's evaluator gives `-ONE` no value too.
+        uint[-ONE + (ONE - 2)] memory c; //~ ERROR: failed to evaluate constant: arithmetic overflow
+        //~^ ERROR: cannot apply unary operator `-` to `uint8`
         a;
         b;
+        c;
     }
 }
 
