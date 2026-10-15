@@ -6,12 +6,20 @@
 //! declare these writes so earlier passes cannot forward stale scratch reads.
 //! CSE can share fixed-width hashes only while their inputs and scratch writes
 //! remain unchanged. Variable-width hashes require physical alias proofs.
-//! Memory DSE and CSE also clean up the physical stores and hashes after expansion.
+//! Constant fixed-width hashes use a target-priced immediate when it is cheaper. Keep their
+//! scratch stores so assembly reads and memory expansion retain the same effects; ordinary
+//! memory DSE removes those stores only when they are unobserved.
 
-use crate::mir::{
-    FunctionBuilder, InstKind, Module, PtrLocation,
-    pass::{MirPass, run_function_pass},
+use super::egraph::use_counts;
+use crate::{
+    backend::evm::op,
+    mir::{
+        FunctionBuilder, InstKind, Module, PtrLocation, ValueId,
+        pass::{MirPass, run_function_pass},
+    },
+    target::Target,
 };
+use alloy_primitives::{U256, keccak256};
 use solar_data_structures::map::FxHashMap;
 
 /// Lowers mapping-slot hash builtins at the memory boundary.
@@ -28,10 +36,11 @@ impl MirPass for LowerMappingSlots {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let target = Target::new(gcx);
         run_function_pass(module, analyses, |func, _| {
             let has_mapping_slots = func.instructions().any(|inst_id| {
                 matches!(
@@ -46,6 +55,7 @@ impl MirPass for LowerMappingSlots {
                 return false;
             }
 
+            let uses = use_counts(func);
             let mut replacements = FxHashMap::default();
             let block_ids = func.blocks.indices();
             for block_id in block_ids {
@@ -53,19 +63,22 @@ impl MirPass for LowerMappingSlots {
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block_id);
                 for inst_id in instructions {
+                    let result = builder.func().inst_result_value(inst_id);
+                    let count = result.and_then(|value| uses.get(value).copied()).unwrap_or(1);
                     let replacement = match builder.func().inst(inst_id).kind {
                         InstKind::MappingSlot(key, slot) => {
-                            lower_word_mapping_slot(&mut builder, key, slot)
+                            lower_fixed_slot_hash(&mut builder, target, &[key, slot], count)
                         }
                         InstKind::MappingSlotBytes(key, slot) => {
                             lower_bytes_mapping_slot(&mut builder, key, slot)
                         }
                         InstKind::StorageArrayDataSlot(slot) => {
-                            lower_storage_array_data_slot(&mut builder, slot)
+                            lower_fixed_slot_hash(&mut builder, target, &[slot], count)
                         }
                         InstKind::StorageArrayElementSlot { slot, index, element_slots } => {
                             lower_storage_array_element_slot(
                                 &mut builder,
+                                target,
                                 slot,
                                 index,
                                 element_slots,
@@ -89,27 +102,58 @@ impl MirPass for LowerMappingSlots {
     }
 }
 
-fn lower_storage_array_data_slot(
+fn lower_fixed_slot_hash(
     builder: &mut FunctionBuilder<'_>,
-    slot: crate::mir::ValueId,
+    target: Target,
+    words: &[ValueId],
+    uses: u32,
 ) -> crate::mir::ValueId {
-    // mstore(0, slot)
-    // result = keccak256(0, 32)
-    let word = builder.imm(32);
+    // store(32 * i, words[i])
+    for (index, &word) in words.iter().enumerate() {
+        let offset = builder.imm(32 * index as u64);
+        builder.store(offset, word);
+    }
+    if target.optimization() != solar_config::OptimizationMode::None
+        && let Some(constants) =
+            words.iter().map(|&word| builder.func().value_u256(word)).collect::<Option<Vec<_>>>()
+    {
+        let bytes = constants.iter().flat_map(|word| word.to_be_bytes::<32>()).collect::<Vec<_>>();
+        let hash = U256::from_be_bytes(keccak256(&bytes).0);
+        let size = U256::from(bytes.len());
+        // The scratch stores are common to both shapes. A constant can be rematerialized at
+        // each use; charge those copies rather than assuming it remains on the stack.
+        let uses = uses.max(1);
+        let hashed = target.push(size)
+            + target.push(U256::ZERO)
+            + target.opcode_with_immediates(op::KECCAK256, &[Some(U256::ZERO), Some(size)])
+            + target.dup().times(uses - 1);
+        let pushed = target.push(hash).times(uses);
+        let cheaper = if target.optimization().is_gas() {
+            target.lifetime_gas(pushed) < target.lifetime_gas(hashed)
+        } else {
+            target.cmp(pushed, hashed).is_lt()
+        };
+        if cheaper {
+            // result = constant_hash(words)
+            return builder.imm(hash);
+        }
+    }
+    // result = keccak256(0, 32 * words.len())
+    let size = builder.imm(32 * words.len() as u64);
     let zero = builder.imm(0);
-    builder.store(zero, slot);
-    builder.keccak256(zero, word)
+    builder.keccak256(zero, size)
 }
 
 fn lower_storage_array_element_slot(
     builder: &mut FunctionBuilder<'_>,
+    target: Target,
     slot: crate::mir::ValueId,
     index: crate::mir::ValueId,
     element_slots: u64,
 ) -> crate::mir::ValueId {
     // data_slot = storage_array_data_slot(slot)
     // result = data_slot + index * element_slots
-    let data_slot = lower_storage_array_data_slot(builder, slot);
+    let data_slot = lower_fixed_slot_hash(builder, target, &[slot], 1);
     let offset = if element_slots <= 1 {
         index
     } else {
@@ -117,23 +161,6 @@ fn lower_storage_array_element_slot(
         builder.mul(index, stride)
     };
     builder.add(data_slot, offset)
-}
-
-/// Hash a fixed-width mapping key in the reserved scratch region.
-fn lower_word_mapping_slot(
-    builder: &mut FunctionBuilder<'_>,
-    key: crate::mir::ValueId,
-    slot: crate::mir::ValueId,
-) -> crate::mir::ValueId {
-    // mstore(0, key)
-    // mstore(32, slot)
-    // result = keccak256(0, 64)
-    let zero = builder.imm(0);
-    let word = builder.imm(32);
-    let size = builder.imm(64);
-    builder.store(zero, key);
-    builder.store(word, slot);
-    builder.keccak256(zero, size)
 }
 
 /// Hash a `bytes` key, from memory or calldata, and its slot in free memory.
