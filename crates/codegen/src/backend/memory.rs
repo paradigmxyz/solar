@@ -13,7 +13,7 @@
 //! artifact once that requirement fits. Unbounded native dynamic frames cannot
 //! use this fixed-prefix layout.
 
-use crate::mir::{FunctionBuilder, InstKind, Module, Terminator, Value, ValueId};
+use crate::mir::{FunctionBuilder, InstKind, Module, PtrLocation, Terminator, Value, ValueId};
 use alloy_primitives::U256;
 
 pub(super) fn translate(module: &Module, base: u64) -> Module {
@@ -29,26 +29,29 @@ pub(super) fn translate(module: &Module, base: u64) -> Module {
             for id in instructions {
                 let mut kind = builder.func().inst(id).kind.clone();
                 match &mut kind {
-                    InstKind::MLoad(a)
-                    | InstKind::MStore(a, _)
-                    | InstKind::MStore8(a, _)
-                    | InstKind::CalldataCopy(a, _, _)
+                    InstKind::Load(a, PtrLocation::Memory)
+                    | InstKind::Store(a, _, PtrLocation::Memory)
+                    | InstKind::Store8(a, _)
+                    | InstKind::Copy(
+                        a,
+                        _,
+                        _,
+                        PtrLocation::Calldata
+                        | PtrLocation::Returndata
+                        | PtrLocation::Storage
+                        | PtrLocation::Transient,
+                    )
                     | InstKind::CodeCopy(a, _, _)
-                    | InstKind::ReturnDataCopy(a, _, _)
                     | InstKind::DataCopy(_, a, _)
                     | InstKind::ExtCodeCopy(_, a, _, _)
                     | InstKind::Keccak256(a, _)
-                    | InstKind::Log0(a, _)
-                    | InstKind::Log1(a, _, _)
-                    | InstKind::Log2(a, _, _, _)
-                    | InstKind::Log3(a, _, _, _, _)
-                    | InstKind::Log4(a, _, _, _, _, _)
+                    | InstKind::Log { offset: a, .. }
                     | InstKind::Create(_, a, _)
                     | InstKind::Create2(_, a, _, _) => {
                         // memory[offset] -> physical_memory[saturating_add(offset, base)]
                         *a = address(&mut builder, *a, base);
                     }
-                    InstKind::MCopy(a, b, _)
+                    InstKind::Copy(a, b, _, PtrLocation::Memory)
                     | InstKind::Call { args_offset: a, ret_offset: b, .. }
                     | InstKind::CallCode { args_offset: a, ret_offset: b, .. }
                     | InstKind::StaticCall { args_offset: a, ret_offset: b, .. }
@@ -73,6 +76,7 @@ pub(super) fn translate(module: &Module, base: u64) -> Module {
                     | InstKind::Sext(..)
                     | InstKind::PtrToInt(..)
                     | InstKind::IntToPtr(..)
+                    | InstKind::PtrAdd(..)
                     | InstKind::CheckedBinary { .. }
                     | InstKind::ValidateStorageBytes(..)
                     | InstKind::StorageBytesLoad(..)
@@ -113,37 +117,28 @@ pub(super) fn translate(module: &Module, base: u64) -> Module {
                     | InstKind::HeapFloor
                     | InstKind::SetFmp(..)
                     | InstKind::Alloc { .. }
-                    | InstKind::MemoryObjectLen(..)
-                    | InstKind::SetMemoryObjectLen(..)
-                    | InstKind::MemoryObjectData(..)
-                    | InstKind::MemoryObjectFieldAddr { .. }
-                    | InstKind::MemoryObjectElementAddr { .. }
-                    | InstKind::MemoryObjectLoadField { .. }
-                    | InstKind::MemoryObjectStoreField { .. }
-                    | InstKind::MemoryObjectLoadElement { .. }
-                    | InstKind::MemoryObjectLoadByte { .. }
-                    | InstKind::MemoryObjectStoreElement { .. }
-                    | InstKind::MemoryObjectStoreByte { .. }
-                    | InstKind::MemoryObjectStoreWord { .. }
-                    | InstKind::MemorySliceLoadWord { .. }
-                    | InstKind::CalldataSliceLoadWord { .. }
-                    | InstKind::MemoryObjectCopyFromSlice { .. }
-                    | InstKind::MemoryObjectCopyFromSliceAt { .. }
-                    | InstKind::MemoryObjectCopy { .. }
                     | InstKind::AbiEncode { .. }
                     | InstKind::AbiDecode { .. }
                     | InstKind::StorageToMemory { .. }
                     | InstKind::MemoryToStorage { .. }
                     | InstKind::ClearStorage { .. }
-                    | InstKind::SLoad(..)
-                    | InstKind::SStore(..)
-                    | InstKind::TLoad(..)
-                    | InstKind::TStore(..)
-                    | InstKind::CalldataLoad(..)
+                    | InstKind::Load(
+                        _,
+                        PtrLocation::Calldata
+                        | PtrLocation::Returndata
+                        | PtrLocation::Storage
+                        | PtrLocation::Transient,
+                    )
+                    | InstKind::Store(
+                        _,
+                        _,
+                        PtrLocation::Calldata
+                        | PtrLocation::Returndata
+                        | PtrLocation::Storage
+                        | PtrLocation::Transient,
+                    )
                     | InstKind::CalldataSize
                     | InstKind::MakeSlice { .. }
-                    | InstKind::SlicePtr(..)
-                    | InstKind::SliceLen(..)
                     | InstKind::InternalFrameAddr(..)
                     | InstKind::FrameLoad { .. }
                     | InstKind::FrameStore { .. }
@@ -176,10 +171,8 @@ pub(super) fn translate(module: &Module, base: u64) -> Module {
                     | InstKind::BaseFee
                     | InstKind::BlobBaseFee
                     | InstKind::BlobHash(..)
-                    | InstKind::Keccak256Bytes(..)
                     | InstKind::MappingSlot(..)
-                    | InstKind::MappingSlotMemory(..)
-                    | InstKind::MappingSlotCalldata(..)
+                    | InstKind::MappingSlotBytes(..)
                     | InstKind::StorageArrayDataSlot(..)
                     | InstKind::StorageArrayElementSlot { .. }
                     | InstKind::ICall { .. }

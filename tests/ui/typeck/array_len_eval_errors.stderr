@@ -1,0 +1,108 @@
+error[3208]: array length cannot be fractional
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │     uint[7 / 2] fractional;
+   ╰╴         ━━━━━
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │     uint[E.B] enumValue;
+   │          ━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │     uint[address(0)] addressValue;
+   │          ━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │     uint[int8(-1)] negative;
+   │          ━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │     uint[uint8(1) - 2] underflow;
+   │          ┬───────━━━━
+   │          │
+   │          evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │     uint[type(uint256).max + 1] tooLarge;
+   │          ┬────────────────━━━━
+   │          │
+   │          evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │     uint[keccak256("x")] hash;
+   │          ━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error[3658]: array length cannot be negative
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │     uint[MINUS_ONE] negativeConstant;
+   ╰╴         ━━━━━━━━━
+
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │     uint[ONE - 2] underflowConstant;
+   ╰╴         ━━━━━━━ evaluation of constant value failed here
+
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │     uint[MAX + 1] tooLargeConstant;
+   ╰╴         ━━━━━━━ evaluation of constant value failed here
+
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │         uint[x + (ONE - 2)] memory a;
+   │              ━━━━━┬──────━
+   │                   │
+   ╰╴                  evaluation of constant value failed here
+
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │         uint[(ONE - 2) + x] memory b;
+   │              ━┬──────━━━━━
+   │               │
+   ╰╴              evaluation of constant value failed here
+
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │         uint[-ONE + (ONE - 2)] memory c;
+   │              ━━━━━━━━┬──────━
+   │                      │
+   ╰╴                     evaluation of constant value failed here
+
+error: cannot apply unary operator `-` to `uint8`
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │         uint[-ONE + (ONE - 2)] memory c;
+   ╰╴             ━━━━
+
+error: aborting due to 14 previous errors
+

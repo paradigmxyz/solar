@@ -30,12 +30,15 @@ fn @mulHigh(arg0: i256) -> i256 [selector=0x25ee2d76, pure, abi_params=[u256], a
     ret v0
 }
 
-fn @at(arg0: memptr, arg1: i256) -> i256 [selector=0xc78126ad, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @at(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xc78126ad, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
+    v0 = mload arg0
     v1 = lt arg1, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryarray<1>, arg0, arg1
-    ret v3
+    v3 = shl 5, arg1
+    v4 = ptradd arg0, v3
+    v5 = ptradd v4, 32
+    v6 = mload v5
+    ret v6
 }

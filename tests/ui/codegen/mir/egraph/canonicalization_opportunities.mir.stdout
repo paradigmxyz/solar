@@ -163,9 +163,8 @@ fn @constantSub(arg0: i256) -> i256 [selector=0xcc1f4d97, pure, abi_params=[u256
 
 fn @wrappedAdd(arg0: i256) -> i256 [selector=0xdc42c9d0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 6
-    v1 = add arg0, v0
-    ret v1
+    v0 = add arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9
+    ret v0
 }
 
 fn @complementXor(arg0: i256, arg1: i256) -> i256 [selector=0x48e8f29a, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -344,7 +343,7 @@ fn @emptyRevert(arg0: i256) [selector=0xf7cad58b, pure, abi_params=[u256], abi_r
 
 fn @emptyLog(arg0: i256) [selector=0xade0865c, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    log0 arg0, 0
+    log arg0, 0
     ret
 }
 

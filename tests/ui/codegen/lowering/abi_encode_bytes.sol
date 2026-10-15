@@ -7,8 +7,8 @@
 contract AbiEncodeBytes {
     // CHECK-LABEL: fn @hash3{{[( ]}}
     // CHECK: [[ENCODED:v[0-9]+]] = abi_encode [word, word, word], scratch, args arg0, arg1, arg2
-    // CHECK: [[DATA:v[0-9]+]] = slice_ptr [[ENCODED]]
-    // CHECK: [[LEN:v[0-9]+]] = slice_len [[ENCODED]]
+    // CHECK: [[DATA:v[0-9]+]] = extract_value slice<memory>, [[ENCODED]], 0
+    // CHECK: [[LEN:v[0-9]+]] = extract_value slice<memory>, [[ENCODED]], 1
     // CHECK: {{v[0-9]+}} = keccak256 [[DATA]], [[LEN]]
     function hash3(uint a, uint b, uint c) external pure returns (bytes32) {
         return keccak256(abi.encode(a, b, c));
@@ -30,8 +30,8 @@ contract AbiEncodeBytes {
 
     // CHECK-LABEL: fn @hashDynamic{{[( ]}}
     // CHECK: [[ENCODED:v[0-9]+]] = abi_encode [word, memory_bytes], scratch, args arg0, arg1
-    // CHECK: [[DATA:v[0-9]+]] = slice_ptr [[ENCODED]]
-    // CHECK: [[LEN:v[0-9]+]] = slice_len [[ENCODED]]
+    // CHECK: [[DATA:v[0-9]+]] = extract_value slice<memory>, [[ENCODED]], 0
+    // CHECK: [[LEN:v[0-9]+]] = extract_value slice<memory>, [[ENCODED]], 1
     // CHECK: keccak256 [[DATA]], [[LEN]]
     function hashDynamic(uint a, string memory s) external pure returns (bytes32) {
         return keccak256(abi.encode(a, s));

@@ -6,13 +6,13 @@
 // decode shorter than its head.
 @module LowerAbiDecodeEmpty
 
-fn @empty(arg0: memptr) {
+fn @empty(arg0: ptr<memory>) {
   bb0:
     abi_decode [], arg0
     stop
 }
 
-fn @word(arg0: memptr) -> i256 {
+fn @word(arg0: ptr<memory>) -> i256 {
   bb0:
     v0 = abi_decode [u256], arg0
     ret v0

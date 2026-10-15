@@ -1,28 +1,26 @@
 //@compile-flags: -Zmir-pipeline=dce
 //~? ERROR: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst1] slice instruction `extract_value` survives the `lowered` phase boundary
 //~? ERROR: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `lowered` phase boundary
 //~? ERROR: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst3] storage slot instruction `mapping_slot` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst4] storage slot instruction `mapping_slot_memory` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst5] storage slot instruction `mapping_slot_calldata` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst6] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
-//~? ERROR: [fn3] [bb0, inst7] storage slot instruction `storage_array_element_slot` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst4] storage slot instruction `mapping_slot_bytes` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst5] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst6] storage slot instruction `storage_array_element_slot` survives the `lowered` phase boundary
 // EVM-shaped MIR is the word-backend boundary. Semantic memory operations
 // must be rejected here if their named lowering pass did not consume them.
-//~? ERROR: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
-//~? ERROR: [fn1] non-word type `memoryslice` survives the `lowered` phase boundary
-//~? ERROR: [fn4] non-word type `memoryslice` survives the `lowered` phase boundary
-//~? ERROR: [fn5] non-word type `calldataslice` survives the `lowered` phase boundary
-//~? ERROR: [fn6] non-word type `returndataslice` survives the `lowered` phase boundary
+//~? ERROR: [fn0] non-word type `slice<memory>` survives the `lowered` phase boundary
+//~? ERROR: [fn1] non-word type `slice<memory>` survives the `lowered` phase boundary
+//~? ERROR: [fn4] non-word type `slice<memory>` survives the `lowered` phase boundary
+//~? ERROR: [fn5] non-word type `slice<calldata>` survives the `lowered` phase boundary
+//~? ERROR: [fn6] non-word type `slice<returndata>` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst3] `mapping_slot` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn3] [bb0, inst4] `mapping_slot_memory` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn3] [bb0, inst5] `mapping_slot_calldata` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn3] [bb0, inst6] `storage_array_data_slot` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn3] [bb0, inst7] `storage_array_element_slot` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst4] `mapping_slot_bytes` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst5] `storage_array_data_slot` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst6] `storage_array_element_slot` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn12] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn13] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn16] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
@@ -31,18 +29,18 @@
 //~? ERROR: [fn19] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
 @module ValidateMemoryBoundary
 @phase lowered
-fn @slice(arg0: i256, arg1: i256) -> i256 {
+fn @slice(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
     v2 = make_memory_slice arg0, arg1
-    v3 = slice_len v2
+    v3 = extract_value slice<memory>, v2, 1
     ret v3
 }
-fn @abi(arg0: i256) -> memoryslice {
+fn @abi(arg0: i256) -> slice<memory> {
   bb0:
     v1 = abi_encode [word], args arg0
     ret v1
 }
-fn @aggregate(arg0: i256, arg1: memptr) {
+fn @aggregate(arg0: i256, arg1: ptr<memory>) {
   bb0:
     storage_to_memory struct<word>, arg0, arg1
     stop
@@ -51,39 +49,38 @@ fn @allocation() {
   bb0:
     v0 = fmp
     set_fmp v0
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = alloc 32
     v2 = mapping_slot v0, v1
-    v3 = mapping_slot_memory v0, v1
-    v4 = mapping_slot_calldata v0, v1
-    v5 = storage_array_data_slot v0
-    v6 = storage_array_element_slot v0, v1, 1
+    v3 = mapping_slot_bytes v0, v1
+    v4 = storage_array_data_slot v0
+    v5 = storage_array_element_slot v0, v1, 1
     stop
 }
 
-fn @memorySignature(arg0: memoryslice) -> memoryslice {
+fn @memorySignature(arg0: slice<memory>) -> slice<memory> {
   bb0:
     ret arg0
 }
-fn @calldataSignature(arg0: calldataslice) -> calldataslice {
+fn @calldataSignature(arg0: slice<calldata>) -> slice<calldata> {
   bb0:
     ret arg0
 }
-fn @returndataSignature(arg0: returndataslice) -> returndataslice {
+fn @returndataSignature(arg0: slice<returndata>) -> slice<returndata> {
   bb0:
     ret arg0
 }
 
 //~? ERROR: [fn7] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
-fn @checked_deferred() -> memptr {
+fn @checked_deferred() -> ptr<memory> {
   bb0:
-    v0 = alloc raw, exact, zeroed, panic, 32 !metadata(deferred_alloc)
+    v0 = alloc zeroed checked 32 !metadata(deferred_alloc)
     ret v0
 }
 
 //~? ERROR: [fn8] [bb0, inst0] deferred allocation requires a constant size
-fn @dynamic_deferred(arg0: i256) -> memptr {
+fn @dynamic_deferred(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, arg0 !metadata(deferred_alloc)
+    v0 = alloc arg0 !metadata(deferred_alloc)
     ret v0
 }
 

@@ -2,7 +2,7 @@
 @module ValidateReturnAbi
 @types
   struct0: {i256, i1}
-  struct1: {struct0, memoryslice}
+  struct1: {struct0, slice<memory>}
 
 // Nested struct fields flatten in order, and a memory slice takes a pointer
 // and a length word.
@@ -30,18 +30,18 @@ fn @swappedFields() -> struct0 [return_abi=[i1, i256]] {
 }
 
 // A slice returned alone may pass only its pointer.
-fn @slicePointer() -> memoryslice [return_abi=[i256]] {
+fn @slicePointer() -> slice<memory> [return_abi=[i256]] {
   bb0:
     invalid
 }
 
-fn @sliceWords() -> memoryslice [return_abi=[i256, i256]] {
+fn @sliceWords() -> slice<memory> [return_abi=[i256, i256]] {
   bb0:
     invalid
 }
 
 //~? ERROR: [fn6] internal return ABI does not match the function's result type
-fn @sliceBooleanLength() -> memoryslice [return_abi=[i256, i1]] {
+fn @sliceBooleanLength() -> slice<memory> [return_abi=[i256, i1]] {
   bb0:
     invalid
 }

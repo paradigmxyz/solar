@@ -68,8 +68,7 @@ fn @yulRevert() [selector=0x0d5e326b, pure, abi_params=[], abi_returns=[], abi_r
   bb0:
     jump bb1
   bb1:
-    v0 = ne 1, 0
-    jumpi v0, bb4, bb5
+    jumpi true, bb4, bb5
   bb5:
     jump bb2
   bb2:

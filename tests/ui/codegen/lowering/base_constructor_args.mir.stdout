@@ -6,14 +6,14 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @constructor(arg0: i256, arg1: memptr) [constructor, abi_params=[u256, bytes]] {
+fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[u256, bytes]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, arg1
     ret
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -21,7 +21,7 @@ fn @store_storage_bytes(arg0: i256, arg1: memptr) {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:Middle ===
 @module Middle
-fn @constructor(arg0: i256, arg1: memptr) [constructor, abi_params=[u256, bytes]] {
+fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[u256, bytes]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
@@ -39,7 +39,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -50,13 +50,12 @@ fn @store_storage_bytes(arg0: i256, arg1: memptr) {
 fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = checked_mul u256, arg0, 2
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v1, 2
-    v2 = memory_object_data memorybytes, v1
-    v3 = ptrtoint memptr v2 to i256
-    mstore v3, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v4 = checked_add u256, v0, 1
-    sstore 0, v4 !metadata(storage=slot(0))
+    v1 = alloc 64 !metadata(preserves_fmp)
+    mstore v1, 2
+    v2 = ptradd v1, 32
+    mstore v2, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v3 = checked_add u256, v0, 1
+    sstore 0, v3 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, v1
     jump bb1
   bb1:
@@ -72,8 +71,10 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 fn @labelHash() -> i256 [selector=0x7e0a41bc, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = load_storage_bytes 1
-    v1 = keccak256_bytes v0
-    ret v1
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    ret v3
 }
 
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -82,7 +83,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -418,9 +419,9 @@ fn @constructor() [constructor] {
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:DomainBase ===
 @module DomainBase
 @types
-  struct0: {memptr, memptr}
+  struct0: {ptr<memory>, ptr<memory>}
 
-fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[bytes, bytes]] {
+fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
     icall @store_storage_bytes, 1, arg1
@@ -436,13 +437,13 @@ fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[
     ret v3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
@@ -451,15 +452,14 @@ fn @load_storage_bytes(arg0: i256) -> memptr {
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:PermitBase ===
 @module PermitBase
 @types
-  struct0: {memptr, memptr}
+  struct0: {ptr<memory>, ptr<memory>}
 
-fn @constructor(arg0: memptr) [constructor, abi_params=[bytes]] {
+fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 1
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, arg0
     icall @store_storage_bytes, 1, v0
     jump bb1
@@ -478,13 +478,13 @@ fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[
     ret v3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
@@ -492,7 +492,7 @@ fn @load_storage_bytes(arg0: i256) -> memptr {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:TokenBase ===
 @module TokenBase
-fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[bytes, bytes]] {
+fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     ret
 }
@@ -500,34 +500,30 @@ fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[bytes, byt
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:EmptyBaseArgumentMask ===
 @module EmptyBaseArgumentMask
 @types
-  struct0: {memptr, memptr}
+  struct0: {ptr<memory>, ptr<memory>}
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 5
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x546f6b656e000000000000000000000000000000000000000000000000000000
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v3, 5
-    v4 = memory_object_data memorybytes, v3
-    v5 = ptrtoint memptr v4 to i256
-    mstore v5, 0x546f6b656e000000000000000000000000000000000000000000000000000000
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v6, 3
-    v7 = memory_object_data memorybytes, v6
-    v8 = ptrtoint memptr v7 to i256
-    mstore v8, 0x544b4e0000000000000000000000000000000000000000000000000000000000
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v9, 1
-    v10 = memory_object_data memorybytes, v9
-    v11 = ptrtoint memptr v10 to i256
-    mstore v11, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 5
+    v1 = ptradd v0, 32
+    mstore v1, 0x546f6b656e000000000000000000000000000000000000000000000000000000
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 5
+    v3 = ptradd v2, 32
+    mstore v3, 0x546f6b656e000000000000000000000000000000000000000000000000000000
+    v4 = alloc 64 !metadata(preserves_fmp)
+    mstore v4, 3
+    v5 = ptradd v4, 32
+    mstore v5, 0x544b4e0000000000000000000000000000000000000000000000000000000000
+    v6 = alloc 64 !metadata(preserves_fmp)
+    mstore v6, 1
+    v7 = ptradd v6, 32
+    mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
     jump bb1
   bb1:
     icall @store_storage_bytes, 0, v0
-    icall @store_storage_bytes, 1, v9
+    icall @store_storage_bytes, 1, v6
     jump bb2
   bb2:
     jump bb4
@@ -548,13 +544,13 @@ fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[
     ret v3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

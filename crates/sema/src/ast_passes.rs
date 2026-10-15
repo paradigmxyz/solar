@@ -66,11 +66,9 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
     }
 
     fn check_underscores_in_number_literals(&self, lit: &ast::Lit<'_>) {
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_) | ast::LitKind::Address(_)) =
-            lit.kind
-        else {
+        if !lit.kind.is_number() && !matches!(lit.kind, ast::LitKind::Address(_)) {
             return;
-        };
+        }
         for help in number_literal_underscore_errors(lit.symbol.as_str()) {
             let _ = self
                 .dcx()
@@ -90,9 +88,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
             return;
         };
 
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
-            panic!("non-number literal with denomination {:?}", lit.kind)
-        };
+        assert!(lit.kind.is_number(), "non-number literal with denomination {:?}", lit.kind);
 
         if lit.symbol.as_str().starts_with("0x") {
             self.dcx()
@@ -621,7 +617,8 @@ pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<&'static str>
     if value.contains("_e") {
         errors.push("remove underscores at the end of the mantissa");
     }
-    if value.contains("e_") {
+    // Also reject underscores after the sign of either exponent, as in `1E-_2`.
+    if value.contains("e_") || value.contains("e-_") || value.contains("E-_") {
         errors.push("remove underscores in front of the exponent");
     }
     errors

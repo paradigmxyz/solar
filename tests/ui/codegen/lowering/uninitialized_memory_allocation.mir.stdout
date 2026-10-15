@@ -5,39 +5,38 @@
   struct1: {i256, i256, i256, i1}
   struct2: {i256, i256, i256}
   struct3: {i256, i256}
-  struct4: {memptr, memptr}
+  struct4: {ptr<memory>, ptr<memory>}
 
 fn @fixedArray() -> i256 [selector=0x391e2457, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @freeMemoryPointer
-    v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    v2 = ptrtoint memptr v1 to i256
-    memory_zero v2, 96
-    v3 = icall @freeMemoryPointer
-    v4 = checked_sub u256, v3, v0
-    ret v4
-}
-
-fn @structure() -> i256 [selector=0x6c92f462, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = icall @freeMemoryPointer
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v1, 0, 0
-    memory_object_store_field memorystruct<2>, v1, 1, 0
+    v1 = alloc 96 !metadata(preserves_fmp)
+    memory_zero v1, 96
     v2 = icall @freeMemoryPointer
     v3 = checked_sub u256, v2, v0
     ret v3
 }
 
+fn @structure() -> i256 [selector=0x6c92f462, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @freeMemoryPointer
+    v1 = alloc 64 !metadata(preserves_fmp)
+    mstore v1, 0
+    v2 = ptradd v1, 32
+    mstore v2, 0
+    v3 = icall @freeMemoryPointer
+    v4 = checked_sub u256, v3, v0
+    ret v4
+}
+
 fn @aliasDoesNotAllocate() -> i256 [selector=0xb2b4bf46, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 96
+    v0 = alloc 96 !metadata(preserves_fmp)
+    memory_zero v0, 96
+    v1 = icall @freeMemoryPointer
     v2 = icall @freeMemoryPointer
-    v3 = icall @freeMemoryPointer
-    v4 = checked_sub u256, v3, v2
-    ret v4
+    v3 = checked_sub u256, v2, v1
+    ret v3
 }
 
 fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
@@ -45,8 +44,8 @@ fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_
     v0 = icall @freeMemoryPointer
     v1 = icall @freeMemoryPointer
     v2 = checked_sub u256, v1, v0
-    v3 = memory_object_len memorybytes, memptr 96
-    v4 = memory_object_len memoryarray, memptr 96
+    v3 = mload ptr<memory> 96 !metadata(memory=scratch)
+    v4 = mload ptr<memory> 96 !metadata(memory=scratch)
     v5 = checked_add u256, v3, v4
     v6 = insert_value struct0, undef struct0, 0, v2
     v7 = insert_value struct0, v6, 1, 96
@@ -58,97 +57,101 @@ fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_
 fn @nestedDynamicDefaults() -> struct1 [selector=0xd34386dc, pure, abi_params=[], abi_returns=[word, word, word, word<bool>], abi_return_params=[u256, u256, u256, bool]] {
   bb0:
     v0 = icall @freeMemoryPointer
-    v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<3>, v1, 0, 0
-    memory_object_store_field memorystruct<3>, v1, 1, 96
-    memory_object_store_field memorystruct<3>, v1, 2, 96
-    v2 = icall @freeMemoryPointer
-    v3 = checked_sub u256, v2, v0
-    v4 = ptrtoint memptr v1 to i256
-    v5 = add v4, 32
-    v6 = mload v5
-    v7 = ptrtoint memptr v1 to i256
-    v8 = add v7, 64
-    v9 = mload v8
-    v10 = icall @freeMemoryPointer
-    v11 = not 31
-    v12 = and 64, v11
-    v13 = alloc memorybytes, exact, zeroed, panic, v12
-    set_memory_object_len memorybytes, v13, 1
-    v14 = ptrtoint memptr v13 to i256
-    v15 = eq v14, v10
-    v16 = insert_value struct1, undef struct1, 0, v3
-    v17 = insert_value struct1, v16, 1, v6
-    v18 = insert_value struct1, v17, 2, v9
-    v19 = insert_value struct1, v18, 3, v15
-    ret v19
+    v1 = alloc 96 !metadata(preserves_fmp)
+    mstore v1, 0
+    v2 = ptradd v1, 32
+    mstore v2, 96
+    v3 = ptradd v1, 64
+    mstore v3, 96
+    v4 = icall @freeMemoryPointer
+    v5 = checked_sub u256, v4, v0
+    v6 = ptrtoint ptr<memory> v1 to i256
+    v7 = add v6, 32
+    v8 = mload v7
+    v9 = ptrtoint ptr<memory> v1 to i256
+    v10 = add v9, 64
+    v11 = mload v10
+    v12 = icall @freeMemoryPointer
+    v13 = not 31
+    v14 = and 64, v13
+    v15 = alloc zeroed checked v14
+    mstore v15, 1
+    v16 = ptrtoint ptr<memory> v15 to i256
+    v17 = eq v16, v12
+    v18 = insert_value struct1, undef struct1, 0, v5
+    v19 = insert_value struct1, v18, 1, v8
+    v20 = insert_value struct1, v19, 2, v11
+    v21 = insert_value struct1, v20, 3, v17
+    ret v21
 }
 
-fn @defaultBytesReturn() -> memptr [selector=0x2a63b10a, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @defaultBytesReturn() -> ptr<memory> [selector=0x2a63b10a, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    ret memptr 96
+    ret ptr<memory> 96
 }
 
 fn @defaultThroughICall() -> i1 [selector=0x4ed54f6b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @isEmpty, memptr 96
+    v0 = icall @isEmpty, ptr<memory> 96
     ret v0
 }
 
 fn @fixedArrayDynamicDefaults() -> struct2 [selector=0x94633452, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = icall @freeMemoryPointer
-    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v1 = alloc 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v4]
+    v2 = phi [bb0: 0], [bb2: v6]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
   bb3:
-    v5 = icall @freeMemoryPointer
-    v6 = checked_sub u256, v5, v0
-    v7 = ptrtoint memptr v1 to i256
-    v8 = mload v7
-    v9 = ptrtoint memptr v1 to i256
-    v10 = add v9, 32
-    v11 = mload v10
-    v12 = insert_value struct2, undef struct2, 0, v6
-    v13 = insert_value struct2, v12, 1, v8
-    v14 = insert_value struct2, v13, 2, v11
-    ret v14
+    v7 = icall @freeMemoryPointer
+    v8 = checked_sub u256, v7, v0
+    v9 = ptrtoint ptr<memory> v1 to i256
+    v10 = mload v1
+    v11 = ptrtoint ptr<memory> v1 to i256
+    v12 = add v11, 32
+    v13 = mload v12
+    v14 = insert_value struct2, undef struct2, 0, v8
+    v15 = insert_value struct2, v14, 1, v10
+    v16 = insert_value struct2, v15, 2, v13
+    ret v16
   bb2:
-    memory_object_store_element memoryfixedarray<2, 1>, v1, v2, 96
-    v4 = add v2, 1
+    v4 = shl 5, v2
+    v5 = ptradd v1, v4
+    mstore v5, 96
+    v6 = add v2, 1
     jump bb1
 }
 
 fn @nestedStaticDefaults() -> i256 [selector=0x1ebfa70d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @freeMemoryPointer
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v2, 0, 0
-    memory_object_store_field memorystruct<2>, v2, 1, 0
-    v3 = ptrtoint memptr v2 to i256
-    memory_object_store_field memorystruct<2>, v1, 0, v3
-    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v5 = ptrtoint memptr v4 to i256
+    v1 = alloc 64 !metadata(preserves_fmp)
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 0
+    v3 = ptradd v2, 32
+    mstore v3, 0
+    v4 = ptrtoint ptr<memory> v2 to i256
+    mstore v1, v4
+    v5 = alloc 64 !metadata(preserves_fmp)
     memory_zero v5, 64
-    v6 = ptrtoint memptr v4 to i256
-    memory_object_store_field memorystruct<2>, v1, 1, v6
-    v7 = ptrtoint memptr v1 to i256
-    v8 = icall @freeMemoryPointer
-    v9 = checked_sub u256, v8, v0
-    ret v9
+    v6 = ptradd v1, 32
+    v7 = ptrtoint ptr<memory> v5 to i256
+    mstore v6, v7
+    v8 = ptrtoint ptr<memory> v1 to i256
+    v9 = icall @freeMemoryPointer
+    v10 = checked_sub u256, v9, v0
+    ret v10
 }
 
-fn @literalBytes() -> memptr [selector=0x95549276, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @literalBytes() -> ptr<memory> [selector=0x95549276, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 1
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -166,32 +169,36 @@ fn @rawAssemblyPointers() -> struct3 [selector=0x46fec25e, pure, abi_params=[], 
     v0 = icall @rawPointerPair
     v1 = extract_value struct4, v0, 0
     v2 = extract_value struct4, v0, 1
-    v3 = memory_object_len memorybytes, v1
+    v3 = mload v1
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = memory_object_load_byte memorybytes, v1, 0
-    v7 = shl 248, v6
-    v8 = shr 248, v7
-    v9 = trunc i256 v8 to i8
-    v10 = zext i8 v9 to i256
-    v11 = memory_object_len memorybytes, v2
-    v12 = lt 0, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = memory_object_load_byte memorybytes, v2, 0
-    v15 = shl 248, v14
-    v16 = shr 248, v15
-    v17 = trunc i256 v16 to i8
-    v18 = zext i8 v17 to i256
-    v19 = insert_value struct3, undef struct3, 0, v10
-    v20 = insert_value struct3, v19, 1, v18
-    ret v20
+    v6 = ptradd v1, 32
+    v7 = mload v6
+    v8 = byte 0, v7
+    v9 = shl 248, v8
+    v10 = shr 248, v9
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    v13 = mload v2
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v2, 32
+    v17 = mload v16
+    v18 = byte 0, v17
+    v19 = shl 248, v18
+    v20 = shr 248, v19
+    v21 = trunc i256 v20 to i8
+    v22 = zext i8 v21 to i256
+    v23 = insert_value struct3, undef struct3, 0, v12
+    v24 = insert_value struct3, v23, 1, v22
+    ret v24
 }
 
-fn @isEmpty(arg0: memptr) -> i1 [pure] {
+fn @isEmpty(arg0: ptr<memory>) -> i1 [pure] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
+    v0 = mload arg0
     v1 = eq v0, 0
     ret v1
 }
@@ -210,8 +217,8 @@ fn @rawPointerPair() -> struct4 [pure] {
     v5 = shl 248, 34
     v6 = add v1, 32
     mstore v6, v5
-    v7 = inttoptr i256 v0 to memptr
-    v8 = inttoptr i256 v1 to memptr
+    v7 = inttoptr i256 v0 to ptr<memory>
+    v8 = inttoptr i256 v1 to ptr<memory>
     v9 = insert_value struct4, undef struct4, 0, v7
     v10 = insert_value struct4, v9, 1, v8
     ret v10

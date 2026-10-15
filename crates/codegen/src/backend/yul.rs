@@ -11,7 +11,8 @@
 
 use super::evm::EvmArtifact;
 use crate::mir::{
-    BlockId, Function, InstKind, Module, Terminator, Value, ValueId, analysis::CallGraphInfo,
+    BlockId, Function, InstKind, Module, PtrLocation, Terminator, Value, ValueId,
+    analysis::CallGraphInfo,
 };
 use alloy_primitives::hex;
 use solar_sema::Gcx;
@@ -315,20 +316,15 @@ fn expression(
     // result := opcode(operands).
     let mut args = inst.operands().iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?;
     let addresses: &[usize] = match inst {
-        InstKind::MLoad(..)
-        | InstKind::MStore(..)
-        | InstKind::MStore8(..)
-        | InstKind::CalldataCopy(..)
+        InstKind::Load(_, PtrLocation::Memory)
+        | InstKind::Store(.., PtrLocation::Memory)
+        | InstKind::Store8(..)
+        | InstKind::Copy(.., PtrLocation::Calldata | PtrLocation::Returndata)
         | InstKind::CodeCopy(..)
-        | InstKind::ReturnDataCopy(..)
         | InstKind::DataCopy(..)
         | InstKind::Keccak256(..)
-        | InstKind::Log0(..)
-        | InstKind::Log1(..)
-        | InstKind::Log2(..)
-        | InstKind::Log3(..)
-        | InstKind::Log4(..) => &[0],
-        InstKind::MCopy(..) => &[0, 1],
+        | InstKind::Log { .. } => &[0],
+        InstKind::Copy(.., PtrLocation::Memory) => &[0, 1],
         InstKind::Create(..) | InstKind::Create2(..) | InstKind::ExtCodeCopy(..) => &[1],
         InstKind::Call { .. } | InstKind::CallCode { .. } => &[3, 5],
         InstKind::StaticCall { .. } | InstKind::DelegateCall { .. } => &[2, 4],
@@ -424,16 +420,22 @@ fn expression(
         | InstKind::SLt(..)
         | InstKind::SGt(..)
         | InstKind::Eq(..)
-        | InstKind::MLoad(..)
-        | InstKind::MStore(..)
-        | InstKind::MStore8(..)
-        | InstKind::MCopy(..)
-        | InstKind::SLoad(..)
-        | InstKind::SStore(..)
-        | InstKind::TLoad(..)
-        | InstKind::TStore(..)
-        | InstKind::CalldataLoad(..)
-        | InstKind::CalldataCopy(..)
+        | InstKind::Load(
+            _,
+            PtrLocation::Memory
+            | PtrLocation::Calldata
+            | PtrLocation::Storage
+            | PtrLocation::Transient,
+        )
+        | InstKind::Store(
+            ..,
+            PtrLocation::Memory | PtrLocation::Storage | PtrLocation::Transient,
+        )
+        | InstKind::Store8(..)
+        | InstKind::Copy(
+            ..,
+            PtrLocation::Memory | PtrLocation::Calldata | PtrLocation::Returndata,
+        )
         | InstKind::CalldataSize
         | InstKind::CodeSize
         | InstKind::CodeCopy(..)
@@ -441,7 +443,6 @@ fn expression(
         | InstKind::ExtCodeCopy(..)
         | InstKind::ExtCodeHash(..)
         | InstKind::ReturnDataSize
-        | InstKind::ReturnDataCopy(..)
         | InstKind::Caller
         | InstKind::CallValue
         | InstKind::Origin
@@ -467,12 +468,10 @@ fn expression(
         | InstKind::DelegateCall { .. }
         | InstKind::Create(..)
         | InstKind::Create2(..)
-        | InstKind::Log0(..)
-        | InstKind::Log1(..)
-        | InstKind::Log2(..)
-        | InstKind::Log3(..)
-        | InstKind::Log4(..)
         | InstKind::SignExtend(..) => inst.mnemonic(),
+        InstKind::Log { topics, .. } => {
+            return Ok(format!("log{}({})", topics.len(), args.join(", ")));
+        }
         other => return Err(format!("unsupported Yul instruction `{}`", other.mnemonic())),
     };
     Ok(format!("{name}({})", args.join(", ")))

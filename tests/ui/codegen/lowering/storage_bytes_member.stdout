@@ -722,42 +722,43 @@ bb70:
   swap 1
   return
 bb68:
-  dup 1
-  push 32
-  add
-  swap 4
+  swap 3
   push 0
   mstore
   push 32
   push 0
   keccak256
+  push 32
+  dup 5
+  add
   swap 2
+  push 5
+  shl
+  dup 5
+  add
+  push 32
+  add
   swap 3
   pop
-  swap 3
-  push 0
   jump bb69
 bb71 [loop]:
   dup 1
-  dup 4
-  add
   sload
-  dup 2
-  push 5
-  shl
-  dup 4
+  dup 3
+  push 32
   add
+  swap 3
   mstore
   push 1
   add
   jump bb69
 bb69 [loop]:
-  dup 4
-  dup 2
+  dup 3
+  dup 3
   lt
   push bb71
   jumpi
-  swap 4
+  swap 3
   jump bb70
 bb40 [cold]:
   push 49

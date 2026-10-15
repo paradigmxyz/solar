@@ -69,8 +69,8 @@
 use crate::{
     mir::{
         AbiParamType, AbiType, ArgIdx, BlockId, Builtin, Callee, EffectKind, Function, Immediate,
-        InstId, InstKind, MirPhase, MirType, Module, Op, OpTraits, RequireKind, Terminator, Value,
-        ValueId,
+        InstId, InstKind, MirPhase, MirType, Module, Op, OpTraits, PtrLocation, RequireKind,
+        Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo, Liveness},
         pass::{
             MirPass, run_selected_function_pass, run_selected_function_pass_cached,
@@ -213,9 +213,9 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
         }
         for &inst in &block.instructions {
             match &func.inst(inst).kind {
-                InstKind::MappingSlotMemory(key, _) => {
+                InstKind::MappingSlotBytes(key, _) => {
                     if !matches!(func.value(*key), Value::Arg(index)
-                        if func.params[*index] == MirType::MemPtr
+                        if func.params[*index] == MirType::MEMPTR
                             && abi_params.types.get(index.index()) == Some(&AbiParamType::Bytes))
                     {
                         return false;
@@ -259,8 +259,8 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
                 | InstKind::Clz(..)
                 | InstKind::SignExtend(..)
                 | InstKind::Select(..)
-                | InstKind::SLoad(..)
-                | InstKind::SStore(..)
+                | InstKind::Load(.., PtrLocation::Storage)
+                | InstKind::Store(.., PtrLocation::Storage)
                 | InstKind::Caller
                 | InstKind::CallValue => {}
                 _ => return false,
@@ -505,7 +505,7 @@ impl<'a> Builder<'a> {
         }
         if !(is_node(&inst.kind)
             || (self.fresh_mapping_arguments
-                && matches!(inst.kind, InstKind::MappingSlotMemory(..))))
+                && matches!(inst.kind, InstKind::MappingSlotBytes(..))))
         {
             let mut kind = inst.kind.clone();
             kind.visit_operands_mut(|value| *value = self.resolve(*value));
@@ -1237,10 +1237,18 @@ fn is_node(kind: &InstKind) -> bool {
     let pure = definition.effect == EffectKind::Pure
         && !definition.has_side_effects
         && !matches!(kind, InstKind::Phi(_));
-    pure || matches!(
-        kind,
-        InstKind::CalldataLoad(_) | InstKind::BlockHash(_) | InstKind::BlobHash(_)
-    )
+    // Stable context reads are rematerialized by the backend. Keep calldata size separate:
+    // merging it extends ABI-decoding live ranges and can introduce spills.
+    let frame_invariant = definition.effect == EffectKind::EnvironmentRead
+        && definition.traits.contains(OpTraits::REMATERIALIZABLE)
+        && !matches!(kind, InstKind::CalldataSize);
+    pure || frame_invariant
+        || matches!(
+            kind,
+            InstKind::Load(.., PtrLocation::Calldata)
+                | InstKind::BlockHash(_)
+                | InstKind::BlobHash(_)
+        )
 }
 
 /// Keeps constants on the right without reassociating or adding nodes.
@@ -1356,11 +1364,10 @@ pub(super) fn is_dead_noop(
         InstKind::ICall { function: Callee::Builtin(Builtin::Check { is_zero, .. }), args } => {
             func.value_u256(resolve(args[0])).is_some_and(|value| value.is_zero() != *is_zero)
         }
-        InstKind::MCopy(_, _, size)
-        | InstKind::CalldataCopy(_, _, size)
+        InstKind::Copy(_, _, size, PtrLocation::Memory | PtrLocation::Calldata)
         | InstKind::DataCopy(_, _, size)
         | InstKind::CodeCopy(_, _, size) => is_zero(func, resolve(*size)),
-        InstKind::ReturnDataCopy(_, offset, size) => {
+        InstKind::Copy(_, offset, size, PtrLocation::Returndata) => {
             is_zero(func, resolve(*offset)) && is_zero(func, resolve(*size))
         }
         _ => false,

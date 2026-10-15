@@ -1,0 +1,8 @@
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/constant_chain_eval.sol:LL:CC
+   │
+LL │         return addmod(a, b, Z24);
+   ╰╴               ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

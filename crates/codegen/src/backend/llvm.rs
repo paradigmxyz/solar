@@ -14,7 +14,7 @@
 
 use super::{assembler::ImmutableRef, evm::EvmArtifact};
 use crate::mir::{
-    Function, ImmutableId, InstKind, Module, Terminator, TypeSize, Value, ValueId,
+    Function, ImmutableId, InstKind, Module, PtrLocation, Terminator, TypeSize, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo},
     immutable::immutable_staging_base,
 };
@@ -875,14 +875,15 @@ impl<'ctx, 'mir> Lowering<'ctx, 'mir> {
                 )?;
                 return Ok(None);
             }
-            InstKind::CalldataCopy(..)
-            | InstKind::CodeCopy(..)
-            | InstKind::ReturnDataCopy(..)
-            | InstKind::MCopy(..) => {
+            InstKind::Copy(
+                ..,
+                PtrLocation::Memory | PtrLocation::Calldata | PtrLocation::Returndata,
+            )
+            | InstKind::CodeCopy(..) => {
                 let space = match inst {
-                    InstKind::CalldataCopy(..) => 2,
+                    InstKind::Copy(.., PtrLocation::Calldata) => 2,
                     InstKind::CodeCopy(..) => 4,
-                    InstKind::ReturnDataCopy(..) => 3,
+                    InstKind::Copy(.., PtrLocation::Returndata) => 3,
                     _ => 1,
                 };
                 self.copy_memory(space, self.memory.preserve_expansion, args[0], args[1], args[2])?;
@@ -905,11 +906,7 @@ impl<'ctx, 'mir> Lowering<'ctx, 'mir> {
                     name,
                 );
             }
-            InstKind::Log0(..)
-            | InstKind::Log1(..)
-            | InstKind::Log2(..)
-            | InstKind::Log3(..)
-            | InstKind::Log4(..)
+            InstKind::Log { .. }
             | InstKind::Create(..)
             | InstKind::Create2(..)
             | InstKind::Call { .. }
@@ -929,6 +926,9 @@ impl<'ctx, 'mir> Lowering<'ctx, 'mir> {
                 let mut typed = args.iter().copied().map(Into::into).collect::<Vec<_>>();
                 for &(index, space) in pointers {
                     typed[index] = self.pointer(args[index], space)?.into();
+                }
+                if let InstKind::Log { topics, .. } = inst {
+                    return self.evm(&format!("log{}", topics.len()), &typed, name);
                 }
                 return self.evm(inst.mnemonic(), &typed, name);
             }
@@ -956,39 +956,39 @@ impl<'ctx, 'mir> Lowering<'ctx, 'mir> {
                 let cmp = self.builder.build_int_compare(predicate, args[0], args[1], "cmp")?;
                 self.builder.build_int_z_extend(cmp, self.word_type, name)?
             }
-            InstKind::MLoad(..)
-            | InstKind::MStore(..)
-            | InstKind::SLoad(..)
-            | InstKind::SStore(..)
-            | InstKind::TLoad(..)
-            | InstKind::TStore(..)
+            InstKind::Load(
+                _,
+                PtrLocation::Memory | PtrLocation::Storage | PtrLocation::Transient,
+            )
+            | InstKind::Store(
+                ..,
+                PtrLocation::Memory | PtrLocation::Storage | PtrLocation::Transient,
+            )
             | InstKind::Fmp
             | InstKind::SetFmp(..) => {
                 let space = match inst {
-                    InstKind::SLoad(..) | InstKind::SStore(..) => 5,
-                    InstKind::TLoad(..) | InstKind::TStore(..) => 6,
+                    InstKind::Load(_, PtrLocation::Storage)
+                    | InstKind::Store(.., PtrLocation::Storage) => 5,
+                    InstKind::Load(_, PtrLocation::Transient)
+                    | InstKind::Store(.., PtrLocation::Transient) => 6,
                     _ => 1,
                 };
                 if matches!(inst, InstKind::Fmp | InstKind::SetFmp(..)) {
                     args.insert(0, self.word(self.memory.base + 64));
                 }
-                if matches!(
-                    inst,
-                    InstKind::MStore(..)
-                        | InstKind::SStore(..)
-                        | InstKind::TStore(..)
-                        | InstKind::SetFmp(..)
-                ) {
+                if matches!(inst, InstKind::Store(..) | InstKind::SetFmp(..)) {
                     self.store(args[0], args[1], space)?;
                     return Ok(None);
                 }
                 self.load(args[0], space, space == 1 && self.memory.preserve_expansion, name)?
             }
-            InstKind::CalldataLoad(..) | InstKind::Keccak256(..) | InstKind::MStore8(..) => {
+            InstKind::Load(_, PtrLocation::Calldata)
+            | InstKind::Keccak256(..)
+            | InstKind::Store8(..) => {
                 if self.memory.preserve_expansion && matches!(inst, InstKind::Keccak256(..)) {
                     self.copy_memory(1, true, args[0], args[0], args[1])?;
                 }
-                let space = if matches!(inst, InstKind::CalldataLoad(..)) { 2 } else { 1 };
+                let space = if matches!(inst, InstKind::Load(..)) { 2 } else { 1 };
                 let mut typed = vec![self.pointer(args[0], space)?.into()];
                 typed.extend(args.into_iter().skip(1).map(BasicMetadataValueEnum::from));
                 return self.evm(

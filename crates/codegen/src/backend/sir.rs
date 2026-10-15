@@ -11,8 +11,8 @@
 
 use super::evm::EvmArtifact;
 use crate::mir::{
-    BlockId, Function, InstKind, Module, Terminator, Value, ValueId, analysis::CallGraphInfo,
-    immutable::immutable_staging_base,
+    BlockId, Function, InstKind, Module, PtrLocation, Terminator, Value, ValueId,
+    analysis::CallGraphInfo, immutable::immutable_staging_base,
 };
 use alloy_primitives::hex;
 use sir_stack_scheduling::ScheduleConfig;
@@ -388,8 +388,9 @@ fn function(
                     args.push("ARGS_BASE".into());
                     "copy".into()
                 }
-                InstKind::MLoad(..) => "mload256".into(),
-                InstKind::MStore(..) => "mstore256".into(),
+                InstKind::Load(_, PtrLocation::Memory) => "mload256".into(),
+                InstKind::Store(.., PtrLocation::Memory) => "mstore256".into(),
+                InstKind::Log { topics, .. } => format!("log{}", topics.len()),
                 InstKind::Fmp => {
                     args.push(fmp.to_string());
                     "mload256".into()
@@ -423,15 +424,17 @@ fn function(
                 | InstKind::MulMod(..)
                 | InstKind::Byte(..)
                 | InstKind::SignExtend(..)
-                | InstKind::MStore8(..)
-                | InstKind::MCopy(..)
-                | InstKind::SLoad(..)
-                | InstKind::SStore(..)
-                | InstKind::TLoad(..)
-                | InstKind::TStore(..)
-                | InstKind::CalldataLoad(..)
+                | InstKind::Store8(..)
+                | InstKind::Copy(
+                    ..,
+                    PtrLocation::Memory | PtrLocation::Calldata | PtrLocation::Returndata,
+                )
+                | InstKind::Load(
+                    _,
+                    PtrLocation::Calldata | PtrLocation::Storage | PtrLocation::Transient,
+                )
+                | InstKind::Store(.., PtrLocation::Storage | PtrLocation::Transient)
                 | InstKind::CalldataSize
-                | InstKind::CalldataCopy(..)
                 | InstKind::Caller
                 | InstKind::CallValue
                 | InstKind::Address
@@ -441,7 +444,6 @@ fn function(
                 | InstKind::ExtCodeCopy(..)
                 | InstKind::ExtCodeHash(..)
                 | InstKind::ReturnDataSize
-                | InstKind::ReturnDataCopy(..)
                 | InstKind::Origin
                 | InstKind::GasPrice
                 | InstKind::BlockHash(..)
@@ -462,11 +464,6 @@ fn function(
                 | InstKind::CallCode { .. }
                 | InstKind::DelegateCall { .. }
                 | InstKind::StaticCall { .. }
-                | InstKind::Log0(..)
-                | InstKind::Log1(..)
-                | InstKind::Log2(..)
-                | InstKind::Log3(..)
-                | InstKind::Log4(..)
                 | InstKind::Keccak256(..) => inst.kind.mnemonic().to_owned(),
                 other => return Err(format!("unsupported SIR instruction `{}`", other.mnemonic())),
             };

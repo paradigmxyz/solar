@@ -9,64 +9,64 @@
 fn @sequential(arg0: i256) -> i256 {
   bb0:
     v28 = internal_frame_addr 128
-    v1 = ptrtoint memptr v28 to i256
+    v1 = ptrtoint ptr<memory> v28 to i256
     mstore v1, 0
     v29 = internal_frame_addr 160
-    v2 = ptrtoint memptr v29 to i256
+    v2 = ptrtoint ptr<memory> v29 to i256
     mstore v2, 0
     jump bb1
   bb1:
     v30 = internal_frame_addr 160
-    v3 = ptrtoint memptr v30 to i256
+    v3 = ptrtoint ptr<memory> v30 to i256
     v4 = mload v3
     v5 = lt v4, arg0
     jumpi v5, bb2, bb3
   bb2:
     v31 = internal_frame_addr 128
-    v6 = ptrtoint memptr v31 to i256
+    v6 = ptrtoint ptr<memory> v31 to i256
     v7 = mload v6
     v8 = add v7, 1
     v32 = internal_frame_addr 128
-    v9 = ptrtoint memptr v32 to i256
+    v9 = ptrtoint ptr<memory> v32 to i256
     mstore v9, v8
     v33 = internal_frame_addr 160
-    v10 = ptrtoint memptr v33 to i256
+    v10 = ptrtoint ptr<memory> v33 to i256
     v11 = mload v10
     v12 = add v11, 1
     v34 = internal_frame_addr 160
-    v13 = ptrtoint memptr v34 to i256
+    v13 = ptrtoint ptr<memory> v34 to i256
     mstore v13, v12
     jump bb1
   bb3:
     v35 = internal_frame_addr 192
-    v14 = ptrtoint memptr v35 to i256
+    v14 = ptrtoint ptr<memory> v35 to i256
     mstore v14, 0
     jump bb4
   bb4:
     v36 = internal_frame_addr 192
-    v15 = ptrtoint memptr v36 to i256
+    v15 = ptrtoint ptr<memory> v36 to i256
     v16 = mload v15
     v17 = lt v16, arg0
     jumpi v17, bb5, bb6
   bb5:
     v37 = internal_frame_addr 128
-    v18 = ptrtoint memptr v37 to i256
+    v18 = ptrtoint ptr<memory> v37 to i256
     v19 = mload v18
     v20 = add v19, 1
     v38 = internal_frame_addr 128
-    v21 = ptrtoint memptr v38 to i256
+    v21 = ptrtoint ptr<memory> v38 to i256
     mstore v21, v20
     v39 = internal_frame_addr 192
-    v22 = ptrtoint memptr v39 to i256
+    v22 = ptrtoint ptr<memory> v39 to i256
     v23 = mload v22
     v24 = add v23, 1
     v40 = internal_frame_addr 192
-    v25 = ptrtoint memptr v40 to i256
+    v25 = ptrtoint ptr<memory> v40 to i256
     mstore v25, v24
     jump bb4
   bb6:
     v41 = internal_frame_addr 128
-    v26 = ptrtoint memptr v41 to i256
+    v26 = ptrtoint ptr<memory> v41 to i256
     v27 = mload v26
     ret v27
 }

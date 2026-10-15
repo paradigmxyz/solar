@@ -15,10 +15,11 @@ contract YulMemberMultiAssignment {
     // CHECK: [[RES:v[0-9]+]] = icall @shift
     // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value [[TY:struct[0-9]+]], [[RES]], 0
     // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value [[TY]], [[RES]], 1
-    // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr arg0
+    // CHECK-NEXT: [[PTR:v[0-9]+]] = extract_value slice<calldata>, arg0, 0
     // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[PTR]], [[LEN]]
-    // CHECK-NEXT: [[KEEP:v[0-9]+]] = slice_len [[TMP]]
-    // CHECK-NEXT: make_calldata_slice [[OFF]], [[KEEP]]
+    // CHECK-NEXT: [[KEEP:v[0-9]+]] = extract_value slice<calldata>, [[TMP]], 1
+    // CHECK-NEXT: [[OFF_PTR:v[0-9]+]] = inttoptr i256 [[OFF]] to ptr<calldata>
+    // CHECK-NEXT: make_calldata_slice [[OFF_PTR]], [[KEEP]]
     function array(uint256[] calldata a) external pure returns (uint256, uint256, uint256) {
         assembly {
             function shift(o, l) -> x, y {
@@ -36,10 +37,11 @@ contract YulMemberMultiAssignment {
     // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value [[TY]], [[RES]], 1
     // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value [[TY]], [[RES]], 2
     // CHECK-NEXT: extract_value [[TY]], [[RES]], 3
-    // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr arg0
+    // CHECK-NEXT: [[PTR:v[0-9]+]] = extract_value slice<calldata>, arg0, 0
     // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[PTR]], [[LEN]]
-    // CHECK-NEXT: [[KEEP:v[0-9]+]] = slice_len [[TMP]]
-    // CHECK-NEXT: make_calldata_slice [[OFF]], [[KEEP]]
+    // CHECK-NEXT: [[KEEP:v[0-9]+]] = extract_value slice<calldata>, [[TMP]], 1
+    // CHECK-NEXT: [[OFF_PTR:v[0-9]+]] = inttoptr i256 [[OFF]] to ptr<calldata>
+    // CHECK-NEXT: make_calldata_slice [[OFF_PTR]], [[KEEP]]
     function mixedBytes(bytes calldata b) external pure returns (uint256, uint256, bytes memory) {
         uint256 z;
         uint256 l;
@@ -60,10 +62,11 @@ contract YulMemberMultiAssignment {
     // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value [[TY:struct[0-9]+]], [[RES]], 0
     // CHECK-NEXT: extract_value [[TY]], [[RES]], 1
     // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value [[TY]], [[RES]], 2
-    // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr arg0
+    // CHECK-NEXT: [[PTR:v[0-9]+]] = extract_value slice<calldata>, arg0, 0
     // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[PTR]], [[LEN]]
-    // CHECK-NEXT: [[KEEP:v[0-9]+]] = slice_len [[TMP]]
-    // CHECK-NEXT: make_calldata_slice [[OFF]], [[KEEP]]
+    // CHECK-NEXT: [[KEEP:v[0-9]+]] = extract_value slice<calldata>, [[TMP]], 1
+    // CHECK-NEXT: [[OFF_PTR:v[0-9]+]] = inttoptr i256 [[OFF]] to ptr<calldata>
+    // CHECK-NEXT: make_calldata_slice [[OFF_PTR]], [[KEEP]]
     function mixedString(string calldata s) external pure returns (uint256, string memory) {
         uint256 n;
         assembly {
@@ -81,11 +84,12 @@ contract YulMemberMultiAssignment {
     // CHECK: [[RES:v[0-9]+]] = icall @shift
     // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value [[TY:struct[0-9]+]], [[RES]], 0
     // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value [[TY]], [[RES]], 1
-    // CHECK-NEXT: [[EMPTY:v[0-9]+]] = make_calldata_slice 0, 0
-    // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr [[EMPTY]]
+    // CHECK-NEXT: [[EMPTY:v[0-9]+]] = make_calldata_slice ptr<calldata> 0, 0
+    // CHECK-NEXT: [[PTR:v[0-9]+]] = extract_value slice<calldata>, [[EMPTY]], 0
     // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[PTR]], [[LEN]]
-    // CHECK-NEXT: [[KEEP:v[0-9]+]] = slice_len [[TMP]]
-    // CHECK-NEXT: [[OUT:v[0-9]+]] = make_calldata_slice [[OFF]], [[KEEP]]
+    // CHECK-NEXT: [[KEEP:v[0-9]+]] = extract_value slice<calldata>, [[TMP]], 1
+    // CHECK-NEXT: [[OFF_PTR:v[0-9]+]] = inttoptr i256 [[OFF]] to ptr<calldata>
+    // CHECK-NEXT: [[OUT:v[0-9]+]] = make_calldata_slice [[OFF_PTR]], [[KEEP]]
     // CHECK-NEXT: ret [[OUT]]
     function returned(uint256[] calldata a) external pure returns (uint256[] calldata r) {
         assembly {
@@ -101,9 +105,10 @@ contract YulMemberMultiAssignment {
     // CHECK: [[RES:v[0-9]+]] = icall @shift
     // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value [[TY:struct[0-9]+]], [[RES]], 0
     // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value [[TY]], [[RES]], 1
-    // CHECK-NEXT: [[KEEP:v[0-9]+]] = slice_len arg0
-    // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[OFF]], [[KEEP]]
-    // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr [[TMP]]
+    // CHECK-NEXT: [[KEEP:v[0-9]+]] = extract_value slice<calldata>, arg0, 1
+    // CHECK-NEXT: [[OFF_PTR:v[0-9]+]] = inttoptr i256 [[OFF]] to ptr<calldata>
+    // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[OFF_PTR]], [[KEEP]]
+    // CHECK-NEXT: [[PTR:v[0-9]+]] = extract_value slice<calldata>, [[TMP]], 0
     // CHECK-NEXT: make_calldata_slice [[PTR]], [[LEN]]
     function reversed(uint256[] calldata a) external pure returns (uint256, uint256) {
         assembly {

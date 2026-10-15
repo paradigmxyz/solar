@@ -4,22 +4,22 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibrary ===
 @module InternalFunctionPointerLibrary
-fn @f(arg0: memptr) -> i256 [selector=0x7bc5bbbf, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: ptr<memory>) -> i256 [selector=0x7bc5bbbf, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @reduce, arg0, 2, 0
     ret v0
 }
 
-fn @reduce(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
+fn @reduce(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v12]
+    v1 = phi [bb0: 0], [bb3: v15]
     v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: arg2], [bb3: v11]
+    v3 = phi [bb0: arg2], [bb3: v14]
     v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = memory_object_len memoryarray, v2
+    v5 = mload v2
     v6 = lt v1, v5
     jumpi v6, bb4, bb5
   bb5:
@@ -27,17 +27,20 @@ fn @reduce(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
   bb2:
     ret v3
   bb4:
-    v7 = memory_object_len memoryarray, v2
+    v7 = mload v2
     v8 = lt v1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = memory_object_load_element memoryarray<1>, v2, v1
-    v11 = icall @internal_dispatcher_p_u256_u256_r_u256, v4, v10, v3
+    v10 = shl 5, v1
+    v11 = ptradd v2, v10
+    v12 = ptradd v11, 32
+    v13 = mload v12
+    v14 = icall @internal_dispatcher_p_u256_u256_r_u256, v4, v13, v3
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v12 = checked_add u256, v1, 1
+    v15 = checked_add u256, v1, 1
     jump bb1
 }
 

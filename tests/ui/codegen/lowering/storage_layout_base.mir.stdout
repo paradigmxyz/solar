@@ -73,24 +73,26 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
 @module LayoutErc7201
 fn @matchesReference() -> i1 [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 12
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
-    v3 = icall @erc7201Reference, v0
-    v4 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v3
-    ret v4
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 12
+    v1 = ptradd v0, 32
+    mstore v1, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
+    v2 = icall @erc7201Reference, v0
+    v3 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v2
+    ret v3
 }
 
-fn @erc7201Reference(arg0: memptr) -> i256 [pure] {
+fn @erc7201Reference(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = keccak256_bytes arg0
-    v1 = checked_sub u256, v0, 1
-    v2 = shl 0, v1
-    v3 = icall concat<bytes32>, v2
-    v4 = keccak256_bytes v3
-    v5 = not 255
-    v6 = and v4, v5
-    ret v6
+    v0 = ptradd arg0, 32
+    v1 = mload arg0
+    v2 = keccak256 v0, v1
+    v3 = checked_sub u256, v2, 1
+    v4 = shl 0, v3
+    v5 = abi_encode_packed (bytes32 v4)
+    v6 = ptradd v5, 32
+    v7 = mload v5
+    v8 = keccak256 v6, v7
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v9
 }

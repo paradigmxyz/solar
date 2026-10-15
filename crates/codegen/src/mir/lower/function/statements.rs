@@ -45,7 +45,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let value = if !self.in_inline_assembly
                     && let Some(expr) = initializer
-                    && let Ok(ConstValue::Integer(value)) = self.cx.gcx.try_eval_const_value(expr)
+                    && let Ok(value) = self.cx.gcx.const_eval().eval_int(expr)
                     && let Some(value) = value.as_u256()
                 {
                     let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -305,21 +305,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
-        // Like solc, a constant evaluates its initializer at every use, which can revert.
+        // Reading a constant with a value has no effects. One without a value runs its helper,
+        // which can revert.
         let gcx = self.cx.gcx;
         if let Some(id) = gcx.resolved_variable(expr)
-            && let variable = gcx.hir.variable(id)
-            && variable.is_constant()
-            && let Some(initializer) = variable.initializer
+            && gcx.hir.variable(id).is_constant()
         {
-            if gcx.try_eval_const_value(initializer).is_ok() {
-                return Some(());
+            if gcx.const_eval().eval_var(id).is_err() {
+                return self.call_constant_helper(id).map(drop);
             }
-            return self.lower_discarded_expr(initializer);
+            return Some(());
         }
         match &expr.kind {
             // Names and `new T` have no effects to evaluate.
             ExprKind::Ident(_) | ExprKind::New(_) => Some(()),
+            // Neither does literal arithmetic, whose fractions have no runtime value.
+            _ if expr.is_numeric_literal() => Some(()),
             ExprKind::Call(callee, args) => {
                 let (callee, options) = callee.split_call_options();
                 self.lower_call(expr, callee, *args, options, false).map(drop)
@@ -586,7 +587,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let validated_static =
                             self.validate_calldata_static_argument(value, parameter_ty);
                         let calldata_dynamic = self.builder.func().value_slice_location(value)
-                            == Some(SliceLocation::Calldata)
+                            == Some(PtrLocation::Calldata)
                             && abi_type.is_dynamic();
                         if (calldata_dynamic
                             || self.needs_calldata_materialization(value, &abi_type))
@@ -644,26 +645,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (zero, zero)
         } else if matches!(data_types.as_slice(), [AbiType::Word(_)]) {
             let zero = self.builder.imm(0);
-            self.builder.mstore(zero, data_values[0]);
+            self.builder.store(zero, data_values[0]);
             (zero, self.builder.imm(32))
         } else {
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
             let encoded = self.builder.abi_encode(layout, None, data_values.into_boxed_slice());
             (self.builder.slice_ptr(encoded), self.builder.slice_len(encoded))
         };
-        // log0..log4(data.data, data.length, topics...)
-        match topics.as_slice() {
-            [] => self.builder.log0(data_ptr, data_size),
-            &[topic] => self.builder.log1(data_ptr, data_size, topic),
-            &[topic1, topic2] => self.builder.log2(data_ptr, data_size, topic1, topic2),
-            &[topic1, topic2, topic3] => {
-                self.builder.log3(data_ptr, data_size, topic1, topic2, topic3)
-            }
-            &[topic1, topic2, topic3, topic4] => {
-                self.builder.log4(data_ptr, data_size, topic1, topic2, topic3, topic4)
-            }
-            _ => return self.cx.report_unsupported(args.span, "event topic list"),
+        // log data.data, data.length, topics...
+        if topics.len() > LogTopics::MAX {
+            return self.cx.report_unsupported(args.span, "event topic list");
         }
+        self.builder.log(data_ptr, data_size, &topics);
         Some(())
     }
 
@@ -747,9 +740,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
             return value;
         }
-        if matches!(self.builder.func().value_ty(value), Some(MirType::MemPtr)) {
+        if matches!(self.builder.func().value_ty(value), Some(MirType::MEMPTR)) {
             let zero = self.builder.imm(0);
-            return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
+            return self.builder.slice_load_word(value, zero);
         }
         value
     }

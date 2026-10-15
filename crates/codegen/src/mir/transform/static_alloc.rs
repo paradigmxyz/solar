@@ -20,10 +20,10 @@
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
-    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
-    MemoryObjectLayout, Module, Terminator, Value, ValueId,
+    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
+    PtrLocation, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
-    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+    memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
 use alloy_primitives::U256;
@@ -170,7 +170,9 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
         | InstKind::Fmp
         | InstKind::SetFmp(_)
         | InstKind::ICall { function: Callee::Function(_), .. } => true,
-        InstKind::MLoad(address) => func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT),
+        InstKind::Load(address, PtrLocation::Memory) => {
+            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        }
         _ => false,
     }
 }
@@ -242,7 +244,7 @@ fn eligible_static_allocations(
     let mut candidates = Vec::new();
     for block in func.blocks.indices() {
         for &alloc in &func.blocks[block].instructions {
-            let InstKind::Alloc { size, semantics, .. } = func.inst(alloc).kind else {
+            let InstKind::Alloc { size, semantics } = func.inst(alloc).kind else {
                 continue;
             };
             if semantics != crate::mir::AllocationSemantics::INTERNAL
@@ -332,18 +334,26 @@ fn candidate_uses_are_safe(
                     };
                     base_offset.checked_add(offset)
                 }
-                InstKind::MemoryObjectData(object, kind) if object == value => derived
-                    .get(&value)
-                    .and_then(|&base| base.checked_add(EvmMemoryLayout::object_data_offset(kind))),
-                InstKind::MemoryObjectFieldAddr { object, layout, field } if object == value => {
-                    derived.get(&value).and_then(|&base| {
-                        EvmMemoryLayout::field_offset(layout, field)?.checked_add(base)
-                    })
+                InstKind::PtrAdd(base, offset) => {
+                    let (Some(base_offset), Some(offset)) =
+                        (derived.get(&base).copied(), func.value_u64(offset))
+                    else {
+                        return false;
+                    };
+                    base_offset.checked_add(offset)
                 }
-                InstKind::MemoryObjectElementAddr { object, layout, index } if object == value => {
-                    derived.get(&value).and_then(|&base| {
-                        object_element_offset(layout, func.value_u64(index))?.checked_add(base)
-                    })
+                InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    aggregate: slice,
+                    index: MirType::SLICE_PTR_FIELD,
+                } => {
+                    let Some(&data) = derived.get(&slice) else { continue };
+                    derived.insert(result, data);
+                    pending.push(result);
+                    continue;
+                }
+                InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. } if ptr == value => {
+                    derived.get(&value).copied()
                 }
                 _ => continue,
             };
@@ -358,9 +368,6 @@ fn candidate_uses_are_safe(
 
     // Every use of every derived address must be a bounded memory access.
     let in_range = |off: u64, len: u64| off.checked_add(len).is_some_and(|end| end <= cand.size);
-    let in_range_at = |off: u64, offset: u64, len: u64| {
-        off.checked_add(offset).is_some_and(|address| in_range(address, len))
-    };
     for (&operand, &off) in &derived {
         for &inst_id in &uses.instructions[operand] {
             if inst_id == cand.alloc {
@@ -368,96 +375,44 @@ fn candidate_uses_are_safe(
             }
             let kind = func.inst(inst_id).kind.clone();
             let ok = match kind {
-                InstKind::MLoad(addr) => operand == addr && in_range(off, 32),
-                InstKind::MStore(addr, value) => {
+                InstKind::Load(addr, PtrLocation::Memory) => operand == addr && in_range(off, 32),
+                InstKind::Store(addr, value, PtrLocation::Memory) => {
                     operand == addr && !derived.contains_key(&value) && in_range(off, 32)
                 }
+                InstKind::Store8(addr, value) => {
+                    operand == addr && !derived.contains_key(&value) && in_range(off, 1)
+                }
                 InstKind::Keccak256(addr, size)
-                | InstKind::Log0(addr, size)
+                | InstKind::Log { offset: addr, size, .. }
                 | InstKind::MemoryZero(addr, size)
-                | InstKind::CalldataCopy(addr, _, size)
+                | InstKind::Copy(addr, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
                 | InstKind::DataCopy(_, addr, size)
-                | InstKind::ReturnDataCopy(addr, _, size)
                 | InstKind::CodeCopy(addr, _, size) => {
                     operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))
                 }
-                InstKind::Log1(addr, size, _)
-                | InstKind::Log2(addr, size, _, _)
-                | InstKind::Log3(addr, size, _, _, _)
-                | InstKind::Log4(addr, size, _, _, _, _) => {
-                    operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))
-                }
-                InstKind::MCopy(dest, src, size) => {
+                InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
                     (operand == dest || operand == src)
                         && func.value_u64(size).is_some_and(|len| in_range(off, len))
                 }
                 // In-bounds derivations were collected above; anything
                 // else consuming an address is an escape.
-                InstKind::Add(_, _) | InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => {
+                InstKind::Add(_, _)
+                | InstKind::PtrAdd(_, _)
+                | InstKind::PtrToInt(_, 256)
+                | InstKind::IntToPtr(_)
+                | InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    index: MirType::SLICE_PTR_FIELD,
+                    ..
+                }
+                | InstKind::MakeSlice { .. } => {
                     func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
-                InstKind::MemoryObjectData(_, _)
-                | InstKind::MemoryObjectFieldAddr { .. }
-                | InstKind::MemoryObjectElementAddr { .. } => {
-                    func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
-                }
-                InstKind::MemoryObjectLen(object, kind) => {
-                    operand == object
-                        && EvmMemoryLayout::object_length_offset(kind)
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
-                }
-                InstKind::SetMemoryObjectLen(object, len, kind) => {
-                    operand == object
-                        && !derived.contains_key(&len)
-                        && EvmMemoryLayout::object_length_offset(kind)
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
-                }
-                InstKind::MemoryObjectLoadField { object, layout, field } => {
-                    operand == object
-                        && EvmMemoryLayout::field_offset(layout, field)
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
-                }
-                InstKind::MemoryObjectStoreField { object, layout, field, value } => {
-                    operand == object
-                        && !derived.contains_key(&value)
-                        && EvmMemoryLayout::field_offset(layout, field)
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
-                }
-                InstKind::MemoryObjectLoadElement { object, layout, index } => {
-                    operand == object
-                        && object_element_offset(layout, func.value_u64(index))
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
-                }
-                InstKind::MemoryObjectLoadByte { object, index } => {
-                    operand == object
-                        && func.value_u64(index).is_some_and(|index| {
-                            object_byte_offset(index)
-                                .is_some_and(|offset| in_range_at(off, offset, 1))
-                        })
-                }
-                InstKind::MemoryObjectStoreElement { object, layout, index, value } => {
-                    operand == object
-                        && !derived.contains_key(&value)
-                        && object_element_offset(layout, func.value_u64(index))
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
-                }
-                InstKind::MemoryObjectStoreByte { object, index, value } => {
-                    operand == object
-                        && !derived.contains_key(&value)
-                        && func.value_u64(index).is_some_and(|index| {
-                            object_byte_offset(index)
-                                .is_some_and(|offset| in_range_at(off, offset, 1))
-                        })
-                }
-                InstKind::MemoryObjectStoreWord { object, offset, value } => {
-                    operand == object
-                        && !derived.contains_key(&value)
-                        && func.value_u64(offset).is_some_and(|offset| {
-                            EvmMemoryLayout::object_data_offset(MemoryObjectKind::Bytes)
-                                .checked_add(offset)
-                                .is_some_and(|offset| in_range_at(off, offset, 32))
-                        })
-                }
+                InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    index: MirType::SLICE_LEN_FIELD,
+                    ..
+                } => true,
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     call_use_is_safe(function, &args, operand, calls, summaries)
                 }
@@ -486,16 +441,6 @@ fn candidate_uses_are_safe(
     }
 
     true
-}
-
-fn object_element_offset(layout: MemoryObjectLayout, index: Option<u64>) -> Option<u64> {
-    let index = index?;
-    let stride = EvmMemoryLayout::element_stride(layout)?;
-    EvmMemoryLayout::object_data_offset(layout.kind()).checked_add(index.checked_mul(stride)?)
-}
-
-fn object_byte_offset(index: u64) -> Option<u64> {
-    EvmMemoryLayout::object_data_offset(MemoryObjectKind::Bytes).checked_add(index)
 }
 
 fn call_use_is_safe(

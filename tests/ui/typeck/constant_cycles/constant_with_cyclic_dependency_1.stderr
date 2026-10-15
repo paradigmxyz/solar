@@ -1,0 +1,8 @@
+error[6161]: the value of the constant `a` has a cyclic dependency via `a`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/constant_with_cyclic_dependency_1.sol:LL:CC
+   │
+LL │     uint constant a = a;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

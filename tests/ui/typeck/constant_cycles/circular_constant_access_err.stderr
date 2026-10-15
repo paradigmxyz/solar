@@ -1,0 +1,8 @@
+error[3558]: constant variable is circular
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/circular_constant_access_err.sol:LL:CC
+   │
+LL │             t := x
+   ╰╴                 ━
+
+error: aborting due to 1 previous error
+

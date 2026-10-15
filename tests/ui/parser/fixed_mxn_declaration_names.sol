@@ -29,7 +29,6 @@ contract C {
         _;
     }
 
-    // The declaration fails, so `fixed128x18()` below is a type conversion.
     function fixed128x18() internal { //~ ERROR: expected identifier, found keyword `fixed128x18`
         x = 1;
     }
@@ -38,11 +37,6 @@ contract C {
 
     function g() public {
         uint fixed8x8; //~ ERROR: expected identifier, found keyword `fixed8x8`
-    }
-
-    function h() public returns (uint) {
-        fixed128x18(); //~ ERROR: expected exactly one unnamed argument
-        return x;
     }
 
     function y() public pure returns (uint r) {

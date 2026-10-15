@@ -3,8 +3,8 @@
   @module StaticAllocCallCaptures
   fn @returning_caller() -> i256 [selector=0x01020304] {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 7
       v2 = icall @returns, v1
       ret v2
@@ -12,8 +12,8 @@
   
   fn @masking_caller() -> i256 [selector=0x01020305] {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 7
       v2 = icall @masks, v1
       ret v2
@@ -21,8 +21,8 @@
   
   fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 7
       v2 = icall @dereferences, v1
       ret v2
@@ -72,8 +72,8 @@
   @module StaticAllocCallCaptures
   fn @returning_caller() -> i256 [selector=0x01020304] {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 7
       v2 = icall @returns, v1
       ret v2
@@ -81,8 +81,8 @@
   
   fn @masking_caller() -> i256 [selector=0x01020305] {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 7
       v2 = icall @masks, v1
       ret v2
@@ -90,9 +90,9 @@
   
   fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     bb0:
--     v0 = alloc raw, exact, uninitialized, infallible, 32
--     v1 = ptrtoint memptr v0 to i256
-+     v1 = ptrtoint memptr 128 to i256
+-     v0 = alloc 32
+-     v1 = ptrtoint ptr<memory> v0 to i256
++     v1 = ptrtoint ptr<memory> 128 to i256
       mstore v1, 7
       v2 = icall @dereferences, v1
       ret v2

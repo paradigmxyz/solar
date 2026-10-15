@@ -1,0 +1,8 @@
+error: expected a struct type
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_slice_insert_value.mir:LL:CC
+   │
+LL │     v0 = insert_value slice<calldata>, arg0, 1, 0
+   ╰╴                                     ━
+
+error: aborting due to 1 previous error
+

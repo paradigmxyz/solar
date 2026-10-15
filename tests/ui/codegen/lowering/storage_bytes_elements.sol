@@ -26,7 +26,7 @@ contract StorageBytesElements {
 
     // CHECK-LABEL: fn @hashB{{[( ]}}
     // CHECK: load_storage_bytes 0
-    // CHECK: keccak256_bytes {{v[0-9]+}}
+    // CHECK: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
     function hashB() public view returns (bytes32) {
         return keccak256(b);
     }
@@ -70,8 +70,10 @@ contract StorageStringBase {
 
 contract StorageStringDerived is StorageStringBase {
     // CHECK-LABEL: fn @constructor{{[( ]}}
-    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 9
-    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 4
+    // CHECK: [[STR:v[0-9]+]] = alloc
+    // CHECK: mstore [[STR]], 9
+    // CHECK: [[STR:v[0-9]+]] = alloc
+    // CHECK: mstore [[STR]], 4
     // CHECK: icall @store_storage_bytes, 0,
     // CHECK: icall @store_storage_bytes, 1,
     // CHECK-LABEL: fn @name{{[( ]}}
@@ -82,8 +84,10 @@ contract StorageStringDerived is StorageStringBase {
 }
 
 // CHECK-LABEL: fn @constructor{{[( ]}}
-// CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 17
-// CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 3
+// CHECK: [[STR:v[0-9]+]] = alloc
+// CHECK: mstore [[STR]], 17
+// CHECK: [[STR:v[0-9]+]] = alloc
+// CHECK: mstore [[STR]], 3
 // CHECK: icall @store_storage_bytes, 0,
 // CHECK: icall @store_storage_bytes, 1,
 contract StorageStringImplicitDerived is StorageStringBase("Base Literal Name", "BLN") {}

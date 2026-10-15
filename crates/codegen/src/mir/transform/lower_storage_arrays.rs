@@ -44,7 +44,7 @@ pub(super) fn load(
             builder.validate_enum_value(variants, value);
         }
         // array[index] = value
-        builder.memory_object_store_element(object, layout, index, value);
+        builder.memory_store_element(object, layout, index, value);
     });
     object
 }

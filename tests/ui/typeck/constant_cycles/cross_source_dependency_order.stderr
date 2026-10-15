@@ -1,0 +1,20 @@
+error[6161]: the value of the constant `Z` has a cyclic dependency via `Z`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/auxiliary/cross_source_dependency_order.sol:LL:CC
+   │
+LL │ uint constant Z = Z;
+   ╰╴━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `Y` has a cyclic dependency via `Y`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol:LL:CC
+   │
+LL │ uint constant Y = Y;
+   ╰╴━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `X` has a cyclic dependency via `Z`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol:LL:CC
+   │
+LL │ uint constant X = Z + Y;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

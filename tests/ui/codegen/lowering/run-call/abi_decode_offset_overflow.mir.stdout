@@ -2,99 +2,112 @@
 @module AbiDecodeOffsetOverflow
 fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
     v1 = abi_encode [word, word, word], object, args 32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v2 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<1>, v2, 0, 0
-    memory_object_store_field memorystruct<1>, v2, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v3 = memory_object_len memoryarray, v0
+    v2 = alloc 32 !metadata(preserves_fmp)
+    mstore v2, 0
+    mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v3 = mload v0
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    memory_object_store_element memoryarray<1>, v0, 0, 0x1e240
-    v6 = abi_decode [array<2, array<_, u256>>], v1
-    v7 = lt 1, 2
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = memory_object_load_element memoryfixedarray<2, 1>, v6, 1
-    v10 = inttoptr i256 v9 to memptr
-    v11 = eq v9, 0
-    jumpi v11, bb1, bb2
+    v6 = ptradd v0, 32
+    mstore v6, 0x1e240
+    v7 = abi_decode [array<2, array<_, u256>>], v1
+    v8 = lt 1, 2
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = ptradd v7, 32
+    v11 = mload v10
+    v12 = inttoptr i256 v11 to ptr<memory>
+    v13 = eq v11, 0
+    jumpi v13, bb1, bb2
   bb1:
-    v12 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v12, 0
-    v13 = ptrtoint memptr v12 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v6, 1, v13
+    v14 = alloc 32
+    mstore v14, 0
+    v15 = ptradd v7, 32
+    v16 = ptrtoint ptr<memory> v14 to i256
+    mstore v15, v16
     jump bb2
   bb2:
-    v14 = phi [bb0: v10], [bb1: v12]
-    v15 = memory_object_len memoryarray, v14
-    v16 = lt 0, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = memory_object_load_element memoryarray<1>, v14, 0
-    ret v18
+    v17 = phi [bb0: v12], [bb1: v14]
+    v18 = mload v17
+    v19 = lt 0, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = ptradd v17, 32
+    v22 = mload v21
+    ret v22
 }
 
 fn @withinArray() -> i256 [selector=0xac457954, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
     v1 = abi_encode [word, word], object, args 32, 2
-    v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v2, 0, 0
-    memory_object_store_field memorystruct<2>, v2, 1, 0
-    v3 = memory_object_len memoryarray, v0
-    v4 = lt 0, v3
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    memory_object_store_element memoryarray<1>, v0, 0, 0x1e240
-    memory_object_store_field memorystruct<2>, v2, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
-    memory_object_store_field memorystruct<2>, v2, 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
-    v6 = abi_decode [array<_, array<_, u256>>], v1
-    v7 = memory_object_len memoryarray, v6
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = memory_object_load_element memoryarray<1>, v6, 0
-    v11 = inttoptr i256 v10 to memptr
-    v12 = eq v10, 0
-    jumpi v12, bb1, bb2
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 0
+    v3 = ptradd v2, 32
+    mstore v3, 0
+    v4 = mload v0
+    v5 = lt 0, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = ptradd v0, 32
+    mstore v7, 0x1e240
+    mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
+    v8 = ptradd v2, 32
+    mstore v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
+    v9 = abi_decode [array<_, array<_, u256>>], v1
+    v10 = mload v9
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptradd v9, 32
+    v14 = mload v13
+    v15 = inttoptr i256 v14 to ptr<memory>
+    v16 = eq v14, 0
+    jumpi v16, bb1, bb2
   bb1:
-    v13 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v13, 0
-    v14 = ptrtoint memptr v13 to i256
-    memory_object_store_element memoryarray<1>, v6, 0, v14
+    v17 = alloc 32
+    mstore v17, 0
+    v18 = ptradd v9, 32
+    v19 = ptrtoint ptr<memory> v17 to i256
+    mstore v18, v19
     jump bb2
   bb2:
-    v15 = phi [bb0: v11], [bb1: v13]
-    v16 = memory_object_len memoryarray, v15
-    v17 = lt 0, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = memory_object_load_element memoryarray<1>, v15, 0
-    v20 = memory_object_len memoryarray, v6
-    v21 = lt 1, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = memory_object_load_element memoryarray<1>, v6, 1
-    v24 = inttoptr i256 v23 to memptr
-    v25 = eq v23, 0
-    jumpi v25, bb3, bb4
+    v20 = phi [bb0: v15], [bb1: v17]
+    v21 = mload v20
+    v22 = lt 0, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = ptradd v20, 32
+    v25 = mload v24
+    v26 = mload v9
+    v27 = lt 1, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = ptradd v9, 64
+    v30 = mload v29
+    v31 = inttoptr i256 v30 to ptr<memory>
+    v32 = eq v30, 0
+    jumpi v32, bb3, bb4
   bb3:
-    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v26, 0
-    v27 = ptrtoint memptr v26 to i256
-    memory_object_store_element memoryarray<1>, v6, 1, v27
+    v33 = alloc 32
+    mstore v33, 0
+    v34 = ptradd v9, 64
+    v35 = ptrtoint ptr<memory> v33 to i256
+    mstore v34, v35
     jump bb4
   bb4:
-    v28 = phi [bb2: v24], [bb3: v26]
-    v29 = memory_object_len memoryarray, v28
-    v30 = lt 0, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = memory_object_load_element memoryarray<1>, v28, 0
-    v33 = checked_add u256, v19, v32
-    ret v33
+    v36 = phi [bb2: v31], [bb3: v33]
+    v37 = mload v36
+    v38 = lt 0, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = ptradd v36, 32
+    v41 = mload v40
+    v42 = checked_add u256, v25, v41
+    ret v42
 }

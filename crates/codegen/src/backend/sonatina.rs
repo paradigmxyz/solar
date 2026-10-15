@@ -11,7 +11,7 @@
 
 use super::evm::EvmArtifact;
 use crate::mir::{
-    InstKind, Module, Terminator, Value, ValueId, analysis::CallGraphInfo,
+    InstKind, Module, PtrLocation, Terminator, Value, ValueId, analysis::CallGraphInfo,
     immutable::immutable_staging_base,
 };
 use alloy_primitives::{U256, ruint::UintTryFrom};
@@ -423,9 +423,12 @@ fn lower_function(
                 .map(|v| values[v.index()].ok_or("missing Sonatina operand"))
                 .collect::<Result<Vec<_>, _>>()?;
             if preserve_expansion
-                && matches!(inst.kind, InstKind::MLoad(..) | InstKind::Keccak256(..))
+                && matches!(
+                    inst.kind,
+                    InstKind::Load(_, PtrLocation::Memory) | InstKind::Keccak256(..)
+                )
             {
-                let length = if matches!(inst.kind, InstKind::MLoad(..)) {
+                let length = if matches!(inst.kind, InstKind::Load(..)) {
                     imm(&mut b, 32u64)
                 } else {
                     args[1]
@@ -636,28 +639,28 @@ fn operation(
         InstKind::Byte(..) => word!(b, evm::EvmByte, args[0], args[1]),
         InstKind::SignExtend(..) => word!(b, evm::EvmSignExtend, args[0], args[1]),
         InstKind::Clz(..) => word!(b, evm::EvmClz, args[0]),
-        InstKind::MLoad(..) => word!(b, evm::EvmMload, args[0]),
-        InstKind::MStore(..) => {
+        InstKind::Load(_, PtrLocation::Memory) => word!(b, evm::EvmMload, args[0]),
+        InstKind::Store(.., PtrLocation::Memory) => {
             effect!(b, evm::EvmMstore, args[0], args[1]);
             return Ok(None);
         }
-        InstKind::MStore8(..) => {
+        InstKind::Store8(..) => {
             effect!(b, evm::EvmMstore8, args[0], args[1]);
             return Ok(None);
         }
-        InstKind::SLoad(..) => word!(b, evm::EvmSload, args[0]),
-        InstKind::SStore(..) => {
+        InstKind::Load(_, PtrLocation::Storage) => word!(b, evm::EvmSload, args[0]),
+        InstKind::Store(.., PtrLocation::Storage) => {
             effect!(b, evm::EvmSstore, args[0], args[1]);
             return Ok(None);
         }
-        InstKind::TLoad(..) => word!(b, evm::EvmTload, args[0]),
-        InstKind::TStore(..) => {
+        InstKind::Load(_, PtrLocation::Transient) => word!(b, evm::EvmTload, args[0]),
+        InstKind::Store(.., PtrLocation::Transient) => {
             effect!(b, evm::EvmTstore, args[0], args[1]);
             return Ok(None);
         }
-        InstKind::CalldataLoad(..) => word!(b, evm::EvmCalldataLoad, args[0]),
+        InstKind::Load(_, PtrLocation::Calldata) => word!(b, evm::EvmCalldataLoad, args[0]),
         InstKind::CalldataSize => word!(b, evm::EvmCalldataSize),
-        InstKind::CalldataCopy(..) => {
+        InstKind::Copy(.., PtrLocation::Calldata) => {
             effect!(b, evm::EvmCalldataCopy, args[0], args[1], args[2]);
             return Ok(None);
         }
@@ -677,7 +680,7 @@ fn operation(
         }
         InstKind::ExtCodeHash(..) => word!(b, evm::EvmExtCodeHash, args[0]),
         InstKind::ReturnDataSize => word!(b, evm::EvmReturnDataSize),
-        InstKind::ReturnDataCopy(..) => {
+        InstKind::Copy(.., PtrLocation::Returndata) => {
             effect!(b, evm::EvmReturnDataCopy, args[0], args[1], args[2]);
             return Ok(None);
         }
@@ -697,7 +700,7 @@ fn operation(
         InstKind::BlobBaseFee => word!(b, evm::EvmBlobBaseFee),
         InstKind::BlobHash(..) => word!(b, evm::EvmBlobHash, args[0]),
         InstKind::MSize => word!(b, evm::EvmMsize),
-        InstKind::MCopy(..) => {
+        InstKind::Copy(.., PtrLocation::Memory) => {
             effect!(b, evm::EvmMcopy, args[0], args[1], args[2]);
             return Ok(None);
         }
@@ -723,24 +726,14 @@ fn operation(
         InstKind::StaticCall { .. } => {
             word!(b, evm::EvmStaticCall, args[0], args[1], args[2], args[3], args[4], args[5])
         }
-        InstKind::Log0(..) => {
-            effect!(b, evm::EvmLog0, args[0], args[1]);
-            return Ok(None);
-        }
-        InstKind::Log1(..) => {
-            effect!(b, evm::EvmLog1, args[0], args[1], args[2]);
-            return Ok(None);
-        }
-        InstKind::Log2(..) => {
-            effect!(b, evm::EvmLog2, args[0], args[1], args[2], args[3]);
-            return Ok(None);
-        }
-        InstKind::Log3(..) => {
-            effect!(b, evm::EvmLog3, args[0], args[1], args[2], args[3], args[4]);
-            return Ok(None);
-        }
-        InstKind::Log4(..) => {
-            effect!(b, evm::EvmLog4, args[0], args[1], args[2], args[3], args[4], args[5]);
+        InstKind::Log { topics, .. } => {
+            match topics.len() {
+                0 => effect!(b, evm::EvmLog0, args[0], args[1]),
+                1 => effect!(b, evm::EvmLog1, args[0], args[1], args[2]),
+                2 => effect!(b, evm::EvmLog2, args[0], args[1], args[2], args[3]),
+                3 => effect!(b, evm::EvmLog3, args[0], args[1], args[2], args[3], args[4]),
+                _ => effect!(b, evm::EvmLog4, args[0], args[1], args[2], args[3], args[4], args[5]),
+            }
             return Ok(None);
         }
         InstKind::Add(..) => word!(b, arith::Add, args[0], args[1]),

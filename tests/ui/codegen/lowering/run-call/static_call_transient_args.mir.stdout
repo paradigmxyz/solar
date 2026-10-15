@@ -35,16 +35,16 @@ fn @isOperation(arg0: i256) -> i1 [selector=0x31d50750, view, abi_params=[bytes3
     ret v2
 }
 
-fn @hashOperationBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [calldata_array<word<u160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = keccak256 v1, v2
     ret v3
 }
 
-fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mapping_slot 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0
     v1 = caller
@@ -58,13 +58,13 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb3:
     jump bb4
   bb4:
-    v10 = slice_len arg0
-    v11 = slice_len arg1
+    v10 = extract_value slice<calldata>, arg0, 1
+    v11 = extract_value slice<calldata>, arg1, 1
     v12 = ne v10, v11
     jumpi v12, bb7, bb6
   bb6:
-    v13 = slice_len arg0
-    v14 = slice_len arg2
+    v13 = extract_value slice<calldata>, arg0, 1
+    v14 = extract_value slice<calldata>, arg2, 1
     v15 = ne v13, v14
     jump bb8
   bb7:
@@ -84,23 +84,23 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v23 = phi [bb11: arg2], [bb14: v23]
     v24 = phi [bb11: v20], [bb14: v24]
     v25 = phi [bb11: arg3], [bb14: v25]
-    v26 = phi [bb11: 0], [bb14: v103]
+    v26 = phi [bb11: 0], [bb14: v108]
     v27 = phi [bb11: arg0], [bb14: v27]
     v28 = phi [bb11: arg4], [bb14: v28]
     v29 = phi [bb11: arg1], [bb14: v29]
-    v30 = slice_len v27
+    v30 = extract_value slice<calldata>, v27, 1
     v31 = lt v26, v30
     jumpi v31, bb15, bb16
   bb16:
     jump bb13
   bb13:
-    v104 = ne v28, 0
-    jumpi v104, bb18, bb19
+    v109 = ne v28, 0
+    jumpi v109, bb18, bb19
   bb19:
     jump bb20
   bb18:
     mstore 0, v28 !metadata(memory=scratch)
-    log2 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v24
+    log 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v24
     jump bb20
   bb20:
     jump bb5
@@ -109,11 +109,11 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb1:
     ret v24
   bb15:
-    v32 = slice_len v27
+    v32 = extract_value slice<calldata>, v27, 1
     v33 = lt v26, v32
     v34 = eq v33, false
     icall panic_if<0x32>, v34
-    v35 = slice_ptr v27
+    v35 = extract_value slice<calldata>, v27, 0
     v36 = mul v26, 32
     v37 = eq 32, 0
     v38 = div v36, 32
@@ -122,88 +122,93 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v41 = zext i1 v40 to i256
     v42 = eq v41, 0
     icall panic_if<0x41>, v42
-    v43 = add v35, v36
-    v44 = calldataload v43
-    v45 = shr 160, v44
-    v46 = eq v45, 0
-    v47 = eq v46, false
-    icall revert_if<empty>, v47
-    v48 = trunc i256 v44 to i160
-    v49 = slice_len v29
-    v50 = lt v26, v49
-    v51 = eq v50, false
-    icall panic_if<0x32>, v51
-    v52 = slice_ptr v29
-    v53 = mul v26, 32
-    v54 = eq 32, 0
-    v55 = div v53, 32
-    v56 = eq v55, v26
-    v57 = or v54, v56
-    v58 = zext i1 v57 to i256
-    v59 = eq v58, 0
-    icall panic_if<0x41>, v59
-    v60 = add v52, v53
-    v61 = calldataload v60
-    v62 = slice_len v23
-    v63 = lt v26, v62
-    v64 = eq v63, false
-    icall panic_if<0x32>, v64
-    v65 = slice_ptr v23
-    v66 = mul v26, 32
-    v67 = eq 32, 0
-    v68 = div v66, 32
-    v69 = eq v68, v26
-    v70 = or v67, v69
-    v71 = zext i1 v70 to i256
-    v72 = eq v71, 0
-    icall panic_if<0x41>, v72
-    v73 = add v65, v66
-    v74 = calldatasize
-    v75 = sub v74, v73
-    v76 = slt v75, 32
-    icall revert_if<calldata_tail_too_short>, v76
-    v77 = calldataload v73
-    v78 = add v65, v77
-    v79 = calldatasize
-    v80 = sub v79, v65
-    v81 = sub v80, 31
-    v82 = slt v77, v81
-    v83 = eq v82, false
-    icall revert_if<invalid_calldata_tail_offset>, v83
-    v84 = calldataload v78
-    v85 = gt v84, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v85
-    v86 = mul v84, 1
-    v87 = add v78, 32
-    v88 = calldatasize
-    v89 = sub v88, v86
-    v90 = sgt v87, v89
-    icall revert_if<calldata_tail_too_short>, v90
-    v91 = add v78, 32
-    v92 = make_calldata_slice v91, v84
-    v93 = slice_ptr v92
-    v94 = slice_len v92
-    v95 = gt v94, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v95
-    v96 = calldatasize
-    v97 = sub v96, v94
-    v98 = sgt v93, v97
-    icall revert_if<calldata_tail_too_short>, v98
-    v99 = zext i160 v48 to i256
-    v100 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v99, v61, v92, v25, v21
-    v101 = slice_ptr v100
-    v102 = slice_len v100
-    log3 v101, v102, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v24, v26
+    v43 = ptrtoint ptr<calldata> v35 to i256
+    v44 = add v43, v36
+    v45 = calldataload v44
+    v46 = shr 160, v45
+    v47 = eq v46, 0
+    v48 = eq v47, false
+    icall revert_if<empty>, v48
+    v49 = trunc i256 v45 to i160
+    v50 = extract_value slice<calldata>, v29, 1
+    v51 = lt v26, v50
+    v52 = eq v51, false
+    icall panic_if<0x32>, v52
+    v53 = extract_value slice<calldata>, v29, 0
+    v54 = mul v26, 32
+    v55 = eq 32, 0
+    v56 = div v54, 32
+    v57 = eq v56, v26
+    v58 = or v55, v57
+    v59 = zext i1 v58 to i256
+    v60 = eq v59, 0
+    icall panic_if<0x41>, v60
+    v61 = ptrtoint ptr<calldata> v53 to i256
+    v62 = add v61, v54
+    v63 = calldataload v62
+    v64 = extract_value slice<calldata>, v23, 1
+    v65 = lt v26, v64
+    v66 = eq v65, false
+    icall panic_if<0x32>, v66
+    v67 = extract_value slice<calldata>, v23, 0
+    v68 = mul v26, 32
+    v69 = eq 32, 0
+    v70 = div v68, 32
+    v71 = eq v70, v26
+    v72 = or v69, v71
+    v73 = zext i1 v72 to i256
+    v74 = eq v73, 0
+    icall panic_if<0x41>, v74
+    v75 = ptrtoint ptr<calldata> v67 to i256
+    v76 = add v75, v68
+    v77 = calldatasize
+    v78 = sub v77, v76
+    v79 = slt v78, 32
+    icall revert_if<calldata_tail_too_short>, v79
+    v80 = calldataload v76
+    v81 = ptrtoint ptr<calldata> v67 to i256
+    v82 = add v81, v80
+    v83 = calldatasize
+    v84 = ptrtoint ptr<calldata> v67 to i256
+    v85 = sub v83, v84
+    v86 = sub v85, 31
+    v87 = slt v80, v86
+    v88 = eq v87, false
+    icall revert_if<invalid_calldata_tail_offset>, v88
+    v89 = calldataload v82
+    v90 = calldatasize
+    v91 = gt v89, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v91
+    v92 = add v82, 32
+    v93 = sub v90, v89
+    v94 = sgt v92, v93
+    icall revert_if<calldata_tail_too_short>, v94
+    v95 = inttoptr i256 v92 to ptr<calldata>
+    v96 = make_calldata_slice v95, v89
+    v97 = extract_value slice<calldata>, v96, 0
+    v98 = extract_value slice<calldata>, v96, 1
+    v99 = calldatasize
+    v100 = gt v98, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v100
+    v101 = sub v99, v98
+    v102 = ptrtoint ptr<calldata> v97 to i256
+    v103 = sgt v102, v101
+    icall revert_if<calldata_tail_too_short>, v103
+    v104 = zext i160 v49 to i256
+    v105 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v104, v63, v96, v25, v21
+    v106 = extract_value slice<memory>, v105, 0
+    v107 = extract_value slice<memory>, v105, 1
+    log v106, v107, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v24, v26
     jump bb17
   bb17:
     jump bb14
   bb14:
-    v103 = checked_add u256, v26, 1
+    v108 = checked_add u256, v26, 1
     jump bb12
   bb9:
-    v17 = slice_len arg0
-    v18 = slice_len arg2
-    v19 = slice_len arg1
+    v17 = extract_value slice<calldata>, arg0, 1
+    v18 = extract_value slice<calldata>, arg2, 1
+    v19 = extract_value slice<calldata>, arg1, 1
     icall require<custom_error [word, word, word]>, false, 0x679057600000000000000000000000000000000000000000000000000000000, v17, v18, v19
     invalid
   bb2:
@@ -220,23 +225,22 @@ fn @_schedule(arg0: i256, arg1: i256) {
   bb2:
     jump bb3
   bb3:
-    v2 = icall @getMinDelay
-    v3 = lt arg1, v2
-    jumpi v3, bb4, bb5
+    v1 = icall @getMinDelay
+    v2 = lt arg1, v1
+    jumpi v2, bb4, bb5
   bb5:
     jump bb6
   bb6:
-    v4 = timestamp
-    v5 = checked_add u256, v4, arg1
-    v6 = mapping_slot arg0, 1
-    sstore v6, v5 !metadata(storage=symbolic(v6))
+    v3 = timestamp
+    v4 = checked_add u256, v3, arg1
+    v5 = mapping_slot arg0, 1
+    sstore v5, v4 !metadata(storage=symbolic(v5))
     ret
   bb4:
-    icall require<custom_error [word, word]>, false, 0x48b6d3db00000000000000000000000000000000000000000000000000000000, arg1, v2
+    icall require<custom_error [word, word]>, false, 0x48b6d3db00000000000000000000000000000000000000000000000000000000, arg1, v1
     invalid
   bb1:
-    v1 = shl 0, 1
-    icall require<custom_error [word, word]>, false, 0xd8dce7eb00000000000000000000000000000000000000000000000000000000, arg0, v1
+    icall require<custom_error [word, word]>, false, 0xd8dce7eb00000000000000000000000000000000000000000000000000000000, arg0, 1
     invalid
 }
 
