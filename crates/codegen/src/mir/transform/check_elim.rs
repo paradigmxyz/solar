@@ -1580,6 +1580,17 @@ impl<'a> CheckEliminator<'a> {
                 let rb = self.range_of(func, b, depth);
                 Range::new(U256::ZERO, ra.hi.min(rb.hi))
             }
+            // Neither sets a bit above both operands' highest bits; `or` also
+            // keeps every bit of each, so it is at least either operand.
+            InstKind::Or(a, b) | InstKind::Xor(a, b) => {
+                let ra = self.range_of(func, a, depth);
+                let rb = self.range_of(func, b, depth);
+                let bits = ra.hi.max(rb.hi).bit_len();
+                let hi = if bits == 256 { U256::MAX } else { (U256::ONE << bits) - U256::ONE };
+                let lo =
+                    if matches!(kind, InstKind::Or(..)) { ra.lo.max(rb.lo) } else { U256::ZERO };
+                Range::new(lo, hi)
+            }
             // EVM shifts take the count first. A constant right shift maps both
             // bounds; a constant left shift keeps them when the top cannot spill.
             InstKind::Shr(shift, value) => {

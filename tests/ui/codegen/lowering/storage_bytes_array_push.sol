@@ -36,7 +36,8 @@ contract StorageBytesArrayPush {
     // SBAP-LABEL: fn @blobAt
     // Indexed bytes elements materialize into memory.
     // SBAP: sload
-    // SBAP: keccak256
+    // The fixed array data slot is folded at compile time.
+    // SBAP: add arg0, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     function blobAt(uint256 i) public view returns (bytes memory) {
         return blobs[i];
     }
