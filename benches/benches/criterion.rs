@@ -1,3 +1,7 @@
+//! Criterion entry point; compiler adapter dependencies are used by the benchmark library.
+
+#![allow(unused_crate_dependencies)]
+
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use solar_bench::{COMPILERS, Compiler, IS_CODSPEED, Source, get_src, get_srcs};
 use std::{any::Any, hint::black_box, time::Duration};

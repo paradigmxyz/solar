@@ -235,24 +235,10 @@ pub(crate) fn display_function_text<'a>(
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             let inst = func.inst(inst_id);
-
-            write!(f, "    ")?;
-            if inst.result_ty.is_some() {
-                write!(f, "v{}", inst_result_index(func, inst_id))?;
-                if let Some(ty) = inst.result_ty
-                    && (inst.kind.op_def().result == super::ResultKind::I160 && ty == MirType::I256
-                        || matches!(inst.kind, InstKind::LoadImmutable(id)
-                            if module.and_then(|module| module.get_immutable_type(id))
-                                .is_some_and(|layout| layout.mir_type() != ty)))
-                {
-                    write!(f, ": {ty}")?;
-                }
-                write!(f, " = ")?;
-            }
             writeln!(
                 f,
-                "{}{}",
-                display_inst_kind(&inst.kind, inst.result_ty, func, module),
+                "    {}{}",
+                display_instruction(func, module, inst_id),
                 display_metadata(&inst.metadata, Some(inst.kind.effect_kind()), func)
             )
         })
@@ -335,6 +321,16 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
                 format_args!("return_abi=[{}]", components.iter().format(", ")),
             )?;
         }
+        // ABI wrappers read calldata head words as arguments they do not declare.
+        if func.params.is_empty() && func.arg_indices().any(|arg| func.arg_ty(arg) != MirType::I256)
+        {
+            let types = func.arg_indices().map(|arg| func.arg_ty(arg));
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("implicit_args=[{}]", types.format(", ")),
+            )?;
+        }
         if let Some(layout) = &func.abi_params {
             write_function_attribute(f, &mut first, format_args!("abi_params={layout}"))?;
         }
@@ -371,6 +367,31 @@ fn function_prints_return_values(func: &Function) -> bool {
             .blocks
             .iter()
             .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+}
+
+/// Formats instruction `inst_id` of `func` as the text printer prints it, without indentation or
+/// metadata.
+fn display_instruction<'a>(
+    func: &'a Function,
+    module: Option<&'a Module>,
+    inst_id: InstId,
+) -> impl fmt::Display + 'a {
+    fmt::from_fn(move |f| {
+        let inst = func.inst(inst_id);
+        if inst.result_ty.is_some() {
+            write!(f, "v{}", inst_result_index(func, inst_id))?;
+            if let Some(ty) = inst.result_ty
+                && (inst.kind.op_def().result == super::ResultKind::I160 && ty == MirType::I256
+                    || matches!(inst.kind, InstKind::LoadImmutable(id)
+                        if module.and_then(|module| module.get_immutable_type(id))
+                            .is_some_and(|layout| layout.mir_type() != ty)))
+            {
+                write!(f, ": {ty}")?;
+            }
+            write!(f, " = ")?;
+        }
+        write!(f, "{}", display_inst_kind(&inst.kind, inst.result_ty, func, module))
+    })
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {

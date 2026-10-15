@@ -12,7 +12,6 @@ use crate::{
         op,
         op::*,
     },
-    mir::utils::eval,
     target::Target,
 };
 use alloy_primitives::U256;
@@ -570,7 +569,7 @@ impl generated::Context for PeepContext<'_> {
         let lhs_value = lhs.concrete_immediate()?;
         let rhs_value = rhs.concrete_immediate()?;
         let opcode = raw_opcode(instruction)?;
-        let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
+        let result = op::eval(opcode, &[rhs_value, lhs_value])?;
         let (lhs_size, lhs_gas) = materialization_cost(self.evm_version, lhs_value);
         let (rhs_size, rhs_gas) = materialization_cost(self.evm_version, rhs_value);
         let (result_size, result_gas) = materialization_cost(self.evm_version, result);
@@ -598,7 +597,7 @@ impl generated::Context for PeepContext<'_> {
         let [value, instruction] = self.unprotected_tail()?;
         let value = self.instructions[value].concrete_immediate()?;
         let opcode = raw_opcode(&self.instructions[instruction])?;
-        let result = eval::eval_opcode(opcode, &[value])?;
+        let result = op::eval(opcode, &[value])?;
         let target = Target::with(
             self.evm_version,
             OptimizationMode::Gas,

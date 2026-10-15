@@ -1,0 +1,17 @@
+//@ run-call: flag(bool,uint256)(uint256) true, 2 => 3
+// ABI wrappers read calldata head words as arguments they do not declare, and keep the types of
+// the ones that are not words.
+@module ImplicitArgs
+@phase lowered
+fn @flag() [selector=0x0d2020dd, abi_wrapper, implicit_args=[i1, i256]] {
+  bb0:
+    v0 = zext i1 arg0 to i256
+    v1 = add v0, arg1
+    mstore 0, v1
+    returndata 0, 32
+}
+
+fn @entry() [entry] {
+  bb0:
+    tail_call @flag
+}

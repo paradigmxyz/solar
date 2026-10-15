@@ -1,0 +1,10 @@
+// Invalid backend metadata must not be trusted by execution tools.
+//~? ERROR: invalid backend memory function
+@module BackendMemory
+@phase lowered
+// backend-memory-v1
+// backend-return 99 0x80
+fn @entry() [entry] {
+  bb0:
+    stop
+}

@@ -1,0 +1,92 @@
+//@ run-call: hashWords(uint256,uint256)(bytes32) 1, 2 => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
+//@ run-call: reverse(uint256)(uint256) 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20 => 0x201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201
+//@ run-call: sparse()(uint256,uint256,bytes32) => 0, 0, 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+//@ run-call: 0x00000001 => 0x000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f38393a3b3c3d3e3f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: 0x00000002 => 0x0405060708
+//@ run-call: 0x000000031111111111111111111111111111111111111111111111111111111111111111 => 0x111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000024
+// Memory as the EVM has it: bytes written one at a time, hashed, copied between overlapping
+// ranges, read past the end of calldata and far beyond what was written, and returned from odd
+// offsets.
+@module Memory
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    switch v1, default bb7, [0x623ff21d => bb1, 0x97d15425 => bb2, 0x653be2bc => bb3, 1 => bb4, 2 => bb5, 3 => bb6]
+  bb1:
+    tail_call @hash_words
+  bb2:
+    tail_call @reverse
+  bb3:
+    tail_call @sparse
+  bb4:
+    tail_call @overlap
+  bb5:
+    tail_call @odd_return
+  bb6:
+    tail_call @calldata_tail
+  bb7:
+    revert 0, 0
+}
+
+fn @hash_words() [selector=0x623ff21d, abi_wrapper] {
+  bb0:
+    calldatacopy 0x80, 4, 64
+    v0 = keccak256 0x80, 64
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @reverse() [selector=0x97d15425, abi_wrapper] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = lt v0, 32
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = byte v0, arg0
+    v3 = sub 0x9f, v0
+    mstore8 v3, v2
+    v4 = add v0, 1
+    jump bb1
+  bb3:
+    v5 = mload 0x80
+    mstore 0, v5
+    returndata 0, 32
+}
+
+fn @sparse() [selector=0x653be2bc, abi_wrapper] {
+  bb0:
+    v0 = mload 0x10000
+    v1 = returndatasize
+    v2 = keccak256 0xffffffff, 0
+    mstore 0, v0
+    mstore 32, v1
+    mstore 64, v2
+    returndata 0, 96
+}
+
+fn @overlap() [selector=0x00000001, abi_wrapper] {
+  bb0:
+    mstore 0x80, 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+    mstore 0xa0, 0x202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
+    mcopy 0x90, 0x80, 0x40
+    mcopy 0xc0, 0xc8, 0x10
+    returndata 0x80, 0x80
+}
+
+fn @odd_return() [selector=0x00000002, abi_wrapper] {
+  bb0:
+    mstore 0, 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    returndata 3, 5
+}
+
+fn @calldata_tail() [selector=0x00000003, abi_wrapper] {
+  bb0:
+    v0 = calldatasize
+    calldatacopy 0x80, 20, 64
+    mstore 0xc0, v0
+    returndata 0x80, 0x60
+}

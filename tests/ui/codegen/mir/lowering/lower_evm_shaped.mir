@@ -143,19 +143,22 @@ fn @void_helper() {
     ret
 }
 
-// CHECK-LABEL: {{^[ +].*}}fn @tail_return_caller{{[( ]}}
-// CHECK: {{^[ +].*}}icall @tail_return_helper
-// CHECK: {{^[ +].*}}sstore 0, 7
-fn @tail_return_caller() {
+// A function whose tail call reaches a function that never returns never returns either, so its
+// callers drop their continuations too. A tail call to a returning function is not lowered MIR.
+// CHECK-LABEL: {{^[ +].*}}fn @wrapper_caller{{[( ]}}
+// CHECK: - icall @stop_wrapper
+// CHECK: - sstore 0, 7
+// CHECK: + tail_call @stop_wrapper
+fn @wrapper_caller() {
   bb0:
-    icall @tail_return_helper
+    icall @stop_wrapper
     sstore 0, 7
     ret
 }
 
-fn @tail_return_helper() {
+fn @stop_wrapper() {
   bb0:
-    tail_call @void_helper
+    tail_call @stop_helper
 }
 
 // Removing the call result also removes its edge from a still-reachable phi.

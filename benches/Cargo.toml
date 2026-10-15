@@ -17,7 +17,6 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-alloy-primitives.workspace = true
 solar = { workspace = true, default-features = false }
 
 flate2.workspace = true

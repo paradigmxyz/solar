@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_validation.sol:CalldataValidation ===
 @module CalldataValidation
-fn @vUint8() [selector=0xd5f6949e, abi_wrapper, pure] {
+fn @vUint8() [selector=0xd5f6949e, abi_wrapper, pure, implicit_args=[i8]] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -46,7 +46,7 @@ fn @vInt16() [selector=0xe9697b4d, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @vBool() [selector=0x18a11c47, abi_wrapper, pure] {
+fn @vBool() [selector=0x18a11c47, abi_wrapper, pure, implicit_args=[i1]] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -67,7 +67,7 @@ fn @vBool() [selector=0x18a11c47, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @vAddress() [selector=0x23347413, abi_wrapper, pure] {
+fn @vAddress() [selector=0x23347413, abi_wrapper, pure, implicit_args=[i160]] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -143,7 +143,7 @@ fn @vEnum() [selector=0x5aa5e60a, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @vWidened() [selector=0x3d71ddd7, abi_wrapper, pure] {
+fn @vWidened() [selector=0x3d71ddd7, abi_wrapper, pure, implicit_args=[i8]] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -166,7 +166,7 @@ fn @vWidened() [selector=0x3d71ddd7, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @vMulti() [selector=0x403ecab4, abi_wrapper, pure] {
+fn @vMulti() [selector=0x403ecab4, abi_wrapper, pure, implicit_args=[i32, i256]] {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 68

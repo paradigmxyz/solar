@@ -1,6 +1,6 @@
 //! Emission of planned stack-resident functions into EVM IR.
 
-use super::{BlockPlan, Edge, Exit, FunctionPlan, ModuleInfo, Step};
+use super::{BlockPlan, Edge, Exit, FunctionPlan, ModuleInfo, Step, plan::call_projection};
 use crate::{
     backend::{
         assembler::Label,
@@ -14,8 +14,8 @@ use crate::{
         },
     },
     mir::{
-        BlockId, Function, FunctionId, InstId, InstKind, Module, PtrLocation, Terminator, Value,
-        ValueId,
+        BlockId, Callee, Function, FunctionId, InstId, InstKind, Module, PtrLocation, StackReturn,
+        Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
     },
@@ -37,7 +37,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.record_runtime_entry_reachability(call_graph, entry);
         self.emitting_entry = info.emitting_entry;
         let plan = plans[entry].take().expect("entry plan");
-        self.emit_stackified_body(entry, &module.functions[entry], plan);
+        self.emit_stackified_body(entry, module, plan);
         self.emitting_entry = false;
         self.runtime_entry_funcs.push(entry);
 
@@ -49,7 +49,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.define_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
-            self.emit_stackified_body(func_id, func, plan);
+            self.emit_stackified_body(func_id, module, plan);
             self.runtime_entry_funcs.push(func_id);
         }
 
@@ -87,7 +87,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.mark_debug_function_invoke(func);
         self.body = Body::Constructor(constructor);
         let plan = plans[constructor].take().expect("constructor plan");
-        self.emit_stackified_body(constructor, func, plan);
+        self.emit_stackified_body(constructor, module, plan);
         self.body = Body::External;
 
         self.pack_scalar_static_frames(module);
@@ -134,12 +134,48 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.define_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
             self.body = Body::Internal(func_id);
-            self.emit_stackified_body(func_id, func, plan);
+            self.emit_stackified_body(func_id, module, plan);
         }
         self.body = Body::External;
     }
 
-    fn emit_stackified_body(&mut self, func_id: FunctionId, func: &Function, plan: FunctionPlan) {
+    fn emit_stackified_body(&mut self, func_id: FunctionId, module: &Module, plan: FunctionPlan) {
+        let func = &module.functions[func_id];
+        if self.capture_mir {
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                for (index, &inst) in block.instructions.iter().enumerate() {
+                    let InstKind::ICall { function: Callee::Function(callee), .. } =
+                        func.inst(inst).kind
+                    else {
+                        continue;
+                    };
+                    let arity = module.functions[callee].return_components().len();
+                    if arity <= 1 {
+                        continue;
+                    }
+                    let Some(protocol) = call_projection(func, block_id, index, arity) else {
+                        continue;
+                    };
+                    let published = plan
+                        .blocks
+                        .iter()
+                        .flatten()
+                        .flat_map(|block| &block.steps)
+                        .any(|step| {
+                            matches!(step, Step::Publish { callee: target, .. } if *target == callee)
+                        });
+                    if protocol.extras.iter().any(Option::is_some) || !published {
+                        self.stack_return_sites.insert(
+                            (func_id, inst),
+                            StackReturn {
+                                elided: protocol.elided,
+                                extras: protocol.extras.into_vec(),
+                            },
+                        );
+                    }
+                }
+            }
+        }
         // Spill slots: the spilled values in value order, then the return address.
         self.spill_slots.clear();
         self.spill_slots.extend(plan.spilled.iter().zip(0..));
@@ -410,6 +446,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.emit_op(op::MSTORE);
                 }
                 let addr = self.static_frame_addr(callee, base);
+                if self.capture_mir {
+                    self.return_buffer_sites.insert(callee, addr);
+                }
                 self.asm.emit_push_deferred(addr);
                 self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
                 self.asm.emit_op(op::MSTORE);
@@ -483,6 +522,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let size =
                     func.value_u64(*size).expect("deferred allocation must have a constant size");
                 let alloc = self.asm.emit_deferred_alloc();
+                if self.capture_mir {
+                    self.allocation_sites.insert(alloc, (func_id, inst));
+                }
                 self.pending_static_allocs.entry(func_id).or_default().push((alloc, size));
             }
             InstKind::LibraryAddress(library) => self.asm.emit_push_library(*library),

@@ -179,6 +179,15 @@ pub(crate) fn run_passes_inner(
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
                 analyses.finish_pass(pass_changed);
+                if pass_changed {
+                    // Passes rename the storage alias bases they replace, but not the ones they
+                    // delete with their last other use.
+                    for func in module.functions.iter_mut() {
+                        func.drop_dangling_storage_aliases();
+                    }
+                    // Backend memory records describe the code generated for the MIR as it was.
+                    module.backend_memory = None;
+                }
                 pass_changed
             };
             if pass_changed {

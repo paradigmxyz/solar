@@ -1,0 +1,47 @@
+//@ run-call: edges(uint256,uint256)(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256) 5, 0 => 0, 0, 0, 0, 0, 0, 1, 5, 5, 0, 5, 5
+//@ run-call: edges(uint256,uint256)(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256) 0xff, 0 => 0, 0, 0, 0, 0, 0, 1, 115792089237316195423570985008687907853269984665640564039457584007913129639935, 255, 0, 255, 255
+//@ run-call: edges(uint256,uint256)(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256) 0x8000000000000000000000000000000000000000000000000000000000000000, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0, 57896044618658097711785492504343953926634992332820282019728792003956564819968, 57896044618658097711785492504343953926634992332820282019728792003956564819968, 0, 1, 28948022309329048855892746252171976963317496166410141009864396001978282409984, 0, 57896044618658097711785492504343953926634992332820282019728792003956564819968, 115792089237316195423570985008687907853269984665640564039457584007913129639935, 0, 0, 0
+// Word operations on calldata, which nothing folds, at the edges the EVM defines: division and
+// remainder by zero, signed overflow, modular arithmetic past 2^256, and indices and shifts past
+// the word.
+@module Arithmetic
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    switch v1, default bb2, [0x70cfc9de => bb1]
+  bb1:
+    tail_call @edges
+  bb2:
+    revert 0, 0
+}
+
+fn @edges() [selector=0x70cfc9de, abi_wrapper] {
+  bb0:
+    v0 = div arg0, arg1
+    v1 = sdiv arg0, arg1
+    v2 = mod arg0, arg1
+    v3 = smod arg0, arg1
+    v4 = addmod arg0, arg0, arg1
+    v5 = mulmod arg0, arg0, arg1
+    v6 = exp arg0, arg1
+    v7 = signextend arg1, arg0
+    v8 = sar arg1, arg0
+    v9 = byte arg1, arg0
+    v10 = shl arg1, arg0
+    v11 = shr arg1, arg0
+    mstore 0x80, v0
+    mstore 0xa0, v1
+    mstore 0xc0, v2
+    mstore 0xe0, v3
+    mstore 0x100, v4
+    mstore 0x120, v5
+    mstore 0x140, v6
+    mstore 0x160, v7
+    mstore 0x180, v8
+    mstore 0x1a0, v9
+    mstore 0x1c0, v10
+    mstore 0x1e0, v11
+    returndata 0x80, 0x180
+}

@@ -2702,11 +2702,11 @@ fn with_return_address(values: &[ValueId]) -> Vec<Want> {
 }
 
 /// The multi-return protocol after one call.
-struct Projection {
+pub(super) struct Projection {
     /// Protocol instructions to elide.
-    elided: Vec<InstId>,
+    pub(super) elided: Vec<InstId>,
     /// The value reading each extra result, if any.
-    extras: SmallVec<[Option<ValueId>; 4]>,
+    pub(super) extras: SmallVec<[Option<ValueId>; 4]>,
     /// The pointer and address values, which must have no other consumers.
     tracked: FxHashSet<ValueId>,
 }
@@ -2715,7 +2715,7 @@ struct Projection {
 ///
 /// MIR reads results `1..N` through the multi-return buffer: the pointer read and one offset
 /// load per used result follow the call with only pure instructions between.
-fn call_projection(
+pub(super) fn call_projection(
     func: &Function,
     block: BlockId,
     call_idx: usize,
