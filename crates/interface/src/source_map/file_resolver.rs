@@ -43,6 +43,8 @@ pub struct FileResolver<'a> {
     remappings: Vec<ImportRemapping>,
     /// Base path for source unit names.
     base_path: Option<PathBuf>,
+    /// Whether resolution may load files that are not already in the source map.
+    allow_file_loading: bool,
 
     /// Custom current directory.
     custom_current_dir: Option<PathBuf>,
@@ -61,6 +63,7 @@ impl<'a> FileResolver<'a> {
             include_paths: Vec::new(),
             remappings: Vec::new(),
             base_path,
+            allow_file_loading: true,
             custom_current_dir: None,
             env_current_dir: OnceLock::new(),
             last_input: OnceLock::new(),
@@ -70,6 +73,11 @@ impl<'a> FileResolver<'a> {
     /// Configures the file resolver from a session.
     pub fn configure_from_sess(&mut self, sess: &Session) {
         self.configure_from_opts(&sess.opts);
+        if sess.opts.base_path.is_none() && !sess.opts.standard_json {
+            // A default base follows the resolver's current directory, including callback
+            // overrides, rather than retaining the source map's initial process directory.
+            self.base_path = None;
+        }
     }
 
     /// Configures the file resolver from compiler options.
@@ -330,6 +338,9 @@ impl<'a> FileResolver<'a> {
 
     /// Reads `unit` from each root once through the file loader, like solc's file reader.
     fn read_roots(&self, path: &Path, unit: &Path) -> Result<Option<String>, ResolveError> {
+        if !self.allow_file_loading {
+            return Ok(None);
+        }
         let loader = self.source_map().file_loader();
         // Ask for a normalized name, so that the result doesn't depend on which spelling of it is
         // read first. Without a base path or include paths, keep a `file://` prefix, like libsolc.
@@ -457,6 +468,12 @@ impl<'a> FileResolver<'a> {
 
     /// Loads stdin into the source map.
     pub fn load_stdin(&self) -> Result<Arc<SourceFile>, ResolveError> {
+        if !self.allow_file_loading {
+            return Err(ResolveError::ReadStdin(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "file loading is disabled",
+            )));
+        }
         self.source_map().load_stdin().map_err(ResolveError::ReadStdin)
     }
 
@@ -490,6 +507,9 @@ impl<'a> FileResolver<'a> {
         {
             return Ok(Some(file));
         }
+        if !self.allow_file_loading {
+            return Ok(None);
+        }
         // Check that the file exists. Its name keeps symbolic links, like solc.
         let Ok(canonical) = self.canonicalize_unchecked(&path) else {
             trace!(path=%path.display(), "not found");
@@ -499,6 +519,27 @@ impl<'a> FileResolver<'a> {
             .load_file_with_name(path.into(), &canonical)
             .map(Some)
             .map_err(|e| ResolveError::ReadFile(canonical, e))
+    }
+
+    /// Enables or disables loading files and stdin through the source map's loader.
+    ///
+    /// Defaults to enabled for command-line compilation. When disabled, imports can only
+    /// resolve to files already in the source map. Enabling this with the default loader
+    /// permits host filesystem reads, including absolute imports outside the search roots.
+    pub fn set_allow_file_loading(&mut self, allow: bool) {
+        self.allow_file_loading = allow;
+    }
+
+    /// Aligns displayed source unit names with this resolver's configured paths.
+    ///
+    /// Call after path overrides and before parsing so diagnostics, outputs, and qualified
+    /// library names use the same roots as import resolution.
+    pub fn sync_source_map_roots(&self) {
+        self.source_map.set_roots(
+            self.try_base_path().map(Path::to_path_buf),
+            self.include_paths.clone(),
+            self.try_current_dir().map(Path::to_path_buf),
+        );
     }
 }
 

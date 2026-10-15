@@ -188,17 +188,44 @@ fn real_path(file: &SourceFile) -> &Path {
 
 /// Compiles sources supplied by an embedder and emits the outputs requested by `sess.opts`.
 ///
-/// `load_sources` replaces loading the files named by `sess.opts.input`. It can add in-memory
-/// sources and configure the parsing context's file resolver for imports. Compilation otherwise
-/// follows the command-line pipeline, using the session's flags and diagnostic emitter.
+/// `sess.opts.input` and the source map must be empty. Select Solidity or Yul with
+/// `sess.opts.language` rather than inferring it from input paths. Use a fresh source map for
+/// each compilation; cached sources from earlier requests must not participate in resolution.
+///
+/// `load_sources` adds in-memory sources and configures the parsing context's file resolver.
+/// Imports only resolve to supplied sources by default. The callback can explicitly enable
+/// file loading with
+/// [`FileResolver::set_allow_file_loading`](solar_interface::source_map::FileResolver::set_allow_file_loading)
+/// or use a source map with a custom loader and enable it. Base and include paths are search
+/// roots, not a filesystem sandbox: enabled file loading can also resolve absolute imports.
+/// Compilation otherwise follows the command-line pipeline with the session's output flags
+/// and diagnostic emitter. Resolver path overrides also determine displayed source unit names
+/// and source-qualified library linking.
 ///
 /// This entry point accepts Solidity and Yul sources, not Standard JSON or textual IR input.
 pub fn run_compiler_with_sources(
     sess: Session,
     load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result + Send,
 ) -> Result {
+    if !sess.opts.input.is_empty() {
+        return Err(sess.dcx.err("source callbacks require empty input paths").emit());
+    }
     if sess.opts.standard_json || !sess.opts.language.is_source() {
         return Err(sess.dcx.err("source callbacks require Solidity or Yul input").emit());
     }
-    run_compiler_session_with(sess, |compiler| compile_and_emit(compiler, load_sources), true)
+    if !sess.source_map().is_empty() {
+        return Err(sess.dcx.err("source callbacks require a fresh source map").emit());
+    }
+    run_compiler_session_with(
+        sess,
+        |compiler| {
+            compile_and_emit(compiler, |pcx| {
+                pcx.file_resolver.set_allow_file_loading(false);
+                load_sources(pcx)?;
+                pcx.file_resolver.sync_source_map_roots();
+                Ok(())
+            })
+        },
+        true,
+    )
 }
