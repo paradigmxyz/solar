@@ -961,11 +961,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ))
     }
 
-    /// `keccak256(abi.encode(a))` and `keccak256(abi.encode(a, b))` over value
-    /// types. Each such argument encodes as exactly its cleaned word, which is
-    /// what the packed encoder writes for a full-width scalar, so the hash is
-    /// built in scratch space the way the packed form already is, with no
-    /// free-pointer traffic. Anything else keeps the general encoder.
+    /// `keccak256(abi.encode(..))` of one or two value-type words, hashed in scratch space like
+    /// the packed form. Function values and untyped literals keep the general encoder.
     pub(super) fn lower_keccak_abi_encode_words(
         &mut self,
         exprs: &[hir::Expr<'_>],
@@ -977,43 +974,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .iter()
             .map(|expr| self.cx.gcx.type_of_expr(expr.id))
             .collect::<Option<Vec<_>>>()?;
-        if !tys.iter().all(|&ty| Self::is_abi_word_value_type(ty)) {
+        if !tys
+            .iter()
+            .all(|ty| ty.is_value_type() && !matches!(ty.kind, TyKind::Fn(_) | TyKind::Super(_)))
+        {
             return None;
         }
-        let mut parts = Vec::with_capacity(exprs.len());
         // words = clean(evaluate_arguments_in_order(args))
-        for (expr, &ty) in exprs.iter().zip(&tys) {
-            let value = self.lower_typed_expr(expr, ty)?;
-            let value = self.canonicalize_abi_value(ty, value);
-            let value = self.builder.cast_word(value);
-            parts.push(PackedPart::Scalar {
-                value,
-                ty: crate::mir::ValueLayout::UInt(TypeSize::new_int_bits(256)),
-            });
-        }
+        let parts = exprs
+            .iter()
+            .zip(tys)
+            .map(|(expr, ty)| {
+                let value = self.lower_typed_expr(expr, ty)?;
+                let value = self.canonicalize_abi_value(ty, value);
+                let value = self.builder.cast_word(value);
+                Some(PackedPart::Scalar { value, ty: crate::mir::ValueLayout::uint256() })
+            })
+            .collect::<Option<Box<[_]>>>()?;
         // hash = keccak256_packed(words)
-        Some(self.builder.emit_inst(
-            InstKind::AbiEncodePacked { parts: parts.into_boxed_slice(), hash: true },
-            Some(MirType::I256),
-        ))
-    }
-
-    /// Whether `abi.encode` of a `ty` value is its one cleaned word. External
-    /// function values and literals without a concrete type are left to the
-    /// general encoder.
-    fn is_abi_word_value_type(ty: Ty<'gcx>) -> bool {
-        match ty.kind {
-            TyKind::Elementary(elementary) => matches!(
-                elementary,
-                solar_sema::hir::ElementaryType::Bool
-                    | solar_sema::hir::ElementaryType::Address(_)
-                    | solar_sema::hir::ElementaryType::Int(_)
-                    | solar_sema::hir::ElementaryType::UInt(_)
-                    | solar_sema::hir::ElementaryType::FixedBytes(_)
-            ),
-            TyKind::Contract(_) | TyKind::Enum(_) => true,
-            TyKind::Udvt(inner, _) => Self::is_abi_word_value_type(inner),
-            _ => false,
-        }
+        Some(
+            self.builder
+                .emit_inst(InstKind::AbiEncodePacked { parts, hash: true }, Some(MirType::I256)),
+        )
     }
 }

@@ -236,13 +236,13 @@ bb12 [cold]:
   revert
 bb27 [cold]:
   pop
-  push 0x760769fe
-  push 0
-  mstore
   swap 1
   push 32
   mstore
   push 64
+  mstore
+  push 0x760769fe
+  push 0
   mstore
   push 68
   push 28

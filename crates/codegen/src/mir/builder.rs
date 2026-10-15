@@ -63,6 +63,9 @@ impl_signed_to_uint!(i8, i16, i32, i64, i128, isize);
 /// The Error(string) selector, `keccak256("Error(string)")[..4]`, left-aligned in a word.
 pub(crate) const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
 
+/// The Panic(uint256) selector, `keccak256("Panic(uint256)")[..4]`, left-aligned in a word.
+const PANIC_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x4e48_7b71_u64 << 32]);
+
 /// Revert blocks shared while constructing one MIR function.
 #[derive(Default)]
 struct RevertBlocks(FxHashMap<RevertKind, BlockId>);
@@ -252,42 +255,25 @@ impl<'a> FunctionBuilder<'a> {
             return;
         }
         let code = self.imm(code.as_u64());
-        self.revert_scratch(U256::from(0x4e48_7b71_u64), &[code], true);
+        self.revert_scratch(PANIC_SELECTOR, &[code]);
     }
 
-    /// Reverts with a right-aligned 4-byte `selector` and its ABI `words` staged in the reserved
-    /// low memory: `mstore(0, selector)`, `mstore(32 * (i + 1), word_i)`, then
+    /// Reverts with the left-aligned `selector` and its ABI `words` staged in the reserved low
+    /// memory: `mstore(32 * (i + 1), word_i)`, `mstore(0, selector >> 224)`, then
     /// `revert(28, 4 + 32 * words.len())`.
     ///
-    /// The stores are disjoint, so their order only decides what tail merging can share: what
-    /// changes between sites goes first. A `shared_selector`, used by every site of its payload
-    /// kind (`Panic`, `Error`), goes after the words, so a panic site reduces to its code and a
-    /// jump. A selector that names the error goes before them, so errors whose words are already
-    /// on the stack share the rest of the payload.
-    ///
-    /// Payloads over three words write past the heap start at `0x80`, which only a terminating
-    /// revert may do.
-    pub(crate) fn revert_scratch(
-        &mut self,
-        selector: U256,
-        words: &[ValueId],
-        shared_selector: bool,
-    ) {
-        let selector = self.imm(selector);
-        let zero = self.imm(U256::ZERO);
-        if !shared_selector {
-            // mstore(0, selector)
-            self.store(zero, selector);
-        }
+    /// The selector goes last so every payload ends in the same selector store and revert, and
+    /// tail merging reduces a panic site to its code and a jump.
+    pub(crate) fn revert_scratch(&mut self, selector: U256, words: &[ValueId]) {
         // mstore(32 * (i + 1), word_i)
         for (index, &word) in words.iter().enumerate() {
             let offset = self.imm(32 * (index as u64 + 1));
             self.store(offset, word);
         }
-        if shared_selector {
-            // mstore(0, selector)
-            self.store(zero, selector);
-        }
+        // mstore(0, selector >> 224)
+        let selector = self.imm(selector >> 224);
+        let zero = self.imm(U256::ZERO);
+        self.store(zero, selector);
         // revert(28, 4 + 32 * words.len())
         let offset = self.imm(28);
         let size = self.imm(4 + 32 * words.len() as u64);
@@ -410,7 +396,7 @@ impl<'a> FunctionBuilder<'a> {
             word[..chunk.len()].copy_from_slice(chunk);
             words.push(self.imm(U256::from_be_bytes(word)));
         }
-        self.revert_scratch(ERROR_SELECTOR >> 224, &words, true);
+        self.revert_scratch(ERROR_SELECTOR, &words);
     }
 
     pub(crate) fn branch_to_revert(

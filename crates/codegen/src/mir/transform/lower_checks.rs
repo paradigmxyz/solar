@@ -12,13 +12,9 @@
 //! failure move to an unreachable continuation.
 //!
 //! Revert payloads are never read after the revert, so none of them reserves memory. Panics,
-//! constant and short error strings, and custom errors with at most three word arguments stage
-//! their selector and words in the reserved low memory through `FunctionBuilder::revert_scratch`
-//! (`mstore(0, selector)`, `mstore(32 * (i + 1), word)`, `revert(28, size)`): the words are
-//! already evaluated SSA values, so clobbering the scratch, free-memory-pointer, and zero slots
-//! cannot change the payload, and a payload that does not reach the free-memory pointer slot lets
-//! the entry skip initializing it. Other custom errors and error strings encode at the
-//! free-memory pointer without advancing it.
+//! constant and short error strings, and custom errors of at most `MAX_SCRATCH_ERROR_WORDS` words
+//! stage in the reserved low memory through `FunctionBuilder::revert_scratch`. Other custom errors
+//! and error strings encode at the free-memory pointer without advancing it.
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
@@ -30,7 +26,8 @@ use solar_interface::{Ident, sym};
 use std::sync::Arc;
 
 /// Word arguments of a custom error staged in scratch memory. The payload spans
-/// `[28, 32 * (words + 1))`, which stays below the heap start at `0x80`.
+/// `[28, 32 * (words + 1))`; a longer one would end above the heap start at `0x80`, and a
+/// constant memory range there moves the spill area of every entry reaching it.
 const MAX_SCRATCH_ERROR_WORDS: usize = 3;
 
 pub(crate) struct LowerChecks;
@@ -193,7 +190,7 @@ fn emit_payload(
             // revert_scratch(Error.selector, [32, 0])
             let tuple_offset = builder.imm(32);
             let length = builder.imm(0);
-            builder.revert_scratch(ERROR_SELECTOR >> 224, &[tuple_offset, length], true);
+            builder.revert_scratch(ERROR_SELECTOR, &[tuple_offset, length]);
         }
         RevertPayload::ErrorString(value) => {
             // payload = abi_encode_scratch(Error.selector, value)
@@ -214,7 +211,7 @@ fn emit_payload(
                 && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_)))
             {
                 // revert_scratch(selector, values)
-                builder.revert_scratch(selector >> 224, &values, false);
+                builder.revert_scratch(selector, &values);
                 return;
             }
             // payload = abi_encode_scratch(selector, values)
@@ -235,6 +232,6 @@ fn create_short_string_helper(module: &mut Module, context: &InstructionMetadata
     let length = builder.add_param(MirType::I256);
     let value = builder.add_param(MirType::I256);
     let tuple_offset = builder.imm(32);
-    builder.revert_scratch(ERROR_SELECTOR >> 224, &[tuple_offset, length, value], true);
+    builder.revert_scratch(ERROR_SELECTOR, &[tuple_offset, length, value]);
     module.add_function(function)
 }

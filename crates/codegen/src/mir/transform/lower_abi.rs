@@ -16,7 +16,7 @@
 //!
 //! The wrapper keeps argument materialization lazy so values used after a
 //! branch can still be rematerialized instead of spilled. Dynamic return
-//! encoding becomes a semantic `abi_encode` operation here and lowers later;
+//! encoding becomes a semantic `abi_encode_scratch` operation here and lowers later;
 //! static returns use the fixed low-memory return buffer directly. Internal
 //! call sites that targeted a wrapped function are retargeted to its extracted
 //! raw-return body, so internal calls to public functions keep their convention.
