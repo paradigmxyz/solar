@@ -28,7 +28,7 @@ contract AbiReturnArrayElements {
     }
 
     // MIR-LABEL: fn @dirty
-    // MIR: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
+    // MIR: icall @cleanup_return,
     function dirty(address[] memory a) external pure returns (address[] memory) {
         assembly {
             mstore(add(a, 32), not(0))
@@ -37,7 +37,7 @@ contract AbiReturnArrayElements {
     }
 
     // MIR-LABEL: fn @viaHelper
-    // MIR: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
+    // MIR: icall @cleanup_return,
     function viaHelper(address[] memory a) external pure returns (address[] memory) {
         _scribble(a);
         return a;
