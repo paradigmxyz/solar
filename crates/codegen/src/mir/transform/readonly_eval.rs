@@ -173,7 +173,7 @@ fn find_calls(module: &Module, id: FunctionId) -> Vec<(InstId, EvaluatedReturn)>
                         )
                     });
                 }
-                if let InstKind::Store(address, value) = instruction.kind
+                if let InstKind::Store(address, value, PtrLocation::Memory) = instruction.kind
                     && let Some(word) = operand(func, &env, None, value).and_then(Datum::word)
                     && let Some(address) = alias.memory_address(func, address)
                     && matches!(address.base, MemoryBase::Allocation(_))

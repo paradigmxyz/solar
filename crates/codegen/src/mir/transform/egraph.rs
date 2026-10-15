@@ -259,8 +259,8 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
                 | InstKind::Clz(..)
                 | InstKind::SignExtend(..)
                 | InstKind::Select(..)
-                | InstKind::SLoad(..)
-                | InstKind::SStore(..)
+                | InstKind::Load(.., PtrLocation::Storage)
+                | InstKind::Store(.., PtrLocation::Storage)
                 | InstKind::Caller
                 | InstKind::CallValue => {}
                 _ => return false,

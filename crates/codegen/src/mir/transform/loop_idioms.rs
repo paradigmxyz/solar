@@ -343,7 +343,10 @@ fn constant_return(func: &Function, block: BlockId) -> Option<(ReturnShape, Valu
             _ => None,
         },
         ([store], Terminator::ReturnData { offset, size }) => {
-            let InstKind::Store(address, value) = func.inst(*store).kind else { return None };
+            let InstKind::Store(address, value, PtrLocation::Memory) = func.inst(*store).kind
+            else {
+                return None;
+            };
             (same_word(func, address, *offset) && func.value_u64(*size) == Some(32))
                 .then_some((ReturnShape::Lowered { address, size: *size }, value))
         }

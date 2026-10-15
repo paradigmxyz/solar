@@ -173,11 +173,7 @@ impl InstKind {
             | Self::StorageToMemory { .. }
             | Self::MemoryToStorage { .. }
             | Self::ClearStorage { .. }
-            | Self::Copy(.., PtrLocation::Memory | PtrLocation::Calldata)
-            | Self::SLoad(..)
-            | Self::SStore(..)
-            | Self::TLoad(..)
-            | Self::TStore(..)
+            | Self::Copy(..)
             | Self::CalldataSize
             | Self::MakeSlice { .. }
             | Self::InternalFrameAddr(..)

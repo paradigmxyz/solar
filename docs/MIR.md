@@ -13,10 +13,12 @@ names the location it points into: `ptr<memory>`, `ptr<calldata>`, or
 `ptr<returndata>`. It carries a 256-bit address without implying validity or
 heap provenance.
 Memory objects are `ptr<memory>` values too, accessed with ordinary instructions:
-every word access is a load, `mstore`, or `mstore8`, and every bulk copy into
-memory is a copy. One load and one copy instruction cover every location, and
-each prints as the opcode its location selects: `mload`, `calldataload`, or
-`returndataload`, and `mcopy`, `calldatacopy`, or `returndatacopy`. Like an LLVM
+every word access is a load, a store, or `mstore8`, and every bulk copy into
+memory is a copy. One load, one store, and one copy instruction cover every
+location, storage and transient storage included, and each prints as the opcode
+its location selects: `mload`, `calldataload`, `returndataload`, `sload`, or
+`tload`; `mstore`, `sstore`, or `tstore`; and `mcopy`, `calldatacopy`, or
+`returndatacopy`. Storage and transient accesses take a slot word. Like an LLVM
 load from `ptr`, an access takes a pointer into the location it reads or a raw
 `i256` address, and so does every memory range operand of `keccak256`, `log`,
 the calls, `create`, and raw `return` and `revert`. `lower-evm-shaped` erases

@@ -140,7 +140,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
             _ => false,
         },
         EffectKind::MemoryWrite => match &inst.kind {
-            InstKind::Store(addr, _) => {
+            InstKind::Store(addr, _, PtrLocation::Memory) => {
                 range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
             }
             InstKind::Store8(addr, _) => range_avoids_fmp(func, *addr, Some(1)),

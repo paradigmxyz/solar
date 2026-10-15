@@ -1206,9 +1206,7 @@ fn encode_dynamic_body(
                         )
                     }
                 }
-                PtrLocation::Memory | PtrLocation::Returndata => {
-                    unreachable!("returndata arrays are not ABI inputs")
-                }
+                _ => unreachable!("only calldata arrays reach slice encoding"),
             }
         }
         AbiType::FixedArray { element, len } => {
@@ -1424,7 +1422,7 @@ fn encode_word_array(
 ) -> ValueId {
     let len = match location {
         PtrLocation::Memory => memory_object_len(builder, value),
-        PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_len(value),
+        _ => builder.slice_len(value),
     };
     builder.store(dest, len);
     let word = builder.imm(32);
@@ -1432,7 +1430,7 @@ fn encode_word_array(
     let data_dest = builder.add(dest, word);
     let data_source = match location {
         PtrLocation::Memory => builder.memory_data(value),
-        PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_ptr(value),
+        _ => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
     // Memory elements that need cleanup are copied one word at a time; full words and calldata
@@ -1520,7 +1518,7 @@ fn encode_bytes(
 
     let len = match location {
         PtrLocation::Memory => memory_object_len(builder, value),
-        PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_len(value),
+        _ => builder.slice_len(value),
     };
     if !branchless_padding {
         // mstore dest, len
@@ -1558,7 +1556,7 @@ fn encode_bytes(
     }
     let data_source = match location {
         PtrLocation::Memory => builder.memory_data(value),
-        PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_ptr(value),
+        _ => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, padded);
     copy_source_data(builder, location, data_dest, data_source, len);
@@ -1640,7 +1638,7 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
 fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
     match kind {
         InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => false,
-        InstKind::Store(address, _) => !literal_word_in_bounds(func, *address),
+        InstKind::Store(address, _, PtrLocation::Memory) => !literal_word_in_bounds(func, *address),
         InstKind::MSize => true,
         _ => matches!(
             kind.effect_kind(),
@@ -1699,7 +1697,7 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
         }
         // Payload offset and stored word.
         let (offset, word) = match func.inst(inst).kind {
-            InstKind::Store(address, word) => {
+            InstKind::Store(address, word, PtrLocation::Memory) => {
                 let (base, offset) = func.object_address(address)?;
                 (base == object).then_some(())?;
                 if offset == 0 {

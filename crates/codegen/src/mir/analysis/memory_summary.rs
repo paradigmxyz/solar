@@ -706,10 +706,8 @@ fn local_summary(
             }
 
             match kind {
-                InstKind::Store(_, value)
+                InstKind::Store(_, value, _)
                 | InstKind::Store8(_, value)
-                | InstKind::SStore(_, value)
-                | InstKind::TStore(_, value)
                 | InstKind::SetFmp(value)
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
@@ -878,7 +876,8 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
         InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize | InstKind::MappingSlotBytes(..) => {
             true
         }
-        InstKind::Load(address, PtrLocation::Memory) | InstKind::Store(address, _) => {
+        InstKind::Load(address, PtrLocation::Memory)
+        | InstKind::Store(address, _, PtrLocation::Memory) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
         _ => false,
@@ -888,7 +887,7 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
         InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
-        InstKind::Store(address, value) => {
+        InstKind::Store(address, value, PtrLocation::Memory) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
                 return false;
             }
@@ -1079,8 +1078,6 @@ fn instruction_loads_data(kind: &InstKind) -> bool {
     matches!(
         kind,
         InstKind::Load(..)
-            | InstKind::SLoad(_)
-            | InstKind::TLoad(_)
             | InstKind::Keccak256(_, _)
             | InstKind::ExtractValue { ty: MirType::Slice(_), index: MirType::SLICE_LEN_FIELD, .. }
     )

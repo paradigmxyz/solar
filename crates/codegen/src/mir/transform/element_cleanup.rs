@@ -188,8 +188,8 @@ impl MirPass for ElementCleanup {
 /// is tracked like any element. Every fixed array and struct has a constant size, so only a
 /// runtime-sized allocation is known to start with a length word.
 fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
-    let (InstKind::Load(address, PtrLocation::Memory) | InstKind::Store(address, _)) =
-        func.inst(inst).kind
+    let (InstKind::Load(address, PtrLocation::Memory)
+    | InstKind::Store(address, _, PtrLocation::Memory)) = func.inst(inst).kind
     else {
         return None;
     };
@@ -250,14 +250,14 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
     for inst in func.instructions() {
         let instruction = func.inst(inst);
         let width = match &instruction.kind {
-            InstKind::Store(..)
+            InstKind::Store(.., PtrLocation::Memory)
                 if func
                     .memory_length_store(inst)
                     .is_some_and(|(object, length)| is_header_length(func, object, length)) =>
             {
                 0
             }
-            InstKind::Store(_, value)
+            InstKind::Store(_, value, PtrLocation::Memory)
                 if word_element_object(func, inst).is_some_and(|object| {
                     objects.is_none_or(|objects| {
                         objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH)
@@ -271,7 +271,7 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
             | InstKind::FrameStore { .. }
             | InstKind::MemoryZero(..)
             | InstKind::StorageArrayLoad { .. } => 0,
-            InstKind::Store(..) | InstKind::Store8(..) => {
+            InstKind::Store(.., PtrLocation::Memory) | InstKind::Store8(..) => {
                 if instruction.metadata.memory_region() == Some(MemoryRegion::Scratch) {
                     0
                 } else {

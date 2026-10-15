@@ -53,7 +53,7 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
                 return false;
             }
             match &instruction.kind {
-                InstKind::Store(address, value) => {
+                InstKind::Store(address, value, PtrLocation::Memory) => {
                     stores.push((block, position, *address, *value, 32))
                 }
                 InstKind::Store8(address, value) => {
@@ -159,7 +159,7 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
         for &inst in &func.blocks[block].instructions {
             if let Some(&slot) = store_slots.get(&inst) {
                 let bit = 1 << (slot + 1);
-                if matches!(func.inst(inst).kind, InstKind::Store(address, value)
+                if matches!(func.inst(inst).kind, InstKind::Store(address, value, PtrLocation::Memory)
                     if address == words[slot].0 && value == words[slot].1)
                 {
                     state &= !bit;

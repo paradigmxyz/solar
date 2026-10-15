@@ -114,12 +114,6 @@ impl MirPass for Licm {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum StorageSpace {
-    Persistent,
-    Transient,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct AffineRange {
     base: Option<ValueId>,
     start: i128,
@@ -510,25 +504,9 @@ impl LoopOptimizer {
             | InstKind::MappingSlotBytes(_, _)
             | InstKind::StorageArrayDataSlot(_)
             | InstKind::StorageArrayElementSlot { .. } => return false,
-            InstKind::SLoad(slot) => {
+            InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
-                    && !self.loop_may_mutate_storage_slot(
-                        func,
-                        ctx,
-                        inst_id,
-                        slot,
-                        StorageSpace::Persistent,
-                    );
-            }
-            InstKind::TLoad(slot) => {
-                return self.hoist_execution_guaranteed(func, inst_id, ctx)
-                    && !self.loop_may_mutate_storage_slot(
-                        func,
-                        ctx,
-                        inst_id,
-                        slot,
-                        StorageSpace::Transient,
-                    );
+                    && !self.loop_may_mutate_storage_slot(func, ctx, inst_id, slot, location);
             }
             InstKind::LoadImmutable(id) => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
@@ -659,8 +637,7 @@ impl LoopOptimizer {
 
     fn licm_profit(&self, func: &Function, inst_id: InstId) -> u16 {
         match func.inst(inst_id).kind {
-            InstKind::SLoad(_) => 100,
-            InstKind::TLoad(_) => 100,
+            InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient) => 100,
             InstKind::Keccak256(_, _) => 30,
             InstKind::MappingSlot(_, _)
             | InstKind::MappingSlotBytes(_, _)
@@ -767,7 +744,7 @@ impl LoopOptimizer {
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match func.inst(inst_id).kind {
-                    InstKind::Store(addr, _) => {
+                    InstKind::Store(addr, _, PtrLocation::Memory) => {
                         if self.memory_ranges_may_alias(func, ctx, load, addr, 32, block_id) {
                             return true;
                         }
@@ -797,7 +774,7 @@ impl LoopOptimizer {
         ctx: LoopOptContext<'_>,
         load_inst: InstId,
         load_slot: ValueId,
-        space: StorageSpace,
+        location: PtrLocation,
     ) -> bool {
         let aa = self.alias();
         let Some(load_alias) =
@@ -805,15 +782,15 @@ impl LoopOptimizer {
         else {
             return true;
         };
+        let Some(load) = Location::slot(location, load_alias) else { return true };
         if !self.can_use_storage_alias_for_licm(load_alias, ctx.loop_data) {
             return true;
         }
 
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                match (space, &func.inst(inst_id).kind) {
-                    (StorageSpace::Persistent, InstKind::SStore(slot, _))
-                    | (StorageSpace::Transient, InstKind::TStore(slot, _)) => {
+                match &func.inst(inst_id).kind {
+                    InstKind::Store(slot, _, store_location) if *store_location == location => {
                         let Some(store_alias) =
                             self.storage_alias_for_loop_value(func, inst_id, *slot, ctx.loop_data)
                         else {
@@ -822,24 +799,15 @@ impl LoopOptimizer {
                         if !self.can_use_storage_alias_for_licm(store_alias, ctx.loop_data) {
                             return true;
                         }
-                        let (load, store) = match space {
-                            StorageSpace::Persistent => {
-                                (Location::Storage(load_alias), Location::Storage(store_alias))
-                            }
-                            StorageSpace::Transient => {
-                                (Location::Transient(load_alias), Location::Transient(store_alias))
-                            }
+                        let Some(store) = Location::slot(location, store_alias) else {
+                            return true;
                         };
                         if aa.alias(load, store).may_alias() {
                             return true;
                         }
                     }
                     _ => {
-                        let location = match space {
-                            StorageSpace::Persistent => Location::Storage(load_alias),
-                            StorageSpace::Transient => Location::Transient(load_alias),
-                        };
-                        if aa.instruction_mod_ref(func, inst_id).may_write(aa, location) {
+                        if aa.instruction_mod_ref(func, inst_id).may_write(aa, load) {
                             return true;
                         }
                     }
@@ -1034,12 +1002,8 @@ impl LoopOptimizer {
                 let mut address_operands = ArrayVec::<ValueId, 2>::new();
                 match kind {
                     InstKind::Load(addr, _)
-                    | InstKind::Store(addr, _)
+                    | InstKind::Store(addr, ..)
                     | InstKind::Store8(addr, _)
-                    | InstKind::SLoad(addr)
-                    | InstKind::SStore(addr, _)
-                    | InstKind::TLoad(addr)
-                    | InstKind::TStore(addr, _)
                     | InstKind::Keccak256(addr, _)
                     | InstKind::Copy(addr, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
                     | InstKind::DataCopy(_, addr, _)

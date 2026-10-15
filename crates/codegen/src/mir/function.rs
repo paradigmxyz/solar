@@ -224,7 +224,9 @@ impl Function {
     /// `mstore object, len`, also through a pointer cast.
     #[must_use]
     pub(crate) fn memory_length_store(&self, inst: InstId) -> Option<(ValueId, ValueId)> {
-        let InstKind::Store(address, len) = self.inst(inst).kind else { return None };
+        let InstKind::Store(address, len, PtrLocation::Memory) = self.inst(inst).kind else {
+            return None;
+        };
         match self.object_address(address) {
             Some((object, 0)) if self.value_ty(object) == Some(MirType::MEMPTR) => {
                 Some((object, len))
@@ -717,8 +719,10 @@ impl Function {
         let mut changed = false;
         for inst_id in inst_ids {
             let slot = match self.inst(inst_id).kind {
-                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),
-                InstKind::TLoad(slot) | InstKind::TStore(slot, _)
+                InstKind::Load(slot, PtrLocation::Storage)
+                | InstKind::Store(slot, _, PtrLocation::Storage) => Some(slot),
+                InstKind::Load(slot, PtrLocation::Transient)
+                | InstKind::Store(slot, _, PtrLocation::Transient)
                     if scope == super::utils::StorageAliasScope::StorageAndTransient =>
                 {
                     Some(slot)

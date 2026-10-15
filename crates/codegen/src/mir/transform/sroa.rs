@@ -139,7 +139,11 @@ impl SroaCx {
                     continue;
                 }
                 InstKind::Load(address, PtrLocation::Memory) => address,
-                InstKind::Store(address, value) if !addresses.contains_key(&value) => address,
+                InstKind::Store(address, value, PtrLocation::Memory)
+                    if !addresses.contains_key(&value) =>
+                {
+                    address
+                }
                 _ => {
                     // Any other use of the object (a store of the pointer, a raw address) blocks
                     // scalarization.
@@ -211,7 +215,9 @@ impl SroaCx {
                     }
                 }
                 match func.inst(inst).kind {
-                    InstKind::Store(_, value) if slot_of.contains_key(&inst) => {
+                    InstKind::Store(_, value, PtrLocation::Memory)
+                        if slot_of.contains_key(&inst) =>
+                    {
                         let index = fields.binary_search(&slot_of[&inst]).ok()?;
                         slots[index].note_store(block, inst, value);
                     }

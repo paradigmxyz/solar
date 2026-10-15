@@ -783,8 +783,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::ptr => match self.parse_type_location()? {
                     PtrLocation::Memory => super::ValueLayout::MemPtr,
                     PtrLocation::Calldata => super::ValueLayout::CalldataPtr,
-                    PtrLocation::Returndata => {
-                        return Err(self.parser.error("`ptr<returndata>` is not a layout type"));
+                    location => {
+                        return Err(self
+                            .parser
+                            .error(format!("`ptr<{location}>` is not a layout type")));
                     }
                 },
                 sym::slice => super::ValueLayout::Slice(self.parse_type_location()?),
@@ -1797,7 +1799,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::ClearStorage { storage, layout }, None)
             }
 
-            kw::Mload | kw::Calldataload | sym::returndataload => {
+            kw::Mload | kw::Calldataload | sym::returndataload | kw::Sload | kw::Tload => {
                 let location = mnemonic_location(mnemonic);
                 let ptr = self.parse_value(builder)?;
                 let ty = if self.parser.eat(TokenKind::Comma) {
@@ -1811,14 +1813,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 };
                 (InstKind::Load(ptr, location), Some(ty))
             }
-            kw::Mstore | kw::Mstore8 => {
+            kw::Mstore | kw::Mstore8 | kw::Sstore | kw::Tstore => {
                 let ptr = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let value = self.parse_value(builder)?;
-                let kind = if mnemonic == kw::Mstore {
-                    InstKind::Store(ptr, value)
-                } else {
+                let kind = if mnemonic == kw::Mstore8 {
                     InstKind::Store8(ptr, value)
+                } else {
+                    InstKind::Store(ptr, value, mnemonic_location(mnemonic))
                 };
                 (kind, None)
             }
@@ -2293,13 +2295,15 @@ fn location_from_ident(id: Symbol) -> Option<PtrLocation> {
     }
 }
 
-/// Returns the location a load, copy, or slice spelling reads.
+/// Returns the location a load, store, copy, or slice spelling accesses.
 fn mnemonic_location(mnemonic: Symbol) -> PtrLocation {
     match mnemonic {
         kw::Calldataload | kw::Calldatacopy | sym::make_calldata_slice => PtrLocation::Calldata,
         sym::returndataload | kw::Returndatacopy | sym::make_returndata_slice => {
             PtrLocation::Returndata
         }
+        kw::Sload | kw::Sstore => PtrLocation::Storage,
+        kw::Tload | kw::Tstore => PtrLocation::Transient,
         _ => PtrLocation::Memory,
     }
 }

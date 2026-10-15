@@ -1552,9 +1552,9 @@ define_mir_ops! {
     Ne(a: ValueId, b: ValueId),
 
     // Memory operations
-    /// Load the word at `ptr` from memory, calldata, or returndata. Like an LLVM load from `ptr`,
-    /// the address may be a pointer into the same location; lowering casts it at the opcode
-    /// boundary.
+    /// Load the word at `ptr` from memory, calldata, or returndata, or the word in storage or
+    /// transient storage slot `ptr`. Like an LLVM load from `ptr`, the address may be a pointer
+    /// into the same location; lowering casts it at the opcode boundary.
     #[mir_op(
         mnemonic = "mload",
         result = Word,
@@ -1572,10 +1572,19 @@ define_mir_ops! {
         mnemonic: "returndataload",
         effect: EffectKind::EnvironmentRead,
     })]
+    #[when(InstKind::Load(_, PtrLocation::Storage) => {
+        mnemonic: "sload",
+        effect: EffectKind::StorageRead,
+    })]
+    #[when(InstKind::Load(_, PtrLocation::Transient) => {
+        mnemonic: "tload",
+        effect: EffectKind::TransientRead,
+    })]
     #[raw_memory(Read(ptr, 32) if *location == PtrLocation::Memory)]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location)]))]
     Load(ptr: ValueId, location: PtrLocation),
-    /// Store a word to memory at `ptr`, which may be a `ptr<memory>`, as for `mload`.
+    /// Store a word to memory at `ptr`, which may be a `ptr<memory>`, as for `mload`, or to
+    /// storage or transient storage slot `ptr`.
     #[mir_op(
         mnemonic = "mstore",
         result = None,
@@ -1585,9 +1594,17 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
-    #[raw_memory(Write(ptr, 32))]
-    #[operand_types(func => Some(smallvec![typing::address(func, *ptr, PtrLocation::Memory), MirType::I256]))]
-    Store(ptr: ValueId, value: ValueId),
+    #[when(InstKind::Store(.., PtrLocation::Storage) => {
+        mnemonic: "sstore",
+        effect: EffectKind::StorageWrite,
+    })]
+    #[when(InstKind::Store(.., PtrLocation::Transient) => {
+        mnemonic: "tstore",
+        effect: EffectKind::TransientWrite,
+    })]
+    #[raw_memory(Write(ptr, 32) if *location == PtrLocation::Memory)]
+    #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location), MirType::I256]))]
+    Store(ptr: ValueId, value: ValueId, location: PtrLocation),
     /// Store the low byte of `value` to memory at `ptr`, as for `mstore`.
     #[mir_op(
         mnemonic = "mstore8",
@@ -1796,60 +1813,6 @@ define_mir_ops! {
     #[raw_memory(Read(src, len) if *location == PtrLocation::Memory, Write(dest, len))]
     #[operand_types(func => Some(smallvec![typing::address(func, *dest, PtrLocation::Memory), typing::address(func, *src, *location), MirType::I256]))]
     Copy(dest: ValueId, src: ValueId, len: ValueId, location: PtrLocation),
-
-    // Storage operations
-    /// Load from storage: `sload(slot)`
-    #[mir_op(
-        mnemonic = "sload",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = StorageRead,
-        traits = OpTraits::NONE,
-        side_effects = false,
-        category = None
-    )]
-    #[builder(sload)]
-    #[operand_types(func => Some(smallvec![MirType::I256]))]
-    SLoad(slot: ValueId),
-    /// Store to storage: `sstore(slot, value)`
-    #[mir_op(
-        mnemonic = "sstore",
-        result = None,
-        phases = PhaseSet::ALL,
-        effect = StorageWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[builder(sstore, void)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
-    SStore(slot: ValueId, value: ValueId),
-    /// Transient load: `tload(slot)`
-    #[mir_op(
-        mnemonic = "tload",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = TransientRead,
-        traits = OpTraits::NONE,
-        side_effects = false,
-        category = None
-    )]
-    #[builder(tload)]
-    #[operand_types(func => Some(smallvec![MirType::I256]))]
-    TLoad(slot: ValueId),
-    /// Transient store: `tstore(slot, value)`
-    #[mir_op(
-        mnemonic = "tstore",
-        result = None,
-        phases = PhaseSet::ALL,
-        effect = TransientWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[builder(tstore, void)]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
-    TStore(slot: ValueId, value: ValueId),
 
     // Calldata operations
     /// Get calldata size: `calldatasize()`

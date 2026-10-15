@@ -303,7 +303,7 @@ impl FrameSlotPromoter {
                                 .note_load(block_id, inst_id);
                         }
                     }
-                    InstKind::Store(addr, value) => {
+                    InstKind::Store(addr, value, PtrLocation::Memory) => {
                         if let Some(slot) = Self::promotable_slot(func, aa, addr) {
                             accesses
                                 .entry(slot)
@@ -440,7 +440,7 @@ impl FrameSlotPromoter {
                 !Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
                     && Self::internal_frame_range_may_overlap(func, aa, addr, Some(32), slot_offset)
             }
-            InstKind::Store(addr, value) => {
+            InstKind::Store(addr, value, PtrLocation::Memory) => {
                 (!Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
                     && Self::internal_frame_range_may_overlap(
                         func,
@@ -544,7 +544,8 @@ impl FrameSlotPromoter {
         slot_addr: u64,
     ) -> bool {
         match *kind {
-            InstKind::Load(addr, PtrLocation::Memory) | InstKind::Store(addr, _) => {
+            InstKind::Load(addr, PtrLocation::Memory)
+            | InstKind::Store(addr, _, PtrLocation::Memory) => {
                 !Self::is_exact_external_slot_access(func, aa, addr, slot_addr)
                     && Self::external_range_reaches_slot(func, aa, addr, Some(32), slot_addr)
             }
@@ -1003,7 +1004,7 @@ impl<'a> SlotSsaBuilder<'a> {
     /// value operand and keeps the scalar zero supplied by SROA.
     fn store_value(&self, func: &Function, inst: InstId) -> ValueId {
         match func.inst(inst).kind {
-            InstKind::Store(_, value) => value,
+            InstKind::Store(_, value, PtrLocation::Memory) => value,
             InstKind::MemoryZero(..) => self.info.accesses[&inst].expect("zero defines the field"),
             _ => unreachable!("promoted definition must be a word store or zero fill"),
         }

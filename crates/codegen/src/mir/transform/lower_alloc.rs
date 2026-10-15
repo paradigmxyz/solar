@@ -208,7 +208,7 @@ fn rewrite_as_fmp_store(
     let ptr = builder.cast(ptr, MirType::I256);
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
-    instruction.kind = InstKind::Store(slot, ptr);
+    instruction.kind = InstKind::Store(slot, ptr, PtrLocation::Memory);
     instruction.metadata.set_effect(None);
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));

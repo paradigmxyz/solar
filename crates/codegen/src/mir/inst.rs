@@ -757,10 +757,6 @@ impl Instruction {
             | InstKind::Store8(..)
             | InstKind::MSize
             | InstKind::Copy(..)
-            | InstKind::SLoad(..)
-            | InstKind::SStore(..)
-            | InstKind::TLoad(..)
-            | InstKind::TStore(..)
             | InstKind::CalldataSize
             | InstKind::InternalFrameAddr(..)
             | InstKind::ConstructorArgsBase

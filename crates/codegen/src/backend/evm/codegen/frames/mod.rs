@@ -1768,7 +1768,7 @@ mod tests {
         }
         for (kind, ty) in [
             (InstKind::Load(prefix, PtrLocation::Memory), result),
-            (InstKind::Store(prefix, zero), None),
+            (InstKind::Store(prefix, zero, PtrLocation::Memory), None),
             (InstKind::Store8(prefix, zero), None),
         ] {
             let mut consumer = function.clone();

@@ -15,7 +15,8 @@
 //! argless `tail_call` to it — a bare jump in the backend.
 
 use crate::mir::{
-    Function, FunctionBuilder, FunctionId, InstKind, Module, Terminator, Value, pass::MirPass,
+    Function, FunctionBuilder, FunctionId, InstKind, Module, PtrLocation, Terminator, Value,
+    pass::MirPass,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -125,7 +126,8 @@ fn constant_revert_shape(func: &Function, block_idx: usize) -> Option<RevertShap
     };
     let mut stores = SmallVec::with_capacity(block.instructions.len());
     for &inst_id in &block.instructions {
-        let InstKind::Store(store_offset, value) = func.inst(inst_id).kind else {
+        let InstKind::Store(store_offset, value, PtrLocation::Memory) = func.inst(inst_id).kind
+        else {
             return None;
         };
         stores.push((imm(store_offset)?, imm(value)?));

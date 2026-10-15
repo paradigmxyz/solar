@@ -126,9 +126,9 @@ impl MirPass for Cse {
                 .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
                 .nth(1)
                 .is_none()
-                && !func
-                    .instructions()
-                    .any(|inst| matches!(func.inst(inst).kind, InstKind::Store(..)))
+                && !func.instructions().any(|inst| {
+                    matches!(func.inst(inst).kind, InstKind::Store(.., PtrLocation::Memory))
+                })
             {
                 return false;
             }
@@ -185,7 +185,7 @@ impl MirPass for FmpCse {
                                 cached = Some(result);
                             }
                         }
-                        InstKind::Store(ptr, value)
+                        InstKind::Store(ptr, value, PtrLocation::Memory)
                             if func
                                 .value_u64(mir_utils::resolve_replacement(*ptr, &replacements))
                                 == Some(EvmMemoryLayout::FMP_SLOT) =>
@@ -934,10 +934,7 @@ impl CommonSubexprEliminator {
         for &inst in side_effects.keys() {
             let kind = &func.inst(inst).kind;
             let stored = match *kind {
-                InstKind::Store(_, value)
-                | InstKind::Store8(_, value)
-                | InstKind::SStore(_, value)
-                | InstKind::TStore(_, value) => Some(value),
+                InstKind::Store(_, value, _) | InstKind::Store8(_, value) => Some(value),
                 _ => None,
             };
             kind.visit_operands(|operand| {
@@ -995,8 +992,7 @@ impl CommonSubexprEliminator {
                 | InstKind::MappingSlot(..)
                 | InstKind::StorageArrayDataSlot(..)
                 | InstKind::StorageArrayElementSlot { .. }
-                | InstKind::SLoad(_)
-                | InstKind::TLoad(_)
+                | InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient)
                 | InstKind::ExtCodeSize(_)
                 | InstKind::ExtCodeHash(_)
                 | InstKind::Balance(_)
@@ -1076,7 +1072,7 @@ impl CommonSubexprEliminator {
     ) -> Option<(ExprKey, ValueId)> {
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
         match *kind {
-            InstKind::Store(addr, stored) => {
+            InstKind::Store(addr, stored, PtrLocation::Memory) => {
                 let key =
                     self.memory_range_key(func, inst_id, value(addr), LocationSize::Const(32))?;
                 Some((ExprKey::MLoad(key), value(stored)))
@@ -1227,10 +1223,10 @@ impl CommonSubexprEliminator {
                 Some(ExprKey::ExtractValue(operand(*aggregate), *index))
             }
 
-            InstKind::SLoad(slot) => Some(ExprKey::SLoad(
+            InstKind::Load(slot, PtrLocation::Storage) => Some(ExprKey::SLoad(
                 self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
             )),
-            InstKind::TLoad(slot) => Some(ExprKey::TLoad(
+            InstKind::Load(slot, PtrLocation::Transient) => Some(ExprKey::TLoad(
                 self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
             )),
 
@@ -1677,10 +1673,8 @@ impl CommonSubexprEliminator {
                 }
                 if matches!(
                     inst.kind,
-                    InstKind::SLoad(_)
-                        | InstKind::SStore(_, _)
-                        | InstKind::TLoad(_)
-                        | InstKind::TStore(_, _)
+                    InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient)
+                        | InstKind::Store(.., PtrLocation::Storage | PtrLocation::Transient)
                 ) {
                     inst.metadata.set_storage_alias(None);
                 }

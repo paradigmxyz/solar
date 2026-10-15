@@ -1635,7 +1635,7 @@ impl LowerAbiCx {
                 continue;
             }
             match &inst.kind {
-                InstKind::Store(address, value)
+                InstKind::Store(address, value, PtrLocation::Memory)
                     if let Some((target, base, index)) = func.element_address(*address)
                         && target == object
                         && base == EvmMemoryLayout::DYNAMIC_HEADER_SIZE =>
@@ -2717,7 +2717,7 @@ impl LowerAbiCx {
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
             InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) => true,
             InstKind::Load(address, PtrLocation::Memory)
-            | InstKind::Store(address, _)
+            | InstKind::Store(address, _, PtrLocation::Memory)
             | InstKind::Store8(address, _)
                 if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
@@ -2806,7 +2806,7 @@ impl LowerAbiCx {
                     aggregate: object,
                     index: MirType::SLICE_PTR_FIELD,
                 }
-                | InstKind::Store(object, ..)
+                | InstKind::Store(object, .., PtrLocation::Memory)
                 | InstKind::Store8(object, ..)
                 | InstKind::MemoryZero(object, _)
                 | InstKind::Copy(object, ..)
@@ -2816,7 +2816,7 @@ impl LowerAbiCx {
                 {
                     (true, false)
                 }
-                InstKind::Store(_, value) | InstKind::Store8(_, value)
+                InstKind::Store(_, value, PtrLocation::Memory) | InstKind::Store8(_, value)
                     if tainted.contains(*value)
                         && (uses.contains(value)
                             || matches!(
@@ -3161,7 +3161,10 @@ impl LowerAbiCx {
                     !preserves_calldata
                 }
                 InstKind::ExtractValue { ty: MirType::Slice(_), .. } => false,
-                InstKind::Load(..) => result.is_some_and(|value| {
+                InstKind::Load(
+                    _,
+                    PtrLocation::Memory | PtrLocation::Calldata | PtrLocation::Returndata,
+                ) => result.is_some_and(|value| {
                     func.value_ty(value)
                         .is_some_and(|ty| matches!(ty, MirType::MEMPTR | MirType::Slice(_)))
                 }),
@@ -3742,7 +3745,9 @@ fn pointer_alias_root(func: &Function, mut value: ValueId) -> ValueId {
 /// The alias root of the object a word store writes, with the word it writes: a word-aligned
 /// constant offset into a fixed array or struct.
 fn fixed_word_store(func: &Function, inst: InstId) -> Option<(ValueId, u64, ValueId)> {
-    let InstKind::Store(address, value) = func.inst(inst).kind else { return None };
+    let InstKind::Store(address, value, PtrLocation::Memory) = func.inst(inst).kind else {
+        return None;
+    };
     let (object, offset) = func.object_address(address)?;
     let slot = EvmMemoryLayout::word_slot(offset)?;
     Some((pointer_alias_root(func, object), slot, value))
@@ -3843,7 +3848,7 @@ fn memory_writes_stay_private(
                         object,
                         aliases.location_size(func, size),
                     ),
-                    InstKind::Store(address, _) => aliases
+                    InstKind::Store(address, _, PtrLocation::Memory) => aliases
                         .memory_location(func, inst, address, LocationSize::Const(32))
                         .filter(|location| location.size.as_const().is_some()),
                     _ => None,
@@ -3899,7 +3904,7 @@ fn container_keeps_pointer_private(func: &Function, object: ValueId) -> bool {
                 continue;
             }
             match *kind {
-                InstKind::Store(base, value) => {
+                InstKind::Store(base, value, PtrLocation::Memory) => {
                     if pointer_alias_root(func, value) == object {
                         pending.push(pointer_alias_root(func, base));
                     } else if pointer_alias_root(func, base) != object {
@@ -3943,7 +3948,7 @@ fn is_unmodified_call_result(func: &Function, value: ValueId, call: InstId) -> b
             }
             | InstKind::Load(object, PtrLocation::Memory)
                 if pointer_alias_root(func, object) == value => {}
-            InstKind::Store(object, stored)
+            InstKind::Store(object, stored, PtrLocation::Memory)
                 if pointer_alias_root(func, stored) == value
                     && pointer_alias_root(func, object) != value
                     && container_keeps_pointer_private(func, object) => {}
@@ -4135,7 +4140,7 @@ fn is_canonical_return_object(
                     return false;
                 }
             }
-            InstKind::Store(base, stored)
+            InstKind::Store(base, stored, PtrLocation::Memory)
                 if pointer_alias_root(func, *stored) == object
                     && container_keeps_pointer_private(func, *base) => {}
             _ if func
@@ -4197,7 +4202,7 @@ fn is_canonical_return_array(
             if !initializers.contains(&inst) || stores.insert(index, value).is_some() {
                 return false;
             }
-        } else if let InstKind::Store(base, stored) = func.inst(inst).kind
+        } else if let InstKind::Store(base, stored, PtrLocation::Memory) = func.inst(inst).kind
             && pointer_alias_root(func, stored) == object
             && container_keeps_pointer_private(func, base)
         {
@@ -4574,7 +4579,9 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
         if func.is_object_derivation(inst) {
             continue;
         }
-        let InstKind::Store(address, stored) = func.inst(inst).kind else { return None };
+        let InstKind::Store(address, stored, PtrLocation::Memory) = func.inst(inst).kind else {
+            return None;
+        };
         let (base, offset) = func.object_address(address)?;
         if base != *object {
             return None;

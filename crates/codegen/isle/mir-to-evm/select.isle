@@ -22,12 +22,16 @@
 (decl pure log_opcode (LogTopics) u8)
 (extern constructor log_opcode log_opcode)
 
-;; MLOAD or CALLDATALOAD, by source location.
+;; MLOAD, CALLDATALOAD, SLOAD, or TLOAD, by source location.
 (decl pure partial load_opcode (PtrLocation) u8)
 (extern constructor load_opcode load_opcode)
 
+;; MSTORE, SSTORE, or TSTORE, by destination location.
+(decl pure partial store_opcode (PtrLocation) u8)
+(extern constructor store_opcode store_opcode)
+
 ;; MCOPY, CALLDATACOPY, or RETURNDATACOPY, by source location.
-(decl pure copy_opcode (PtrLocation) u8)
+(decl pure partial copy_opcode (PtrLocation) u8)
 (extern constructor copy_opcode copy_opcode)
 
 (rule (select_opcode (Op.Add _ _)) (OpcodeLowering.Binary $ADD))
@@ -55,13 +59,9 @@
 (rule (select_opcode (Op.SGt _ _)) (OpcodeLowering.Binary $SGT))
 (rule (select_opcode (Op.Eq _ _)) (OpcodeLowering.Binary $EQ))
 (rule (select_opcode (Op.Load _ location)) (OpcodeLowering.Unary (load_opcode location)))
-(rule (select_opcode (Op.Store _ _)) (OpcodeLowering.Store $MSTORE))
+(rule (select_opcode (Op.Store _ _ location)) (OpcodeLowering.Store (store_opcode location)))
 (rule (select_opcode (Op.Store8 _ _)) (OpcodeLowering.Store $MSTORE8))
 (rule (select_opcode (Op.MSize)) (OpcodeLowering.Nullary $MSIZE))
-(rule (select_opcode (Op.SLoad _)) (OpcodeLowering.Unary $SLOAD))
-(rule (select_opcode (Op.SStore _ _)) (OpcodeLowering.Store $SSTORE))
-(rule (select_opcode (Op.TLoad _)) (OpcodeLowering.Unary $TLOAD))
-(rule (select_opcode (Op.TStore _ _)) (OpcodeLowering.Store $TSTORE))
 (rule (select_opcode (Op.CalldataSize)) (OpcodeLowering.Nullary $CALLDATASIZE))
 (rule (select_opcode (Op.Keccak256 _ _)) (OpcodeLowering.Binary $KECCAK256))
 (rule (select_opcode (Op.Caller)) (OpcodeLowering.Nullary $CALLER))

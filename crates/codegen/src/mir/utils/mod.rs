@@ -364,7 +364,7 @@ pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
     matches!(
         kind,
         InstKind::Load(.., PtrLocation::Memory)
-            | InstKind::Store(..)
+            | InstKind::Store(.., PtrLocation::Memory)
             | InstKind::Store8(..)
             | InstKind::MemoryZero(_, _)
             | InstKind::Copy(..)

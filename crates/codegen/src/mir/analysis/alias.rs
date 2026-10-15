@@ -183,6 +183,16 @@ impl Location {
             Self::Immutable(_) => AddressSpace::Immutable,
         }
     }
+
+    /// Returns the slot `alias` names in storage or transient storage `location`.
+    #[must_use]
+    pub(crate) const fn slot(location: PtrLocation, alias: StorageAlias) -> Option<Self> {
+        match location {
+            PtrLocation::Storage => Some(Self::Storage(alias)),
+            PtrLocation::Transient => Some(Self::Transient(alias)),
+            PtrLocation::Memory | PtrLocation::Calldata | PtrLocation::Returndata => None,
+        }
+    }
 }
 
 /// Alias relationship between two locations.
@@ -874,7 +884,7 @@ impl AliasAnalysis {
             | InstKind::IntToPtr(..)
             | InstKind::PtrToInt(_, 256) => false,
             InstKind::Load(address, PtrLocation::Memory) => operand != *address,
-            InstKind::Store(address, _)
+            InstKind::Store(address, _, PtrLocation::Memory)
             | InstKind::Store8(address, _)
             | InstKind::MemoryZero(address, _) => operand != *address,
             InstKind::Copy(dest, source, _, PtrLocation::Memory)
@@ -1049,7 +1059,7 @@ impl AliasAnalysis {
             InstKind::Load(address, PtrLocation::Memory) => {
                 read_memory(&mut effects, address, SizeOperand::Const(32));
             }
-            InstKind::Store(address, _) => {
+            InstKind::Store(address, _, PtrLocation::Memory) => {
                 write_memory(&mut effects, address, SizeOperand::Const(32));
             }
             InstKind::Store8(address, _) => {
@@ -1215,18 +1225,26 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::MSize => effects.observes_memory_size = true,
-            InstKind::SLoad(slot) => effects.read(Access::Location(Location::Storage(
-                self.storage_alias_after_replacements(func, inst_id, slot, replacements),
-            ))),
-            InstKind::SStore(slot, _) => effects.write(Access::Location(Location::Storage(
-                self.storage_alias_after_replacements(func, inst_id, slot, replacements),
-            ))),
-            InstKind::TLoad(slot) => effects.read(Access::Location(Location::Transient(
-                self.storage_alias_after_replacements(func, inst_id, slot, replacements),
-            ))),
-            InstKind::TStore(slot, _) => effects.write(Access::Location(Location::Transient(
-                self.storage_alias_after_replacements(func, inst_id, slot, replacements),
-            ))),
+            InstKind::Load(slot, PtrLocation::Storage) => {
+                effects.read(Access::Location(Location::Storage(
+                    self.storage_alias_after_replacements(func, inst_id, slot, replacements),
+                )))
+            }
+            InstKind::Store(slot, _, PtrLocation::Storage) => {
+                effects.write(Access::Location(Location::Storage(
+                    self.storage_alias_after_replacements(func, inst_id, slot, replacements),
+                )))
+            }
+            InstKind::Load(slot, PtrLocation::Transient) => {
+                effects.read(Access::Location(Location::Transient(
+                    self.storage_alias_after_replacements(func, inst_id, slot, replacements),
+                )))
+            }
+            InstKind::Store(slot, _, PtrLocation::Transient) => {
+                effects.write(Access::Location(Location::Transient(
+                    self.storage_alias_after_replacements(func, inst_id, slot, replacements),
+                )))
+            }
             InstKind::LoadImmutable(id) => {
                 effects.read(Access::Location(Location::Immutable(id)));
             }
@@ -1670,9 +1688,9 @@ impl AliasAnalysis {
         match &func.inst(*inst_id).kind {
             InstKind::MakeSlice { ptr, location, .. } => match location {
                 PtrLocation::Memory => self.memory_address_with_depth(func, *ptr, depth + 1),
-                // Calldata and returndata pointers index their own address
+                // Pointers into other locations index their own address
                 // spaces, not memory, so they carry no memory provenance.
-                PtrLocation::Calldata | PtrLocation::Returndata => None,
+                _ => None,
             },
             InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
                 Some(if self.allocation_is_dynamic(func, *inst_id) {
@@ -1839,7 +1857,9 @@ impl AliasAnalysis {
             InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),
-            InstKind::Store(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),
+            InstKind::Store(address, _, PtrLocation::Memory) => {
+                Self::range_may_overlap_fmp(func, address, Some(32))
+            }
             InstKind::Store8(address, _) => Self::range_may_overlap_fmp(func, address, Some(1)),
             InstKind::Copy(dest, _, size, _)
             | InstKind::MemoryZero(dest, size)
@@ -1978,19 +1998,13 @@ impl AliasAnalysis {
 
     fn abi_type_reads_memory(ty: &AbiType) -> bool {
         match ty {
+            AbiType::Word(_) | AbiType::Function => false,
             // Calldata and returndata ABI values read their own buffers, not
             // memory (returndata does not occur as an ABI type in practice).
-            AbiType::Word(_)
-            | AbiType::Function
-            | AbiType::Bytes(PtrLocation::Calldata | PtrLocation::Returndata)
-            | AbiType::DynamicArray {
-                location: PtrLocation::Calldata | PtrLocation::Returndata,
-                ..
-            } => false,
-            AbiType::Bytes(PtrLocation::Memory)
-            | AbiType::DynamicArray { location: PtrLocation::Memory, .. }
-            | AbiType::FixedArray { .. }
-            | AbiType::Tuple(_) => true,
+            AbiType::Bytes(location) | AbiType::DynamicArray { location, .. } => {
+                *location == PtrLocation::Memory
+            }
+            AbiType::FixedArray { .. } | AbiType::Tuple(_) => true,
         }
     }
 }

@@ -701,7 +701,7 @@ impl<'a> Validator<'a> {
         self.prepare_return_abi_validation(module);
         for (id, ty) in module.struct_types.iter_enumerated() {
             for field in &ty.fields {
-                self.validate_integer_type(*field);
+                self.validate_type(*field);
                 if *field == MirType::Void
                     || matches!(field, MirType::Struct(nested) if *nested >= id)
                 {
@@ -751,12 +751,19 @@ impl<'a> Validator<'a> {
         }
     }
 
-    fn validate_integer_type(&mut self, ty: MirType) {
+    fn validate_type(&mut self, ty: MirType) {
         if let Some(bits) = ty.integer_bits()
             && !MirType::valid_integer_width(bits)
         {
             self.emit(format_args!(
                 "unsupported integer type `{ty}`; expected i1 or a byte width from i8 through i256"
+            ));
+        }
+        if let MirType::Ptr(location) | MirType::Slice(location) = ty
+            && matches!(location, PtrLocation::Storage | PtrLocation::Transient)
+        {
+            self.emit(format_args!(
+                "unsupported type `{ty}`; pointers and slices address memory, calldata, or returndata"
             ));
         }
     }
@@ -782,7 +789,7 @@ impl<'a> Validator<'a> {
             .chain(std::iter::once(func.return_type()))
             .chain(func.return_components().iter().copied())
         {
-            self.validate_integer_type(ty);
+            self.validate_type(ty);
             if let MirType::Struct(id) = ty
                 && module.struct_types.get(id).is_none()
             {
@@ -1036,7 +1043,7 @@ impl<'a> Validator<'a> {
             None | Some(MirType::Void) => {
                 self.emit(format_args!("live value v{} has no value type", value.index()));
             }
-            Some(ty) => self.validate_integer_type(ty),
+            Some(ty) => self.validate_type(ty),
         }
         if let Value::Immediate(immediate) = func.value(value)
             && let MirType::Int(bits) = immediate.ty()
@@ -1140,6 +1147,12 @@ impl<'a> Validator<'a> {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
                     InstKind::Load(.., location) => *location != PtrLocation::Returndata,
+                    InstKind::Store(.., location) => {
+                        !matches!(location, PtrLocation::Calldata | PtrLocation::Returndata)
+                    }
+                    InstKind::Copy(.., location) => {
+                        !matches!(location, PtrLocation::Storage | PtrLocation::Transient)
+                    }
                     _ => true,
                 };
                 if !valid {

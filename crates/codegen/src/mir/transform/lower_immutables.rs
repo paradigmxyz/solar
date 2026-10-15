@@ -6,7 +6,8 @@
 //! only after those optimizations have finished.
 
 use crate::mir::{
-    Callee, EffectKind, FunctionBuilder, FunctionId, InstKind, MemoryRegion, Module, Terminator,
+    Callee, EffectKind, FunctionBuilder, FunctionId, InstKind, MemoryRegion, Module, PtrLocation,
+    Terminator,
     immutable::{immutable_staging_addr, immutable_staging_base},
     pass::MirPass,
 };
@@ -51,7 +52,7 @@ impl MirPass for LowerImmutables {
                         let value = builder.cast_word(value);
                         let addr = builder.imm(immutable_staging_addr(staging_base, id));
                         let inst = builder.func_mut().inst_mut(inst_id);
-                        inst.kind = InstKind::Store(addr, value);
+                        inst.kind = InstKind::Store(addr, value, PtrLocation::Memory);
                         inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
                         inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
                         changed = true;

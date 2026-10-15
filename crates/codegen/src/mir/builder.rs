@@ -778,7 +778,7 @@ impl<'a> FunctionBuilder<'a> {
         }
         let addr = match *kind {
             InstKind::Load(addr, PtrLocation::Memory)
-            | InstKind::Store(addr, _)
+            | InstKind::Store(addr, _, PtrLocation::Memory)
             | InstKind::Store8(addr, _)
             | InstKind::Keccak256(addr, _) => addr,
             InstKind::Copy(dest, ..)
@@ -835,7 +835,8 @@ impl<'a> FunctionBuilder<'a> {
 
     fn storage_alias_for_inst(&self, kind: &InstKind) -> Option<StorageAlias> {
         match *kind {
-            InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(self.storage_alias(slot)),
+            InstKind::Load(slot, PtrLocation::Storage)
+            | InstKind::Store(slot, _, PtrLocation::Storage) => Some(self.storage_alias(slot)),
             _ => None,
         }
     }
@@ -1395,7 +1396,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::AbiDecode { data, layout });
     }
 
-    /// Emits a word load from memory or calldata.
+    /// Emits a word load from `location`.
     pub(crate) fn load(&mut self, ptr: ValueId, location: PtrLocation) -> ValueId {
         self.load_as(ptr, location, MirType::I256)
     }
@@ -1404,7 +1405,29 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn store(&mut self, ptr: ValueId, value: ValueId) {
         let ptr = self.access_address(ptr);
         // mstore ptr, value
-        self.emit_void_inst(InstKind::Store(ptr, value));
+        self.emit_void_inst(InstKind::Store(ptr, value, PtrLocation::Memory));
+    }
+
+    /// Emits a storage load.
+    pub(crate) fn sload(&mut self, slot: ValueId) -> ValueId {
+        self.load(slot, PtrLocation::Storage)
+    }
+
+    /// Emits a storage store.
+    pub(crate) fn sstore(&mut self, slot: ValueId, value: ValueId) {
+        // sstore slot, value
+        self.emit_void_inst(InstKind::Store(slot, value, PtrLocation::Storage));
+    }
+
+    /// Emits a transient storage load.
+    pub(crate) fn tload(&mut self, slot: ValueId) -> ValueId {
+        self.load(slot, PtrLocation::Transient)
+    }
+
+    /// Emits a transient storage store.
+    pub(crate) fn tstore(&mut self, slot: ValueId, value: ValueId) {
+        // tstore slot, value
+        self.emit_void_inst(InstKind::Store(slot, value, PtrLocation::Transient));
     }
 
     /// Emits a byte store to memory.

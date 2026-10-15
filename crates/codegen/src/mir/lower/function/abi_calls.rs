@@ -224,8 +224,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 _ => self.cx.report_unsupported(span, "memory slice materialization"),
             },
-            PtrLocation::Returndata => {
-                self.cx.report_unsupported(span, "returndata slice materialization")
+            location => {
+                self.cx.report_unsupported(span, &format!("{location} slice materialization"))
             }
         }
     }

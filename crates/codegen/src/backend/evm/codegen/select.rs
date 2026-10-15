@@ -77,14 +77,26 @@ impl generated::Context for RuleContext {
             PtrLocation::Memory => Some(MLOAD),
             PtrLocation::Calldata => Some(CALLDATALOAD),
             PtrLocation::Returndata => None,
+            PtrLocation::Storage => Some(SLOAD),
+            PtrLocation::Transient => Some(TLOAD),
         }
     }
 
-    fn copy_opcode(&mut self, location: PtrLocation) -> u8 {
+    fn store_opcode(&mut self, location: PtrLocation) -> Option<u8> {
         match location {
-            PtrLocation::Memory => MCOPY,
-            PtrLocation::Calldata => CALLDATACOPY,
-            PtrLocation::Returndata => RETURNDATACOPY,
+            PtrLocation::Memory => Some(MSTORE),
+            PtrLocation::Storage => Some(SSTORE),
+            PtrLocation::Transient => Some(TSTORE),
+            PtrLocation::Calldata | PtrLocation::Returndata => None,
+        }
+    }
+
+    fn copy_opcode(&mut self, location: PtrLocation) -> Option<u8> {
+        match location {
+            PtrLocation::Memory => Some(MCOPY),
+            PtrLocation::Calldata => Some(CALLDATACOPY),
+            PtrLocation::Returndata => Some(RETURNDATACOPY),
+            PtrLocation::Storage | PtrLocation::Transient => None,
         }
     }
 }

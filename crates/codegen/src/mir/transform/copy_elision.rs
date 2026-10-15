@@ -142,7 +142,9 @@ impl CopyElisionCx {
 
     fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
         let block = *self.indexed_stores.get(&inst)?;
-        let InstKind::Store(address, _) = func.inst(inst).kind else { return None };
+        let InstKind::Store(address, _, PtrLocation::Memory) = func.inst(inst).kind else {
+            return None;
+        };
         // A dynamic object's elements follow its length word; a fixed one's start at it.
         let (target, data_offset, index) = func.element_address(address)?;
         if target == object
@@ -195,7 +197,7 @@ impl CopyElisionCx {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                if let InstKind::Store(address, _) = inst.kind
+                if let InstKind::Store(address, _, PtrLocation::Memory) = inst.kind
                     && func.element_address(address).is_some()
                 {
                     self.indexed_stores.insert(inst_id, block_id);
@@ -263,7 +265,7 @@ impl CopyElisionCx {
                 let inst = func.inst(inst_id);
                 match &inst.kind {
                     // Writes to the allocation: the address is a derived value.
-                    InstKind::Store(addr, value) => {
+                    InstKind::Store(addr, value, PtrLocation::Memory) => {
                         if derived.contains(value) {
                             return None; // Storing an interior address elsewhere is a read/escape.
                         }

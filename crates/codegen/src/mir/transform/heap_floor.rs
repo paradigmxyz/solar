@@ -168,7 +168,8 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
     for (func_id, func) in module.functions.iter_enumerated() {
         for (block, data) in func.blocks.iter_enumerated() {
             for (index, &inst_id) in data.instructions.iter().enumerate() {
-                if let InstKind::Store(address, value) = func.inst(inst_id).kind
+                if let InstKind::Store(address, value, PtrLocation::Memory) =
+                    func.inst(inst_id).kind
                     && is_slot(func, address)
                     && func.value_ty(value) == Some(MirType::I256)
                     && uses.address_inputs(func_id)[value] != AddressInput::Other
@@ -206,7 +207,7 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
 
 /// Rewrites `mstore 64, v` into `mstore 64, max(v, heap_floor)`.
 fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
-    let InstKind::Store(address, value) = func.inst(inst).kind else {
+    let InstKind::Store(address, value, PtrLocation::Memory) = func.inst(inst).kind else {
         unreachable!("a floor store is a `mstore`")
     };
     let metadata = func.inst(inst).metadata.clone();
@@ -217,7 +218,7 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
     let position = index_in_block(func, block, inst);
     func.blocks[block].instructions.splice(position..position, clamp);
     // mstore 64, clamped
-    func.inst_mut(inst).kind = InstKind::Store(address, clamped);
+    func.inst_mut(inst).kind = InstKind::Store(address, clamped, PtrLocation::Memory);
 }
 
 /// Raises the words a function's loads read from the slot, and the returned words its calls
@@ -294,7 +295,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             UseSite::Inst(inst) => {
                 let slot_store = matches!(
                     func.inst(*inst).kind,
-                    InstKind::Store(address, _) if is_slot(func, address)
+                    InstKind::Store(address, _, PtrLocation::Memory) if is_slot(func, address)
                 );
                 let kind = &mut func.inst_mut(*inst).kind;
                 let mut raw = false;
@@ -302,7 +303,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
                     raw = true;
                     swap(operand);
                 });
-                if slot_store && let InstKind::Store(_, value) = kind {
+                if slot_store && let InstKind::Store(_, value, PtrLocation::Memory) = kind {
                     swap(value);
                 }
                 if !raw {
@@ -348,7 +349,7 @@ fn clamp_slot(func: &mut Function, block: BlockId, before: Option<InstId>) {
     let (load, word) =
         func.alloc_value_inst(emit(InstKind::Load(slot, PtrLocation::Memory), Some(MirType::I256)));
     let (clamp, clamped) = floor_max(func, word, &metadata);
-    let store = func.alloc_inst(emit(InstKind::Store(slot, clamped), None));
+    let store = func.alloc_inst(emit(InstKind::Store(slot, clamped, PtrLocation::Memory), None));
     let position = before
         .map_or(func.blocks[block].instructions.len(), |inst| index_in_block(func, block, inst));
     // word = mload 64
@@ -493,7 +494,7 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
             InstKind::FrameLoad { .. }
                 | InstKind::FrameStore { .. }
                 | InstKind::Load(..)
-                | InstKind::Store(..)
+                | InstKind::Store(.., PtrLocation::Memory)
                 | InstKind::Store8(..)
                 | InstKind::MemoryZero(..)
                 | InstKind::MappingSlot(..)
@@ -749,7 +750,7 @@ fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
         let pointer = is_memory_reference(func.value_ty(word));
         return Reads { pointer, data: !pointer };
     }
-    if let InstKind::Store(address, value) = *kind
+    if let InstKind::Store(address, value, PtrLocation::Memory) = *kind
         && is_slot(func, address)
     {
         pointer_uses += usize::from(value == word);
@@ -1290,7 +1291,9 @@ impl<'a> PointerUses<'a> {
                     (false, false) => Effect::None,
                 }
             }
-            InstKind::Store(address, _) if is_slot(func, address) => Effect::Replaces,
+            InstKind::Store(address, _, PtrLocation::Memory) if is_slot(func, address) => {
+                Effect::Replaces
+            }
             InstKind::SetFmp(_) => Effect::Replaces,
             InstKind::ICall { function: Callee::Function(callee), .. } => Effect::Calls(callee),
             // The compiler's own pointer reads and allocations, and the builtins and semantic

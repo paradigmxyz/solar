@@ -138,8 +138,8 @@
 (decl load (Value PtrLocation) Value)
 (extractor (load ptr location) (inst (Op.Load ptr location)))
 
-(decl store (Value Value) Value)
-(extractor (store ptr value) (inst (Op.Store ptr value)))
+(decl store (Value Value PtrLocation) Value)
+(extractor (store ptr value location) (inst (Op.Store ptr value location)))
 
 (decl store8 (Value Value) Value)
 (extractor (store8 ptr value) (inst (Op.Store8 ptr value)))
@@ -179,18 +179,6 @@
 
 (decl copy (Value Value Value PtrLocation) Value)
 (extractor (copy dest src len location) (inst (Op.Copy dest src len location)))
-
-(decl sload (Value) Value)
-(extractor (sload slot) (inst (Op.SLoad slot)))
-
-(decl sstore (Value Value) Value)
-(extractor (sstore slot value) (inst (Op.SStore slot value)))
-
-(decl tload (Value) Value)
-(extractor (tload slot) (inst (Op.TLoad slot)))
-
-(decl tstore (Value Value) Value)
-(extractor (tstore slot value) (inst (Op.TStore slot value)))
 
 (decl calldatasize () Value)
 (extractor (calldatasize) (inst (Op.CalldataSize)))

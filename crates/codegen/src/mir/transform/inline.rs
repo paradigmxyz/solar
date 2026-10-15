@@ -1127,7 +1127,9 @@ fn is_small_literal_return(func: &Function) -> bool {
         if func.is_object_derivation(inst) {
             continue;
         }
-        let InstKind::Store(address, value) = func.inst(inst).kind else { return false };
+        let InstKind::Store(address, value, PtrLocation::Memory) = func.inst(inst).kind else {
+            return false;
+        };
         match func.object_address(address) {
             Some((base, 0)) if base == object && length.is_none() => {
                 length = func.value_u64(value);
@@ -1263,7 +1265,9 @@ fn summarize_function(
                 | InstKind::Create2(..) => {
                     summary.has_external_call = true;
                 }
-                InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
+                InstKind::Store(.., PtrLocation::Storage | PtrLocation::Transient) => {
+                    summary.has_storage_write = true;
+                }
                 InstKind::StoreImmutable(..) => summary.has_immutable_write = true,
                 InstKind::Log { .. } => summary.has_log = true,
                 _ => {}
@@ -1427,16 +1431,19 @@ fn is_memory_wrapper(func: &Function) -> bool {
     let [call, rest @ ..] = block.instructions.as_slice() else { return false };
     rest.len() <= 5
         && matches!(func.inst(*call).kind, InstKind::ICall { function: Callee::Function(_), .. })
-        && rest
-            .iter()
-            .any(|&inst| matches!(func.inst(inst).kind, InstKind::Store(..) | InstKind::Store8(..)))
+        && rest.iter().any(|&inst| {
+            matches!(
+                func.inst(inst).kind,
+                InstKind::Store(.., PtrLocation::Memory) | InstKind::Store8(..)
+            )
+        })
         && rest.iter().all(|&inst| {
             matches!(
                 func.inst(inst).kind,
                 InstKind::Add(..)
                     | InstKind::Sub(..)
                     | InstKind::Load(_, PtrLocation::Memory)
-                    | InstKind::Store(..)
+                    | InstKind::Store(.., PtrLocation::Memory)
                     | InstKind::Store8(..)
             )
         })

@@ -15,7 +15,7 @@
 
 use crate::mir::{
     AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirPhase, MirType,
-    Module, Value, pass::MirPass,
+    Module, PtrLocation, Value, pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -210,7 +210,8 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 let member =
                     |value: crate::mir::ValueId| owners[value].filter(|&(_, header)| !header);
                 let derived = match func.inst(next_id).kind {
-                    InstKind::Store(address, ..) | InstKind::Store8(address, ..) => {
+                    InstKind::Store(address, .., PtrLocation::Memory)
+                    | InstKind::Store8(address, ..) => {
                         let Some((owner, _)) = owners[address] else { break };
                         allocations[owner].2 = true;
                         scan += 1;

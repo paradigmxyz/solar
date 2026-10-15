@@ -1160,19 +1160,19 @@ impl LoadRedundancyEliminator {
     fn gen_key_value(&self, func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
         let aa = self.alias();
         match func.inst(inst_id).kind {
-            InstKind::SLoad(slot) => Some((
+            InstKind::Load(slot, PtrLocation::Storage) => Some((
                 LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
                 GenSource::LoadResult,
             )),
-            InstKind::SStore(slot, value) => Some((
+            InstKind::Store(slot, value, PtrLocation::Storage) => Some((
                 LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
-            InstKind::TLoad(slot) => Some((
+            InstKind::Load(slot, PtrLocation::Transient) => Some((
                 LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
                 GenSource::LoadResult,
             )),
-            InstKind::TStore(slot, value) => Some((
+            InstKind::Store(slot, value, PtrLocation::Transient) => Some((
                 LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
@@ -1184,7 +1184,7 @@ impl LoadRedundancyEliminator {
                     .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult))
             }
             InstKind::Fmp => Some((LoadKey::Memory(Self::fmp_addr()), GenSource::LoadResult)),
-            InstKind::Store(addr, value) => self
+            InstKind::Store(addr, value, PtrLocation::Memory) => self
                 .mem_addr(func, inst_id, addr, LocationSize::Const(32))
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {

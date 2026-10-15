@@ -373,7 +373,7 @@ fn candidate_uses_are_safe(
             let kind = func.inst(inst_id).kind.clone();
             let ok = match kind {
                 InstKind::Load(addr, PtrLocation::Memory) => operand == addr && in_range(off, 32),
-                InstKind::Store(addr, value) => {
+                InstKind::Store(addr, value, PtrLocation::Memory) => {
                     operand == addr && !derived.contains_key(&value) && in_range(off, 32)
                 }
                 InstKind::Store8(addr, value) => {

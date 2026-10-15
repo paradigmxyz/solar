@@ -46,6 +46,10 @@ pub(crate) enum PtrLocation {
     /// until the next such instruction and must be materialized into memory
     /// before it can be retained.
     Returndata,
+    /// Contract storage, addressed by 256-bit slot.
+    Storage,
+    /// Transient storage, addressed by 256-bit slot.
+    Transient,
 }
 
 /// Physical base used by a semantic mutable-local frame slot.
@@ -178,6 +182,8 @@ impl fmt::Display for PtrLocation {
             Self::Memory => write!(f, "memory"),
             Self::Calldata => write!(f, "calldata"),
             Self::Returndata => write!(f, "returndata"),
+            Self::Storage => write!(f, "storage"),
+            Self::Transient => write!(f, "transient"),
         }
     }
 }
@@ -247,7 +253,9 @@ impl MirType {
             Self::Int(bits) => ValueLayout::UInt(TypeSize::new_int_bits(bits.get() as u16)),
             Self::MEMPTR => ValueLayout::MemPtr,
             Self::Ptr(PtrLocation::Calldata) => ValueLayout::CalldataPtr,
-            Self::Ptr(PtrLocation::Returndata) => ValueLayout::uint256(),
+            Self::Ptr(PtrLocation::Returndata | PtrLocation::Storage | PtrLocation::Transient) => {
+                ValueLayout::uint256()
+            }
             Self::Slice(location) => ValueLayout::Slice(location),
             Self::Struct(id) => ValueLayout::Struct(id),
             Self::Void => ValueLayout::Void,
