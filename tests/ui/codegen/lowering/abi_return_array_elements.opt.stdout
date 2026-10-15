@@ -261,14 +261,16 @@ fn @cleanup_return(arg0: i256) -> i256 [may_return_memory] {
     mstore v30, v0
     v32 = add arg0, 32
     v35 = add v30, 32
-    v38 = shl 5, v0
-    v39 = add v30, v38
-    v40 = add v39, 32
+    v38 = gt v0, 0x20000000000000000
+    v39 = select v38, 0x20000000000000000, v0
+    v40 = shl 5, v39
+    v41 = add arg0, v40
+    v42 = add v41, 32
     jump bb4
   bb4:
     v33 = phi [bb3: v32], [bb5: v34]
     v36 = phi [bb3: v35], [bb5: v37]
-    v12 = lt v36, v40
+    v12 = ne v33, v42
     jumpi v12, bb5, bb6
   bb6:
     ret v30

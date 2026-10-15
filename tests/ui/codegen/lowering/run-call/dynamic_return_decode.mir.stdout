@@ -278,34 +278,34 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     v17 = mload v16
     jump bb5
   bb5:
-    v18 = phi [bb4: 0], [bb7: v32]
-    v19 = phi [bb4: v17], [bb7: v19]
+    v18 = phi [bb4: v17], [bb7: v18]
+    v19 = phi [bb4: 0], [bb7: v31]
     v20 = phi [bb4: v16], [bb7: v20]
-    v21 = phi [bb4: 0], [bb7: v31]
+    v21 = phi [bb4: 0], [bb7: v32]
     v22 = mload v20
-    v23 = lt v18, v22
+    v23 = lt v21, v22
     jumpi v23, bb8, bb9
   bb9:
     jump bb6
   bb6:
-    v33 = insert_value struct0, undef struct0, 0, v19
-    v34 = insert_value struct0, v33, 1, v21
+    v33 = insert_value struct0, undef struct0, 0, v18
+    v34 = insert_value struct0, v33, 1, v19
     ret v34
   bb8:
     v24 = mload v20
-    v25 = lt v18, v24
+    v25 = lt v21, v24
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    v27 = shl 5, v18
+    v27 = shl 5, v21
     v28 = ptradd v20, v27
     v29 = ptradd v28, 32
     v30 = mload v29
-    v31 = checked_add u256, v21, v30
+    v31 = checked_add u256, v19, v30
     jump bb10
   bb10:
     jump bb7
   bb7:
-    v32 = checked_add u256, v18, 1
+    v32 = checked_add u256, v21, 1
     jump bb5
 }
 

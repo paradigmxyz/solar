@@ -45,13 +45,13 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     jump bb11
   bb11:
     v52 = phi [bb10: 0], [bb13: v52]
-    v53 = phi [bb10: 0], [bb13: v80]
+    v53 = phi [bb10: 0], [bb13: v53]
     v54 = phi [bb10: 0], [bb13: v54]
     v55 = phi [bb10: 0], [bb13: v55]
     v56 = phi [bb10: 0], [bb13: v56]
-    v57 = phi [bb10: 0], [bb13: v57]
+    v57 = phi [bb10: 0], [bb13: v80]
     v58 = sload 0 !metadata(storage=slot(0))
-    v59 = lt v53, v58
+    v59 = lt v57, v58
     jumpi v59, bb14, bb15
   bb15:
     jump bb12
@@ -205,17 +205,17 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v102 = add v86, 1
     jump bb19
   bb14:
-    v60 = trunc i256 v53 to i64
+    v60 = trunc i256 v57 to i64
     v61 = zext i64 v60 to i256
     v62 = shl 192, v61
     v63 = sload 0 !metadata(storage=slot(0))
-    v64 = lt v53, v63
+    v64 = lt v57, v63
     v65 = eq v64, false
     icall panic_if<0x32>, v65
     v66 = storage_array_data_slot 0
-    v67 = div v53, 4
+    v67 = div v57, 4
     v68 = add v66, v67
-    v69 = mod v53, 4
+    v69 = mod v57, 4
     v70 = mul v69, 8
     v71 = mul v70, 8
     v72 = shl v71, 0xffffffffffffffff
@@ -231,7 +231,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
   bb16:
     jump bb13
   bb13:
-    v80 = checked_add u256, v53, 1
+    v80 = checked_add u256, v57, 1
     jump bb11
   bb7:
     v23 = shl 5, v21

@@ -4,24 +4,24 @@ fn @scale(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xca939f26, pure
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: arg0], [bb3: v6]
+    v0 = phi [bb0: arg0], [bb3: v6]
+    v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v7]
-    v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = lt v3, v2
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v7]
+    v5 = lt v4, v2
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v0
   bb4:
-    v6 = checked_mul u256, v1, v4
+    v6 = checked_mul u256, v0, v1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v3, 1
+    v7 = checked_add u256, v4, 1
     jump bb1
 }
 
@@ -30,22 +30,22 @@ fn @scaleLeft(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf91f4c50, 
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v6]
-    v1 = phi [bb0: arg2], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v7]
-    v3 = phi [bb0: arg1], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = lt v2, v1
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v7]
+    v5 = lt v4, v2
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret v0
   bb4:
-    v6 = checked_mul u256, v3, v0
+    v6 = checked_mul u256, v1, v0
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v2, 1
+    v7 = checked_add u256, v4, 1
     jump bb1
 }

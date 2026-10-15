@@ -150,7 +150,7 @@ bb12 [loop]:
 bb10 [loop]:
   dup 2
   dup 2
-  lt
+  sub
   push bb12
   jumpi
   pop

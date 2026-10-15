@@ -217,13 +217,13 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb26:
     jump bb1
   bb1:
-    v0 = phi [bb26: 0], [bb11: v47]
+    v1 = phi [bb26: 0], [bb11: v47]
     v2 = phi [bb26: 0], [bb11: v49]
     v3 = mload v204
     v4 = lt v2, v3
     jumpi v4, bb2, bb3
   bb3:
-    mstore 128, v0
+    mstore 128, v1
     returndata 128, 32
   bb2:
     v8 = shl 5, v2
@@ -264,8 +264,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v41 = mload v195
     v45 = add v21, v41
     v46 = lt v45, v21
-    v47 = add v0, v45
-    v48 = lt v47, v0
+    v47 = add v1, v45
+    v48 = lt v47, v1
     v213 = or v46, v48
     jumpi v213, bb10, bb11
   bb11:

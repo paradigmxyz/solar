@@ -393,29 +393,38 @@ fn lower_ecrecover(
     r: ValueId,
     s: ValueId,
 ) -> ValueId {
-    // input = bytes(160)
-    // store(input, hash, 0)
-    // store(input, v, 32)
-    // store(input, r, 64)
-    // store(input, s, 96)
-    // precompile_call(1, input.data, 128, output.data, 32)
-    // result = load(output, 0)
-    let size = builder.imm(192);
-    let input = builder.alloc(size, AllocationSemantics::SOLIDITY_ZEROED);
-    let length = builder.imm(160);
-    builder.set_memory_len(input, length);
-    let pointer = builder.memory_data(input);
+    // NOTE: The precompile consumes its input synchronously, so staging at the free-memory
+    // pointer does not reserve it. A rejected signature returns no data; clear the output first.
+    // input = fmp
+    // store(input, hash)
+    // store(input + 32, v)
+    // store(input + 64, r)
+    // store(input + 96, s)
+    // store(0, 0)
+    // success = precompile_call(1, input, 128, 0, 32)
+    // branch success, done, failed
+    // failed: revert_returndata
+    // done: result = load(0)
+    let input = builder.fmp();
+    let input = builder.cast_word(input);
     for (offset, value) in [(0, hash), (32, v), (64, r), (96, s)] {
-        let offset = builder.imm(offset);
-        builder.memory_store_word(input, offset, value);
+        let address = builder.add_u64_offset(input, offset);
+        let value = builder.cast_word(value);
+        builder.store(address, value);
     }
-    // The final zeroed word lies beyond the four input words and is safe on failure too.
-    let output = builder.memory_data_at(input, 128);
+    let zero = builder.imm(0);
+    builder.store(zero, zero);
     let address = builder.imm(1);
     let input_size = builder.imm(128);
     let output_size = builder.imm(32);
-    precompile_call(builder, evm, address, pointer, input_size, output, output_size);
-    builder.load(output, PtrLocation::Memory)
+    let success = precompile_call(builder, evm, address, input, input_size, zero, output_size);
+    let done = builder.create_block();
+    let failed = builder.create_block();
+    builder.branch(success, done, failed);
+    builder.switch_to_block(failed);
+    builder.revert_returndata();
+    builder.switch_to_block(done);
+    builder.load(zero, PtrLocation::Memory)
 }
 
 fn alloc_output(builder: &mut FunctionBuilder<'_>) -> ValueId {
@@ -437,15 +446,15 @@ fn precompile_call(
     input_size: ValueId,
     output: ValueId,
     output_size: ValueId,
-) {
+) -> ValueId {
     let gas = crate::mir::utils::precompile_gas(builder, evm);
     if evm.has_static_call() {
         // staticcall(precompile_gas, address, input, output)
-        builder.staticcall(gas, address, input, input_size, output, output_size);
+        builder.staticcall(gas, address, input, input_size, output, output_size)
     } else {
         // call(precompile_gas, address, 0, input, output)
         let zero = builder.imm(0);
-        builder.call(gas, address, zero, input, input_size, output, output_size);
+        builder.call(gas, address, zero, input, input_size, output, output_size)
     }
 }
 

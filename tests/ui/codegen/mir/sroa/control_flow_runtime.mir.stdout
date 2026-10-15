@@ -27,26 +27,26 @@ fn @accumulate(arg0: i256) -> i256 [selector=0xb4e7d02a, pure, abi_params=[u256]
     jump bb1
   bb1:
     v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v10]
-    v5 = phi [bb0: 0], [bb3: v5]
-    v6 = lt v4, v2
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: v0], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v10]
+    v6 = lt v5, v2
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v11 = mload v3
+    v11 = mload v4
     ret v11
   bb4:
-    v7 = checked_add u256, v4, 1
-    v8 = mload v3
+    v7 = checked_add u256, v5, 1
+    v8 = mload v4
     v9 = checked_add u256, v8, v7
-    mstore v3, v9
+    mstore v4, v9
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = checked_add u256, v4, 1
+    v10 = checked_add u256, v5, 1
     jump bb1
 }
 
@@ -54,10 +54,10 @@ fn @fresh(arg0: i256) -> i256 [selector=0x0538087c, pure, abi_params=[u256], abi
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v10]
+    v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v9]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = lt v0, v2
+    v2 = phi [bb0: 0], [bb3: v10]
+    v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
@@ -68,7 +68,7 @@ fn @fresh(arg0: i256) -> i256 [selector=0x0538087c, pure, abi_params=[u256], abi
     mstore v4, 0
     v5 = ptradd v4, 32
     mstore v5, 0
-    v6 = checked_rem u256, v0, 2
+    v6 = checked_rem u256, v2, 2
     v7 = eq v6, 0
     jumpi v7, bb7, bb8
   bb8:
@@ -83,7 +83,7 @@ fn @fresh(arg0: i256) -> i256 [selector=0x0538087c, pure, abi_params=[u256], abi
   bb6:
     jump bb3
   bb3:
-    v10 = checked_add u256, v0, 1
+    v10 = checked_add u256, v2, 1
     jump bb1
 }
 
