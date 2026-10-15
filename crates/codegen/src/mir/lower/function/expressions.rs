@@ -101,7 +101,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         let object = self.lower_expr(receiver)?;
         if receiver_ty.is_ref_at(DataLocation::Calldata)
-            && self.builder.func().value_slice_location(object) == Some(SliceLocation::Calldata)
+            && self.builder.func().value_slice_location(object) == Some(PtrLocation::Calldata)
         {
             // head = receiver.ptr + field_offset
             // value = decode_calldata(field, head, receiver.ptr)
@@ -127,13 +127,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
 
-        // value = normalize(mload_field(object, field))
-        let layout = self.types.memory_layout(receiver_ty)?;
+        // Only a memory object has addressable fields.
+        self.types.memory_layout(receiver_ty)?;
+        // value = normalize(mload (ptradd object, field * 32))
         let field_ty =
             self.cx.gcx.type_of_item(id.into()).with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let value = self.builder.memory_object_load_field_as(
+        let value = self.builder.memory_load_field_as(
             object,
-            layout,
             field as u64,
             types::TypeLowerer::mir_type(field_ty),
         );
@@ -175,9 +175,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let object = self.lower_expr(receiver)?;
             return match self.builder.func().value_ty(object) {
-                Some(MirType::MemPtr) => {
+                Some(MirType::MEMPTR) => {
                     // length = object.len
-                    Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
+                    Some(self.builder.memory_len(object))
                 }
                 _ => self.cx.report_unsupported(span, what),
             };
@@ -191,7 +191,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match layout.kind() {
             MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => {
                 // length = object.len
-                Some(self.builder.memory_object_len(object, layout.kind()))
+                Some(self.builder.memory_len(object))
             }
             _ => self.cx.report_unsupported(span, what),
         }

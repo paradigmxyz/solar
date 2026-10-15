@@ -1,6 +1,6 @@
 //! Owned input shapes for packed ABI encoding, independent of HIR types.
 
-use super::{AbiType, MemoryObjectLayout, SliceLocation, ValueId, ValueLayout};
+use super::{AbiType, MemoryObjectLayout, PtrLocation, ValueId, ValueLayout};
 use alloy_primitives::Bytes;
 
 /// One packed argument; array elements retain their padded ABI word shape.
@@ -36,7 +36,7 @@ impl PackedPart {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum PackedArraySource {
     Memory { layout: MemoryObjectLayout },
-    Slice(SliceLocation),
+    Slice(PtrLocation),
 }
 
 /// Returns the padded encoded width of a supported array element.

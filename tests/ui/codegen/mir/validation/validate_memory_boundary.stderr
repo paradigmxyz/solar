@@ -1,10 +1,10 @@
-error: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
+error: [fn0] non-word type `slice<memory>` survives the `lowered` phase boundary
 
 error: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `lowered` phase boundary
 
-error: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `lowered` phase boundary
+error: [fn0] [bb0, inst1] slice instruction `extract_value` survives the `lowered` phase boundary
 
-error: [fn1] non-word type `memoryslice` survives the `lowered` phase boundary
+error: [fn1] non-word type `slice<memory>` survives the `lowered` phase boundary
 
 error: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `lowered` phase boundary
 
@@ -12,13 +12,11 @@ error: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the
 
 error: [fn3] [bb0, inst3] `mapping_slot` has incompatible scalar types; use an explicit cast
 
-error: [fn3] [bb0, inst4] `mapping_slot_memory` has incompatible scalar types; use an explicit cast
+error: [fn3] [bb0, inst4] `mapping_slot_bytes` has incompatible scalar types; use an explicit cast
 
-error: [fn3] [bb0, inst5] `mapping_slot_calldata` has incompatible scalar types; use an explicit cast
+error: [fn3] [bb0, inst5] `storage_array_data_slot` has incompatible scalar types; use an explicit cast
 
-error: [fn3] [bb0, inst6] `storage_array_data_slot` has incompatible scalar types; use an explicit cast
-
-error: [fn3] [bb0, inst7] `storage_array_element_slot` has incompatible scalar types; use an explicit cast
+error: [fn3] [bb0, inst6] `storage_array_element_slot` has incompatible scalar types; use an explicit cast
 
 error: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `lowered` phase boundary
 
@@ -28,19 +26,17 @@ error: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `
 
 error: [fn3] [bb0, inst3] storage slot instruction `mapping_slot` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst4] storage slot instruction `mapping_slot_memory` survives the `lowered` phase boundary
+error: [fn3] [bb0, inst4] storage slot instruction `mapping_slot_bytes` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst5] storage slot instruction `mapping_slot_calldata` survives the `lowered` phase boundary
+error: [fn3] [bb0, inst5] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst6] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
+error: [fn3] [bb0, inst6] storage slot instruction `storage_array_element_slot` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst7] storage slot instruction `storage_array_element_slot` survives the `lowered` phase boundary
+error: [fn4] non-word type `slice<memory>` survives the `lowered` phase boundary
 
-error: [fn4] non-word type `memoryslice` survives the `lowered` phase boundary
+error: [fn5] non-word type `slice<calldata>` survives the `lowered` phase boundary
 
-error: [fn5] non-word type `calldataslice` survives the `lowered` phase boundary
-
-error: [fn6] non-word type `returndataslice` survives the `lowered` phase boundary
+error: [fn6] non-word type `slice<returndata>` survives the `lowered` phase boundary
 
 error: [fn7] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 
@@ -84,5 +80,5 @@ error: [fn19] [bb0, inst0] builtin instruction `icall` survives the `lowered` ph
 
 error: [fn19] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
 
-error: aborting due to 43 previous errors
+error: aborting due to 41 previous errors
 

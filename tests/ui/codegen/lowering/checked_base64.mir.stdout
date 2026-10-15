@@ -4,33 +4,33 @@
 
 // === ROOT/tests/ui/codegen/lowering/checked_base64.sol:CheckedBase64 ===
 @module CheckedBase64
-fn @decode.0(arg0: memptr) -> memptr [selector=0x49145c91, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @decode.0(arg0: ptr<memory>) -> ptr<memory> [selector=0x49145c91, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @decode.8, arg0
     ret v0
 }
 
-fn @encode.1(arg0: memptr) -> memptr [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encode.1(arg0: ptr<memory>) -> ptr<memory> [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @encode.6, arg0
     ret v0
 }
 
-fn @encodeFileSafe(arg0: memptr) -> memptr [selector=0x2dba772b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeFileSafe(arg0: ptr<memory>) -> ptr<memory> [selector=0x2dba772b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @encode.7, arg0, true
     ret v0
 }
 
-fn @encodeNoPadding(arg0: memptr) -> memptr [selector=0x3d92c956, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeNoPadding(arg0: ptr<memory>) -> ptr<memory> [selector=0x3d92c956, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @encode.4, arg0, false, true
     ret v0
 }
 
-fn @encode.4(arg0: memptr, arg1: i1, arg2: i1) -> memptr [pure] {
+fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
+    v0 = mload arg0
     v1 = checked_rem u256, v0, 3
     v2 = eq v1, 0
     jumpi v2, bb1, bb2
@@ -58,19 +58,19 @@ fn @encode.4(arg0: memptr, arg1: i1, arg2: i1) -> memptr [pure] {
     icall panic_if<0x41>, v12
     v13 = not 31
     v14 = and v11, v13
-    v15 = alloc memorybytes, exact, zeroed, panic, v14
-    set_memory_object_len memorybytes, v15, v10
+    v15 = alloc zeroed checked v14
+    mstore v15, v10
     jump bb7
   bb7:
     v16 = phi [bb6: arg0], [bb9: v16]
     v17 = phi [bb6: v0], [bb9: v17]
-    v18 = phi [bb6: 0], [bb9: v103]
+    v18 = phi [bb6: 0], [bb9: v120]
     v19 = phi [bb6: arg1], [bb9: v19]
     v20 = phi [bb6: v5], [bb9: v20]
-    v21 = phi [bb6: 0], [bb9: v104]
+    v21 = phi [bb6: 0], [bb9: v121]
     v22 = phi [bb6: arg2], [bb9: v22]
     v23 = phi [bb6: v10], [bb9: v23]
-    v24 = phi [bb6: memptr 96], [bb9: v24]
+    v24 = phi [bb6: ptr<memory> 96], [bb9: v24]
     v25 = phi [bb6: v15], [bb9: v25]
     v26 = lt v21, v17
     jumpi v26, bb10, bb11
@@ -79,135 +79,152 @@ fn @encode.4(arg0: memptr, arg1: i1, arg2: i1) -> memptr [pure] {
   bb8:
     ret v25
   bb10:
-    v27 = memory_object_len memorybytes, v16
+    v27 = mload v16
     v28 = lt v21, v27
     v29 = eq v28, false
     icall panic_if<0x32>, v29
-    v30 = memory_object_load_byte memorybytes, v16, v21
-    v31 = shl 248, v30
-    v32 = shr 248, v31
-    v33 = trunc i256 v32 to i8
-    v34 = zext i8 v33 to i256
-    v35 = shl 16, v34
-    v36 = checked_add u256, v21, 1
-    v37 = lt v36, v17
-    jumpi v37, bb13, bb14
+    v30 = ptradd v16, v21
+    v31 = ptradd v30, 32
+    v32 = mload v31
+    v33 = byte 0, v32
+    v34 = shl 248, v33
+    v35 = shr 248, v34
+    v36 = trunc i256 v35 to i8
+    v37 = zext i8 v36 to i256
+    v38 = shl 16, v37
+    v39 = checked_add u256, v21, 1
+    v40 = lt v39, v17
+    jumpi v40, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v38 = checked_add u256, v21, 1
-    v39 = memory_object_len memorybytes, v16
-    v40 = lt v38, v39
-    v41 = eq v40, false
-    icall panic_if<0x32>, v41
-    v42 = memory_object_load_byte memorybytes, v16, v38
-    v43 = shl 248, v42
-    v44 = shr 248, v43
-    v45 = trunc i256 v44 to i8
-    v46 = zext i8 v45 to i256
-    v47 = shl 8, v46
-    v48 = or v35, v47
+    v41 = checked_add u256, v21, 1
+    v42 = mload v16
+    v43 = lt v41, v42
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = ptradd v16, v41
+    v46 = ptradd v45, 32
+    v47 = mload v46
+    v48 = byte 0, v47
+    v49 = shl 248, v48
+    v50 = shr 248, v49
+    v51 = trunc i256 v50 to i8
+    v52 = zext i8 v51 to i256
+    v53 = shl 8, v52
+    v54 = or v38, v53
     jump bb15
   bb15:
-    v49 = phi [bb13: v48], [bb14: v35]
-    v50 = checked_add u256, v21, 2
-    v51 = lt v50, v17
-    jumpi v51, bb16, bb17
+    v55 = phi [bb13: v54], [bb14: v38]
+    v56 = checked_add u256, v21, 2
+    v57 = lt v56, v17
+    jumpi v57, bb16, bb17
   bb17:
     jump bb18
   bb16:
-    v52 = checked_add u256, v21, 2
-    v53 = memory_object_len memorybytes, v16
-    v54 = lt v52, v53
-    v55 = eq v54, false
-    icall panic_if<0x32>, v55
-    v56 = memory_object_load_byte memorybytes, v16, v52
-    v57 = shl 248, v56
-    v58 = shr 248, v57
-    v59 = trunc i256 v58 to i8
-    v60 = zext i8 v59 to i256
-    v61 = or v49, v60
+    v58 = checked_add u256, v21, 2
+    v59 = mload v16
+    v60 = lt v58, v59
+    v61 = eq v60, false
+    icall panic_if<0x32>, v61
+    v62 = ptradd v16, v58
+    v63 = ptradd v62, 32
+    v64 = mload v63
+    v65 = byte 0, v64
+    v66 = shl 248, v65
+    v67 = shr 248, v66
+    v68 = trunc i256 v67 to i8
+    v69 = zext i8 v68 to i256
+    v70 = or v55, v69
     jump bb18
   bb18:
-    v62 = phi [bb16: v61], [bb17: v49]
-    v63 = shr 18, v62
-    v64 = and v63, 63
-    v65 = icall @_encode, v64, v19
-    v66 = memory_object_len memorybytes, v25
-    v67 = lt v18, v66
-    v68 = eq v67, false
-    icall panic_if<0x32>, v68
-    v69 = byte 0, v65
-    memory_object_store_byte memorybytes, v25, v18, v69
-    v70 = shr 12, v62
-    v71 = and v70, 63
-    v72 = icall @_encode, v71, v19
-    v73 = checked_add u256, v18, 1
-    v74 = memory_object_len memorybytes, v25
-    v75 = lt v73, v74
-    v76 = eq v75, false
-    icall panic_if<0x32>, v76
-    v77 = byte 0, v72
-    memory_object_store_byte memorybytes, v25, v73, v77
-    v78 = checked_add u256, v18, 2
-    v79 = lt v78, v23
-    jumpi v79, bb19, bb20
+    v71 = phi [bb16: v70], [bb17: v55]
+    v72 = shr 18, v71
+    v73 = and v72, 63
+    v74 = icall @_encode, v73, v19
+    v75 = mload v25
+    v76 = lt v18, v75
+    v77 = eq v76, false
+    icall panic_if<0x32>, v77
+    v78 = byte 0, v74
+    v79 = ptradd v25, v18
+    v80 = ptradd v79, 32
+    mstore8 v80, v78
+    v81 = shr 12, v71
+    v82 = and v81, 63
+    v83 = icall @_encode, v82, v19
+    v84 = checked_add u256, v18, 1
+    v85 = mload v25
+    v86 = lt v84, v85
+    v87 = eq v86, false
+    icall panic_if<0x32>, v87
+    v88 = byte 0, v83
+    v89 = ptradd v25, v84
+    v90 = ptradd v89, 32
+    mstore8 v90, v88
+    v91 = checked_add u256, v18, 2
+    v92 = lt v91, v23
+    jumpi v92, bb19, bb20
   bb20:
     jump bb21
   bb19:
-    v80 = checked_add u256, v21, 1
-    v81 = lt v80, v17
-    jumpi v81, bb22, bb23
+    v93 = checked_add u256, v21, 1
+    v94 = lt v93, v17
+    jumpi v94, bb22, bb23
   bb23:
     jump bb24
   bb22:
-    v82 = shr 6, v62
-    v83 = and v82, 63
-    v84 = icall @_encode, v83, v19
+    v95 = shr 6, v71
+    v96 = and v95, 63
+    v97 = icall @_encode, v96, v19
     jump bb24
   bb24:
-    v85 = phi [bb22: v84], [bb23: 0x3d00000000000000000000000000000000000000000000000000000000000000]
-    v86 = checked_add u256, v18, 2
-    v87 = memory_object_len memorybytes, v25
-    v88 = lt v86, v87
-    v89 = eq v88, false
-    icall panic_if<0x32>, v89
-    v90 = byte 0, v85
-    memory_object_store_byte memorybytes, v25, v86, v90
+    v98 = phi [bb22: v97], [bb23: 0x3d00000000000000000000000000000000000000000000000000000000000000]
+    v99 = checked_add u256, v18, 2
+    v100 = mload v25
+    v101 = lt v99, v100
+    v102 = eq v101, false
+    icall panic_if<0x32>, v102
+    v103 = byte 0, v98
+    v104 = ptradd v25, v99
+    v105 = ptradd v104, 32
+    mstore8 v105, v103
     jump bb21
   bb21:
-    v91 = checked_add u256, v18, 3
-    v92 = lt v91, v23
-    jumpi v92, bb25, bb26
+    v106 = checked_add u256, v18, 3
+    v107 = lt v106, v23
+    jumpi v107, bb25, bb26
   bb26:
     jump bb27
   bb25:
-    v93 = checked_add u256, v21, 2
-    v94 = lt v93, v17
-    jumpi v94, bb28, bb29
+    v108 = checked_add u256, v21, 2
+    v109 = lt v108, v17
+    jumpi v109, bb28, bb29
   bb29:
     jump bb30
   bb28:
-    v95 = and v62, 63
-    v96 = icall @_encode, v95, v19
+    v110 = and v71, 63
+    v111 = icall @_encode, v110, v19
     jump bb30
   bb30:
-    v97 = phi [bb28: v96], [bb29: 0x3d00000000000000000000000000000000000000000000000000000000000000]
-    v98 = checked_add u256, v18, 3
-    v99 = memory_object_len memorybytes, v25
-    v100 = lt v98, v99
-    v101 = eq v100, false
-    icall panic_if<0x32>, v101
-    v102 = byte 0, v97
-    memory_object_store_byte memorybytes, v25, v98, v102
+    v112 = phi [bb28: v111], [bb29: 0x3d00000000000000000000000000000000000000000000000000000000000000]
+    v113 = checked_add u256, v18, 3
+    v114 = mload v25
+    v115 = lt v113, v114
+    v116 = eq v115, false
+    icall panic_if<0x32>, v116
+    v117 = byte 0, v112
+    v118 = ptradd v25, v113
+    v119 = ptradd v118, 32
+    mstore8 v119, v117
     jump bb27
   bb27:
-    v103 = checked_add u256, v18, 4
+    v120 = checked_add u256, v18, 4
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v104 = checked_add u256, v21, 3
+    v121 = checked_add u256, v21, 3
     jump bb7
 }
 
@@ -258,21 +275,21 @@ fn @_encode(arg0: i256, arg1: i1) -> i256 [pure] {
     ret v4
 }
 
-fn @encode.6(arg0: memptr) -> memptr [pure] {
+fn @encode.6(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     v0 = icall @encode.4, arg0, false, false
     ret v0
 }
 
-fn @encode.7(arg0: memptr, arg1: i1) -> memptr [pure] {
+fn @encode.7(arg0: ptr<memory>, arg1: i1) -> ptr<memory> [pure] {
   bb0:
     v0 = icall @encode.4, arg0, arg1, false
     ret v0
 }
 
-fn @decode.8(arg0: memptr) -> memptr [pure] {
+fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
+    v0 = mload arg0
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
   bb2:
@@ -285,198 +302,222 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     jumpi v8, bb4, bb5
   bb5:
     v11 = checked_sub u256, v0, 1
-    v12 = memory_object_len memorybytes, arg0
+    v12 = mload arg0
     v13 = lt v11, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    v15 = memory_object_load_byte memorybytes, arg0, v11
-    v16 = shl 248, v15
-    v17 = eq v16, 0x3d00000000000000000000000000000000000000000000000000000000000000
-    jumpi v17, bb7, bb8
+    v15 = ptradd arg0, v11
+    v16 = ptradd v15, 32
+    v17 = mload v16
+    v18 = byte 0, v17
+    v19 = shl 248, v18
+    v20 = eq v19, 0x3d00000000000000000000000000000000000000000000000000000000000000
+    jumpi v20, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v18 = checked_sub u256, v6, 1
+    v21 = checked_sub u256, v6, 1
     jump bb9
   bb9:
-    v19 = phi [bb7: v18], [bb8: v6]
-    v20 = checked_sub u256, v0, 2
-    v21 = memory_object_len memorybytes, arg0
-    v22 = lt v20, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = memory_object_load_byte memorybytes, arg0, v20
-    v25 = shl 248, v24
-    v26 = eq v25, 0x3d00000000000000000000000000000000000000000000000000000000000000
-    jumpi v26, bb10, bb11
+    v22 = phi [bb7: v21], [bb8: v6]
+    v23 = checked_sub u256, v0, 2
+    v24 = mload arg0
+    v25 = lt v23, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = ptradd arg0, v23
+    v28 = ptradd v27, 32
+    v29 = mload v28
+    v30 = byte 0, v29
+    v31 = shl 248, v30
+    v32 = eq v31, 0x3d00000000000000000000000000000000000000000000000000000000000000
+    jumpi v32, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v27 = checked_sub u256, v19, 1
+    v33 = checked_sub u256, v22, 1
     jump bb12
   bb12:
-    v28 = phi [bb10: v27], [bb11: v19]
+    v34 = phi [bb10: v33], [bb11: v22]
     jump bb6
   bb4:
     v9 = checked_sub u256, v7, 1
     v10 = checked_add u256, v6, v9
     jump bb6
   bb6:
-    v29 = phi [bb4: v10], [bb12: v28]
-    v30 = add v29, 63
-    v31 = lt v30, v29
-    icall panic_if<0x41>, v31
-    v32 = not 31
-    v33 = and v30, v32
-    v34 = alloc memorybytes, exact, zeroed, panic, v33
-    set_memory_object_len memorybytes, v34, v29
+    v35 = phi [bb4: v10], [bb12: v34]
+    v36 = add v35, 63
+    v37 = lt v36, v35
+    icall panic_if<0x41>, v37
+    v38 = not 31
+    v39 = and v36, v38
+    v40 = alloc zeroed checked v39
+    mstore v40, v35
     jump bb13
   bb13:
-    v35 = phi [bb6: v0], [bb15: v35]
-    v36 = phi [bb6: 0], [bb15: v117]
-    v37 = phi [bb6: arg0], [bb15: v37]
-    v38 = phi [bb6: v29], [bb15: v38]
-    v39 = phi [bb6: v34], [bb15: v39]
-    v40 = phi [bb6: v7], [bb15: v40]
-    v41 = phi [bb6: arg0], [bb15: v41]
-    v42 = phi [bb6: 0], [bb15: v116]
-    v43 = lt v36, v35
-    jumpi v43, bb16, bb17
+    v41 = phi [bb6: v0], [bb15: v41]
+    v42 = phi [bb6: 0], [bb15: v141]
+    v43 = phi [bb6: arg0], [bb15: v43]
+    v44 = phi [bb6: v35], [bb15: v44]
+    v45 = phi [bb6: v40], [bb15: v45]
+    v46 = phi [bb6: v7], [bb15: v46]
+    v47 = phi [bb6: arg0], [bb15: v47]
+    v48 = phi [bb6: 0], [bb15: v140]
+    v49 = lt v42, v41
+    jumpi v49, bb16, bb17
   bb17:
     jump bb14
   bb14:
-    ret v39
+    ret v45
   bb16:
-    v44 = memory_object_len memorybytes, v41
-    v45 = lt v36, v44
-    v46 = eq v45, false
-    icall panic_if<0x32>, v46
-    v47 = memory_object_load_byte memorybytes, v41, v36
-    v48 = shl 248, v47
-    v49 = icall @_decode, v48
-    v50 = shl 18, v49
-    v51 = checked_add u256, v36, 1
-    v52 = lt v51, v35
-    jumpi v52, bb19, bb20
+    v50 = mload v47
+    v51 = lt v42, v50
+    v52 = eq v51, false
+    icall panic_if<0x32>, v52
+    v53 = ptradd v47, v42
+    v54 = ptradd v53, 32
+    v55 = mload v54
+    v56 = byte 0, v55
+    v57 = shl 248, v56
+    v58 = icall @_decode, v57
+    v59 = shl 18, v58
+    v60 = checked_add u256, v42, 1
+    v61 = lt v60, v41
+    jumpi v61, bb19, bb20
   bb20:
     jump bb21
   bb19:
-    v53 = checked_add u256, v36, 1
-    v54 = memory_object_len memorybytes, v41
-    v55 = lt v53, v54
-    v56 = eq v55, false
-    icall panic_if<0x32>, v56
-    v57 = memory_object_load_byte memorybytes, v41, v53
-    v58 = shl 248, v57
-    v59 = icall @_decode, v58
-    v60 = shl 12, v59
-    v61 = or v50, v60
+    v62 = checked_add u256, v42, 1
+    v63 = mload v47
+    v64 = lt v62, v63
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    v66 = ptradd v47, v62
+    v67 = ptradd v66, 32
+    v68 = mload v67
+    v69 = byte 0, v68
+    v70 = shl 248, v69
+    v71 = icall @_decode, v70
+    v72 = shl 12, v71
+    v73 = or v59, v72
     jump bb21
   bb21:
-    v62 = phi [bb19: v61], [bb20: v50]
-    v63 = checked_add u256, v36, 2
-    v64 = lt v63, v35
-    jumpi v64, bb22, bb23
+    v74 = phi [bb19: v73], [bb20: v59]
+    v75 = checked_add u256, v42, 2
+    v76 = lt v75, v41
+    jumpi v76, bb22, bb23
   bb23:
     jump bb24
   bb22:
-    v65 = checked_add u256, v36, 2
-    v66 = memory_object_len memorybytes, v41
-    v67 = lt v65, v66
-    v68 = eq v67, false
-    icall panic_if<0x32>, v68
-    v69 = memory_object_load_byte memorybytes, v41, v65
-    v70 = shl 248, v69
-    v71 = icall @_decode, v70
-    v72 = shl 6, v71
-    v73 = or v62, v72
-    jump bb24
-  bb24:
-    v74 = phi [bb22: v73], [bb23: v62]
-    v75 = checked_add u256, v36, 3
-    v76 = lt v75, v35
-    jumpi v76, bb25, bb26
-  bb26:
-    jump bb27
-  bb25:
-    v77 = checked_add u256, v36, 3
-    v78 = memory_object_len memorybytes, v41
+    v77 = checked_add u256, v42, 2
+    v78 = mload v47
     v79 = lt v77, v78
     v80 = eq v79, false
     icall panic_if<0x32>, v80
-    v81 = memory_object_load_byte memorybytes, v41, v77
-    v82 = shl 248, v81
-    v83 = icall @_decode, v82
-    v84 = or v74, v83
+    v81 = ptradd v47, v77
+    v82 = ptradd v81, 32
+    v83 = mload v82
+    v84 = byte 0, v83
+    v85 = shl 248, v84
+    v86 = icall @_decode, v85
+    v87 = shl 6, v86
+    v88 = or v74, v87
+    jump bb24
+  bb24:
+    v89 = phi [bb22: v88], [bb23: v74]
+    v90 = checked_add u256, v42, 3
+    v91 = lt v90, v41
+    jumpi v91, bb25, bb26
+  bb26:
+    jump bb27
+  bb25:
+    v92 = checked_add u256, v42, 3
+    v93 = mload v47
+    v94 = lt v92, v93
+    v95 = eq v94, false
+    icall panic_if<0x32>, v95
+    v96 = ptradd v47, v92
+    v97 = ptradd v96, 32
+    v98 = mload v97
+    v99 = byte 0, v98
+    v100 = shl 248, v99
+    v101 = icall @_decode, v100
+    v102 = or v89, v101
     jump bb27
   bb27:
-    v85 = phi [bb25: v84], [bb26: v74]
-    v86 = lt v42, v38
-    jumpi v86, bb28, bb29
+    v103 = phi [bb25: v102], [bb26: v89]
+    v104 = lt v48, v44
+    jumpi v104, bb28, bb29
   bb29:
     jump bb30
   bb28:
-    v87 = shr 16, v85
-    v88 = trunc i256 v87 to i8
-    v89 = zext i8 v88 to i256
-    v90 = shl 248, v89
-    v91 = memory_object_len memorybytes, v39
-    v92 = lt v42, v91
-    v93 = eq v92, false
-    icall panic_if<0x32>, v93
-    v94 = byte 0, v90
-    memory_object_store_byte memorybytes, v39, v42, v94
+    v105 = shr 16, v103
+    v106 = trunc i256 v105 to i8
+    v107 = zext i8 v106 to i256
+    v108 = shl 248, v107
+    v109 = mload v45
+    v110 = lt v48, v109
+    v111 = eq v110, false
+    icall panic_if<0x32>, v111
+    v112 = byte 0, v108
+    v113 = ptradd v45, v48
+    v114 = ptradd v113, 32
+    mstore8 v114, v112
     jump bb30
   bb30:
-    v95 = checked_add u256, v42, 1
-    v96 = lt v95, v38
-    jumpi v96, bb31, bb32
+    v115 = checked_add u256, v48, 1
+    v116 = lt v115, v44
+    jumpi v116, bb31, bb32
   bb32:
     jump bb33
   bb31:
-    v97 = shr 8, v85
-    v98 = trunc i256 v97 to i8
-    v99 = zext i8 v98 to i256
-    v100 = shl 248, v99
-    v101 = checked_add u256, v42, 1
-    v102 = memory_object_len memorybytes, v39
-    v103 = lt v101, v102
-    v104 = eq v103, false
-    icall panic_if<0x32>, v104
-    v105 = byte 0, v100
-    memory_object_store_byte memorybytes, v39, v101, v105
+    v117 = shr 8, v103
+    v118 = trunc i256 v117 to i8
+    v119 = zext i8 v118 to i256
+    v120 = shl 248, v119
+    v121 = checked_add u256, v48, 1
+    v122 = mload v45
+    v123 = lt v121, v122
+    v124 = eq v123, false
+    icall panic_if<0x32>, v124
+    v125 = byte 0, v120
+    v126 = ptradd v45, v121
+    v127 = ptradd v126, 32
+    mstore8 v127, v125
     jump bb33
   bb33:
-    v106 = checked_add u256, v42, 2
-    v107 = lt v106, v38
-    jumpi v107, bb34, bb35
+    v128 = checked_add u256, v48, 2
+    v129 = lt v128, v44
+    jumpi v129, bb34, bb35
   bb35:
     jump bb36
   bb34:
-    v108 = trunc i256 v85 to i8
-    v109 = zext i8 v108 to i256
-    v110 = shl 248, v109
-    v111 = checked_add u256, v42, 2
-    v112 = memory_object_len memorybytes, v39
-    v113 = lt v111, v112
-    v114 = eq v113, false
-    icall panic_if<0x32>, v114
-    v115 = byte 0, v110
-    memory_object_store_byte memorybytes, v39, v111, v115
+    v130 = trunc i256 v103 to i8
+    v131 = zext i8 v130 to i256
+    v132 = shl 248, v131
+    v133 = checked_add u256, v48, 2
+    v134 = mload v45
+    v135 = lt v133, v134
+    v136 = eq v135, false
+    icall panic_if<0x32>, v136
+    v137 = byte 0, v132
+    v138 = ptradd v45, v133
+    v139 = ptradd v138, 32
+    mstore8 v139, v137
     jump bb36
   bb36:
-    v116 = checked_add u256, v42, 3
+    v140 = checked_add u256, v48, 3
     jump bb18
   bb18:
     jump bb15
   bb15:
-    v117 = checked_add u256, v36, 4
+    v141 = checked_add u256, v42, 4
     jump bb13
   bb1:
     v2 = not 31
     v3 = and 63, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, 0
+    v4 = alloc zeroed checked v3
+    mstore v4, 0
     ret v4
 }
 

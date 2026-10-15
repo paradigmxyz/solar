@@ -2,7 +2,7 @@
 
 @module ObjectLayoutType
 
-fn @f(arg0: memorybytes) { //~ ERROR: `memorybytes` is an object layout; memory objects are `memptr` values
+fn @f(arg0: memorybytes) { //~ ERROR: `memorybytes` is an object layout; memory objects are `ptr<memory>` values
   bb0:
     stop
 }

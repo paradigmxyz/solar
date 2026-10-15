@@ -42,7 +42,7 @@ impl MirPass for LowerAggregates {
 
 #[derive(Clone, Copy)]
 enum MemoryObjectAccess {
-    Field { object: ValueId, layout: MemoryObjectLayout, field: u64 },
+    Field { object: ValueId, field: u64 },
     Element { object: ValueId, layout: MemoryObjectLayout, index: ValueId },
 }
 
@@ -52,11 +52,11 @@ fn store_memory_object_word(
     value: ValueId,
 ) {
     match destination {
-        MemoryObjectAccess::Field { object, layout, field } => {
-            builder.memory_object_store_field(object, layout, field, value)
+        MemoryObjectAccess::Field { object, field } => {
+            builder.memory_store_field(object, field, value)
         }
         MemoryObjectAccess::Element { object, layout, index } => {
-            builder.memory_object_store_element(object, layout, index, value)
+            builder.memory_store_element(object, layout, index, value)
         }
     }
 }
@@ -66,18 +66,16 @@ fn load_memory_object_word(
     source: MemoryObjectAccess,
 ) -> ValueId {
     match source {
-        MemoryObjectAccess::Field { object, layout, field } => {
-            builder.memory_object_load_field(object, layout, field)
-        }
+        MemoryObjectAccess::Field { object, field } => builder.memory_load_field(object, field),
         MemoryObjectAccess::Element { object, layout, index } => {
-            builder.memory_object_load_element(object, layout, index)
+            builder.memory_load_element(object, layout, index)
         }
     }
 }
 
 fn memory_object_layout(layout: &StorageLayout) -> MemoryObjectLayout {
     match layout {
-        StorageLayout::Struct(fields) => MemoryObjectLayout::structure(fields.len() as u64),
+        StorageLayout::Struct(fields) => MemoryObjectLayout::Struct { fields: fields.len() as u64 },
         StorageLayout::Array { len, .. } => MemoryObjectLayout::word_fixed_array(*len),
     }
 }
@@ -164,11 +162,7 @@ fn visit_storage_fields(
                     builder,
                     field,
                     slot,
-                    MemoryObjectAccess::Field {
-                        object: memory,
-                        layout: memory_layout,
-                        field: index as u64,
-                    },
+                    MemoryObjectAccess::Field { object: memory, field: index as u64 },
                 );
                 storage_offset += field.storage_slots();
             }
@@ -203,11 +197,7 @@ fn lower_storage_field_to_memory(
         }
         StorageField::Aggregate(layout) => {
             let size = builder.imm(layout.memory_words() * 32);
-            let nested = builder.alloc_object(
-                size,
-                memory_object_layout(layout),
-                crate::mir::AllocationSemantics::INTERNAL,
-            );
+            let nested = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
             lower_storage_to_memory(builder, layout, slot, nested);
             store_memory_object_word(builder, dest, nested);
         }

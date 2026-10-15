@@ -7,15 +7,15 @@
 @phase semantic
 
 @types
-  struct0: {memoryslice, i256}
-  struct1: {memptr}
+  struct0: {slice<memory>, i256}
+  struct1: {ptr<memory>}
 
-fn @legacy(arg0: memptr) -> memoryslice {
+fn @legacy(arg0: ptr<memory>) -> slice<memory> {
   bb0:
     ret arg0
 }
 
-fn @wrap(arg0: memptr) -> struct0 {
+fn @wrap(arg0: ptr<memory>) -> struct0 {
   bb0:
     v0 = icall @legacy, arg0
     v1 = insert_value struct0, undef struct0, 0, v0
@@ -23,7 +23,7 @@ fn @wrap(arg0: memptr) -> struct0 {
     ret v2
 }
 
-fn @object(arg0: memptr) -> struct1 {
+fn @object(arg0: ptr<memory>) -> struct1 {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, arg0
     ret v0

@@ -7,10 +7,10 @@ use super::{
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp,
-    ConcatPart, DataId, DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp, DataId,
+    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LogTopics,
     MemoryObjectKind, MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart,
-    PanicCode, RevertPayload, RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
@@ -319,7 +319,7 @@ struct StorageAccess {
 enum LValuePlace<'gcx> {
     Variable { id: VariableId, span: Span },
     Storage { ty: Ty<'gcx>, access: StorageAccess, span: Span },
-    MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
+    MemoryField { object: ValueId, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
     YulSuffix { id: VariableId, suffix: YulSuffix, span: Span },
@@ -416,15 +416,14 @@ impl InternalFunctionPointerShape {
     fn helper_name(&self, from_assembly: bool) -> Symbol {
         let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
-        helper_name(
-            sym::internal_dispatcher,
-            format!(
-                "{}p_{}_r_{}",
-                if from_assembly { "asm_" } else { "" },
-                if params.is_empty() { "none" } else { &params },
-                if returns.is_empty() { "none" } else { &returns },
-            ),
-        )
+        let suffix = format!(
+            "{}p_{}_r_{}",
+            if from_assembly { "asm_" } else { "" },
+            if params.is_empty() { "none" } else { &params },
+            if returns.is_empty() { "none" } else { &returns },
+        );
+        // `slice<calldata>` -> `slice_calldata`, keeping the name an identifier.
+        helper_name(sym::internal_dispatcher, suffix.replace('<', "_").replace('>', ""))
     }
 }
 
@@ -739,7 +738,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(value),
-                        Some(MirType::Slice(SliceLocation::Calldata))
+                        Some(MirType::Slice(PtrLocation::Calldata))
                     )
                 {
                     Some(self.builder.slice_ptr(value))
@@ -983,7 +982,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(rhs_value),
-                        Some(MirType::Slice(SliceLocation::Calldata))
+                        Some(MirType::Slice(PtrLocation::Calldata))
                     );
                 let value = if preserve_calldata_slice {
                     rhs_value

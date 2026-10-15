@@ -277,28 +277,23 @@ bb21:
 bb22:
   push 64
   mload
-  dup 1
   push 96
-  dup 3
+  dup 2
   add
   push 64
   mstore
   swap 1
-  swap 2
-  dup 3
+  dup 2
   mstore
   swap 1
-  swap 2
   push 32
-  dup 4
+  dup 3
   add
   mstore
   swap 1
   push 64
+  dup 3
   add
-  swap 1
-  swap 2
-  swap 1
   mstore
   swap 1
   jump

@@ -1,6 +1,6 @@
 //! Semantic ABI layout descriptors used by MIR encoding operations.
 
-use super::{FunctionBuilder, SliceLocation, ValueId, ValueLayout};
+use super::{FunctionBuilder, PtrLocation, ValueId, ValueLayout};
 use alloy_primitives::U256;
 use std::{fmt, sync::Arc};
 
@@ -152,7 +152,7 @@ impl AbiParamType {
             Self::Scalar(ty) => ty.mir_type(),
             Self::Enum { ty, .. } => ty.mir_type(),
             Self::Bytes | Self::DynamicArray(_) | Self::FixedArray { .. } | Self::Tuple(_) => {
-                super::MirType::MemPtr
+                super::MirType::MEMPTR
             }
         }
     }
@@ -251,13 +251,13 @@ pub(crate) enum AbiType {
     /// An external function pointer encoded as a left-aligned `bytes24` word.
     Function,
     /// A dynamic byte string represented in the given address space.
-    Bytes(SliceLocation),
+    Bytes(PtrLocation),
     /// A dynamic array represented in the given address space.
     DynamicArray {
         /// Array element layout.
         element: Box<Self>,
         /// Address space containing the array.
-        location: SliceLocation,
+        location: PtrLocation,
     },
     /// A fixed-size array represented by a memory pointer.
     FixedArray {

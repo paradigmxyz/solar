@@ -6,8 +6,8 @@
 // `4 + head` and `.offset` is `4 + head + 32` (first element). Runtime-verified.
 contract C {
     // CHECK-LABEL: fn @probe{{[( ]}}
-    // CHECK: {{v[0-9]+}} = slice_len arg0
-    // CHECK: [[PTR:v[0-9]+]] = slice_ptr arg0
+    // CHECK: {{v[0-9]+}} = extract_value slice<calldata>, arg0, 1
+    // CHECK: [[PTR:v[0-9]+]] = extract_value slice<calldata>, arg0, 0
     // CHECK: {{v[0-9]+}} = calldataload [[PTR]]
     // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}
     // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}

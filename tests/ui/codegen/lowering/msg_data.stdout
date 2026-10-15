@@ -3,33 +3,37 @@
 fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = calldatasize
-    v1 = make_calldata_slice 0, v0
-    v2 = slice_len v1
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 1
     ret v2
 }
 
-fn @copy() -> memptr [selector=0x60726abb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @copy() -> ptr<memory> [selector=0x60726abb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
-    v1 = make_calldata_slice 0, v0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
     v4 = calldatasize
     v5 = gt v3, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v5
     v6 = sub v4, v3
-    v7 = sgt v2, v6
-    icall revert_if<calldata_tail_too_short>, v7
-    v8 = slice_len v1
-    v9 = add v8, 63
-    v10 = lt v9, v8
-    icall panic_if<0x41>, v10
-    v11 = not 31
-    v12 = and v9, v11
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v13, v8
-    memory_object_copy_from_slice memorybytes, v13, v1
-    ret v13
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v8 = sgt v7, v6
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = extract_value slice<calldata>, v1, 1
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    icall panic_if<0x41>, v11
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc v13
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    ret v14
 }
 
 fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -67,36 +71,40 @@ fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns
     ret v29
 }
 
-fn @tail(arg0: i256, arg1: i256) -> memptr [selector=0xb62868c3, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @tail(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xb62868c3, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
-    v1 = make_calldata_slice 0, v0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
     v4 = gt arg1, v3
     v5 = lt arg1, arg0
     v6 = or v4, v5
     v7 = zext i1 v6 to i256
     icall revert_if<empty>, v6
     v8 = sub arg1, arg0
-    v9 = add v2, arg0
+    v9 = ptradd v2, arg0
     v10 = make_calldata_slice v9, v8
-    v11 = slice_ptr v10
-    v12 = slice_len v10
+    v11 = extract_value slice<calldata>, v10, 0
+    v12 = extract_value slice<calldata>, v10, 1
     v13 = calldatasize
     v14 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v14
     v15 = sub v13, v12
-    v16 = sgt v11, v15
-    icall revert_if<calldata_tail_too_short>, v16
-    v17 = slice_len v10
-    v18 = add v17, 63
-    v19 = lt v18, v17
-    icall panic_if<0x41>, v19
-    v20 = not 31
-    v21 = and v18, v20
-    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
-    set_memory_object_len memorybytes, v22, v17
-    memory_object_copy_from_slice memorybytes, v22, v10
-    ret v22
+    v16 = ptrtoint ptr<calldata> v11 to i256
+    v17 = sgt v16, v15
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = extract_value slice<calldata>, v10, 1
+    v19 = add v18, 63
+    v20 = lt v19, v18
+    icall panic_if<0x41>, v20
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = alloc v22
+    mstore v23, v18
+    v24 = ptradd v23, 32
+    v25 = extract_value slice<calldata>, v10, 0
+    v26 = extract_value slice<calldata>, v10, 1
+    calldatacopy v24, v25, v26
+    ret v23
 }

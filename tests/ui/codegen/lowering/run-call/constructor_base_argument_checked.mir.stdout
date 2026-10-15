@@ -201,8 +201,10 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
     v1 = lt arg0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, arg0
-    sstore 0, v3 !metadata(storage=slot(0))
+    v3 = shl 5, arg0
+    v4 = ptradd v0, v3
+    v5 = mload v4
+    sstore 0, v5 !metadata(storage=slot(0))
     jump bb1
   bb1:
     jump bb2
@@ -210,19 +212,19 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
     ret
 }
 
-fn @table() -> memptr [pure] {
+fn @table() -> ptr<memory> [pure] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 64
-    v2 = lt 0, 2
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 5
-    v4 = lt 1, 2
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 6
+    v0 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = lt 0, 2
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    mstore v0, 5
+    v3 = lt 1, 2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 32
+    mstore v5, 6
     ret v0
 }
 
@@ -254,36 +256,34 @@ fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[u256], abi_r
     v1 = datasize CheckedBaseArgAdd_creation_code_0
     v2 = datasize CheckedBaseArgAdd_creation_code_0, 32
     v3 = datasize CheckedBaseArgAdd_creation_code_0, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    datacopy CheckedBaseArgAdd_creation_code_0, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = ne v10, i160 0
-    jumpi v11, bb2, bb1
+    v4 = alloc v3
+    datacopy CheckedBaseArgAdd_creation_code_0, v4, v1
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 32 !metadata(memory=heap)
+    v8 = create 0, v4, v2
+    v9 = ne v8, i160 0
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v10 to i256
-    v17 = staticcall v12, v16, v14, v15, 0, 32
-    jumpi v17, bb4, bb3
+    v10 = gas
+    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = zext i160 v8 to i256
+    v15 = staticcall v10, v14, v12, v13, 0, 32
+    jumpi v15, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -292,36 +292,34 @@ fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_r
     v1 = datasize CheckedBaseArgMul_creation_code_1
     v2 = datasize CheckedBaseArgMul_creation_code_1, 32
     v3 = datasize CheckedBaseArgMul_creation_code_1, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    datacopy CheckedBaseArgMul_creation_code_1, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = ne v10, i160 0
-    jumpi v11, bb2, bb1
+    v4 = alloc v3
+    datacopy CheckedBaseArgMul_creation_code_1, v4, v1
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 32 !metadata(memory=heap)
+    v8 = create 0, v4, v2
+    v9 = ne v8, i160 0
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v10 to i256
-    v17 = staticcall v12, v16, v14, v15, 0, 32
-    jumpi v17, bb4, bb3
+    v10 = gas
+    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = zext i160 v8 to i256
+    v15 = staticcall v10, v14, v12, v13, 0, 32
+    jumpi v15, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
@@ -330,36 +328,34 @@ fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], ab
     v1 = datasize CheckedBaseArgNegate_creation_code_2
     v2 = datasize CheckedBaseArgNegate_creation_code_2, 32
     v3 = datasize CheckedBaseArgNegate_creation_code_2, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    datacopy CheckedBaseArgNegate_creation_code_2, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = ne v10, i160 0
-    jumpi v11, bb2, bb1
+    v4 = alloc v3
+    datacopy CheckedBaseArgNegate_creation_code_2, v4, v1
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 32 !metadata(memory=heap)
+    v8 = create 0, v4, v2
+    v9 = ne v8, i160 0
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0xa56dfe4a00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v10 to i256
-    v17 = staticcall v12, v16, v14, v15, 0, 32
-    jumpi v17, bb4, bb3
+    v10 = gas
+    v11 = abi_encode [], selector 0xa56dfe4a00000000000000000000000000000000000000000000000000000000
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = zext i160 v8 to i256
+    v15 = staticcall v10, v14, v12, v13, 0, 32
+    jumpi v15, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -368,36 +364,34 @@ fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], a
     v1 = datasize CheckedBaseArgElement_creation_code_3
     v2 = datasize CheckedBaseArgElement_creation_code_3, 32
     v3 = datasize CheckedBaseArgElement_creation_code_3, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    datacopy CheckedBaseArgElement_creation_code_3, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = ne v10, i160 0
-    jumpi v11, bb2, bb1
+    v4 = alloc v3
+    datacopy CheckedBaseArgElement_creation_code_3, v4, v1
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 32 !metadata(memory=heap)
+    v8 = create 0, v4, v2
+    v9 = ne v8, i160 0
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v10 to i256
-    v17 = staticcall v12, v16, v14, v15, 0, 32
-    jumpi v17, bb4, bb3
+    v10 = gas
+    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = zext i160 v8 to i256
+    v15 = staticcall v10, v14, v12, v13, 0, 32
+    jumpi v15, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -406,36 +400,34 @@ fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_r
     v1 = datasize CheckedBaseArgSub_creation_code_4
     v2 = datasize CheckedBaseArgSub_creation_code_4, 32
     v3 = datasize CheckedBaseArgSub_creation_code_4, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    datacopy CheckedBaseArgSub_creation_code_4, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = ne v10, i160 0
-    jumpi v11, bb2, bb1
+    v4 = alloc v3
+    datacopy CheckedBaseArgSub_creation_code_4, v4, v1
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 32 !metadata(memory=heap)
+    v8 = create 0, v4, v2
+    v9 = ne v8, i160 0
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v10 to i256
-    v17 = staticcall v12, v16, v14, v15, 0, 32
-    jumpi v17, bb4, bb3
+    v10 = gas
+    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = zext i160 v8 to i256
+    v15 = staticcall v10, v14, v12, v13, 0, 32
+    jumpi v15, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -444,36 +436,34 @@ fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_r
     v1 = datasize CheckedBaseArgExp_creation_code_5
     v2 = datasize CheckedBaseArgExp_creation_code_5, 32
     v3 = datasize CheckedBaseArgExp_creation_code_5, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    datacopy CheckedBaseArgExp_creation_code_5, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = ne v10, i160 0
-    jumpi v11, bb2, bb1
+    v4 = alloc v3
+    datacopy CheckedBaseArgExp_creation_code_5, v4, v1
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 32 !metadata(memory=heap)
+    v8 = create 0, v4, v2
+    v9 = ne v8, i160 0
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v10 to i256
-    v17 = staticcall v12, v16, v14, v15, 0, 32
-    jumpi v17, bb4, bb3
+    v10 = gas
+    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = zext i160 v8 to i256
+    v15 = staticcall v10, v14, v12, v13, 0, 32
+    jumpi v15, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -482,34 +472,32 @@ fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi
     v1 = datasize CheckedBaseArgShift_creation_code_6
     v2 = datasize CheckedBaseArgShift_creation_code_6, 32
     v3 = datasize CheckedBaseArgShift_creation_code_6, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    datacopy CheckedBaseArgShift_creation_code_6, v5, v1
-    v6 = slice_ptr v0
-    v7 = ptrtoint memptr v4 to i256
-    v8 = add v7, v1
-    mcopy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
-    v10 = create 0, v9, v2
-    v11 = ne v10, i160 0
-    jumpi v11, bb2, bb1
+    v4 = alloc v3
+    datacopy CheckedBaseArgShift_creation_code_6, v4, v1
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 32 !metadata(memory=heap)
+    v8 = create 0, v4, v2
+    v9 = ne v8, i160 0
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v10 to i256
-    v17 = staticcall v12, v16, v14, v15, 0, 32
-    jumpi v17, bb4, bb3
+    v10 = gas
+    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = zext i160 v8 to i256
+    v15 = staticcall v10, v14, v12, v13, 0, 32
+    jumpi v15, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }

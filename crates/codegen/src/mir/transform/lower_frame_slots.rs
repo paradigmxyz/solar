@@ -1,7 +1,7 @@
 //! Lower semantic mutable-local frame slots to physical memory operations.
 
 use crate::mir::{
-    FrameMode, FrameSlotKind, Function, FunctionBuilder, InstKind, MirPhase, Module,
+    FrameMode, FrameSlotKind, Function, FunctionBuilder, InstKind, MirPhase, Module, PtrLocation,
     memory::EvmMemoryLayout, pass::MirPass,
 };
 use solar_data_structures::map::FxHashMap;
@@ -56,12 +56,12 @@ fn lower_function(func: &mut Function) -> bool {
                 InstKind::FrameLoad { offset, mode, kind } => {
                     let address = frame_address(&mut builder, offset, mode);
                     let value = match kind {
-                        FrameSlotKind::Word => builder.mload(address),
+                        FrameSlotKind::Word => builder.load(address, PtrLocation::Memory),
                         FrameSlotKind::Slice(location) if mode != FrameMode::MultiReturn => {
-                            let ptr = builder.mload(address);
+                            let ptr = builder.load(address, PtrLocation::Memory);
                             let len_address =
                                 builder.add_u64_offset(address, EvmMemoryLayout::WORD_SIZE);
-                            let len = builder.mload(len_address);
+                            let len = builder.load(len_address, PtrLocation::Memory);
                             builder.make_slice(ptr, len, location)
                         }
                         FrameSlotKind::Slice(_) => {
@@ -81,15 +81,15 @@ fn lower_function(func: &mut Function) -> bool {
                             if mode == FrameMode::MultiReturn {
                                 debug_assert_eq!(offset, 0);
                             }
-                            builder.mstore(address, value);
+                            builder.store(address, value);
                         }
                         FrameSlotKind::Slice(_) if mode != FrameMode::MultiReturn => {
                             let ptr = builder.slice_ptr(value);
                             let len = builder.slice_len(value);
-                            builder.mstore(address, ptr);
+                            builder.store(address, ptr);
                             let len_address =
                                 builder.add_u64_offset(address, EvmMemoryLayout::WORD_SIZE);
-                            builder.mstore(len_address, len);
+                            builder.store(len_address, len);
                         }
                         FrameSlotKind::Slice(_) => {
                             unreachable!("multi-return buffers contain words")

@@ -1342,7 +1342,7 @@ impl<'gcx> TypeChecker<'gcx> {
             _ => return,
         };
         if index_ty.is_number_literal()
-            && let Ok(value) = self.gcx.const_eval().eval_int(index)
+            && let Ok(value) = self.gcx.early_const_eval().eval_int(index)
             && let Some(value) = value.as_u256()
             && value >= len
         {

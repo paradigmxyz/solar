@@ -35,7 +35,7 @@ contract ConstantPowZero {
     }
 
     // CHECK-LABEL: fn @memoryLayout(
-    // CHECK: alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    // CHECK: alloc 64
     function memoryLayout() external pure returns (uint256, uint256, uint256) {
         uint256[(0 ** 0) + 1] memory input;
         input[0] = 11;

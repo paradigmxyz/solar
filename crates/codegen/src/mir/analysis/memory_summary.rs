@@ -15,7 +15,8 @@ use super::{
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
-    Module, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout, utils::IndexLists,
+    MirType, Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+    memory::EvmMemoryLayout, utils::IndexLists,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -705,25 +706,11 @@ fn local_summary(
             }
 
             match kind {
-                InstKind::MStore(_, value)
-                | InstKind::MStore8(_, value)
-                | InstKind::SStore(_, value)
-                | InstKind::TStore(_, value)
+                InstKind::Store(_, value, _)
+                | InstKind::Store8(_, value)
                 | InstKind::SetFmp(value)
-                | InstKind::MemoryObjectStoreField { value, .. }
-                | InstKind::MemoryObjectStoreElement { value, .. }
-                | InstKind::MemoryObjectStoreByte { value, .. }
-                | InstKind::MemoryObjectStoreWord { value, .. }
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
-                }
-                InstKind::MemorySliceLoadWord { slice, offset } => {
-                    capture_sources(&mut summary, func, sources, *slice);
-                    capture_sources(&mut summary, func, sources, *offset);
-                }
-                InstKind::CalldataSliceLoadWord { slice, offset } => {
-                    capture_sources(&mut summary, func, sources, *slice);
-                    capture_sources(&mut summary, func, sources, *offset);
                 }
                 _ => {}
             }
@@ -828,7 +815,9 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
             InstKind::Fmp
             | InstKind::MSize
             | InstKind::ICall { function: Callee::Function(_), .. } => true,
-            InstKind::MLoad(address) => func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT),
+            InstKind::Load(address, PtrLocation::Memory) => {
+                func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT)
+            }
             _ => false,
         };
         if root && let Some(result) = func.inst_result_value(inst_id) {
@@ -884,12 +873,11 @@ fn observe_sources(
 /// using transient heap scratch can expose a pointer's position relative to the heap.
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Fmp
-        | InstKind::SetFmp(_)
-        | InstKind::MSize
-        | InstKind::MappingSlotMemory(..)
-        | InstKind::MappingSlotCalldata(..) => true,
-        InstKind::MLoad(address) | InstKind::MStore(address, _) => {
+        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize | InstKind::MappingSlotBytes(..) => {
+            true
+        }
+        InstKind::Load(address, PtrLocation::Memory)
+        | InstKind::Store(address, _, PtrLocation::Memory) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
         _ => false,
@@ -898,21 +886,17 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::SetFmp(_)
-        | InstKind::MappingSlotMemory(..)
-        | InstKind::MappingSlotCalldata(..) => true,
-        InstKind::MStore(address, value) => {
+        InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
+        InstKind::Store(address, value, PtrLocation::Memory) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
                 return false;
             }
             !is_monotonic_fmp_advance(func, value)
         }
-        InstKind::MStore8(address, _)
-        | InstKind::MCopy(address, _, _)
+        InstKind::Store8(address, _)
+        | InstKind::Copy(address, ..)
         | InstKind::MemoryZero(address, _)
-        | InstKind::CalldataCopy(address, _, _)
-        | InstKind::CodeCopy(address, _, _)
-        | InstKind::ReturnDataCopy(address, _, _) => {
+        | InstKind::CodeCopy(address, _, _) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
         InstKind::ExtCodeCopy(_, address, _, _) => {
@@ -958,7 +942,9 @@ fn is_fmp_derived(
 
     let result = match func.value(value) {
         Value::Inst(inst_id) => match func.inst(*inst_id).kind.clone() {
-            InstKind::MLoad(address) => func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT),
+            InstKind::Load(address, PtrLocation::Memory) => {
+                func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+            }
             InstKind::Add(first, second) => {
                 (is_fmp_derived(func, first, visiting, anchor, supported)
                     && is_nonnegative_offset(func, second))
@@ -996,14 +982,12 @@ fn is_nonnegative_offset(func: &Function, value: ValueId) -> bool {
             | InstKind::Sar(_, _)
             | InstKind::Not(_)
             | InstKind::SetFmp(_)
-            | InstKind::MStore(_, _)
-            | InstKind::MStore8(_, _)
-            | InstKind::MCopy(_, _, _)
+            | InstKind::Store(..)
+            | InstKind::Store8(..)
+            | InstKind::Copy(..)
             | InstKind::MemoryZero(_, _)
-            | InstKind::CalldataCopy(_, _, _)
             | InstKind::CodeCopy(_, _, _)
-            | InstKind::ReturnDataCopy(_, _, _)
-            | InstKind::ExtCodeCopy(_, _, _, _)
+            | InstKind::ExtCodeCopy(..)
             | InstKind::Call { .. }
             | InstKind::CallCode { .. }
             | InstKind::StaticCall { .. }
@@ -1093,17 +1077,8 @@ fn instruction_compares_values(kind: &InstKind) -> bool {
 fn instruction_loads_data(kind: &InstKind) -> bool {
     matches!(
         kind,
-        InstKind::MLoad(_)
-            | InstKind::CalldataLoad(_)
-            | InstKind::SLoad(_)
-            | InstKind::TLoad(_)
+        InstKind::Load(..)
             | InstKind::Keccak256(_, _)
-            | InstKind::MemoryObjectLoadField { .. }
-            | InstKind::MemoryObjectLoadElement { .. }
-            | InstKind::MemoryObjectLoadByte { .. }
-            | InstKind::MemoryObjectLen(_, _)
-            | InstKind::MemorySliceLoadWord { .. }
-            | InstKind::CalldataSliceLoadWord { .. }
-            | InstKind::SliceLen(_)
+            | InstKind::ExtractValue { ty: MirType::Slice(_), index: MirType::SLICE_LEN_FIELD, .. }
     )
 }

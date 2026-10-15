@@ -8,10 +8,10 @@ fn @fold_same_value_phi(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
-    log0 0, 0
+    log 0, 0
     jump bb3
   bb2:
-    log0 0, 0
+    log 0, 0
     jump bb3
   bb3:
     v2 = phi [bb1: arg0], [bb2: arg0]
@@ -28,7 +28,7 @@ fn @fold_self_incoming_phi(arg0: i256, arg1: i1) -> i256 {
     v2 = phi [bb0: arg0], [bb2: v2]
     jumpi arg1, bb2, bb3
   bb2:
-    log0 0, 0
+    log 0, 0
     jump bb1
   bb3:
     ret v2
