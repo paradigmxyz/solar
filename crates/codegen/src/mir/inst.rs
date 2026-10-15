@@ -577,10 +577,18 @@ impl EffectKind {
         }
     }
 
-    /// Whether this is pure computation or a read of state other than memory.
+    /// Whether this is pure computation or a read of memory, storage, transient storage or the
+    /// environment.
     #[must_use]
-    pub(crate) const fn is_non_memory_read(self) -> bool {
-        matches!(self, Self::Pure | Self::StorageRead | Self::TransientRead | Self::EnvironmentRead)
+    pub(crate) const fn is_read_only(self) -> bool {
+        matches!(
+            self,
+            Self::Pure
+                | Self::MemoryRead
+                | Self::StorageRead
+                | Self::TransientRead
+                | Self::EnvironmentRead
+        )
     }
 }
 

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_projection_env_read.sol:C ===
+// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_projection_reads.sol:C ===
 @module C
 @types
   struct0: {i160, i160, i160, i160}
@@ -105,6 +105,43 @@ fn @g(arg0: i256) -> i160 [selector=0xe420264a, view, abi_params=[u256], abi_ret
     ret v7
 }
 
+fn @h(arg0: i256, arg1: i256) -> i256 [selector=0xa61510ae, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc 128
+    mstore v0, arg1
+    v1 = checked_add u256, arg1, 1
+    v2 = ptradd v0, 32
+    mstore v2, v1
+    v3 = checked_add u256, arg1, 2
+    v4 = ptradd v0, 64
+    mstore v4, v3
+    v5 = checked_add u256, arg1, 3
+    v6 = ptradd v0, 96
+    mstore v6, v5
+    v7 = icall @resolve, arg0
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = extract_value struct0, v7, 2
+    v11 = extract_value struct0, v7, 3
+    v12 = lt 3, 4
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v0, 96
+    v15 = mload v14
+    v16 = icall @mix, 7, v10, v15
+    v17 = ne v9, i160 0
+    jumpi v17, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v18 = zext i160 v8 to i256
+    v19 = checked_add u256, v16, v18
+    jump bb3
+  bb3:
+    v20 = phi [bb1: v19], [bb2: v16]
+    ret v20
+}
+
 fn @resolve(arg0: i256) -> struct0 [view] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -157,4 +194,17 @@ fn @resolve(arg0: i256) -> struct0 [view] {
     v43 = insert_value struct0, v42, 2, v30
     v44 = insert_value struct0, v43, 3, v40
     ret v44
+}
+
+fn @mix(arg0: i256, arg1: i160, arg2: i256) -> i256 {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = checked_add u256, v0, arg0
+    sstore 1, v1 !metadata(storage=slot(1))
+    v2 = checked_mul u256, arg0, 0x10000
+    v3 = zext i160 arg1 to i256
+    v4 = checked_mul u256, v3, 256
+    v5 = checked_add u256, v2, v4
+    v6 = checked_add u256, v5, arg2
+    ret v6
 }
