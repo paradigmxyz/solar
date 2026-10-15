@@ -246,6 +246,7 @@ bb19 [cold]:
   dup 2
   mstore
   push 4
+  dup 2
   add
   push 32
   dup 2
@@ -253,13 +254,13 @@ bb19 [cold]:
   push 32
   dup 3
   mstore
-  dup 4
+  dup 5
   iszero
   iszero
-  swap 4
+  swap 5
   mload
   swap 1
-  swap 4
+  swap 5
   mul
   push 31
   dup 2
@@ -268,39 +269,28 @@ bb19 [cold]:
   not
   and
   push 32
-  dup 6
+  dup 7
   add
   push 0
   dup 3
-  dup 8
+  dup 9
   add
   mstore
   dup 3
   swap 1
-  swap 6
+  swap 7
   mstore
-  push 4
-  swap 1
   dup 6
   add
+  swap 1
+  swap 2
   swap 4
   swap 1
   swap 5
   mcopy
-  swap 1
+  swap 2
   sub
+  push 4
   add
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
   swap 1
-  dup 2
-  add
-  push 64
-  mstore
   revert

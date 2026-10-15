@@ -460,24 +460,11 @@ bb86:
   swap 1
   swap 2
   mcopy
-  swap 1
-  swap 2
+  dup 1
+  swap 3
   sub
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  swap 1
   swap 2
+  swap 1
   jump
 bb42 [continuation]:
   return

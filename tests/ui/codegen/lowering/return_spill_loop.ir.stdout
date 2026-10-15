@@ -370,21 +370,10 @@ bb25 [continuation]:
   swap 1
   swap 2
   mcopy
-  swap 1
+  dup 1
+  swap 2
   sub
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
   swap 1
-  dup 2
-  add
-  push 64
-  mstore
   return
 bb27:
   push 128

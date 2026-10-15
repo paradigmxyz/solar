@@ -61,14 +61,14 @@
 +   bb4:
 +     jumpi arg0, bb6, bb5
 +   bb5:
-+     v0 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args arg1
++     v0 = abi_encode [memory_bytes], scratch, selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args arg1
 +     v1 = extract_value slice<memory>, v0, 0
 +     v2 = extract_value slice<memory>, v0, 1
 +     revert v1, v2
 +   bb6:
 +     jumpi arg0, bb8, bb7
 +   bb7:
-+     v3 = abi_encode [word, memory_bytes], selector 0, args arg2, arg1
++     v3 = abi_encode [word, memory_bytes], scratch, selector 0, args arg2, arg1
 +     v4 = extract_value slice<memory>, v3, 0
 +     v5 = extract_value slice<memory>, v3, 1
 +     revert v4, v5

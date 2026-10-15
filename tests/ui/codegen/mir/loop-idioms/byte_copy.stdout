@@ -34,9 +34,9 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, pure] {
     v1 = add v0, 31
     mstore8 v1, 65
     v2 = icall @copyRaw, v1, 4
-    v36 = mload 64 !metadata(memory=scratch)
-    v8 = add v36, 32
-    mstore v36, 32
+    v32 = mload 64 !metadata(memory=scratch)
+    v8 = add v32, 32
+    mstore v32, 32
     v14 = ne v2, 0
     v15 = zext i1 v14 to i256
     v11 = mload v2
@@ -48,15 +48,10 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, pure] {
     mstore v21, 0
     mstore v8, v16
     v23 = add v20, v19
-    v33 = add v2, 32
-    mcopy v20, v33, v16 !metadata(memory=heap, disjoint)
-    v25 = sub v23, v36
-    v27 = add v25, 31
-    v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v37 = mload 64 !metadata(memory=scratch)
-    v38 = add v37, v29
-    mstore 64, v38 !metadata(memory=scratch)
-    returndata v37, v25
+    v29 = add v2, 32
+    mcopy v20, v29, v16 !metadata(memory=heap, disjoint)
+    v25 = sub v23, v32
+    returndata v32, v25
 }
 
 fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
@@ -66,9 +61,9 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
     v2 = add v1, 32
     mstore8 v2, 65
     v4 = icall @copyObject, v1, 4
-    v38 = mload 64 !metadata(memory=scratch)
-    v10 = add v38, 32
-    mstore v38, 32
+    v34 = mload 64 !metadata(memory=scratch)
+    v10 = add v34, 32
+    mstore v34, 32
     v16 = ne v4, 0
     v17 = zext i1 v16 to i256
     v13 = mload v4
@@ -80,15 +75,10 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
     mstore v23, 0
     mstore v10, v18
     v25 = add v22, v21
-    v35 = add v4, 32
-    mcopy v22, v35, v18 !metadata(memory=heap, disjoint)
-    v27 = sub v25, v38
-    v29 = add v27, 31
-    v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = mload 64 !metadata(memory=scratch)
-    v40 = add v39, v31
-    mstore 64, v40 !metadata(memory=scratch)
-    returndata v39, v27
+    v31 = add v4, 32
+    mcopy v22, v31, v18 !metadata(memory=heap, disjoint)
+    v27 = sub v25, v34
+    returndata v34, v27
 }
 
 fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
