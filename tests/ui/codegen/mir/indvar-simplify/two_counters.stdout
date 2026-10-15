@@ -48,8 +48,8 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v105 = gt v102, 0xffffffffffffffff
     v106 = gt v104, v100
     v107 = or v105, v106
-    v195 = or v101, v107
-    jumpi v195, bb17, bb18
+    v186 = or v101, v107
+    jumpi v186, bb17, bb18
   bb18:
     v109 = calldataload v103
     v111 = add v109, 63
@@ -57,20 +57,13 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     jumpi v112, bb5, bb19
   bb19:
     v114 = and v111, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v185 = mload 64 !metadata(memory=scratch)
-    v186 = add v185, v114
-    v187 = lt v186, v185
-    v188 = gt v186, 0xffffffffffffffff
-    v189 = or v187, v188
-    jumpi v189, bb5, bb22
-  bb22:
-    mstore 64, v186 !metadata(memory=scratch, preserves_valid_fmp)
-    mstore v185, v109
+    v180 = icall @alloc, v114
+    mstore v180, v109
     v116 = sub v100, v104
     v117 = gt v109, v116
     jumpi v117, bb17, bb20
   bb20:
-    v167 = add v185, 32
+    v167 = add v180, 32
     calldatacopy v167, v104, v109
     v74 = div v109, 3
     v75 = shl 2, v74
@@ -83,23 +76,16 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     jumpi v4, bb5, bb6
   bb6:
     v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v179 = mload 64 !metadata(memory=scratch)
-    v180 = add v179, v6
-    v181 = lt v180, v179
-    v182 = gt v180, 0xffffffffffffffff
-    v183 = or v181, v182
-    jumpi v183, bb5, bb21
-  bb21:
-    mstore 64, v180 !metadata(memory=scratch, preserves_valid_fmp)
-    v191 = calldatasize
-    calldatacopy v179, v191, v6
+    v179 = icall @alloc, v6
+    v182 = calldatasize
+    calldatacopy v179, v182, v6
     mstore v179, v75
-    v192 = add v179, 32
+    v183 = add v179, 32
     jump bb1
   bb1:
-    v10 = phi [bb21: 0], [bb14: v96]
-    v13 = phi [bb21: 0], [bb14: v98]
-    v193 = phi [bb21: v192], [bb14: v194]
+    v10 = phi [bb6: 0], [bb14: v96]
+    v13 = phi [bb6: 0], [bb14: v98]
+    v184 = phi [bb6: v183], [bb14: v185]
     v82 = add v10, 2
     v15 = lt v82, v109
     jumpi v15, bb3, bb2
@@ -124,11 +110,11 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v139 = add v135, 64
     returndata v179, v139
   bb4:
-    v19 = mload v185
+    v19 = mload v180
     v20 = lt v10, v19
     jumpi v20, bb8, bb7
   bb8:
-    v146 = add v185, v10
+    v146 = add v180, v10
     v147 = add v146, 32
     v24 = mload v147
     v25 = byte 0, v24
@@ -136,13 +122,13 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v28 = lt v13, v27
     jumpi v28, bb9, bb7
   bb9:
-    mstore8 v193, v25
+    mstore8 v184, v25
     v86 = add v10, 1
-    v34 = mload v185
+    v34 = mload v180
     v35 = lt v86, v34
     jumpi v35, bb10, bb7
   bb10:
-    v152 = add v185, v86
+    v152 = add v180, v86
     v153 = add v152, 32
     v39 = mload v153
     v40 = byte 0, v39
@@ -151,13 +137,13 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v44 = lt v88, v43
     jumpi v44, bb11, bb7
   bb11:
-    v156 = add v193, 1
+    v156 = add v184, 1
     mstore8 v156, v40
-    v50 = mload v185
+    v50 = mload v180
     v51 = lt v82, v50
     jumpi v51, bb12, bb7
   bb12:
-    v158 = add v185, v82
+    v158 = add v180, v82
     v159 = add v158, 32
     v55 = mload v159
     v56 = byte 0, v55
@@ -166,7 +152,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v60 = lt v92, v59
     jumpi v60, bb13, bb7
   bb13:
-    v162 = add v193, 2
+    v162 = add v184, 2
     mstore8 v162, v56
     v66 = mload v179
     v67 = lt v84, v66
@@ -176,11 +162,11 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb14:
-    v165 = add v193, 3
+    v165 = add v184, 3
     mstore8 v165, 0
     v96 = add v10, 3
     v98 = add v13, 4
-    v194 = add v193, 4
+    v185 = add v184, 4
     jump bb1
   bb15:
     mstore 32, 17 !metadata(memory=scratch)
@@ -235,4 +221,21 @@ fn @entry() [entry] {
     tail_call @pack
   bb5:
     revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch, preserves_valid_fmp)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }

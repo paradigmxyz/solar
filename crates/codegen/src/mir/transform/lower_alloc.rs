@@ -13,6 +13,8 @@ use crate::mir::{
     ValueId, memory::EvmMemoryLayout, pass::MirPass,
     transform::utils::redirect_successor_predecessors,
 };
+use solar_data_structures::map::FxHashMap;
+use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
 /// Lowers `fmp`, `set_fmp`, and `alloc` instructions.
@@ -38,11 +40,96 @@ impl MirPass for LowerAlloc {
 }
 
 fn lower_alloc(module: &mut Module) -> bool {
-    let mut changed = false;
+    let mut changed = share_checked_allocations(module);
     for func in module.functions.iter_mut() {
         changed |= lower_function(func);
     }
     changed
+}
+
+/// Share repeated checked free-memory-pointer bumps before lowering erases the
+/// allocation operation.
+///
+/// The helper owns only the pointer load, checked bump, panic, and update.
+/// Callers retain their initialization, so allocation ordering stays intact.
+fn share_checked_allocations(module: &mut Module) -> bool {
+    let count = module
+        .functions
+        .iter()
+        .flat_map(|func| func.instructions().map(|inst| func.inst(inst)))
+        .filter(|inst| {
+            matches!(
+                inst.kind,
+                InstKind::Alloc {
+                    semantics: AllocationSemantics { failure: AllocationFailure::Checked, .. },
+                    ..
+                }
+            ) && !inst.metadata.deferred_alloc()
+        })
+        .count();
+    if count < 2 {
+        return false;
+    }
+
+    let helper = create_checked_alloc(module);
+    for func in &mut module.functions {
+        let mut replacements = FxHashMap::default();
+        let blocks = func.blocks.indices();
+        for block in blocks {
+            let instructions = std::mem::take(&mut func.blocks[block].instructions);
+            let mut builder = FunctionBuilder::new(func);
+            builder.switch_to_block(block);
+            for inst in instructions {
+                let InstKind::Alloc { size, semantics } = builder.func().inst(inst).kind else {
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                    continue;
+                };
+                if semantics.failure != AllocationFailure::Checked
+                    || builder.func().inst(inst).metadata.deferred_alloc()
+                {
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                    continue;
+                }
+                let result =
+                    builder.func().inst_result_value(inst).expect("allocation has a result");
+                // object = icall checked_alloc size
+                let object = builder.icall(helper, vec![size], MirType::MEMPTR);
+                initialize(&mut builder, object, size, semantics.initialization);
+                replacements.insert(result, object);
+            }
+        }
+        func.replace_uses_canonicalized(&replacements);
+    }
+    true
+}
+
+fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
+    let mut function = Function::new(Ident::with_dummy_span(sym::alloc));
+    {
+        let mut builder = FunctionBuilder::new(&mut function);
+        let size = builder.add_param(MirType::I256);
+        builder.set_return_type(MirType::MEMPTR);
+        let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
+        // ptr = inttoptr (load memory 64) to ptr<memory>
+        let free = builder.load(slot, PtrLocation::Memory);
+        let ptr = builder.cast(free, MirType::MEMPTR);
+        let next = builder.add(ptr, size);
+        let bump_overflow = builder.lt(next, ptr);
+        let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
+        let over_limit = builder.gt(next, limit);
+        let invalid = builder.or(bump_overflow, over_limit);
+        let panic = builder.create_block();
+        let continuation = builder.create_block();
+        builder.branch(invalid, panic, continuation);
+
+        builder.switch_to_block(continuation);
+        store_fmp(&mut builder, next);
+        builder.ret([ptr]);
+
+        builder.switch_to_block(panic);
+        builder.panic(PanicCode::MemoryAllocationOverflow);
+    }
+    module.add_function(function)
 }
 
 fn lower_function(func: &mut Function) -> bool {

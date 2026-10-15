@@ -17,16 +17,9 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v80 = eq v79, 0
     jumpi v80, bb13, bb10
   bb13:
-    v90 = mload 64 !metadata(memory=scratch)
-    v91 = add v90, 64
-    v92 = lt v91, v90
-    v93 = gt v91, 0xffffffffffffffff
-    v94 = or v92, v93
-    jumpi v94, bb15, bb14
-  bb14:
-    mstore 64, v91 !metadata(memory=scratch, preserves_valid_fmp)
-    v96 = calldatasize
-    calldatacopy v90, v96, 64
+    v90 = icall @alloc, 64
+    v92 = calldatasize
+    calldatacopy v90, v92, 64
     mstore v90, 1
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v85 = add v90, 32
@@ -51,11 +44,11 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     jumpi v72, bb4, bb2
   bb2:
     sstore 1, v19 !metadata(storage=slot(1))
-    v97 = add v90, 32
+    v93 = add v90, 32
     jump bb5
   bb5:
     v39 = phi [bb2: 0], [bb6: v60]
-    v98 = phi [bb2: v97], [bb6: v99]
+    v94 = phi [bb2: v93], [bb6: v95]
     v40 = lt v39, v19
     jumpi v40, bb6, bb7
   bb7:
@@ -76,7 +69,7 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
   bb9:
     stop
   bb6:
-    v45 = mload v98
+    v45 = mload v94
     mstore 0, 1 !metadata(memory=scratch)
     v47 = shr 3, v39
     v48 = sub v47, 0x4ef1d2ad89edf8c4d91132028e8195cdf30bb4b5053d4f8cd260341d4805f30a
@@ -91,7 +84,7 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v59 = or v55, v58
     sstore v48, v59 !metadata(storage=offset(v47, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     v60 = add v39, 1
-    v99 = add v98, 32
+    v95 = add v94, 32
     jump bb5
   bb4:
     mstore 0, 1 !metadata(memory=scratch)
@@ -107,10 +100,6 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v38 = add v22, 1
     v71 = lt v38, v20
     jump bb3
-  bb15:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb10:
     revert 0, 0
 }
@@ -131,16 +120,9 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v86 = eq v85, 0
     jumpi v86, bb15, bb12
   bb15:
-    v99 = mload 64 !metadata(memory=scratch)
-    v100 = add v99, 64
-    v101 = lt v100, v99
-    v102 = gt v100, 0xffffffffffffffff
-    v103 = or v101, v102
-    jumpi v103, bb10, bb16
-  bb16:
-    mstore 64, v100 !metadata(memory=scratch, preserves_valid_fmp)
-    v105 = calldatasize
-    calldatacopy v99, v105, 64
+    v99 = icall @alloc, 64
+    v101 = calldatasize
+    calldatacopy v99, v101, 64
     mstore v99, 1
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v93 = add v99, 32
@@ -177,11 +159,11 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     jumpi v78, bb4, bb2
   bb2:
     sstore v22, v25 !metadata(storage=offset(v14, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5acf))
-    v106 = add v24, 32
+    v102 = add v24, 32
     jump bb5
   bb5:
     v45 = phi [bb2: 0], [bb6: v66]
-    v107 = phi [bb2: v106], [bb6: v108]
+    v103 = phi [bb2: v102], [bb6: v104]
     v46 = lt v45, v25
     jumpi v46, bb6, bb7
   bb7:
@@ -204,7 +186,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     sstore 2, v12 !metadata(storage=slot(2))
     stop
   bb6:
-    v51 = mload v107
+    v51 = mload v103
     mstore 0, v22 !metadata(memory=scratch)
     v53 = shr 3, v45
     v88 = keccak256 0, 32 !metadata(memory=scratch)
@@ -220,7 +202,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v65 = or v61, v64
     sstore v54, v65 !metadata(storage=symbolic(v54))
     v66 = add v45, 1
-    v108 = add v107, 32
+    v104 = add v103, 32
     jump bb5
   bb4:
     mstore 0, v22 !metadata(memory=scratch)
@@ -303,16 +285,9 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v84 = eq v83, 0
     jumpi v84, bb13, bb10
   bb13:
-    v94 = mload 64 !metadata(memory=scratch)
-    v95 = add v94, 64
-    v96 = lt v95, v94
-    v97 = gt v95, 0xffffffffffffffff
-    v98 = or v96, v97
-    jumpi v98, bb15, bb14
-  bb14:
-    mstore 64, v95 !metadata(memory=scratch, preserves_valid_fmp)
-    v100 = calldatasize
-    calldatacopy v94, v100, 64
+    v94 = icall @alloc, 64
+    v96 = calldatasize
+    calldatacopy v94, v96, 64
     mstore v94, 1
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v89 = add v94, 32
@@ -337,11 +312,11 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     jumpi v76, bb4, bb2
   bb2:
     sstore 4, v23 !metadata(storage=slot(4))
-    v101 = add v94, 32
+    v97 = add v94, 32
     jump bb5
   bb5:
     v43 = phi [bb2: 0], [bb6: v64]
-    v102 = phi [bb2: v101], [bb6: v103]
+    v98 = phi [bb2: v97], [bb6: v99]
     v44 = lt v43, v23
     jumpi v44, bb6, bb7
   bb7:
@@ -362,7 +337,7 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
   bb9:
     stop
   bb6:
-    v49 = mload v102
+    v49 = mload v98
     mstore 0, 4 !metadata(memory=scratch)
     v51 = shr 3, v43
     v52 = sub v51, 0x75ca53043ea007e5c65182cbb028f60d7179ff4b55739a3949b401801c942e65
@@ -377,7 +352,7 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v63 = or v59, v62
     sstore v52, v63 !metadata(storage=offset(v51, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     v64 = add v43, 1
-    v103 = add v102, 32
+    v99 = add v98, 32
     jump bb5
   bb4:
     mstore 0, 4 !metadata(memory=scratch)
@@ -393,10 +368,6 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v42 = add v26, 1
     v75 = lt v42, v24
     jump bb3
-  bb15:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb10:
     revert 0, 0
 }
@@ -420,4 +391,21 @@ fn @entry() [entry] {
     tail_call @assign
   bb6:
     revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch, preserves_valid_fmp)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
