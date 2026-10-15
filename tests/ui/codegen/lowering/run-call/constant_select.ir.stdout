@@ -731,29 +731,15 @@ bb52:
   mstore
   dup 5
   add
-  swap 1
-  swap 2
   swap 3
   swap 1
+  swap 2
   swap 4
   mcopy
+  dup 2
   swap 1
-  jump bb77
-bb77:
   sub
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
   swap 1
-  dup 2
-  add
-  push 64
-  mstore
   return
 bb56:
   push 128
@@ -778,8 +764,8 @@ bb56:
   swap 1
   sub
   mul
-  jump bb80
-bb80:
+  jump bb77
+bb77:
   add
   push 64
   mload
@@ -839,7 +825,11 @@ bb80:
   swap 1
   swap 3
   mcopy
-  jump bb77
+  dup 2
+  swap 1
+  sub
+  swap 1
+  return
 bb59:
   push 128
   push 64
@@ -860,7 +850,7 @@ bb59:
   push 0x26121ff0
   push 224
   shl
-  jump bb80
+  jump bb77
 bb40 [cold]:
   push 65
   jump bb79

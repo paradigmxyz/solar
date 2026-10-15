@@ -46,46 +46,46 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
 fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
   bb0:
     v69 = icall @decode_calldata_type
-    v104 = add v69, 32
+    v100 = add v69, 32
     v14 = mload v69
-    v16 = add v104, v14
+    v16 = add v100, v14
     v17 = slt v14, 32
     jumpi v17, bb1, bb2
   bb2:
-    v18 = mload v104
-    v20 = add v104, v18
+    v18 = mload v100
+    v20 = add v100, v18
     v23 = gt v18, v14
     v24 = sub v16, v20
     v25 = lt v24, 160
-    v135 = or v23, v25
-    jumpi v135, bb1, bb3
+    v129 = or v23, v25
+    jumpi v129, bb1, bb3
   bb3:
     v26 = alloc 96 !metadata(deferred_alloc)
-    v130 = mload 64 !metadata(memory=scratch)
-    v131 = add v130, 96
-    mstore 64, v131 !metadata(memory=scratch, preserves_valid_fmp)
+    v126 = mload 64 !metadata(memory=scratch)
+    v127 = add v126, 96
+    mstore 64, v127 !metadata(memory=scratch, preserves_valid_fmp)
     v28 = mload v20
-    mstore v130, v28
+    mstore v126, v28
     v29 = add v20, 32
     v30 = mload v29
     v31 = shr 160, v30
     v32 = eq v31, 0
     jumpi v32, bb4, bb1
   bb4:
-    v106 = add v130, 32
-    mstore v106, v30
+    v102 = add v126, 32
+    mstore v102, v30
     v34 = add v20, 64
     v35 = mload v34
     v36 = lt v35, 2
     jumpi v36, bb5, bb1
   bb5:
-    v108 = add v130, 64
-    mstore v108, v35
-    mstore v26, v130
+    v104 = add v126, 64
+    mstore v104, v35
+    mstore v26, v126
     v39 = add v20, 96
     v40 = icall @decode_memory_type, v39, v20, v16
-    v110 = add v26, 32
-    mstore v110, v40
+    v106 = add v26, 32
+    mstore v106, v40
     v43 = add v20, 128
     v44 = mload v43
     v45 = add v20, v44
@@ -101,30 +101,30 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     jumpi v54, bb7, bb8
   bb8:
     v56 = and v53, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v129 = icall @alloc, v56
-    mstore v129, v51
+    v125 = icall @alloc, v56
+    mstore v125, v51
     v58 = sub v16, v46
     v59 = gt v51, v58
     jumpi v59, bb1, bb9
   bb9:
-    v112 = add v129, 32
-    mcopy v112, v46, v51
-    v114 = add v26, 64
-    mstore v114, v129
-    v124 = mload v26
-    v2 = mload v124
-    v125 = mload v110
-    v116 = add v125, 32
-    v126 = mload v116
-    v9 = mload v129
-    v132 = mload 64 !metadata(memory=scratch)
-    v75 = add v132, 96
-    mstore v132, v2
-    v77 = add v132, 32
+    v108 = add v125, 32
+    mcopy v108, v46, v51
+    v110 = add v26, 64
+    mstore v110, v125
+    v120 = mload v26
+    v2 = mload v120
+    v121 = mload v106
+    v112 = add v121, 32
+    v122 = mload v112
+    v9 = mload v125
+    v128 = mload 64 !metadata(memory=scratch)
+    v75 = add v128, 96
+    mstore v128, v2
+    v77 = add v128, 32
     mstore v77, 96
-    v83 = ne v126, 0
+    v83 = ne v122, 0
     v84 = zext i1 v83 to i256
-    v80 = mload v126
+    v80 = mload v122
     v85 = mul v80, v84
     v87 = add v85, 31
     v88 = and v87, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -133,17 +133,12 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     mstore v90, 0
     mstore v75, v85
     v92 = add v89, v88
-    v118 = add v126, 32
-    mcopy v89, v118, v85 !metadata(memory=heap, disjoint)
-    v94 = add v132, 64
+    v114 = add v122, 32
+    mcopy v89, v114, v85 !metadata(memory=heap, disjoint)
+    v94 = add v128, 64
     mstore v94, v9
-    v96 = sub v92, v132
-    v98 = add v96, 31
-    v100 = and v98, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v133 = mload 64 !metadata(memory=scratch)
-    v134 = add v133, v100
-    mstore 64, v134 !metadata(memory=scratch, preserves_valid_fmp)
-    returndata v133, v96
+    v96 = sub v92, v128
+    returndata v128, v96
   bb7:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

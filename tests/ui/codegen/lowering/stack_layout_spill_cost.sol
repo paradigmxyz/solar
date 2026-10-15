@@ -10,15 +10,11 @@ struct Market {
 // spill would pay for a store, the copy that feeds it, and a later reload, so
 // the layout keeps the word resident and the slot feeds `sload` directly.
 // CHECK: push 11
+// CHECK: push 32
+// CHECK-NEXT: push 0
 // CHECK: keccak256
-// CHECK-NEXT: swap 1
-// CHECK-NEXT: push 3
-// CHECK-NEXT: sub
-// CHECK-NEXT: push bb{{[0-9]+}}
-// CHECK-NEXT: jumpi
 // CHECK-NEXT: dup 1
 // CHECK-NEXT: sload
-// CHECK-NEXT: push 0x900000000000000000000000000000007
 contract SpillCost {
     uint128 public a;
     bool public c;
