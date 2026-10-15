@@ -19,5 +19,13 @@ error[3667]: failed to evaluate constant: arithmetic overflow
 LL │         uint[-a] memory x;
    ╰╴             ━━ evaluation of constant value failed here
 
-error: aborting due to 3 previous errors
+error[3667]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_evaluator_overflow.sol:LL:CC
+   │
+LL │ contract ConstantDividedByItsNegation layout at n / ~n {}
+   │                                                 ━━━━┬─
+   │                                                     │
+   ╰╴                                                    evaluation of constant value failed here
+
+error: aborting due to 4 previous errors
 

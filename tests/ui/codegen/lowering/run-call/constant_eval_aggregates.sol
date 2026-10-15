@@ -4,7 +4,7 @@
 //@ run-call: structs => 0x46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21, 0x5a4be9052f25ff6d33da572b95cd7cd5a1b35d87e5353835fb359783cff622f9
 //@ run-call: arrays => 0x6cce5286d246c8ed7cf3fd3b7e50a798e684660929923ac369039151ef8a27fc, 0x7cde746dfbb8dfd7721b5995769f873e3ff50416302673a354990b553bb0e208
 //@ run-call: zeroBytes => 3, 0x99ff0d9125e1fc9531a11262e15aeb2c60509a078c4cc4c64cefdfb06ff68647
-//@ run-call: encodeCall => 0x3c916696a0faa1db2286dbb50567e1cca25ef734021b736074d7fb8ec68a4318
+//@ run-call: encodeCall => 0x3c916696a0faa1db2286dbb50567e1cca25ef734021b736074d7fb8ec68a4318, 0xab7faff8ff645341ff60a0f642d5ba9ea9a4b01d2152e03885817540249b6eb4
 //@ run-call: libraryConstant => 1000000
 
 // Constant evaluation folds structs, `new` arrays and byte arrays, their ABI encodings,
@@ -36,6 +36,7 @@ struct Pair {
 
 interface I {
     function f(uint256, string calldata) external;
+    function g(Item calldata) external;
 }
 
 library L {
@@ -54,6 +55,8 @@ contract ConstantEvalAggregates {
     bytes32 constant ZERO_PAIR = keccak256(abi.encode(new Pair[](1)));
     bytes constant ZERO = new bytes(3);
     bytes32 constant CALL = keccak256(abi.encodeCall(I.f, (1, "ab")));
+    bytes32 constant STRUCT_CALL =
+        keccak256(abi.encodeCall(I.g, (Item(ItemType.B, address(1), 3))));
     uint24 constant MAX = L.MAX;
 
     // CHECK-LABEL: fn @structs()
@@ -77,8 +80,8 @@ contract ConstantEvalAggregates {
     // CHECK-LABEL: fn @encodeCall()
     // CHECK-NOT: keccak256
     // CHECK: ret
-    function encodeCall() external pure returns (bytes32) {
-        return CALL;
+    function encodeCall() external pure returns (bytes32, bytes32) {
+        return (CALL, STRUCT_CALL);
     }
 
     // CHECK-LABEL: fn @libraryConstant()

@@ -437,13 +437,13 @@ const fn max_digits<const BITS: u32>(base: Base) -> usize {
             Base::Binary => BITS as usize,
             Base::Octal => 43,
             Base::Decimal => 39,
-            Base::Hexadecimal => 33,
+            Base::Hexadecimal => 32,
         },
         MAX_BITS => match base {
             Base::Binary => BITS as usize,
             Base::Octal => 1366,
             Base::Decimal => 1234,
-            Base::Hexadecimal => 1025,
+            Base::Hexadecimal => 1024,
         },
         _ => panic!("unknown bits"),
     }
@@ -459,16 +459,22 @@ fn u256_from_str_radix(s: &str, base: Base) -> Option<U256> {
 }
 
 fn big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<BigInt, LitError> {
+    let too_large = || if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge };
     if s.len() > max_digits::<MAX_BITS>(base) {
-        return Err(if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge });
+        return Err(too_large());
     }
     if s.len() <= max_digits::<{ Primitive::BITS }>(base)
         && let Ok(n) = Primitive::from_str_radix(s, base as u32)
     {
         return Ok(BigInt::from(n));
     }
-    BigInt::from_str_radix(s, base as u32)
-        .map_err(|e| if rat { LitError::ParseRational(e) } else { LitError::ParseInteger(e) })
+    let n = BigInt::from_str_radix(s, base as u32)
+        .map_err(|e| if rat { LitError::ParseRational(e) } else { LitError::ParseInteger(e) })?;
+    // The digit count only bounds the value, so check its bits too.
+    if n.bits() > u64::from(MAX_BITS) {
+        return Err(too_large());
+    }
+    Ok(n)
 }
 
 fn pow10(exp: u32) -> BigInt {

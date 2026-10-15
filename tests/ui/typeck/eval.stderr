@@ -150,37 +150,49 @@ error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function i(uint[block.timestamp] memory) public {}
-   ╰╴                    ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │                     ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: expected an integer
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function j(uint["lol"] memory) public {}
-   ╰╴                    ━━━━━ evaluation of constant value failed here
+   │                     ━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported unary operation
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function k(uint[--x] memory) public {}
-   ╰╴                    ━━━ evaluation of constant value failed here
+   │                     ━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: only constant variables are allowed
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function l(uint[stateVar] memory) public {}
-   ╰╴                    ━━━━━━━━ evaluation of constant value failed here
+   │                     ━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: only constant variables are allowed
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function m(uint[stateVarPublic] memory) public {}
-   ╰╴                    ━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │                     ━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
-error[5462]: array length must be greater than zero
+error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function tern(uint[(zero > 0) ? 1 : 0] memory) public {}
-   ╰╴                       ━━━━━━━━━━━━━━━━━━
+   │                        ━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[1406]: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC

@@ -11,13 +11,24 @@ contract C {
     uint8 constant S8 = 8;
 
     function tooWide() public pure {
-        // Like the EVM, the shifts drop the bit. solc rejects them with error 2643; see TYPECK-020.
-        uint256[1 << S256] memory a; //~ ERROR: array length must be greater than zero
-        uint256[(1 << S256) >> S256] memory b; //~ ERROR: array length must be greater than zero
+        // Like solc, the shifts that drop the bit are error 2643.
+        uint256[1 << S256] memory a; //~ ERROR: failed to evaluate constant: arithmetic overflow
+        uint256[(1 << S256) >> S256] memory b; //~ ERROR: failed to evaluate constant: arithmetic overflow
         uint256[2 ** S256] memory c; //~ ERROR: failed to evaluate constant: arithmetic overflow
+        // solc converts the amount or exponent to the left operand's type, which fails, and gives
+        // the operation no value.
+        uint256[S8 << 256] memory d; //~ ERROR: failed to evaluate constant: unsupported binary operation
+        uint256[S8 ** 300] memory e; //~ ERROR: failed to evaluate constant: unsupported binary operation
+        // solc gives no value to results beyond the 4096 bits of its rational numbers either.
+        uint256[S255 << 5000] memory f; //~ ERROR: failed to evaluate constant: unsupported binary operation
+        uint256[S255 ** 600] memory g; //~ ERROR: failed to evaluate constant: unsupported binary operation
         a;
         b;
         c;
+        d;
+        e;
+        f;
+        g;
     }
 
     function inRange() public pure {

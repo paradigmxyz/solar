@@ -22,38 +22,28 @@ fn @fUint(arg0: i256, arg1: i256) -> struct0 [selector=0x432672b2, abi_params=[u
 
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
-    v1 = ptradd v0, 32
-    v2 = mload v0
-    v3 = keccak256 v1, v2
-    v4 = eq 0xe7eed6879ebbcc949780042a313916d5554b1d334cfdf13575d35c220c4a819, v3
-    jumpi v4, bb1, bb2
+    jumpi true, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v5 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
-    v6 = ptradd v5, 32
-    v7 = mload v5
-    v8 = keccak256 v6, v7
-    v9 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
-    v10 = ptradd v9, 32
-    v11 = mload v9
-    v12 = keccak256 v10, v11
-    v13 = eq v8, v12
+    v0 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    v4 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
+    v5 = ptradd v4, 32
+    v6 = mload v4
+    v7 = keccak256 v5, v6
+    v8 = eq v3, v7
     jump bb3
   bb3:
-    v14 = phi [bb1: v13], [bb2: false]
-    jumpi v14, bb4, bb5
+    v9 = phi [bb1: v8], [bb2: false]
+    jumpi v9, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v15 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
-    v16 = ptradd v15, 32
-    v17 = mload v15
-    v18 = keccak256 v16, v17
-    v19 = eq 0x33f67098ce03cc52b18f520e7908cdea910975eeb6d6dd916ab902d18598bf5d, v18
     jump bb6
   bb6:
-    v20 = phi [bb4: v19], [bb5: false]
-    ret v20
+    v10 = phi [bb4: true], [bb5: false]
+    ret v10
 }

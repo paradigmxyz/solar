@@ -80,18 +80,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && self.cx.gcx.resolved_expr(expr).and_then(|resolved| resolved.as_variable()).is_none()
         {
             let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
-            if matches!(
-                receiver_ty.peel_refs().kind,
-                TyKind::StringLiteral(..)
-                    | TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String,
-                    )
-            ) && let ExprKind::Lit(lit) = self.peel_bytes_conversion(receiver).peel_parens().kind
-                && let LitKind::Str(_, bytes, _) = &lit.kind
-            {
-                return Some(self.builder.imm(bytes.as_byte_str().len() as u64));
-            }
             return self.lower_array_length(receiver, receiver_ty, expr.span, "length member");
         }
 
@@ -278,41 +266,47 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Lowers a use of a constant to its value, which constant evaluation computes once.
     ///
-    /// A constant without a value is an error at its first use, and an error value at every use.
-    /// A value too large to fold, such as `new bytes(65537)`, is built from the initializer at
-    /// every use instead, as solc does.
+    /// A constant without a value at compile time, such as `keccak256(type(C).creationCode)` or
+    /// `uint8(255) + 1`, which reverts, calls a helper that runs its initializer, like solc's IR
+    /// codegen does.
     pub(super) fn lower_constant_variable(
         &mut self,
         id: VariableId,
         span: Span,
     ) -> Option<ValueId> {
-        if let Some(initializer) = self.unfolded_constant_initializer(id) {
-            // value = <initializer>
-            return self.lower_expr(initializer);
+        if let Ok(value) = self.cx.gcx.const_eval().eval_var(id)
+            && let Some(value) = self.lower_const_value(value, span)
+        {
+            return Some(value);
         }
-        match self.cx.gcx.const_eval().require_var(id) {
-            Ok(value) => self
-                .lower_const_value(value, span)
-                .or_else(|| self.cx.report_unsupported(span, "constant")),
-            // value = error
-            Err(guar) => Some(self.builder.error_value(guar)),
-        }
+        self.call_constant_helper(id)
     }
 
-    /// Returns the initializer of a constant whose value is too large to fold, which uses build
-    /// at runtime instead.
-    pub(super) fn unfolded_constant_initializer(
-        &self,
-        id: VariableId,
-    ) -> Option<&'gcx hir::Expr<'gcx>> {
+    /// Calls the helper that computes the value of the constant `id` from its initializer.
+    pub(super) fn call_constant_helper(&mut self, id: VariableId) -> Option<ValueId> {
         let gcx = self.cx.gcx;
-        if let Err(err) = gcx.const_eval().eval_var(id)
-            && matches!(err.kind, EvalErrorKind::ValueTooLarge)
-        {
-            gcx.hir.variable(id).initializer
-        } else {
-            None
-        }
+        // The parser reports a constant without an initializer.
+        let initializer =
+            gcx.hir.variable(id).initializer.expect("constant without an initializer");
+        let ty = gcx.type_of_item(id.into());
+        let mir_ty = types::TypeLowerer::mir_type(ty);
+        // The initializer runs in the arithmetic mode of the use, as in solc. Yul has none, and
+        // assembly may only read a constant whose initializer halts if it fails.
+        let unchecked = self.unchecked && !self.in_inline_assembly;
+        let suffix = if unchecked { "_unchecked" } else { "" };
+        let name = helper_name(kw::Constant, format_args!("{}{suffix}", id.index()));
+        // fn @constant_N[_unchecked]() -> T { value = <initializer>; ret value }
+        let helper = self.lazy_helper(name, |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            lowerer.unchecked = unchecked;
+            lowerer.builder.replace_source_span(initializer.span);
+            let value = lowerer.lower_typed_expr(initializer, ty)?;
+            lowerer.builder.set_return_type(mir_ty);
+            lowerer.builder.ret([value]);
+            Some(())
+        })?;
+        // value = icall @constant_N[_unchecked]
+        Some(self.builder.icall(helper, Vec::new(), mir_ty))
     }
 
     /// Lowers a constant value to an immediate, to shared memory for byte arrays, or to the
@@ -330,9 +324,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Value::Immediate(Immediate::for_type(Some(MirType::I160), value.as_word()?)),
             )),
             ConstValue::Udvt(_, value) => self.lower_const_value(value, span),
-            &ConstValue::Code(contract, kind) => {
-                self.lower_contract_code(span, contract, kind.into())
-            }
+            &ConstValue::Code(contract, kind) => self.lower_contract_code(span, contract, kind),
             // value = imm word
             value => Some(self.builder.imm(value.as_word()?)),
         }

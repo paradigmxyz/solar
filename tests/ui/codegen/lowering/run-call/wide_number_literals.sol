@@ -5,7 +5,6 @@
 //@ run-call: denominated => 100000000
 //@ run-call: negative => -10000000000
 //@ run-call: remainder => 8
-// ported-from: test/libsolidity/smtCheckerTests/types/rational_large_1.sol
 // Number literals wider than 256 bits are exact in literal arithmetic.
 
 contract C {

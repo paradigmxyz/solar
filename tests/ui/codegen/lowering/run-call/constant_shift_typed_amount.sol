@@ -10,7 +10,7 @@
 // A shift or exponentiation whose left operand is a literal and whose right
 // operand is typed is performed in `uint256` for a non-negative literal and in
 // `int256` for a negative one. Like on the EVM, shifting a bit out yields
-// zero. Folding at full precision instead returned 1 from `round256`.
+// zero.
 contract C {
     uint16 constant S255 = 255;
     uint16 constant S256 = 256;

@@ -688,14 +688,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_erc7201(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
         let argument = &self.builtin_args::<1>(Builtin::Erc7201, &args)?[0];
-        if let ExprKind::Lit(lit) = self.peel_bytes_conversion(argument).peel_parens().kind
-            && let LitKind::Str(_, bytes, _) = &lit.kind
-        {
-            let inner = U256::from_be_slice(keccak256(bytes.as_byte_str()).as_slice())
-                .wrapping_sub(U256::ONE);
-            let outer = U256::from_be_slice(keccak256(inner.to_be_bytes::<32>()).as_slice());
-            return Some(self.builder.imm(outer & !U256::from(0xff)));
-        }
         let argument_ty = self.cx.gcx.type_of_expr(argument.id)?;
         let memory_ty = argument_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let value = self.lower_typed_expr(argument, memory_ty)?;

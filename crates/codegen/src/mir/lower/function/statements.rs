@@ -305,16 +305,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
-        // A constant has a value, so reading it has no effects. One without a value is an error,
-        // unless the value is only too large to fold: then its initializer runs, and can revert.
+        // Reading a constant with a value has no effects. One without a value runs its helper,
+        // which can revert.
         let gcx = self.cx.gcx;
         if let Some(id) = gcx.resolved_variable(expr)
             && gcx.hir.variable(id).is_constant()
         {
-            if let Some(initializer) = self.unfolded_constant_initializer(id) {
-                return self.lower_discarded_expr(initializer);
+            if gcx.const_eval().eval_var(id).is_err() {
+                return self.call_constant_helper(id).map(drop);
             }
-            let _ = gcx.const_eval().require_var(id);
             return Some(());
         }
         match &expr.kind {
