@@ -1,6 +1,12 @@
 error[1211]: division by zero
    ╭▸ ROOT/tests/ui/typeck/division_by_zero_solc_values.sol:LL:CC
    │
+LL │         return OVERFLOW / 0;
+   ╰╴               ━━━━━━━━━━━━
+
+error[1211]: division by zero
+   ╭▸ ROOT/tests/ui/typeck/division_by_zero_solc_values.sol:LL:CC
+   │
 LL │         return (1 / D31, mulmod(1, 2, ZERO));
    ╰╴                ━━━━━━━
 
@@ -10,5 +16,5 @@ error[4195]: arithmetic modulo zero
 LL │         return (1 / D31, mulmod(1, 2, ZERO));
    ╰╴                         ━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 2 previous errors
+error: aborting due to 3 previous errors
 

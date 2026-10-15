@@ -70,7 +70,7 @@ error: named arguments cannot be used for functions that take arbitrary paramete
 LL │     abi.encode({a: value});
    ╰╴              ━━━━━━━━━━━━
 
-error: cannot perform packed encoding for a literal
+error[7279]: cannot perform packed encoding for a literal
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
    │
 LL │     abi.encodePacked(1);

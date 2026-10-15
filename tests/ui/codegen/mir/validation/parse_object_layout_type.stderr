@@ -1,4 +1,4 @@
-error: `memorybytes` is an object layout; memory objects are `memptr` values
+error: `memorybytes` is an object layout; memory objects are `ptr<memory>` values
    ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_object_layout_type.mir:LL:CC
    │
 LL │ fn @f(arg0: memorybytes) {

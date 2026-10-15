@@ -1,5 +1,9 @@
+//@ codegen-matrix: standard
+//@ compile-flags: --allow=5574 --allow=3860
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 // `bytes` and `string` values larger than 64 KiB do not fold, so doubling concatenations stay
-// cheap to compile.
+// cheap to compile. Their uses call helpers that compute them at runtime.
 bytes constant B0 = "0123456789abcdef0123456789abcdef";
 bytes constant B1 = bytes.concat(B0, B0);
 bytes constant B2 = bytes.concat(B1, B1);
@@ -15,10 +19,19 @@ bytes constant B11 = bytes.concat(B10, B10);
 bytes constant B12 = bytes.concat(B11, B11);
 string constant S = string.concat(string(B11), string(B11), "x");
 
+// Building the values at runtime copies the folded `B11` into the code.
 contract C {
-    uint[B11.length] fits;
-    uint[B12.length] tooLarge; //~ ERROR: failed to evaluate constant: value is too large
-    uint[bytes(S).length] tooLargeString; //~ ERROR: failed to evaluate constant: value is too large
+    // CHECK-LABEL: fn @lengths()
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: {{v[0-9]+}} = icall @constant_
+    // CHECK: icall @constant_
+    // CHECK: insert_value struct0, undef struct0, 0, 0x10000
+    function lengths() external pure returns (uint256, uint256, uint256) {
+        return (B11.length, B12.length, bytes(S).length);
+    }
+
     // The number of zero values in `new T[](n)` must not overflow while it is counted.
-    uint[new uint[1][](2**63 + 1).length] tooManyValues; //~ ERROR: failed to evaluate constant: value is too large
+    function tooManyValues() external pure returns (uint256) {
+        return new uint256[1][](2**63 + 1).length;
+    }
 }

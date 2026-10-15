@@ -94,8 +94,8 @@
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, InstId, InstKind, Instruction, InstructionMetadata,
-        MemoryObjectKind, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+        BlockId, EffectKind, Function, InstId, InstKind, Instruction, InstructionMetadata, MirType,
+        Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
             Location, LocationSize, MemoryAddress, MemoryLocation, ModRef,
@@ -1160,34 +1160,32 @@ impl LoadRedundancyEliminator {
     fn gen_key_value(&self, func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
         let aa = self.alias();
         match func.inst(inst_id).kind {
-            InstKind::SLoad(slot) => Some((
+            InstKind::Load(slot, PtrLocation::Storage) => Some((
                 LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
                 GenSource::LoadResult,
             )),
-            InstKind::SStore(slot, value) => Some((
+            InstKind::Store(slot, value, PtrLocation::Storage) => Some((
                 LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
-            InstKind::TLoad(slot) => Some((
+            InstKind::Load(slot, PtrLocation::Transient) => Some((
                 LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
                 GenSource::LoadResult,
             )),
-            InstKind::TStore(slot, value) => Some((
+            InstKind::Store(slot, value, PtrLocation::Transient) => Some((
                 LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
-            InstKind::MLoad(addr) => self
-                .mem_addr(func, inst_id, addr, LocationSize::Const(32))
-                .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult)),
+            // Stored words are integers, so a pointer load keeps its own type.
+            InstKind::Load(addr, PtrLocation::Memory)
+                if func.inst(inst_id).result_ty == Some(MirType::I256) =>
+            {
+                self.mem_addr(func, inst_id, addr, LocationSize::Const(32))
+                    .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult))
+            }
             InstKind::Fmp => Some((LoadKey::Memory(Self::fmp_addr()), GenSource::LoadResult)),
-            InstKind::MStore(addr, value) => self
+            InstKind::Store(addr, value, PtrLocation::Memory) => self
                 .mem_addr(func, inst_id, addr, LocationSize::Const(32))
-                .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
-            InstKind::MemoryObjectLen(object, kind) => self
-                .memory_object_addr(func, inst_id, object, kind)
-                .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult)),
-            InstKind::SetMemoryObjectLen(object, value, kind) => self
-                .memory_object_addr(func, inst_id, object, kind)
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {
                 let addr = self.mem_addr(func, inst_id, offset, aa.location_size(func, size))?;
@@ -1331,18 +1329,6 @@ impl LoadRedundancyEliminator {
         size: LocationSize,
     ) -> Option<MemoryAddress> {
         self.alias().memory_location(func, inst_id, addr, size).map(|location| location.address)
-    }
-
-    fn memory_object_addr(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        object: ValueId,
-        kind: MemoryObjectKind,
-    ) -> Option<MemoryAddress> {
-        self.alias()
-            .memory_object_length_location(func, inst_id, object, kind)
-            .map(|location| location.address)
     }
 
     fn fmp_addr() -> MemoryAddress {

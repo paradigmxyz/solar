@@ -1,0 +1,28 @@
+error[2271]: cannot apply builtin operator `<` to `rational_literal` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_mobile_type.sol:LL:CC
+   │
+LL │         0.3 < 0.5;
+   │         ┬── ━ ─── rational_literal
+   │         │
+   ╰╴        rational_literal
+
+error: invalid true type
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_mobile_type.sol:LL:CC
+   │
+LL │         true ? 0.5 : 1.5;
+   ╰╴               ━━━
+
+error: invalid false type
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_mobile_type.sol:LL:CC
+   │
+LL │         true ? 0.5 : 1.5;
+   ╰╴                     ━━━
+
+error[9563]: invalid mobile type
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_mobile_type.sol:LL:CC
+   │
+LL │         [0.5, 1.5];
+   ╰╴         ━━━
+
+error: aborting due to 4 previous errors
+

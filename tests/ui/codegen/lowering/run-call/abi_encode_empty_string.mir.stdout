@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_empty_string.sol:AbiEncodeEmptyString ===
 @module AbiEncodeEmptyString
-fn @encode() -> memptr [selector=0xbd14598f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encode() -> ptr<memory> [selector=0xbd14598f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v0, 0
-    v1 = ptrtoint memptr v0 to i256
+    v0 = alloc 32
+    mstore v0, 0
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = abi_encode [memory_bytes], object, args v0
     ret v2
 }
 
-fn @encodePacked() -> memptr [selector=0x53d9c506, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodePacked() -> ptr<memory> [selector=0x53d9c506, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode_packed (data hex"")
     ret v0

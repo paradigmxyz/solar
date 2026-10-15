@@ -44,7 +44,7 @@ contract DefaultStructHelper {
 
     // MIR-LABEL: fn @small(
     // MIR-NOT: icall @default_struct
-    // MIR: alloc memorystruct<2>
+    // MIR: alloc 64
     function small() external pure returns (uint256) {
         Small[] memory values = new Small[](1);
         values[0].b = 3;

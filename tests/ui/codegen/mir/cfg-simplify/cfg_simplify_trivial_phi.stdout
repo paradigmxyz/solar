@@ -5,10 +5,10 @@
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
-      log0 0, 0
+      log 0, 0
       jump bb3
     bb1:
-      log0 0, 0
+      log 0, 0
       jump bb3
     bb3:
 -     v0 = phi [bb1: arg0], [bb2: arg0]
@@ -26,7 +26,7 @@
 -     ret v0
 +     ret arg0
     bb2:
-      log0 0, 0
+      log 0, 0
       jump bb1
   }
   
@@ -37,10 +37,10 @@
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
-      log0 0, 0
+      log 0, 0
       jump bb3
     bb1:
-      log0 0, 0
+      log 0, 0
       jump bb3
     bb3:
       ret arg0
@@ -54,7 +54,7 @@
     bb3:
       ret arg0
     bb2:
-      log0 0, 0
+      log 0, 0
       jump bb1
   }
   

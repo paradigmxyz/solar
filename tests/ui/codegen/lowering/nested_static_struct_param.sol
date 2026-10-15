@@ -18,7 +18,7 @@ contract NestedStaticStructParam {
     // Calldata field reads decode only the selected words.
     // CHECK-LABEL: fn @take{{[( ]}}
     // CHECK: abi_params=[tuple<u256, tuple<u256, u256>, u256>]
-    // CHECK: slice_ptr arg0
+    // CHECK: extract_value slice<calldata>, arg0, 0
     // CHECK: calldataload
     // CHECK: calldataload
     function take(Outer calldata o) external pure returns (uint256, uint256) {

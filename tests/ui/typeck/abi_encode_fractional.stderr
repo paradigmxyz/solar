@@ -10,7 +10,7 @@ error[6090]: fractional numbers cannot be ABI-encoded
 LL │        return abi.encodePacked(0.1, 1);
    ╰╴                               ━━━
 
-error: cannot perform packed encoding for a literal
+error[7279]: cannot perform packed encoding for a literal
    ╭▸ ROOT/tests/ui/typeck/abi_encode_fractional.sol:LL:CC
    │
 LL │        return abi.encodePacked(0.1, 1);
@@ -18,7 +18,7 @@ LL │        return abi.encodePacked(0.1, 1);
    │
    ╰ help: convert it to an explicit type first
 
-error: cannot perform packed encoding for a literal
+error[7279]: cannot perform packed encoding for a literal
    ╭▸ ROOT/tests/ui/typeck/abi_encode_fractional.sol:LL:CC
    │
 LL │     function f() pure public { abi.encodePacked(0/1); }

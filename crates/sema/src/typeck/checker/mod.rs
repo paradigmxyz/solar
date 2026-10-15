@@ -1,6 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstContext, EvalErrorKind},
+    eval::EvalErrorKind,
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -75,9 +75,9 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
-    /// Whether we're checking the length of a fixed-size array type whose constant evaluation
-    /// fails, which already reports the failed operation.
-    in_array_len: bool,
+    /// Whether we're checking the length of a fixed-size array type whose evaluation fails at a
+    /// literal operation, which the evaluation reports.
+    in_failed_array_len: bool,
     /// The value components the enclosing statement discards, by expression.
     ///
     /// Only populated before Byzantium, where a dynamically encoded external return value is
@@ -162,7 +162,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_emit: false,
             in_revert: false,
             in_yul: false,
-            in_array_len: false,
+            in_failed_array_len: false,
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
             circular_constants: FxHashMap::default(),
@@ -223,7 +223,8 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    /// Checks the base slot expression of a storage layout specifier.
+    /// Checks the type of the base slot of a storage layout specifier; `constant_values` checks its
+    /// value.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeContractLevelChecker.cpp#L87-L194>
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
@@ -246,38 +247,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 .span(slot.span)
                 .span_label(slot.span, format!("found `{}`", ty.display(self.gcx)))
                 .emit();
-            return;
-        }
-        let value = match self.gcx.const_eval().eval_int(slot) {
-            Ok(value) => value,
-            // solc reports cycles in the `PostTypeChecker`, before it evaluates base slots, so
-            // leave them to the constant cycle check.
-            Err(err) if err.kind == EvalErrorKind::Cycle => return,
-            Err(err) => {
-                let _ = self.gcx.const_eval().emit_error(slot, err, ConstContext::BaseSlot);
-                return;
-            }
-        };
-        let solc = self.gcx.const_eval().eval_solc(slot).is_some();
-        let code = |code| ConstContext::BaseSlot.value_code(solc, code);
-        let Some(base_slot) = value.as_u256() else {
-            self.dcx()
-                .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
-                .code(code(error_code!(6753)))
-                .span(slot.span)
-                .emit();
-            return;
-        };
-        let contract_id = self.contract.expect("storage layout specifier outside a contract");
-        if let Ok(Some(size)) =
-            super::storage_size_upper_bound(self.gcx, contract_id, DataLocation::Storage)
-            && base_slot.checked_add(size).is_none()
-        {
-            self.dcx()
-                .err("contract extends past the end of storage when this base slot value is specified")
-                .code(code(error_code!(5015)))
-                .span(slot.span)
-                .emit();
         }
     }
 
@@ -297,16 +266,20 @@ impl<'gcx> TypeChecker<'gcx> {
 
     /// Checks the length expression of a fixed-size array type.
     ///
-    /// Any expression with an integer value is accepted, whatever its declared signedness and
-    /// width. Only the evaluated value matters, and
+    /// Any expression that the early evaluation gives an integer value is accepted, whatever its
+    /// declared signedness and width. Only the value matters, and
     /// [`ConstEval::eval_array_len`](crate::eval::ConstEval::eval_array_len) checks it and
-    /// reports values that are not integers.
+    /// reports the others.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let fails = self.gcx.const_eval().eval_int(size).is_err();
-        let prev = std::mem::replace(&mut self.in_array_len, fails);
+        let fails = self
+            .gcx
+            .early_const_eval()
+            .eval_int(size)
+            .is_err_and(|err| err.kind.is_undefined_literal_op());
+        let prev = std::mem::replace(&mut self.in_failed_array_len, fails);
         let ty = self.check_expr(size);
-        self.in_array_len = prev;
+        self.in_failed_array_len = prev;
         ty
     }
 
@@ -472,19 +445,22 @@ impl<'gcx> TypeChecker<'gcx> {
                     && !op.kind.is_cmp()
                     && !op.kind.is_logical()
                 {
-                    match self.gcx.const_eval().eval_expr(expr) {
+                    match self.gcx.early_const_eval().eval_expr(expr) {
                         Ok(value) => {
                             if let Some(ty) = value.literal_ty(self.gcx) {
                                 return ty;
                             }
                         }
                         // The evaluation of the array length reports the failed operation.
-                        Err(err) if self.in_array_len && err.kind.is_undefined_literal_op() => {
+                        Err(err)
+                            if self.in_failed_array_len && err.kind.is_undefined_literal_op() =>
+                        {
                             return lhs;
                         }
                         // Like solc, reject literal operations that have no value, such as `1 / 0`.
                         Err(err) if err.kind.is_undefined_literal_op() => {
-                            let guar = self.gcx.const_eval().emit_literal_op_error(expr, err.kind);
+                            let guar =
+                                self.gcx.early_const_eval().emit_literal_op_error(expr, err.kind);
                             return self.gcx.mk_ty_err(guar);
                         }
                         Err(_) => {}
@@ -671,7 +647,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
                     if let Some(index) = index {
-                        let _ = self.check_expr_outside_lvalue_context(index, Some(index_ty));
+                        let index_ty =
+                            self.check_expr_outside_lvalue_context(index, Some(index_ty));
+                        self.check_index_bounds(expr.span, ty, index, index_ty);
                     } else {
                         self.dcx().emit_err(expr.span, "index expression cannot be omitted");
                     }
@@ -690,7 +668,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         let index_ty = self.check_array_size(index);
                         let len = index_ty
                             .error_reported()
-                            .and_then(|()| self.gcx.const_eval().eval_array_len(index));
+                            .and_then(|()| self.gcx.early_const_eval().eval_array_len(index));
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
                             Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::from(1)),
@@ -1001,7 +979,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
                 if valid_unop(ty, op.kind) {
                     if ty.is_number_literal()
-                        && let Ok(value) = self.gcx.const_eval().eval_expr(expr)
+                        && let Ok(value) = self.gcx.early_const_eval().eval_expr(expr)
                         && let Some(lit_ty) = value.literal_ty(self.gcx)
                     {
                         return lit_ty;
@@ -1200,9 +1178,9 @@ impl<'gcx> TypeChecker<'gcx> {
         code: DiagId,
     ) -> Result<(), ErrorGuaranteed> {
         let msg = if is_literal_too_large(ty) {
-            "literal is too large for any integer type"
+            EvalErrorKind::LiteralTooLarge.msg()
         } else if ty.kind == TyKind::RationalLiteral
-            && self.gcx.const_eval().eval_expr(expr).is_ok_and(|v| v.is_fraction_too_large())
+            && self.gcx.early_const_eval().eval_expr(expr).is_ok_and(|v| v.is_fraction_too_large())
         {
             "literal is too large for any fixed-point type"
         } else {
@@ -1341,6 +1319,40 @@ impl<'gcx> TypeChecker<'gcx> {
             TyKind::Mapping(key, value) => (key, value.with_loc_if_ref_opt(self.gcx, loc)),
             _ => return None,
         })
+    }
+
+    /// Reports a literal index past the end of a fixed-size array or of fixed bytes.
+    ///
+    /// Like solc, this only considers number literals, not constants. A negative or oversized
+    /// literal has already failed its conversion to `uint256`.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L3605-L3676>
+    fn check_index_bounds(
+        &self,
+        span: Span,
+        ty: Ty<'gcx>,
+        index: &hir::Expr<'_>,
+        index_ty: Ty<'gcx>,
+    ) {
+        let (len, code) = match ty.peel_refs().kind {
+            TyKind::Array(_, len) => (len, error_code!(3383)),
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
+                (U256::from(size.bytes()), error_code!(1859))
+            }
+            _ => return,
+        };
+        if index_ty.is_number_literal()
+            && let Ok(value) = self.gcx.early_const_eval().eval_int(index)
+            && let Some(value) = value.as_u256()
+            && value >= len
+        {
+            self.dcx()
+                .err("out of bounds array access")
+                .code(code)
+                .span(span)
+                .span_label(index.span, format!("the length is {len} but the index is {value}"))
+                .emit();
+        }
     }
 
     #[must_use]
@@ -2140,6 +2152,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 result = result.and(Err(self
                     .dcx()
                     .err("cannot perform packed encoding for a literal")
+                    .code(error_code!(7279))
                     .span(expr.span)
                     .help("convert it to an explicit type first")
                     .emit()));
@@ -3912,6 +3925,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Switch(switch) => {
                 let _ = self.check_expr(switch.selector);
                 for case in switch.cases {
+                    if let Some(constant) = case.constant {
+                        let _ = self.check_yul_lit(constant);
+                    }
                     for stmt in case.body.iter() {
                         self.visit_stmt(stmt)?;
                     }
@@ -4023,27 +4039,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 }
 
-impl<'gcx> Gcx<'gcx> {
-    /// Builds the error for a builtin binary operator that does not apply to its operands.
-    pub(crate) fn binop_err(
-        self,
-        op: hir::BinOp,
-        (lhs_span, lhs): (Span, Ty<'gcx>),
-        (rhs_span, rhs): (Span, Ty<'gcx>),
-        assign: bool,
-    ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
-        let (lhs, rhs) = (lhs.display(self).to_string(), rhs.display(self).to_string());
-        let msg = format!("cannot apply builtin operator `{op}` to `{lhs}` and `{rhs}`");
-        let code = if assign { error_code!(7366) } else { error_code!(2271) };
-        self.dcx()
-            .err(msg)
-            .code(code)
-            .span(op.span)
-            .span_label(lhs_span, lhs)
-            .span_label(rhs_span, rhs)
-    }
-}
-
 fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
     if actual.references_error() || expected.references_error() {
         return false;
@@ -4060,7 +4055,7 @@ fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
 }
 
 fn invalid_enum_literal(gcx: Gcx<'_>, expr: &hir::Expr<'_>, variants: usize) -> bool {
-    gcx.const_eval()
+    gcx.early_const_eval()
         .eval_int(expr)
         .is_ok_and(|value| value.as_u256().is_none_or(|value| value >= U256::from(variants)))
 }

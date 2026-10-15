@@ -7,7 +7,7 @@
 // stay in the loop.
 @module LicmRotatedGuard
 // CHECK-LABEL: {{^[ +].*}}fn @rotated_guard_overlap{{[( ]}}
-// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
 // CHECK: {{^[ +].*}}mload 320
 fn @rotated_guard_overlap() -> i256 {
   bb0:
@@ -29,7 +29,7 @@ fn @rotated_guard_overlap() -> i256 {
 // Self-loop do-while variant of the same off-by-one: guard on the pre-increment
 // phi at the bottom of the single-block loop. The body runs with v1 = 0..10.
 // CHECK-LABEL: {{^[ +].*}}fn @dowhile_latch_guard_overlap{{[( ]}}
-// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
 // CHECK: {{^[ +].*}}mload 320
 fn @dowhile_latch_guard_overlap() -> i256 {
   bb0:
