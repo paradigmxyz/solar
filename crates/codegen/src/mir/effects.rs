@@ -6,7 +6,7 @@
 //! requires dependence and profitability proofs; a memory read may expand EVM memory.
 
 use super::{EffectKind, InstKind};
-use crate::mir::{Builtin, Callee};
+use crate::mir::{Builtin, Callee, PtrLocation};
 
 /// Control behavior that must survive even when an operation's result is unused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -110,14 +110,13 @@ impl InstKind {
             } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::ICall { function: Callee::Function(_), .. } => ControlEffects::UNKNOWN,
             Self::Alloc { semantics, .. } => ControlEffects {
-                may_revert: matches!(semantics.failure, super::AllocationFailure::Panic),
+                may_revert: matches!(semantics.failure, super::AllocationFailure::Checked),
                 ..ControlEffects::NONE
             },
             Self::ICall {
                 function:
                     Callee::Builtin(
                         Builtin::Erc7201
-                        | Builtin::Concat(_)
                         | Builtin::Sha256
                         | Builtin::Ripemd160
                         | Builtin::EcRecover,
@@ -128,7 +127,9 @@ impl InstKind {
                 ControlEffects { may_revert: true, ..ControlEffects::NONE }
             }
             Self::AbiDecode { .. } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
-            Self::ReturnDataCopy(..) => ControlEffects { may_revert: true, ..ControlEffects::NONE },
+            Self::Copy(.., PtrLocation::Returndata) => {
+                ControlEffects { may_revert: true, ..ControlEffects::NONE }
+            }
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
             | Self::Zext(..)
@@ -136,6 +137,7 @@ impl InstKind {
             | Self::Sext(..)
             | Self::PtrToInt(..)
             | Self::IntToPtr(..)
+            | Self::PtrAdd(..)
             | Self::Add(..)
             | Self::Sub(..)
             | Self::Mul(..)
@@ -161,44 +163,19 @@ impl InstKind {
             | Self::SGt(..)
             | Self::Eq(..)
             | Self::Ne(..)
-            | Self::MLoad(..)
-            | Self::MStore(..)
-            | Self::MStore8(..)
+            | Self::Load(..)
+            | Self::Store(..)
+            | Self::Store8(..)
             | Self::MemoryZero(..)
             | Self::MSize
             | Self::Fmp
             | Self::SetFmp(..)
-            | Self::MemoryObjectLen(..)
-            | Self::SetMemoryObjectLen(..)
-            | Self::MemoryObjectData(..)
-            | Self::MemoryObjectFieldAddr { .. }
-            | Self::MemoryObjectElementAddr { .. }
-            | Self::MemoryObjectLoadField { .. }
-            | Self::MemoryObjectStoreField { .. }
-            | Self::MemoryObjectLoadElement { .. }
-            | Self::MemoryObjectLoadByte { .. }
-            | Self::MemoryObjectStoreElement { .. }
-            | Self::MemoryObjectStoreByte { .. }
-            | Self::MemoryObjectStoreWord { .. }
-            | Self::MemorySliceLoadWord { .. }
-            | Self::CalldataSliceLoadWord { .. }
-            | Self::MemoryObjectCopyFromSlice { .. }
-            | Self::MemoryObjectCopyFromSliceAt { .. }
-            | Self::MemoryObjectCopy { .. }
             | Self::StorageToMemory { .. }
             | Self::MemoryToStorage { .. }
             | Self::ClearStorage { .. }
-            | Self::MCopy(..)
-            | Self::SLoad(..)
-            | Self::SStore(..)
-            | Self::TLoad(..)
-            | Self::TStore(..)
-            | Self::CalldataLoad(..)
-            | Self::CalldataCopy(..)
+            | Self::Copy(..)
             | Self::CalldataSize
             | Self::MakeSlice { .. }
-            | Self::SlicePtr(..)
-            | Self::SliceLen(..)
             | Self::InternalFrameAddr(..)
             | Self::FrameLoad { .. }
             | Self::FrameStore { .. }
@@ -236,10 +213,8 @@ impl InstKind {
             | Self::BlobBaseFee
             | Self::BlobHash(..)
             | Self::Keccak256(..)
-            | Self::Keccak256Bytes(..)
             | Self::MappingSlot(..)
-            | Self::MappingSlotMemory(..)
-            | Self::MappingSlotCalldata(..)
+            | Self::MappingSlotBytes(..)
             | Self::StorageArrayDataSlot(..)
             | Self::StorageClearWords(..)
             | Self::StorageArrayElementSlot { .. }
@@ -251,11 +226,7 @@ impl InstKind {
             | Self::DelegateCall { .. }
             | Self::Create(..)
             | Self::Create2(..)
-            | Self::Log0(..)
-            | Self::Log1(..)
-            | Self::Log2(..)
-            | Self::Log3(..)
-            | Self::Log4(..)
+            | Self::Log { .. }
             | Self::Phi(..)
             | Self::Select(..)
             | Self::SignExtend(..) => ControlEffects::NONE,
@@ -303,10 +274,7 @@ impl InstKind {
                     | Self::StorageToMemory { .. }
                     | Self::StorageBytesLoad(..)
                     | Self::StorageArrayLoad { .. }
-                    | Self::ICall {
-                        function: Callee::Builtin(Builtin::Concat(_) | Builtin::ReturndataBytes),
-                        ..
-                    }
+                    | Self::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
             ),
         }
     }

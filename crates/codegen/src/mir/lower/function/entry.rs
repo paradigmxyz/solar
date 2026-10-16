@@ -141,10 +141,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // A storage-reference argument passes the referenced slot,
                     // like a storage parameter of an internal call.
                     if Self::is_storage_parameter(parameter_ty) {
-                        let Some(access) = this.storage_access(argument) else {
-                            return this.cx.report_unsupported(argument.span, "storage access");
-                        };
-                        return Some(access.slot);
+                        return Some(this.require_storage_access(argument)?.slot);
                     }
                     this.lower_typed_expr(argument, parameter_ty)
                 },
@@ -216,6 +213,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 name_span: constructor.span,
                 id: hir::ItemId::Contract(base_id),
                 args,
+                qualified: false,
             };
             self.lower_base_constructor(&modifier, constructor_id, constructor)?;
         }

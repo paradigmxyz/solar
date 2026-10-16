@@ -1,0 +1,8 @@
+error: expected one of `,` or `}`, found `<eof>`
+   ╭▸ ROOT/tests/ui/parser/unclosed_enum_eof.sol:LL:CC
+   │
+LL │ enum E { A
+   ╰╴         ━ expected one of `,` or `}`
+
+error: aborting due to 1 previous error
+

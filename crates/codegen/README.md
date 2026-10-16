@@ -41,7 +41,7 @@ The declaration generates operand traversal, parser constructors for operations
 with only value operands, default result types, typed builder methods, and the
 `Op` view used by rewrite rules. The generic printer uses the same mnemonic and
 operand order; operations with attributes retain custom syntax. Attribute-dependent
-spellings use `#[mnemonic(pattern => name)]` alongside the declaration.
+spellings and effects use `#[when(pattern => { field: value })]` alongside the declaration.
 `#[commutative(a, b)]` generates both the commutativity trait and canonical operand
 ordering, including modular arithmetic where the modulus must stay in place.
 Structural result checks and operation phase legality consume the schema,

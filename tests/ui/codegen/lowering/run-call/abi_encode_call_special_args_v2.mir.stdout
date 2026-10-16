@@ -8,7 +8,7 @@ fn @fNoArgs() [selector=0x1af93581, abi_params=[], abi_returns=[], abi_return_pa
     ret
 }
 
-fn @fArray(arg0: memptr) [selector=0x0a326c0c, abi_params=[array<_, u256>], abi_returns=[], abi_return_params=[]] {
+fn @fArray(arg0: ptr<memory>) [selector=0x0a326c0c, abi_params=[array<_, u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -22,34 +22,28 @@ fn @fUint(arg0: i256, arg1: i256) -> struct0 [selector=0x432672b2, abi_params=[u
 
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_bytes v0
-    v2 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
-    v3 = keccak256_bytes v2
-    v4 = eq v1, v3
-    jumpi v4, bb1, bb2
+    jumpi true, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v5 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
-    v6 = keccak256_bytes v5
-    v7 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
-    v8 = keccak256_bytes v7
-    v9 = eq v6, v8
+    v0 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    v4 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args ptr<memory> 96
+    v5 = ptradd v4, 32
+    v6 = mload v4
+    v7 = keccak256 v5, v6
+    v8 = eq v3, v7
     jump bb3
   bb3:
-    v10 = phi [bb1: v9], [bb2: false]
-    jumpi v10, bb4, bb5
+    v9 = phi [bb1: v8], [bb2: false]
+    jumpi v9, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v11 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
-    v12 = keccak256_bytes v11
-    v13 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
-    v14 = keccak256_bytes v13
-    v15 = eq v12, v14
     jump bb6
   bb6:
-    v16 = phi [bb4: v15], [bb5: false]
-    ret v16
+    v10 = phi [bb4: true], [bb5: false]
+    ret v10
 }

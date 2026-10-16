@@ -1,0 +1,20 @@
+error[1130]: invalid use of a library name
+   ╭▸ ROOT/tests/ui/resolve/library_name/instances.sol:LL:CC
+   │
+LL │     X abc;
+   ╰╴    ━
+
+error[1130]: invalid use of a library name
+   ╭▸ ROOT/tests/ui/resolve/library_name/instances.sol:LL:CC
+   │
+LL │     function foo(X param) private view
+   ╰╴                 ━
+
+error[1130]: invalid use of a library name
+   ╭▸ ROOT/tests/ui/resolve/library_name/instances.sol:LL:CC
+   │
+LL │         X ofg;
+   ╰╴        ━
+
+error: aborting due to 3 previous errors
+

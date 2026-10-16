@@ -6,8 +6,7 @@
 -     v0 = storage_array_data_slot 7
 -     v1 = sload v0
 +     mstore 0, 7 !metadata(memory=scratch)
-+     v2 = keccak256 0, 32 !metadata(memory=scratch)
-+     v1 = sload v2
++     v1 = sload 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688
       mstore 128, v1
       returndata 128, 32
   }
@@ -25,8 +24,7 @@
   fn @entry() [entry] {
     bb0:
       mstore 0, 7 !metadata(memory=scratch)
-      v2 = keccak256 0, 32 !metadata(memory=scratch)
-      v1 = sload v2
+      v1 = sload 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688
       mstore 128, v1
       returndata 128, 32
   }
@@ -56,8 +54,7 @@
   fn @entry() [entry] {
     bb0:
       mstore 0, 7 !metadata(memory=scratch)
-      v2 = keccak256 0, 32 !metadata(memory=scratch)
-      v1 = sload v2
+      v1 = sload 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688
       mstore 128, v1
       returndata 128, 32
   }

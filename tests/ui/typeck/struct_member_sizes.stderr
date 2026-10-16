@@ -1,0 +1,64 @@
+error[6118]: type too large to ABI-decode
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         abi.decode(data, (S));
+   │                           ━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error[6118]: type too large to ABI-decode
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         abi.decode(data, (S[2]));
+   │                           ━━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error[6118]: type too large to ABI-decode
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         abi.decode(data, (T[3]));
+   │                           ━━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error[6118]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         abi.decode(data, (T));
+   ╰╴                          ━
+
+error[6118]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         abi.decode(data, (U));
+   ╰╴                          ━
+
+error[1534]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         U memory u;
+   ╰╴        ━
+
+error[1534]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         Many[33554432] memory n;
+   ╰╴        ━━━━━━━━━━━━━━
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │     function cd(S calldata s, Many[8388608] calldata m) external pure {
+   │                 ━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │     function cdTooLarge(Many[33554432] calldata m) external pure {
+   ╰╴                        ━━━━━━━━━━━━━━
+
+error: aborting due to 9 previous errors
+

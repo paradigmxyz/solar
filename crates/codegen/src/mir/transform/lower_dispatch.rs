@@ -14,18 +14,18 @@
 //! if no valid entry can be formed. The final conversion verifies the complete lowered
 //! representation before the backend can consume it.
 //!
-//! Library modules differ in two ways, both matching solc. Their entry never
-//! checks `callvalue`: a `DELEGATECALL` sees the caller's value, so a library
-//! must accept it. And every non-view route first compares `address()` against
-//! the library's own deployment address (the synthetic
-//! [`Module::library_deploy_address`] immutable, staged by the creation code
-//! and patched into the runtime code), reverting when they are equal, so
-//! state-changing library functions only run through `DELEGATECALL`. Each
-//! guarded case computes the comparison itself: a value shared across the
-//! selector switch would be spilled to memory before dispatch, which unguarded
-//! view and pure routes could observe through `msize()` or a raw `mload`. In
-//! `--revert-strings debug` mode the revert carries solc's "Non-view function of
-//! library called without DELEGATECALL" message.
+//! Library modules differ in two ways. Their entry never checks `callvalue`: a
+//! `DELEGATECALL` sees the caller's value, so a library must accept it. And
+//! every non-view route first compares `address()` against the library's own
+//! deployment address (the synthetic [`Module::library_deploy_address`]
+//! immutable, staged by the creation code and patched into the runtime code),
+//! reverting when they are equal, so state-changing library functions only run
+//! through `DELEGATECALL`. Each guarded case computes the comparison itself: a
+//! value shared across the selector switch would be spilled to memory before
+//! dispatch, which unguarded view and pure routes could observe through
+//! `msize()` or a raw `mload`. In `--revert-strings debug` mode the revert
+//! carries solc's "Non-view function of library called without DELEGATECALL"
+//! message.
 //!
 //! When every selector wrapper starts with the same ABI head-size check, this
 //! pass hoists that check into `entry` and removes the dead wrapper guards. In
@@ -38,7 +38,7 @@
 
 use crate::mir::{
     BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, MirType, Module,
-    RevertReason, Terminator, Value, ValueId, pass::MirPass,
+    PtrLocation, RevertReason, Terminator, Value, ValueId, pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_config::RevertStrings;
@@ -419,7 +419,7 @@ fn common_calldata_guard(
 /// Loads the 4-byte function selector from the first calldata word.
 fn load_selector(builder: &mut FunctionBuilder<'_>, has_bitwise_shifting: bool) -> ValueId {
     let zero = builder.imm(0);
-    let word = builder.calldataload(zero);
+    let word = builder.load(zero, PtrLocation::Calldata);
     if has_bitwise_shifting {
         let shift = builder.imm(224);
         builder.shr(shift, word)

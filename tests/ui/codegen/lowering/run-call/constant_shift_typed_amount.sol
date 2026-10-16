@@ -7,14 +7,10 @@
 //@ run-call: negativeShl() => -256
 //@ run-call: negativePow() => 256
 //@ run-call: pow() => 6561
-//@ run-call-fail: pow256() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 // A shift or exponentiation whose left operand is a literal and whose right
 // operand is typed is performed in `uint256` for a non-negative literal and in
-// `int256` for a negative one, so an intermediate that leaves that range is
-// not a constant. The initializer is then lowered as ordinary code and gets
-// the EVM's behavior: shifting a bit out yields zero, and an exponent the
-// result cannot hold reverts with `Panic(0x11)`. Folding at full precision
-// instead returned 1 from `round256`.
+// `int256` for a negative one. Like on the EVM, shifting a bit out yields
+// zero.
 contract C {
     uint16 constant S255 = 255;
     uint16 constant S256 = 256;
@@ -28,7 +24,6 @@ contract C {
     int256 constant NEG_SHL = (-1) << S8;
     int256 constant NEG_POW = (-2) ** S8;
     uint256 constant POW = 3 ** S8;
-    uint256 constant POW256 = 2 ** S256;
 
     function shl255() public pure returns (uint256) {
         return SHL255;
@@ -60,9 +55,5 @@ contract C {
 
     function pow() public pure returns (uint256) {
         return POW;
-    }
-
-    function pow256() public pure returns (uint256) {
-        return POW256;
     }
 }

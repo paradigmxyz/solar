@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/mir/lowering/lower_abi_large_constructor_array.sol:Huge ===
+@module Huge
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<134217727, u256>, u256]] {
+  bb0:
+    v0 = lt arg1, 0x7ffffff
+    v1 = eq v0, false
+    icall panic_if<0x32>, v1
+    v2 = shl 5, arg1
+    v3 = ptradd arg0, v2
+    v4 = mload v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    ret
+}
+
+// === ROOT/tests/ui/codegen/mir/lowering/lower_abi_large_constructor_array.sol:C ===
+@module C
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<3, u256>, u256]] {
+  bb0:
+    v0 = lt 2, 3
+    v1 = eq v0, false
+    icall panic_if<0x32>, v1
+    v2 = ptradd arg0, 64
+    v3 = mload v2
+    v4 = checked_add u256, v3, arg1
+    v5 = checked_sub u256, v4, 3
+    sstore 0, v5 !metadata(storage=slot(0))
+    ret
+}

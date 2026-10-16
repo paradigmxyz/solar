@@ -311,17 +311,6 @@ impl<'gcx> Ty<'gcx> {
         self.is_reference_type() || self.has_mapping(gcx)
     }
 
-    /// Returns `true` if this type contains a library contract type.
-    pub fn contains_library(self, gcx: Gcx<'gcx>) -> bool {
-        self.visit_with_structs(gcx, &mut |ty| match ty.kind {
-            TyKind::Contract(id) if gcx.hir.contract(id).kind.is_library() => {
-                ControlFlow::Break(())
-            }
-            _ => ControlFlow::Continue(()),
-        })
-        .is_break()
-    }
-
     /// Returns `true` if this type contains a non-public (internal/private) function type.
     pub fn has_internal_function(self, gcx: Gcx<'gcx>) -> bool {
         self.visit_with_structs(gcx, &mut |ty| {
@@ -353,6 +342,31 @@ impl<'gcx> Ty<'gcx> {
             || self.has_mapping(gcx)
             || self.has_internal_function(gcx)
             || self.references_error())
+    }
+
+    /// Returns why this type has no interface type, as the subject of an error message, or `None`
+    /// if it has one.
+    ///
+    /// Library storage pointers cross the ABI as slots, so `library_storage` allows recursive
+    /// structs and mappings. Their members must still have interface types: internal function
+    /// pointers are never exported. Recursiveness comes first: a recursive struct is rejected
+    /// before its members are inspected for mappings.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L2384>
+    pub fn interface_type_error(
+        self,
+        library_storage: bool,
+        gcx: Gcx<'gcx>,
+    ) -> Option<&'static str> {
+        if !library_storage && self.is_recursive(gcx) {
+            Some("recursive types")
+        } else if !library_storage && self.has_mapping(gcx) {
+            Some("types containing mappings")
+        } else if self.has_internal_function(gcx) {
+            Some("types containing internal function pointers")
+        } else {
+            None
+        }
     }
 
     /// Returns the parameter types of the type.
@@ -438,6 +452,7 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Fn(_)
@@ -504,6 +519,7 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Fn(_)
@@ -573,30 +589,47 @@ impl<'gcx> Ty<'gcx> {
         )
     }
 
-    /// Returns `true` if the type crosses an ABI boundary as its storage slot number, as solc's
-    /// `ArrayType::encodingType`, `StructType::encodingType` and `MappingType::encodingType`.
+    /// Returns `true` if the type crosses an ABI boundary as its storage slot number.
     ///
     /// Such a value is a single static word in both directions, so it is neither dynamically
     /// encoded nor encoded from memory.
+    ///
+    /// References:
+    /// - arrays: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L1960>
+    /// - structs: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L2210>
+    /// - mappings: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L3844>
     pub fn encodes_as_slot(self) -> bool {
         self.is_ref_at(DataLocation::Storage)
             || matches!(self.peel_refs().kind, TyKind::Mapping(..))
     }
 
-    /// Returns `true` if the type's ABI encoding carries a tail, as solc's
-    /// `Type::isDynamicallyEncoded`.
+    /// Returns `true` if the type's ABI encoding carries a tail.
     ///
     /// Only the encoded type matters, so references are looked through: a struct's own fields and
     /// an array's element type are reference types wherever they are aggregates themselves.
+    ///
+    /// References:
+    /// - arrays: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L1802>
+    /// - structs: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L2288>
     pub fn is_dynamically_encoded(self, gcx: Gcx<'gcx>) -> bool {
         let this = self.peel_refs();
         match this.kind {
             TyKind::Struct(id) => {
-                this.is_recursive(gcx)
-                    || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
+                gcx.struct_abi_static_size(id).is_none() || this.is_recursive(gcx)
             }
             TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),
             _ => this.is_dynamically_sized(),
+        }
+    }
+
+    /// Returns the size of the type's ABI encoding if it is statically encoded, or `None` if it is
+    /// dynamically encoded.
+    pub fn abi_static_size(self, gcx: Gcx<'gcx>) -> Option<U256> {
+        let this = self.peel_refs();
+        match this.kind {
+            TyKind::Struct(id) => gcx.struct_abi_static_size(id),
+            TyKind::Array(element, len) => Some(len.saturating_mul(element.abi_static_size(gcx)?)),
+            _ => (!this.is_dynamically_sized()).then(|| U256::from(32)),
         }
     }
 
@@ -617,6 +650,11 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
                 | TyKind::IntLiteral(..)
         )
+    }
+
+    /// Returns `true` if the type is an integer or fractional number literal.
+    pub fn is_number_literal(self) -> bool {
+        matches!(self.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
     }
 
     /// Returns `true` if the type is a signed integer, including negative literals.
@@ -811,27 +849,27 @@ impl<'gcx> Ty<'gcx> {
 
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.
-            (IntLiteral(neg, size, _), Elementary(UInt(target_size))) => {
+            (IntLiteral(neg, bits, _), Elementary(UInt(target_size))) => {
                 // Unsigned: reject negative, check size fits
                 if neg {
                     Result::Err(TyConvertError::Incompatible)
-                } else if size.bits() <= target_size.bits() {
+                } else if bits <= target_size.bits() {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::Incompatible)
                 }
             }
-            (IntLiteral(neg, size, _), Elementary(Int(target_size))) => {
+            (IntLiteral(neg, bits, _), Elementary(Int(target_size))) => {
                 // Signed: non-negative values need strict inequality since they use the
                 // positive range [0, 2^(N-1)-1]. Negative values use <= since negative
                 // int_literal[N] can fit in int(N) (e.g., -128 needs 8 bits, fits in int8).
                 if neg {
-                    if size.bits() <= target_size.bits() {
+                    if bits <= target_size.bits() {
                         Ok(())
                     } else {
                         Result::Err(TyConvertError::Incompatible)
                     }
-                } else if size.bits() < target_size.bits() {
+                } else if bits < target_size.bits() {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::Incompatible)
@@ -1018,9 +1056,7 @@ impl<'gcx> Ty<'gcx> {
 
             // Integer literals -> address.
             (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(Address(_))) => Ok(()),
-            (IntLiteral(false, size, _), Elementary(Address(false))) if size.bits() <= 160 => {
-                Ok(())
-            }
+            (IntLiteral(false, bits, _), Elementary(Address(false))) if bits <= 160 => Ok(()),
 
             // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
             // possible.
@@ -1155,9 +1191,12 @@ impl<'gcx> Ty<'gcx> {
     #[doc(alias = "mobile_type")]
     pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
         Some(match self.kind {
-            TyKind::CallOptions(_) => return None,
-            TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
-            TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
+            // solc gives fractions a fixed-point mobile type, which we do not support.
+            TyKind::CallOptions(_) | TyKind::RationalLiteral => return None,
+            TyKind::IntLiteral(negative, bits, _) => {
+                let size = TypeSize::try_new_literal_bits(bits)?;
+                if negative { gcx.types.int_(size) } else { gcx.types.uint_(size) }
+            }
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
             TyKind::Slice(ty)
                 if ty.data_stored_in(DataLocation::Calldata)
@@ -1255,9 +1294,17 @@ pub enum TyKind<'gcx> {
     /// - only string literals with `len <= N` can coerce to `bytesN`
     StringLiteral(bool, usize),
 
-    /// Any integer or fixed-point number literal.
+    /// Any integer number literal.
     /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.
-    IntLiteral(bool, TypeSize, Option<TypeSize>),
+    ///
+    /// Literal arithmetic can produce integers wider than any integer type. They have
+    /// no mobile type and only combine with other literals.
+    IntLiteral(bool, u16, Option<TypeSize>),
+
+    /// Any fractional number literal, such as `0.5` or `1 / 3`.
+    ///
+    /// Fractional values only exist in literal arithmetic, and do not convert to any integer type.
+    RationalLiteral,
 
     /// An ephemeral function value with call options.
     CallOptions(Ty<'gcx>),
@@ -1318,7 +1365,8 @@ pub enum TyKind<'gcx> {
     BuiltinModule(Builtin),
 
     /// The self-referential type, e.g. `Enum` in `Enum.Variant`.
-    /// Corresponds to `TypeType` in solc.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.h#L1596>
     Type(Ty<'gcx>),
 
     /// The meta type: `type(<inner_type>)`.
@@ -1472,6 +1520,7 @@ impl TyFlags {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Enum(_)

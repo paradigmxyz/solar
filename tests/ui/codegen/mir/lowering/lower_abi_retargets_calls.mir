@@ -25,17 +25,19 @@ fn @caller(arg0: i256) -> i256 [selector=0x0a0a0a02, abi_returns=[word]] {
 // CHECK: + mstore 160, 1
 // CHECK: + mstore 192, 0x3100000000000000000000000000000000000000000000000000000000000000
 // CHECK: + returndata 128, 96
-fn @literal() -> memptr [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
+fn @literal() -> ptr<memory> [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, 1
+    v9001 = ptradd v0, 32
+    mstore v9001, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
 // CHECK: + fn @literalCaller()
 // CHECK: + {{v[0-9]+}} = icall @literal.body
-fn @literalCaller() -> memptr [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
+fn @literalCaller() -> ptr<memory> [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = icall fn2
     ret v0
@@ -47,12 +49,13 @@ fn @literalCaller() -> memptr [selector=0x0a0a0a04, abi_params=[], abi_returns=[
 // CHECK: + mstore 192, 5
 // CHECK: + mstore 224, 0x3100000000000000000000000000000000000000000000000000000000000000
 // CHECK: + returndata 128, 128
-fn @longLiteral() -> memptr [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
+fn @longLiteral() -> ptr<memory> [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v0, 33
-    v3 = memory_object_data memorybytes, v0
-    v1 = ptrtoint memptr v3 to i256
+    v0 = alloc 96
+    v4 = ptrtoint ptr<memory> v0 to i256
+    mstore v4, 33
+    v9001 = ptradd v0, 32
+    v1 = ptrtoint ptr<memory> v9001 to i256
     mstore v1, 5
     v2 = add v1, 32
     mstore v2, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -60,13 +63,14 @@ fn @longLiteral() -> memptr [selector=0x0a0a0a05, abi_params=[], abi_returns=[me
 }
 
 // CHECK-LABEL: + fn @overlappingLiteral()
-// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
-fn @overlappingLiteral() -> memptr [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
+// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], scratch, args
+fn @overlappingLiteral() -> ptr<memory> [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v0, 33
-    v4 = memory_object_data memorybytes, v0
-    v1 = ptrtoint memptr v4 to i256
+    v0 = alloc 96
+    v3 = ptrtoint ptr<memory> v0 to i256
+    mstore v3, 33
+    v9001 = ptradd v0, 32
+    v1 = ptrtoint ptr<memory> v9001 to i256
     mstore v1, 5
     v2 = add v1, 16
     mstore v2, 7
@@ -79,7 +83,7 @@ fn @overlappingLiteral() -> memptr [selector=0x0a0a0a06, abi_params=[], abi_retu
 // CHECK: + mstore 192, 1
 // CHECK: + mstore 224, 2
 // CHECK: + returndata 128, 128
-fn @constantEncoding() -> memptr [selector=0x0a0a0a07, abi_params=[], abi_returns=[memory_bytes]] {
+fn @constantEncoding() -> ptr<memory> [selector=0x0a0a0a07, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word, word], object, args 1, 2
     ret v0
@@ -89,7 +93,7 @@ fn @constantEncoding() -> memptr [selector=0x0a0a0a07, abi_params=[], abi_return
 // CHECK: + mstore 128, 32
 // CHECK-NEXT: + mstore 160, 0
 // CHECK-NEXT: + returndata 128, 64
-fn @emptyEncoding() -> memptr [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
+fn @emptyEncoding() -> ptr<memory> [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [], object
     ret v0
@@ -97,8 +101,8 @@ fn @emptyEncoding() -> memptr [selector=0x0a0a0a08, abi_params=[], abi_returns=[
 
 // CHECK-LABEL: + fn @narrowEncoding()
 // CHECK: abi_encode [word<u8>], object, args 0x1234
-// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
-fn @narrowEncoding() -> memptr [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
+// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], scratch, args
+fn @narrowEncoding() -> ptr<memory> [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word<u8>], object, args 0x1234
     ret v0
@@ -106,8 +110,8 @@ fn @narrowEncoding() -> memptr [selector=0x0a0a0a09, abi_params=[], abi_returns=
 
 // CHECK-LABEL: + fn @prefixedEncoding()
 // CHECK: abi_encode [word], object, selector
-// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
-fn @prefixedEncoding() -> memptr [selector=0x0a0a0a0a, abi_params=[], abi_returns=[memory_bytes]] {
+// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], scratch, args
+fn @prefixedEncoding() -> ptr<memory> [selector=0x0a0a0a0a, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args 1
     ret v0
@@ -119,11 +123,12 @@ fn @prefixedEncoding() -> memptr [selector=0x0a0a0a0a, abi_params=[], abi_return
 // CHECK: + {{v[0-9]+}} = icall @sliceBody.body
 fn @sliceBody() -> i256 [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = make_calldata_slice 4, 32
+    v0 = make_calldata_slice ptr<calldata> 4, 32
     jump bb1
   bb1:
-    v1 = slice_ptr v0
-    ret v1
+    v1 = extract_value slice<calldata>, v0, 0
+    v2 = ptrtoint ptr<calldata> v1 to i256
+    ret v2
 }
 
 fn @sliceCaller() -> i256 [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {

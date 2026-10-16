@@ -8,10 +8,10 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 1], [bb3: v24]
+    v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v3]
-    v4 = gt v1, 48
+    v3 = phi [bb0: 1], [bb3: v24]
+    v4 = gt v3, 48
     v5 = eq v4, false
     jumpi v5, bb4, bb5
   bb5:
@@ -20,11 +20,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     jump bb7
   bb7:
     v25 = phi [bb2: v0], [bb9: v25]
-    v26 = phi [bb2: 1], [bb9: v48]
-    v27 = phi [bb2: v1], [bb9: v27]
-    v28 = phi [bb2: v2], [bb9: v28]
-    v29 = phi [bb2: v3], [bb9: v29]
-    v30 = gt v26, 10
+    v26 = phi [bb2: v1], [bb9: v26]
+    v27 = phi [bb2: v2], [bb9: v27]
+    v28 = phi [bb2: v3], [bb9: v28]
+    v29 = phi [bb2: 1], [bb9: v48]
+    v30 = gt v29, 10
     v31 = eq v30, false
     jumpi v31, bb10, bb11
   bb11:
@@ -47,13 +47,13 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v62 = trunc i256 v61 to i16
     jump bb13
   bb13:
-    v63 = phi [bb8: v25], [bb15: v63]
+    v63 = phi [bb8: v62], [bb15: v63]
     v64 = phi [bb8: v26], [bb15: v64]
     v65 = phi [bb8: v27], [bb15: v65]
     v66 = phi [bb8: v28], [bb15: v66]
-    v67 = phi [bb8: 1], [bb15: v87]
-    v68 = phi [bb8: v62], [bb15: v68]
-    v69 = gt v67, 10
+    v67 = phi [bb8: v29], [bb15: v67]
+    v68 = phi [bb8: 1], [bb15: v87]
+    v69 = gt v68, 10
     v70 = eq v69, false
     jumpi v70, bb16, bb17
   bb17:
@@ -77,13 +77,13 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     jump bb19
   bb19:
     v102 = phi [bb14: v63], [bb21: v102]
-    v103 = phi [bb14: v64], [bb21: v103]
-    v104 = phi [bb14: 1], [bb21: v127]
-    v105 = phi [bb14: v65], [bb21: v105]
-    v106 = phi [bb14: v101], [bb21: v106]
-    v107 = phi [bb14: v67], [bb21: v107]
-    v108 = phi [bb14: v68], [bb21: v108]
-    v109 = gt v104, 10
+    v103 = phi [bb14: v101], [bb21: v103]
+    v104 = phi [bb14: v65], [bb21: v104]
+    v105 = phi [bb14: v66], [bb21: v105]
+    v106 = phi [bb14: v67], [bb21: v106]
+    v107 = phi [bb14: v68], [bb21: v107]
+    v108 = phi [bb14: 1], [bb21: v127]
+    v109 = gt v108, 10
     v110 = eq v109, false
     jumpi v110, bb22, bb23
   bb23:
@@ -106,23 +106,23 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v141 = trunc i256 v140 to i16
     jump bb25
   bb25:
-    v142 = phi [bb20: v103], [bb27: v142]
-    v143 = phi [bb20: v106], [bb27: v143]
-    v144 = phi [bb20: v107], [bb27: v144]
-    v145 = phi [bb20: v141], [bb27: v145]
-    v146 = phi [bb20: v104], [bb27: v146]
-    v147 = phi [bb20: v105], [bb27: v147]
-    v148 = phi [bb20: 1], [bb27: v168]
-    v149 = phi [bb20: v108], [bb27: v149]
-    v150 = gt v148, 18
+    v142 = phi [bb20: v102], [bb27: v142]
+    v143 = phi [bb20: v103], [bb27: v143]
+    v144 = phi [bb20: v141], [bb27: v144]
+    v145 = phi [bb20: v105], [bb27: v145]
+    v146 = phi [bb20: v106], [bb27: v146]
+    v147 = phi [bb20: v107], [bb27: v147]
+    v148 = phi [bb20: v108], [bb27: v148]
+    v149 = phi [bb20: 1], [bb27: v168]
+    v150 = gt v149, 18
     v151 = eq v150, false
     jumpi v151, bb28, bb29
   bb29:
     jump bb26
   bb26:
-    v169 = insert_value struct0, undef struct0, 0, v149
+    v169 = insert_value struct0, undef struct0, 0, v142
     v170 = insert_value struct0, v169, 1, v143
-    v171 = insert_value struct0, v170, 2, v145
+    v171 = insert_value struct0, v170, 2, v144
     ret v171
   bb28:
     v152 = sload 0 !metadata(storage=slot(0))
@@ -148,7 +148,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb30:
     jump bb27
   bb27:
-    v168 = checked_add u256, v148, 1
+    v168 = checked_add u256, v149, 1
     jump bb25
   bb22:
     v111 = sload 0 !metadata(storage=slot(0))
@@ -174,7 +174,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb24:
     jump bb21
   bb21:
-    v127 = checked_add u256, v104, 1
+    v127 = checked_add u256, v108, 1
     jump bb19
   bb16:
     v71 = sload 0 !metadata(storage=slot(0))
@@ -200,7 +200,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb18:
     jump bb15
   bb15:
-    v87 = checked_add u256, v67, 1
+    v87 = checked_add u256, v68, 1
     jump bb13
   bb10:
     v32 = sload 0 !metadata(storage=slot(0))
@@ -226,10 +226,10 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb12:
     jump bb9
   bb9:
-    v48 = checked_add u256, v26, 1
+    v48 = checked_add u256, v29, 1
     jump bb7
   bb4:
-    v6 = trunc i256 v1 to i16
+    v6 = trunc i256 v3 to i16
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = gt v7, 0xffffffffffffffff
     icall panic_if<0x41>, v8
@@ -254,6 +254,6 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb6:
     jump bb3
   bb3:
-    v24 = checked_add u256, v1, 1
+    v24 = checked_add u256, v3, 1
     jump bb1
 }

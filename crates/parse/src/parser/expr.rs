@@ -47,17 +47,17 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let mut precedence = token_precedence(self.token);
         while precedence >= min_precedence {
             while token_precedence(self.token) == precedence {
-                // Parse a**b**c as a**(b**c)
-                let next_precedence = if self.token.kind == TokenKind::StarStar {
-                    precedence
-                } else {
-                    precedence + 1
-                };
-
                 let token = self.token;
                 self.bump(); // binop token
 
-                let rhs = self.parse_binary_expr(next_precedence, None)?;
+                // Parse a**b**c as a**(b**c), counting each nested `**` toward the recursion limit.
+                let rhs = if token.kind == TokenKind::StarStar {
+                    self.with_recursion_limit("expression", |this| {
+                        this.parse_binary_expr(precedence, None)
+                    })?
+                } else {
+                    self.parse_binary_expr(precedence + 1, None)?
+                };
 
                 let span = expr.span.to(self.prev_token.span);
 
@@ -123,7 +123,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
     }
 
-    /// Parses the operand of a prefix operator, which counts toward the recursion limit like solc.
+    /// Parses the operand of a prefix operator, which counts toward the recursion limit.
     fn parse_prefix_operand(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         self.with_recursion_limit("expression", |this| this.parse_unary_expr(None))
     }

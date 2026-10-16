@@ -11,7 +11,7 @@ fn @safeTransfer(arg0: i160, arg1: i160, arg2: i256) [selector=0xd1660f99, abi_p
   bb2:
     jump bb3
   bb1:
-    v5 = memory_object_len memorybytes, v4
+    v5 = mload v4
     v6 = eq v5, 0
     jumpi v6, bb5, bb4
   bb4:
@@ -42,7 +42,7 @@ fn @balanceOf(arg0: i160) -> i256 [selector=0x70a08231, view, abi_params=[addres
     ret v7
 }
 
-fn @forward(arg0: i160, arg1: memptr) -> memptr [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @forward(arg0: i160, arg1: ptr<memory>) -> ptr<memory> [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gas
     v1 = address_call arg0, arg1, gas v0

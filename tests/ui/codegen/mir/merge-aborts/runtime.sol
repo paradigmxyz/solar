@@ -58,8 +58,8 @@
 // CHECK-NEXT: jumpi [[OVERFLOW]], [[PANIC]], {{bb[0-9]+}}
 // The unrolled loop adds four counters that cannot reach `2^256` together, so
 // one test that the last sum fell below the first replaces the four tests.
-// CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
-// CHECK-NEXT: [[START:v[0-9]+]] = phi
+// CHECK: [[START:v[0-9]+]] = phi [{{bb[0-9]+}}: {{v[0-9]+}}], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK-NEXT: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK: [[WRAPPED:v[0-9]+]] = lt {{v[0-9]+}}, [[START]]
 // CHECK-NEXT: jumpi [[WRAPPED]], [[PANIC]], {{bb[0-9]+}}
 contract MergeAborts {

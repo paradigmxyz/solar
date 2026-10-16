@@ -1,0 +1,23 @@
+error[6161]: the value of the constant `Z` has a cyclic dependency via `Z`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/base_slot_error.sol:LL:CC
+   │
+LL │ uint constant Z = Z + 1;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[5210]: failed to evaluate constant: constants are nested too deeply
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/base_slot_error.sol:LL:CC
+   │
+LL │ uint constant C0 = 1;
+   │ ───────────────────── evaluation of constant value failed here
+   ‡
+LL │ contract X layout at C32 {}
+   ╰╴                     ━━━
+
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/base_slot_error.sol:LL:CC
+   │
+LL │ contract Y layout at ONE << 8 {}
+   ╰╴                     ━━━━━━━━ evaluation of constant value failed here
+
+error: aborting due to 3 previous errors
+

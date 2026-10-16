@@ -9,7 +9,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Session, Span, Symbol,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, sym,
 };
 use std::fmt;
@@ -37,8 +37,8 @@ impl super::LoweringContext<'_> {
                         let _ = self.declare_in(&mut scope, name.name, decl);
                     }
                 }
-                // Declare module aliases before performing any imports, like solc, so that
-                // cyclic importers can import them regardless of source order.
+                // Declare module aliases before performing any imports so that cyclic importers
+                // can import them regardless of source order.
                 for &(item_id, import_id) in source.imports {
                     let ast = self.sources[source_id].ast.as_ref().unwrap();
                     let ast::ItemKind::Import(import) = &ast.items[item_id].kind else {
@@ -137,17 +137,7 @@ impl super::LoweringContext<'_> {
             .hir
             .contracts()
             .map(|contract| {
-                let mut scope = Declarations::with_capacity(contract.items.len() + 2);
-
-                // Declare `this` and `super`.
-                let span = Span::DUMMY;
-                let this = Declaration { res: Res::Builtin(Builtin::This), span };
-                let _ = self.declare_in(&mut scope, sym::this, this);
-                if !contract.kind.is_library() {
-                    let super_ = Declaration { res: Res::Builtin(Builtin::Super), span };
-                    let _ = self.declare_in(&mut scope, sym::super_, super_);
-                }
-
+                let mut scope = Declarations::with_capacity(contract.items.len());
                 for &item_id in contract.items {
                     if let hir::ItemId::Function(id) = item_id
                         && self.hir.function(id).is_yul
@@ -189,6 +179,14 @@ impl super::LoweringContext<'_> {
                 if base_id == contract_id {
                     let msg = "contracts cannot inherit from themselves";
                     self.dcx().emit_err(name.span(), msg);
+                    continue;
+                }
+                if self.hir.contract(base_id).kind.is_library() {
+                    self.dcx()
+                        .err("libraries cannot be inherited from")
+                        .code(error_code!(2571))
+                        .span(name.span())
+                        .emit();
                     continue;
                 }
                 bases.push(base_id);
@@ -300,7 +298,7 @@ impl<'gcx> ResolveContext<'gcx> {
         contract: Option<hir::ContractId>,
         function: Option<hir::FunctionId>,
     ) {
-        self.scopes.init(source, contract);
+        self.scopes.init(&self.lcx.hir, source, contract);
         self.function_id = function;
     }
 
@@ -326,6 +324,14 @@ impl<'gcx> ResolveContext<'gcx> {
                 Some(hir::ItemId::Struct(id)),
                 hir::VarKind::Struct,
             );
+        }
+
+        // Enum variants are resolved as members, so they are declared only to report duplicates.
+        for id in self.hir.enumm_ids() {
+            let enumm = self.hir.enumm(id);
+            let variants = enumm.variants;
+            init_cx!(enumm);
+            self.declare_variables(variants);
         }
 
         for id in self.hir.error_ids() {
@@ -442,6 +448,7 @@ impl<'gcx> ResolveContext<'gcx> {
                         name_span: modifier.name.last().span,
                         id,
                         args,
+                        qualified: modifier.name.get_ident().is_none(),
                     });
                 }
                 self.arena.alloc_smallvec(modifiers)
@@ -568,28 +575,16 @@ impl<'gcx> ResolveContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve_base_args(&mut self) {
         for c_id in self.hir.contract_ids() {
-            let contract = self.hir.contract(c_id);
+            let &hir::Contract { source, kind, .. } = self.hir.contract(c_id);
 
-            // Initialize without contract scope, but manually add a local scope with only `this`
-            // and `super` to allow builtins to be accessible in base constructor
-            // arguments while keeping state variables inaccessible.
-            self.init(contract.source, None, None);
-            self.scopes.enter();
-            let scope = self.scopes.current_scope();
-            scope.declare_unchecked(
-                sym::this,
-                Declaration { res: Res::Builtin(Builtin::This), span: Span::DUMMY },
-            );
-            scope.declare_unchecked(
-                sym::super_,
-                Declaration { res: Res::Builtin(Builtin::Super), span: Span::DUMMY },
-            );
+            // Initialize without contract scope, but with the contract's `this` and `super`, to
+            // allow builtins to be accessible in base constructor arguments while keeping state
+            // variables inaccessible.
+            self.init(source, None, None);
+            self.scopes.builtins = Some(kind);
 
             // Lower the base modifiers.
             self.resolve_base_args_inner(c_id);
-
-            // Exit the manually created scope that only contains `this` and `super`.
-            self.scopes.exit();
         }
     }
 
@@ -613,6 +608,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     name_span: ast_base.name.last().span,
                     id: base_id.into(),
                     args: self.lower_call_args(&ast_base.arguments),
+                    qualified: ast_base.name.get_ident().is_none(),
                 }
             }),
         );
@@ -1122,7 +1118,8 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
         let functions = self.collect_yul_function_decls(stmts);
         for &(function, id) in &functions {
-            self.declare_yul_function(function, id);
+            let res = Res::Item(hir::ItemId::Function(id));
+            let _ = self.scopes.declare_yul(self.dcx(), function.name, res);
         }
         for (function, id) in functions {
             self.lower_yul_function_body(function, id);
@@ -1145,16 +1142,6 @@ impl<'gcx> ResolveContext<'gcx> {
         functions
     }
 
-    fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
-        let res = Res::Item(hir::ItemId::Function(id));
-        let _ = self.scopes.current_scope().declare_res(
-            self.lcx.sess,
-            &self.lcx.hir,
-            function.name,
-            res,
-        );
-    }
-
     fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
         let previous_function = self.function_id.replace(id);
         self.scopes.enter();
@@ -1162,9 +1149,9 @@ impl<'gcx> ResolveContext<'gcx> {
         let previous_yul_function_scope = self.yul_function_scope.replace(function_scope);
 
         self.hir.functions[id].parameters =
-            self.lower_yul_function_variables(id, function.parameters, hir::VarKind::FunctionParam);
+            self.lower_yul_function_variables(function.parameters, hir::VarKind::FunctionParam);
         self.hir.functions[id].returns =
-            self.lower_yul_function_variables(id, function.returns, hir::VarKind::FunctionReturn);
+            self.lower_yul_function_variables(function.returns, hir::VarKind::FunctionReturn);
 
         let block = self.lower_yul_block(&function.body);
         let unchecked = self.hir_builder().stmt(hir::StmtKind::AssemblyBlock(block), block.span);
@@ -1178,32 +1165,12 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_yul_function_variables(
         &mut self,
-        function: hir::FunctionId,
         idents: &[Ident],
         kind: hir::VarKind,
     ) -> &'gcx [hir::VariableId] {
         self.arena.alloc_slice_fill_iter(
-            idents.iter().map(|&ident| self.lower_yul_function_variable(function, ident, kind)),
+            idents.iter().map(|&ident| self.lower_yul_variable(ident, kind).0),
         )
-    }
-
-    fn lower_yul_function_variable(
-        &mut self,
-        function: hir::FunctionId,
-        name: Ident,
-        kind: hir::VarKind,
-    ) -> hir::VariableId {
-        let var = self.mk_yul_var(
-            Some(function),
-            name.span,
-            self.yul_uint_type(name.span),
-            Some(name),
-            kind,
-        );
-        let id = self.hir.variables.push(var);
-        let res = Res::Item(hir::ItemId::Variable(id));
-        let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
-        id
     }
 
     fn lower_yul_stmt(&mut self, stmt: &ast::yul::Stmt<'_>) -> Option<hir::Stmt<'gcx>> {
@@ -1263,7 +1230,7 @@ impl<'gcx> ResolveContext<'gcx> {
     ) -> hir::StmtKind<'gcx> {
         let vars = idents
             .iter()
-            .map(|&ident| self.lower_yul_variable(ident))
+            .map(|&ident| self.lower_yul_variable(ident, hir::VarKind::Statement))
             .collect::<SmallVec<[_; 4]>>();
         if let Some(guar) = vars.iter().find_map(|(_, result)| result.err()) {
             return hir::StmtKind::Err(guar);
@@ -1292,19 +1259,20 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_variable(
         &mut self,
         name: Ident,
+        kind: hir::VarKind,
     ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
-        let var = self.mk_yul_var(
-            self.function_id,
+        let mut var = self.mk_var(
+            self.function_id.map(Into::into),
             name.span,
             self.yul_uint_type(name.span),
             Some(name),
-            hir::VarKind::Statement,
+            kind,
         );
+        var.source = self.scopes.source.unwrap_or(self.current_source_id);
+        var.contract = self.scopes.contract;
         let id = self.hir.variables.push(var);
         let res = Res::Item(hir::ItemId::Variable(id));
-        let result =
-            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
-        (id, result)
+        (id, self.scopes.declare_yul(self.dcx(), name, res))
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
@@ -1529,11 +1497,20 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn resolve_yul_paths(&self, name: Ident) -> Result<&[Declaration], ErrorGuaranteed> {
         let function_scope = self.yul_function_scope;
+        let yul_root_scope = self.yul_root_scope.expect("Yul path outside inline assembly");
         for (index, scope) in self.scopes.scopes.iter().enumerate().rev() {
             let Some(decls) = scope.resolve(name) else { continue };
             if function_scope.is_some_and(|function_scope| index < function_scope)
                 && decls.iter().all(|decl| decl.res.as_variable().is_some())
             {
+                if index < yul_root_scope {
+                    return Err(self
+                        .dcx()
+                        .err("cannot access local Solidity variables from inside an inline assembly function")
+                        .code(error_code!(6578))
+                        .span(name.span)
+                        .emit());
+                }
                 continue;
             }
             return Ok(decls);
@@ -1565,20 +1542,6 @@ impl<'gcx> ResolveContext<'gcx> {
                 ast::TypeSize::new_int_bits(256),
             )),
         }
-    }
-
-    fn mk_yul_var(
-        &mut self,
-        function: Option<hir::FunctionId>,
-        span: Span,
-        ty: hir::Type<'gcx>,
-        name: Option<Ident>,
-        kind: hir::VarKind,
-    ) -> hir::Variable<'gcx> {
-        let mut var = self.mk_var(function.map(Into::into), span, ty, name, kind);
-        var.source = self.scopes.source.unwrap_or(self.current_source_id);
-        var.contract = self.scopes.contract;
-        var
     }
 
     fn lower_try_catch_clause(
@@ -1916,8 +1879,18 @@ impl<'gcx> ResolveContext<'gcx> {
                 {
                     break 'b hir::ExprKind::Payable(self.lower_expr(arg));
                 }
-                let msg = "expected exactly one unnamed argument";
-                let guar = self.sess.dcx.emit_err(expr.span, msg);
+                let guar = if let ast::CallArgsKind::Named(args) = &args.kind
+                    && args.len() == 1
+                {
+                    self.dcx()
+                        .err("type conversions cannot take named arguments")
+                        .code(error_code!(5153))
+                        .span(expr.span)
+                        .emit()
+                } else {
+                    let msg = "expected exactly one unnamed argument";
+                    self.sess.dcx.emit_err(expr.span, msg)
+                };
                 hir::ExprKind::Err(guar)
             }
             ast::ExprKind::Ternary(cond, then, r#else) => hir::ExprKind::Ternary(
@@ -1928,7 +1901,13 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(self.arena.alloc_slice_fill_iter(
                 exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref().unspan())),
             )),
-            ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
+            ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(match &ty.kind {
+                // `type(L)` is the one type position that accepts a library name.
+                ast::TypeKind::Custom(path) => {
+                    hir::Type { kind: self.lower_type_path(path), span: ty.span }
+                }
+                _ => self.lower_type(ty),
+            }),
             ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
             ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
             ast::ExprKind::Err(guar) => hir::ExprKind::Err(*guar),
@@ -1990,41 +1969,36 @@ impl<'gcx> ResolveContext<'gcx> {
                 ast::ElementaryType::UInt(size) if size == ast::TypeSize::ZERO => {
                     ast::ElementaryType::UInt(ast::TypeSize::new_int_bits(256))
                 }
-                ast::ElementaryType::Fixed(size, _) if size == ast::TypeSize::ZERO => {
-                    ast::ElementaryType::Fixed(
-                        ast::TypeSize::new_int_bits(128),
-                        ast::TypeFixedSize::new(18).unwrap(),
-                    )
-                }
-                ast::ElementaryType::UFixed(size, _) if size == ast::TypeSize::ZERO => {
-                    ast::ElementaryType::UFixed(
-                        ast::TypeSize::new_int_bits(128),
-                        ast::TypeFixedSize::new(18).unwrap(),
-                    )
-                }
                 ty => ty,
             }),
             ast::TypeKind::Array(array) => hir::TypeKind::Array(self.arena.alloc(hir::TypeArray {
                 element: self.lower_type(&array.element),
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
-            ast::TypeKind::Function(f) => {
-                let visibility = f.visibility().unwrap_or(ast::Visibility::Internal);
-                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
-                    parameters: self.lower_variables_hidden(
+            // A function type opens its own scope for its parameter and return names.
+            ast::TypeKind::Function(f) => self.in_scope(|this| {
+                // The AST validator reports invalid visibilities; lower them as internal.
+                let visibility = if f.visibility() == Some(ast::Visibility::External) {
+                    ast::Visibility::External
+                } else {
+                    ast::Visibility::Internal
+                };
+                let parent = this.function_id.map(hir::ItemId::Function);
+                hir::TypeKind::Function(this.arena.alloc(hir::TypeFunction {
+                    parameters: this.lower_variables_hidden(
                         *f.parameters,
-                        self.function_id.map(hir::ItemId::Function),
+                        parent,
                         hir::VarKind::FunctionTyParam(visibility),
                     ),
                     visibility,
                     state_mutability: f.state_mutability(),
-                    returns: self.lower_variables_hidden(
+                    returns: this.lower_variables_hidden(
                         f.returns(),
-                        self.function_id.map(hir::ItemId::Function),
+                        parent,
                         hir::VarKind::FunctionTyReturn(visibility),
                     ),
                 }))
-            }
+            }),
             ast::TypeKind::Mapping(mapping) => {
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),
@@ -2033,12 +2007,23 @@ impl<'gcx> ResolveContext<'gcx> {
                     value_name: mapping.value_name,
                 }))
             }
-            ast::TypeKind::Custom(path) => match self.resolve_path_as(path, "item") {
-                Ok(id) => hir::TypeKind::Custom(id),
-                Err(guar) => hir::TypeKind::Err(guar),
+            ast::TypeKind::Custom(path) => match self.lower_type_path(path) {
+                hir::TypeKind::Custom(hir::ItemId::Contract(id))
+                    if self.hir.contract(id).kind.is_library() =>
+                {
+                    hir::TypeKind::Err(self.report_library_name(path.span()))
+                }
+                kind => kind,
             },
         };
         hir::Type { kind, span: ty.span }
+    }
+
+    fn lower_type_path(&self, path: &ast::PathSlice) -> hir::TypeKind<'gcx> {
+        match self.resolve_path_as(path, "item") {
+            Ok(id) => hir::TypeKind::Custom(id),
+            Err(guar) => hir::TypeKind::Err(guar),
+        }
     }
 
     #[inline]
@@ -2068,6 +2053,10 @@ impl<'gcx> ResolveContext<'gcx> {
             let Ok(id) = self.resolver.resolve_path_as(path, &self.scopes, "contract") else {
                 continue;
             };
+            if self.hir.contract(id).kind.is_library() {
+                self.report_library_name(path.span());
+                continue;
+            }
 
             // A free function with an override specifier, with or without a contract list, is
             // reported by `typeck::check_free_function`.
@@ -2092,6 +2081,11 @@ impl<'gcx> ResolveContext<'gcx> {
         }
 
         self.arena.alloc_smallvec(overrides)
+    }
+
+    /// Reports a library name used as a type or in an override list.
+    fn report_library_name(&self, span: Span) -> ErrorGuaranteed {
+        self.dcx().err("invalid use of a library name").code(error_code!(1130)).span(span).emit()
     }
 }
 
@@ -2162,6 +2156,13 @@ pub(crate) struct SymbolResolver<'gcx> {
     dcx: &'gcx DiagCtxt,
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
+    /// `this` and `super`, looked up in contracts after the source scope. Keeping them out of the
+    /// contract scope lets members shadow them.
+    #[debug(ignore)]
+    contract_builtin_scope: Declarations,
+    /// `this`, looked up in libraries after the source scope.
+    #[debug(ignore)]
+    library_builtin_scope: Declarations,
     #[debug(ignore)]
     global_builtin_scope: Declarations,
     #[debug(ignore)]
@@ -2175,6 +2176,8 @@ impl<'gcx> SymbolResolver<'gcx> {
             dcx,
             source_scopes: IndexVec::new(),
             contract_scopes: IndexVec::new(),
+            contract_builtin_scope: crate::builtins::declarations([Builtin::This, Builtin::Super]),
+            library_builtin_scope: crate::builtins::declarations([Builtin::This]),
             global_builtin_scope,
             builtin_members_scopes,
         }
@@ -2182,12 +2185,13 @@ impl<'gcx> SymbolResolver<'gcx> {
 
     pub(crate) fn source_path_resolutions(
         &self,
+        hir: &hir::Hir<'_>,
         segments: &[Ident],
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> Option<Vec<Vec<Res>>> {
         let mut scopes = SymbolResolverScopes::new();
-        scopes.init(source, contract);
+        scopes.init(hir, source, contract);
         let mut resolutions = Vec::with_capacity(segments.len());
         self.resolve_paths_with(ast::PathSlice::from_slice(segments), &scopes, |decls| {
             resolutions.push(decls.iter().map(|decl| decl.res).collect());
@@ -2288,7 +2292,7 @@ impl<'gcx> SymbolResolver<'gcx> {
             .ok_or_else(|| ResolverError::new(name, ResolverErrorKind::Unresolved))
     }
 
-    fn scope_of(&self, declaration: Res) -> Option<&Declarations> {
+    pub(crate) fn scope_of(&self, declaration: Res) -> Option<&Declarations> {
         match declaration {
             Res::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
             Res::Namespace(id) => Some(&self.source_scopes[id]),
@@ -2307,6 +2311,8 @@ impl<'gcx> SymbolResolver<'gcx> {
 pub(super) struct SymbolResolverScopes {
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
+    /// The kind of the contract whose `this` and `super` are in scope; usually `contract`'s.
+    builtins: Option<hir::ContractKind>,
     scopes: Vec<Declarations>,
     /// Pool of declarations that can be reused.
     pool: Vec<Declarations>,
@@ -2315,19 +2321,26 @@ pub(super) struct SymbolResolverScopes {
 impl SymbolResolverScopes {
     #[inline]
     fn new() -> Self {
-        Self { source: None, contract: None, scopes: Vec::new(), pool: Vec::new() }
+        Self { source: None, contract: None, builtins: None, scopes: Vec::new(), pool: Vec::new() }
     }
 
-    fn init(&mut self, source: hir::SourceId, contract: Option<hir::ContractId>) {
+    fn init(
+        &mut self,
+        hir: &hir::Hir<'_>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) {
         self.clear();
         self.source = Some(source);
         self.contract = contract;
+        self.builtins = contract.map(|id| hir.contract(id).kind);
     }
 
     fn clear(&mut self) {
         self.pool.append(&mut self.scopes);
         self.source = None;
         self.contract = None;
+        self.builtins = None;
     }
 
     #[inline]
@@ -2348,6 +2361,13 @@ impl SymbolResolverScopes {
             .map(|id| &resolver.contract_scopes[id])
             .into_iter()
             .chain(self.source.map(|id| &resolver.source_scopes[id]))
+            .chain(self.builtins.map(|kind| {
+                if kind.is_library() {
+                    &resolver.library_builtin_scope
+                } else {
+                    &resolver.contract_builtin_scope
+                }
+            }))
             .chain(std::iter::once(&resolver.global_builtin_scope))
     }
 
@@ -2369,6 +2389,33 @@ impl SymbolResolverScopes {
     fn exit(&mut self) {
         let scope = self.scopes.pop().expect("unbalanced enter/exit");
         self.pool.push(scope);
+    }
+
+    /// Declares a Yul function or variable in the current scope.
+    ///
+    /// Yul has no overloads, so a name can be declared only once per scope.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libyul/ScopeFiller.cpp#L136-L163>
+    fn declare_yul(
+        &mut self,
+        dcx: &DiagCtxt,
+        name: Ident,
+        res: Res,
+    ) -> Result<(), ErrorGuaranteed> {
+        let decl = Declaration { res, span: name.span };
+        if let Err(previous) = self.current_scope().declare_new(name.name, decl) {
+            let (kind, code) = match res {
+                Res::Item(hir::ItemId::Function(_)) => ("function", error_code!(6052)),
+                _ => ("variable", error_code!(1395)),
+            };
+            return Err(dcx
+                .err(format!("{kind} name `{name}` already taken in this scope"))
+                .code(code)
+                .span(name.span)
+                .span_note(previous.span, "previous declaration declared here")
+                .emit());
+        }
+        Ok(())
     }
 }
 
@@ -2459,6 +2506,18 @@ impl Declarations {
         self.declarations.entry(name).or_default().push(decl, true);
     }
 
+    /// Declares `name => decl` if `name` is not declared yet, otherwise returns its first
+    /// declaration.
+    fn declare_new(&mut self, name: Symbol, decl: Declaration) -> Result<(), Declaration> {
+        match self.declarations.entry(name) {
+            IndexEntry::Occupied(entry) => Err(entry.get().all[0]),
+            IndexEntry::Vacant(entry) => {
+                entry.insert(DeclarationsInner::default()).push(decl, true);
+                Ok(())
+            }
+        }
+    }
+
     /// Declares `Ident { name, span } => kind` by converting it to
     /// `name => Declaration { kind, span }`.
     #[inline]
@@ -2472,6 +2531,9 @@ impl Declarations {
         self.declare(sess, hir, name.name, Declaration { res, span: name.span })
     }
 
+    /// Declares `name => decl`, reporting conflicts and reserved names.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/NameAndTypeResolver.cpp#L517>
     pub(crate) fn declare(
         &mut self,
         sess: &Session,
@@ -2479,13 +2541,16 @@ impl Declarations {
         name: Symbol,
         decl: Declaration,
     ) -> Result<(), ErrorGuaranteed> {
+        check_reserved_name(sess, hir, name, decl);
         self.try_declare(hir, name, decl).map_err(|conflict| {
-            // Like solc, report the declaration that comes later in the source.
-            if conflict.span.lo() > decl.span.lo() {
-                report_conflict(hir, sess, name, conflict, decl)
+            // Report the declaration that comes later in the source.
+            // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/NameAndTypeResolver.cpp#L577-L597>
+            let (later, earlier) = if conflict.span.lo() > decl.span.lo() {
+                (conflict, decl)
             } else {
-                report_conflict(hir, sess, name, decl, conflict)
-            }
+                (decl, conflict)
+            };
+            report_conflict(hir, sess, name, later, earlier, error_code!(2333))
         })
     }
 
@@ -2530,25 +2595,26 @@ impl Declarations {
         }
 
         // https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
-        if matches!(decl.res, Item(Function(_) | Event(_))) {
-            let mut getter = None;
-            if let Item(Function(id)) = decl.res {
-                getter = Some(id);
-                let f = hir.function(id);
-                if !f.kind.is_ordinary() {
+        match decl.res {
+            Item(Function(id)) => {
+                if !hir.function(id).is_ordinary() {
                     return Some(declarations[0]);
                 }
+                // A function goes only with functions and with the variable it is the getter of.
+                declarations
+                    .iter()
+                    .find(|decl2| match decl2.res {
+                        Item(Variable(v)) => hir.variable(v).getter != Some(id),
+                        Item(Function(f)) => !hir.function(f).is_ordinary(),
+                        _ => true,
+                    })
+                    .copied()
             }
-            let same_kind = |decl2: &Declaration| match decl2.res {
-                Item(Variable(v)) => hir.variable(v).getter == getter,
-                Item(Function(f)) => hir.function(f).kind.is_ordinary(),
-                ref k => k.matches(&decl.res),
-            };
-            declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
-        } else if declarations == [decl] {
-            None
-        } else {
-            Some(declarations[0])
+            Item(Event(_)) => {
+                declarations.iter().find(|decl2| !matches!(decl2.res, Item(Event(_)))).copied()
+            }
+            _ if declarations == [decl] => None,
+            _ => Some(declarations[0]),
         }
     }
 }
@@ -2583,10 +2649,12 @@ pub(super) fn report_conflict(
     name: Symbol,
     decl: Declaration,
     mut previous: Declaration,
+    code: DiagId,
 ) -> ErrorGuaranteed {
     debug_assert_ne!(decl.span, previous.span);
 
-    let mut err = sess.dcx.err(format!("identifier `{name}` already declared")).span(decl.span);
+    let mut err =
+        sess.dcx.err(format!("identifier `{name}` already declared")).code(code).span(decl.span);
 
     // If `previous` is coming from an import, show both the import and the real span.
     if let Res::Item(item_id) = previous.res
@@ -2603,6 +2671,29 @@ pub(super) fn report_conflict(
     }
 
     err.emit()
+}
+
+/// Reports a declaration named `_`, `super`, or `this`.
+///
+/// Events and public or external functions may still use these names.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/NameAndTypeResolver.cpp#L537-L557>
+fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: Declaration) {
+    if !matches!(name, sym::underscore | sym::super_ | sym::this) {
+        return;
+    }
+    let allowed = match decl.res {
+        Res::Item(hir::ItemId::Event(_)) | Res::Err(_) => true,
+        Res::Item(hir::ItemId::Function(id)) => hir.function(id).is_part_of_external_interface(),
+        _ => false,
+    };
+    if !allowed {
+        sess.dcx
+            .err(format!("the name `{name}` is reserved"))
+            .code(error_code!(3726))
+            .span(decl.span)
+            .emit();
+    }
 }
 
 #[cfg(test)]

@@ -1,0 +1,14 @@
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/arithmetic_modulo_zero_unevaluated.sol:LL:CC
+   │
+LL │         return addmod(a, b, ONE >> 4294967295);
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/arithmetic_modulo_zero_unevaluated.sol:LL:CC
+   │
+LL │             mulmod(a, b, (1 / 2) * 0)
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

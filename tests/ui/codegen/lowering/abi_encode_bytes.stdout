@@ -3,29 +3,29 @@
 fn @hash3(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2dbf86c6, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [word, word, word], scratch, args arg0, arg1, arg2
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = keccak256 v1, v2
     ret v3
 }
 
-fn @encode3(arg0: i256, arg1: i256, arg2: i256) -> memptr [selector=0x536b260f, pure, abi_params=[u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encode3(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x536b260f, pure, abi_params=[u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [word, word, word], object, args arg0, arg1, arg2
     ret v0
 }
 
-fn @encodeDynamic(arg0: i256, arg1: memptr) -> memptr [selector=0x925bff47, pure, abi_params=[u256, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeDynamic(arg0: i256, arg1: ptr<memory>) -> ptr<memory> [selector=0x925bff47, pure, abi_params=[u256, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [word, memory_bytes], object, args arg0, arg1
     ret v0
 }
 
-fn @hashDynamic(arg0: i256, arg1: memptr) -> i256 [selector=0xf58325b2, pure, abi_params=[u256, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashDynamic(arg0: i256, arg1: ptr<memory>) -> i256 [selector=0xf58325b2, pure, abi_params=[u256, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [word, memory_bytes], scratch, args arg0, arg1
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = keccak256 v1, v2
     ret v3
 }

@@ -8,7 +8,7 @@
       ret v0
   }
   
-  fn @internal(arg0: calldataslice) -> calldataslice {
+  fn @internal(arg0: slice<calldata>) -> slice<calldata> {
     bb0:
       frame_store internal_frame, calldata, 0, arg0
       v0 = frame_load internal_frame, calldata, 0

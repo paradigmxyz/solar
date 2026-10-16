@@ -13,7 +13,7 @@ pub(super) fn rejects_callvalue(func: &Function) -> bool {
 
 /// Whether a library's external entry may only run through `DELEGATECALL`.
 ///
-/// Like solc, only non-view functions are guarded; view and pure functions accept direct calls.
+/// Only non-view functions are guarded; view and pure functions accept direct calls.
 pub(super) fn needs_delegatecall_guard(func: &Function) -> bool {
     matches!(
         func.attributes.state_mutability,

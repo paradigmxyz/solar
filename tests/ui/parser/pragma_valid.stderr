@@ -1,0 +1,42 @@
+warning[9511]: ABI coder v1 is not supported
+   ╭▸ ROOT/tests/ui/parser/pragma_valid.sol:LL:CC
+   │
+LL │ pragma abicoder v1;
+   │ ━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: ABI coder v2 is used instead
+   ╰ help: remove the pragma or use `pragma abicoder v2`
+
+warning[9511]: ABI coder v1 is not supported
+   ╭▸ ROOT/tests/ui/parser/pragma_valid.sol:LL:CC
+   │
+LL │ pragma abicoder "v1";
+   │ ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: ABI coder v2 is used instead
+   ╰ help: remove the pragma or use `pragma abicoder v2`
+
+warning[9511]: ABI coder v1 is not supported
+   ╭▸ ROOT/tests/ui/parser/pragma_valid.sol:LL:CC
+   │
+LL │ pragma "abicoder" v1;
+   │ ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: ABI coder v2 is used instead
+   ╰ help: remove the pragma or use `pragma abicoder v2`
+
+warning[9511]: ABI coder v1 is not supported
+   ╭▸ ROOT/tests/ui/parser/pragma_valid.sol:LL:CC
+   │
+LL │ pragma "abicoder" "v1";
+   │ ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: ABI coder v2 is used instead
+   ╰ help: remove the pragma or use `pragma abicoder v2`
+
+warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
+   ╭▸ ROOT/tests/ui/parser/pragma_valid.sol:LL:CC
+   │
+LL │ pragma solidity ^0.8.30.1;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━
+

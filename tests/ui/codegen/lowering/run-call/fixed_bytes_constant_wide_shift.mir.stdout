@@ -1,0 +1,11 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_wide_shift.sol:FixedBytesConstantWideShift ===
+@module FixedBytesConstantWideShift
+fn @shiftOut() -> i256 [selector=0x937035d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    ret 0xff00
+}
+
+fn @shiftRoundTrip() -> i256 [selector=0xabb727a8, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    ret 255
+}

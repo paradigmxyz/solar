@@ -282,7 +282,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             for inst_id in func.instructions() {
                 let inst = func.inst(inst_id);
                 let message = match inst.kind {
-                    InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
+                    InstKind::MakeSlice { .. }
+                    | InstKind::ExtractValue { ty: MirType::Slice(_), .. } => {
                         "codegen does not support this calldata-slice usage yet"
                     }
                     InstKind::StoreImmutable(..) => {

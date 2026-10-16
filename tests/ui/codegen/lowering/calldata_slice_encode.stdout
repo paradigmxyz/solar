@@ -1,60 +1,44 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_encode.sol:CalldataSliceEncode ===
 @module CalldataSliceEncode
-fn @encode(arg0: calldataslice, arg1: i256) -> memptr [selector=0xa8c06a13, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encode(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0xa8c06a13, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = gt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub v1, arg1
-    v7 = add v0, arg1
+    v7 = ptradd v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = abi_encode [calldata_bytes], object, args v8
-    ret v15
+    v9 = abi_encode [calldata_bytes], object, args v8
+    ret v9
 }
 
-fn @forward(arg0: calldataslice, arg1: i256, arg2: i160) [selector=0xb8467e08, abi_params=[bytes, u256, address], abi_returns=[], abi_return_params=[]] {
+fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i160) [selector=0xb8467e08, abi_params=[bytes, u256, address], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = gt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub v1, arg1
-    v7 = add v0, arg1
+    v7 = ptradd v0, arg1
     v8 = make_calldata_slice v7, v6
     v9 = gas
-    v10 = slice_ptr v8
-    v11 = slice_len v8
-    v12 = gt v11, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = calldatasize
-    v14 = sub v13, v11
-    v15 = sgt v10, v14
-    icall revert_if<calldata_tail_too_short>, v15
-    v16 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v8
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = zext i160 arg2 to i256
-    v20 = extcodesize v19
-    v21 = eq v20, 0
-    icall revert_if<target_contract_has_no_code>, v21
-    v22 = zext i160 arg2 to i256
-    v23 = call v9, v22, 0, v17, v18, 0, 0
-    jumpi v23, bb2, bb1
+    v10 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v8
+    v11 = extract_value slice<memory>, v10, 0
+    v12 = extract_value slice<memory>, v10, 1
+    v13 = zext i160 arg2 to i256
+    v14 = extcodesize v13
+    v15 = eq v14, 0
+    icall revert_if<target_contract_has_no_code>, v15
+    v16 = zext i160 arg2 to i256
+    v17 = call v9, v16, 0, v11, v12, 0, 0
+    jumpi v17, bb2, bb1
   bb1:
     revert_returndata
   bb2:

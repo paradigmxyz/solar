@@ -1,0 +1,10 @@
+error: recursion limit reached
+   ╭▸ ROOT/tests/ui/parser/recursion_limit_pow.sol:LL:CC
+   │
+LL │ … 2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2**2** // 63
+   │                                                                                                                                                                                              ── while parsing expression
+LL │ …     2**2;
+   ╰╴      ━
+
+error: aborting due to 1 previous error
+

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_memory_type.sol:ExternalFunctionPointerMemoryType ===
 @module ExternalFunctionPointerMemoryType
-fn @g(arg0: calldataslice) -> i1 [selector=0xe6d02096, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @g(arg0: slice<calldata>) -> i1 [selector=0xe6d02096, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     ret true
 }
@@ -15,27 +15,26 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v5 = shl 224, v4
     v6 = shr 32, v3
     v7 = gas
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v8, 10
-    v9 = memory_object_data memorybytes, v8
-    v10 = ptrtoint memptr v9 to i256
-    mstore v10, 0x74657374537472696e6700000000000000000000000000000000000000000000
-    v11 = abi_encode [memory_bytes], selector v5, args v8
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = call v7, v6, 0, v12, v13, 0, 32
-    jumpi v14, bb2, bb1
+    v8 = alloc 64 !metadata(preserves_fmp)
+    mstore v8, 10
+    v9 = ptradd v8, 32
+    mstore v9, 0x74657374537472696e6700000000000000000000000000000000000000000000
+    v10 = abi_encode [memory_bytes], selector v5, args v8
+    v11 = extract_value slice<memory>, v10, 0
+    v12 = extract_value slice<memory>, v10, 1
+    v13 = call v7, v6, 0, v11, v12, 0, 32
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    v19 = lt v18, 2
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = ne v18, 0
-    ret v21
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = lt v17, 2
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = ne v17, 0
+    ret v20
 }

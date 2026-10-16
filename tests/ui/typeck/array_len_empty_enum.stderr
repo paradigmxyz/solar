@@ -1,0 +1,18 @@
+error: enum must have at least one variant
+   ╭▸ ROOT/tests/ui/typeck/array_len_empty_enum.sol:LL:CC
+   │
+LL │ enum E {}
+   ╰╴     ━
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_empty_enum.sol:LL:CC
+   │
+LL │     uint[uint(type(E).max) + 1] a;
+   │          ┬────────────────━━━━
+   │          │
+   │          evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
+
+error: aborting due to 2 previous errors
+

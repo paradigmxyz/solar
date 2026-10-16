@@ -102,28 +102,34 @@ bb8:
   or
   push bb6
   jumpi
-  push 32
+  dup 3
   dup 2
-  add
+  push 32
+  dup 1
   push 64
   mload
-  swap 1
-  dup 2
+  swap 3
+  add
+  dup 3
   add
   push 64
   mstore
-  dup 4
   dup 2
-  mstore
-  push 32
   add
   swap 2
-  dup 3
-  calldatacopy
+  dup 2
+  mstore
+  swap 3
   swap 1
+  calldatacopy
+  push 32
+  dup 2
+  add
+  swap 2
   push 5
   shl
-  dup 2
+  add
+  push 32
   add
   push 0
   swap 2
@@ -144,7 +150,7 @@ bb12 [loop]:
 bb10 [loop]:
   dup 2
   dup 2
-  lt
+  sub
   push bb12
   jumpi
   pop

@@ -77,6 +77,7 @@
 //! - recognize checked unsigned updates at every width and retain their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
+use super::egraph::max_bits_with_args;
 use crate::{
     mir::{
         ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
@@ -425,14 +426,24 @@ impl IndVarSimplifier {
         // near the word size, leaving at once where the counter runs out of gas, and a descending
         // counter does not count up from its start. Only the clamped equality exit rebuilds it.
         let read_after = exit_reads.as_ref().is_some_and(|reads| !reads.is_empty());
+        // NOTE: A small trip count does not bound an arbitrary start or bound. Keep strict
+        // pointer comparisons only when both fit well below the wrap point; the clamped
+        // equality fallback below handles large bounds without making that assumption.
         let test_family = if counter_free {
             families
                 .iter()
                 .position(|members| {
                     let key = &members[0].0;
                     key.scale > 0
+                        && key.scale <= 1 << 62
                         && key.invariants.is_empty()
                         && key.base.is_some_and(|base| self.is_heap_address(func, base))
+                        && step > 0
+                        && step <= 1 << 64
+                        && max_bits_with_args(func, iv.init, 4, &|_| 256) <= 64
+                        && exit_test.is_some_and(|test| {
+                            max_bits_with_args(func, test.bound, 4, &|_| 256) <= 128
+                        })
                 })
                 .filter(|_| !read_after)
                 .map(|index| (index, PointerExit::Below))
@@ -1051,7 +1062,7 @@ impl IndVarSimplifier {
     /// use of the primary offset, an add per use of a sibling offset, a latch
     /// update of two operations, and one loop-carried word beside the counter
     /// its exit test keeps alive. That word costs two operations, so a
-    /// single scaled use only breaks even and is left alone (the `copy` loop
+    /// single scaled use only breaks even and is left alone (the `mcopy` loop
     /// lost 1.2% carrying two such pointers, and charging one in loops with
     /// three carried words still cost every sorting kernel a few tenths of a
     /// percent), plus one for every word past four the loop already carries,

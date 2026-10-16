@@ -15,22 +15,22 @@ fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[], abi_r
     ret
 }
 
-fn @accept(arg0: calldataslice, arg1: calldataslice) -> i256 [selector=0x1403c78f, pure, abi_params=[bytes, array<_, u256>], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @accept(arg0: slice<calldata>, arg1: slice<calldata>) -> i256 [selector=0x1403c78f, pure, abi_params=[bytes, array<_, u256>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [calldata_bytes, calldata_array<word>], scratch, args arg0, arg1
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = keccak256 v1, v2
     ret v3
 }
 
-fn @next() -> memptr [selector=0x4c8fe526, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @next() -> ptr<memory> [selector=0x4c8fe526, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = not 31
     v1 = and 543, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 480
-    v3 = ptrtoint memptr v2 to i256
+    v2 = alloc zeroed checked v1
+    mstore v2, 480
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
     mstore v4, 1
     ret v2
@@ -38,144 +38,147 @@ fn @next() -> memptr [selector=0x4c8fe526, pure, abi_params=[], abi_returns=[mem
 
 fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v0, 2
-    v1 = memory_object_len memoryarray, v0
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    memory_object_store_element memoryarray<1>, v0, 0, 42
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v0, 1, 99
+    v4 = ptradd v0, 32
+    mstore v4, 42
+    v5 = mload v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    mstore v8, 99
     jump bb1
   bb1:
-    v7 = phi [bb0: 0], [bb3: v38]
-    v8 = phi [bb0: memptr 96], [bb3: v33]
     v9 = phi [bb0: 0], [bb3: v9]
-    v10 = phi [bb0: v0], [bb3: v34]
-    v11 = lt v7, 2
-    jumpi v11, bb4, bb5
+    v10 = phi [bb0: ptr<memory> 96], [bb3: v35]
+    v11 = phi [bb0: v0], [bb3: v36]
+    v12 = phi [bb0: 0], [bb3: v41]
+    v13 = lt v12, 2
+    jumpi v13, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret 1
   bb4:
-    v12 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v8, v10
-    v13 = address
-    v14 = gas
-    v15 = address_call v13, v12, gas v14
-    v16 = icall returndata_bytes<>
-    v17 = eq v15, false
-    icall revert_if<empty>, v17
-    v18 = abi_decode [bytes32], v16
-    v19 = abi_encode [memory_bytes, memory_array<word>], scratch, args v8, v10
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = keccak256 v20, v21
-    v23 = eq v18, v22
-    v24 = eq v23, false
-    icall revert_if<empty>, v24
-    v25 = address
-    v26 = gas
-    v27 = abi_encode [], selector 0x4c8fe52600000000000000000000000000000000000000000000000000000000
-    v28 = slice_ptr v27
-    v29 = slice_len v27
-    v30 = zext i160 v25 to i256
-    v31 = staticcall v26, v30, v28, v29, 0, 0
-    jumpi v31, bb8, bb7
+    v14 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v10, v11
+    v15 = address
+    v16 = gas
+    v17 = address_call v15, v14, gas v16
+    v18 = icall returndata_bytes<>
+    v19 = eq v17, false
+    icall revert_if<empty>, v19
+    v20 = abi_decode [bytes32], v18
+    v21 = abi_encode [memory_bytes, memory_array<word>], scratch, args v10, v11
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
+    v24 = keccak256 v22, v23
+    v25 = eq v20, v24
+    v26 = eq v25, false
+    icall revert_if<empty>, v26
+    v27 = address
+    v28 = gas
+    v29 = abi_encode [], selector 0x4c8fe52600000000000000000000000000000000000000000000000000000000
+    v30 = extract_value slice<memory>, v29, 0
+    v31 = extract_value slice<memory>, v29, 1
+    v32 = zext i160 v27 to i256
+    v33 = staticcall v28, v32, v30, v31, 0, 0
+    jumpi v33, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v32 = icall returndata_bytes<>
-    v33 = abi_decode [bytes], v32
-    v34 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    set_memory_object_len memoryarray, v34, 3
-    v35 = memory_object_len memoryarray, v34
-    v36 = lt 2, v35
-    v37 = eq v36, false
-    icall panic_if<0x32>, v37
-    memory_object_store_element memoryarray<1>, v34, 2, 123
+    v34 = icall returndata_bytes<>
+    v35 = abi_decode [bytes], v34
+    v36 = alloc zeroed checked 128
+    mstore v36, 3
+    v37 = mload v36
+    v38 = lt 2, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = ptradd v36, 96
+    mstore v40, 123
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v38 = checked_add u256, v7, 1
+    v41 = checked_add u256, v12, 1
     jump bb1
 }
 
 fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 64
-    v2 = address
-    v3 = zext i160 v2 to i256
-    v4 = shl 32, v3
-    v5 = or v4, 0xa7a0d537
-    v6 = lt 0, 2
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = shl 64, v5
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v8
-    v9 = abi_encode []
-    v10 = datasize AbiEncodeCallMemoryTarget_creation_code_0
-    v11 = datasize AbiEncodeCallMemoryTarget_creation_code_0, 31, aligned
-    v12 = alloc raw, exact, uninitialized, infallible, v11
-    v13 = ptrtoint memptr v12 to i256
-    datacopy AbiEncodeCallMemoryTarget_creation_code_0, v13, v10
-    v14 = slice_ptr v9
-    v15 = ptrtoint memptr v12 to i256
-    v16 = add v15, v10
-    mcopy v16, v14, 0 !metadata(memory=heap)
-    v17 = ptrtoint memptr v12 to i256
-    v18 = create 0, v17, v10
-    v19 = ne v18, i160 0
-    jumpi v19, bb2, bb1
+    v0 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = address
+    v2 = zext i160 v1 to i256
+    v3 = shl 32, v2
+    v4 = or v3, 0xa7a0d537
+    v5 = lt 0, 2
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = shl 64, v4
+    mstore v0, v7
+    v8 = abi_encode []
+    v9 = datasize AbiEncodeCallMemoryTarget_creation_code_0
+    v10 = datasize AbiEncodeCallMemoryTarget_creation_code_0, 31, aligned
+    v11 = alloc v10
+    datacopy AbiEncodeCallMemoryTarget_creation_code_0, v11, v9
+    v12 = extract_value slice<memory>, v8, 0
+    v13 = ptrtoint ptr<memory> v11 to i256
+    v14 = add v13, v9
+    mcopy v14, v12, 0 !metadata(memory=heap)
+    v15 = create 0, v11, v9
+    v16 = ne v15, i160 0
+    jumpi v16, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v20 = zext i160 v18 to i256
-    v21 = shl 32, v20
-    v22 = or v21, 0xa7a0d537
-    v23 = lt 1, 2
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = shl 64, v22
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v25
-    v26 = lt 1, 2
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v29 = shr 64, v28
-    v30 = lt 0, 2
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v33 = shr 64, v32
-    v34 = and v33, 0xffffffff
-    v35 = shl 224, v34
-    v36 = abi_encode [], object, selector v35
-    v37 = lt 1, 2
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
+    v17 = zext i160 v15 to i256
+    v18 = shl 32, v17
+    v19 = or v18, 0xa7a0d537
+    v20 = lt 1, 2
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = shl 64, v19
+    v23 = ptradd v0, 32
+    mstore v23, v22
+    v24 = lt 1, 2
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = ptradd v0, 32
+    v27 = mload v26
+    v28 = shr 64, v27
+    v29 = lt 0, 2
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = mload v0
+    v32 = shr 64, v31
+    v33 = and v32, 0xffffffff
+    v34 = shl 224, v33
+    v35 = abi_encode [], object, selector v34
+    v36 = lt 1, 2
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = ptradd v0, 32
+    v39 = mload v38
     v40 = shr 64, v39
     v41 = and v40, 0xffffffff
     v42 = shl 224, v41
     v43 = abi_encode [], object, selector v42
-    v44 = and v29, 0xffffffff
+    v44 = and v28, 0xffffffff
     v45 = shl 224, v44
     v46 = abi_encode [], object, selector v45
-    v47 = memory_object_len memorybytes, v36
+    v47 = mload v35
     v48 = eq v47, 4
     jumpi v48, bb3, bb4
   bb4:
     jump bb5
   bb3:
-    v49 = memory_object_len memorybytes, v43
+    v49 = mload v43
     v50 = eq v49, 4
     jump bb5
   bb5:
@@ -184,71 +187,77 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
   bb7:
     jump bb8
   bb6:
-    v52 = memory_object_len memorybytes, v46
+    v52 = mload v46
     v53 = eq v52, 4
     jump bb8
   bb8:
     v54 = phi [bb6: v53], [bb7: false]
     v55 = eq v54, false
     icall panic_if<0x1>, v55
-    v56 = memory_object_load_element memorybytes, v36, 0
-    v57 = memory_object_len memorybytes, v36
-    v58 = lt v57, 4
-    v59 = sub 4, v57
-    v60 = mul 8, v59
-    v61 = shl v60, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v62 = select v58, v61, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v63 = and v56, v62
-    v64 = memory_object_load_element memorybytes, v43, 0
-    v65 = memory_object_len memorybytes, v43
-    v66 = lt v65, 4
-    v67 = sub 4, v65
-    v68 = mul 8, v67
-    v69 = shl v68, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v70 = select v66, v69, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v71 = and v64, v70
-    v72 = eq v63, v71
-    v73 = eq v72, false
-    icall panic_if<0x1>, v73
-    v74 = memory_object_load_element memorybytes, v36, 0
-    v75 = memory_object_len memorybytes, v36
-    v76 = lt v75, 4
-    v77 = sub 4, v75
-    v78 = mul 8, v77
-    v79 = shl v78, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v80 = select v76, v79, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v81 = and v74, v80
-    v82 = memory_object_load_element memorybytes, v46, 0
-    v83 = memory_object_len memorybytes, v46
-    v84 = lt v83, 4
-    v85 = sub 4, v83
-    v86 = mul 8, v85
-    v87 = shl v86, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v88 = select v84, v87, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v89 = and v82, v88
-    v90 = eq v81, v89
-    v91 = eq v90, false
-    icall panic_if<0x1>, v91
-    v92 = memory_object_load_element memorybytes, v36, 0
-    v93 = memory_object_len memorybytes, v36
-    v94 = lt v93, 4
-    v95 = sub 4, v93
-    v96 = mul 8, v95
-    v97 = shl v96, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v98 = select v94, v97, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v99 = and v92, v98
-    v100 = and v29, 0xffffffff
-    v101 = shl 224, v100
-    v102 = eq v99, v101
-    v103 = eq v102, false
-    icall panic_if<0x1>, v103
-    v104 = memory_object_load_element memorybytes, v36, 0
-    v105 = memory_object_len memorybytes, v36
-    v106 = lt v105, 4
-    v107 = sub 4, v105
-    v108 = mul 8, v107
-    v109 = shl v108, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v110 = select v106, v109, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v111 = and v104, v110
-    ret v111
+    v56 = ptradd v35, 32
+    v57 = mload v56
+    v58 = mload v35
+    v59 = lt v58, 4
+    v60 = sub 4, v58
+    v61 = mul 8, v60
+    v62 = shl v61, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v63 = select v59, v62, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v64 = and v57, v63
+    v65 = ptradd v43, 32
+    v66 = mload v65
+    v67 = mload v43
+    v68 = lt v67, 4
+    v69 = sub 4, v67
+    v70 = mul 8, v69
+    v71 = shl v70, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v72 = select v68, v71, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v73 = and v66, v72
+    v74 = eq v64, v73
+    v75 = eq v74, false
+    icall panic_if<0x1>, v75
+    v76 = ptradd v35, 32
+    v77 = mload v76
+    v78 = mload v35
+    v79 = lt v78, 4
+    v80 = sub 4, v78
+    v81 = mul 8, v80
+    v82 = shl v81, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v83 = select v79, v82, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v84 = and v77, v83
+    v85 = ptradd v46, 32
+    v86 = mload v85
+    v87 = mload v46
+    v88 = lt v87, 4
+    v89 = sub 4, v87
+    v90 = mul 8, v89
+    v91 = shl v90, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v92 = select v88, v91, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v93 = and v86, v92
+    v94 = eq v84, v93
+    v95 = eq v94, false
+    icall panic_if<0x1>, v95
+    v96 = ptradd v35, 32
+    v97 = mload v96
+    v98 = mload v35
+    v99 = lt v98, 4
+    v100 = sub 4, v98
+    v101 = mul 8, v100
+    v102 = shl v101, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v103 = select v99, v102, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v104 = and v97, v103
+    v105 = and v28, 0xffffffff
+    v106 = shl 224, v105
+    v107 = eq v104, v106
+    v108 = eq v107, false
+    icall panic_if<0x1>, v108
+    v109 = ptradd v35, 32
+    v110 = mload v109
+    v111 = mload v35
+    v112 = lt v111, 4
+    v113 = sub 4, v111
+    v114 = mul 8, v113
+    v115 = shl v114, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v116 = select v112, v115, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v117 = and v110, v116
+    ret v117
 }

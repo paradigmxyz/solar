@@ -6,7 +6,12 @@ use std::{fmt, ops::RangeInclusive};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a type.
+    #[inline]
     pub fn parse_type(&mut self) -> PResult<'sess, Type<'ast>> {
+        self.with_recursion_limit("type", Self::parse_type_inner)
+    }
+
+    fn parse_type_inner(&mut self) -> PResult<'sess, Type<'ast>> {
         let mut ty = self
             .parse_spanned(Self::parse_basic_ty_kind)
             .map(|(span, kind)| Type { span, kind })?;
@@ -79,8 +84,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             kw::Bool => ElementaryType::Bool,
             kw::String => ElementaryType::String,
             kw::Bytes => ElementaryType::Bytes,
-            kw::Fixed => ElementaryType::Fixed(TypeSize::ZERO, TypeFixedSize::ZERO),
-            kw::UFixed => ElementaryType::UFixed(TypeSize::ZERO, TypeFixedSize::ZERO),
             kw::Int => ElementaryType::Int(TypeSize::ZERO),
             kw::UInt => ElementaryType::UInt(TypeSize::ZERO),
             s if s >= kw::UInt8 && s <= kw::UInt256 => {
@@ -95,8 +98,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 let bytes = s.as_u32() - kw::Bytes1.as_u32() + 1;
                 ElementaryType::FixedBytes(TypeSize::new_fb_bytes(bytes as u8))
             }
-            s => ElementaryType::parse_fixed_mxn(s)
-                .unwrap_or_else(|| unreachable!("unexpected elementary type: {s}")),
+            // The other elementary type names are fixed-point types.
+            _ => return Err(self.dcx().err("fixed-point types are not supported").span(id.span)),
         };
 
         let sm = self.parse_state_mutability();
@@ -113,11 +116,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
         }
 
-        // TODO: Move to type checking.
-        // if matches!(ty, ElementaryType::Fixed(..) | ElementaryType::UFixed(..)) {
-        //     self.dcx().emit_err(id.span, "`fixed` types are not yet supported");
-        // }
-
         Ok(ty)
     }
 
@@ -126,6 +124,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
         let key = self.parse_type()?;
+        // The grammar only allows `elementaryTypeName[false]` keys, which excludes
+        // `address payable`. Keep parsing to recover.
+        if let TypeKind::Elementary(ElementaryType::Address(true)) = key.kind {
+            self.dcx()
+                .err("`address payable` is not allowed as a mapping key type")
+                .span(key.span)
+                .help("use `address` instead")
+                .emit();
+        }
         let key_name = self.parse_ident_opt()?;
 
         self.expect(TokenKind::FatArrow)?;

@@ -7,100 +7,82 @@
 fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = calldatasize
-    v1 = make_calldata_slice 0, v0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
     v4 = gt v3, v3
     v5 = lt v3, 4
     v6 = or v4, v5
     v7 = zext i1 v6 to i256
     icall revert_if<empty>, v6
     v8 = sub v3, 4
-    v9 = add v2, 4
+    v9 = ptradd v2, 4
     v10 = make_calldata_slice v9, v8
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v13
-    v14 = calldatasize
-    v15 = sub v14, v12
-    v16 = sgt v11, v15
-    icall revert_if<calldata_tail_too_short>, v16
-    v17 = slice_len v10
-    v18 = add v17, 63
-    v19 = lt v18, v17
-    icall panic_if<0x41>, v19
-    v20 = not 31
-    v21 = and v18, v20
-    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
-    set_memory_object_len memorybytes, v22, v17
-    memory_object_copy_from_slice memorybytes, v22, v10
-    v23 = abi_decode [u256, u256], v22
-    v24 = extract_value struct1, v23, 0
-    v25 = extract_value struct1, v23, 1
-    v26 = calldatasize
-    v27 = make_calldata_slice 0, v26
-    v28 = slice_ptr v27
-    v29 = slice_len v27
-    v30 = gt 36, v29
-    v31 = lt 36, 4
-    v32 = or v30, v31
-    v33 = zext i1 v32 to i256
-    icall revert_if<empty>, v32
-    v34 = sub 36, 4
-    v35 = add v28, 4
-    v36 = make_calldata_slice v35, v34
-    v37 = slice_ptr v36
-    v38 = slice_len v36
-    v39 = gt v38, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v39
-    v40 = calldatasize
-    v41 = sub v40, v38
-    v42 = sgt v37, v41
-    icall revert_if<calldata_tail_too_short>, v42
-    v43 = slice_len v36
-    v44 = add v43, 63
-    v45 = lt v44, v43
-    icall panic_if<0x41>, v45
-    v46 = not 31
-    v47 = and v44, v46
-    v48 = alloc memorybytes, exact, uninitialized, infallible, v47
-    set_memory_object_len memorybytes, v48, v43
-    memory_object_copy_from_slice memorybytes, v48, v36
-    v49 = abi_decode [u256], v48
-    v50 = calldatasize
-    v51 = make_calldata_slice 0, v50
-    v52 = slice_ptr v51
-    v53 = slice_len v51
-    v54 = gt 68, v53
-    v55 = lt 68, 36
-    v56 = or v54, v55
-    v57 = zext i1 v56 to i256
-    icall revert_if<empty>, v56
-    v58 = sub 68, 36
-    v59 = add v52, 36
-    v60 = make_calldata_slice v59, v58
-    v61 = slice_ptr v60
-    v62 = slice_len v60
-    v63 = gt v62, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v63
-    v64 = calldatasize
-    v65 = sub v64, v62
-    v66 = sgt v61, v65
-    icall revert_if<calldata_tail_too_short>, v66
-    v67 = slice_len v60
-    v68 = add v67, 63
-    v69 = lt v68, v67
-    icall panic_if<0x41>, v69
-    v70 = not 31
-    v71 = and v68, v70
-    v72 = alloc memorybytes, exact, uninitialized, infallible, v71
-    set_memory_object_len memorybytes, v72, v67
-    memory_object_copy_from_slice memorybytes, v72, v60
-    v73 = abi_decode [u256], v72
-    v74 = insert_value struct0, undef struct0, 0, v24
-    v75 = insert_value struct0, v74, 1, v25
-    v76 = insert_value struct0, v75, 2, v49
-    v77 = insert_value struct0, v76, 3, v73
-    ret v77
+    v11 = extract_value slice<calldata>, v10, 1
+    v12 = extract_value slice<calldata>, v10, 0
+    v13 = add v11, 63
+    v14 = lt v13, v11
+    icall panic_if<0x41>, v14
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc v16
+    mstore v17, v11
+    v18 = ptradd v17, 32
+    calldatacopy v18, v12, v11 !metadata(memory=heap)
+    v19 = abi_decode [u256, u256], v17
+    v20 = extract_value struct1, v19, 0
+    v21 = extract_value struct1, v19, 1
+    v22 = calldatasize
+    v23 = make_calldata_slice ptr<calldata> 0, v22
+    v24 = extract_value slice<calldata>, v23, 0
+    v25 = extract_value slice<calldata>, v23, 1
+    v26 = gt 36, v25
+    v27 = lt 36, 4
+    v28 = or v26, v27
+    v29 = zext i1 v28 to i256
+    icall revert_if<empty>, v28
+    v30 = sub 36, 4
+    v31 = ptradd v24, 4
+    v32 = make_calldata_slice v31, v30
+    v33 = extract_value slice<calldata>, v32, 1
+    v34 = extract_value slice<calldata>, v32, 0
+    v35 = add v33, 63
+    v36 = lt v35, v33
+    icall panic_if<0x41>, v36
+    v37 = not 31
+    v38 = and v35, v37
+    v39 = alloc v38
+    mstore v39, v33
+    v40 = ptradd v39, 32
+    calldatacopy v40, v34, v33 !metadata(memory=heap)
+    v41 = abi_decode [u256], v39
+    v42 = calldatasize
+    v43 = make_calldata_slice ptr<calldata> 0, v42
+    v44 = extract_value slice<calldata>, v43, 0
+    v45 = extract_value slice<calldata>, v43, 1
+    v46 = gt 68, v45
+    v47 = lt 68, 36
+    v48 = or v46, v47
+    v49 = zext i1 v48 to i256
+    icall revert_if<empty>, v48
+    v50 = sub 68, 36
+    v51 = ptradd v44, 36
+    v52 = make_calldata_slice v51, v50
+    v53 = extract_value slice<calldata>, v52, 1
+    v54 = extract_value slice<calldata>, v52, 0
+    v55 = add v53, 63
+    v56 = lt v55, v53
+    icall panic_if<0x41>, v56
+    v57 = not 31
+    v58 = and v55, v57
+    v59 = alloc v58
+    mstore v59, v53
+    v60 = ptradd v59, 32
+    calldatacopy v60, v54, v53 !metadata(memory=heap)
+    v61 = abi_decode [u256], v59
+    v62 = insert_value struct0, undef struct0, 0, v20
+    v63 = insert_value struct0, v62, 1, v21
+    v64 = insert_value struct0, v63, 2, v41
+    v65 = insert_value struct0, v64, 3, v61
+    ret v65
 }

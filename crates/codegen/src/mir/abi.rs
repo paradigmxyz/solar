@@ -1,6 +1,6 @@
 //! Semantic ABI layout descriptors used by MIR encoding operations.
 
-use super::{FunctionBuilder, SliceLocation, ValueId, ValueLayout};
+use super::{FunctionBuilder, PtrLocation, ValueId, ValueLayout};
 use alloy_primitives::U256;
 use std::{fmt, sync::Arc};
 
@@ -152,7 +152,7 @@ impl AbiParamType {
             Self::Scalar(ty) => ty.mir_type(),
             Self::Enum { ty, .. } => ty.mir_type(),
             Self::Bytes | Self::DynamicArray(_) | Self::FixedArray { .. } | Self::Tuple(_) => {
-                super::MirType::MemPtr
+                super::MirType::MEMPTR
             }
         }
     }
@@ -226,6 +226,19 @@ impl AbiParamType {
             _ => Some(32),
         }
     }
+
+    /// Returns the calldata element size of a dynamically sized value: one byte for `bytes`, the
+    /// element head size for arrays, and `None` for every other shape.
+    #[must_use]
+    pub(crate) fn calldata_stride(&self) -> Option<u64> {
+        match self {
+            Self::Bytes => Some(1),
+            Self::DynamicArray(element) => {
+                Some(element.checked_head_size().expect("ABI head size exceeds u64 range"))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The ABI-relevant shape and source representation of one value.
@@ -233,18 +246,18 @@ impl AbiParamType {
 pub(crate) enum AbiType {
     /// A scalar encoded as one word, with the cleanup its type requires when the word is read
     /// from memory: narrow integers are masked or sign-extended, booleans canonicalized, and
-    /// enums range-checked during encoding, like solc. `None` is a full word.
+    /// enums range-checked during encoding. `None` is a full word.
     Word(Option<AbiWordValidator>),
     /// An external function pointer encoded as a left-aligned `bytes24` word.
     Function,
     /// A dynamic byte string represented in the given address space.
-    Bytes(SliceLocation),
+    Bytes(PtrLocation),
     /// A dynamic array represented in the given address space.
     DynamicArray {
         /// Array element layout.
         element: Box<Self>,
         /// Address space containing the array.
-        location: SliceLocation,
+        location: PtrLocation,
     },
     /// A fixed-size array represented by a memory pointer.
     FixedArray {
@@ -280,7 +293,9 @@ impl AbiType {
 
     /// Returns the size of the value's own encoding where a tail offset points: the length
     /// word of a dynamically sized value, or the whole head area of a statically sized one.
-    /// This is solc's `calldataEncodedTailSize`, the length its calldata tail access requires.
+    /// This is the length a calldata tail access requires.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.h#L263>
     #[must_use]
     pub(crate) fn tail_size(&self) -> u64 {
         match self {

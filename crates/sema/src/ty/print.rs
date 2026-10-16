@@ -34,6 +34,10 @@ pub struct TyAbiPrinter<'gcx, W> {
     /// and may include `mapping`/`storage` references (e.g. `f(DataTypes.Reserve storage)`).
     /// JSON ABI structs remain tuples, and storage-reference functions are omitted.
     in_library: bool,
+    /// Whether the printer is inside the key or value type of a `mapping`.
+    ///
+    /// solc prints these with `canonicalName`, which keeps user-defined value type names.
+    in_mapping: bool,
 }
 
 /// [`TyAbiPrinter`] configuration.
@@ -54,7 +58,7 @@ pub enum TyAbiPrinterMode {
 impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     /// Creates a new ABI printer.
     pub fn new(gcx: Gcx<'gcx>, buf: W, mode: TyAbiPrinterMode) -> Self {
-        Self { gcx, buf, mode, in_library: false }
+        Self { gcx, buf, mode, in_library: false, in_mapping: false }
     }
 
     /// Sets whether types are printed for a `library` function.
@@ -103,6 +107,9 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
                 write!(self.buf, "{}", self.gcx.item_canonical_name(id))
             }
             TyKind::Enum(_) => self.buf.write_str("uint8"),
+            TyKind::Udvt(_, id) if self.in_mapping => {
+                write!(self.buf, "{}", self.gcx.item_canonical_name(id))
+            }
             TyKind::Udvt(ty, _) => self.print(ty),
             TyKind::Ref(ty, loc) => {
                 self.print(ty)?;
@@ -117,10 +124,12 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             // A `mapping` can appear in a `library` function signature. solc prints
             // it structurally as `mapping(key => value)`.
             TyKind::Mapping(key, value) if self.mode == TyAbiPrinterMode::Signature => {
+                let in_mapping = std::mem::replace(&mut self.in_mapping, true);
                 self.buf.write_str("mapping(")?;
                 self.print(key)?;
                 self.buf.write_str(" => ")?;
                 self.print(value)?;
+                self.in_mapping = in_mapping;
                 self.buf.write_str(")")
             }
             TyKind::DynArray(ty) => {
@@ -136,6 +145,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             | TyKind::StringLiteral(..)
             | TyKind::CallOptions(_)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Tuple(_)
             | TyKind::Mapping(..)
             | TyKind::Super(_)
@@ -265,9 +275,8 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 let kind = if utf8 { "utf8" } else { "bytes" };
                 write!(self.buf, "{kind}_string_literal[{len}]")
             }
-            TyKind::IntLiteral(_, size, _) => {
-                write!(self.buf, "int_literal[{}]", size.bits())
-            }
+            TyKind::IntLiteral(_, bits, _) => write!(self.buf, "int_literal[{bits}]"),
+            TyKind::RationalLiteral => self.buf.write_str("rational_literal"),
             TyKind::Slice(ty) => {
                 self.print(ty)?;
                 self.buf.write_str(" slice")

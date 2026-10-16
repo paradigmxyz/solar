@@ -10,15 +10,11 @@ struct Market {
 // spill would pay for a store, the copy that feeds it, and a later reload, so
 // the layout keeps the word resident and the slot feeds `sload` directly.
 // CHECK: push 11
+// CHECK: push 32
+// CHECK-NEXT: push 0
 // CHECK: keccak256
-// CHECK-NEXT: swap 1
-// CHECK-NEXT: push 3
-// CHECK-NEXT: sub
-// CHECK-NEXT: push bb{{[0-9]+}}
-// CHECK-NEXT: jumpi
 // CHECK-NEXT: dup 1
 // CHECK-NEXT: sload
-// CHECK-NEXT: push 0x900000000000000000000000000000007
 contract SpillCost {
     uint128 public a;
     bool public c;
@@ -37,7 +33,12 @@ contract SpillCost {
 
     function checkDynArray() external returns (uint256) { //~ WARN: unnamed return variable can remain unassigned
         arr.push(11);
-        uint256 data = uint256(keccak256(abi.encode(uint256(4))));
+        // A constant slot would fold the hash, so read the slot at runtime.
+        uint256 slot;
+        assembly {
+            slot := arr.slot
+        }
+        uint256 data = uint256(keccak256(abi.encode(slot)));
         require(raw(4) == 3, "len");
         require(raw(data) == 7 | (uint256(9) << 128), "data0");
         require(raw(data + 1) == 11, "data1");

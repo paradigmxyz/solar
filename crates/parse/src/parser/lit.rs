@@ -85,7 +85,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             TokenLitKind::Rational => self.parse_lit_rational(lit.symbol, subdenomination),
             TokenLitKind::Str | TokenLitKind::UnicodeStr | TokenLitKind::HexStr => {
                 self.subdenom_error(&mut subdenomination, lo.to(self.prev_token.span));
-                self.parse_lit_str(lit)
+                self.parse_lit_str(lit, lo)
             }
             TokenLitKind::Err(guar) => Ok(LitKind::Err(guar)),
         };
@@ -154,7 +154,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses a string literal.
-    fn parse_lit_str(&mut self, lit: TokenLit) -> PResult<'sess, LitKind<'ast>> {
+    fn parse_lit_str(&mut self, lit: TokenLit, span: Span) -> PResult<'sess, LitKind<'ast>> {
         let mode = match lit.kind {
             TokenLitKind::Str => StrKind::Str,
             TokenLitKind::UnicodeStr => StrKind::Unicode,
@@ -162,7 +162,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             _ => unreachable!(),
         };
 
-        let span = self.prev_token.span;
         let (mut value, _) =
             unescape::parse_string_literal(lit.symbol.as_str(), mode, span, self.sess);
         let mut extra = vec![];
@@ -185,6 +184,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
         let extra = self.alloc_vec(extra);
         Ok(LitKind::Str(kind, ByteSymbol::intern(&value), extra))
+    }
+
+    /// Reports invalid characters and escapes in a [`StrLit`], as [`parse_lit`](Self::parse_lit)
+    /// does for string literals in expressions. Returns `true` if the literal is valid.
+    pub(super) fn validate_str_lit(&self, lit: &StrLit) -> bool {
+        let (_, has_error) =
+            unescape::parse_string_literal(lit.value.as_str(), StrKind::Str, lit.span, self.sess);
+        !has_error
     }
 }
 
@@ -243,8 +250,9 @@ fn parse_integer<'ast>(
         return Err(LitError::IntegerLeadingZeros);
     }
 
-    // Address literal.
+    // Address literal. A denominated one is a number, which the AST validator rejects.
     if base == Base::Hexadecimal
+        && subdenomination.is_none()
         && s.len() == 42
         && let Ok(address) = s.parse()
     {
@@ -256,11 +264,13 @@ fn parse_integer<'ast>(
     if s.is_empty() {
         return Err(LitError::EmptyInteger);
     }
-    let mut n = u256_from_str_radix(s, base)?;
-    if let Some(subdenomination) = subdenomination {
-        n = n.checked_mul(U256::from(subdenomination.value())).ok_or(LitError::IntegerTooLarge)?;
+    let multiplier = subdenomination.map_or(1, SubDenomination::value);
+    if let Some(n) =
+        u256_from_str_radix(s, base).and_then(|n| n.checked_mul(U256::from(multiplier)))
+    {
+        return Ok(LitKind::Number(n));
     }
-    Ok(LitKind::Number(n))
+    Ok(number_lit(big_int_from_str_radix(s, base, false)? * multiplier))
 }
 
 fn parse_rational<'ast>(
@@ -379,11 +389,27 @@ fn parse_rational<'ast>(
     }
 
     if number.is_integer() {
-        big_to_u256(number.to_integer(), true).map(LitKind::Number)
+        Ok(number_lit(number.to_integer()))
     } else {
         let (numer, denom) = number.into_raw();
-        Ok(LitKind::Rational(Ratio::new(big_to_u256(numer, true)?, big_to_u256(denom, true)?)))
+        Ok(LitKind::Rational(lit_uint(&numer), lit_uint(&denom)))
     }
+}
+
+/// Returns the literal of a non-negative integer, stored inline when it fits in 256 bits.
+fn number_lit<'ast>(n: BigInt) -> LitKind<'ast> {
+    if n.bits() > 256 {
+        return LitKind::BigNumber(lit_uint(&n));
+    }
+    let mut limbs = [0; 4];
+    for (limb, digit) in limbs.iter_mut().zip(n.iter_u64_digits()) {
+        *limb = digit;
+    }
+    LitKind::Number(U256::from_limbs(limbs))
+}
+
+fn lit_uint(n: &BigInt) -> LitUint {
+    LitUint::from_be_bytes(&n.magnitude().to_bytes_be())
 }
 
 /// Primitive type to use for fast-path parsing.
@@ -411,47 +437,51 @@ const fn max_digits<const BITS: u32>(base: Base) -> usize {
             Base::Binary => BITS as usize,
             Base::Octal => 43,
             Base::Decimal => 39,
-            Base::Hexadecimal => 33,
+            Base::Hexadecimal => 32,
         },
         MAX_BITS => match base {
             Base::Binary => BITS as usize,
             Base::Octal => 1366,
             Base::Decimal => 1234,
-            Base::Hexadecimal => 1025,
+            Base::Hexadecimal => 1024,
         },
         _ => panic!("unknown bits"),
     }
 }
 
-fn u256_from_str_radix(s: &str, base: Base) -> Result<U256, LitError> {
+fn u256_from_str_radix(s: &str, base: Base) -> Option<U256> {
     if s.len() <= max_digits::<{ Primitive::BITS }>(base)
         && let Ok(n) = Primitive::from_str_radix(s, base as u32)
     {
-        return Ok(U256::from(n));
+        return Some(U256::from(n));
     }
-    U256::from_str_radix(s, base as u64).map_err(|_| LitError::IntegerTooLarge)
+    U256::from_str_radix(s, base as u64).ok()
 }
 
 fn big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<BigInt, LitError> {
+    let too_large = || if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge };
+    // Leading zeros add digits but no bits to an integer. A rational's digits include its fraction,
+    // whose leading zeros widen its denominator.
+    let s = match s.trim_start_matches('0') {
+        "" => "0",
+        digits if !rat => digits,
+        _ => s,
+    };
     if s.len() > max_digits::<MAX_BITS>(base) {
-        return Err(if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge });
+        return Err(too_large());
     }
     if s.len() <= max_digits::<{ Primitive::BITS }>(base)
         && let Ok(n) = Primitive::from_str_radix(s, base as u32)
     {
         return Ok(BigInt::from(n));
     }
-    BigInt::from_str_radix(s, base as u32)
-        .map_err(|e| if rat { LitError::ParseRational(e) } else { LitError::ParseInteger(e) })
-}
-
-fn big_to_u256(big: BigInt, rat: bool) -> Result<U256, LitError> {
-    let (_, limbs) = big.to_u64_digits();
-    U256::checked_from_limbs_slice(&limbs).ok_or(if rat {
-        LitError::RationalTooLarge
-    } else {
-        LitError::IntegerTooLarge
-    })
+    let n = BigInt::from_str_radix(s, base as u32)
+        .map_err(|e| if rat { LitError::ParseRational(e) } else { LitError::ParseInteger(e) })?;
+    // The digit count only bounds the value, so check its bits too.
+    if n.bits() > u64::from(MAX_BITS) {
+        return Err(too_large());
+    }
+    Ok(n)
 }
 
 fn pow10(exp: u32) -> BigInt {
@@ -591,6 +621,13 @@ mod tests {
         check_address("0x000000000000000000000000000000000000000000", Err("0"));
         check_address("0x0000000000000000000000000000000000000001", Ok(Address::with_last_byte(1)));
 
+        lex_literal(&format!("0x1{}", "0".repeat(64)), false, |sess, symbol| {
+            let Ok(LitKind::BigNumber(n)) = parse_integer(sess, symbol, None) else {
+                panic!("not a big number")
+            };
+            assert_eq!(n.to_be_bytes(), [&[1][..], &[0; 32]].concat());
+        });
+
         check_address(
             "0x52908400098527886E0F7030069857D2E4169EE7",
             Ok(address!("0x52908400098527886E0F7030069857D2E4169EE7")),
@@ -659,7 +696,10 @@ mod tests {
         fn check_rat(src: &str, expected: Result<&str, LitError>) {
             lex_literal(src, false, |sess, symbol| {
                 let res = match parse_rational(sess, symbol, None) {
-                    Ok(LitKind::Rational(r)) => Ok(r),
+                    Ok(LitKind::Rational(numer, denom)) => Ok(Ratio::new_raw(
+                        BigUint::from_bytes_be(numer.to_be_bytes()),
+                        BigUint::from_bytes_be(denom.to_be_bytes()),
+                    )),
                     Ok(x) => panic!("not a number: {x:?} ({src:?})"),
                     Err(e) => Err(e),
                 };
@@ -668,6 +708,16 @@ mod tests {
                     Err(e) => Err(e),
                 };
                 assert_eq!(res, expected, "{src:?}");
+            });
+        }
+
+        #[track_caller]
+        fn check_big(src: &str, expected: &str) {
+            lex_literal(src, false, |sess, symbol| {
+                let Ok(LitKind::BigNumber(n)) = parse_rational(sess, symbol, None) else {
+                    panic!("not a big number ({src:?})")
+                };
+                assert_eq!(BigUint::from_bytes_be(n.to_be_bytes()).to_string(), expected);
             });
         }
 
@@ -798,5 +848,10 @@ mod tests {
         check_rat("1.100", Ok("11/10"));
         check_rat("1.2", Ok("12/10"));
         check_rat("1.20", Ok("12/10"));
+
+        // Values, numerators and denominators wider than 256 bits are interned.
+        check_rat("1e-78", Ok(&zeros("1/1", 78)));
+        check_rat("1.5e-100", Ok(&zeros("15/1", 101)));
+        check_big("1e78", &zeros("1", 78));
     }
 }

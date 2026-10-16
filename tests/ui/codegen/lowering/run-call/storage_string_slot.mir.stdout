@@ -15,7 +15,7 @@ fn @returnThroughRef() -> i256 [selector=0x49589c2a, abi_params=[], abi_returns=
   bb0:
     store_storage_bytes_literal 32, hex"61616161616161616161616161616161616161616161616161616161616161616161616161616161"
     v0 = icall @read, 32
-    v1 = memory_object_len memorybytes, v0
+    v1 = mload v0
     ret v1
 }
 
@@ -32,7 +32,7 @@ fn @length(arg0: i256) -> i256 [view] {
     ret v6
 }
 
-fn @read(arg0: i256) -> memptr [pure] {
+fn @read(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

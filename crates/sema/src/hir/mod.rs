@@ -701,7 +701,8 @@ impl<'hir> Item<'_, 'hir> {
     #[inline]
     pub fn is_visible_via_contract_type_access(self) -> bool {
         match self {
-            Item::Function(f) => f.is_ordinary() && f.visibility >= Visibility::Public,
+            // A getter is part of the external interface, but its state variable is not visible.
+            Item::Function(f) => f.is_part_of_external_interface() && !f.is_getter(),
             Item::Struct(_) | Item::Enum(_) | Item::Udvt(_) | Item::Error(_) | Item::Event(_) => {
                 true
             }
@@ -979,6 +980,8 @@ pub struct Modifier<'hir> {
     pub id: ItemId,
     /// The arguments to the modifier or base class call.
     pub args: CallArgs<'hir>,
+    /// Whether the call names its target through a contract, as in `B.m`.
+    pub qualified: bool,
 }
 
 /// A resolved `using for` directive.
@@ -1834,20 +1837,18 @@ impl<'hir> Expr<'hir> {
         ControlFlow::Continue(())
     }
 
-    /// Returns `true` if this expression is integer literal arithmetic, which is evaluated exactly
+    /// Returns `true` if this expression is number literal arithmetic, which is evaluated exactly
     /// at compile time.
-    pub fn is_int_literal(&self) -> bool {
+    pub fn is_numeric_literal(&self) -> bool {
         match &self.kind {
-            ExprKind::Lit(lit) => matches!(lit.kind, ast::LitKind::Number(_)),
+            ExprKind::Lit(lit) => lit.kind.is_number(),
             ExprKind::Unary(op, inner) if matches!(op.kind, UnOpKind::Neg | UnOpKind::BitNot) => {
-                inner.is_int_literal()
+                inner.is_numeric_literal()
             }
-            ExprKind::Binary(lhs, op, rhs)
-                if !op.kind.is_cmp() && !matches!(op.kind, BinOpKind::Or | BinOpKind::And) =>
-            {
-                lhs.is_int_literal() && rhs.is_int_literal()
+            ExprKind::Binary(lhs, op, rhs) if !op.kind.is_cmp() && !op.kind.is_logical() => {
+                lhs.is_numeric_literal() && rhs.is_numeric_literal()
             }
-            ExprKind::Tuple([Some(inner)]) => inner.is_int_literal(),
+            ExprKind::Tuple([Some(inner)]) => inner.is_numeric_literal(),
             _ => false,
         }
     }

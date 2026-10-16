@@ -78,10 +78,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.returns.len() == 1 {
             let ty = self.cx.gcx.type_of_item(self.returns[0].into());
             if ty.is_ref_at(DataLocation::Storage) {
-                let Some(access) = self.storage_access(expr) else {
-                    return self.cx.report_unsupported(expr.span, "storage access");
-                };
-                return Some(vec![access.slot]);
+                return Some(vec![self.require_storage_access(expr)?.slot]);
             }
             let value = self.lower_typed_expr(expr, ty)?;
             let value = if ty.is_ref_at(DataLocation::Memory) {
@@ -103,10 +100,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = (*value)?;
                     let ty = self.cx.gcx.type_of_item(id.into());
                     if ty.is_ref_at(DataLocation::Storage) {
-                        let Some(access) = self.storage_access(value) else {
-                            return self.cx.report_unsupported(value.span, "storage access");
-                        };
-                        Some(access.slot)
+                        Some(self.require_storage_access(value)?.slot)
                     } else {
                         let span = value.span;
                         let value = self.lower_typed_expr(value, ty)?;
@@ -197,10 +191,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // `lower_expr` copies a storage state variable to memory, unlike any other storage
         // reference.
         if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage)) {
-            let Some(access) = self.storage_access(expr) else {
-                return self.cx.report_unsupported(expr.span, "storage access");
-            };
-            return Some(access.slot);
+            return Some(self.require_storage_access(expr)?.slot);
         }
         self.lower_expr(expr)
     }
@@ -487,17 +478,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let value = if self.is_storage_reference_binding(lhs)
                             && source_ty.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
                         {
-                            let Some(access) = self.storage_access(rhs) else {
-                                return self.cx.report_unsupported(rhs.span, "storage access");
-                            };
+                            let access = self.require_storage_access(rhs)?;
                             TupleAssignmentRhs::StorageReference { access }
                         } else if source_ty.is_some_and(|ty| {
                             ty.is_ref_at(DataLocation::Storage)
                                 && self.types.memory_layout(ty).is_some()
                         }) {
-                            let Some(access) = self.storage_access(rhs) else {
-                                return self.cx.report_unsupported(rhs.span, "storage access");
-                            };
+                            let access = self.require_storage_access(rhs)?;
                             TupleAssignmentRhs::StorageCopy {
                                 access,
                                 source_ty: source_ty?,
@@ -597,7 +584,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|(index, &field)| {
                 // field = extract_value result, index
                 let result = self.builder.extract_value(id, value, index as u32, field);
-                if dirty || field == MirType::Slice(SliceLocation::Calldata) {
+                if dirty || field == MirType::Slice(PtrLocation::Calldata) {
                     self.dirty_values.insert(result);
                 }
                 result
@@ -614,7 +601,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let offset = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32));
         debug_assert!(index < words);
         let position = self.builder.add(base, offset);
-        self.builder.mload(position)
+        self.builder.load(position, PtrLocation::Memory)
     }
 
     pub(super) fn load_static_abi_return_value_as(
@@ -624,15 +611,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         returns: usize,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        if types::TypeLowerer::mir_type(ty) != MirType::MemPtr {
+        if types::TypeLowerer::mir_type(ty) != MirType::MEMPTR {
             return self.load_static_abi_return_value(base, index, returns);
         }
-        let index = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX));
-        self.builder.memory_object_load_element_as(
+        self.builder.memory_load_field_as(
             base,
-            MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),
-            index,
-            MirType::MemPtr,
+            u64::try_from(index).unwrap_or(u64::MAX),
+            MirType::MEMPTR,
         )
     }
 }

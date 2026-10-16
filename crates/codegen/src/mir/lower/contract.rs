@@ -140,9 +140,9 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     state.analyze_raw_scalars(gcx, contract_id, &function_ids);
     let is_library = contract.kind == hir::ContractKind::Library;
     module.is_library = is_library;
-    // A library's non-view external functions may only run through `DELEGATECALL`. Like
-    // solc, the dispatch compares `address()` against the library's own deployment address,
-    // which the creation code patches into the runtime code like an immutable.
+    // A library's non-view external functions may only run through `DELEGATECALL`. The
+    // dispatch compares `address()` against the library's own deployment address, which the
+    // creation code patches into the runtime code like an immutable.
     let library_deploy_address = (is_library
         && function_ids.iter().any(|&(id, expose_selector)| {
             expose_selector
@@ -192,13 +192,14 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let has_implicit_base_constructors =
         contract.linearized_bases.iter().skip(1).any(|&base| gcx.hir.contract(base).ctor.is_some())
             || contract.linearized_bases_args.iter().any(Option::is_some);
+    let bytecode_dependencies = gcx.contract_bytecode_dependencies(contract_id);
     let synthetic_ok = (|| {
         let mut context = function::LoweringContext {
             gcx,
             module: &mut module,
             storage: &storage,
             contract_id,
-            bytecode_dependencies: gcx.contract_bytecode_dependencies(contract_id),
+            bytecode_dependencies: &bytecode_dependencies,
             function_ids: &mir_ids,
             immutable_ids: &immutable_ids,
             state: &mut state,

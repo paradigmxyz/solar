@@ -1,70 +1,78 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_from_calldata.sol:StorageBytesFromCalldata ===
 @module StorageBytesFromCalldata
-fn @setText(arg0: calldataslice) [selector=0x5d3a1f9d, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+fn @setText(arg0: slice<calldata>) [selector=0x5d3a1f9d, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
-    v2 = gt v1, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v2
-    v3 = calldatasize
-    v4 = sub v3, v1
-    v5 = sgt v0, v4
-    icall revert_if<calldata_tail_too_short>, v5
-    v6 = slice_len arg0
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    icall panic_if<0x41>, v8
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    memory_object_copy_from_slice memorybytes, v11, arg0
-    icall @store_storage_bytes, 0, v11
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = calldatasize
+    v3 = gt v1, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v3
+    v4 = sub v2, v1
+    v5 = ptrtoint ptr<calldata> v0 to i256
+    v6 = sgt v5, v4
+    icall revert_if<calldata_tail_too_short>, v6
+    v7 = extract_value slice<calldata>, arg0, 1
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    icall panic_if<0x41>, v9
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc v11
+    mstore v12, v7
+    v13 = ptradd v12, 32
+    v14 = extract_value slice<calldata>, arg0, 0
+    v15 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v13, v14, v15
+    icall @store_storage_bytes, 0, v12
     ret
 }
 
-fn @setBlob(arg0: calldataslice) [selector=0xdd7d5edb, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+fn @setBlob(arg0: slice<calldata>) [selector=0xdd7d5edb, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
-    v2 = gt v1, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v2
-    v3 = calldatasize
-    v4 = sub v3, v1
-    v5 = sgt v0, v4
-    icall revert_if<calldata_tail_too_short>, v5
-    v6 = slice_len arg0
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    icall panic_if<0x41>, v8
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    memory_object_copy_from_slice memorybytes, v11, arg0
-    icall @store_storage_bytes, 1, v11
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = calldatasize
+    v3 = gt v1, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v3
+    v4 = sub v2, v1
+    v5 = ptrtoint ptr<calldata> v0 to i256
+    v6 = sgt v5, v4
+    icall revert_if<calldata_tail_too_short>, v6
+    v7 = extract_value slice<calldata>, arg0, 1
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    icall panic_if<0x41>, v9
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc v11
+    mstore v12, v7
+    v13 = ptradd v12, 32
+    v14 = extract_value slice<calldata>, arg0, 0
+    v15 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v13, v14, v15
+    icall @store_storage_bytes, 1, v12
     ret
 }
 
-fn @getText() -> memptr [selector=0xe00fe2eb, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @getText() -> ptr<memory> [selector=0xe00fe2eb, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
     ret v0
 }
 
-fn @getBlob() -> memptr [selector=0x32db030e, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @getBlob() -> ptr<memory> [selector=0x32db030e, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1
     ret v0
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

@@ -8,9 +8,9 @@
 // CHECK-LABEL: {{^[ +].*}}fn @constant_start_and_step{{[( ]}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb3
 // CHECK: + jump bb3
-fn @constant_start_and_step(arg0: memptr) -> i256 {
+fn @constant_start_and_step(arg0: ptr<memory>) -> i256 {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
+    v0 = mload arg0
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb3: v6]
@@ -33,9 +33,9 @@ fn @constant_start_and_step(arg0: memptr) -> i256 {
 // so the same check stays.
 // CHECK-LABEL: {{^[ +].*}}fn @unknown_start{{[( ]}}
 // CHECK: {{^ +}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb3
-fn @unknown_start(arg0: memptr, arg1: i256) -> i256 {
+fn @unknown_start(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
+    v0 = mload arg0
     jump bb1
   bb1:
     v1 = phi [bb0: arg1], [bb3: v6]
@@ -173,4 +173,22 @@ fn @doubling_counter(arg0: i256, arg1: i1) -> i256 {
     revert 0, 0
   bb5:
     ret v1
+}
+
+// A narrow counter wraps within the trip bound: an `int24` from -50 turns
+// positive after 50 steps, so its signed exit test stays.
+// CHECK-LABEL: {{^[ +].*}}fn @narrow_signed_counter{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @narrow_signed_counter() -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: i24 0xffffce], [bb2: v2]
+    v1 = slt v0, i24 50
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = add v0, i24 1
+    jump bb1
+  bb3:
+    ret 0
 }

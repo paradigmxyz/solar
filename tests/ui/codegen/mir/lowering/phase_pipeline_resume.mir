@@ -51,10 +51,10 @@ fn @constant_phi(arg0: i1) -> i256 {
 }
 
 // FOLD-LABEL: {{^[ +].*}}fn @pointer_constant
-// FOLD: + ret memptr 7
-fn @pointer_constant() -> memptr {
+// FOLD: + ret ptr<memory> 7
+fn @pointer_constant() -> ptr<memory> {
   bb0:
-    v0 = inttoptr i256 7 to memptr
+    v0 = inttoptr i256 7 to ptr<memory>
     ret v0
 }
 

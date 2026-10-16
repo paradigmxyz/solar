@@ -1580,6 +1580,17 @@ impl<'a> CheckEliminator<'a> {
                 let rb = self.range_of(func, b, depth);
                 Range::new(U256::ZERO, ra.hi.min(rb.hi))
             }
+            // Neither sets a bit above both operands' highest bits; `or` also
+            // keeps every bit of each, so it is at least either operand.
+            InstKind::Or(a, b) | InstKind::Xor(a, b) => {
+                let ra = self.range_of(func, a, depth);
+                let rb = self.range_of(func, b, depth);
+                let bits = ra.hi.max(rb.hi).bit_len();
+                let hi = if bits == 256 { U256::MAX } else { (U256::ONE << bits) - U256::ONE };
+                let lo =
+                    if matches!(kind, InstKind::Or(..)) { ra.lo.max(rb.lo) } else { U256::ZERO };
+                Range::new(lo, hi)
+            }
             // EVM shifts take the count first. A constant right shift maps both
             // bounds; a constant left shift keeps them when the top cannot spill.
             InstKind::Shr(shift, value) => {
@@ -2248,15 +2259,25 @@ fn doubled(func: &Function, value: ValueId) -> Option<(ValueId, bool)> {
 fn trip_count_bound(func: &Function, phi: &MonotonePhi) -> Option<Range> {
     let initial = const_of(func, phi.initial)?;
     let step = const_of(func, phi.step)?;
-    let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
     if phi.decreasing {
+        let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
         Some(Range::new(initial.checked_sub(travel)?, initial))
     } else {
-        Some(Range::new(
-            initial,
-            initial.checked_add(travel).filter(|&hi| hi <= integer_max(func, phi.value))?,
-        ))
+        ascending_trip_bound(func, phi.value, initial, step)
     }
+}
+
+/// The values a counter of `value`'s type from `initial` can take within the target's trip
+/// bound, advancing by at most `step` per iteration, when the far end does not wrap.
+fn ascending_trip_bound(
+    func: &Function,
+    value: ValueId,
+    initial: U256,
+    step: U256,
+) -> Option<Range> {
+    let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
+    let far = initial.checked_add(travel).filter(|&far| far <= integer_max(func, value))?;
+    Some(Range::new(initial, far))
 }
 
 fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
@@ -2271,7 +2292,7 @@ fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
 /// `next` can be, through phis and selects inside the loop, is `p` itself or `p + c` for a
 /// constant `c`, as a counter that only some iterations advance is: within the target's trip
 /// bound, `p` moves at most `2^MAX_TRIP_COUNT_BITS` times the largest step from a constant
-/// start.
+/// start, when the far end fits in `p`'s type.
 fn counter_bounds(
     func: &Function,
     cfg: &CfgInfo,
@@ -2308,10 +2329,9 @@ fn counter_bounds(
             }
             if let Some(initial) = const_of(func, initial)
                 && let Some(step) = largest_step(func, value, next)
-                && let Some(travel) = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)
-                && let Some(far) = initial.checked_add(travel)
+                && let Some(bound) = ascending_trip_bound(func, value, initial, step)
             {
-                bounds.push((value, Range::new(initial, far)));
+                bounds.push((value, bound));
             }
         }
     }

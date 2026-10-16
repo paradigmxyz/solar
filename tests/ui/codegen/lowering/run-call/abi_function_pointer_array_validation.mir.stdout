@@ -5,29 +5,30 @@ fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[], abi_retu
     ret
 }
 
-fn @g(arg0: calldataslice) -> i256 [selector=0xc16ea9d4, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @g(arg0: slice<calldata>) -> i256 [selector=0xc16ea9d4, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
-fn @h(arg0: calldataslice) -> i256 [selector=0xdae6c3bf, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @h(arg0: slice<calldata>) -> i256 [selector=0xdae6c3bf, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
-    v4 = add v3, 0
-    v5 = calldataload v4
-    v6 = shl 192, v5
-    v7 = eq v6, 0
-    v8 = eq v7, false
-    icall revert_if<empty>, v8
-    v9 = shr 64, v5
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 0
+    v6 = calldataload v5
+    v7 = shl 192, v6
+    v8 = eq v7, 0
+    v9 = eq v8, false
+    icall revert_if<empty>, v9
+    v10 = shr 64, v6
     ret 3
 }
 
-fn @m(arg0: memptr) -> i256 [selector=0x4d6e4a29, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @m(arg0: ptr<memory>) -> i256 [selector=0x4d6e4a29, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 4
 }
@@ -52,38 +53,39 @@ fn @checkM(arg0: i1) -> i256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_
 
 fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xd4b83992
-    v5 = memory_object_len memoryarray, v0
+    v5 = mload v0
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl 64, v4
-    memory_object_store_element memoryarray<1>, v0, 0, v8
-    v9 = abi_encode [memory_array<function>], object, selector arg0, args v0
+    v9 = ptradd v0, 32
+    mstore v9, v8
+    v10 = abi_encode [memory_array<function>], object, selector arg0, args v0
     jumpi arg1, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v10 = ptrtoint memptr v9 to i256
-    v11 = add v10, 32
-    v12 = add v11, 92
-    mstore8 v12, 88
+    v11 = ptrtoint ptr<memory> v10 to i256
+    v12 = add v11, 32
+    v13 = add v12, 92
+    mstore8 v13, 88
     jump bb3
   bb3:
-    v13 = address
-    v14 = gas
-    v15 = address_staticcall v13, v9, gas v14
-    v16 = icall returndata_bytes<>
-    v17 = eq v15, false
-    icall revert_if<empty>, v17
-    v18 = abi_decode [u256], v16
-    v19 = eq v18, arg2
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    ret v18
+    v14 = address
+    v15 = gas
+    v16 = address_staticcall v14, v10, gas v15
+    v17 = icall returndata_bytes<>
+    v18 = eq v16, false
+    icall revert_if<empty>, v18
+    v19 = abi_decode [u256], v17
+    v20 = eq v19, arg2
+    v21 = eq v20, false
+    icall revert_if<empty>, v21
+    ret v19
 }

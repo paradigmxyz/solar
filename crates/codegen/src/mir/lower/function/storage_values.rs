@@ -7,8 +7,8 @@ fn build_storage_bytes_helper(function: &mut Function) {
     // load_storage_bytes(slot) -> bytes_object
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::I256);
-    builder.set_return_type(MirType::MemPtr);
-    let object = builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(MirType::MemPtr));
+    builder.set_return_type(MirType::MEMPTR);
+    let object = builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(MirType::MEMPTR));
     builder.ret([object]);
 }
 
@@ -20,7 +20,7 @@ fn build_storage_array_helper(
     // object = load_storage_array element, slot; ret object
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::I256);
-    let ty = MirType::MemPtr;
+    let ty = MirType::MEMPTR;
     builder.set_return_type(ty);
     let object =
         builder.emit_inst(InstKind::StorageArrayLoad { slot, element, enum_variants }, Some(ty));
@@ -48,13 +48,14 @@ fn packed_storage_array_position(
 }
 
 /// Builds `store_storage_bytes(slot, object)`, shared by every `bytes`/`string` store into
-/// storage like solc's `copy_byte_array_to_storage`: one body per contract instead of one per
-/// assignment site.
+/// storage: one body per contract instead of one per assignment site.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L2064>
 fn build_storage_bytes_store_helper(function: &mut Function) {
     // store_storage_bytes(slot, object); ret
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::I256);
-    let object = builder.add_param(MirType::MemPtr);
+    let object = builder.add_param(MirType::MEMPTR);
     builder.store_storage_bytes(slot, object);
     builder.ret([]);
 }
@@ -129,7 +130,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
             TyKind::Array(..) | TyKind::DynArray(..) => false,
-            TyKind::Elementary(_) => self.cx.gcx.try_eval_const_value(expr).is_ok(),
+            TyKind::Elementary(_) => self.cx.gcx.const_eval().eval_expr(expr).is_ok(),
             _ => false,
         }
     }
@@ -139,7 +140,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let LitKind::Str(_, bytes, _) = lit.kind
         {
             Some(bytes)
-        } else if let Ok(ConstValue::String(bytes)) = self.cx.gcx.try_eval_const_value(expr) {
+        } else if let Ok(ConstValue::Bytes(bytes, _)) = self.cx.gcx.const_eval().eval_expr(expr) {
             Some(*bytes)
         } else {
             None
@@ -152,10 +153,64 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
         let ty = self.cx.gcx.type_of_expr(lhs.id)?.peel_refs();
-        let Some(access) = self.storage_access(lhs) else {
-            return self.cx.report_unsupported(lhs.span, "storage access");
-        };
-        self.store_constant_storage_value(ty, access, rhs)
+        // A constant that does not fold can revert, so lower the field values before the
+        // storage access, in the struct constructor's order.
+        let mut values = Vec::new();
+        self.lower_constant_storage_fields(ty, rhs, &mut values)?;
+        let access = self.require_storage_access(lhs)?;
+        self.store_constant_storage_value(ty, access, rhs, &mut values.into_iter())
+    }
+
+    fn lower_constant_storage_fields(
+        &mut self,
+        ty: Ty<'gcx>,
+        expr: &hir::Expr<'_>,
+        values: &mut Vec<ValueId>,
+    ) -> Option<()> {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => Some(()),
+            TyKind::Struct(struct_id) => {
+                let (_, args, _) = expr.peel_parens().as_call()?;
+                let fields = self.cx.gcx.hir.strukt(struct_id).fields;
+                let names =
+                    self.cx.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
+                let fields_values = self.lower_call_arguments(
+                    *args,
+                    CallArgumentParams {
+                        count: fields.len(),
+                        names: Some(names.as_slice()),
+                        reverse: false,
+                    },
+                    args.span,
+                    "struct constructor argument",
+                    |this, index, argument| {
+                        let field_ty = this.cx.gcx.type_of_item(fields[index].into());
+                        let mut field_values = Vec::new();
+                        this.lower_constant_storage_fields(field_ty, argument, &mut field_values)?;
+                        Some(field_values)
+                    },
+                )?;
+                values.extend(fields_values.into_iter().flatten());
+                Some(())
+            }
+            _ => {
+                let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
+                let constant = match self.cx.gcx.const_eval().eval_expr(expr) {
+                    Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
+                    Ok(ConstValue::Int(value)) => {
+                        value.as_u256().map(|value| self.builder.imm(value))
+                    }
+                    _ => None,
+                };
+                let value = if let Some(value) = constant {
+                    self.coerce_value(value, expr_ty, ty)
+                } else {
+                    self.lower_typed_expr(expr, ty)?
+                };
+                values.push(value);
+                Some(())
+            }
+        }
     }
 
     fn store_constant_storage_value(
@@ -163,6 +218,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         access: StorageAccess,
         expr: &hir::Expr<'_>,
+        values: &mut std::vec::IntoIter<ValueId>,
     ) -> Option<()> {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
@@ -194,43 +250,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         field_ty,
                         StorageAccess { slot, location, offset: None },
                         argument,
+                        values,
                     )?;
                 }
                 Some(())
             }
-            _ => {
-                let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
-                let constant = match self.cx.gcx.try_eval_const_value(expr) {
-                    Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
-                    Ok(ConstValue::Integer(value)) => {
-                        value.as_u256().map(|value| self.lower_const_integer(expr_ty, value))
-                    }
-                    _ => None,
-                };
-                let value = if let Some(value) = constant {
-                    self.coerce_value(value, expr_ty, ty)
-                } else {
-                    self.lower_typed_expr(expr, ty)?
-                };
-                self.store_storage_value(ty, access, value, expr.span)
-            }
+            _ => self.store_storage_value(ty, access, values.next()?, expr.span),
         }
     }
 
+    /// Like [`Self::storage_access`], but reports an unsupported error when it fails.
+    pub(super) fn require_storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
+        self.storage_access(expr)
+            .or_else(|| self.cx.report_unsupported(expr.span, "storage access"))
+    }
+
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
-        let expr = self.peel_bytes_conversion(expr);
-        if matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
+        let expr = self.peel_storage_conversions(expr);
+        if matches!(expr.kind, ExprKind::Member(..))
             && let Some(id) = self.cx.gcx.resolved_variable(expr)
             && self.cx.gcx.hir.variable(id).is_state_variable()
         {
-            let location = self.cx.storage.get(id)?;
-            let slot = self.builder.imm(location.slot);
-            return Some(StorageAccess { slot, location, offset: None });
+            return self.variable_storage_access(id);
         }
         match &expr.kind {
             ExprKind::Ident(_) => {
                 let id = self.cx.gcx.resolved_variable(expr)?;
-                self.storage_refs.get(&id).copied()
+                self.variable_storage_access(id)
             }
             ExprKind::Member(receiver, _) => {
                 let id = self.cx.gcx.resolved_variable(expr)?;
@@ -342,6 +388,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    /// Peels type conversions to storage references. Sema only allows identity conversions
+    /// between storage references, so the innermost argument refers to the same storage.
+    fn peel_storage_conversions<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b> {
+        self.peel_type_conversions(expr, |expr, _| {
+            self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+        })
+    }
+
     fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
         self.cx.gcx.type_of_expr(callee.id).is_some_and(|ty| {
             matches!(ty.kind, TyKind::Fn(function)
@@ -414,8 +468,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Appends one zeroed byte to a storage `bytes`/`string` value in place and
-    /// returns the access for the appended element, like solc's
-    /// `array_push_zero` for byte arrays.
+    /// returns the access for the appended element.
     ///
     /// The growth follows Solidity's short/long layout: a value that already is
     /// long only gets a new header, a value that crosses 32 bytes moves its 31
@@ -423,6 +476,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// data in the header. The appended byte is zeroed by the header rewrite in
     /// the short cases and by the data area already being clear in the long
     /// ones, so no extra store is needed.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L1801>
     pub(super) fn grow_storage_bytes(&mut self, slot: ValueId) -> StorageAccess {
         // data = sload(slot)
         // old_length = extract_length(data)
@@ -593,18 +648,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(CallResult::Void)
     }
 
-    /// Appends one byte to a storage `bytes`/`string` value in place, like
-    /// solc's `array_push` for byte arrays.
+    /// Appends one byte to a storage `bytes`/`string` value in place.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L1730>
     fn lower_storage_bytes_push(
         &mut self,
         receiver: &hir::Expr<'_>,
         argument: Option<&hir::Expr<'_>>,
         capture_value: bool,
     ) -> Option<CallResult> {
-        let Some(access) = self.storage_access(receiver) else {
-            return self.cx.report_unsupported(receiver.span, "storage access");
-        };
-        let slot = access.slot;
+        let slot = self.require_storage_access(receiver)?.slot;
         let byte_ty = self.cx.gcx.types.fixed_bytes(1);
         let Some(argument) = argument else {
             // The zero byte a plain `push()` appends is written by the growth itself, so the
@@ -710,9 +763,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             receiver_ty.kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
-            let Some(access) = self.storage_access(receiver) else {
-                return self.cx.report_unsupported(receiver.span, "storage access");
-            };
+            let access = self.require_storage_access(receiver)?;
             return self.lower_storage_bytes_pop(access.slot, expr.span);
         }
 
@@ -736,13 +787,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    /// Removes the last byte of a storage `bytes`/`string` value in place, like
-    /// solc's `byte_array_pop`.
+    /// Removes the last byte of a storage `bytes`/`string` value in place.
     ///
     /// A value that stays short or long only rewrites its header, plus the data
     /// word holding the removed byte when it is long; the long-to-short
     /// transition at 32 bytes moves the remaining 31 bytes back into the header
     /// and clears the data word.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L1686>
     fn lower_storage_bytes_pop(&mut self, slot: ValueId, span: Span) -> Option<()> {
         // data = sload(slot)
         // old_length = extract_length(data)
@@ -810,9 +862,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         receiver: &hir::Expr<'_>,
     ) -> Option<(StorageAccess, Ty<'gcx>)> {
-        let Some(base) = self.storage_access(receiver) else {
-            return self.cx.report_unsupported(receiver.span, "storage access");
-        };
+        let base = self.require_storage_access(receiver)?;
         let ty = self.cx.gcx.type_of_expr(receiver.id)?.peel_refs();
         let TyKind::DynArray(element) = ty.kind else { return None };
         Some((base, element))
@@ -826,15 +876,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 | TyKind::StringLiteral(..)
         );
         if is_dynamic {
-            if self.builder.func().value_slice_location(key) == Some(SliceLocation::Calldata) {
-                self.builder.mapping_slot_calldata(key, slot)
-            } else {
-                self.builder.mapping_slot_memory(key, slot)
-            }
-        } else {
-            let key = self.encode_memory_scalar(key_ty, key);
-            self.builder.mapping_slot(key, slot)
+            return self.builder.mapping_slot_bytes(key, slot);
         }
+        let key = self.encode_memory_scalar(key_ty, key);
+        self.builder.mapping_slot(key, slot)
     }
 
     pub(super) fn storage_array_element_access(
@@ -978,7 +1023,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // object = alloc_struct(fields)
                 // for field { object[field] = load_storage(field_slot) }
                 let fields = self.cx.gcx.hir.strukt(struct_id).fields.len() as u64;
-                let (object, layout) = self
+                let object = self
                     .builder
                     .alloc_word_struct(fields, AllocationSemantics::SOLIDITY_UNINITIALIZED);
                 for (index, &field) in self.cx.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
@@ -991,7 +1036,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         span,
                     )?;
                     let value = self.encode_memory_scalar(field_ty, value);
-                    self.builder.memory_object_store_field(object, layout, index as u64, value);
+                    self.builder.memory_store_field(object, index as u64, value);
                 }
                 Some(object)
             }
@@ -1003,18 +1048,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let layout = MemoryObjectLayout::FixedArray { len, element_words };
                 let size =
                     self.builder.imm(len.checked_mul(u64::from(element_words))?.saturating_mul(32));
-                let object = self.builder.alloc_object(
-                    size,
-                    layout,
-                    AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                );
+                let object = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
                 let len = self.builder.imm(len);
                 self.counted_loop(len, |this, index| {
                     let access =
                         this.storage_array_element_access(slot, index, element, false, span)?;
                     let value = this.load_storage_value(element, access, span)?;
                     let value = this.encode_memory_scalar(element, value);
-                    this.builder.memory_object_store_element(object, layout, index, value);
+                    this.builder.memory_store_element(object, layout, index, value);
                     Some(())
                 })?;
                 Some(object)
@@ -1127,7 +1168,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     element_slot += element_slots
         // }
         let slot = self.builder.add_param(MirType::I256);
-        self.builder.set_return_type(MirType::MemPtr);
+        self.builder.set_return_type(MirType::MEMPTR);
 
         let length = self.builder.sload(slot);
         let (object, layout) = self
@@ -1148,7 +1189,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(body);
         let value = self.load_storage_object(element, element_slot, Span::DUMMY)?;
-        self.builder.memory_object_store_element(object, layout, index, value);
+        self.builder.memory_store_element(object, layout, index, value);
         let next_index = self.builder.add_u64_offset(index, 1);
         let element_slots = self.cx.storage.element_slots(element, Span::DUMMY);
         let next_slot = self.add_storage_offset(element_slot, element_slots);
@@ -1170,7 +1211,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         let element_words = self.types.element_words(element);
         if let Some(helper) = self.ensure_storage_array_helper(element) {
-            return Some(self.builder.icall(helper, vec![slot], MirType::MemPtr));
+            return Some(self.builder.icall(helper, vec![slot], MirType::MEMPTR));
         }
 
         // length = sload(slot)
@@ -1184,15 +1225,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word_size = self.builder.imm(32);
         let size = self.builder.checked_mul(words, word_size);
         let layout = MemoryObjectLayout::DynamicArray { element_words };
-        let object =
-            self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        self.builder.set_memory_object_len(object, length, layout.kind());
+        let object = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        self.builder.set_memory_len(object, length);
 
         self.counted_loop(length, |this, index| {
             let access = this.storage_array_element_access(slot, index, element, true, span)?;
             let value = this.load_storage_value(element, access, span)?;
             let value = this.encode_memory_scalar(element, value);
-            this.builder.memory_object_store_element(object, layout, index, value);
+            this.builder.memory_store_element(object, layout, index, value);
             Some(())
         })?;
         Some(object)
@@ -1232,7 +1272,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         },
                         span,
                     )?;
-                    let object = self.builder.cast(object, MirType::MemPtr);
+                    let object = self.builder.cast(object, MirType::MEMPTR);
                     self.builder.icall_void(helper, vec![slot, object]);
                     return Some(());
                 }
@@ -1264,7 +1304,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     this.builder.branch(has_source, source, default);
 
                     this.builder.switch_to_block(source);
-                    let value = this.builder.memory_object_load_element(object, layout, index);
+                    let value = this.builder.memory_load_element(object, layout, index);
                     let value = this.decode_memory_scalar(source_element, value);
                     this.store_storage_value_with_source(
                         element,
@@ -1302,10 +1342,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> ValueId {
         if !self.cx.share_storage_bytes {
             // object = load_storage_bytes(slot)
-            return self.builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(MirType::MemPtr));
+            return self.builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(MirType::MEMPTR));
         }
         let helper = self.ensure_storage_bytes_helper();
-        self.builder.icall(helper, vec![slot], MirType::MemPtr)
+        self.builder.icall(helper, vec![slot], MirType::MEMPTR)
     }
 
     /// Reads the length of a storage `bytes`/`string` value from its header slot.
@@ -1313,6 +1353,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // length = extract_length(sload(slot))
         let (_, _, length) = decode_storage_bytes_header(&mut self.builder, slot);
         length
+    }
+
+    /// Reads the first data word and the length of a storage `bytes`/`string` value. A short
+    /// value's word is its header, whose low byte holds the length.
+    pub(super) fn storage_bytes_first_word(&mut self, slot: ValueId) -> (ValueId, ValueId) {
+        // header = sload(slot)
+        // word = is_long ? sload(storage_array_data_slot(slot)) : header
+        let (header, is_long, length) = decode_storage_bytes_header(&mut self.builder, slot);
+        let long_block = self.builder.create_block();
+        let short_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        self.builder.branch(is_long, long_block, short_block);
+
+        self.builder.switch_to_block(long_block);
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let long_word = self.builder.sload(data_slot);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(short_block);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(merge_block);
+        let word = self.builder.phi(vec![(long_block, long_word), (short_block, header)]);
+        (word, length)
     }
 
     /// Resolves one element of a storage `bytes`/`string` value to the single
@@ -1358,7 +1422,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })?;
         // object = inttoptr object
         // icall store_storage_bytes(slot, object)
-        let object = self.builder.cast(object, MirType::MemPtr);
+        let object = self.builder.cast(object, MirType::MEMPTR);
         self.builder.icall_void(helper, vec![slot, object]);
         Some(())
     }
@@ -1384,7 +1448,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let source_layout = self.types.memory_layout(source_ty)?;
         let (source_element, length, fixed_length) = match source_ty.kind {
             TyKind::DynArray(source_element) => {
-                (source_element, self.builder.memory_object_len(object, source_layout.kind()), None)
+                (source_element, self.builder.memory_len(object), None)
             }
             TyKind::Array(source_element, source_len) => {
                 let source_len = u64::try_from(source_len).ok()?;
@@ -1429,7 +1493,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.sstore(slot, length);
 
         self.counted_loop(length, |this, index| {
-            let value = this.builder.memory_object_load_element(object, source_layout, index);
+            let value = this.builder.memory_load_element(object, source_layout, index);
             let value = if this.types.memory_layout(source_element).is_some() {
                 this.materialize_array_element(object, source_layout, index, source_element, value)?
             } else {
@@ -1499,12 +1563,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<()> {
         let source_ty = self.cx.gcx.mk_ty(TyKind::Struct(source_struct_id));
-        let layout = self.types.memory_layout(source_ty)?;
+        // Only a memory object has addressable fields.
+        self.types.memory_layout(source_ty)?;
         for (index, &field) in self.cx.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
             let field_ty = self.cx.gcx.type_of_item(field.into());
             let location = self.cx.storage.field_location(struct_id, index)?;
             let field_slot = self.add_storage_offset(slot, location.slot);
-            let value = self.builder.memory_object_load_field(object, layout, index as u64);
+            let value = self.builder.memory_load_field(object, index as u64);
             let source_field = self.cx.gcx.hir.strukt(source_struct_id).fields[index];
             let source_field_ty = self.cx.gcx.type_of_item(source_field.into());
             let value = self.decode_memory_scalar(source_field_ty, value);
@@ -1534,7 +1599,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let slot = lowerer.builder.add_param(MirType::I256);
             let lowered = match helper {
                 RecursiveStorageHelper::Store { target, source } => {
-                    let object = lowerer.builder.add_param(MirType::MemPtr);
+                    let object = lowerer.builder.add_param(MirType::MEMPTR);
                     lowerer
                         .store_storage_struct_fields_with_source(target, source, slot, object, span)
                         .is_some()
@@ -1735,6 +1800,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(write_block);
         self.builder.sstore(slot, zero);
     }
+
+    /// Returns the storage a state variable or a bound storage reference names.
+    pub(super) fn variable_storage_access(&mut self, id: VariableId) -> Option<StorageAccess> {
+        if !self.cx.gcx.hir.variable(id).is_state_variable() {
+            return self.storage_refs.get(&id).copied();
+        }
+        let location = self.cx.storage.get(id)?;
+        let slot = self.builder.imm(location.slot);
+        Some(StorageAccess { slot, location, offset: None })
+    }
+
+    /// Points the storage reference `id` at `slot`, keeping its known layout.
+    pub(super) fn set_storage_ref_slot(&mut self, id: VariableId, slot: ValueId) {
+        // storage_ref.slot = slot
+        self.storage_refs
+            .entry(id)
+            .or_insert(StorageAccess {
+                slot,
+                location: StorageLocation::word(U256::ZERO),
+                offset: None,
+            })
+            .slot = slot;
+    }
 }
 
 fn decode_storage_bytes_header(
@@ -1750,8 +1838,9 @@ fn decode_storage_bytes_header(
     (header, is_long, length)
 }
 
-/// The data-area slot holding byte `index` of a long storage `bytes` value,
-/// like solc's `long_byte_array_index_access_no_checks`.
+/// The data-area slot holding byte `index` of a long storage `bytes` value.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L1637>
 fn long_storage_bytes_byte_slot(
     builder: &mut FunctionBuilder<'_>,
     slot: ValueId,
