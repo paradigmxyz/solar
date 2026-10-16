@@ -29,26 +29,17 @@ fn @pack(arg0: slice<calldata>) -> ptr<memory> [selector=0xc917a597, pure, abi_p
     icall revert_if<calldata_tail_too_short>, v20
     v21 = inttoptr i256 v18 to ptr<calldata>
     v22 = make_calldata_slice v21, v15
-    v23 = extract_value slice<calldata>, v22, 0
-    v24 = extract_value slice<calldata>, v22, 1
-    v25 = calldatasize
-    v26 = gt v24, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = sub v25, v24
-    v28 = ptrtoint ptr<calldata> v23 to i256
-    v29 = sgt v28, v27
-    icall revert_if<calldata_tail_too_short>, v29
-    v30 = extract_value slice<calldata>, arg0, 0
-    v31 = ptrtoint ptr<calldata> v30 to i256
-    v32 = add v31, 0
-    v33 = calldataload v32
-    v34 = shr 160, v33
-    v35 = eq v34, 0
-    v36 = eq v35, false
-    icall revert_if<empty>, v36
-    v37 = trunc i256 v33 to i160
-    v38 = abi_encode_packed (bytes v22, u160 v37)
-    ret v38
+    v23 = extract_value slice<calldata>, arg0, 0
+    v24 = ptrtoint ptr<calldata> v23 to i256
+    v25 = add v24, 0
+    v26 = calldataload v25
+    v27 = shr 160, v26
+    v28 = eq v27, 0
+    v29 = eq v28, false
+    icall revert_if<empty>, v29
+    v30 = trunc i256 v26 to i160
+    v31 = abi_encode_packed (bytes v22, u160 v30)
+    ret v31
 }
 
 fn @packHash(arg0: slice<calldata>) -> i256 [selector=0x26915e91, pure, abi_params=[tuple<address, address, u256, u256, u48, bytes, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -80,24 +71,15 @@ fn @packHash(arg0: slice<calldata>) -> i256 [selector=0x26915e91, pure, abi_para
     icall revert_if<calldata_tail_too_short>, v20
     v21 = inttoptr i256 v18 to ptr<calldata>
     v22 = make_calldata_slice v21, v15
-    v23 = extract_value slice<calldata>, v22, 0
-    v24 = extract_value slice<calldata>, v22, 1
-    v25 = calldatasize
-    v26 = gt v24, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = sub v25, v24
-    v28 = ptrtoint ptr<calldata> v23 to i256
-    v29 = sgt v28, v27
-    icall revert_if<calldata_tail_too_short>, v29
-    v30 = extract_value slice<calldata>, arg0, 0
-    v31 = ptrtoint ptr<calldata> v30 to i256
-    v32 = add v31, 0
-    v33 = calldataload v32
-    v34 = shr 160, v33
-    v35 = eq v34, 0
-    v36 = eq v35, false
-    icall revert_if<empty>, v36
-    v37 = trunc i256 v33 to i160
-    v38 = keccak256_packed (bytes v22, u160 v37)
-    ret v38
+    v23 = extract_value slice<calldata>, arg0, 0
+    v24 = ptrtoint ptr<calldata> v23 to i256
+    v25 = add v24, 0
+    v26 = calldataload v25
+    v27 = shr 160, v26
+    v28 = eq v27, 0
+    v29 = eq v28, false
+    icall revert_if<empty>, v29
+    v30 = trunc i256 v26 to i160
+    v31 = keccak256_packed (bytes v22, u160 v30)
+    ret v31
 }

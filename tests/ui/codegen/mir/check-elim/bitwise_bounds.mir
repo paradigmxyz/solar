@@ -1,0 +1,32 @@
+//@ compile-flags: -Zmir-pipeline=check-elim
+//@ filecheck:
+@module BitwiseBounds
+
+// CHECK-LABEL: fn @upper
+// CHECK: - jumpi v3, bb1, bb2
+// CHECK: + jump bb1
+fn @upper(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 15
+    v1 = and arg1, 7
+    v2 = xor v0, v1
+    v3 = lt v2, 16
+    jumpi v3, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 0
+}
+
+// CHECK-LABEL: fn @full_width
+// CHECK: jumpi
+fn @full_width(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = or arg0, arg1
+    v1 = lt v0, 16
+    jumpi v1, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 0
+}

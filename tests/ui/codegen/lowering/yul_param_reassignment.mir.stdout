@@ -17,17 +17,17 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
     v2 = mload arg0
     jump bb1
   bb1:
-    v3 = phi [bb0: v0]
-    v4 = phi [bb0: arg0]
+    v3 = phi [bb0: arg0]
+    v4 = phi [bb0: arg1]
     v5 = phi [bb0: arg2]
-    v6 = phi [bb0: v2]
-    v7 = phi [bb0: arg1]
+    v6 = phi [bb0: v0]
+    v7 = phi [bb0: v2]
     jumpi true, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v8 = ptrtoint ptr<memory> v7 to i256
-    v9 = mload v7
+    v8 = ptrtoint ptr<memory> v4 to i256
+    v9 = mload v4
     v10 = eq v9, 0
     v11 = zext i1 v10 to i256
     v12 = ne v11, 0
@@ -35,21 +35,21 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
   bb7:
     jump bb8
   bb8:
-    v18 = ptrtoint ptr<memory> v7 to i256
-    v19 = mload v7
-    v20 = ptrtoint ptr<memory> v4 to i256
+    v18 = ptrtoint ptr<memory> v4 to i256
+    v19 = mload v4
+    v20 = ptrtoint ptr<memory> v3 to i256
     v21 = add v20, 32
     v22 = add v21, v5
-    v23 = add v21, v6
+    v23 = add v21, v7
     v24 = sub v23, v19
     v25 = add v24, 1
     v26 = and v19, 31
     v27 = sub 32, v26
     v28 = shl 3, v27
-    v29 = ptrtoint ptr<memory> v7 to i256
+    v29 = ptrtoint ptr<memory> v4 to i256
     v30 = add v29, 32
     v31 = mload v30
-    v32 = lt v5, v6
+    v32 = lt v5, v7
     v33 = zext i1 v32 to i256
     v34 = lt v22, v25
     v35 = zext i1 v34 to i256
@@ -72,22 +72,22 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
   bb17:
     jump bb32
   bb32:
-    v78 = phi [bb17: v19], [bb36: v78]
-    v79 = phi [bb17: v31], [bb36: v79]
+    v78 = phi [bb17: v22], [bb36: v95]
+    v79 = phi [bb17: v4], [bb36: v79]
     v80 = phi [bb17: v5], [bb36: v80]
-    v81 = phi [bb17: v21], [bb36: v81]
-    v82 = phi [bb17: v3], [bb36: v82]
-    v83 = phi [bb17: v25], [bb36: v83]
-    v84 = phi [bb17: v22], [bb36: v95]
-    v85 = phi [bb17: v6], [bb36: v85]
+    v81 = phi [bb17: v6], [bb36: v81]
+    v82 = phi [bb17: v7], [bb36: v82]
+    v83 = phi [bb17: v19], [bb36: v83]
+    v84 = phi [bb17: v21], [bb36: v84]
+    v85 = phi [bb17: v25], [bb36: v85]
     v86 = phi [bb17: v28], [bb36: v86]
-    v87 = phi [bb17: v7], [bb36: v87]
+    v87 = phi [bb17: v31], [bb36: v87]
     jumpi true, bb34, bb35
   bb35:
     jump bb33
   bb34:
-    v88 = mload v84
-    v89 = xor v88, v79
+    v88 = mload v78
+    v89 = xor v88, v87
     v90 = shr v86, v89
     v91 = eq v90, 0
     v92 = zext i1 v91 to i256
@@ -96,8 +96,8 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
   bb38:
     jump bb39
   bb39:
-    v95 = add v84, 1
-    v96 = lt v95, v83
+    v95 = add v78, 1
+    v96 = lt v95, v85
     v97 = zext i1 v96 to i256
     v98 = eq v97, 0
     v99 = zext i1 v98 to i256
@@ -112,37 +112,37 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
   bb40:
     jump bb33
   bb37:
-    v94 = sub v84, v81
+    v94 = sub v78, v84
     jump bb33
   bb33:
-    v101 = phi [bb37: v94], [bb40: v82], [bb35: v82]
-    v102 = phi [bb37: v84], [bb40: v95], [bb35: v84]
-    v106 = inttoptr i256 v102 to ptr<memory>
+    v101 = phi [bb37: v78], [bb40: v95], [bb35: v78]
+    v102 = phi [bb37: v94], [bb40: v81], [bb35: v81]
+    v105 = inttoptr i256 v101 to ptr<memory>
     jump bb2
   bb15:
-    v45 = ptrtoint ptr<memory> v7 to i256
+    v45 = ptrtoint ptr<memory> v4 to i256
     v46 = add v45, 32
     v47 = keccak256 v46, v19
     jump bb18
   bb18:
-    v48 = phi [bb15: v19], [bb22: v48]
-    v49 = phi [bb15: v31], [bb22: v49]
+    v48 = phi [bb15: v22], [bb22: v70]
+    v49 = phi [bb15: v4], [bb22: v49]
     v50 = phi [bb15: v5], [bb22: v50]
-    v51 = phi [bb15: v21], [bb22: v51]
-    v52 = phi [bb15: v47], [bb22: v52]
-    v53 = phi [bb15: v3], [bb22: v53]
-    v54 = phi [bb15: v25], [bb22: v54]
-    v55 = phi [bb15: v22], [bb22: v70]
-    v56 = phi [bb15: v6], [bb22: v56]
-    v57 = phi [bb15: v28], [bb22: v57]
-    v58 = phi [bb15: v7], [bb22: v58]
+    v51 = phi [bb15: v6], [bb22: v51]
+    v52 = phi [bb15: v7], [bb22: v52]
+    v53 = phi [bb15: v19], [bb22: v53]
+    v54 = phi [bb15: v21], [bb22: v54]
+    v55 = phi [bb15: v25], [bb22: v55]
+    v56 = phi [bb15: v28], [bb22: v56]
+    v57 = phi [bb15: v31], [bb22: v57]
+    v58 = phi [bb15: v47], [bb22: v58]
     jumpi true, bb20, bb21
   bb21:
     jump bb19
   bb20:
-    v59 = mload v55
-    v60 = xor v59, v49
-    v61 = shr v57, v60
+    v59 = mload v48
+    v60 = xor v59, v57
+    v61 = shr v56, v60
     v62 = eq v61, 0
     v63 = zext i1 v62 to i256
     v64 = ne v63, 0
@@ -150,8 +150,8 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
   bb24:
     jump bb25
   bb23:
-    v65 = keccak256 v55, v48
-    v66 = eq v65, v52
+    v65 = keccak256 v48, v53
+    v66 = eq v65, v58
     v67 = zext i1 v66 to i256
     v68 = ne v67, 0
     jumpi v68, bb26, bb27
@@ -160,8 +160,8 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
   bb28:
     jump bb25
   bb25:
-    v70 = add v55, 1
-    v71 = lt v70, v54
+    v70 = add v48, 1
+    v71 = lt v70, v55
     v72 = zext i1 v71 to i256
     v73 = eq v72, 0
     v74 = zext i1 v73 to i256
@@ -176,18 +176,18 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
   bb29:
     jump bb19
   bb26:
-    v69 = sub v55, v51
+    v69 = sub v48, v54
     jump bb19
   bb19:
-    v76 = phi [bb26: v69], [bb29: v53], [bb21: v53]
-    v77 = phi [bb26: v55], [bb29: v70], [bb21: v55]
-    v105 = inttoptr i256 v77 to ptr<memory>
+    v76 = phi [bb26: v48], [bb29: v70], [bb21: v48]
+    v77 = phi [bb26: v69], [bb29: v51], [bb21: v51]
+    v104 = inttoptr i256 v76 to ptr<memory>
     jump bb2
   bb12:
-    v104 = inttoptr i256 v22 to ptr<memory>
+    v103 = inttoptr i256 v22 to ptr<memory>
     jump bb2
   bb6:
-    v13 = gt v5, v6
+    v13 = gt v5, v7
     v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     v16 = zext i1 v15 to i256
@@ -200,12 +200,12 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
   bb9:
     jump bb2
   bb2:
-    v103 = phi [bb9: v5], [bb11: v6], [bb12: v3], [bb19: v76], [bb33: v101], [bb4: v3]
-    v107 = phi [bb9: v4], [bb11: v4], [bb12: v104], [bb19: v105], [bb33: v106], [bb4: v4]
+    v106 = phi [bb9: v3], [bb11: v3], [bb12: v103], [bb19: v104], [bb33: v105], [bb4: v3]
+    v107 = phi [bb9: v4], [bb11: v4], [bb12: v4], [bb19: v49], [bb33: v79], [bb4: v4]
     v108 = phi [bb9: v5], [bb11: v5], [bb12: v5], [bb19: v50], [bb33: v80], [bb4: v5]
-    v109 = phi [bb9: v6], [bb11: v6], [bb12: v6], [bb19: v56], [bb33: v85], [bb4: v6]
-    v110 = phi [bb9: v7], [bb11: v7], [bb12: v7], [bb19: v58], [bb33: v87], [bb4: v7]
-    ret v103
+    v109 = phi [bb9: v5], [bb11: v7], [bb12: v6], [bb19: v77], [bb33: v102], [bb4: v6]
+    v110 = phi [bb9: v7], [bb11: v7], [bb12: v7], [bb19: v52], [bb33: v82], [bb4: v7]
+    ret v109
   bb5:
     invalid
 }

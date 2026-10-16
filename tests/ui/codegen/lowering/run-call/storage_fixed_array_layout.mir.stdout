@@ -121,11 +121,11 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v24]
+    v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = lt v1, 7
+    v4 = phi [bb0: 0], [bb3: v24]
+    v5 = lt v4, 7
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
@@ -235,15 +235,15 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v48 = add v40, 1
     jump bb10
   bb4:
-    v6 = trunc i256 v1 to i72
+    v6 = trunc i256 v4 to i72
     v7 = zext i72 v6 to i256
     v8 = shl 184, v7
-    v9 = lt v1, 7
+    v9 = lt v4, 7
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = div v1, 3
+    v11 = div v4, 3
     v12 = add 0, v11
-    v13 = mod v1, 3
+    v13 = mod v4, 3
     v14 = mul v13, 9
     v15 = mul v14, 8
     v16 = shl v15, 0xffffffffffffffffff
@@ -259,6 +259,6 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
   bb6:
     jump bb3
   bb3:
-    v24 = checked_add u256, v1, 1
+    v24 = checked_add u256, v4, 1
     jump bb1
 }

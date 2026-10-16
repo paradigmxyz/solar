@@ -732,11 +732,7 @@ bb68:
   dup 5
   add
   swap 2
-  push 5
-  shl
-  dup 5
-  add
-  push 32
+  dup 2
   add
   swap 3
   pop
@@ -754,8 +750,8 @@ bb71 [loop]:
   jump bb69
 bb69 [loop]:
   dup 3
-  dup 3
-  lt
+  dup 2
+  sub
   push bb71
   jumpi
   swap 3

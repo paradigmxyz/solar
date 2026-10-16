@@ -576,6 +576,20 @@ impl EffectKind {
             Self::ImmutableWrite => "immutable_write",
         }
     }
+
+    /// Whether this is pure computation or a read of memory, storage, transient storage or the
+    /// environment.
+    #[must_use]
+    pub(crate) const fn is_read_only(self) -> bool {
+        matches!(
+            self,
+            Self::Pure
+                | Self::MemoryRead
+                | Self::StorageRead
+                | Self::TransientRead
+                | Self::EnvironmentRead
+        )
+    }
 }
 
 /// Initialization performed for a newly reserved range.

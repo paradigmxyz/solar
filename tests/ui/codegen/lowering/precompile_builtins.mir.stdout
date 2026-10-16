@@ -3,70 +3,54 @@
 @phase lowered
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
-    v26 = mload 64 !metadata(memory=scratch)
-    v27 = add v26, 192
-    v28 = lt v27, v26
-    v29 = gt v27, 0xffffffffffffffff
-    v30 = or v28, v29
-    jumpi v30, bb2, bb1
-  bb1:
-    mstore 64, v27 !metadata(memory=scratch)
-    v32 = calldatasize
-    calldatacopy v26, v32, 192
-    mstore v26, 160
-    v16 = add v26, 32
+    v16 = mload 64 !metadata(memory=scratch)
     mstore v16, 1
-    v18 = add v26, 64
-    mstore v18, 28
-    v20 = add v26, 96
-    mstore v20, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v22 = add v26, 128
-    mstore v22, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v24 = add v26, 160
-    v9 = gas
-    v10 = staticcall v9, 1, v16, 128, v24, 32
-    v11 = mload v24
-    v33 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v33
-    returndata 128, 32
+    v4 = add v16, 32
+    mstore v4, 28
+    v5 = add v16, 64
+    mstore v5, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
+    v6 = add v16, 96
+    mstore v6, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    mstore 0, 0 !metadata(memory=scratch)
+    v7 = gas
+    v8 = staticcall v7, 1, v16, 128, 0, 32
+    jumpi v8, bb1, bb2
   bb2:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
+    v10 = returndatasize
+    returndatacopy 0, 0, v10 !metadata(memory=abi_return)
+    v11 = returndatasize
+    revert 0, v11
+  bb1:
+    v9 = mload 0 !metadata(memory=scratch)
+    v17 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v17
+    returndata 128, 32
 }
 
 fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
   bb0:
-    v26 = mload 64 !metadata(memory=scratch)
-    v27 = add v26, 192
-    v28 = lt v27, v26
-    v29 = gt v27, 0xffffffffffffffff
-    v30 = or v28, v29
-    jumpi v30, bb2, bb1
-  bb1:
-    mstore 64, v27 !metadata(memory=scratch)
-    v32 = calldatasize
-    calldatacopy v26, v32, 192
-    mstore v26, 160
-    v16 = add v26, 32
+    v16 = mload 64 !metadata(memory=scratch)
     mstore v16, 0
-    v18 = add v26, 64
-    mstore v18, 0
-    v20 = add v26, 96
-    mstore v20, 0
-    v22 = add v26, 128
-    mstore v22, 0
-    v24 = add v26, 160
-    v9 = gas
-    v10 = staticcall v9, 1, v16, 128, v24, 32
-    v11 = mload v24
-    v33 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v33
-    returndata 128, 32
+    v4 = add v16, 32
+    mstore v4, 0
+    v5 = add v16, 64
+    mstore v5, 0
+    v6 = add v16, 96
+    mstore v6, 0
+    mstore 0, 0 !metadata(memory=scratch)
+    v7 = gas
+    v8 = staticcall v7, 1, v16, 128, 0, 32
+    jumpi v8, bb1, bb2
   bb2:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
+    v10 = returndatasize
+    returndatacopy 0, 0, v10 !metadata(memory=abi_return)
+    v11 = returndatasize
+    revert 0, v11
+  bb1:
+    v9 = mload 0 !metadata(memory=scratch)
+    v17 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v17
+    returndata 128, 32
 }
 
 fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {

@@ -34,9 +34,11 @@ contract PointerLoops {
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
     // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, [[ENTER:bb[0-9]+]]
     // CHECK: [[ENTER]]:
+    // CHECK-NEXT: [[IN:v[0-9]+]] = phi
     // CHECK-NEXT: [[OUT:v[0-9]+]] = phi [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK: jump [[HEADER:bb[0-9]+]]
     // CHECK-NEXT: [[HEADER]]:
+    // CHECK-NEXT: {{v[0-9]+}} = phi {{\[}}[[ENTER]]: [[IN]]],
     // CHECK-NEXT: [[O:v[0-9]+]] = phi {{\[}}[[ENTER]]: [[OUT]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
     // The second copy writes at constant offsets from the pair's first output
     // pointer, and the pair advances it by four once.

@@ -16,7 +16,7 @@
 //!
 //! The wrapper keeps argument materialization lazy so values used after a
 //! branch can still be rematerialized instead of spilled. Dynamic return
-//! encoding becomes a semantic `abi_encode` operation here and lowers later;
+//! encoding becomes a semantic `abi_encode_scratch` operation here and lowers later;
 //! static returns use the fixed low-memory return buffer directly. Internal
 //! call sites that targeted a wrapped function are retargeted to its extracted
 //! raw-return body, so internal calls to public functions keep their convention.
@@ -582,7 +582,10 @@ impl LowerAbiCx {
                 .collect::<Vec<_>>()
                 .into_boxed_slice();
             if layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
-                let encoded = builder.abi_encode(layout.clone(), None, values);
+                // The call ends with the encoding, so nothing can observe the
+                // memory it would reserve: stage it at the free-memory pointer.
+                // encoded = abi_encode_scratch(values)
+                let encoded = builder.abi_encode_scratch(layout.clone(), None, values);
                 let offset = builder.slice_ptr(encoded);
                 let size = builder.slice_len(encoded);
                 builder.ret_data(offset, size);

@@ -827,8 +827,7 @@ fn lifetime_saving(
         + target.dup().times(2)
         + target.opcode(op::PUSH2)
         + target.opcode(op::JUMPI);
-    let back_edge =
-        target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST);
+    let back_edge = target.jump();
     let skip = tested + back_edge;
     let groups = u32::try_from(trips / u64::from(factor)).unwrap_or(u32::MAX);
     let saving = match main_test {
@@ -1017,8 +1016,7 @@ fn plan_full(
         + target.dup().times(2)
         + target.opcode(op::PUSH2)
         + target.opcode(op::JUMPI);
-    let back_edge =
-        target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST);
+    let back_edge = target.jump();
     let trips = u32::try_from(trips).ok()?;
     let saving = (tested + back_edge).times(trips) + tested;
     let body: Cost = l

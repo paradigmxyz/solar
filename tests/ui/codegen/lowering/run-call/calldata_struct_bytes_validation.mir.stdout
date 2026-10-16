@@ -89,28 +89,19 @@ fn @encodeField(arg0: slice<calldata>) -> i256 [selector=0xbd1dd83b, pure, abi_p
     icall revert_if<calldata_tail_too_short>, v20
     v21 = inttoptr i256 v18 to ptr<calldata>
     v22 = make_calldata_slice v21, v15
-    v23 = extract_value slice<calldata>, v22, 0
-    v24 = extract_value slice<calldata>, v22, 1
-    v25 = calldatasize
-    v26 = gt v24, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = sub v25, v24
-    v28 = ptrtoint ptr<calldata> v23 to i256
-    v29 = sgt v28, v27
-    icall revert_if<calldata_tail_too_short>, v29
-    v30 = abi_encode [calldata_bytes], object, args v22
-    v31 = mload v30
-    v32 = lt 64, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = ptradd v30, 96
-    v35 = mload v34
-    v36 = byte 0, v35
-    v37 = shl 248, v36
-    v38 = shr 248, v37
-    v39 = trunc i256 v38 to i8
-    v40 = zext i8 v39 to i256
-    ret v40
+    v23 = abi_encode [calldata_bytes], object, args v22
+    v24 = mload v23
+    v25 = lt 64, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = ptradd v23, 96
+    v28 = mload v27
+    v29 = byte 0, v28
+    v30 = shl 248, v29
+    v31 = shr 248, v30
+    v32 = trunc i256 v31 to i8
+    v33 = zext i8 v32 to i256
+    ret v33
 }
 
 fn @encodePackedField(arg0: slice<calldata>) -> i256 [selector=0xed098724, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -142,28 +133,19 @@ fn @encodePackedField(arg0: slice<calldata>) -> i256 [selector=0xed098724, pure,
     icall revert_if<calldata_tail_too_short>, v20
     v21 = inttoptr i256 v18 to ptr<calldata>
     v22 = make_calldata_slice v21, v15
-    v23 = extract_value slice<calldata>, v22, 0
-    v24 = extract_value slice<calldata>, v22, 1
-    v25 = calldatasize
-    v26 = gt v24, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = sub v25, v24
-    v28 = ptrtoint ptr<calldata> v23 to i256
-    v29 = sgt v28, v27
-    icall revert_if<calldata_tail_too_short>, v29
-    v30 = abi_encode_packed (bytes v22)
-    v31 = mload v30
-    v32 = lt 0, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = ptradd v30, 32
-    v35 = mload v34
-    v36 = byte 0, v35
-    v37 = shl 248, v36
-    v38 = shr 248, v37
-    v39 = trunc i256 v38 to i8
-    v40 = zext i8 v39 to i256
-    ret v40
+    v23 = abi_encode_packed (bytes v22)
+    v24 = mload v23
+    v25 = lt 0, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = ptradd v23, 32
+    v28 = mload v27
+    v29 = byte 0, v28
+    v30 = shl 248, v29
+    v31 = shr 248, v30
+    v32 = trunc i256 v31 to i8
+    v33 = zext i8 v32 to i256
+    ret v33
 }
 
 fn @hashField(arg0: slice<calldata>) -> i256 [selector=0xdd0f255f, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[bytes32]] {

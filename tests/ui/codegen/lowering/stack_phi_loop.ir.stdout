@@ -99,32 +99,30 @@ bb16:
   push 0
   jump bb18
 bb24 [loop]:
-  swap 1
   push 1
   add
-  swap 1
-  dup 2
-  dup 2
+  dup 1
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
   push bb45
   jumpi
   jump bb18
 bb18 [loop]:
   dup 3
-  dup 3
+  dup 2
   lt
   push bb24
   jumpi
+  pop
   push 36
   calldataload
   push 0
-  swap 4
+  swap 3
   pop
-  swap 2
-  pop
+  swap 1
   swap 2
   jump bb20
 bb22 [loop]:

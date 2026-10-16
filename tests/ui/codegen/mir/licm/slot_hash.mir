@@ -1,0 +1,39 @@
+//@ compile-flags: -Zmir-pipeline=licm
+//@ filecheck:
+@module SlotHashHoisting
+
+// CHECK-LABEL: fn @private_scratch
+// CHECK: + [[HASH:v[0-9]+]] = mapping_slot arg1, 3
+// CHECK: - [[HASH]] = mapping_slot arg1, 3
+fn @private_scratch(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb1: v4]
+    v1 = mapping_slot arg1, 3
+    v2 = sload v1
+    v4 = add v0, 1
+    v5 = lt v4, arg0
+    jumpi v5, bb1, bb2
+  bb2:
+    ret v2
+}
+
+// Reading scratch before the hash observes the previous iteration's writes.
+// CHECK-LABEL: fn @observed_scratch
+// CHECK-NOT: + {{.*}}mapping_slot
+// CHECK: {{^ +}}{{v[0-9]+}} = mapping_slot arg1, 3
+fn @observed_scratch(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb1: v4]
+    v6 = mload 0
+    v1 = mapping_slot arg1, 3
+    v2 = sload v1
+    v4 = add v0, 1
+    v5 = lt v4, arg0
+    jumpi v5, bb1, bb2
+  bb2:
+    ret v6
+}
