@@ -2,20 +2,15 @@ version = 1
 revision = 5
 requires-python = ">=3.14"
 
+[options]
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer-span = "P7D"
+
 [manifest]
 members = [
     "analyze",
     "solar-compiler-diff",
     "solar-python",
-]
-build-constraints = [
-    { name = "editables", specifier = "==0.6" },
-    { name = "hatchling", specifier = "==1.32.4" },
-    { name = "packaging", specifier = "==26.3" },
-    { name = "pathspec", specifier = "==1.1.1" },
-    { name = "pluggy", specifier = "==1.6.0" },
-    { name = "tomlkit", specifier = "==0.15.1" },
-    { name = "trove-classifiers", specifier = "==2026.9.21.13" },
 ]
 
 [[package]]
