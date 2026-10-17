@@ -1,7 +1,10 @@
 //! Local storage-load forwarding.
 //!
 //! This pass removes redundant `sload` instructions on straight-line paths when
-//! no intervening storage write may alias the loaded slot. Exact stores also
+//! no intervening storage write may alias the loaded slot. A path continues
+//! into a successor that has no other predecessor, so facts flow through
+//! extended basic blocks in reverse postorder, as when inlining leaves a callee's
+//! read in its own block after the caller's write; joins start empty. Exact stores also
 //! forward their full word to subsequent loads. This exposes packed field
 //! updates as word expressions, allowing storage DSE to remove intermediate
 //! writes while retaining every preserved bit. Calls and possible aliases
@@ -102,10 +105,26 @@ impl StorageLoadCseCx {
         state.replacements.clear();
         state.dead.clear();
 
-        let gas = GasObservations::new(func, &CfgInfo::new(func), self.alias.as_ref().unwrap());
-        for block_id in func.blocks.indices() {
-            state.cached_loads.clear();
+        let cfg = CfgInfo::new(func);
+        let gas = GasObservations::new(func, &cfg, self.alias.as_ref().unwrap());
+        // A block entered only from one predecessor starts with the facts that predecessor ends
+        // with: no terminator that continues to a successor touches storage. Reverse postorder
+        // visits that predecessor first; every other block starts empty.
+        let mut exits = FxHashMap::<BlockId, FxHashMap<StorageAlias, (ValueId, bool)>>::default();
+        for &block_id in cfg.rpo() {
+            let entry = match cfg.predecessors(block_id) {
+                &[pred] => exits.get(&pred).cloned(),
+                _ => None,
+            };
+            state.cached_loads = entry.unwrap_or_default();
             self.process_block(func, block_id, &liveness, &gas, state);
+            if cfg
+                .successors(block_id)
+                .iter()
+                .any(|&successor| cfg.predecessors(successor).len() == 1)
+            {
+                exits.insert(block_id, state.cached_loads.clone());
+            }
         }
 
         if !state.replacements.is_empty() {
