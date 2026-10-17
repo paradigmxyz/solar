@@ -54,6 +54,11 @@
 //! proves deterministic reads and complete restoration of temporary writes.
 //! Every intervening memory write invalidates these entries. Calls never sink or
 //! inherit a cached result across blocks; no read-footprint disjointness is assumed.
+//! Calls to pure leaf functions are the exception: a `pure` single-result leaf that
+//! touches no storage, writes no memory a caller sees, observes neither gas nor
+//! `msize`, and reads memory only on paths that revert depends on its arguments
+//! alone, so its result is reused like pure arithmetic, across dominating blocks
+//! and after any write. Such calls still never sink, which would move their revert.
 //! After a `gas` read, state-dependent expressions remain explicit so a later
 //! `gas` read observes their dynamically priced execution. A forward CFG may-observe
 //! analysis includes observations in non-dominating branches and loop backedges.
@@ -77,7 +82,7 @@ use crate::mir::{
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
-        MemoryLocation,
+        MemoryLocation, returning_blocks,
     },
     memory::EvmMemoryLayout,
     pass::{
@@ -91,6 +96,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::FxHashMap,
 };
+use solar_sema::hir::StateMutability;
 use std::{cell::OnceCell, cmp::Ordering, ops::Range, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
@@ -120,6 +126,9 @@ impl MirPass for Cse {
             }
         }
         let summaries = (!callers.is_empty()).then(|| analyses.call_summaries(module));
+        let pure_calls = summaries
+            .as_ref()
+            .map(|summaries| Arc::new(pure_leaf_functions(module, &leaves, summaries)));
         let run = |func: &mut Function, analyses: &crate::mir::pass::FunctionAnalyses| {
             if func
                 .instructions()
@@ -134,6 +143,7 @@ impl MirPass for Cse {
             }
             let mut eliminator = CommonSubexprEliminator {
                 call_summaries: summaries.as_ref().map(Arc::clone),
+                pure_calls: pure_calls.as_ref().map(Arc::clone),
                 ..Default::default()
             };
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
@@ -225,6 +235,8 @@ struct CommonSubexprEliminator {
     gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
+    /// Pure leaf functions whose calls depend on their arguments alone, per [`pure_leaf_functions`].
+    pure_calls: Option<Arc<DenseBitSet<FunctionId>>>,
 }
 
 /// A normalized expression key for CSE lookup.
@@ -262,6 +274,8 @@ enum ExprKey {
     Select(OperandKey, OperandKey, OperandKey),
     MLoad(MemRangeKey),
     RestoringCall(FunctionId, Vec<OperandKey>),
+    /// A call to a pure leaf function, which depends on its arguments alone.
+    PureCall(FunctionId, Vec<OperandKey>),
     Keccak256(MemRangeKey),
     MappingSlot(OperandKey, OperandKey),
     StorageArrayDataSlot(OperandKey),
@@ -1090,7 +1104,8 @@ impl CommonSubexprEliminator {
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ExprKey> {
-        if !kind.effects().can_common() && !self.is_restoring_call(kind) {
+        if !kind.effects().can_common() && !self.is_restoring_call(kind) && !self.is_pure_call(kind)
+        {
             return None;
         }
         // Helper to get canonical operands after in-block replacements.
@@ -1099,6 +1114,12 @@ impl CommonSubexprEliminator {
         let cast = |cast, v| Some(ExprKey::Cast(cast, operand(v), func.inst(inst_id).result_ty));
 
         match kind {
+            // A pure leaf call depends on its arguments alone, so no side effect invalidates it.
+            InstKind::ICall { function: Callee::Function(function), args }
+                if self.is_pure_call(kind) =>
+            {
+                Some(ExprKey::PureCall(*function, args.iter().map(|&arg| operand(arg)).collect()))
+            }
             InstKind::ICall { function: Callee::Function(function), args }
                 if self.is_restoring_call(kind) =>
             {
@@ -1396,6 +1417,11 @@ impl CommonSubexprEliminator {
         )
     }
 
+    fn is_pure_call(&self, kind: &InstKind) -> bool {
+        matches!(kind, InstKind::ICall { function: Callee::Function(function), args }
+            if args.len() <= 8 && self.pure_calls.as_ref().is_some_and(|pure| pure.contains(*function)))
+    }
+
     fn is_restoring_call(&self, kind: &InstKind) -> bool {
         matches!(kind, InstKind::ICall { function: Callee::Function(function), args }
             if args.len() <= 8 && self.call_summaries.as_ref()
@@ -1432,6 +1458,8 @@ impl CommonSubexprEliminator {
             key,
             ExprKey::MLoad(_)
                 | ExprKey::RestoringCall(..)
+                // Moving a call would move its revert.
+                | ExprKey::PureCall(..)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
                 | ExprKey::StorageArrayDataSlot(..)
@@ -1687,4 +1715,51 @@ impl CommonSubexprEliminator {
             mir_utils::replace_terminator_uses_canonicalized(term, replacements);
         }
     }
+}
+
+/// Pure leaf functions whose calls CSE may reuse: a call's result depends on its arguments alone.
+///
+/// `pure` keeps environment, state, and gas reads out of the source, inline assembly included. The
+/// memory summary proves that the function never touches storage or transient storage, writes no
+/// memory a caller sees, and never observes gas or `msize`, and no block that can still return
+/// reads memory: a revert path may read the error data it staged, but whether a call returns, and
+/// what, then depends on its arguments alone. A repeated call with the same arguments returns the
+/// same word, and when it would revert the dominating call already reverted. A leaf calls no other
+/// function, and one result keeps the reuse a plain value substitution.
+fn pure_leaf_functions(
+    module: &Module,
+    leaves: &DenseBitSet<FunctionId>,
+    summaries: &MemoryCallSummaries,
+) -> DenseBitSet<FunctionId> {
+    let mut pure = DenseBitSet::new_empty(module.functions.len());
+    for id in leaves.iter() {
+        let func = module.function(id);
+        let Some(summary) = summaries.get(id) else { continue };
+        let untouched = [AddressSpace::Storage, AddressSpace::Transient]
+            .into_iter()
+            .all(|space| !summary.reads(space) && !summary.writes(space));
+        if func.attributes.state_mutability != StateMutability::Pure
+            || func.return_components().len() != 1
+            || func.internal_frame_size != 0
+            || !untouched
+            || summary.writes(AddressSpace::Memory)
+            || summary.may_observe_gas()
+            || summary.may_observe_msize()
+        {
+            continue;
+        }
+        let alias = AliasAnalysis::new(func);
+        let reads_memory = |block: BlockId| {
+            let block = &func.blocks[block];
+            block.instructions.iter().any(|&inst| {
+                alias.instruction_mod_ref(func, inst).reads_space(AddressSpace::Memory)
+            }) || block.terminator.as_ref().is_some_and(|terminator| {
+                alias.terminator_mod_ref(func, terminator).reads_space(AddressSpace::Memory)
+            })
+        };
+        if !returning_blocks(func).iter().any(reads_memory) {
+            pure.insert(id);
+        }
+    }
+    pure
 }

@@ -1,0 +1,88 @@
+//@ compile-flags: -Zmir-pipeline=cse
+//@ filecheck:
+@module PureCalls
+
+// A checked narrowing whose revert path stages its error data: no block that
+// can return reads memory, so a call's result depends on its argument alone.
+fn @to_u32(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = gt arg0, 0xffffffff
+    jumpi v0, bb2, bb1
+  bb1:
+    ret arg0
+  bb2:
+    mstore 32, 32
+    mstore 64, arg0
+    mstore 0, 0x6dfcc650
+    revert 28, 68
+}
+
+fn @read_word(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}
+
+fn @stored(arg0: i256) -> i256 [view] {
+  bb0:
+    v0 = sload arg0
+    ret v0
+}
+
+fn @hash_slot(arg0: i256) -> i256 [view] {
+  bb0:
+    mstore 0, arg0
+    v0 = keccak256 0, 32
+    ret v0
+}
+
+// The second narrowing reuses the first, though a mapping-slot hash between
+// them writes scratch memory.
+// CHECK-LABEL: {{^[ +].*}}fn @same_block{{[( ]}}
+// CHECK: {{^[ +].*}}[[FIRST:v[0-9]+]] = icall @to_u32, arg0
+// CHECK-NOT: {{^[ +].*}} = icall @to_u32, arg0
+// CHECK: {{^[ +].*}} = add [[FIRST]], [[FIRST]]
+fn @same_block(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @to_u32, arg0
+    v1 = icall @hash_slot, v0
+    v2 = icall @to_u32, arg0
+    v3 = add v0, v2
+    v4 = add v3, v1
+    ret v4
+}
+
+// A dominated block reuses the call too: the dominating call already ran.
+// CHECK-LABEL: {{^[ +].*}}fn @dominated{{[( ]}}
+// CHECK: {{^[ +].*}}[[FIRST:v[0-9]+]] = icall @to_u32, arg0
+// CHECK-NOT: {{^[ +].*}} = icall @to_u32, arg0
+// CHECK: {{^[ +].*}}ret [[FIRST]]
+fn @dominated(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = icall @to_u32, arg0
+    jumpi arg1, bb1, bb2
+  bb1:
+    v1 = icall @to_u32, arg0
+    ret v1
+  bb2:
+    ret v0
+}
+
+// A pure function reading memory on its returning path can see a write between
+// the calls, and a view function can see storage change.
+// CHECK-LABEL: {{^[ +].*}}fn @not_pure_leaves{{[( ]}}
+// CHECK-COUNT-2: {{^[ +].*}} = icall @read_word, arg0
+// CHECK-COUNT-2: {{^[ +].*}} = icall @stored, arg0
+fn @not_pure_leaves(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @read_word, arg0
+    mstore arg0, 7
+    v1 = icall @read_word, arg0
+    v2 = icall @stored, arg0
+    sstore arg0, 7
+    v3 = icall @stored, arg0
+    v4 = add v0, v1
+    v5 = add v2, v3
+    v6 = add v4, v5
+    ret v6
+}
