@@ -265,11 +265,11 @@ fn @_slice(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure]
     v8 = lt v53, v49
     jumpi v8, bb2, bb1
   bb1:
-    v66 = mload 64 !metadata(memory=scratch)
-    v67 = add v66, 32
-    mstore 64, v67 !metadata(memory=scratch)
-    mstore v66, 0
-    ret v66
+    v65 = mload 64 !metadata(memory=scratch)
+    v66 = add v65, 32
+    mstore 64, v66 !metadata(memory=scratch)
+    mstore v65, 0
+    ret v65
   bb2:
     v40 = sub v49, v53
     v12 = add v40, 63
@@ -277,23 +277,19 @@ fn @_slice(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure]
     jumpi v13, bb6, bb7
   bb7:
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v65 = icall @alloc, v15
-    v69 = calldatasize
-    calldatacopy v65, v69, v15
-    mstore v65, v40
+    v64 = icall @alloc, v15
+    v68 = calldatasize
+    calldatacopy v64, v68, v15
+    mstore v64, v40
     jump bb3
   bb3:
     v21 = phi [bb7: 0], [bb9: v44]
-    v22 = mload v65
-    v23 = lt v21, v22
+    v23 = lt v21, v40
     jumpi v23, bb5, bb4
   bb4:
-    ret v65
+    ret v64
   bb5:
     v42 = add v53, v21
-    v43 = lt v42, v53
-    jumpi v43, bb10, bb11
-  bb11:
     v25 = mload arg0
     v26 = lt v42, v25
     jumpi v26, bb9, bb8
@@ -304,15 +300,11 @@ fn @_slice(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure]
     v56 = add v55, 32
     v30 = mload v56
     v31 = byte 0, v30
-    v58 = add v65, v21
+    v58 = add v64, v21
     v59 = add v58, 32
     mstore8 v59, v31
     v44 = add v21, 1
     jump bb3
-  bb10:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb6:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

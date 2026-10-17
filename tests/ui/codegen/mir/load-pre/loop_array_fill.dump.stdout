@@ -1,0 +1,203 @@
+// === ROOT/tests/ui/codegen/mir/load-pre/loop_array_fill.sol:LoopArrayFill ===
+@module LoopArrayFill
+@phase lowered
+fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
+  bb0:
+    v7 = add arg0, 1
+    v8 = eq v7, 0
+    jumpi v8, bb4, bb5
+  bb5:
+    v9 = shl 5, v7
+    v11 = shr 5, v9
+    v15 = ne v11, v7
+    jumpi v15, bb4, bb6
+  bb6:
+    v63 = icall @alloc, v9
+    v65 = calldatasize
+    calldatacopy v63, v65, v9
+    mstore v63, arg0
+    v66 = add v63, 32
+    jump bb9
+  bb9:
+    v69 = phi [bb6: 0], [bb14: v107]
+    v70 = phi [bb6: v66], [bb14: v108]
+    v109 = add v69, 3
+    v110 = lt v109, arg0
+    jumpi v110, bb10, bb1
+  bb1:
+    v19 = phi [bb9: v69], [bb8: v36]
+    v67 = phi [bb9: v70], [bb8: v68]
+    v20 = lt v19, arg0
+    jumpi v20, bb3, bb2
+  bb2:
+    v46 = ne v63, 0
+    v47 = zext i1 v46 to i256
+    v48 = mul arg0, v47
+    v55 = add v63, 32
+    v50 = shl 5, v48
+    v57 = add v63, 64
+    mcopy v57, v55, v50
+    mstore v63, 32
+    mstore v55, v48
+    v52 = add v50, 64
+    returndata v63, v52
+  bb3:
+    v29 = mul v19, v19
+    v30 = eq v19, 0
+    v31 = div v29, v19
+    v32 = eq v31, v19
+    v33 = or v30, v32
+    jumpi v33, bb8, bb7
+  bb8:
+    mstore v67, v29
+    v36 = add v19, 1
+    v68 = add v67, 32
+    jump bb1
+  bb10:
+    v72 = mul v69, v69
+    v73 = eq v69, 0
+    v74 = div v72, v69
+    v75 = eq v74, v69
+    v76 = or v73, v75
+    jumpi v76, bb11, bb7
+  bb11:
+    mstore v70, v72
+    v77 = add v69, 1
+    v78 = add v70, 32
+    v82 = mul v77, v77
+    v83 = eq v77, 0
+    v84 = div v82, v77
+    v85 = eq v84, v77
+    v86 = or v83, v85
+    jumpi v86, bb12, bb7
+  bb12:
+    mstore v78, v82
+    v87 = add v77, 1
+    v88 = add v70, 64
+    v92 = mul v87, v87
+    v93 = eq v87, 0
+    v94 = div v92, v87
+    v95 = eq v94, v87
+    v96 = or v93, v95
+    jumpi v96, bb13, bb7
+  bb13:
+    mstore v88, v92
+    v97 = add v87, 1
+    v98 = add v70, 96
+    v102 = mul v97, v97
+    v103 = eq v97, 0
+    v104 = div v102, v97
+    v105 = eq v104, v97
+    v106 = or v103, v105
+    jumpi v106, bb14, bb7
+  bb7:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb14:
+    mstore v98, v102
+    v107 = add v97, 1
+    v108 = add v70, 128
+    jump bb9
+  bb4:
+    tail_call @revert_stub
+}
+
+fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
+  bb0:
+    v33 = and arg0, 0xffffffff
+    v34 = eq v33, 0
+    jumpi v34, bb4, bb5
+  bb5:
+    v35 = shr 32, arg0
+    v36 = and v35, 0xffffffff
+    v37 = eq v36, 0
+    jumpi v37, bb4, bb6
+  bb6:
+    v38 = shr 64, arg0
+    v39 = and v38, 0xffffffff
+    v40 = eq v39, 0
+    v51 = zext i1 v40 to i256
+    v53 = sub 3, v51
+    jump bb4
+  bb4:
+    v41 = phi [bb0: 0], [bb5: 1], [bb6: v53]
+    v8 = add v41, 1
+    v10 = shl 5, v8
+    v79 = icall @alloc, v10
+    v81 = calldatasize
+    calldatacopy v79, v81, v10
+    mstore v79, v41
+    v82 = add v79, 32
+    jump bb1
+  bb1:
+    v21 = phi [bb4: 0], [bb3: v49]
+    v83 = phi [bb4: v82], [bb3: v84]
+    v22 = lt v21, v41
+    jumpi v22, bb3, bb2
+  bb2:
+    v62 = ne v79, 0
+    v63 = zext i1 v62 to i256
+    v64 = mul v41, v63
+    v71 = add v79, 32
+    v66 = shl 5, v64
+    v73 = add v79, 64
+    mcopy v73, v71, v66
+    mstore v79, 32
+    mstore v71, v64
+    v68 = add v66, 64
+    returndata v79, v68
+  bb3:
+    v42 = shl 5, v21
+    v24 = shr v42, arg0
+    v25 = and v24, 0xffffffff
+    mstore v83, v25
+    v49 = add v21, 1
+    v84 = add v83, 32
+    jump bb1
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x3fda5389 => bb3, 0x713c311a => bb4]
+  bb4:
+    tail_call @lanes
+  bb3:
+    tail_call @fill
+  bb1:
+    revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
