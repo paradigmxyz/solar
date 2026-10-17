@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::{
-    link::{CodeKind, ContractCode, QualifiedName},
+    link::{CodeKind, ContractCode},
     mir::lower::data::{DataDest, copy_data_to_memory},
 };
 use solar_interface::diagnostics::ErrorGuaranteed;
@@ -306,7 +306,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .emit());
         }
         let data_name = Symbol::intern(&format!("{name}_{}", kind.keyword()));
-        let code = ContractCode { contract: QualifiedName::of_contract(gcx, contract_id), kind };
+        let code = ContractCode { contract: crate::link::qualified_name(gcx, contract_id), kind };
         Ok(self.cx.module.intern_contract_code(code, data_name))
     }
 

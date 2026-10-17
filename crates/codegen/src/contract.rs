@@ -12,7 +12,7 @@ use crate::{
 use alloy_primitives::Bytes;
 use either::Either;
 use solar_ast::TypeSize;
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::{DumpKind, EvmVersion, OptimizationMode};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -53,6 +53,8 @@ pub struct ContractArtifact {
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
+    /// Runtime EVM IR as stack scheduling emitted it, before the EVM IR pipeline.
+    pub runtime_scheduled_evm_ir: Option<ir::Module>,
     /// Final deployment-prefix instruction locations.
     pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.
@@ -311,7 +313,7 @@ impl ContractGraph {
         // Final assembly links embedded bytecode by source-qualified name.
         let mut names = FxHashMap::default();
         for dependency in dependencies.iter() {
-            let name = QualifiedName::of_contract(gcx, dependency);
+            let name = crate::link::qualified_name(gcx, dependency);
             if let Some(other) = names.insert(name, dependency) {
                 return Err(gcx
                     .dcx()
@@ -486,6 +488,9 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             let mut codegen = Box::new(EvmCodegen::new(gcx));
             codegen.set_capture_mir(capture_mir && !capture_built);
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
+            codegen.set_capture_scheduled_evm_ir(
+                captures.evm_ir.contains(contract_id) && dumps_scheduled_evm_ir(gcx),
+            );
             codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
             let scheduled = codegen.schedule_module(&mut module);
             gcx.dcx().has_errors()?;
@@ -537,7 +542,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
                         libraries,
                     },
                 };
-                (QualifiedName::of_contract(gcx, dependency), bytecodes)
+                (crate::link::qualified_name(gcx, dependency), bytecodes)
             })
             .collect::<EmbeddedBytecodes>();
         assert_eq!(
@@ -554,52 +559,12 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             None => EvmArtifact::default(),
         };
         let capture_mir = captures.mir.contains(contract_id);
-        if let Some(limit) = gcx.sess.opts.evm_version.runtime_code_size_limit()
-            && artifact.runtime.len() > limit
-        {
-            let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
-                EvmVersion::Amsterdam
-            } else {
-                EvmVersion::SpuriousDragon
-            };
-            gcx.dcx()
-                .warn(format!(
-                    "contract code size is {} bytes and exceeds {} bytes",
-                    artifact.runtime.len(),
-                    limit
-                ))
-                .code(error_code!(5574))
-                .span(gcx.hir.contract(contract_id).span)
-                .note(format!("the limit was introduced in {fork}"))
-                .note("this contract may not be deployable on Mainnet")
-                .help(
-                    "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
-                )
-                .emit();
-        }
-        if let Some(limit) = gcx.sess.opts.evm_version.initcode_size_limit()
-            && artifact.deployment.len() > limit
-        {
-            let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
-                EvmVersion::Amsterdam
-            } else {
-                EvmVersion::Shanghai
-            };
-            gcx.dcx()
-                .warn(format!(
-                    "contract initcode size is {} bytes and exceeds {} bytes",
-                    artifact.deployment.len(),
-                    limit
-                ))
-                .code(error_code!(3860))
-                .span(gcx.hir.contract(contract_id).span)
-                .note(format!("the limit was introduced in {fork}"))
-                .note("this contract may not be deployable on Mainnet")
-                .help(
-                    "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
-                )
-                .emit();
-        }
+        warn_code_size_limits(
+            gcx,
+            Some(contract_id),
+            artifact.deployment.len(),
+            artifact.runtime.len(),
+        );
         let immutable_references = artifact
             .immutable_references
             .iter()
@@ -626,6 +591,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             mir,
             deployment_evm_ir: artifact.deployment_evm_ir,
             runtime_evm_ir: artifact.runtime_evm_ir,
+            runtime_scheduled_evm_ir: artifact.runtime_scheduled_evm_ir,
             deployment_debug_info: artifact.deployment_debug_info,
             runtime_debug_info: artifact.runtime_debug_info,
         })
@@ -663,5 +629,56 @@ fn collect_library_references(
 fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
     if let Some(data) = data.filter(|data| !data.is_empty()) {
         module.append_runtime_data(data.clone(), None);
+    }
+}
+
+/// Returns whether the session dumps runtime EVM IR as stack scheduling emits it.
+fn dumps_scheduled_evm_ir(gcx: Gcx<'_>) -> bool {
+    let dump = gcx.sess.opts.unstable.dump.as_ref();
+    dump.is_some_and(|dump| dump.kinds.contains(&DumpKind::EvmIrRuntimeScheduled))
+}
+
+/// Warns, with solc's codes, when bytecode exceeds the size limits of the target EVM version:
+/// EIP-170's on deployed code and EIP-3860's on initcode. `contract` is the Solidity contract the
+/// bytecode compiles, if any; the warnings then point at it and suggest how to shrink it.
+pub(crate) fn warn_code_size_limits(
+    gcx: Gcx<'_>,
+    contract: Option<ContractId>,
+    deployment: usize,
+    runtime: usize,
+) {
+    const HELP: &str = "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries";
+    let evm_version = gcx.sess.opts.evm_version;
+    let amsterdam = evm_version >= EvmVersion::Amsterdam;
+    let span = contract.map(|id| gcx.hir.contract(id).span);
+    if let Some(limit) = evm_version.runtime_code_size_limit()
+        && runtime > limit
+    {
+        let fork = if amsterdam { EvmVersion::Amsterdam } else { EvmVersion::SpuriousDragon };
+        let mut diag = gcx
+            .dcx()
+            .warn(format!("contract code size is {runtime} bytes and exceeds {limit} bytes"))
+            .code(error_code!(5574))
+            .note(format!("the limit was introduced in {fork}"))
+            .note("this contract may not be deployable on Mainnet");
+        if let Some(span) = span {
+            diag = diag.span(span).help(HELP);
+        }
+        diag.emit();
+    }
+    if let Some(limit) = evm_version.initcode_size_limit()
+        && deployment > limit
+    {
+        let fork = if amsterdam { EvmVersion::Amsterdam } else { EvmVersion::Shanghai };
+        let mut diag = gcx
+            .dcx()
+            .warn(format!("contract initcode size is {deployment} bytes and exceeds {limit} bytes"))
+            .code(error_code!(3860))
+            .note(format!("the limit was introduced in {fork}"))
+            .note("this contract may not be deployable on Mainnet");
+        if let Some(span) = span {
+            diag = diag.span(span).help(HELP);
+        }
+        diag.emit();
     }
 }

@@ -323,7 +323,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Value::Immediate(Immediate::for_type(Some(MirType::I160), value.as_word()?)),
             )),
             ConstValue::Udvt(_, value) => self.lower_const_value(value, span),
-            &ConstValue::Code(contract, kind) => self.lower_contract_code(span, contract, kind),
+            &ConstValue::Code(contract, kind) => {
+                let kind = match kind {
+                    solar_sema::eval::CodeKind::Creation => crate::link::CodeKind::Creation,
+                    solar_sema::eval::CodeKind::Runtime => crate::link::CodeKind::Runtime,
+                };
+                self.lower_contract_code(span, contract, kind)
+            }
             // value = imm word
             value => Some(self.builder.imm(value.as_word()?)),
         }

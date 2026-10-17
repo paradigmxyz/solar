@@ -42,7 +42,7 @@ struct Rewrite {
 }
 
 fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    if module.data_layout_is_observable() {
+    if super::super::data_layout_is_observable(module) {
         return false;
     }
 

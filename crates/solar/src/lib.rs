@@ -16,6 +16,8 @@ pub use solar_config as config;
 #[doc(inline)]
 pub use solar_data_structures as data_structures;
 #[doc(inline)]
+pub use solar_evmir as evmir;
+#[doc(inline)]
 pub use solar_interface as interface;
 #[doc(inline)]
 pub use solar_lint as lint;

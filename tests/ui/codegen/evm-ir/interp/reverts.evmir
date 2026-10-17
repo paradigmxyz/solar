@@ -1,0 +1,77 @@
+//@ revisions: osaka homestead
+//@[homestead] compile-flags: --evm-version=homestead
+//@[osaka] run-call-fail: fail(uint256) 0 => Error("no")
+//@[osaka] run-call-fail: fail(uint256) 1 => Panic(0x11)
+//@[osaka] run-call-fail: fail(uint256) 2 => Oops(uint256)(7)
+//@[homestead] run-call-fail: fail(uint256) 0 =>
+//@[homestead] run-call-fail: fail(uint256) 1 =>
+//@ run-call-fail: fail(uint256) 3 =>
+//@ run-call: fail(uint256)(uint256) 4 => 4
+
+// Reverts with an `Error(string)`, a `Panic(uint256)`, and a custom error, which halt before
+// Byzantium, and `invalid`, which always halts.
+@module reverts
+bb0:
+  push 4
+  calldataload
+  dup 1
+  indexed_jump bb1, bb2, bb3, bb4, bb5
+
+// Error("no")
+bb1:
+  push 0x08c379a0
+  push 224
+  shl
+  push 0
+  mstore
+  push 32
+  push 4
+  mstore
+  push 2
+  push 36
+  mstore
+  push 0x6e6f000000000000000000000000000000000000000000000000000000000000
+  push 68
+  mstore
+  push 100
+  push 0
+  revert
+
+// Panic(0x11)
+bb2:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 0x11
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+
+// Oops(7)
+bb3:
+  push 0x50966f79
+  push 224
+  shl
+  push 0
+  mstore
+  push 7
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+
+bb4:
+  invalid
+
+// Returns its argument.
+bb5:
+  push 0
+  mstore
+  push 32
+  push 0
+  return

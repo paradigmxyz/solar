@@ -11,6 +11,8 @@ extern crate alloc;
 extern crate derive_more as _;
 extern crate tracing as _;
 
+use solar_evmir::ir_parse;
+
 pub mod mir;
 
 pub mod backend;
@@ -25,10 +27,9 @@ pub use contract::{
 mod link;
 pub use link::{
     ContractBytecodes, EmbeddedBytecodes, LibraryId, LibraryRelocation, LibraryTable,
-    QualifiedName, RelocatableBytecode,
+    QualifiedName, RelocatableBytecode, qualified_name,
 };
 
-mod ir_parse;
 mod source_info;
 
 pub(crate) mod target;
