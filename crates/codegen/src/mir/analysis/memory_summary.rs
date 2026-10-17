@@ -10,8 +10,8 @@
 //! value identities escape into a caller summary.
 
 use super::{
-    Access, AddressSpace, AliasAnalysis, CallGraphInfo, Location, LocationSize, MemoryAddress,
-    MemoryBase, MemoryLocation,
+    Access, AddressSpace, AliasAnalysis, CallGraphInfo, GasObservations, Location, LocationSize,
+    MemoryAddress, MemoryBase, MemoryLocation,
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
@@ -654,6 +654,9 @@ fn local_summary(
         heap_derived_values(func)
     };
     let returning = returning_blocks(func);
+    // A `gas` read that only sets an external call's gas forwards it without observing it,
+    // as `GasObservations` treats it within the function.
+    let forwarded_gas = GasObservations::classify_forwarded_call_gas(func);
     for (block_id, block) in func.blocks.iter_enumerated() {
         // A write or free-memory-pointer move on a path that can only revert is
         // rolled back with the call frame, so no caller observes it; a panic
@@ -693,7 +696,8 @@ fn local_summary(
             }
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
             summary.may_observe_msize |= matches!(kind, InstKind::MSize);
-            summary.may_observe_gas |= matches!(kind, InstKind::Gas);
+            summary.may_observe_gas |=
+                matches!(kind, InstKind::Gas) && !forwarded_gas.contains(inst_id);
             // An instruction that consumes both a pointer-derived value and a heap-derived one
             // can relate the object to the heap, whatever the positions: comparisons, pointer
             // arithmetic against the free-memory pointer, or storing one through the other.
