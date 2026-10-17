@@ -14,6 +14,12 @@
 //!    the read executes only on the path to the join. Their transfer overhead is charged before
 //!    selecting the rewrite. Size mode keeps the existing unsplit-edge policy until physical
 //!    phi/transfer size is known.
+//! 4. **Non-local full redundancy**: a read in a block reached from a join only through
+//!    single-predecessor blocks, with no kill of its key on that chain or in the join, reads the
+//!    value the join's entry holds. When that value is available on every predecessor, the read
+//!    becomes the join's phi. A loop body reading a word that only the preheader writes, such as
+//!    the length of an array the loop fills, then reads the preheader's stored value. This case
+//!    never inserts reads.
 //!
 //! The `storage-pre` variant limits the key universe to storage and transient storage.
 //! It runs after builtin expansion in the gas pipeline, when aggregate storage operations
@@ -205,6 +211,8 @@ type KeySet = DenseBitSet<usize>;
 /// inserting copies of `kind` at the end of the `insertions` predecessors.
 struct Candidate {
     target: BlockId,
+    /// The block holding `loads`: `target` itself, or a single-predecessor descendant of it.
+    load_block: BlockId,
     key: LoadKey,
     result_ty: MirType,
     kind: InstKind,
@@ -472,6 +480,15 @@ struct CandidateCx<'a> {
     locate_cache: FxHashMap<(BlockId, usize), Option<ValueId>>,
 }
 
+/// Keys a forward scan from a join's entry has seen killed or loaded.
+#[derive(Clone)]
+struct LoadScan {
+    /// Keys whose value may differ from the one at the join's entry.
+    blocked: KeySet,
+    /// Keys whose first load the scan has already found.
+    taken: KeySet,
+}
+
 impl LoadRedundancyEliminator {
     /// Creates a new load PRE pass pricing reads on `target`.
     fn new(target: Target) -> Self {
@@ -538,8 +555,9 @@ impl LoadRedundancyEliminator {
 
         // The key universe: only keys a rewrite could ever name. A candidate is
         // always a load in a block with at least two reachable predecessors
-        // (the join whose redundancy dominance cannot see), so a key never
-        // loaded at such a join can produce no candidate. Every key's
+        // (the join whose redundancy dominance cannot see) or in a block that
+        // such a join reaches through single-predecessor blocks alone, so a key
+        // never loaded in either can produce no candidate. Every key's
         // gen/kill/availability is computed independently of the others, so
         // narrowing the universe leaves the retained keys' dataflow unchanged
         // while dropping the summaries that no rewrite could consult. This is
@@ -548,8 +566,7 @@ impl LoadRedundancyEliminator {
         let mut keys = Vec::new();
         let mut key_index: FxHashMap<LoadKey, usize> = FxHashMap::default();
         for &block in rpo {
-            let predecessors = &func.blocks[block].predecessors;
-            if predecessors.len() < 2 || predecessors.iter().any(|&pred| !cfg.is_reachable(pred)) {
+            if Self::join_above(func, &cfg, block).is_none() {
                 continue;
             }
             for &inst_id in &func.blocks[block].instructions {
@@ -684,7 +701,12 @@ impl LoadRedundancyEliminator {
                 continue;
             }
 
-            for (inst, key_idx) in self.first_loads(func, cx.analysis, target) {
+            let loads = self
+                .first_loads(func, cx.analysis, target)
+                .into_iter()
+                .map(|(inst, key_idx)| (target, inst, key_idx))
+                .chain(self.descendant_loads(func, cx.analysis, target));
+            for (load_block, inst, key_idx) in loads {
                 if batch.len() >= limit {
                     break 'targets;
                 }
@@ -693,7 +715,7 @@ impl LoadRedundancyEliminator {
                     continue;
                 }
                 let Some(candidate) =
-                    self.candidate_for_load(func, cx, target, inst, key_idx, predecessors)
+                    self.candidate_for_load(func, cx, target, load_block, inst, key_idx)
                 else {
                     continue;
                 };
@@ -701,6 +723,7 @@ impl LoadRedundancyEliminator {
                     continue;
                 }
                 modified_blocks.insert(candidate.target);
+                modified_blocks.insert(candidate.load_block);
                 for &block in &candidate.insertions {
                     modified_blocks.insert(block);
                 }
@@ -731,6 +754,7 @@ impl LoadRedundancyEliminator {
         eliminated_values: &DenseBitSet<ValueId>,
     ) -> bool {
         modified_blocks.contains(candidate.target)
+            || modified_blocks.contains(candidate.load_block)
             || candidate.insertions.iter().any(|&block| modified_blocks.contains(block))
             || candidate.incoming.iter().any(|&(_, value)| eliminated_values.contains(value))
             || candidate.loads.iter().any(|&(_, value)| eliminated_values.contains(value))
@@ -756,13 +780,101 @@ impl LoadRedundancyEliminator {
         target: BlockId,
     ) -> Vec<(InstId, usize)> {
         let key_count = analysis.keys.len();
-        let mut blocked = KeySet::new_empty(key_count);
-        let mut taken = KeySet::new_empty(key_count);
+        let mut scan =
+            LoadScan { blocked: KeySet::new_empty(key_count), taken: KeySet::new_empty(key_count) };
         let mut found = Vec::new();
+        self.scan_first_loads(func, analysis, target, &mut scan, &mut found);
+        found
+    }
 
-        for &inst_id in &func.blocks[target].instructions {
+    /// Returns the first load of each key in the blocks below `target` that `target` reaches
+    /// through single-predecessor blocks alone, as `(block, load, key)`, when no kill of that key
+    /// precedes it on the way from `target`'s entry and `target` holds no load of it.
+    ///
+    /// Such a load reads the value the key has at `target`'s entry, so it is fully redundant
+    /// when that value is available on every predecessor. The walk applies the scan of
+    /// [`Self::first_loads`] to every block: it crosses no gas observation or call, `msize`
+    /// blocks the memory keys after it, and it visits at most [`Self::MAX_DESCENDANT_BLOCKS`]
+    /// blocks.
+    fn descendant_loads(
+        &self,
+        func: &Function,
+        analysis: &Analysis,
+        target: BlockId,
+    ) -> Vec<(BlockId, InstId, usize)> {
+        let key_count = analysis.keys.len();
+        let mut scan =
+            LoadScan { blocked: KeySet::new_empty(key_count), taken: KeySet::new_empty(key_count) };
+        let mut found = Vec::new();
+        if !self.scan_first_loads(func, analysis, target, &mut scan, &mut Vec::new()) {
+            return Vec::new();
+        }
+        let mut stack = vec![(target, scan)];
+        let mut visited = 0;
+        while let Some((block, scan)) = stack.pop() {
+            let Some(terminator) = &func.blocks[block].terminator else { continue };
+            for successor in terminator.successors() {
+                if visited >= Self::MAX_DESCENDANT_BLOCKS {
+                    return found;
+                }
+                if successor == target
+                    || func.blocks[successor].predecessors.as_slice() != [block]
+                    || analysis.gas.at_entry(successor)
+                {
+                    continue;
+                }
+                visited += 1;
+                let mut scan = scan.clone();
+                let mut loads = Vec::new();
+                let transparent =
+                    self.scan_first_loads(func, analysis, successor, &mut scan, &mut loads);
+                found.extend(loads.into_iter().map(|(inst, key)| (successor, inst, key)));
+                if transparent {
+                    stack.push((successor, scan));
+                }
+            }
+        }
+        found
+    }
+
+    /// The most single-predecessor blocks [`Self::descendant_loads`] scans below one join.
+    const MAX_DESCENDANT_BLOCKS: usize = 16;
+
+    /// Returns the join whose candidates may include the loads in `block`: `block` itself when
+    /// it has two or more predecessors, all reachable, or the first such block above a chain of
+    /// at most [`Self::MAX_DESCENDANT_BLOCKS`] single-predecessor blocks ending at `block`.
+    fn join_above(func: &Function, cfg: &CfgInfo, block: BlockId) -> Option<BlockId> {
+        let mut current = block;
+        for _ in 0..=Self::MAX_DESCENDANT_BLOCKS {
+            let predecessors = &func.blocks[current].predecessors;
+            match predecessors.as_slice() {
+                [] => return None,
+                &[pred] if pred != block => current = pred,
+                [_] => return None,
+                _ if predecessors.iter().all(|&pred| cfg.is_reachable(pred)) => {
+                    return Some(current);
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    /// Appends to `found` each load in `block` of a key that `scan` neither blocks nor has taken,
+    /// updating `scan` with the block's kills. Returns whether the whole block was scanned,
+    /// rather than stopping at a gas observation or a call.
+    fn scan_first_loads(
+        &self,
+        func: &Function,
+        analysis: &Analysis,
+        block: BlockId,
+        scan: &mut LoadScan,
+        found: &mut Vec<(InstId, usize)>,
+    ) -> bool {
+        let LoadScan { blocked, taken } = scan;
+        for &inst_id in &func.blocks[block].instructions {
             if analysis.gas.observes(inst_id) {
-                break;
+                return false;
             }
             if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                 if let Some(&idx) = analysis.key_index.get(&key)
@@ -776,7 +888,7 @@ impl LoadRedundancyEliminator {
             let kind = &func.inst(inst_id).kind;
             match kind {
                 // Gas observations and calls block motion in every space.
-                _ if Self::blocks_motion(kind) => break,
+                _ if Self::blocks_motion(kind) => return false,
                 InstKind::MSize => {
                     for &idx in &analysis.kill_index.memory {
                         blocked.insert(idx);
@@ -799,8 +911,7 @@ impl LoadRedundancyEliminator {
                 _ => {}
             }
         }
-
-        found
+        true
     }
 
     fn blocks_motion(kind: &InstKind) -> bool {
@@ -860,15 +971,16 @@ impl LoadRedundancyEliminator {
         func: &Function,
         cx: &mut CandidateCx<'_>,
         target: BlockId,
+        load_block: BlockId,
         inst: InstId,
         key_idx: usize,
-        predecessors: &[BlockId],
     ) -> Option<Candidate> {
+        let predecessors = func.blocks[target].predecessors.as_slice();
         let instruction = func.inst(inst);
         let result = func.inst_result_value(inst)?;
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
-        let loads = self.same_key_loads_in_target(func, target, inst, key);
+        let loads = self.same_key_loads_in_target(func, load_block, inst, key);
         if loads.is_empty() {
             return None;
         }
@@ -881,6 +993,10 @@ impl LoadRedundancyEliminator {
             {
                 incoming.push((pred, value));
                 continue;
+            }
+            // A load below the join is only removed, never moved to the join's predecessors.
+            if load_block != target {
+                return None;
             }
             // The key is unavailable here; insert only on an explicit CFG edge.
             if !Self::can_insert_on_edge(func, pred, target) {
@@ -971,6 +1087,7 @@ impl LoadRedundancyEliminator {
 
         Some(Candidate {
             target,
+            load_block,
             key,
             result_ty,
             kind: instruction.kind.clone(),
@@ -1092,8 +1209,17 @@ impl LoadRedundancyEliminator {
         eliminated_keys: &mut FxHashSet<(LoadKey, BlockId)>,
         inserted_insts: &mut GrowableBitSet<InstId>,
     ) {
-        let Candidate { target, key, result_ty, kind, metadata, loads, mut incoming, insertions } =
-            candidate;
+        let Candidate {
+            target,
+            load_block,
+            key,
+            result_ty,
+            kind,
+            metadata,
+            loads,
+            mut incoming,
+            insertions,
+        } = candidate;
 
         eliminated_keys.insert((key, target));
 
@@ -1150,7 +1276,7 @@ impl LoadRedundancyEliminator {
         for &(inst_id, _) in &loads {
             load_insts.insert(inst_id);
         }
-        func.blocks[target].instructions.retain(|&inst_id| !load_insts.contains(inst_id));
+        func.blocks[load_block].instructions.retain(|&inst_id| !load_insts.contains(inst_id));
         self.stats.loads_eliminated += loads.len();
     }
 

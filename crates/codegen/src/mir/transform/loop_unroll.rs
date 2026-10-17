@@ -170,12 +170,15 @@
 //! test per entry. The new code holds `k` more copies of the body and one of
 //! the header, and the pass takes the factor that saves the most. Literal
 //! bounds give the trip count, and other loops are assumed to run the target's
-//! estimate for uncounted loops. A peeled copy of the header and the body pays
-//! when the conditional jumps that the iterations after the first skip save
-//! more. A `<=` loop stepping by one unrolls by four only from a literal start,
-//! as its main test then adds the offset. Runs after the late loop passes have
-//! fixed the loop's physical shape, and before the final CFG cleanup and
-//! dead-code elimination remove the cloned tests the copies no longer read.
+//! estimate for uncounted loops, or fewer when the bound's largest value, as a
+//! phi of constants or a call whose returns have a proven maximum gives it,
+//! cannot reach that far, so a loop bounded by three never unrolls by four. A
+//! peeled copy of the header and the body pays when the conditional jumps that
+//! the iterations after the first skip save more. A `<=` loop stepping by one
+//! unrolls by four only from a literal start, as its main test then adds the
+//! offset. Runs after the late loop passes have fixed the loop's physical
+//! shape, and before the final CFG cleanup and dead-code elimination remove the
+//! cloned tests the copies no longer read.
 
 use super::loop_split::retarget;
 use crate::{
@@ -183,7 +186,10 @@ use crate::{
     mir::{
         BlockId, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, Instruction,
         MirType, Module, OpTraits, PtrLocation, Terminator, Value, ValueId,
-        analysis::{Loop, LoopAnalyzer, LoopInfo, aborts, cold_functions},
+        analysis::{
+            Loop, LoopAnalyzer, LoopInfo, aborts, cold_functions,
+            integers::{return_bounds, unsigned_bounds_with_returns},
+        },
         pass::{MirPass, run_function_pass},
         utils::rebuild_predecessors,
     },
@@ -211,7 +217,10 @@ impl MirPass for LoopUnroll {
     ) -> bool {
         let target = Target::new(gcx);
         let cold = cold_functions(module);
-        run_function_pass(module, analyses, |func, _| unroll_function(func, &cold, target))
+        let returns = return_bounds(module);
+        run_function_pass(module, analyses, |func, _| {
+            unroll_function(func, &cold, &returns, target)
+        })
     }
 }
 
@@ -319,7 +328,12 @@ const MAX_COMPLETE_TRIPS: u64 = 16;
 /// pricing, so that a contract near the code size limit cannot grow past it.
 const MAX_COMPLETE_BYTES: u32 = 256;
 
-fn unroll_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: Target) -> bool {
+fn unroll_function(
+    func: &mut Function,
+    cold: &DenseBitSet<FunctionId>,
+    returns: &FxHashMap<FunctionId, U256>,
+    target: Target,
+) -> bool {
     let mut changed = false;
     let mut done = FxHashSet::default();
     let mut peeled = FxHashSet::default();
@@ -341,7 +355,9 @@ fn unroll_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: 
     let loops = LoopAnalyzer::new().analyze_structure(func);
     let reversals: Vec<_> = loops
         .all_loops()
-        .filter(|l| plan(func, &loops, l, cold, target).is_none_or(|unroll| unroll.factor != 4))
+        .filter(|l| {
+            plan(func, &loops, l, cold, returns, target).is_none_or(|unroll| unroll.factor != 4)
+        })
         .filter_map(|l| plan_reverse(func, l))
         .collect();
     changed |= !reversals.is_empty();
@@ -364,7 +380,7 @@ fn unroll_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: 
         let Some(unroll) = loops
             .all_loops()
             .filter(|l| !done.contains(&l.header))
-            .find_map(|l| plan(func, &loops, l, cold, target))
+            .find_map(|l| plan(func, &loops, l, cold, returns, target))
         else {
             break;
         };
@@ -607,6 +623,7 @@ fn plan(
     loops: &LoopInfo,
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
+    returns: &FxHashMap<FunctionId, U256>,
     target: Target,
 ) -> Option<Unroll> {
     if !target.copies_loops() {
@@ -645,7 +662,15 @@ fn plan(
     }
     let Counter { test, word, bound, start, step, trips } = counter(func, l, &shape)?;
     let literal_start = func.value_u256(start);
-    let trips = trips.unwrap_or(Target::UNCOUNTED_LOOP_ITERATIONS);
+    // A loop without literal trips runs the target's estimate for uncounted loops, or fewer when
+    // its bound cannot reach that far: unrolling by more than the loop can ever run only adds
+    // the main loop's declined test to every entry.
+    let trips = trips.unwrap_or_else(|| {
+        max_trips(func, test, start, bound, step, returns)
+            .map_or(Target::UNCOUNTED_LOOP_ITERATIONS, |max| {
+                max.min(Target::UNCOUNTED_LOOP_ITERATIONS)
+            })
+    });
     // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from a literal start, so
     // `word + (factor - 1) * step` never wraps.
     let ahead = |factor: u32| {
@@ -805,6 +830,28 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
     };
     let trips = trips.map(|trips| u64::try_from(trips).unwrap_or(u64::MAX));
     Some(Counter { test, word, bound, start, step, trips })
+}
+
+/// The most iterations a `<` or `<=` loop from a literal start can run, from the largest value its
+/// bound can take, including the results of calls to functions in `returns`.
+fn max_trips(
+    func: &Function,
+    test: Test,
+    start: ValueId,
+    bound: ValueId,
+    step: U256,
+    returns: &FxHashMap<FunctionId, U256>,
+) -> Option<u64> {
+    let start = func.value_u256(start)?;
+    let (_, limit) = unsigned_bounds_with_returns(func, bound, returns);
+    let trips = match test {
+        Test::Below => limit.saturating_sub(start).div_ceil(step),
+        Test::AtMost | Test::UpTo => limit
+            .checked_sub(start)
+            .map_or(U256::ZERO, |left| (left / step).saturating_add(U256::from(1))),
+        Test::Reaches => return None,
+    };
+    Some(u64::try_from(trips).unwrap_or(u64::MAX))
 }
 
 /// How much lifetime gas the tests and jumps the main loop skips save over the deposit of its

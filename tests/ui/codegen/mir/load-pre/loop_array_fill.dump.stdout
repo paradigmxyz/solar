@@ -1,0 +1,197 @@
+// === ROOT/tests/ui/codegen/mir/load-pre/loop_array_fill.sol:LoopArrayFill ===
+@module LoopArrayFill
+@phase lowered
+fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
+  bb0:
+    v7 = add arg0, 1
+    v8 = eq v7, 0
+    jumpi v8, bb4, bb5
+  bb5:
+    v9 = shl 5, v7
+    v11 = shr 5, v9
+    v15 = ne v11, v7
+    jumpi v15, bb4, bb6
+  bb6:
+    v58 = icall @alloc, v9
+    v60 = calldatasize
+    calldatacopy v58, v60, v9
+    mstore v58, arg0
+    v61 = add v58, 32
+    jump bb9
+  bb9:
+    v64 = phi [bb6: 0], [bb14: v102]
+    v65 = phi [bb6: v61], [bb14: v103]
+    v104 = add v64, 3
+    v105 = lt v104, arg0
+    jumpi v105, bb10, bb1
+  bb1:
+    v19 = phi [bb9: v64], [bb8: v36]
+    v62 = phi [bb9: v65], [bb8: v63]
+    v20 = lt v19, arg0
+    jumpi v20, bb3, bb2
+  bb2:
+    v50 = add v58, 32
+    v45 = shl 5, arg0
+    v52 = add v58, 64
+    mcopy v52, v50, v45
+    mstore v58, 32
+    mstore v50, arg0
+    v47 = add v45, 64
+    returndata v58, v47
+  bb3:
+    v29 = mul v19, v19
+    v30 = eq v19, 0
+    v31 = div v29, v19
+    v32 = eq v31, v19
+    v33 = or v30, v32
+    jumpi v33, bb8, bb7
+  bb8:
+    mstore v62, v29
+    v36 = add v19, 1
+    v63 = add v62, 32
+    jump bb1
+  bb10:
+    v67 = mul v64, v64
+    v68 = eq v64, 0
+    v69 = div v67, v64
+    v70 = eq v69, v64
+    v71 = or v68, v70
+    jumpi v71, bb11, bb7
+  bb11:
+    mstore v65, v67
+    v72 = add v64, 1
+    v73 = add v65, 32
+    v77 = mul v72, v72
+    v78 = eq v72, 0
+    v79 = div v77, v72
+    v80 = eq v79, v72
+    v81 = or v78, v80
+    jumpi v81, bb12, bb7
+  bb12:
+    mstore v73, v77
+    v82 = add v72, 1
+    v83 = add v65, 64
+    v87 = mul v82, v82
+    v88 = eq v82, 0
+    v89 = div v87, v82
+    v90 = eq v89, v82
+    v91 = or v88, v90
+    jumpi v91, bb13, bb7
+  bb13:
+    mstore v83, v87
+    v92 = add v82, 1
+    v93 = add v65, 96
+    v97 = mul v92, v92
+    v98 = eq v92, 0
+    v99 = div v97, v92
+    v100 = eq v99, v92
+    v101 = or v98, v100
+    jumpi v101, bb14, bb7
+  bb7:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb14:
+    mstore v93, v97
+    v102 = add v92, 1
+    v103 = add v65, 128
+    jump bb9
+  bb4:
+    tail_call @revert_stub
+}
+
+fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
+  bb0:
+    v33 = and arg0, 0xffffffff
+    v34 = eq v33, 0
+    jumpi v34, bb4, bb5
+  bb5:
+    v35 = shr 32, arg0
+    v36 = and v35, 0xffffffff
+    v37 = eq v36, 0
+    jumpi v37, bb4, bb6
+  bb6:
+    v38 = shr 64, arg0
+    v39 = and v38, 0xffffffff
+    v40 = eq v39, 0
+    v51 = zext i1 v40 to i256
+    v53 = sub 3, v51
+    jump bb4
+  bb4:
+    v41 = phi [bb0: 0], [bb5: 1], [bb6: v53]
+    v8 = add v41, 1
+    v10 = shl 5, v8
+    v74 = icall @alloc, v10
+    v76 = calldatasize
+    calldatacopy v74, v76, v10
+    mstore v74, v41
+    v77 = add v74, 32
+    jump bb1
+  bb1:
+    v21 = phi [bb4: 0], [bb3: v49]
+    v78 = phi [bb4: v77], [bb3: v79]
+    v22 = lt v21, v41
+    jumpi v22, bb3, bb2
+  bb2:
+    v66 = add v74, 32
+    v61 = shl 5, v41
+    v68 = add v74, 64
+    mcopy v68, v66, v61
+    mstore v74, 32
+    mstore v66, v41
+    v63 = add v61, 64
+    returndata v74, v63
+  bb3:
+    v42 = shl 5, v21
+    v24 = shr v42, arg0
+    v25 = and v24, 0xffffffff
+    mstore v78, v25
+    v49 = add v21, 1
+    v79 = add v78, 32
+    jump bb1
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x3fda5389 => bb3, 0x713c311a => bb4]
+  bb4:
+    tail_call @lanes
+  bb3:
+    tail_call @fill
+  bb1:
+    revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
