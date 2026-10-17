@@ -116,7 +116,7 @@
 +     v52 = extract_value slice<calldata>, arg1, 0
 +     jump bb12
 +   bb12:
-+     v53 = phi [bb11: 0], [bb13: v66]
++     v53 = phi [bb11: 0], [bb13: v65]
 +     v54 = lt v53, v10
 +     jumpi v54, bb13, bb14
 +   bb14:
@@ -128,13 +128,12 @@
 +     v58 = ptrtoint ptr<calldata> v57 to i256
 +     v59 = add v58, v55
 +     v60 = calldataload v59
-+     v61 = eq v60, 0
-+     v62 = eq v61, false
-+     v63 = ptradd v21, v56
-+     v64 = ptradd v63, 32
-+     v65 = zext i1 v62 to i256
-+     mstore v64, v65
-+     v66 = add v53, 1
++     v61 = ne v60, 0
++     v62 = ptradd v21, v56
++     v63 = ptradd v62, 32
++     v64 = zext i1 v61 to i256
++     mstore v63, v64
++     v65 = add v53, 1
 +     jump bb12
 +   bb8:
 +     v33 = mul v31, 32

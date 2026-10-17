@@ -4439,8 +4439,7 @@ fn canonicalize_return_value_inner(
 }
 
 fn memory_object_non_null(builder: &mut FunctionBuilder<'_>, object: ValueId) -> ValueId {
-    let non_null = builder.eq_zero(object);
-    builder.eq_zero(non_null)
+    builder.ne_zero(object)
 }
 
 fn direct_calldata_copy_source(

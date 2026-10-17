@@ -12,33 +12,33 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v6 = eq v5, 0
     jumpi v6, bb3, bb1
   bb3:
-    v44 = mload 64 !metadata(memory=scratch)
-    v45 = add v44, 128
-    mstore 64, v45 !metadata(memory=scratch)
-    mstore v44, 68
-    v38 = add v44, 32
-    mstore v38, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v40 = add v44, 36
-    mstore v40, arg0
-    v14 = add v40, 32
+    v43 = mload 64 !metadata(memory=scratch)
+    v44 = add v43, 128
+    mstore 64, v44 !metadata(memory=scratch)
+    mstore v43, 68
+    v37 = add v43, 32
+    mstore v37, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v39 = add v43, 36
+    mstore v39, arg0
+    v14 = add v39, 32
     mstore v14, arg1
-    v46 = mload 64 !metadata(memory=scratch)
-    v17 = add v46, 32
-    mstore v46, 32
-    v23 = ne v44, 0
-    v24 = zext i1 v23 to i256
-    v20 = mload v44
-    v25 = mul v20, v24
-    v27 = add v25, 31
-    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v29 = add v17, 32
-    v30 = add v17, v28
-    mstore v30, 0
-    mstore v17, v25
-    v32 = add v29, v28
-    mcopy v29, v38, v25 !metadata(disjoint)
-    v34 = sub v32, v46
-    returndata v46, v34
+    v45 = mload 64 !metadata(memory=scratch)
+    v17 = add v45, 32
+    mstore v45, 32
+    v22 = ne v43, 0
+    v23 = zext i1 v22 to i256
+    v20 = mload v43
+    v24 = mul v20, v23
+    v26 = add v24, 31
+    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v28 = add v17, 32
+    v29 = add v17, v27
+    mstore v29, 0
+    mstore v17, v24
+    v31 = add v28, v27
+    mcopy v28, v37, v24 !metadata(disjoint)
+    v33 = sub v31, v45
+    returndata v45, v33
   bb1:
     revert 0, 0
 }
@@ -60,19 +60,19 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     jumpi v15, bb4, bb1
   bb4:
     v0 = gas
-    v31 = mload 64 !metadata(memory=scratch)
-    v32 = add v31, 128
-    mstore 64, v32 !metadata(memory=scratch)
-    mstore v31, 68
-    v27 = add v31, 32
-    mstore v27, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v29 = add v31, 36
-    mstore v29, arg1
-    v25 = add v29, 32
-    mstore v25, arg2
-    v7 = call v0, arg0, 0, v27, 68, 0, 0
-    v18 = zext i1 v7 to i256
-    mstore 128, v18
+    v30 = mload 64 !metadata(memory=scratch)
+    v31 = add v30, 128
+    mstore 64, v31 !metadata(memory=scratch)
+    mstore v30, 68
+    v26 = add v30, 32
+    mstore v26, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v28 = add v30, 36
+    mstore v28, arg1
+    v24 = add v28, 32
+    mstore v24, arg2
+    v7 = call v0, arg0, 0, v26, 68, 0, 0
+    v17 = zext i1 v7 to i256
+    mstore 128, v17
     returndata 128, 32
   bb1:
     revert 0, 0
