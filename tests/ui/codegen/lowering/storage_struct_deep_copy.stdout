@@ -5,18 +5,16 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
   bb0:
     v73 = calldatasize
     v74 = lt v73, 68
-    jumpi v74, bb10, bb11
-  bb11:
     v75 = calldataload 4
     v76 = shr 160, v75
-    v77 = eq v76, 0
-    jumpi v77, bb12, bb10
-  bb12:
+    v96 = zext i1 v74 to i256
+    v97 = or v96, v76
     v78 = calldataload 36
     v79 = shl 32, v78
-    v80 = eq v79, 0
-    jumpi v80, bb13, bb10
-  bb13:
+    v99 = or v97, v79
+    v100 = ne v99, 0
+    jumpi v100, bb10, bb11
+  bb11:
     v90 = icall @alloc, 64
     v92 = calldatasize
     calldatacopy v90, v92, 64
@@ -108,18 +106,16 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
   bb0:
     v79 = calldatasize
     v80 = lt v79, 68
-    jumpi v80, bb12, bb13
-  bb13:
     v81 = calldataload 4
     v82 = shr 160, v81
-    v83 = eq v82, 0
-    jumpi v83, bb14, bb12
-  bb14:
+    v105 = zext i1 v80 to i256
+    v106 = or v105, v82
     v84 = calldataload 36
     v85 = shl 32, v84
-    v86 = eq v85, 0
-    jumpi v86, bb15, bb12
-  bb15:
+    v108 = or v106, v85
+    v109 = ne v108, 0
+    jumpi v109, bb12, bb13
+  bb13:
     v99 = icall @alloc, 64
     v101 = calldatasize
     calldatacopy v99, v101, 64
@@ -273,18 +269,16 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
   bb0:
     v77 = calldatasize
     v78 = lt v77, 68
-    jumpi v78, bb10, bb11
-  bb11:
     v79 = calldataload 4
     v80 = shr 160, v79
-    v81 = eq v80, 0
-    jumpi v81, bb12, bb10
-  bb12:
+    v100 = zext i1 v78 to i256
+    v101 = or v100, v80
     v82 = calldataload 36
     v83 = shl 32, v82
-    v84 = eq v83, 0
-    jumpi v84, bb13, bb10
-  bb13:
+    v103 = or v101, v83
+    v104 = ne v103, 0
+    jumpi v104, bb10, bb11
+  bb11:
     v94 = icall @alloc, 64
     v96 = calldatasize
     calldatacopy v94, v96, 64
