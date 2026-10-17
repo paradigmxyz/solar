@@ -4,6 +4,7 @@
 
 // A terminal ABI encoder may reuse a fresh full-word array. The payload moves
 // forward once, then the old length and data words become the tuple header.
+// A fresh object is never null, so its length needs no null guard.
 // CHECK-LABEL: {{^[ +].*}}fn @fresh_array{{[( ]}}
 fn @fresh_array() -> ptr<memory> {
   bb0:
