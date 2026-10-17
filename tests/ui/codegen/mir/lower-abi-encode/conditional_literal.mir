@@ -8,7 +8,7 @@
 // CHECK: fn @encode
 // CHECK: + {{v[0-9]+}} = mload v0
 // CHECK-NEXT: + [[NULL_WORD:v[0-9]+]] = ptrtoint ptr<memory> v0 to i256
-// CHECK-NEXT: + {{v[0-9]+}} = eq [[NULL_WORD]], 0
+// CHECK-NEXT: + {{v[0-9]+}} = ne [[NULL_WORD]], 0
 // CHECK: + [[DATA:v[0-9]+]] = ptradd v0, 32
 // CHECK: + mcopy {{v[0-9]+}}, [[DATA]],
 fn @encode(arg0: i256) -> slice<memory> {
@@ -31,7 +31,7 @@ fn @encode(arg0: i256) -> slice<memory> {
 // CHECK: fn @overlapping
 // CHECK: + {{v[0-9]+}} = mload v0
 // CHECK-NEXT: + [[NULL_WORD:v[0-9]+]] = ptrtoint ptr<memory> v0 to i256
-// CHECK-NEXT: + {{v[0-9]+}} = eq [[NULL_WORD]], 0
+// CHECK-NEXT: + {{v[0-9]+}} = ne [[NULL_WORD]], 0
 // CHECK: + [[DATA:v[0-9]+]] = ptradd v0, 32
 // CHECK: + mcopy {{v[0-9]+}}, [[DATA]],
 fn @overlapping(arg0: i256) -> slice<memory> {
@@ -55,7 +55,7 @@ fn @overlapping(arg0: i256) -> slice<memory> {
 // CHECK: alloc 64 !metadata(preserves_fmp)
 // CHECK: + {{v[0-9]+}} = mload v0
 // CHECK-NEXT: + [[NULL_WORD:v[0-9]+]] = ptrtoint ptr<memory> v0 to i256
-// CHECK-NEXT: + {{v[0-9]+}} = eq [[NULL_WORD]], 0
+// CHECK-NEXT: + {{v[0-9]+}} = ne [[NULL_WORD]], 0
 fn @preserved() -> slice<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)

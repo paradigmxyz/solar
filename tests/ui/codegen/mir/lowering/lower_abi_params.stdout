@@ -170,12 +170,12 @@
 -     v1 = eq v0, i160 0
 -     ret v1
 +     v1 = eq arg0, 0
-+     v7 = eq v1, false
-+     v9 = zext i1 v1 to i256
-+     mstore 128, v9
-+     v10 = add 128, 32
-+     v11 = sub v10, 128
-+     returndata 128, v11
++     v7 = ne v1, false
++     v8 = zext i1 v7 to i256
++     mstore 128, v8
++     v9 = add 128, 32
++     v10 = sub v9, 128
++     returndata 128, v10
 +   bb2:
 +     revert 0, 0
   }

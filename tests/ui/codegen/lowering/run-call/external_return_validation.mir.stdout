@@ -555,11 +555,10 @@ fn @dirtyEnumNested() -> ptr<memory> [selector=0xb5dac01b, pure, abi_params=[], 
 
 fn @dirtyBoolPacked() -> ptr<memory> [selector=0x09c9026f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = eq 2, 0
-    v1 = eq v0, false
-    v2 = zext i1 v1 to i8
-    v3 = abi_encode_packed (u8 v2)
-    ret v3
+    v0 = ne 2, 0
+    v1 = zext i1 v0 to i8
+    v2 = abi_encode_packed (u8 v1)
+    ret v2
 }
 
 fn @dynamicShort(arg0: i256) -> i1 [selector=0x73932459, view, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {

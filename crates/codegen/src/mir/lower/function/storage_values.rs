@@ -1641,8 +1641,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let elements_per_slot = self.builder.imm(32 / u64::from(size.bytes()));
                     let full_slots = self.builder.div(length, elements_per_slot);
                     let remainder = self.builder.mod_(length, elements_per_slot);
-                    let remainder_is_zero = self.builder.eq_zero(remainder);
-                    let has_partial_slot = self.builder.eq_zero(remainder_is_zero);
+                    let has_partial_slot = self.builder.ne_zero(remainder);
                     let slots = self.builder.add(full_slots, has_partial_slot);
                     self.builder.clear_storage_words(access.slot, zero, slots);
                     return Some(());

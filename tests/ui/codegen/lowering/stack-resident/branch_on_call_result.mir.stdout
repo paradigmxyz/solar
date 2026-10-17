@@ -8,28 +8,27 @@ fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x7357f5d2, abi_params=[u256, 
     v0 = icall @search, arg0
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
-    v3 = eq v1, false
+    v3 = ne v1, false
     v4 = eq v3, false
-    v5 = eq v4, false
-    jumpi v5, bb1, bb2
+    jumpi v4, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v6 = icall @search, arg1
-    v7 = extract_value struct0, v6, 0
-    v8 = extract_value struct0, v6, 1
-    jumpi v7, bb4, bb5
+    v5 = icall @search, arg1
+    v6 = extract_value struct0, v5, 0
+    v7 = extract_value struct0, v5, 1
+    jumpi v6, bb4, bb5
   bb5:
     jump bb6
   bb6:
-    v9 = checked_add u256, v8, 1
+    v8 = checked_add u256, v7, 1
     jump bb3
   bb3:
-    v10 = phi [bb6: v9], [bb2: v2]
-    v11 = checked_mul u256, v10, 3
-    ret v11
+    v9 = phi [bb6: v8], [bb2: v2]
+    v10 = checked_mul u256, v9, 3
+    ret v10
   bb4:
-    ret v8
+    ret v7
 }
 
 fn @search(arg0: i256) -> struct0 {

@@ -1592,8 +1592,7 @@ fn memory_object_len(builder: &mut FunctionBuilder<'_>, value: ValueId) -> Value
 }
 
 fn memory_object_non_null(builder: &mut FunctionBuilder<'_>, object: ValueId) -> ValueId {
-    let non_null = builder.eq_zero(object);
-    builder.eq_zero(non_null)
+    builder.ne_zero(object)
 }
 
 /// Finds literal bytes candidates whose allocation and encoding share a block, with

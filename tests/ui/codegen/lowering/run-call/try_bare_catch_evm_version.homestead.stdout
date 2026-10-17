@@ -371,9 +371,8 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
     v6 = add v5, v1
     mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
-    v8 = eq v7, i160 0
-    v9 = eq v8, false
-    jumpi v9, bb1, bb2
+    v8 = ne v7, i160 0
+    jumpi v8, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -384,8 +383,8 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
   bb1:
     jump bb3
   bb3:
-    v10 = phi [bb1: 1], [bb4: 7]
-    ret v10
+    v9 = phi [bb1: 1], [bb4: 7]
+    ret v9
 }
 
 fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
