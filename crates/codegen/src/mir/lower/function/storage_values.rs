@@ -1049,6 +1049,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let size =
                     self.builder.imm(len.checked_mul(u64::from(element_words))?.saturating_mul(32));
                 let object = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+                if let Some((size, encoding)) = self.cx.storage.packed_encoding(element)
+                    && 32 / size.bytes() >= 2
+                    && self.types.memory_layout(element).is_none()
+                {
+                    self.load_packed_fixed_array(
+                        object,
+                        layout,
+                        slot,
+                        len,
+                        element,
+                        StorageLocation::packed_word(size, encoding),
+                    )?;
+                    return Some(object);
+                }
                 let len = self.builder.imm(len);
                 self.counted_loop(len, |this, index| {
                     let access =
@@ -1822,6 +1836,49 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 offset: None,
             })
             .slot = slot;
+    }
+
+    /// Copies packed elements of a fixed-size storage array one word at a time into `object`.
+    /// Each word is loaded once and its elements unpacked, the last word only up to `len`.
+    fn load_packed_fixed_array(
+        &mut self,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        slot: ValueId,
+        len: u64,
+        element: Ty<'gcx>,
+        location: StorageLocation,
+    ) -> Option<()> {
+        // for w in 0..words {
+        //     word = sload(slot + w)
+        //     first = w * per_slot
+        //     count = min(per_slot, len - first)
+        //     for j in 0..count { object[first + j] = unpack(word, j) }
+        // }
+        let bytes = u64::from(location.size.bytes());
+        let per_slot = 32 / bytes;
+        let words = self.builder.imm(len.div_ceil(per_slot));
+        let per_slot = self.builder.imm(per_slot);
+        let len = self.builder.imm(len);
+        self.counted_loop(words, |this, word_index| {
+            let word_slot = this.builder.add(slot, word_index);
+            let word = this.builder.sload(word_slot);
+            let first = this.builder.mul(word_index, per_slot);
+            let rest = this.builder.sub(len, first);
+            let short = this.builder.lt(rest, per_slot);
+            let count = this.builder.select(short, rest, per_slot);
+            this.counted_loop(count, |this, index_in_word| {
+                let bits = this.builder.imm(bytes * 8);
+                let shift = this.builder.mul(index_in_word, bits);
+                let value = location.load_word(&mut this.builder, word, Some(shift));
+                this.validate_enum(element, value);
+                let value = this.encode_memory_scalar(element, value);
+                // object[first + j] = value
+                let index = this.builder.add(first, index_in_word);
+                this.builder.memory_store_element(object, layout, index, value);
+                Some(())
+            })
+        })
     }
 }
 

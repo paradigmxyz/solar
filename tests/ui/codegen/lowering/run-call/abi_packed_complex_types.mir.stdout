@@ -76,37 +76,48 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v55 = alloc checked 96
     jump bb1
   bb1:
-    v56 = phi [bb0: 0], [bb2: v69]
-    v57 = lt v56, 3
+    v56 = phi [bb0: 0], [bb6: v74]
+    v57 = lt v56, 2
     jumpi v57, bb2, bb3
   bb3:
-    v70 = abi_encode_packed (array<word<u120>> memoryfixedarray<3, 1> v55)
-    v71 = ptradd v70, 32
-    v72 = mload v70
-    v73 = keccak256 v71, v72
-    v74 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
-    v75 = ptradd v74, 32
-    v76 = mload v74
-    v77 = keccak256 v75, v76
-    v78 = insert_value struct0, undef struct0, 0, v73
-    v79 = insert_value struct0, v78, 1, v77
-    v80 = insert_value struct0, v79, 2, 0xe7490fade3a8e31113ecb6c0d2635e28a6f5ca8359a57afe914827f41ddf0848
-    ret v80
+    v75 = abi_encode_packed (array<word<u120>> memoryfixedarray<3, 1> v55)
+    v76 = ptradd v75, 32
+    v77 = mload v75
+    v78 = keccak256 v76, v77
+    v79 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
+    v80 = ptradd v79, 32
+    v81 = mload v79
+    v82 = keccak256 v80, v81
+    v83 = insert_value struct0, undef struct0, 0, v78
+    v84 = insert_value struct0, v83, 1, v82
+    v85 = insert_value struct0, v84, 2, 0xe7490fade3a8e31113ecb6c0d2635e28a6f5ca8359a57afe914827f41ddf0848
+    ret v85
   bb2:
-    v58 = div v56, 2
-    v59 = add 0, v58
-    v60 = mod v56, 2
-    v61 = mul v60, 15
-    v62 = sload v59 !metadata(storage=symbolic(v58))
-    v63 = mul v61, 8
-    v64 = shr v63, v62
-    v65 = trunc i256 v64 to i120
-    v66 = zext i120 v65 to i256
-    v67 = shl 5, v56
-    v68 = ptradd v55, v67
-    mstore v68, v66
-    v69 = add v56, 1
+    v58 = add 0, v56
+    v59 = sload v58 !metadata(storage=symbolic(v56))
+    v60 = mul v56, 2
+    v61 = sub 3, v60
+    v62 = lt v61, 2
+    v63 = select v62, v61, 2
+    jump bb4
+  bb4:
+    v64 = phi [bb2: 0], [bb5: v73]
+    v65 = lt v64, v63
+    jumpi v65, bb5, bb6
+  bb6:
+    v74 = add v56, 1
     jump bb1
+  bb5:
+    v66 = mul v64, 120
+    v67 = shr v66, v59
+    v68 = trunc i256 v67 to i120
+    v69 = zext i120 v68 to i256
+    v70 = add v60, v64
+    v71 = shl 5, v70
+    v72 = ptradd v55, v71
+    mstore v72, v69
+    v73 = add v64, 1
+    jump bb4
 }
 
 fn @hashAbi() -> i256 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
