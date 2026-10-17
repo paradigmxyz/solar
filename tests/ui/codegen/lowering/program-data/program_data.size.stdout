@@ -7,52 +7,40 @@
 
 fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
-    v28 = mload 64 !metadata(memory=scratch)
-    v29 = add v28, 320
-    mstore 64, v29
-    mstore v28, 257
-    v21 = add v28, 288
-    mstore v21, 0
-    v23 = add v28, 32
-    datacopy literal_0, v23, 257
-    v8 = ne v28, 0
-    v9 = zext i1 v8 to i256
-    v10 = mul v9, 257
-    v12 = add v10, 31
-    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v23, v14
-    mstore v16, 0
-    v25 = add v28, 64
-    mcopy v25, v23, v10
-    mstore v28, 32
-    mstore v23, v10
-    v18 = add v14, 64
-    returndata v28, v18
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, 320
+    mstore 64, v25
+    mstore v24, 257
+    v17 = add v24, 288
+    mstore v17, 0
+    v19 = add v24, 32
+    datacopy literal_0, v19, 257
+    v12 = add v19, 288
+    mstore v12, 0
+    v21 = add v24, 64
+    mcopy v21, v19, 257
+    mstore v24, 32
+    mstore v19, 257
+    returndata v24, 352
 }
 
 fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
-    v28 = mload 64 !metadata(memory=scratch)
-    v29 = add v28, 224
-    mstore 64, v29
-    mstore v28, 161
-    v21 = add v28, 192
-    mstore v21, 0
-    v23 = add v28, 32
-    datacopy literal_1, v23, 161
-    v8 = ne v28, 0
-    v9 = zext i1 v8 to i256
-    v10 = mul v9, 161
-    v12 = add v10, 31
-    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v23, v14
-    mstore v16, 0
-    v25 = add v28, 64
-    mcopy v25, v23, v10
-    mstore v28, 32
-    mstore v23, v10
-    v18 = add v14, 64
-    returndata v28, v18
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, 224
+    mstore 64, v25
+    mstore v24, 161
+    v17 = add v24, 192
+    mstore v17, 0
+    v19 = add v24, 32
+    datacopy literal_1, v19, 161
+    v12 = add v19, 192
+    mstore v12, 0
+    v21 = add v24, 64
+    mcopy v21, v19, 161
+    mstore v24, 32
+    mstore v19, 161
+    returndata v24, 256
 }
 
 fn @dataHash() [selector=0x1b3012a3, abi_wrapper, pure] {
@@ -70,21 +58,18 @@ fn @subsliceHash() [selector=0xe5a3e763, abi_wrapper, pure] {
 fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
   bb0:
     v2 = icall @zeroData.body
-    v8 = ne v2, 0
-    v9 = zext i1 v8 to i256
     v6 = mload v2
-    v10 = mul v6, v9
-    v21 = add v2, 32
-    v12 = add v10, 31
-    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v21, v14
-    mstore v16, 0
-    v23 = add v2, 64
-    mcopy v23, v21, v10
+    v17 = add v2, 32
+    v8 = add v6, 31
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = add v17, v10
+    mstore v12, 0
+    v19 = add v2, 64
+    mcopy v19, v17, v6
     mstore v2, 32
-    mstore v21, v10
-    v18 = add v14, 64
-    returndata v2, v18
+    mstore v17, v6
+    v14 = add v10, 64
+    returndata v2, v14
 }
 
 fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
@@ -98,21 +83,18 @@ fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
 fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
   bb0:
     v6 = icall @splatData.body
-    v12 = ne v6, 0
-    v13 = zext i1 v12 to i256
     v10 = mload v6
-    v14 = mul v10, v13
-    v25 = add v6, 32
-    v16 = add v14, 31
-    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v25, v18
-    mstore v20, 0
-    v27 = add v6, 64
-    mcopy v27, v25, v14
+    v21 = add v6, 32
+    v12 = add v10, 31
+    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v21, v14
+    mstore v16, 0
+    v23 = add v6, 64
+    mcopy v23, v21, v10
     mstore v6, 32
-    mstore v25, v14
-    v22 = add v18, 64
-    returndata v6, v22
+    mstore v21, v10
+    v18 = add v14, 64
+    returndata v6, v18
 }
 
 fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {
@@ -310,39 +292,24 @@ bb13:
   push_data literal_0
   dup 3
   codecopy
-  dup 2
-  iszero
-  iszero
-  push 257
-  jump bb32
-bb32:
-  mul
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
   push 0
-  dup 2
-  dup 5
+  push 288
+  dup 3
   add
   mstore
+  push 257
   dup 2
-  dup 4
   push 64
-  dup 7
+  dup 5
   add
   mcopy
   push 32
-  dup 5
+  dup 3
   mstore
-  swap 2
-  jump bb31
-bb31:
+  push 257
+  swap 1
   mstore
-  push 64
-  add
+  push 352
   swap 1
   return
 bb14:
@@ -370,15 +337,30 @@ bb14:
   push_data literal_0+64
   dup 3
   codecopy
-  dup 2
-  iszero
-  iszero
+  push 0
+  push 192
+  dup 3
+  add
+  mstore
   push 161
-  jump bb32
+  dup 2
+  push 64
+  dup 5
+  add
+  mcopy
+  push 32
+  dup 3
+  mstore
+  push 161
+  swap 1
+  mstore
+  push 256
+  swap 1
+  return
 bb15:
   push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
-  jump bb33
-bb33:
+  jump bb31
+bb31:
   push 128
   mstore
   push 32
@@ -386,7 +368,7 @@ bb33:
   return
 bb16:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
-  jump bb33
+  jump bb31
 bb17:
   push 128
   push 64
@@ -414,11 +396,7 @@ bb28:
   jump
 bb18 [continuation]:
   dup 1
-  iszero
-  iszero
-  dup 2
   mload
-  mul
   push 32
   dup 3
   add
@@ -444,7 +422,11 @@ bb18 [continuation]:
   mstore
   swap 2
   swap 1
-  jump bb31
+  mstore
+  push 64
+  add
+  swap 1
+  return
 bb19:
   push 32
   dup 1
@@ -478,9 +460,9 @@ bb30:
   push 32
   dup 2
   add
-  push bb36
-  jump bb34
-bb34:
+  push bb34
+  jump bb32
+bb32:
   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
   swap 1
   jump
@@ -497,7 +479,7 @@ bb23 [continuation]:
   push 32
   add
   keccak256
-  jump bb33
+  jump bb31
 bb24:
   push 160
   push 64
@@ -526,7 +508,7 @@ bb26:
   mstore
   push bb23
   jump bb30
-bb35 [continuation]:
+bb33 [continuation]:
   push 64
   dup 4
   add
@@ -546,8 +528,8 @@ bb35 [continuation]:
   pop
   swap 1
   jump
-bb36 [continuation]:
+bb34 [continuation]:
   dup 2
   mstore
-  push bb35
-  jump bb34
+  push bb33
+  jump bb32

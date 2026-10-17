@@ -17,21 +17,17 @@
 -     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
 +     v4 = mload v0
-+     v5 = ptrtoint ptr<memory> v0 to i256
-+     v6 = ne v5, 0
-+     v7 = zext i1 v6 to i256
-+     v8 = mul v4, v7
-+     v9 = ptradd v0, 32
-+     v10 = shl 5, v8
-+     v11 = ptradd v0, 64
-+     mcopy v11, v9, v10
++     v5 = ptradd v0, 32
++     v6 = shl 5, v4
++     v7 = ptradd v0, 64
++     mcopy v7, v5, v6
 +     mstore v0, 32
-+     mstore v9, v8
-+     v12 = add v10, 64
-+     v13 = make_memory_slice v0, v12
-+     v2 = extract_value slice<memory>, v13, 0
-+     v3 = extract_value slice<memory>, v13, 1
-+     returndata v0, v12
++     mstore v5, v4
++     v8 = add v6, 64
++     v9 = make_memory_slice v0, v8
++     v2 = extract_value slice<memory>, v9, 0
++     v3 = extract_value slice<memory>, v9, 1
++     returndata v0, v8
   }
   
   fn @borrowed(arg0: ptr<memory>) {
@@ -92,25 +88,21 @@
 -     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
 +     v4 = mload v0
-+     v5 = ptrtoint ptr<memory> v0 to i256
-+     v6 = ne v5, 0
-+     v7 = zext i1 v6 to i256
-+     v8 = mul v4, v7
-+     v9 = ptradd v0, 32
-+     v10 = add v8, 31
-+     v11 = not 31
-+     v12 = and v10, v11
-+     v13 = ptrtoint ptr<memory> v9 to i256
-+     v14 = add v13, v12
-+     mstore v14, 0
-+     v15 = ptradd v0, 64
-+     mcopy v15, v9, v8
++     v5 = ptradd v0, 32
++     v6 = add v4, 31
++     v7 = not 31
++     v8 = and v6, v7
++     v9 = ptrtoint ptr<memory> v5 to i256
++     v10 = add v9, v8
++     mstore v10, 0
++     v11 = ptradd v0, 64
++     mcopy v11, v5, v4
 +     mstore v0, 32
-+     mstore v9, v8
-+     v16 = add v12, 64
-+     v17 = make_memory_slice v0, v16
-+     v2 = extract_value slice<memory>, v17, 0
-+     v3 = extract_value slice<memory>, v17, 1
-+     returndata v0, v16
++     mstore v5, v4
++     v12 = add v8, 64
++     v13 = make_memory_slice v0, v12
++     v2 = extract_value slice<memory>, v13, 0
++     v3 = extract_value slice<memory>, v13, 1
++     returndata v0, v12
   }
   

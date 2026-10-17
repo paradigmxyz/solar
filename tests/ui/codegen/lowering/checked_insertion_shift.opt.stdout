@@ -9,53 +9,50 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
   bb9:
     v62 = icall @decode_calldata_type
     v50 = mload v62
-    v94 = add v62, 64
+    v90 = add v62, 64
     jump bb1
   bb1:
     v2 = phi [bb9: 1], [bb5: v56]
-    v95 = phi [bb9: v94], [bb5: v96]
+    v91 = phi [bb9: v90], [bb5: v92]
     v4 = lt v2, v50
     jumpi v4, bb3, bb2
   bb2:
-    v68 = ne v62, 0
-    v69 = zext i1 v68 to i256
-    v70 = mul v50, v69
-    v77 = add v62, 32
-    v72 = shl 5, v70
-    v79 = add v62, 64
-    mcopy v79, v77, v72
+    v73 = add v62, 32
+    v68 = shl 5, v50
+    v75 = add v62, 64
+    mcopy v75, v73, v68
     mstore v62, 32
-    mstore v77, v70
-    v74 = add v72, 64
-    returndata v62, v74
+    mstore v73, v50
+    v70 = add v68, 64
+    returndata v62, v70
   bb3:
-    v11 = mload v95
-    v97 = shl 5, v2
-    v98 = add v62, v97
+    v11 = mload v91
+    v93 = shl 5, v2
+    v94 = add v62, v93
     jump bb4
   bb4:
     v16 = phi [bb3: v2], [bb7: v52]
-    v99 = phi [bb3: v98], [bb7: v100]
+    v95 = phi [bb3: v94], [bb7: v96]
     v17 = ne v16, 0
     jumpi v17, bb6, bb5
   bb6:
     v52 = sub v16, 1
-    v25 = mload v99
+    v25 = mload v95
     v26 = gt v25, v11
     jumpi v26, bb7, bb5
   bb5:
     v46 = shl 5, v16
-    v84 = add v62, v46
-    v85 = add v84, 32
-    mstore v85, v11
+    v80 = add v62, v46
+    v81 = add v80, 32
+    mstore v81, v11
     v56 = add v2, 1
-    v96 = add v95, 32
+    v92 = add v91, 32
     jump bb1
   bb7:
-    v35 = mload v99
-    v91 = add v99, 32
-    mstore v91, v35
-    v100 = sub v99, 32
+    v35 = mload v95
+    v87 = add v95, 32
+    mstore v87, v35
+    v96 = sub v95, 32
     jump bb4
   bb8:
     revert 0, 0
@@ -77,32 +74,29 @@ fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
     jumpi v3, bb4, bb3
   bb4:
     v5 = shl 5, v15
-    v38 = add v19, v5
-    v39 = add v38, 32
-    v8 = mload v39
+    v34 = add v19, v5
+    v35 = add v34, 32
+    v8 = mload v35
     v10 = lt arg1, v2
     jumpi v10, bb5, bb3
   bb3:
     tail_call @revert_stub
   bb5:
     v12 = shl 5, arg1
-    v41 = add v19, v12
-    v42 = add v41, 32
-    mstore v42, v8
+    v37 = add v19, v12
+    v38 = add v37, 32
+    mstore v38, v8
     jump bb2
   bb2:
-    v25 = ne v19, 0
-    v26 = zext i1 v25 to i256
     v23 = mload v19
-    v27 = mul v23, v26
-    v34 = add v19, 32
-    v29 = shl 5, v27
-    v36 = add v19, 64
-    mcopy v36, v34, v29
+    v30 = add v19, 32
+    v25 = shl 5, v23
+    v32 = add v19, 64
+    mcopy v32, v30, v25
     mstore v19, 32
-    mstore v34, v27
-    v31 = add v29, 64
-    returndata v19, v31
+    mstore v30, v23
+    v27 = add v25, 64
+    returndata v19, v27
   bb6:
     revert 0, 0
 }

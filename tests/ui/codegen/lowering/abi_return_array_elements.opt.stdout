@@ -4,18 +4,15 @@
 fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
   bb0:
     v2 = icall @decode_calldata_type.8
-    v8 = ne v2, 0
-    v9 = zext i1 v8 to i256
     v6 = mload v2
-    v10 = mul v6, v9
-    v17 = add v2, 32
-    v12 = shl 5, v10
-    v19 = add v2, 64
-    mcopy v19, v17, v12
+    v13 = add v2, 32
+    v8 = shl 5, v6
+    v15 = add v2, 64
+    mcopy v15, v13, v8
     mstore v2, 32
-    mstore v17, v10
-    v14 = add v12, 64
-    returndata v2, v14
+    mstore v13, v6
+    v10 = add v8, 64
+    returndata v2, v10
 }
 
 fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {

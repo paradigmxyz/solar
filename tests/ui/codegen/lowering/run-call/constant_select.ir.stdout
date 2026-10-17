@@ -442,11 +442,7 @@ bb33 [continuation]:
   jump bb37
 bb37:
   dup 1
-  iszero
-  iszero
-  dup 2
   mload
-  mul
   push 32
   dup 3
   add
@@ -703,14 +699,8 @@ bb52:
   push 32
   dup 3
   mstore
-  dup 4
-  iszero
-  iszero
-  swap 4
+  swap 3
   mload
-  swap 1
-  swap 4
-  mul
   push 31
   dup 2
   add
@@ -791,14 +781,8 @@ bb77:
   push 32
   dup 3
   mstore
-  dup 3
-  iszero
-  iszero
-  swap 3
+  swap 2
   mload
-  swap 1
-  swap 3
-  mul
   push 31
   dup 2
   add

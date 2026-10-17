@@ -652,7 +652,9 @@ fn encode_dynamic_return_in_place(
     let [object] = args else { unreachable!() };
 
     let is_array = matches!(&*layout.types, [AbiType::DynamicArray { .. }]);
-    let length = memory_object_len(builder, *object);
+    // The object is a fresh allocation or a fresh call result, so it is never null and its
+    // length needs no null guard.
+    let length = builder.memory_len(*object);
     let source = builder.memory_data(*object);
     let bytes = if is_array {
         let five = builder.imm(5);
@@ -1587,6 +1589,15 @@ fn memory_object_len(builder: &mut FunctionBuilder<'_>, value: ValueId) -> Value
         return builder.slice_len(value);
     }
     let len = builder.memory_len(value);
+    // An allocation is never null, so only other objects need the guard.
+    if let Value::Inst(inst) = builder.func().value(value)
+        && matches!(builder.func().inst(*inst).kind, InstKind::Alloc { .. })
+    {
+        return len;
+    }
+    // len = memory_len value
+    // non_null = ne value, 0
+    // len = mul len, non_null
     let non_null = memory_object_non_null(builder, value);
     builder.mul(len, non_null)
 }
