@@ -1,0 +1,127 @@
+//@ compile-flags: -Zmir-pipeline=load-pre
+//@ filecheck:
+// A loop body that reloads a word only the preheader writes reads the value the
+// header holds on entry: the preheader's store on the first iteration and the
+// body's own load around the backedge. The reload becomes the header's phi even
+// though the body is no join. Element stores at a runtime index start past the
+// length word of a runtime-sized allocation, so they leave it available.
+@module LoadPreLoopBody
+
+// CHECK-LABEL: {{^[ +].*}}fn @fill{{[( ]}}
+// CHECK: + [[LENGTH:v[0-9]+]] = phi [bb0: arg0], [bb3: [[LENGTH]]]
+// CHECK-NOT: {{^[ +].*}} = mload
+// CHECK: {{^[ +].*}} = lt {{v[0-9]+}}, [[LENGTH]]
+fn @fill(arg0: i256) -> ptr<memory> {
+  bb0:
+    v1 = add arg0, 1
+    v2 = shl 5, v1
+    v3 = alloc zeroed checked v2
+    mstore v3, arg0
+    jump bb1
+  bb1:
+    v4 = phi [bb0: 0], [bb3: v9]
+    v5 = lt v4, arg0
+    jumpi v5, bb2, bb4
+  bb2:
+    v6 = mload v3
+    v7 = lt v4, v6
+    icall panic_if_zero<0x32>, v7
+    v10 = shl 5, v4
+    v11 = ptradd v3, v10
+    v12 = ptradd v11, 32
+    mstore v12, v4
+    jump bb3
+  bb3:
+    v9 = add v4, 1
+    jump bb1
+  bb4:
+    ret v3
+}
+
+// A body that rewrites the length forwards the stored value around the
+// backedge.
+// CHECK-LABEL: {{^[ +].*}}fn @rewrites_length{{[( ]}}
+// CHECK: + [[LENGTH:v[0-9]+]] = phi [bb0: arg0], [bb3: [[COUNTER:v[0-9]+]]]
+// CHECK-NOT: {{^[ +].*}} = mload
+// CHECK: {{^[ +].*}} = lt [[COUNTER]], [[LENGTH]]
+fn @rewrites_length(arg0: i256) -> ptr<memory> {
+  bb0:
+    v1 = add arg0, 1
+    v2 = shl 5, v1
+    v3 = alloc zeroed checked v2
+    mstore v3, arg0
+    jump bb1
+  bb1:
+    v4 = phi [bb0: 0], [bb3: v9]
+    v5 = lt v4, arg0
+    jumpi v5, bb2, bb4
+  bb2:
+    v6 = mload v3
+    v7 = lt v4, v6
+    icall panic_if_zero<0x32>, v7
+    mstore v3, v4
+    jump bb3
+  bb3:
+    v9 = add v4, 1
+    jump bb1
+  bb4:
+    ret v3
+}
+
+// `msize` observes memory growth, so a body that reads it before the reload
+// keeps the reload.
+// CHECK-LABEL: {{^[ +].*}}fn @reads_msize{{[( ]}}
+// CHECK-NOT: phi [bb0: arg0]
+// CHECK: {{^[ +].*}} = msize
+// CHECK: {{^[ +].*}} = mload
+fn @reads_msize(arg0: i256) -> i256 {
+  bb0:
+    v1 = add arg0, 1
+    v2 = shl 5, v1
+    v3 = alloc zeroed checked v2
+    mstore v3, arg0
+    jump bb1
+  bb1:
+    v4 = phi [bb0: 0], [bb3: v9]
+    v5 = lt v4, arg0
+    jumpi v5, bb2, bb4
+  bb2:
+    v10 = msize
+    v6 = mload v3
+    v7 = add v6, v10
+    mstore 0, v7
+    jump bb3
+  bb3:
+    v9 = add v4, 1
+    jump bb1
+  bb4:
+    ret v4
+}
+
+// A store through a raw word may write the length, so the reload stays.
+// CHECK-LABEL: {{^[ +].*}}fn @clobbered_length{{[( ]}}
+// CHECK-NOT: phi [bb0: arg0]
+// CHECK: {{^[ +].*}} = mload
+fn @clobbered_length(arg0: i256, arg1: i256) -> ptr<memory> {
+  bb0:
+    v1 = add arg0, 1
+    v2 = shl 5, v1
+    v3 = alloc zeroed checked v2
+    mstore v3, arg0
+    jump bb1
+  bb1:
+    v4 = phi [bb0: 0], [bb3: v9]
+    v5 = lt v4, arg0
+    jumpi v5, bb2, bb4
+  bb2:
+    v6 = mload v3
+    v7 = lt v4, v6
+    icall panic_if_zero<0x32>, v7
+    mstore arg1, v4
+    jump bb3
+  bb3:
+    v9 = add v4, 1
+    jump bb1
+  bb4:
+    ret v3
+}

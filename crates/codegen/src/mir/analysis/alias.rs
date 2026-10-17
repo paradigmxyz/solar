@@ -673,7 +673,20 @@ impl AliasAnalysis {
         let Value::Inst(inst) = func.value(indexed) else { return None };
         let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else { return None };
         func.value_u64(index).is_none().then(|| {
-            self.memory_address(func, base).and_then(|base| base.checked_add(address.offset))
+            let base = self.memory_address(func, base)?.checked_add(address.offset)?;
+            // NOTE: `ptradd` keeps the access inside its object, but a direct access to an
+            // allocation of runtime size cannot prove it fits, so `bounded_memory_location` names
+            // that object by its pointer value. Name the indexed access the same way, or the two
+            // would look like different objects and every indexed store would clobber the
+            // object's header words.
+            match base.base {
+                MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst)
+                    if Self::allocation_size(func, inst).is_none() =>
+                {
+                    Self::unbounded_allocation(func, base, inst)
+                }
+                _ => Some(base),
+            }
         })
     }
 
@@ -695,10 +708,7 @@ impl AliasAnalysis {
         size: LocationSize,
     ) -> Option<MemoryLocation> {
         if let MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) = address.base {
-            let bound = match func.inst(inst).kind {
-                InstKind::Alloc { size, .. } => func.value_u64(size),
-                _ => None,
-            };
+            let bound = Self::allocation_size(func, inst);
             let within_bounds = size.as_const().is_some_and(|size| {
                 size == 0
                     || address
@@ -708,15 +718,34 @@ impl AliasAnalysis {
                         .is_some_and(|(end, bound)| end <= bound)
             });
             if !within_bounds {
-                // A fresh allocation's nonnegative offsets can reach other heap objects while
-                // staying outside reserved memory. Loop allocations may follow an FMP reset.
-                if matches!(address.base, MemoryBase::DynamicAllocation(_)) {
-                    address.region = MemoryRegion::Unknown;
-                }
-                address.base = MemoryBase::Value(func.inst_result_value(inst)?);
+                address = Self::unbounded_allocation(func, address, inst)?;
             }
         }
         Some(MemoryLocation::new(address, size))
+    }
+
+    /// The constant byte size of allocation `inst`, if any.
+    fn allocation_size(func: &Function, inst: InstId) -> Option<u64> {
+        match func.inst(inst).kind {
+            InstKind::Alloc { size, .. } => func.value_u64(size),
+            _ => None,
+        }
+    }
+
+    /// Names an access to allocation `inst` that may leave its bounds by the allocation's
+    /// pointer value instead, which keeps no disjointness from other allocations.
+    fn unbounded_allocation(
+        func: &Function,
+        mut address: MemoryAddress,
+        inst: InstId,
+    ) -> Option<MemoryAddress> {
+        // A fresh allocation's nonnegative offsets can reach other heap objects while
+        // staying outside reserved memory. Loop allocations may follow an FMP reset.
+        if matches!(address.base, MemoryBase::DynamicAllocation(_)) {
+            address.region = MemoryRegion::Unknown;
+        }
+        address.base = MemoryBase::Value(func.inst_result_value(inst)?);
+        Some(address)
     }
 
     /// Converts a MIR size operand to a canonical location size.
