@@ -1,0 +1,15 @@
+// === ROOT/tests/ui/codegen/evm-ir/compact-pushes/runtime.sol:RepeatedPatterns ===
+@module RepeatedPatterns
+fn @matches(arg0: i256, arg1: i256) -> i1 [selector=0xd67ed34d, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq arg0, 0x101010101010101010101010101010101010101010101010101010101010101
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v1 = eq arg1, 0x3030303030303030303030303030303030303030303030303030303030303030
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v1], [bb2: false]
+    ret v2
+}

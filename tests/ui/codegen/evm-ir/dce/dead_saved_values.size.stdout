@@ -40,7 +40,9 @@
     swap 1
     pop
     pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb4:
     push 1
@@ -56,7 +58,9 @@
     push bb6
     jumpi
     pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb6:
     stop
@@ -77,7 +81,9 @@
     pop
     pop
 -   pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb9:
     push 7
@@ -91,7 +97,9 @@
     pop
     pop
     pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb10:
     push 1
@@ -100,7 +108,9 @@
 -   swap 1
     pop
 -   pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb11:
     push 7
@@ -111,14 +121,18 @@
     pop
     pop
     pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb12:
     push 7
     dup 1
     add
     pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb13:
     push 7
@@ -132,7 +146,9 @@
     pop
     pop
     pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb14:
     push 1
@@ -141,7 +157,9 @@
     add
     pop
     pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb15:
     push 1
@@ -149,14 +167,18 @@
 -   dup 2
 -   pop
 -   pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb16:
     push 1
 -   dup 1
 -   swap 1
 -   pop
-    gas
+    push 0
+    mload
+-   pop
     stop
   bb17:
     push 1
@@ -165,6 +187,8 @@
 -   exchange 1, 2
 -   pop
 +   swap 1
-    gas
+    push 0
+    mload
+-   pop
     stop
   
