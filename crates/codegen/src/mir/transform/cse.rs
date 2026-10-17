@@ -235,7 +235,8 @@ struct CommonSubexprEliminator {
     gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
-    /// Pure leaf functions whose calls depend on their arguments alone, per [`pure_leaf_functions`].
+    /// Pure leaf functions whose calls depend on their arguments alone, per
+    /// [`pure_leaf_functions`].
     pure_calls: Option<Arc<DenseBitSet<FunctionId>>>,
 }
 
@@ -1419,7 +1420,8 @@ impl CommonSubexprEliminator {
 
     fn is_pure_call(&self, kind: &InstKind) -> bool {
         matches!(kind, InstKind::ICall { function: Callee::Function(function), args }
-            if args.len() <= 8 && self.pure_calls.as_ref().is_some_and(|pure| pure.contains(*function)))
+            if args.len() <= 8
+                && self.pure_calls.as_ref().is_some_and(|pure| pure.contains(*function)))
     }
 
     fn is_restoring_call(&self, kind: &InstKind) -> bool {
