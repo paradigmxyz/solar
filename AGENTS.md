@@ -325,6 +325,9 @@ self.dcx()
   keep value and type; bool-to-word needs `zext i1 v to i256`.
 - `ptr<memory>` is not an integer; pointer casts do not establish validity,
   provenance, ownership, or non-wrapping arithmetic.
+- Memory pointers are never null: store the zero slot or a default object as a
+  default memory value, never 0, and read pointers without zero guards. See
+  [docs/MIR.md](docs/MIR.md#value-types-and-conversions).
 - Keep raw Solidity bool and address bits as `i256` where assembly can see them;
   convert to `i1` for logic and branches.
 - Put an IR or pseudo-IR comment, in emitted order and one instruction per line

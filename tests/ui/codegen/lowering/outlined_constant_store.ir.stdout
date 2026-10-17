@@ -258,14 +258,8 @@ bb18 [cold]:
   push 32
   dup 3
   mstore
-  dup 4
-  iszero
-  iszero
-  swap 4
+  swap 3
   mload
-  swap 1
-  swap 4
-  mul
   dup 1
   dup 5
   mstore
@@ -322,14 +316,8 @@ bb21:
   push 32
   dup 3
   mstore
-  dup 5
-  iszero
-  iszero
-  swap 5
+  swap 4
   mload
-  swap 1
-  swap 5
-  mul
   dup 1
   dup 6
   mstore

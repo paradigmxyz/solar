@@ -60,20 +60,20 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v3 = phi [bb0: 0], [bb3: v3]
     v4 = phi [bb0: v2], [bb3: v4]
     v5 = phi [bb0: v1], [bb3: v5]
-    v6 = phi [bb0: ptr<memory> 96], [bb3: v25]
-    v7 = phi [bb0: 0], [bb3: v26]
+    v6 = phi [bb0: ptr<memory> 96], [bb3: v17]
+    v7 = phi [bb0: 0], [bb3: v18]
     v8 = mload v5
     v9 = lt v7, v8
     jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v27 = ptradd v6, 32
-    v28 = mload v6
-    v29 = keccak256 v27, v28
-    v30 = insert_value struct1, undef struct1, 0, v29
-    v31 = insert_value struct1, v30, 1, v4
-    ret v31
+    v19 = ptradd v6, 32
+    v20 = mload v6
+    v21 = keccak256 v19, v20
+    v22 = insert_value struct1, undef struct1, 0, v21
+    v23 = insert_value struct1, v22, 1, v4
+    ret v23
   bb4:
     v10 = mload v5
     v11 = lt v7, v10
@@ -82,26 +82,12 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v13 = shl 5, v7
     v14 = ptradd v5, v13
     v15 = ptradd v14, 32
-    v16 = mload v15
-    v17 = inttoptr i256 v16 to ptr<memory>
-    v18 = eq v16, 0
-    jumpi v18, bb7, bb8
-  bb7:
-    v19 = alloc 32
-    mstore v19, 0
-    v20 = shl 5, v7
-    v21 = ptradd v5, v20
-    v22 = ptradd v21, 32
-    v23 = ptrtoint ptr<memory> v19 to i256
-    mstore v22, v23
-    jump bb8
-  bb8:
-    v24 = phi [bb4: v17], [bb7: v19]
-    v25 = abi_encode_packed (bytes v6, bytes v24)
+    v16 = mload v15, ptr<memory>
+    v17 = abi_encode_packed (bytes v6, bytes v16)
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v26 = checked_add u256, v7, 1
+    v18 = checked_add u256, v7, 1
     jump bb1
 }

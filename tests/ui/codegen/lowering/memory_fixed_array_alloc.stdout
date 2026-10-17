@@ -45,48 +45,24 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
     v8 = lt 0, 3
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = mload v0
-    v11 = inttoptr i256 v10 to ptr<memory>
-    v12 = eq v10, 0
-    jumpi v12, bb4, bb5
-  bb4:
-    v13 = alloc 64
-    memory_zero v13, 64
-    v14 = ptrtoint ptr<memory> v13 to i256
-    mstore v0, v14
-    jump bb5
-  bb5:
-    v15 = phi [bb3: v11], [bb4: v13]
-    v16 = lt 0, 2
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    mstore v15, 1
-    v18 = lt arg0, 3
+    v10 = mload v0, ptr<memory>
+    v11 = lt 0, 2
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    mstore v10, 1
+    v13 = lt arg0, 3
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = shl 5, arg0
+    v16 = ptradd v0, v15
+    v17 = mload v16, ptr<memory>
+    v18 = lt arg1, 2
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = shl 5, arg0
-    v21 = ptradd v0, v20
+    v20 = shl 5, arg1
+    v21 = ptradd v17, v20
     v22 = mload v21
-    v23 = inttoptr i256 v22 to ptr<memory>
-    v24 = eq v22, 0
-    jumpi v24, bb6, bb7
-  bb6:
-    v25 = alloc 64
-    memory_zero v25, 64
-    v26 = shl 5, arg0
-    v27 = ptradd v0, v26
-    v28 = ptrtoint ptr<memory> v25 to i256
-    mstore v27, v28
-    jump bb7
-  bb7:
-    v29 = phi [bb5: v23], [bb6: v25]
-    v30 = lt arg1, 2
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = shl 5, arg1
-    v33 = ptradd v29, v32
-    v34 = mload v33
-    ret v34
+    ret v22
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     memory_zero v3, 64

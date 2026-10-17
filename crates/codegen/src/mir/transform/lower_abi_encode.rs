@@ -377,24 +377,6 @@ struct AbiValueDest {
 enum AbiValueSource {
     Scalar,
     Memory,
-    // A zeroed composite array slot uses null to represent a default object;
-    // following it as memory address zero would read unrelated scratch memory.
-    NullableMemory,
-}
-
-impl AbiValueSource {
-    fn descend_memory(
-        self,
-        builder: &mut FunctionBuilder<'_>,
-        object: ValueId,
-    ) -> (Self, Option<ValueId>) {
-        match self {
-            Self::NullableMemory => {
-                (Self::NullableMemory, Some(memory_object_non_null(builder, object)))
-            }
-            Self::Scalar | Self::Memory => (Self::Memory, None),
-        }
-    }
 }
 
 fn lower_function(
@@ -906,8 +888,7 @@ fn encode_static_impl(
     allow_slice_fast_path: bool,
     source: AbiValueSource,
 ) {
-    if source != AbiValueSource::NullableMemory
-        && allow_slice_fast_path
+    if allow_slice_fast_path
         && let Some(location @ (PtrLocation::Calldata | PtrLocation::Memory)) =
             builder.func().value_slice_location(value)
     {
@@ -917,34 +898,22 @@ fn encode_static_impl(
     }
     match ty {
         AbiType::Tuple(fields) => {
-            let (child_source, non_null) = source.descend_memory(builder, value);
             let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
-                let mut field_value = builder.memory_load_field(value, index as u64);
-                if let Some(non_null) = non_null {
-                    field_value = builder.mul(field_value, non_null);
-                }
+                let field_value = builder.memory_load_field(value, index as u64);
                 encode_static_impl(
                     builder,
                     field,
                     field_value,
                     field_head,
                     allow_slice_fast_path,
-                    child_source,
+                    AbiValueSource::Memory,
                 );
                 field_head = offset_ptr(builder, field_head, field.head_size());
             }
         }
         AbiType::FixedArray { element, len } => {
-            encode_static_array(
-                builder,
-                element,
-                *len,
-                value,
-                head_addr,
-                allow_slice_fast_path,
-                source,
-            );
+            encode_static_array(builder, element, *len, value, head_addr, allow_slice_fast_path);
         }
         AbiType::Function => {
             let value = if source == AbiValueSource::Scalar {
@@ -959,9 +928,7 @@ fn encode_static_impl(
         }
         AbiType::Word(cleanup) => {
             let value = match (source, cleanup) {
-                (AbiValueSource::Memory | AbiValueSource::NullableMemory, Some(cleanup)) => {
-                    clean_word(builder, *cleanup, value)
-                }
+                (AbiValueSource::Memory, Some(cleanup)) => clean_word(builder, *cleanup, value),
                 _ => value,
             };
             builder.store(head_addr, value);
@@ -979,24 +946,7 @@ fn encode_static_array(
     value: ValueId,
     head_addr: ValueId,
     allow_slice_fast_path: bool,
-    source: AbiValueSource,
 ) {
-    let (child_source, non_null) = source.descend_memory(builder, value);
-    let done = non_null.map(|non_null| {
-        let encode = builder.create_block();
-        let encode_zero = builder.create_block();
-        let done = builder.create_block();
-        builder.branch(non_null, encode, encode_zero);
-
-        builder.switch_to_block(encode_zero);
-        let size = builder.imm(element.head_size() * len);
-        builder.memory_zero(head_addr, size);
-        builder.jump(done);
-
-        builder.switch_to_block(encode);
-        done
-    });
-
     let length = builder.imm(len);
     let stride = builder.imm(element.head_size());
     let layout = MemoryObjectLayout::word_fixed_array(len);
@@ -1010,13 +960,9 @@ fn encode_static_array(
             element_value,
             element_head,
             allow_slice_fast_path,
-            child_source,
+            AbiValueSource::Memory,
         );
     });
-    if let Some(done) = done {
-        builder.jump(done);
-        builder.switch_to_block(done);
-    }
 }
 
 fn encode_tuple(
@@ -1077,7 +1023,7 @@ fn encode_value(
     if ty.is_dynamic() {
         let relative = builder.sub(dest.tail, dest.tuple_base);
         builder.store(dest.head_addr, relative);
-        encode_dynamic_body(builder, ty, value, dest.tail, source, helpers)
+        encode_dynamic_body(builder, ty, value, dest.tail, helpers)
     } else {
         encode_static_impl(builder, ty, value, dest.head_addr, true, source);
         dest.tail
@@ -1161,7 +1107,6 @@ fn encode_dynamic_body(
     ty: &AbiType,
     value: ValueId,
     dest: ValueId,
-    source: AbiValueSource,
     helpers: &EncodeHelpers,
 ) -> ValueId {
     match ty {
@@ -1209,29 +1154,20 @@ fn encode_dynamic_body(
                 _ => unreachable!("only calldata arrays reach slice encoding"),
             }
         }
-        AbiType::FixedArray { element, len } => {
-            let (_, non_null) = source.descend_memory(builder, value);
-            encode_memory_array_elements(
-                builder,
-                element,
-                value,
-                dest,
-                MemoryObjectLayout::word_fixed_array(*len),
-                non_null,
-                helpers,
-            )
-        }
+        AbiType::FixedArray { element, len } => encode_memory_array_elements(
+            builder,
+            element,
+            value,
+            dest,
+            MemoryObjectLayout::word_fixed_array(*len),
+            helpers,
+        ),
         AbiType::Tuple(fields) => {
-            let (child_source, non_null) = source.descend_memory(builder, value);
-            let mut values = Vec::with_capacity(fields.len());
-            for index in 0..fields.len() {
-                let mut field_value = builder.memory_load_field(value, index as u64);
-                if let Some(non_null) = non_null {
-                    field_value = builder.mul(field_value, non_null);
-                }
-                values.push(field_value);
-            }
-            let size = encode_tuple_impl(builder, &values, fields, dest, child_source, helpers);
+            let values = (0..fields.len())
+                .map(|index| builder.memory_load_field(value, index as u64))
+                .collect::<Vec<_>>();
+            let size =
+                encode_tuple_impl(builder, &values, fields, dest, AbiValueSource::Memory, helpers);
             builder.add(dest, size)
         }
         AbiType::Word(_) | AbiType::Function => unreachable!("word ABI values are static"),
@@ -1263,7 +1199,6 @@ fn encode_memory_array(
             value,
             dest,
             MemoryObjectLayout::WORD_ARRAY,
-            None,
             helpers,
         ),
         cleanup => encode_word_array(builder, value, dest, PtrLocation::Memory, cleanup.flatten()),
@@ -1276,7 +1211,6 @@ fn encode_memory_array_elements(
     value: ValueId,
     dest: ValueId,
     layout: MemoryObjectLayout,
-    non_null: Option<ValueId>,
     helpers: &EncodeHelpers,
 ) -> ValueId {
     let (len, element_area) = match layout {
@@ -1316,16 +1250,13 @@ fn encode_memory_array_elements(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let mut element_value = builder.load(source, PtrLocation::Memory);
-    if let Some(non_null) = non_null {
-        element_value = builder.mul(element_value, non_null);
-    }
+    let element_value = builder.load(source, PtrLocation::Memory);
     let new_tail = encode_value(
         builder,
         element,
         element_value,
         AbiValueDest { head_addr: element_head, tuple_base: element_area, tail: current_tail },
-        AbiValueSource::NullableMemory,
+        AbiValueSource::Memory,
         helpers,
     );
 
@@ -1586,13 +1517,7 @@ fn memory_object_len(builder: &mut FunctionBuilder<'_>, value: ValueId) -> Value
         // len = extract_value value, 1
         return builder.slice_len(value);
     }
-    let len = builder.memory_len(value);
-    let non_null = memory_object_non_null(builder, value);
-    builder.mul(len, non_null)
-}
-
-fn memory_object_non_null(builder: &mut FunctionBuilder<'_>, object: ValueId) -> ValueId {
-    builder.ne_zero(object)
+    builder.memory_len(value)
 }
 
 /// Finds literal bytes candidates whose allocation and encoding share a block, with

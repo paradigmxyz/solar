@@ -252,14 +252,8 @@ bb19 [cold]:
   push 32
   dup 3
   mstore
-  dup 5
-  iszero
-  iszero
-  swap 5
+  swap 4
   mload
-  swap 1
-  swap 5
-  mul
   push 31
   dup 2
   add

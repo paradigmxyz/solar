@@ -214,51 +214,29 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
     v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = ptradd v22, 32
-    v28 = mload v27
-    v29 = inttoptr i256 v28 to ptr<memory>
-    v30 = eq v28, 0
-    jumpi v30, bb3, bb4
-  bb3:
-    v31 = icall @default_struct_0
-    v32 = ptradd v22, 32
-    v33 = ptrtoint ptr<memory> v31 to i256
-    mstore v32, v33
-    jump bb4
-  bb4:
-    v34 = phi [bb2: v29], [bb3: v31]
-    v35 = ptradd v34, 32
+    v28 = mload v27, ptr<memory>
+    v29 = ptradd v28, 32
+    v30 = mload v29, ptr<memory>
+    v31 = mload v30
+    v32 = mload v22
+    v33 = lt 0, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = ptradd v22, 32
     v36 = mload v35, ptr<memory>
-    v37 = mload v36
-    v38 = mload v22
-    v39 = lt 0, v38
-    v40 = eq v39, false
-    icall panic_if<0x32>, v40
-    v41 = ptradd v22, 32
-    v42 = mload v41
-    v43 = inttoptr i256 v42 to ptr<memory>
-    v44 = eq v42, 0
-    jumpi v44, bb5, bb6
-  bb5:
-    v45 = icall @default_struct_0
-    v46 = ptradd v22, 32
-    v47 = ptrtoint ptr<memory> v45 to i256
-    mstore v46, v47
-    jump bb6
-  bb6:
-    v48 = phi [bb4: v43], [bb5: v45]
-    v49 = ptradd v48, 32
-    v50 = mload v49, ptr<memory>
-    v51 = mload v50
-    v52 = lt 0, v51
-    v53 = eq v52, false
-    icall panic_if<0x32>, v53
-    v54 = ptradd v50, 32
-    v55 = mload v54
-    v56 = and v55, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v57 = insert_value struct1, undef struct1, 0, v23
-    v58 = insert_value struct1, v57, 1, v37
-    v59 = insert_value struct1, v58, 2, v56
-    ret v59
+    v37 = ptradd v36, 32
+    v38 = mload v37, ptr<memory>
+    v39 = mload v38
+    v40 = lt 0, v39
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
+    v42 = ptradd v38, 32
+    v43 = mload v42
+    v44 = and v43, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v45 = insert_value struct1, undef struct1, 0, v23
+    v46 = insert_value struct1, v45, 1, v31
+    v47 = insert_value struct1, v46, 2, v44
+    ret v47
 }
 
 fn @load_storage_packed_array_20_0(arg0: i256) -> ptr<memory> {
@@ -316,17 +294,5 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
 fn @load_storage_packed_array_4_2(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array bytes4, arg0
-    ret v0
-}
-
-fn @default_struct_0() -> ptr<memory> {
-  bb0:
-    v0 = alloc 64
-    mstore v0, 0
-    v1 = alloc 32
-    mstore v1, 0
-    v2 = ptradd v0, 32
-    v3 = ptrtoint ptr<memory> v1 to i256
-    mstore v2, v3
     ret v0
 }

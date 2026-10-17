@@ -17,21 +17,17 @@
 -     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
 +     v4 = mload v0
-+     v5 = ptrtoint ptr<memory> v0 to i256
-+     v6 = ne v5, 0
-+     v7 = zext i1 v6 to i256
-+     v8 = mul v4, v7
-+     v9 = ptradd v0, 32
-+     v10 = shl 5, v8
-+     v11 = ptradd v0, 64
-+     mcopy v11, v9, v10
++     v5 = ptradd v0, 32
++     v6 = shl 5, v4
++     v7 = ptradd v0, 64
++     mcopy v7, v5, v6
 +     mstore v0, 32
-+     mstore v9, v8
-+     v12 = add v10, 64
-+     v13 = make_memory_slice v0, v12
-+     v2 = extract_value slice<memory>, v13, 0
-+     v3 = extract_value slice<memory>, v13, 1
-+     returndata v0, v12
++     mstore v5, v4
++     v8 = add v6, 64
++     v9 = make_memory_slice v0, v8
++     v2 = extract_value slice<memory>, v9, 0
++     v3 = extract_value slice<memory>, v9, 1
++     returndata v0, v8
   }
   
   fn @borrowed(arg0: ptr<memory>) {
@@ -47,27 +43,23 @@
 +     v7 = sub v5, v6
 +     mstore v3, v7
 +     v8 = mload arg0
-+     v9 = ptrtoint ptr<memory> arg0 to i256
-+     v10 = ne v9, 0
-+     v11 = zext i1 v10 to i256
-+     v12 = mul v8, v11
-+     mstore v5, v12
-+     v13 = mul v12, 32
-+     v14 = add v5, 32
-+     v15 = ptradd arg0, 32
-+     v16 = add v14, v13
-+     mcopy v14, v15, v13 !metadata(memory=heap, disjoint)
-+     v17 = ptrtoint ptr<memory> v3 to i256
-+     v18 = sub v16, v17
-+     v19 = add v18, 0
-+     v20 = add v19, 31
-+     v21 = not 31
-+     v22 = and v20, v21
-+     v23 = alloc v22 !metadata(preserves_fmp)
-+     v24 = make_memory_slice v23, v19
-+     v1 = extract_value slice<memory>, v24, 0
-+     v2 = extract_value slice<memory>, v24, 1
-+     returndata v23, v19
++     mstore v5, v8
++     v9 = mul v8, 32
++     v10 = add v5, 32
++     v11 = ptradd arg0, 32
++     v12 = add v10, v9
++     mcopy v10, v11, v9 !metadata(memory=heap, disjoint)
++     v13 = ptrtoint ptr<memory> v3 to i256
++     v14 = sub v12, v13
++     v15 = add v14, 0
++     v16 = add v15, 31
++     v17 = not 31
++     v18 = and v16, v17
++     v19 = alloc v18 !metadata(preserves_fmp)
++     v20 = make_memory_slice v19, v15
++     v1 = extract_value slice<memory>, v20, 0
++     v2 = extract_value slice<memory>, v20, 1
++     returndata v19, v15
   }
   
   fn @fresh_bytes(arg0: i256) -> ptr<memory> {
@@ -92,25 +84,21 @@
 -     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
 +     v4 = mload v0
-+     v5 = ptrtoint ptr<memory> v0 to i256
-+     v6 = ne v5, 0
-+     v7 = zext i1 v6 to i256
-+     v8 = mul v4, v7
-+     v9 = ptradd v0, 32
-+     v10 = add v8, 31
-+     v11 = not 31
-+     v12 = and v10, v11
-+     v13 = ptrtoint ptr<memory> v9 to i256
-+     v14 = add v13, v12
-+     mstore v14, 0
-+     v15 = ptradd v0, 64
-+     mcopy v15, v9, v8
++     v5 = ptradd v0, 32
++     v6 = add v4, 31
++     v7 = not 31
++     v8 = and v6, v7
++     v9 = ptrtoint ptr<memory> v5 to i256
++     v10 = add v9, v8
++     mstore v10, 0
++     v11 = ptradd v0, 64
++     mcopy v11, v5, v4
 +     mstore v0, 32
-+     mstore v9, v8
-+     v16 = add v12, 64
-+     v17 = make_memory_slice v0, v16
-+     v2 = extract_value slice<memory>, v17, 0
-+     v3 = extract_value slice<memory>, v17, 1
-+     returndata v0, v16
++     mstore v5, v4
++     v12 = add v8, 64
++     v13 = make_memory_slice v0, v12
++     v2 = extract_value slice<memory>, v13, 0
++     v3 = extract_value slice<memory>, v13, 1
++     returndata v0, v12
   }
   

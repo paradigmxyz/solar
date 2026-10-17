@@ -117,49 +117,21 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = ptradd v19, 32
-    v24 = mload v23
-    v25 = inttoptr i256 v24 to ptr<memory>
-    v26 = eq v24, 0
-    jumpi v26, bb1, bb2
-  bb1:
-    v27 = alloc 64
-    mstore v27, 0
-    v28 = ptradd v27, 32
-    mstore v28, 0
+    v24 = mload v23, ptr<memory>
+    v25 = mload v24
+    v26 = mload v19
+    v27 = lt 0, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
     v29 = ptradd v19, 32
-    v30 = ptrtoint ptr<memory> v27 to i256
-    mstore v29, v30
-    jump bb2
-  bb2:
-    v31 = phi [bb0: v25], [bb1: v27]
+    v30 = mload v29, ptr<memory>
+    v31 = ptradd v30, 32
     v32 = mload v31
     v33 = mload v19
-    v34 = lt 0, v33
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = ptradd v19, 32
-    v37 = mload v36
-    v38 = inttoptr i256 v37 to ptr<memory>
-    v39 = eq v37, 0
-    jumpi v39, bb3, bb4
-  bb3:
-    v40 = alloc 64
-    mstore v40, 0
-    v41 = ptradd v40, 32
-    mstore v41, 0
-    v42 = ptradd v19, 32
-    v43 = ptrtoint ptr<memory> v40 to i256
-    mstore v42, v43
-    jump bb4
-  bb4:
-    v44 = phi [bb2: v38], [bb3: v40]
-    v45 = ptradd v44, 32
-    v46 = mload v45
-    v47 = mload v19
-    v48 = insert_value struct0, undef struct0, 0, v32
-    v49 = insert_value struct0, v48, 1, v46
-    v50 = insert_value struct0, v49, 2, v47
-    ret v50
+    v34 = insert_value struct0, undef struct0, 0, v25
+    v35 = insert_value struct0, v34, 1, v32
+    v36 = insert_value struct0, v35, 2, v33
+    ret v36
 }
 
 fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
