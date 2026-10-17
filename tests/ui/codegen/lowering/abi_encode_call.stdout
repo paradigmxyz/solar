@@ -57,19 +57,19 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     jumpi v15, bb4, bb1
   bb4:
     v0 = gas
-    v31 = mload 64 !metadata(memory=scratch)
-    v32 = add v31, 128
-    mstore 64, v32 !metadata(memory=scratch)
-    mstore v31, 68
-    v27 = add v31, 32
-    mstore v27, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v29 = add v31, 36
-    mstore v29, arg1
-    v25 = add v29, 32
-    mstore v25, arg2
-    v7 = call v0, arg0, 0, v27, 68, 0, 0
-    v18 = zext i1 v7 to i256
-    mstore 128, v18
+    v30 = mload 64 !metadata(memory=scratch)
+    v31 = add v30, 128
+    mstore 64, v31 !metadata(memory=scratch)
+    mstore v30, 68
+    v26 = add v30, 32
+    mstore v26, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v28 = add v30, 36
+    mstore v28, arg1
+    v24 = add v28, 32
+    mstore v24, arg2
+    v7 = call v0, arg0, 0, v26, 68, 0, 0
+    v17 = zext i1 v7 to i256
+    mstore 128, v17
     returndata 128, 32
   bb1:
     revert 0, 0

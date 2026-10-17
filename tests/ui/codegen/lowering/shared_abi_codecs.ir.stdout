@@ -9,29 +9,29 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type
     v4 = icall @encodeFirst.body, v3
-    v35 = mload 64 !metadata(memory=scratch)
-    v10 = add v35, 32
-    mstore v35, 32
-    v16 = ne v4, 0
-    v17 = zext i1 v16 to i256
+    v34 = mload 64 !metadata(memory=scratch)
+    v10 = add v34, 32
+    mstore v34, 32
+    v15 = ne v4, 0
+    v16 = zext i1 v15 to i256
     v13 = mload v4
-    v18 = mul v13, v17
-    mstore v10, v18
-    v20 = add v18, 31
-    v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v22 = add v10, 32
-    v23 = eq v21, 0
-    jumpi v23, bb4, bb3
+    v17 = mul v13, v16
+    mstore v10, v17
+    v19 = add v17, 31
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = add v10, 32
+    v22 = eq v20, 0
+    jumpi v22, bb4, bb3
   bb3:
-    v24 = add v10, v21
-    mstore v24, 0
+    v23 = add v10, v20
+    mstore v23, 0
     jump bb4
   bb4:
-    v26 = add v22, v21
-    v32 = add v4, 32
-    mcopy v22, v32, v18 !metadata(memory=heap, disjoint)
-    v28 = sub v26, v35
-    returndata v35, v28
+    v25 = add v21, v20
+    v31 = add v4, 32
+    mcopy v21, v31, v17 !metadata(memory=heap, disjoint)
+    v27 = sub v25, v34
+    returndata v34, v27
   bb1:
     revert 0, 0
 }
@@ -491,43 +491,43 @@ fn @encodeFirst.body(arg0: i256) -> i256 [may_return_memory, pure] {
 
 fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
-    v3 = ne arg0, 0
-    v4 = zext i1 v3 to i256
+    v2 = ne arg0, 0
+    v3 = zext i1 v2 to i256
     v1 = mload arg0
-    v5 = mul v1, v4
-    mstore arg1, v5
-    v6 = add arg1, 32
-    v7 = shl 5, v5
-    v8 = add v6, v7
-    v9 = add arg0, 32
+    v4 = mul v1, v3
+    mstore arg1, v4
+    v5 = add arg1, 32
+    v6 = shl 5, v4
+    v7 = add v5, v6
+    v8 = add arg0, 32
     jump bb1
   bb1:
-    v10 = phi [bb0: v5], [bb2: v26]
-    v11 = phi [bb0: v8], [bb2: v25]
-    v12 = phi [bb0: v6], [bb2: v27]
-    v13 = phi [bb0: v9], [bb2: v28]
-    v14 = gt v10, 0
-    jumpi v14, bb2, bb3
+    v9 = phi [bb0: v4], [bb2: v24]
+    v10 = phi [bb0: v7], [bb2: v23]
+    v11 = phi [bb0: v5], [bb2: v25]
+    v12 = phi [bb0: v8], [bb2: v26]
+    v13 = gt v9, 0
+    jumpi v13, bb2, bb3
   bb3:
-    v29 = sub v11, arg1
-    ret v29
+    v27 = sub v10, arg1
+    ret v27
   bb2:
-    v15 = mload v13
-    v16 = sub v11, v6
-    mstore v12, v16
-    v19 = ne v15, 0
-    v20 = zext i1 v19 to i256
-    v17 = mload v15
-    v21 = mul v17, v20
-    mstore v11, v21
-    v22 = shl 5, v21
-    v23 = add v11, 32
-    v25 = add v23, v22
-    v24 = add v15, 32
-    mcopy v23, v24, v22 !metadata(memory=heap, disjoint)
-    v26 = sub v10, 1
-    v27 = add v12, 32
-    v28 = add v13, 32
+    v14 = mload v12
+    v15 = sub v10, v5
+    mstore v11, v15
+    v17 = ne v14, 0
+    v18 = zext i1 v17 to i256
+    v16 = mload v14
+    v19 = mul v16, v18
+    mstore v10, v19
+    v20 = shl 5, v19
+    v21 = add v10, 32
+    v23 = add v21, v20
+    v22 = add v14, 32
+    mcopy v21, v22, v20 !metadata(memory=heap, disjoint)
+    v24 = sub v9, 1
+    v25 = add v11, 32
+    v26 = add v12, 32
     jump bb1
 }
 

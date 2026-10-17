@@ -101,10 +101,9 @@ fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[u256], abi_
     v28 = mload v27, ptr<memory>
     v29 = ptradd v28, 64
     v30 = mload v29
-    v31 = eq v30, 0
-    v32 = eq v31, false
-    v33 = insert_value struct0, undef struct0, 0, v21
-    v34 = insert_value struct0, v33, 1, v26
-    v35 = insert_value struct0, v34, 2, v32
-    ret v35
+    v31 = ne v30, 0
+    v32 = insert_value struct0, undef struct0, 0, v21
+    v33 = insert_value struct0, v32, 1, v26
+    v34 = insert_value struct0, v33, 2, v31
+    ret v34
 }

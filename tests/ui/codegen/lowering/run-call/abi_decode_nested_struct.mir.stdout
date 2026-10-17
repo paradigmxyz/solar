@@ -132,32 +132,30 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     icall require<short_string>, v101, 2, 0x6864000000000000000000000000000000000000000000000000000000000000
     v102 = ptradd v23, 128
     v103 = mload v102
-    v104 = eq v103, 0
+    v104 = ne v103, 0
     v105 = eq v104, false
-    v106 = eq v105, false
-    jumpi v106, bb1, bb2
+    jumpi v105, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v107 = ptradd v23, 160
-    v108 = mload v107
-    v109 = eq v108, 0
-    v110 = eq v109, false
-    v111 = eq v110, false
+    v106 = ptradd v23, 160
+    v107 = mload v106
+    v108 = ne v107, 0
+    v109 = eq v108, false
     jump bb3
   bb3:
-    v112 = phi [bb1: v111], [bb2: false]
-    icall require<short_string>, v112, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
-    v113 = ptradd v0, 32
+    v110 = phi [bb1: v109], [bb2: false]
+    icall require<short_string>, v110, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
+    v111 = ptradd v0, 32
+    v112 = mload v111, ptr<memory>
+    v113 = ptradd v23, 32
     v114 = mload v113, ptr<memory>
-    v115 = ptradd v23, 32
-    v116 = mload v115, ptr<memory>
+    v115 = ptrtoint ptr<memory> v112 to i256
+    v116 = keccak256 v115, 160
     v117 = ptrtoint ptr<memory> v114 to i256
     v118 = keccak256 v117, 160
-    v119 = ptrtoint ptr<memory> v116 to i256
-    v120 = keccak256 v119, 160
-    v121 = eq v118, v120
-    icall require<short_string>, v121, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
+    v119 = eq v116, v118
+    icall require<short_string>, v119, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     ret 1
 }
 

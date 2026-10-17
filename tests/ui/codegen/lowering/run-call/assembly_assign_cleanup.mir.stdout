@@ -32,10 +32,9 @@ fn @narrowMask() -> i256 [selector=0x14c62240, pure, abi_params=[], abi_returns=
 fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall require<short_string>, true, 6, 0x7472757468790000000000000000000000000000000000000000000000000000
-    v0 = eq 7, 0
-    v1 = eq v0, false
-    v2 = eq v1, true
-    icall require<short_string>, v2, 2, 0x6571000000000000000000000000000000000000000000000000000000000000
+    v0 = ne 7, 0
+    v1 = eq v0, true
+    icall require<short_string>, v1, 2, 0x6571000000000000000000000000000000000000000000000000000000000000
     ret 1
 }
 

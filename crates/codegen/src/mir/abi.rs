@@ -462,8 +462,7 @@ impl AbiWordValidator {
                     let two = builder.imm(2);
                     builder.lt(word, two)
                 } else {
-                    let zero = builder.eq_zero(word);
-                    let canonical = builder.eq_zero(zero);
+                    let canonical = builder.ne_zero(word);
                     builder.eq(word, canonical)
                 }
             }
@@ -486,10 +485,7 @@ impl AbiWordValidator {
                 let byte_index = builder.imm(byte_index);
                 builder.signextend(byte_index, word)
             }
-            Self::Bool => {
-                let zero = builder.eq_zero(word);
-                builder.eq_zero(zero)
-            }
+            Self::Bool => builder.ne_zero(word),
             Self::EnumRange(_) => word,
         }
     }

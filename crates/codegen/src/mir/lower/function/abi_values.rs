@@ -642,8 +642,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !nullable_memory {
             return None;
         }
-        let is_null = self.builder.eq_zero(value);
-        Some(self.builder.eq_zero(is_null))
+        Some(self.builder.ne_zero(value))
     }
 
     fn inplace_memory_object_len(&mut self, value: ValueId, nullable_memory: bool) -> ValueId {
