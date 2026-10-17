@@ -63,20 +63,9 @@ fn @abiEdge(arg0: slice<calldata>) -> i256 [selector=0xdff25446, pure, abi_param
     icall revert_if<calldata_tail_too_short>, v20
     v21 = inttoptr i256 v18 to ptr<calldata>
     v22 = make_calldata_slice v21, v15
-    v23 = extract_value slice<calldata>, v22, 1
-    v24 = extract_value slice<calldata>, v22, 0
-    v25 = add v23, 63
-    v26 = lt v25, v23
-    icall panic_if<0x41>, v26
-    v27 = not 31
-    v28 = and v25, v27
-    v29 = alloc v28
-    mstore v29, v23
-    v30 = ptradd v29, 32
-    calldatacopy v30, v24, v23 !metadata(memory=heap)
-    v31 = abi_decode [array<_, tuple<address, u256, bytes>>], v29
-    v32 = mload v31
-    ret v32
+    v23 = abi_decode [array<_, tuple<address, u256, bytes>>], v22
+    v24 = mload v23
+    ret v24
 }
 
 fn @_decodeBatch(arg0: slice<calldata>) -> slice<calldata> [pure] {

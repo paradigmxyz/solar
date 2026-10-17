@@ -29,7 +29,10 @@
 //! base and its length is checked against the head size, so a constant-length slice, such as an
 //! external call's static return buffer, needs no length word. Repeated decodes of a layout from
 //! the same kind of input share a helper; one that static slices share takes only the base, and
-//! each caller checks its own length, which then usually folds away.
+//! each caller checks its own length, which then usually folds away. A calldata slice decodes in
+//! place as well, with the calldata decoders the entries use: offsets resolve against the slice's
+//! base and every read stays below its end, as solc decodes it, so no copy of the encoding into
+//! memory precedes the decode.
 //!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
@@ -620,6 +623,10 @@ impl LowerAbiCx {
                 if layout.checked_head_size().is_none() {
                     return false;
                 }
+                // A calldata slice decodes in place, without the shared memory decoders.
+                if func.value_slice_location(*data) == Some(PtrLocation::Calldata) {
+                    continue;
+                }
                 let data_ty = crate::mir::typing::memory_object(func, *data);
                 let count = decode_counts.entry((layout.clone(), data_ty)).or_insert(0);
                 if *count == 0 {
@@ -685,11 +692,27 @@ impl LowerAbiCx {
                         continue;
                     };
                     let data = crate::mir::utils::resolve_replacement(*data, &replacements);
+                    let result = builder.func().inst_result_value(inst);
+                    if builder.func().value_slice_location(data) == Some(PtrLocation::Calldata) {
+                        let layout = layout.clone();
+                        let Some(values) = decode_calldata_tuple(
+                            &mut builder,
+                            data,
+                            layout.as_ref(),
+                            self.has_bitwise_shifting,
+                        ) else {
+                            return false;
+                        };
+                        if let Some(result) = result {
+                            let value = pack_decoded(&mut builder, result, values, &layout);
+                            replacements.insert(result, value);
+                        }
+                        continue;
+                    }
                     let key =
                         (layout.clone(), crate::mir::typing::memory_object(builder.func(), data));
                     let (layout, data_ty) = &key;
 
-                    let result = builder.func().inst_result_value(inst);
                     if let Some(&helper) = decode_helpers.get(&key) {
                         let arg = if passes_slice_base(*data_ty, layout) {
                             // if slt (extract_value data, 1), head_size { revert }
@@ -723,18 +746,7 @@ impl LowerAbiCx {
                         return false;
                     };
                     let Some(result) = result else { continue };
-                    // field = cast decoded word to the declared field type
-                    // result = insert_value(undef, field0), ...
-                    let values = values
-                        .into_iter()
-                        .zip(&layout.types)
-                        .map(|(value, ty)| builder.cast(value, ty.mir_type()))
-                        .collect::<Vec<_>>();
-                    let value = if let Some(MirType::Struct(id)) = builder.func().value_ty(result) {
-                        builder.make_struct(id, values)
-                    } else {
-                        values[0]
-                    };
+                    let value = pack_decoded(&mut builder, result, values, layout);
                     replacements.insert(result, value);
                 }
                 super::lower_abi_encode::move_terminator(
@@ -3346,6 +3358,83 @@ fn decode_input(builder: &mut FunctionBuilder<'_>, data: ValueId) -> (ValueId, V
     let ptr = builder.memory_data(data);
     let base = builder.cast(ptr, MirType::MEMPTR);
     (base, builder.memory_len(data))
+}
+
+/// Decodes an ABI tuple in place from a calldata slice, as an external entry decodes its own
+/// calldata: offsets resolve against the slice's base, every read stays below the slice's end, and
+/// dynamic values are copied into memory. Reading the slice directly spares the copy of the whole
+/// encoding into memory that decoding a memory object needs.
+fn decode_calldata_tuple(
+    builder: &mut FunctionBuilder<'_>,
+    data: ValueId,
+    layout: &AbiParamLayout,
+    has_bitwise_shifting: bool,
+) -> Option<Vec<ValueId>> {
+    let head_size = layout.checked_head_size()?;
+    // base = ptrtoint (extract_value data, 0)
+    // length = extract_value data, 1
+    let ptr = builder.slice_ptr(data);
+    let base = builder.cast(ptr, MirType::I256);
+    let length = builder.slice_len(data);
+    let mut current = builder.current_block();
+    let input_end =
+        LowerAbiCx::validate_memory_tuple_input(builder, base, length, head_size, &mut current);
+
+    let mut values = Vec::with_capacity(layout.types.len());
+    let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
+    let mut head_offset = 0_u64;
+    for ty in &layout.types {
+        builder.switch_to_block(current);
+        let head = builder.add_u64_offset(base, head_offset);
+        let value = if static_layout {
+            LowerAbiCx::decode_static_calldata_argument(
+                builder,
+                ty,
+                head,
+                &mut current,
+                has_bitwise_shifting,
+            )
+        } else {
+            LowerAbiCx::decode_aggregate_argument(
+                builder,
+                ty,
+                ty.mir_type(),
+                head,
+                base,
+                &mut current,
+                DecodeOptions {
+                    allow_alias: false,
+                    ..DecodeOptions::new(false, input_end, has_bitwise_shifting).checked()
+                },
+            )
+        };
+        values.push(value);
+        head_offset = head_offset
+            .checked_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"))?;
+    }
+    builder.switch_to_block(current);
+    Some(values)
+}
+
+/// Builds an ABI decode's result from its decoded words: one field, or a struct of all of them.
+fn pack_decoded(
+    builder: &mut FunctionBuilder<'_>,
+    result: ValueId,
+    values: Vec<ValueId>,
+    layout: &AbiParamLayout,
+) -> ValueId {
+    // field = cast decoded word to the declared field type
+    // result = insert_value(undef, field0), ...
+    let values = values
+        .into_iter()
+        .zip(&layout.types)
+        .map(|(value, ty)| builder.cast(value, ty.mir_type()))
+        .collect::<Vec<_>>();
+    if let Some(MirType::Struct(id)) = builder.func().value_ty(result) {
+        builder.make_struct(id, values)
+    } else {
+        values[0]
+    }
 }
 
 /// Returns whether shared calldata decoders also decode `ty` nested in other values, which makes
