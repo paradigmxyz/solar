@@ -6,6 +6,8 @@ dependencies = []
 
 [tool.uv]
 package = false
+# Apply a seven-day cooldown to registry packages, including build dependencies.
+exclude-newer = "7 days"
 
 [tool.uv.workspace]
 members = ["tools/compiler-diff", "benches/analyze"]
