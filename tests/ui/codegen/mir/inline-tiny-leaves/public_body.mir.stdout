@@ -7,8 +7,8 @@
 fn @constructor(arg0: i256) [abi_wrapper, constructor] {
   bb0:
     v4 = callvalue
-    v0 = constructor_args_base
     v1 = constructor_args_end
+    v0 = constructor_args_base
     v2 = add v0, 32
     v3 = gt v2, v1
     v6 = zext i1 v3 to i256

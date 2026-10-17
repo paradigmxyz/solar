@@ -429,11 +429,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v284 = gt v56, 127
     jumpi v284, bb54, bb56
   bb56:
-    v285 = lt v56, 64
     v286 = lt v56, 96
     v287 = zext i1 v286 to i256
     v288 = mul v287, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v289 = add v288, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v285 = lt v56, 64
     v290 = zext i1 v285 to i256
     v291 = mul v290, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v292 = add v289, v291
@@ -460,11 +460,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v302 = gt v69, 127
     jumpi v302, bb57, bb59
   bb59:
-    v303 = lt v69, 64
     v304 = lt v69, 96
     v305 = zext i1 v304 to i256
     v306 = mul v305, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v307 = add v306, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v303 = lt v69, 64
     v308 = zext i1 v303 to i256
     v309 = mul v308, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v310 = add v307, v309
@@ -498,11 +498,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v320 = gt v84, 127
     jumpi v320, bb60, bb62
   bb62:
-    v321 = lt v84, 64
     v322 = lt v84, 96
     v323 = zext i1 v322 to i256
     v324 = mul v323, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v325 = add v324, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v321 = lt v84, 64
     v326 = zext i1 v321 to i256
     v327 = mul v326, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v328 = add v325, v327
@@ -536,11 +536,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v338 = gt v99, 127
     jumpi v338, bb63, bb65
   bb65:
-    v339 = lt v99, 64
     v340 = lt v99, 96
     v341 = zext i1 v340 to i256
     v342 = mul v341, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v343 = add v342, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v339 = lt v99, 64
     v344 = zext i1 v339 to i256
     v345 = mul v344, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v346 = add v343, v345
@@ -623,11 +623,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v356 = gt v229, 127
     jumpi v356, bb66, bb68
   bb68:
-    v357 = lt v229, 64
     v358 = lt v229, 96
     v359 = zext i1 v358 to i256
     v360 = mul v359, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v361 = add v360, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v357 = lt v229, 64
     v362 = zext i1 v357 to i256
     v363 = mul v362, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v364 = add v361, v363
@@ -650,11 +650,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v374 = gt v238, 127
     jumpi v374, bb69, bb71
   bb71:
-    v375 = lt v238, 64
     v376 = lt v238, 96
     v377 = zext i1 v376 to i256
     v378 = mul v377, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v379 = add v378, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v375 = lt v238, 64
     v380 = zext i1 v375 to i256
     v381 = mul v380, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v382 = add v379, v381
@@ -678,11 +678,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v392 = gt v246, 127
     jumpi v392, bb72, bb74
   bb74:
-    v393 = lt v246, 64
     v394 = lt v246, 96
     v395 = zext i1 v394 to i256
     v396 = mul v395, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v397 = add v396, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v393 = lt v246, 64
     v398 = zext i1 v393 to i256
     v399 = mul v398, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v400 = add v397, v399
@@ -705,11 +705,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v410 = gt v254, 127
     jumpi v410, bb75, bb77
   bb77:
-    v411 = lt v254, 64
     v412 = lt v254, 96
     v413 = zext i1 v412 to i256
     v414 = mul v413, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v415 = add v414, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
+    v411 = lt v254, 64
     v416 = zext i1 v411 to i256
     v417 = mul v416, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v418 = add v415, v417

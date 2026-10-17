@@ -15,7 +15,10 @@
 //! which physical copy should survive for later consumers. Single-use islands between those pinned
 //! producers are still scheduled independently; references left in the arena by eliminated
 //! instructions do not count as sharing. The pass also preserves the producer order of binary
-//! operations whose lowering already costs both equivalent operand orientations.
+//! operations whose lowering already costs both equivalent operand orientations: the traversal
+//! visits their operands in stored order, so the rest of the segment still reorders around them,
+//! as a merged abort test's `or (callvalue), (gt ...)` does. A segment whose order would still
+//! reverse such a pair, because another use reached a producer first, keeps its stored order.
 //! Instruction and value identities do not change; codegen recomputes liveness from the resulting
 //! order before stack scheduling.
 //!
@@ -359,9 +362,10 @@ impl EvmInstSchedule {
         }
         let output_start = ordered.len();
         scratch.clear_segment();
-        for &inst_id in segment {
+        for (position, &inst_id) in segment.iter().enumerate() {
             scratch.members.insert(inst_id);
             scratch.active_members.push(inst_id);
+            scratch.original_positions[inst_id] = position;
         }
         for &inst_id in segment {
             func.inst(inst_id).kind.visit_operands(|operand| {
@@ -425,9 +429,6 @@ impl EvmInstSchedule {
         candidate: &[InstId],
         scratch: &mut ScheduleScratch,
     ) -> bool {
-        for (position, &inst_id) in original.iter().enumerate() {
-            scratch.original_positions[inst_id] = position;
-        }
         for (position, &inst_id) in candidate.iter().enumerate() {
             scratch.candidate_positions[inst_id] = position;
         }
@@ -513,7 +514,21 @@ impl EvmInstSchedule {
             }
 
             scratch.work.push((inst_id, true));
-            let inputs = Self::stack_input_order(&func.inst(inst_id).kind);
+            let kind = &func.inst(inst_id).kind;
+            let mut inputs = Self::stack_input_order(kind);
+            // Producers of a reorderable binary operation keep their stored order, which the
+            // segment must preserve; their own operands still follow stack-input order.
+            if let Some((a, b)) = kind.reorderable_binary_operands()
+                && let (Value::Inst(a_inst), Value::Inst(b_inst)) = (func.value(a), func.value(b))
+                && scratch.members.contains(*a_inst)
+                && scratch.members.contains(*b_inst)
+                && let Some(i) = inputs.iter().position(|&value| value == a)
+                && let Some(j) = inputs.iter().position(|&value| value == b)
+                && (i < j)
+                    != (scratch.original_positions[*a_inst] < scratch.original_positions[*b_inst])
+            {
+                inputs.swap(i, j);
+            }
             for value in inputs.iter().rev() {
                 if let Value::Inst(dependency) = func.value(*value)
                     && scratch.members.contains(*dependency)

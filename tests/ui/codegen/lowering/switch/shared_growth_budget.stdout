@@ -21,14 +21,11 @@ bb0:
   push 64
   mstore
   push 192
-  dup 1
   push_data SwitchSharedGrowthBudget_runtime_code_0+200
   codesize
   sub
   add
-  swap 1
-  push 32
-  add
+  push 224
   gt
   callvalue
   or

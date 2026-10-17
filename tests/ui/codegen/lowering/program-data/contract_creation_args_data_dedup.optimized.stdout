@@ -73,7 +73,7 @@ bb6:
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 @module FactoryWithArgs_runtime
 @data
-  ChildWithArg_creation_code_0: hex"6101c13803806101c160e03960e001601f01601f191660405260e0806101c13803019060200111341760445760e05160c05260f98060c860e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040526020810181607982395f828201528181604084015e6020825281905260c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+  ChildWithArg_creation_code_0: hex"6101bf3803806101bf60e03960e001601f01601f191660405260e06101bf38030161010011341760425760e05160c05260f98060c660e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040526020810181607982395f828201528181604084015e6020825281905260c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
 bb0:
   callvalue
@@ -131,22 +131,22 @@ bb6:
   mstore
   push 64
   mload
-  push 512
+  push 480
   dup 2
   add
   push 64
   mstore
-  push 449
+  push 447
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 449
+  push 447
   dup 4
   add
   mcopy
-  push 481
+  push 479
   swap 1
   push 0
   create
@@ -210,23 +210,23 @@ bb12:
   mstore
   push 64
   mload
-  push 512
+  push 480
   dup 2
   add
   push 64
   mstore
-  push 449
+  push 447
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 449
+  push 447
   dup 4
   add
   mcopy
   push 1
-  push 481
+  push 479
   dup 3
   push 0
   create2
@@ -251,22 +251,22 @@ bb18:
   mstore
   push 64
   mload
-  push 512
+  push 480
   dup 2
   add
   push 64
   mstore
-  push 449
+  push 447
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 449
+  push 447
   dup 4
   add
   mcopy
-  push 481
+  push 479
   swap 1
   push 0
   create
@@ -291,22 +291,22 @@ bb18:
   mstore
   push 64
   mload
-  push 512
+  push 480
   dup 2
   add
   push 64
   mstore
-  push 449
+  push 447
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 449
+  push 447
   dup 4
   add
   mcopy
-  push 481
+  push 479
   swap 1
   push 0
   create

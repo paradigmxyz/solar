@@ -28,10 +28,15 @@ fn @read_order(arg0: i256, arg1: i256) -> i256 {
     ret v4
 }
 
+// The commutative root keeps its operands' stored order, `v4` before `v5`, and the rest of the
+// segment still reorders: `v5`'s tree follows `v4` instead of surrounding it.
 // CHECK-LABEL: {{^[ +].*}}fn @commutative_tree_order{{[( ]}}
-// CHECK-NOT: {{^[+-]}}
-// CHECK: [[ALIGNED:v[0-9]+]] = and {{v[0-9]+}},
-// CHECK: [[ADDRESS:v[0-9]+]] = add {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: + [[LEFT:v[0-9]+]] = add arg1, 64
+// CHECK-NEXT: {{v[0-9]+}} = add arg0, 31
+// CHECK-NEXT: [[ALIGNED:v[0-9]+]] = and {{v[0-9]+}},
+// CHECK-NEXT: - [[LEFT]] = add arg1, 64
+// CHECK-NEXT: [[RIGHT:v[0-9]+]] = sub [[ALIGNED]], 32
+// CHECK-NEXT: [[ADDRESS:v[0-9]+]] = add [[LEFT]], [[RIGHT]]
 // CHECK-NEXT: mstore [[ADDRESS]], 0
 fn @commutative_tree_order(arg0: i256, arg1: i256) {
   bb0:

@@ -4,8 +4,8 @@
 fn @lastWord() [selector=0x3955f902, abi_wrapper, pure] {
   bb0:
     v10 = icall @decode_calldata_slice
-    v11 = calldataload v10
     v12 = add v10, 32
+    v11 = calldataload v10
     v2 = sub v11, 32
     v5 = add v12, v2
     v6 = calldataload v5

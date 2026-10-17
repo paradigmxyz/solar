@@ -98,8 +98,8 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     jump bb5
   bb5:
     v32 = phi [bb4: v31], [bb9: false]
-    v33 = eq v21, 0x2100000000000000000000000000000000000000000000000000000000000000
     v39 = zext i1 v32 to i256
+    v33 = eq v21, 0x2100000000000000000000000000000000000000000000000000000000000000
     v40 = zext i1 v33 to i256
     v41 = mul v39, v40
     mstore 128, v41

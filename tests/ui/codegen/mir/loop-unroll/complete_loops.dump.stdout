@@ -8,29 +8,29 @@
 
 fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
   bb0:
-    v44 = lt 0, arg1
     v45 = add arg0, 0
     v46 = calldataload v45
     v47 = byte 0, v46
     v48 = or 0, v47
     v53 = shl 8, v48
     v54 = and v53, 0xffffffff
-    v55 = lt 1, arg1
-    v83 = and v44, v55
     v56 = add arg0, 1
     v57 = calldataload v56
     v58 = byte 0, v57
     v59 = or v54, v58
     v64 = shl 8, v59
     v65 = and v64, 0xffffffff
-    v66 = lt 2, arg1
-    v84 = and v83, v66
     v67 = add arg0, 2
     v68 = calldataload v67
     v69 = byte 0, v68
     v70 = or v65, v69
     v75 = shl 8, v70
     v76 = and v75, 0xffffffff
+    v44 = lt 0, arg1
+    v55 = lt 1, arg1
+    v83 = and v44, v55
+    v66 = lt 2, arg1
+    v84 = and v83, v66
     v77 = lt 3, arg1
     v85 = and v84, v77
     jumpi v85, bb2, bb1

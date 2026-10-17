@@ -16,8 +16,8 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
   bb2:
     v6 = sub arg1, 1
     v52 = add v27, 33
-    v11 = calldatasize
     v12 = gt v6, 0xffffffffffffffff
+    v11 = calldatasize
     v13 = sub v11, v6
     v15 = sgt v52, v13
     v58 = or v12, v15
@@ -53,8 +53,8 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     jumpi v26, bb1, bb4
   bb4:
     v27 = icall @decode_calldata_slice
-    v28 = calldataload v27
     v29 = add v27, 32
+    v28 = calldataload v27
     v2 = gt arg2, v28
     v3 = lt arg2, arg1
     v4 = or v2, v3
@@ -62,8 +62,8 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
   bb2:
     v6 = sub arg2, arg1
     v52 = add v29, arg1
-    v11 = calldatasize
     v12 = gt v6, 0xffffffffffffffff
+    v11 = calldatasize
     v13 = sub v11, v6
     v15 = sgt v52, v13
     v58 = or v12, v15

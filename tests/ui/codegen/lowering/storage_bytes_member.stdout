@@ -74,13 +74,13 @@ bb14 [cold]:
   push 0
   revert
 bb15:
-  push 68
-  calldatasize
-  lt
   push 4
   calldataload
   push 8
   shr
+  push 68
+  calldatasize
+  lt
   or
   push 36
   calldataload
@@ -228,12 +228,11 @@ bb27 [loop]:
   sub
   push 3
   shl
-  push 255
   dup 2
-  shl
-  dup 3
   sload
-  swap 1
+  push 255
+  dup 3
+  shl
   not
   and
   swap 2
@@ -308,7 +307,9 @@ bb30:
   push 0
   keccak256
   add
-  swap 1
+  dup 1
+  sload
+  swap 2
   push 31
   and
   push 31
@@ -318,10 +319,9 @@ bb30:
   push 255
   swap 1
   shl
-  dup 2
-  sload
-  swap 1
   not
+  swap 1
+  swap 2
   and
   swap 1
   sstore
@@ -577,12 +577,11 @@ bb58:
   sub
   push 3
   shl
-  push 255
   dup 2
-  shl
-  dup 3
   sload
-  swap 1
+  push 255
+  dup 3
+  shl
   not
   and
   push 36

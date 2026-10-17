@@ -42,10 +42,10 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
 
 fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
   bb0:
-    v8 = calldatasize
-    v9 = lt v8, 100
     v10 = calldataload 4
     v11 = shr 160, v10
+    v8 = calldatasize
+    v9 = lt v8, 100
     v32 = zext i1 v9 to i256
     v33 = or v32, v11
     v13 = calldataload 36
