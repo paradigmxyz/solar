@@ -136,31 +136,27 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v38 = sub v27, v31
     v39 = shr 5, v38
     v40 = gt v36, v39
-    v64 = or v34, v40
+    v60 = or v34, v40
     v2 = shl 5, v36
     v9 = calldatasize
     v11 = sub v9, v31
     v12 = slt v11, v2
-    v65 = or v64, v12
-    jumpi v65, bb1, bb2
+    v61 = or v60, v12
+    jumpi v61, bb1, bb2
   bb2:
     v20 = add v2, 32
-    v62 = mload 64 !metadata(memory=scratch)
-    v63 = add v62, v20
-    mstore 64, v63 !metadata(memory=scratch)
-    mstore v62, v36
-    v57 = add v62, 32
-    calldatacopy v57, v31, v2
-    v48 = ne v62, 0
-    v49 = zext i1 v48 to i256
-    v50 = mul v36, v49
-    v52 = shl 5, v50
-    v59 = add v62, 64
-    mcopy v59, v57, v52
-    mstore v62, 32
-    mstore v57, v50
-    v54 = add v52, 64
-    returndata v62, v54
+    v58 = mload 64 !metadata(memory=scratch)
+    v59 = add v58, v20
+    mstore 64, v59 !metadata(memory=scratch)
+    mstore v58, v36
+    v53 = add v58, 32
+    calldatacopy v53, v31, v2
+    v55 = add v58, 64
+    mcopy v55, v53, v2
+    mstore v58, 32
+    mstore v53, v36
+    v50 = add v2, 64
+    returndata v58, v50
   bb1:
     revert 0, 0
 }
