@@ -379,9 +379,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // address = create(...)
             // ok = address != 0
             let created = self.lower_create_contract(ty, contract_id, *args, call_opts)?;
-            let zero = self.builder.imm(U256::ZERO);
-            let failed = self.builder.eq(created, zero);
-            (self.builder.eq_zero(failed), Some(created), None)
+            (self.builder.ne_zero(created), Some(created), None)
         } else {
             let address = match target.callee {
                 TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,

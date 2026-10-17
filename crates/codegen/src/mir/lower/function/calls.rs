@@ -696,11 +696,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 value
             }
             TyKind::Fn(_) => value,
-            TyKind::Elementary(ElementaryType::Bool) => {
-                let zero = self.builder.imm(U256::ZERO);
-                let is_zero = self.builder.eq(value, zero);
-                self.builder.eq_zero(is_zero)
-            }
+            TyKind::Elementary(ElementaryType::Bool) => self.builder.ne_zero(value),
             _ if matches!(
                 types::TypeLowerer::value_layout(ty),
                 crate::mir::ValueLayout::Int(_)

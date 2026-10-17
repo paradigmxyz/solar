@@ -12,12 +12,11 @@ fn @dirty(arg0: i256) -> i256 [pure] {
 fn @readDirty() -> struct0 [selector=0xd1f2dbc1, pure, abi_params=[], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
   bb0:
     v0 = icall @dirty, 1
-    v1 = eq v0, 0
-    v2 = eq v1, false
-    v3 = eq v2, true
-    v4 = insert_value struct0, undef struct0, 0, v3
-    v5 = insert_value struct0, v4, 1, v0
-    ret v5
+    v1 = ne v0, 0
+    v2 = eq v1, true
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, v0
+    ret v4
 }
 
 fn @join(arg0: i1) -> i256 [selector=0xe2c05593, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {

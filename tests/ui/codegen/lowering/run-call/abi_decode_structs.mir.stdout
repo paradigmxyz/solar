@@ -38,12 +38,11 @@ fn @dFlat(arg0: ptr<memory>) -> struct1 [selector=0x6644232b, pure, abi_params=[
     v4 = trunc i256 v3 to i160
     v5 = ptradd v0, 64
     v6 = mload v5
-    v7 = eq v6, 0
-    v8 = eq v7, false
-    v9 = insert_value struct1, undef struct1, 0, v1
-    v10 = insert_value struct1, v9, 1, v4
-    v11 = insert_value struct1, v10, 2, v8
-    ret v11
+    v7 = ne v6, 0
+    v8 = insert_value struct1, undef struct1, 0, v1
+    v9 = insert_value struct1, v8, 1, v4
+    v10 = insert_value struct1, v9, 2, v7
+    ret v10
 }
 
 fn @dMixed(arg0: ptr<memory>) -> struct2 [selector=0x1be4db0e, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
