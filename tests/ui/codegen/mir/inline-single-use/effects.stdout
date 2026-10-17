@@ -1,0 +1,152 @@
+- // === ROOT/tests/ui/codegen/mir/inline-single-use/effects.mir (before inline-single-use) ===
++ // === ROOT/tests/ui/codegen/mir/inline-single-use/effects.mir (after inline-single-use) ===
+  @module EffectfulSingleUse
+  fn @entry(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i1 {
+    bb0:
+-     v0 = icall @check, arg0, arg1, arg2, arg3, arg4
+-     ret v0
+- }
+- 
+- fn @check(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i1 [view] {
+-   bb0:
+-     v0 = eq arg0, 0
+-     jumpi v0, bb2, bb1
+-   bb1:
+-     v1 = mload 64
+-     mstore v1, arg1
+-     v2 = add v1, 32
+-     mstore v2, arg2
+-     v3 = add v1, 64
+-     mstore v3, arg3
+-     v4 = add v1, 96
+-     mstore v4, arg4
+-     v5 = gas
+-     v6 = staticcall v5, arg0, v1, 128, 0, 32
+      jump bb2
+    bb2:
+-     v7 = phi [bb0: true], [bb1: v6]
+-     ret v7
++     v1 = eq arg0, 0
++     jumpi v1, bb4, bb3
++   bb3:
++     v2 = mload 64
++     mstore v2, arg1
++     v3 = add v2, 32
++     mstore v3, arg2
++     v4 = add v2, 64
++     mstore v4, arg3
++     v5 = add v2, 96
++     mstore v5, arg4
++     v6 = gas
++     v7 = staticcall v6, arg0, v2, 128, 0, 32
++     jump bb4
++   bb4:
++     v8 = phi [bb2: true], [bb3: v7]
++     jump bb1
++   bb1:
++     v9 = phi [bb4: v8]
++     ret v9
+  }
+  
+  fn @crowded(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      v1 = add arg0, 2
+      v2 = add arg0, 3
+      v3 = add arg0, 4
+      v4 = add arg0, 5
+      v5 = add arg0, 6
+      v6 = add arg0, 7
+      v7 = add arg0, 8
+      v8 = add arg0, 9
+      v9 = add arg0, 10
+      v10 = add arg0, 11
+      v11 = add arg0, 12
+      v12 = add arg0, 13
+      v13 = add arg0, 14
+      v14 = icall @crowded_check, v0, v1, v2, v3, v4
+      v15 = add v14, v5
+      v16 = add v15, v6
+      v17 = add v16, v7
+      v18 = add v17, v8
+      v19 = add v18, v9
+      v20 = add v19, v10
+      v21 = add v20, v11
+      v22 = add v21, v12
+      v23 = add v22, v13
+      ret v23
+  }
+  
+  fn @crowded_check(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      jumpi v0, bb2, bb1
+    bb1:
+      mstore arg1, arg2
+      mstore arg3, arg4
+      jump bb2
+    bb2:
+      v1 = phi [bb0: 0], [bb1: arg4]
+      ret v1
+  }
+  
+  fn @fill_caller(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = icall @fill, arg0, arg1
+-     ret v0
+- }
+- 
+- fn @fill(arg0: i256, arg1: i256) -> i256 {
+-   bb0:
+-     jump bb1
+-   bb1:
+-     v0 = phi [bb0: 0], [bb2: v3]
+-     v1 = lt v0, arg1
+-     jumpi v1, bb2, bb3
+-   bb3:
+-     ret v0
++     jump bb2
+    bb2:
+-     v2 = add arg0, v0
+-     mstore8 v2, 0
+-     v3 = add v0, 1
++     jump bb3
++   bb3:
++     v1 = phi [bb2: 0], [bb4: v4]
++     v2 = lt v1, arg1
++     jumpi v2, bb4, bb5
++   bb5:
+      jump bb1
++   bb1:
++     v5 = phi [bb5: v1]
++     ret v5
++   bb4:
++     v3 = add arg0, v1
++     mstore8 v3, 0
++     v4 = add v1, 1
++     jump bb3
+  }
+  
+  fn @fill_survivor_caller(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = icall @fill_survivor, arg0, arg1
+      v1 = add v0, arg1
+      ret v1
+  }
+  
+  fn @fill_survivor(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, arg1
+      jumpi v1, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v2 = add arg0, v0
+      mstore8 v2, 0
+      v3 = add v0, 1
+      jump bb1
+  }
+  

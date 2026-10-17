@@ -38,10 +38,13 @@
 //! immutable loads and pure single-opcode computations, retaining the ordinary
 //! tiny-leaf size and lifetime-cost limits. Inlining stays at the original call
 //! site, including constructor calls; no runtime immutable bounds are assumed.
-//! Small scalar helpers with phis may also inline at their sole call site.
-//! Backward liveness estimates the callee's peak live words and the caller values
-//! surviving the call. Their sum must fit twelve words, leaving stack-addressing
-//! headroom for operand staging. The gas-only hot-leaf pass reuses that estimate
+//! Small helpers with phis may also inline at their sole call site, including ones
+//! that write memory or storage, call out, or take more than four words: the body moves
+//! rather than being cloned, so its effects keep their order. Backward liveness estimates
+//! the callee's peak live words and the caller values surviving the call. Their sum must
+//! fit twelve words, leaving stack-addressing headroom for operand staging. A body with a
+//! loop moves only when no caller value survives the call, since the scheduler would
+//! otherwise carry it through every iteration. The gas-only hot-leaf pass reuses that estimate
 //! for bounded acyclic scalar helpers called from inside loops, under the same
 //! twelve-word budget now that the loop's carried words stay resident through
 //! every join a clone adds: each such site is cloned when the call protocol it removes, weighed
@@ -361,7 +364,7 @@ enum InlineMode {
 enum PeakAnalysis {
     /// No estimate; phi-carrying callees stay shared.
     None,
-    /// Bounded scalar helpers with phis, for their sole call site.
+    /// Bounded helpers with phis, for their sole call site.
     Phis,
     /// Every bounded scalar helper, for loop call sites.
     Scalars,
@@ -487,8 +490,9 @@ struct MirInlineSummary {
     has_log: bool,
     has_control_flow: bool,
     is_check_wrapper: bool,
-    /// Whether the body contains a back edge; a loop cloned into a loop nests
-    /// its carried words inside the caller's. Only hot-leaf summaries compute it.
+    /// Whether the body contains a back edge; an inlined loop carries the caller's
+    /// live words through every iteration. Only summaries with a stack estimate
+    /// compute it.
     has_loop: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
@@ -634,8 +638,13 @@ impl MirInliner {
                     let caller = module.function(caller_id);
                     let liveness =
                         caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
-                    if surviving_call_words(caller, liveness, site).saturating_add(peak)
-                        > self.stack_budget()
+                    // A moved loop would carry the caller's surviving words through
+                    // every iteration, so it moves only when none survive the call.
+                    let surviving = surviving_call_words(caller, liveness, site);
+                    if surviving.saturating_add(peak) > self.stack_budget()
+                        || (self.mode == InlineMode::SingleUse
+                            && summary.has_loop
+                            && surviving != 0)
                     {
                         stats.skipped += 1;
                         continue;
@@ -1216,7 +1225,7 @@ fn summarize_function(
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
-        has_loop: peak == PeakAnalysis::Scalars && has_back_edge(func),
+        has_loop: peak != PeakAnalysis::None && has_back_edge(func),
         ..MirInlineSummary::default()
     };
 
@@ -1322,27 +1331,29 @@ fn summarize_function(
         }
     }
 
+    // A sole call site moves the body instead of cloning it: effects and calls keep
+    // their order, so only the stack estimate decides. Clones must stay scalar leaves.
+    let moved = peak == PeakAnalysis::Phis && summary.has_phi;
     if (peak == PeakAnalysis::Scalars || (peak == PeakAnalysis::Phis && summary.has_phi))
         && summary.block_count <= 16
         && summary.instruction_count <= 112
-        && summary.param_count <= 4
+        && (moved || summary.param_count <= 4)
         && !func.params.iter().any(|ty| matches!(ty, MirType::Slice(_)))
         && summary.return_count <= 3
         && summary.return_count != 0
         && summary.internal_frame_size == 0
         && !summary.has_reference_return
-        && (!summary.has_icall
-            || (peak == PeakAnalysis::Scalars
-                && !summary.has_phi
-                && summary.return_count == 1
-                && !summary.has_returning_icall))
-        && func.instructions().all(|inst| {
-            is_terminal_call(module, &func.inst(inst).kind)
-                || matches!(
-                    func.inst(inst).kind.effect_kind(),
-                    EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
-                )
-        })
+        && (moved
+            || !summary.has_icall
+            || (!summary.has_phi && summary.return_count == 1 && !summary.has_returning_icall))
+        && (moved
+            || func.instructions().all(|inst| {
+                is_terminal_call(module, &func.inst(inst).kind)
+                    || matches!(
+                        func.inst(inst).kind.effect_kind(),
+                        EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
+                    )
+            }))
     {
         summary.phi_stack_peak = Some(scalar_stack_peak(func));
     }
