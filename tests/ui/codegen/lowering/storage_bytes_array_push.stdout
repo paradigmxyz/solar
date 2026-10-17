@@ -193,21 +193,18 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     mstore 0, 2 !metadata(memory=scratch)
     v4 = add arg0, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     v5 = icall @load_storage_bytes, v4
-    v14 = ne v5, 0
-    v15 = zext i1 v14 to i256
     v11 = mload v5
-    v16 = mul v11, v15
-    v27 = add v5, 32
-    v18 = add v16, 31
-    v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v22 = add v27, v20
-    mstore v22, 0
-    v29 = add v5, 64
-    mcopy v29, v27, v16
+    v22 = add v5, 32
+    v13 = add v11, 31
+    v15 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v22, v15
+    mstore v17, 0
+    v24 = add v5, 64
+    mcopy v24, v22, v11
     mstore v5, 32
-    mstore v27, v16
-    v24 = add v20, 64
-    returndata v5, v24
+    mstore v22, v11
+    v19 = add v15, 64
+    returndata v5, v19
   bb3:
     revert 0, 0
 }

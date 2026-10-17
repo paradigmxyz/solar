@@ -14,84 +14,72 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type
     v0 = icall @decode.8, v3
-    v10 = ne v0, 0
-    v11 = zext i1 v10 to i256
     v7 = mload v0
-    v12 = mul v7, v11
-    v23 = add v0, 32
-    v14 = add v12, 31
-    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = add v23, v16
-    mstore v18, 0
-    v25 = add v0, 64
-    mcopy v25, v23, v12
+    v18 = add v0, 32
+    v9 = add v7, 31
+    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = add v18, v11
+    mstore v13, 0
+    v20 = add v0, 64
+    mcopy v20, v18, v7
     mstore v0, 32
-    mstore v23, v12
-    v20 = add v16, 64
-    returndata v0, v20
+    mstore v18, v7
+    v15 = add v11, 64
+    returndata v0, v15
 }
 
 fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
   bb0:
     v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, false, false
-    v12 = ne v1, 0
-    v13 = zext i1 v12 to i256
     v9 = mload v1
-    v14 = mul v9, v13
-    v25 = add v1, 32
-    v16 = add v14, 31
-    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v25, v18
-    mstore v20, 0
-    v27 = add v1, 64
-    mcopy v27, v25, v14
+    v20 = add v1, 32
+    v11 = add v9, 31
+    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v20, v13
+    mstore v15, 0
+    v22 = add v1, 64
+    mcopy v22, v20, v9
     mstore v1, 32
-    mstore v25, v14
-    v22 = add v18, 64
-    returndata v1, v22
+    mstore v20, v9
+    v17 = add v13, 64
+    returndata v1, v17
 }
 
 fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
   bb0:
     v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, true, false
-    v12 = ne v1, 0
-    v13 = zext i1 v12 to i256
     v9 = mload v1
-    v14 = mul v9, v13
-    v25 = add v1, 32
-    v16 = add v14, 31
-    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v25, v18
-    mstore v20, 0
-    v27 = add v1, 64
-    mcopy v27, v25, v14
+    v20 = add v1, 32
+    v11 = add v9, 31
+    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v20, v13
+    mstore v15, 0
+    v22 = add v1, 64
+    mcopy v22, v20, v9
     mstore v1, 32
-    mstore v25, v14
-    v22 = add v18, 64
-    returndata v1, v22
+    mstore v20, v9
+    v17 = add v13, 64
+    returndata v1, v17
 }
 
 fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type
     v0 = icall @encode.4, v3, false, true
-    v10 = ne v0, 0
-    v11 = zext i1 v10 to i256
     v7 = mload v0
-    v12 = mul v7, v11
-    v23 = add v0, 32
-    v14 = add v12, 31
-    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = add v23, v16
-    mstore v18, 0
-    v25 = add v0, 64
-    mcopy v25, v23, v12
+    v18 = add v0, 32
+    v9 = add v7, 31
+    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = add v18, v11
+    mstore v13, 0
+    v20 = add v0, 64
+    mcopy v20, v18, v7
     mstore v0, 32
-    mstore v23, v12
-    v20 = add v16, 64
-    returndata v0, v20
+    mstore v18, v7
+    v15 = add v11, 64
+    returndata v0, v15
 }
 
 fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {

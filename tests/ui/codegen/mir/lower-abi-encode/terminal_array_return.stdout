@@ -17,22 +17,17 @@
 -     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
 +     v4 = mload v0
-+     v5 = ptrtoint ptr<memory> v0 to i256
-+     v6 = eq v5, 0
-+     v7 = eq v6, false
-+     v8 = zext i1 v7 to i256
-+     v9 = mul v4, v8
-+     v10 = ptradd v0, 32
-+     v11 = shl 5, v9
-+     v12 = ptradd v0, 64
-+     mcopy v12, v10, v11
++     v5 = ptradd v0, 32
++     v6 = shl 5, v4
++     v7 = ptradd v0, 64
++     mcopy v7, v5, v6
 +     mstore v0, 32
-+     mstore v10, v9
-+     v13 = add v11, 64
-+     v14 = make_memory_slice v0, v13
-+     v2 = extract_value slice<memory>, v14, 0
-+     v3 = extract_value slice<memory>, v14, 1
-+     returndata v0, v13
++     mstore v5, v4
++     v8 = add v6, 64
++     v9 = make_memory_slice v0, v8
++     v2 = extract_value slice<memory>, v9, 0
++     v3 = extract_value slice<memory>, v9, 1
++     returndata v0, v8
   }
   
   fn @borrowed(arg0: ptr<memory>) {
@@ -94,26 +89,21 @@
 -     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
 +     v4 = mload v0
-+     v5 = ptrtoint ptr<memory> v0 to i256
-+     v6 = eq v5, 0
-+     v7 = eq v6, false
-+     v8 = zext i1 v7 to i256
-+     v9 = mul v4, v8
-+     v10 = ptradd v0, 32
-+     v11 = add v9, 31
-+     v12 = not 31
-+     v13 = and v11, v12
-+     v14 = ptrtoint ptr<memory> v10 to i256
-+     v15 = add v14, v13
-+     mstore v15, 0
-+     v16 = ptradd v0, 64
-+     mcopy v16, v10, v9
++     v5 = ptradd v0, 32
++     v6 = add v4, 31
++     v7 = not 31
++     v8 = and v6, v7
++     v9 = ptrtoint ptr<memory> v5 to i256
++     v10 = add v9, v8
++     mstore v10, 0
++     v11 = ptradd v0, 64
++     mcopy v11, v5, v4
 +     mstore v0, 32
-+     mstore v10, v9
-+     v17 = add v13, 64
-+     v18 = make_memory_slice v0, v17
-+     v2 = extract_value slice<memory>, v18, 0
-+     v3 = extract_value slice<memory>, v18, 1
-+     returndata v0, v17
++     mstore v5, v4
++     v12 = add v8, 64
++     v13 = make_memory_slice v0, v12
++     v2 = extract_value slice<memory>, v13, 0
++     v3 = extract_value slice<memory>, v13, 1
++     returndata v0, v12
   }
   

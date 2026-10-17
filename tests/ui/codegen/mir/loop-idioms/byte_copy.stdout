@@ -9,21 +9,18 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type
     v0 = icall @_slice, v3, arg1, arg2
-    v10 = ne v0, 0
-    v11 = zext i1 v10 to i256
     v7 = mload v0
-    v12 = mul v7, v11
-    v23 = add v0, 32
-    v14 = add v12, 31
-    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = add v23, v16
-    mstore v18, 0
-    v25 = add v0, 64
-    mcopy v25, v23, v12
+    v18 = add v0, 32
+    v9 = add v7, 31
+    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = add v18, v11
+    mstore v13, 0
+    v20 = add v0, 64
+    mcopy v20, v18, v7
     mstore v0, 32
-    mstore v23, v12
-    v20 = add v16, 64
-    returndata v0, v20
+    mstore v18, v7
+    v15 = add v11, 64
+    returndata v0, v15
   bb1:
     revert 0, 0
 }
@@ -222,28 +219,25 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
     v5 = lt v22, v4
     jumpi v5, bb3, bb2
   bb2:
-    v37 = ne v30, 0
-    v38 = zext i1 v37 to i256
-    v39 = mul v4, v38
-    v50 = add v30, 32
-    v41 = add v39, 31
-    v43 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v45 = add v50, v43
-    mstore v45, 0
-    v52 = add v30, 64
-    mcopy v52, v50, v39
+    v45 = add v30, 32
+    v36 = add v4, 31
+    v38 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v40 = add v45, v38
+    mstore v40, 0
+    v47 = add v30, 64
+    mcopy v47, v45, v4
     mstore v30, 32
-    mstore v50, v39
-    v47 = add v43, 64
-    returndata v30, v47
+    mstore v45, v4
+    v42 = add v38, 64
+    returndata v30, v42
   bb3:
-    v54 = add v30, v22
-    v55 = add v54, 32
-    v12 = mload v55
+    v49 = add v30, v22
+    v50 = add v49, 32
+    v12 = mload v50
     v13 = byte 0, v12
-    v57 = add v30, v2
-    v58 = add v57, 32
-    mstore8 v58, v13
+    v52 = add v30, v2
+    v53 = add v52, 32
+    mstore8 v53, v13
     jump bb1
   bb4:
     revert 0, 0
