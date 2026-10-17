@@ -4330,18 +4330,6 @@ fn canonicalize_return_value(
     input_params: Option<&AbiParamLayout>,
     source: ReturnValueSource,
 ) -> ValueId {
-    let nullable_memory = builder.func().memory_object_load(value);
-    canonicalize_return_value_inner(builder, ty, value, input_params, source, nullable_memory)
-}
-
-fn canonicalize_return_value_inner(
-    builder: &mut FunctionBuilder<'_>,
-    ty: &AbiParamType,
-    value: ValueId,
-    input_params: Option<&AbiParamLayout>,
-    source: ReturnValueSource,
-    nullable_memory: bool,
-) -> ValueId {
     if !ty.needs_return_cleanup()
         || is_canonical_return_value(builder.func(), ty, value, input_params, source)
     {
@@ -4364,19 +4352,14 @@ fn canonicalize_return_value_inner(
         AbiParamType::Tuple(fields) => {
             let output =
                 builder.alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
-            let non_null = nullable_memory.then(|| memory_object_non_null(builder, value));
             for (index, field_ty) in fields.iter().enumerate() {
-                let mut field_value = builder.memory_load_field(value, index as u64);
-                if let Some(non_null) = non_null {
-                    field_value = builder.mul(field_value, non_null);
-                }
-                let field_value = canonicalize_return_value_inner(
+                let field_value = builder.memory_load_field(value, index as u64);
+                let field_value = canonicalize_return_value(
                     builder,
                     field_ty,
                     field_value,
                     input_params,
                     ReturnValueSource::Memory,
-                    true,
                 );
                 builder.memory_store_field(output, index as u64, field_value);
             }
@@ -4385,19 +4368,14 @@ fn canonicalize_return_value_inner(
         AbiParamType::FixedArray { element, len } => {
             let (output, layout) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
             let length = builder.imm(*len);
-            let non_null = nullable_memory.then(|| memory_object_non_null(builder, value));
             builder.counted_loop(length, |builder, index| {
-                let mut element_value = builder.memory_load_element(value, layout, index);
-                if let Some(non_null) = non_null {
-                    element_value = builder.mul(element_value, non_null);
-                }
-                let element_value = canonicalize_return_value_inner(
+                let element_value = builder.memory_load_element(value, layout, index);
+                let element_value = canonicalize_return_value(
                     builder,
                     element,
                     element_value,
                     input_params,
                     ReturnValueSource::Memory,
-                    true,
                 );
                 builder.memory_store_element(output, layout, index, element_value);
             });
@@ -4405,11 +4383,7 @@ fn canonicalize_return_value_inner(
         }
         AbiParamType::DynamicArray(element) => {
             let layout = MemoryObjectLayout::WORD_ARRAY;
-            let mut length = builder.memory_len(value);
-            let non_null = nullable_memory.then(|| memory_object_non_null(builder, value));
-            if let Some(non_null) = non_null {
-                length = builder.mul(length, non_null);
-            }
+            let length = builder.memory_len(value);
             let one = builder.imm(1);
             let mut current = builder.current_block();
             let words = LowerAbiCx::checked_add(builder, length, one, &mut current);
@@ -4419,27 +4393,19 @@ fn canonicalize_return_value_inner(
             builder.set_memory_len(output, length);
 
             builder.counted_loop(length, |builder, index| {
-                let mut element_value = builder.memory_load_element(value, layout, index);
-                if let Some(non_null) = non_null {
-                    element_value = builder.mul(element_value, non_null);
-                }
-                let element_value = canonicalize_return_value_inner(
+                let element_value = builder.memory_load_element(value, layout, index);
+                let element_value = canonicalize_return_value(
                     builder,
                     element,
                     element_value,
                     input_params,
                     ReturnValueSource::Memory,
-                    true,
                 );
                 builder.memory_store_element(output, layout, index, element_value);
             });
             output
         }
     }
-}
-
-fn memory_object_non_null(builder: &mut FunctionBuilder<'_>, object: ValueId) -> ValueId {
-    builder.ne_zero(object)
 }
 
 fn direct_calldata_copy_source(

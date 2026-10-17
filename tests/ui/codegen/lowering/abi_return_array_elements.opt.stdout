@@ -286,31 +286,28 @@ fn @cleanup_return(arg0: i256) -> i256 [may_return_memory] {
 
 fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
-    v3 = ne arg0, 0
-    v4 = zext i1 v3 to i256
     v1 = mload arg0
-    v5 = mul v1, v4
-    mstore arg1, v5
-    v7 = add arg1, 32
-    v24 = add arg0, 32
-    v11 = sub v24, v7
-    v12 = ne v5, 0
-    jumpi v12, bb1, bb2
+    mstore arg1, v1
+    v3 = add arg1, 32
+    v20 = add arg0, 32
+    v7 = sub v20, v3
+    v8 = ne v1, 0
+    jumpi v8, bb1, bb2
   bb1:
-    v13 = phi [bb0: v5], [bb1: v18]
-    v14 = phi [bb0: v7], [bb1: v19]
-    v15 = add v14, v11
-    v16 = mload v15
-    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v14, v17
-    v18 = sub v13, 1
-    v19 = add v14, 32
-    v20 = ne v18, 0
-    jumpi v20, bb1, bb2
+    v9 = phi [bb0: v1], [bb1: v14]
+    v10 = phi [bb0: v3], [bb1: v15]
+    v11 = add v10, v7
+    v12 = mload v11
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore v10, v13
+    v14 = sub v9, 1
+    v15 = add v10, 32
+    v16 = ne v14, 0
+    jumpi v16, bb1, bb2
   bb2:
-    v21 = phi [bb0: v7], [bb1: v19]
-    v22 = sub v21, arg1
-    ret v22
+    v17 = phi [bb0: v3], [bb1: v15]
+    v18 = sub v17, arg1
+    ret v18
 }
 
 fn @entry() [entry] {

@@ -306,11 +306,7 @@ bb24 [continuation]:
   dup 3
   mstore
   dup 3
-  iszero
-  iszero
-  dup 4
   mload
-  mul
   push 31
   dup 2
   add

@@ -1493,10 +1493,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.sstore(slot, length);
 
         self.counted_loop(length, |this, index| {
-            let value = this.builder.memory_load_element(object, source_layout, index);
             let value = if this.types.memory_layout(source_element).is_some() {
-                this.materialize_array_element(object, source_layout, index, source_element, value)?
+                this.builder.memory_load_element_as(object, source_layout, index, MirType::MEMPTR)
             } else {
+                let value = this.builder.memory_load_element(object, source_layout, index);
                 this.decode_memory_scalar(source_element, value)
             };
             let access = this.storage_array_element_access(slot, index, element, true, span)?;

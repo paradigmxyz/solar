@@ -46,46 +46,46 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
 fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
   bb0:
     v69 = icall @decode_calldata_type
-    v99 = add v69, 32
+    v95 = add v69, 32
     v14 = mload v69
-    v16 = add v99, v14
+    v16 = add v95, v14
     v17 = slt v14, 32
     jumpi v17, bb1, bb2
   bb2:
-    v18 = mload v99
-    v20 = add v99, v18
+    v18 = mload v95
+    v20 = add v95, v18
     v23 = gt v18, v14
     v24 = sub v16, v20
     v25 = lt v24, 160
-    v128 = or v23, v25
-    jumpi v128, bb1, bb3
+    v124 = or v23, v25
+    jumpi v124, bb1, bb3
   bb3:
     v26 = alloc 96 !metadata(deferred_alloc)
-    v125 = mload 64 !metadata(memory=scratch)
-    v126 = add v125, 96
-    mstore 64, v126 !metadata(memory=scratch)
+    v121 = mload 64 !metadata(memory=scratch)
+    v122 = add v121, 96
+    mstore 64, v122 !metadata(memory=scratch)
     v28 = mload v20
-    mstore v125, v28
+    mstore v121, v28
     v29 = add v20, 32
     v30 = mload v29
     v31 = shr 160, v30
     v32 = eq v31, 0
     jumpi v32, bb4, bb1
   bb4:
-    v101 = add v125, 32
-    mstore v101, v30
+    v97 = add v121, 32
+    mstore v97, v30
     v34 = add v20, 64
     v35 = mload v34
     v36 = lt v35, 2
     jumpi v36, bb5, bb1
   bb5:
-    v103 = add v125, 64
-    mstore v103, v35
-    mstore v26, v125
+    v99 = add v121, 64
+    mstore v99, v35
+    mstore v26, v121
     v39 = add v20, 96
     v40 = icall @decode_memory_type, v39, v20, v16
-    v105 = add v26, 32
-    mstore v105, v40
+    v101 = add v26, 32
+    mstore v101, v40
     v43 = add v20, 128
     v44 = mload v43
     v45 = add v20, v44
@@ -101,44 +101,41 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     jumpi v54, bb7, bb8
   bb8:
     v56 = and v53, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v124 = icall @alloc, v56
-    mstore v124, v51
+    v120 = icall @alloc, v56
+    mstore v120, v51
     v58 = sub v16, v46
     v59 = gt v51, v58
     jumpi v59, bb1, bb9
   bb9:
-    v107 = add v124, 32
-    mcopy v107, v46, v51
-    v109 = add v26, 64
-    mstore v109, v124
-    v119 = mload v26
-    v2 = mload v119
-    v120 = mload v105
-    v111 = add v120, 32
-    v121 = mload v111
-    v9 = mload v124
-    v127 = mload 64 !metadata(memory=scratch)
-    v75 = add v127, 96
-    mstore v127, v2
-    v77 = add v127, 32
+    v103 = add v120, 32
+    mcopy v103, v46, v51
+    v105 = add v26, 64
+    mstore v105, v120
+    v115 = mload v26
+    v2 = mload v115
+    v116 = mload v101
+    v107 = add v116, 32
+    v117 = mload v107
+    v9 = mload v120
+    v123 = mload 64 !metadata(memory=scratch)
+    v75 = add v123, 96
+    mstore v123, v2
+    v77 = add v123, 32
     mstore v77, 96
-    v82 = ne v121, 0
-    v83 = zext i1 v82 to i256
-    v80 = mload v121
-    v84 = mul v80, v83
-    v86 = add v84, 31
-    v87 = and v86, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v88 = add v75, 32
-    v89 = add v75, v87
-    mstore v89, 0
-    mstore v75, v84
-    v91 = add v88, v87
-    v113 = add v121, 32
-    mcopy v88, v113, v84 !metadata(memory=heap, disjoint)
-    v93 = add v127, 64
-    mstore v93, v9
-    v95 = sub v91, v127
-    returndata v127, v95
+    v80 = mload v117
+    v82 = add v80, 31
+    v83 = and v82, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v84 = add v75, 32
+    v85 = add v75, v83
+    mstore v85, 0
+    mstore v75, v80
+    v87 = add v84, v83
+    v109 = add v117, 32
+    mcopy v84, v109, v80 !metadata(memory=heap, disjoint)
+    v89 = add v123, 64
+    mstore v89, v9
+    v91 = sub v87, v123
+    returndata v123, v91
   bb7:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -149,65 +146,46 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
 
 fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
   bb0:
-    v39 = icall @decode_calldata_type
-    v43 = add v39, 32
-    v15 = mload v39
-    v17 = add v43, v15
-    v18 = slt v15, 32
-    jumpi v18, bb3, bb4
-  bb4:
-    v19 = mload v43
-    v21 = add v43, v19
-    v24 = gt v19, v15
-    v25 = sub v17, v21
-    v26 = lt v25, 64
-    v59 = or v24, v26
-    jumpi v59, bb3, bb5
-  bb5:
-    v52 = mload 64 !metadata(memory=scratch)
-    v53 = add v52, 64
-    mstore 64, v53 !metadata(memory=scratch)
-    v58 = add v52, 64
-    jump bb6
-  bb6:
-    v54 = phi [bb5: v21], [bb7: v55]
-    v56 = phi [bb5: v52], [bb7: v57]
-    v29 = lt v56, v58
-    jumpi v29, bb7, bb8
-  bb8:
-    v49 = add v52, 32
-    v4 = mload v49
-    v6 = eq v4, 0
-    jumpi v6, bb1, bb2
-  bb1:
-    v60 = mload 64
-    v62 = add v60, 160
-    mstore 64, v62
-    mstore v60, 0
-    v63 = add v60, 96
-    mstore v63, 0
-    v64 = add v60, 32
-    mstore v64, v63
-    v65 = add v60, 128
-    mstore v65, 0
-    v66 = add v60, 64
-    mstore v66, v65
-    mstore v49, v60
-    jump bb2
+    v33 = icall @decode_calldata_type
+    v37 = add v33, 32
+    v9 = mload v33
+    v11 = add v37, v9
+    v12 = slt v9, 32
+    jumpi v12, bb1, bb2
   bb2:
-    v10 = phi [bb8: v4], [bb1: v60]
-    v45 = add v10, 64
-    v51 = mload v45
-    v13 = mload v51
-    mstore 128, v13
-    returndata 128, 32
-  bb7:
-    v32 = icall @decode_memory_type, v54, v21, v17
-    mstore v56, v32
-    v55 = add v54, 32
-    v57 = add v56, 32
-    jump bb6
+    v13 = mload v37
+    v15 = add v37, v13
+    v18 = gt v13, v9
+    v19 = sub v11, v15
+    v20 = lt v19, 64
+    v54 = or v18, v20
+    jumpi v54, bb1, bb3
   bb3:
+    v47 = mload 64 !metadata(memory=scratch)
+    v48 = add v47, 64
+    mstore 64, v48 !metadata(memory=scratch)
+    v53 = add v47, 64
+    jump bb4
+  bb4:
+    v49 = phi [bb3: v15], [bb5: v50]
+    v51 = phi [bb3: v47], [bb5: v52]
+    v23 = lt v51, v53
+    jumpi v23, bb5, bb6
+  bb6:
+    v41 = add v47, 32
+    v45 = mload v41
+    v43 = add v45, 64
+    v46 = mload v43
+    v7 = mload v46
+    mstore 128, v7
+    returndata 128, 32
+  bb5:
+    v26 = icall @decode_memory_type, v49, v15, v11
+    mstore v51, v26
+    v50 = add v49, 32
+    v52 = add v51, 32
+    jump bb4
+  bb1:
     revert 0, 0
 }
 

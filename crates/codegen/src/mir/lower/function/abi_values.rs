@@ -597,21 +597,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // words = count_inline(value)
         // output = bytes(words * 32)
         // copy_inplace_dynamic_value(ty, value, output, 0)
-        let nullable_memory = self.builder.func().memory_object_load(value);
         if !self.inplace_dynamic_shape(ty)
             || (!matches!(self.builder.func().value_ty(value), Some(MirType::MEMPTR))
-                && !nullable_memory)
+                && !self.builder.func().memory_object_load(value))
         {
             return None;
         }
-        let words = self.count_inplace_dynamic_value(ty, value, nullable_memory)?;
+        let words = self.count_inplace_dynamic_value(ty, value)?;
         let word = self.builder.imm(32);
         let length = self.builder.checked_mul(words, word);
         let size = self.builder.checked_add(word, length);
         let output = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         self.builder.set_memory_len(output, length);
         let zero = self.builder.imm(0);
-        self.copy_inplace_dynamic_value(ty, value, output, zero, nullable_memory)?;
+        self.copy_inplace_dynamic_value(ty, value, output, zero)?;
         Some(output)
     }
 
@@ -636,73 +635,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// A zeroed aggregate slot stores null for its default memory object. Masking descendants
-    /// prevents that null from being followed into scratch memory.
-    fn memory_non_null_mask(&mut self, value: ValueId, nullable_memory: bool) -> Option<ValueId> {
-        if !nullable_memory {
-            return None;
-        }
-        Some(self.builder.ne_zero(value))
-    }
-
-    fn inplace_memory_object_len(&mut self, value: ValueId, nullable_memory: bool) -> ValueId {
-        let length = self.builder.memory_len(value);
-        if let Some(non_null) = self.memory_non_null_mask(value, nullable_memory) {
-            self.builder.mul(length, non_null)
-        } else {
-            length
-        }
-    }
-
-    fn count_inplace_dynamic_value(
-        &mut self,
-        ty: Ty<'gcx>,
-        value: ValueId,
-        nullable_memory: bool,
-    ) -> Option<ValueId> {
+    fn count_inplace_dynamic_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
         // total = sum(count(child))
         let ty = ty.peel_refs();
         match ty.kind {
-            TyKind::DynArray(_) | TyKind::Array(..) => {
-                self.count_inplace_array(ty, value, nullable_memory)
-            }
+            TyKind::DynArray(_) | TyKind::Array(..) => self.count_inplace_array(ty, value),
             TyKind::Struct(id) => {
                 let gcx = self.cx.gcx;
                 let fields = gcx.hir.strukt(id).fields;
-                let non_null = self.memory_non_null_mask(value, nullable_memory);
                 let mut total = self.builder.imm(0);
                 for (index, &field) in fields.iter().enumerate() {
                     let field = gcx.type_of_item(field.into());
-                    let mut field_value = self.builder.memory_load_field(value, index as u64);
-                    if let Some(non_null) = non_null {
-                        field_value = self.builder.mul(field_value, non_null);
-                    }
-                    let field_words = self.count_inplace_dynamic_value(field, field_value, true)?;
+                    let field_value = self.builder.memory_load_field(value, index as u64);
+                    let field_words = self.count_inplace_dynamic_value(field, field_value)?;
                     total = self.builder.checked_add(total, field_words);
                 }
                 Some(total)
             }
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => Some(self.count_inplace_bytes(value, nullable_memory)),
-            TyKind::Udvt(inner, _) => {
-                self.count_inplace_dynamic_value(inner, value, nullable_memory)
-            }
+            ) => Some(self.count_inplace_bytes(value)),
+            TyKind::Udvt(inner, _) => self.count_inplace_dynamic_value(inner, value),
             TyKind::Tuple(_) | TyKind::Slice(_) => None,
             _ => Some(self.builder.imm(1)),
         }
     }
 
-    fn count_inplace_array(
-        &mut self,
-        ty: Ty<'gcx>,
-        value: ValueId,
-        nullable_memory: bool,
-    ) -> Option<ValueId> {
+    fn count_inplace_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
         // total = 0
         // for i { total += count(element[i]) }
-        let (element, length, layout, non_null) =
-            self.inplace_array_info(ty, value, nullable_memory)?;
+        let (element, length, layout) = self.inplace_array_info(ty, value)?;
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
         let body = self.builder.create_block();
@@ -717,11 +679,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(more, body, exit);
 
         self.builder.switch_to_block(body);
-        let mut element_value = self.builder.memory_load_element(value, layout, index);
-        if let Some(non_null) = non_null {
-            element_value = self.builder.mul(element_value, non_null);
-        }
-        let element_words = self.count_inplace_dynamic_value(element, element_value, true)?;
+        let element_value = self.builder.memory_load_element(value, layout, index);
+        let element_words = self.count_inplace_dynamic_value(element, element_value)?;
         let next_total = self.builder.checked_add(total, element_words);
         let next_index = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
@@ -733,9 +692,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(total)
     }
 
-    fn count_inplace_bytes(&mut self, value: ValueId, nullable_memory: bool) -> ValueId {
+    fn count_inplace_bytes(&mut self, value: ValueId) -> ValueId {
         // words = ceil(bytes.length / 32)
-        let length = self.inplace_memory_object_len(value, nullable_memory);
+        let length = self.builder.memory_len(value);
         let word = self.builder.imm(32);
         let thirty_one = self.builder.imm(31);
         let rounded = self.builder.checked_add(length, thirty_one);
@@ -750,41 +709,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         output: ValueId,
         offset: ValueId,
-        nullable_memory: bool,
     ) -> Option<ValueId> {
         // for child { offset = copy(child, offset) }
         let ty = ty.peel_refs();
         let value = match ty.kind {
             TyKind::DynArray(_) | TyKind::Array(..) => {
-                return self.copy_inplace_array(ty, value, output, offset, nullable_memory);
+                return self.copy_inplace_array(ty, value, output, offset);
             }
             TyKind::Struct(id) => {
                 let gcx = self.cx.gcx;
                 let fields = gcx.hir.strukt(id).fields;
-                let non_null = self.memory_non_null_mask(value, nullable_memory);
                 let mut offset = offset;
                 for (index, &field) in fields.iter().enumerate() {
                     let field = gcx.type_of_item(field.into());
-                    let mut field_value = self.builder.memory_load_field(value, index as u64);
-                    if let Some(non_null) = non_null {
-                        field_value = self.builder.mul(field_value, non_null);
-                    }
-                    offset =
-                        self.copy_inplace_dynamic_value(field, field_value, output, offset, true)?;
+                    let field_value = self.builder.memory_load_field(value, index as u64);
+                    offset = self.copy_inplace_dynamic_value(field, field_value, output, offset)?;
                 }
                 return Some(offset);
             }
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => return Some(self.copy_inplace_bytes(value, output, offset, nullable_memory)),
+            ) => return Some(self.copy_inplace_bytes(value, output, offset)),
             TyKind::Udvt(inner, _) => {
-                return self.copy_inplace_dynamic_value(
-                    inner,
-                    value,
-                    output,
-                    offset,
-                    nullable_memory,
-                );
+                return self.copy_inplace_dynamic_value(inner, value, output, offset);
             }
             TyKind::Tuple(_) | TyKind::Slice(_) => return None,
             TyKind::Fn(function) if function.is_external() => {
@@ -811,26 +758,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         ty: Ty<'gcx>,
         value: ValueId,
-        nullable_memory: bool,
-    ) -> Option<(Ty<'gcx>, ValueId, MemoryObjectLayout, Option<ValueId>)> {
+    ) -> Option<(Ty<'gcx>, ValueId, MemoryObjectLayout)> {
         let ty = ty.peel_refs();
         let layout = self.types.memory_layout(ty)?;
-        let non_null = self.memory_non_null_mask(value, nullable_memory);
         let (element, length) = match ty.kind {
-            TyKind::DynArray(element) => {
-                let mut length = self.builder.memory_len(value);
-                if let Some(non_null) = non_null {
-                    length = self.builder.mul(length, non_null);
-                }
-                (element, length)
-            }
+            TyKind::DynArray(element) => (element, self.builder.memory_len(value)),
             TyKind::Array(element, length) => {
                 let length = self.builder.imm(u64::try_from(length).ok()?);
                 (element, length)
             }
             _ => return None,
         };
-        Some((element, length, layout, non_null))
+        Some((element, length, layout))
     }
 
     fn copy_inplace_array(
@@ -839,12 +778,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         output: ValueId,
         offset: ValueId,
-        nullable_memory: bool,
     ) -> Option<ValueId> {
         // for i { offset = copy(element[i], offset) }
         let ty = ty.peel_refs();
-        let (element, length, layout, non_null) =
-            self.inplace_array_info(ty, value, nullable_memory)?;
+        let (element, length, layout) = self.inplace_array_info(ty, value)?;
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
         let body = self.builder.create_block();
@@ -859,12 +796,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(more, body, exit);
 
         self.builder.switch_to_block(body);
-        let mut element_value = self.builder.memory_load_element(value, layout, index);
-        if let Some(non_null) = non_null {
-            element_value = self.builder.mul(element_value, non_null);
-        }
+        let element_value = self.builder.memory_load_element(value, layout, index);
         let next_offset =
-            self.copy_inplace_dynamic_value(element, element_value, output, current_offset, true)?;
+            self.copy_inplace_dynamic_value(element, element_value, output, current_offset)?;
         let next_index = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
@@ -875,14 +809,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(current_offset)
     }
 
-    fn copy_inplace_bytes(
-        &mut self,
-        value: ValueId,
-        output: ValueId,
-        offset: ValueId,
-        nullable_memory: bool,
-    ) -> ValueId {
-        let length = self.inplace_memory_object_len(value, nullable_memory);
+    fn copy_inplace_bytes(&mut self, value: ValueId, output: ValueId, offset: ValueId) -> ValueId {
+        let length = self.builder.memory_len(value);
         let word = self.builder.imm(32);
         let thirty_one = self.builder.imm(31);
         let rounded = self.builder.checked_add(length, thirty_one);

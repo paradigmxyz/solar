@@ -45,6 +45,15 @@ An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
 address arithmetic. Signedness and ABI encoding rules belong to operation and
 layout metadata. `void` denotes no function result.
 
+Memory pointers are never null. Every `ptr<memory>` that the compiler creates or
+stores in a memory object addresses a real object: an allocation, or the zero slot at
+`0x60`, which holds the empty `bytes`, `string`, and `T[] memory`. A default
+value is the zero slot or a default object, never a zero word, so defaults, `new`,
+`delete`, ABI decoding, and copies from storage or calldata fill every reference
+field and element, and code that reads a pointer follows it without a zero test.
+Assembly that stores any other word in a pointer slot leaves the memory model, and
+the compiler follows that word as `solc` does.
+
 Integer types are `i1` and byte widths `i8`, `i16`, …, `i256`. Solidity
 `uintN` and `intN` both become `iN`; signedness belongs to the operation.
 Every integer is a clean bit pattern with no set bits above its width.

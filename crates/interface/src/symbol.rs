@@ -1056,7 +1056,6 @@ symbols! {
         decode_static,
         decode_static_alias,
         decode_static_ptr,
-        default_struct,
         deferred_alloc,
         deployment,
         disjoint,
