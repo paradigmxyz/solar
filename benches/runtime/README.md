@@ -47,6 +47,33 @@ omits `irOptimized`). Solx adds creation and runtime LLVM IR before and after op
 (`*.unoptimized.ll`, `*.optimized.ll`). If `--reference-results` names a result beside an
 `artifacts` directory, the run copies the matching reference files.
 
+## Tempo Zones gas
+
+`tempo-zones-portal` measures implementation creation/runtime size, implementation deployment gas,
+and two encrypted deposits through a fresh ERC-1167 proxy: the first deposit and a second deposit
+into an existing queue. The separate `tempo-zones-project` case retains the full Foundry test input
+for compile-time measurements.
+
+```sh
+uv run --project tools/compiler-diff compiler-diff runtime -- \
+  --solar /absolute/path/to/solar --solc /absolute/path/to/solc \
+  --mode runtime --tests tempo-zones-portal --gas --start-anvil
+```
+
+This case requires local Anvil. Setup impersonates the public native factory address to initialize
+the proxy, registers an encryption key with a proof signed by public test key 1, and installs mock
+TIP-20 and TIP-403 contracts. `fixtures/runtime/Zones.json` pins both helpers' creation bytecode from
+solc 0.8.37, including source hash and compiler settings, so gas uses identical mocks even without
+a live reference compiler. Rebuild it with Standard JSON using `RuntimeFixtures.sol`, the saved
+`settings`, and solc 0.8.37; the bytecode objects must match `creation_bytecode`.
+The sender starts with 100 million token units and approves the proxy; each deposit transfers
+10 million units with zero deposit fee. Each call is a separate transaction with cold access state.
+Post-call checks require two deposits, 20 million units in escrow, and 80 million with the sender,
+and compare queue hashes and key counts across compilers. The 64-byte ciphertext exercises portal
+validation and queueing; it does not test decryption or live Tempo precompile gas. Setup and proxy
+deployment are outside call gas; `deploy_gas` measures the implementation, and `proxy_deploy_gas`
+records the proxy separately. Compiler settings preserve the pinned Osaka target and metadata.
+
 ## Reference compilers
 
 By default only our compiler runs, so no solc is needed; it also builds the cold-path helper
@@ -218,8 +245,10 @@ runtime observations.
 | `lilweb3-flashloan` | `m1guelpf/lil-web3` plus `transmissions11/solmate` | `7346bd28c2586da3b07102d5290175a276949b15`, `e802bcf2fb24dda2bf7e513bea86d15c48b57486` | 2 |
 | `lilweb3-fractional` | `m1guelpf/lil-web3` plus `transmissions11/solmate` | `7346bd28c2586da3b07102d5290175a276949b15`, `e802bcf2fb24dda2bf7e513bea86d15c48b57486` | 3 |
 | `maple-erc20` | `maple-labs/erc20` | `baf791a9f894b0b319a2d42d5b9f8d30349ebaad` | 2 |
+| `tempo-zones-portal` | `tempoxyz/zones` plus `tempoxyz/tempo-std` | `700069eb8a40fce7e1f7a4bf0fc5703bcc692c43`, `96f882963ce3b0e0abc7ec2b41d03d42457877bb` | 23 |
 | `solady-encoding` | `Vectorized/solady` plus `Encoding.sol` | `solady-0.1.26` archive | 3 |
 | `solady-algorithms` | `Vectorized/solady` plus `Algorithms.sol` | `solady-0.1.26` archive | 5 |
+| `tempo-zones-project` (compile-time only) | `tempoxyz/zones` | `700069eb8a40fce7e1f7a4bf0fc5703bcc692c43` | 67 |
 
 File counts are each case's sliced closure. Archives below are in `../../testdata/projects/`. The
 OpenZeppelin cases share `openzeppelin-5.6.1.json.gz`, which replaces the earlier extracted

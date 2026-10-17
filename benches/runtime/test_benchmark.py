@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import io
 import json
@@ -93,13 +94,13 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 35)
+        self.assertEqual(len(benchmark.TEST_CASES), 37)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
-        self.assertEqual(len(repository_cases), 11)
+        self.assertEqual(len(repository_cases), 12)
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
-        self.assertEqual(len(heavy_cases), 9)
+        self.assertEqual(len(heavy_cases), 10)
         for case in heavy_cases:
             self.assertTrue(case.whole_project)
             self.assertTrue(case.project_path.is_file())
@@ -116,6 +117,7 @@ class CorpusTests(unittest.TestCase):
             "maple-erc20": 2,
             "solady-encoding": 3,
             "solady-algorithms": 5,
+            "tempo-zones-portal": 23,
         }
         for case in repository_cases:
             self.assertTrue(case.project_path.is_file(), case.test_id)
@@ -135,8 +137,56 @@ class CorpusTests(unittest.TestCase):
             self.assertTrue(payload["settings"]["viaIR"])
             self.assertEqual(
                 payload["settings"]["metadata"],
-                {"appendCBOR": False, "bytecodeHash": "none"},
+                benchmark.load_project(case.project_path)["settings"]["metadata"]
+                if case.test_id == "tempo-zones-portal"
+                else {"appendCBOR": False, "bytecodeHash": "none"},
             )
+
+    def test_zones_fixture_rejects_remote_rpc_before_mutation(self) -> None:
+        with mock.patch.object(benchmark, "rpc_request") as rpc:
+            address, gas, error = benchmark.prepare_zones_portal(
+                "0x" + "11" * 20,
+                "https://example.com",
+                benchmark.DEFAULT_PRIVATE_KEY,
+            )
+        self.assertIsNone(address)
+        self.assertIsNone(gas)
+        self.assertEqual(error, "Zones fixtures require a local Anvil RPC")
+        rpc.assert_not_called()
+
+    def test_zones_checks_reject_matching_but_incorrect_state(self) -> None:
+        case = next(
+            case
+            for case in benchmark.TEST_CASES
+            if case.test_id == "tempo-zones-portal"
+        )
+        with mock.patch.object(
+            benchmark, "read_uint", side_effect=((0, ""), (0, ""), (100_000_000, ""))
+        ):
+            checks = benchmark.run_cold_path_checks(
+                case,
+                "0x" + "11" * 20,
+                "solc",
+                "http://localhost:8545",
+                benchmark.DEFAULT_PRIVATE_KEY,
+            )
+        self.assertEqual([check["status"] for check in checks], ["failed"] * 3)
+        self.assertEqual(checks[0]["error"], "expected 2, got 0")
+
+    def test_zones_mock_bytecode_matches_its_source_revision(self) -> None:
+        fixtures = json.loads(
+            (benchmark.RUNTIME_FIXTURES.parent / "Zones.json").read_text()
+        )
+        self.assertEqual(
+            fixtures["source_sha256"],
+            hashlib.sha256(benchmark.RUNTIME_FIXTURES.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(
+            set(fixtures["creation_bytecode"]),
+            {"RuntimeZoneToken", "RuntimeZoneRegistry"},
+        )
+        for bytecode in fixtures["creation_bytecode"].values():
+            self.assertTrue(bytes.fromhex(bytecode))
 
     def test_benchmark_wrapper_preserves_pinned_sources(self) -> None:
         for test_id, count in (("solady-encoding", 153), ("solady-algorithms", 85)):
@@ -182,7 +232,7 @@ class CorpusTests(unittest.TestCase):
 
     def test_full_project_cases_preserve_archives(self) -> None:
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
-        self.assertEqual(len(heavy_cases), 9)
+        self.assertEqual(len(heavy_cases), 10)
         self.assertTrue(all(case.whole_project for case in heavy_cases))
         case = next(
             case for case in heavy_cases if case.project.name == "solady-0.1.26"
