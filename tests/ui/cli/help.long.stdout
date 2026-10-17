@@ -29,6 +29,12 @@ Options:
           [default: osaka]
           [possible values: homestead, tangerineWhistle, spuriousDragon, byzantium, constantinople, petersburg, istanbul, berlin, london, paris, shanghai, cancun, prague, osaka, amsterdam]
 
+      --codegen-backend <CODEGEN_BACKEND>
+          Code generation backend
+          
+          [default: evm]
+          [possible values: evm, yul, sonatina, sir, llvm]
+
       --stop-after <STOP_AFTER>
           Stop execution after the given compiler stage
           

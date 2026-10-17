@@ -42,6 +42,12 @@ exceptions = [
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-git = [
+    # Alternative codegen backends and their native bindings.
+    "https://github.com/fe-lang/sonatina",
+    "https://github.com/plankevm/plank-monorepo",
+    "https://github.com/NomicFoundation/inkwell",
+    "https://github.com/NomicFoundation/llvm-sys.rs",
+    "https://github.com/sanpii/dot2.rs.git",
     # Used only for testing.
     "https://github.com/DaniPopes/ui_test",
     "https://github.com/oli-obk/ui_test",

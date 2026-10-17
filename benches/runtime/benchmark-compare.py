@@ -38,6 +38,7 @@ ARTIFACT_KINDS = {
     "mir": (".mir",),
     "llvm-ir": (".ll",),
     "evm-ir": (".evmir",),
+    "backend-ir": (".ir", ".ll", ".sntn", ".sir", ".yul"),
     "disasm": (".disasm",),
     "bytecode": (".hex",),
     "json": (".json",),

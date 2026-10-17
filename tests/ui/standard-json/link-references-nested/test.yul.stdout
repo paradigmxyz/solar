@@ -1,0 +1,54 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 149,
+        "end": 244
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2018",
+      "message": "function state mutability can be restricted to view",
+      "formattedMessage": "warning[2018]: function state mutability can be restricted to view\n   ╭▸ A.sol:LL:CC\n   │\nLL │ ┏     function bump(uint256 value) external returns (uint256) {\nLL │ ┃         return Lib.bump(value);\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
+    },
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 137,
+        "end": 142
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "A.sol",
+          "start": 0,
+          "end": 0,
+          "message": "set Standard JSON settings.libraries to the deployed library addresses"
+        }
+      ],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "yul backend requires library addresses to be supplied before code generation",
+      "formattedMessage": "error: yul backend requires library addresses to be supplied before code generation\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract Child {\n   │          ━━━━━\n   │\n   ╰ help: set Standard JSON settings.libraries to the deployed library addresses\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  }
+}
