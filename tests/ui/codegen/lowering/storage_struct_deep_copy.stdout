@@ -184,8 +184,8 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
   bb6:
     v51 = mload v103
     mstore 0, v22 !metadata(memory=scratch)
-    v53 = shr 3, v45
     v88 = keccak256 0, 32 !metadata(memory=scratch)
+    v53 = shr 3, v45
     v54 = add v88, v53
     v55 = and v45, 7
     v57 = shl 5, v55
@@ -202,8 +202,8 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     jump bb5
   bb4:
     mstore 0, v22 !metadata(memory=scratch)
-    v31 = shr 3, v28
     v87 = keccak256 0, 32 !metadata(memory=scratch)
+    v31 = shr 3, v28
     v32 = add v87, v31
     v37 = sload v32 !metadata(storage=symbolic(v32))
     v33 = and v28, 7

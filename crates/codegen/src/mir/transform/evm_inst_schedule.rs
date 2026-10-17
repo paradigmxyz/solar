@@ -104,6 +104,7 @@ impl EvmInstSchedule {
                     func,
                     &original[segment_start..index],
                     &consumer,
+                    Some(&inst.kind),
                     &shared_results,
                     &mut scratch,
                     &mut ordered,
@@ -121,6 +122,7 @@ impl EvmInstSchedule {
                 func,
                 &original[segment_start..],
                 &terminator_inputs,
+                None,
                 &shared_results,
                 &mut scratch,
                 &mut ordered,
@@ -315,6 +317,7 @@ impl EvmInstSchedule {
         func: &Function,
         segment: &[InstId],
         consumer_inputs: &[ValueId],
+        consumer: Option<&InstKind>,
         shared_results: &DenseBitSet<InstId>,
         scratch: &mut ScheduleScratch,
         ordered: &mut Vec<InstId>,
@@ -329,11 +332,13 @@ impl EvmInstSchedule {
             if !shared_results.contains(inst_id) {
                 continue;
             }
-            let inputs = Self::stack_input_order(&func.inst(inst_id).kind);
+            let kind = &func.inst(inst_id).kind;
+            let inputs = Self::stack_input_order(kind);
             Self::schedule_single_use_segment(
                 func,
                 &segment[island_start..index],
                 &inputs,
+                Some(kind),
                 scratch,
                 ordered,
             );
@@ -344,6 +349,7 @@ impl EvmInstSchedule {
             func,
             &segment[island_start..],
             consumer_inputs,
+            consumer,
             scratch,
             ordered,
         );
@@ -353,6 +359,7 @@ impl EvmInstSchedule {
         func: &Function,
         segment: &[InstId],
         consumer_inputs: &[ValueId],
+        consumer: Option<&InstKind>,
         scratch: &mut ScheduleScratch,
         ordered: &mut Vec<InstId>,
     ) {
@@ -377,6 +384,10 @@ impl EvmInstSchedule {
             });
         }
 
+        let mut consumer_inputs = SmallVec::<[ValueId; 8]>::from_slice(consumer_inputs);
+        if let Some(consumer) = consumer {
+            Self::keep_reorderable_order(func, consumer, &mut consumer_inputs, scratch);
+        }
         let consumer_roots = consumer_inputs
             .iter()
             .filter_map(|&value| match func.value(value) {
@@ -496,6 +507,28 @@ impl EvmInstSchedule {
         shared
     }
 
+    /// Puts the segment's producers of a reorderable binary operation back in their stored order
+    /// within `inputs`, the operation's operands in emission order. The backend already costs both
+    /// orientations, and the segment must keep them; other operands keep stack-input order.
+    fn keep_reorderable_order(
+        func: &Function,
+        kind: &InstKind,
+        inputs: &mut [ValueId],
+        scratch: &ScheduleScratch,
+    ) {
+        if let Some((a, b)) = kind.reorderable_binary_operands()
+            && let (Value::Inst(a_inst), Value::Inst(b_inst)) = (func.value(a), func.value(b))
+            && scratch.members.contains(*a_inst)
+            && scratch.members.contains(*b_inst)
+            && let Some(i) = inputs.iter().position(|&value| value == a)
+            && let Some(j) = inputs.iter().position(|&value| value == b)
+            && (i < j)
+                != (scratch.original_positions[*a_inst] < scratch.original_positions[*b_inst])
+        {
+            inputs.swap(i, j);
+        }
+    }
+
     fn visit_dependencies(
         func: &Function,
         root: InstId,
@@ -516,19 +549,7 @@ impl EvmInstSchedule {
             scratch.work.push((inst_id, true));
             let kind = &func.inst(inst_id).kind;
             let mut inputs = Self::stack_input_order(kind);
-            // Producers of a reorderable binary operation keep their stored order, which the
-            // segment must preserve; their own operands still follow stack-input order.
-            if let Some((a, b)) = kind.reorderable_binary_operands()
-                && let (Value::Inst(a_inst), Value::Inst(b_inst)) = (func.value(a), func.value(b))
-                && scratch.members.contains(*a_inst)
-                && scratch.members.contains(*b_inst)
-                && let Some(i) = inputs.iter().position(|&value| value == a)
-                && let Some(j) = inputs.iter().position(|&value| value == b)
-                && (i < j)
-                    != (scratch.original_positions[*a_inst] < scratch.original_positions[*b_inst])
-            {
-                inputs.swap(i, j);
-            }
+            Self::keep_reorderable_order(func, kind, &mut inputs, scratch);
             for value in inputs.iter().rev() {
                 if let Value::Inst(dependency) = func.value(*value)
                     && scratch.members.contains(*dependency)

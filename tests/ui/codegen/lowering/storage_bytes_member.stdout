@@ -214,12 +214,12 @@ bb27 [loop]:
   dup 4
   push 0
   mstore
-  dup 1
-  push 5
-  shr
   push 32
   push 0
   keccak256
+  dup 2
+  push 5
+  shr
   add
   swap 1
   push 31
@@ -300,12 +300,12 @@ bb30:
   dup 3
   push 0
   mstore
-  dup 1
-  push 5
-  shr
   push 32
   push 0
   keccak256
+  dup 2
+  push 5
+  shr
   add
   dup 1
   sload
