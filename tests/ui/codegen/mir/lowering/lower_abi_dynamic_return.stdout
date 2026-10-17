@@ -1731,7 +1731,7 @@
 +     mstore v10, v0
 +     jump bb4
 +   bb4:
-+     v11 = phi [bb3: 0], [bb11: v49]
++     v11 = phi [bb3: 0], [bb11: v44]
 +     v12 = lt v11, v0
 +     jumpi v12, bb5, bb6
 +   bb6:
@@ -1742,51 +1742,46 @@
 +     v15 = ptradd v14, 32
 +     v16 = mload v15
 +     v17 = mload v16
-+     v18 = ne v16, 0
-+     v19 = zext i1 v18 to i256
-+     v20 = mul v17, v19
-+     v21 = add v20, 1
-+     v22 = lt v21, v20
-+     jumpi v22, bb1, bb7
++     v18 = add v17, 1
++     v19 = lt v18, v17
++     jumpi v19, bb1, bb7
 +   bb7:
-+     v23 = mul v21, 32
-+     v24 = eq 32, 0
-+     v25 = div v23, 32
-+     v26 = eq v25, v21
-+     v27 = or v24, v26
-+     v28 = zext i1 v27 to i256
-+     v29 = eq v28, 0
-+     jumpi v29, bb1, bb8
++     v20 = mul v18, 32
++     v21 = eq 32, 0
++     v22 = div v20, 32
++     v23 = eq v22, v18
++     v24 = or v21, v23
++     v25 = zext i1 v24 to i256
++     v26 = eq v25, 0
++     jumpi v26, bb1, bb8
 +   bb8:
-+     v30 = alloc v23
-+     mstore v30, v20
++     v27 = alloc v20
++     mstore v27, v17
 +     jump bb9
 +   bb9:
-+     v31 = phi [bb8: 0], [bb10: v44]
-+     v32 = lt v31, v20
-+     jumpi v32, bb10, bb11
++     v28 = phi [bb8: 0], [bb10: v39]
++     v29 = lt v28, v17
++     jumpi v29, bb10, bb11
 +   bb11:
-+     v45 = shl 5, v11
-+     v46 = ptradd v10, v45
-+     v47 = ptradd v46, 32
-+     v48 = ptrtoint ptr<memory> v30 to i256
-+     mstore v47, v48
-+     v49 = add v11, 1
++     v40 = shl 5, v11
++     v41 = ptradd v10, v40
++     v42 = ptradd v41, 32
++     v43 = ptrtoint ptr<memory> v27 to i256
++     mstore v42, v43
++     v44 = add v11, 1
 +     jump bb4
 +   bb10:
-+     v33 = shl 5, v31
-+     v34 = inttoptr i256 v16 to ptr<memory>
-+     v35 = ptradd v34, v33
-+     v36 = ptradd v35, 32
-+     v37 = mload v36
-+     v38 = zext i1 v18 to i256
-+     v39 = mul v37, v38
-+     v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffff
-+     v41 = shl 5, v31
-+     v42 = ptradd v30, v41
-+     v43 = ptradd v42, 32
-+     mstore v43, v40
-+     v44 = add v31, 1
++     v30 = shl 5, v28
++     v31 = inttoptr i256 v16 to ptr<memory>
++     v32 = ptradd v31, v30
++     v33 = ptradd v32, 32
++     v34 = mload v33
++     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffff
++     v36 = shl 5, v28
++     v37 = ptradd v27, v36
++     v38 = ptradd v37, 32
++     mstore v38, v35
++     v39 = add v28, 1
 +     jump bb9
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)

@@ -455,21 +455,9 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v64 = eq v63, false
     icall panic_if<0x32>, v64
     v65 = ptradd v22, 32
-    v66 = mload v65
-    v67 = inttoptr i256 v66 to ptr<memory>
-    v68 = eq v66, 0
-    jumpi v68, bb4, bb5
-  bb4:
-    v69 = alloc 32
-    mstore v69, 0
-    v70 = ptradd v22, 32
-    v71 = ptrtoint ptr<memory> v69 to i256
-    mstore v70, v71
-    jump bb5
-  bb5:
-    v72 = phi [bb3: v67], [bb4: v69]
-    v73 = mload v72
-    ret v73
+    v66 = mload v65, ptr<memory>
+    v67 = mload v66
+    ret v67
   bb2:
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256

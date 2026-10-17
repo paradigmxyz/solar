@@ -276,40 +276,37 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     v4 = add v0, 128
     mstore 64, v4
     v6 = keccak256 v1, 70
-    v44 = mload 64
-    v19 = add v44, 32
+    v41 = mload 64
+    v19 = add v41, 32
     v20 = add v19, 64
     mstore v19, 64
-    v23 = ne v0, 0
-    v24 = zext i1 v23 to i256
     v22 = mload v0
-    v25 = mul v22, v24
-    mstore v20, v25
-    v27 = add v25, 31
-    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v29 = add v20, 32
-    v30 = eq v28, 0
-    jumpi v30, bb2, bb1
+    mstore v20, v22
+    v24 = add v22, 31
+    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = add v20, 32
+    v27 = eq v25, 0
+    jumpi v27, bb2, bb1
   bb1:
-    v31 = add v20, v28
-    mstore v31, 0
+    v28 = add v20, v25
+    mstore v28, 0
     jump bb2
   bb2:
-    v33 = add v29, v28
-    icall @mcopy_words, v29, v1, v25
-    v34 = add v19, 32
-    mstore v34, 7
-    v35 = sub v33, v19
-    v37 = add v35, 63
-    v38 = lt v37, v35
-    jumpi v38, bb3, bb4
+    v30 = add v26, v25
+    icall @mcopy_words, v26, v1, v22
+    v31 = add v19, 32
+    mstore v31, 7
+    v32 = sub v30, v19
+    v34 = add v32, 63
+    v35 = lt v34, v32
+    jumpi v35, bb3, bb4
   bb4:
-    v40 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v45 = mload 64
-    v46 = add v45, v40
-    mstore 64, v46
-    mstore v45, v35
-    v10 = add v45, 128
+    v37 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v42 = mload 64
+    v43 = add v42, v37
+    mstore 64, v43
+    mstore v42, v32
+    v10 = add v42, 128
     v11 = keccak256 v10, 70
     v12 = eq v11, v6
     v14 = zext i1 v12 to i256

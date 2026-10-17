@@ -477,7 +477,7 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: ptr<memory>) {
     sstore v10, v13 !metadata(storage=offset(arg0, 2))
     jump bb6
   bb6:
-    v22 = phi [bb2: 0], [bb10: v41]
+    v22 = phi [bb2: 0], [bb7: v32]
     v23 = lt v22, v13
     jumpi v23, bb7, bb8
   bb8:
@@ -487,26 +487,12 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: ptr<memory>) {
     v25 = inttoptr i256 v12 to ptr<memory>
     v26 = ptradd v25, v24
     v27 = ptradd v26, 32
-    v28 = mload v27
-    v29 = inttoptr i256 v28 to ptr<memory>
-    v30 = eq v28, 0
-    jumpi v30, bb9, bb10
-  bb9:
-    v31 = icall @default_struct_0
-    v32 = shl 5, v22
-    v33 = inttoptr i256 v12 to ptr<memory>
-    v34 = ptradd v33, v32
-    v35 = ptradd v34, 32
-    v36 = ptrtoint ptr<memory> v31 to i256
-    mstore v35, v36
-    jump bb10
-  bb10:
-    v37 = phi [bb7: v29], [bb9: v31]
-    v38 = storage_array_data_slot v10
-    v39 = mul v22, 3
-    v40 = add v38, v39
-    icall @store_recursive_storage_0_0, v40, v37
-    v41 = add v22, 1
+    v28 = mload v27, ptr<memory>
+    v29 = storage_array_data_slot v10
+    v30 = mul v22, 3
+    v31 = add v29, v30
+    icall @store_recursive_storage_0_0, v31, v28
+    v32 = add v22, 1
     jump bb6
   bb4:
     v18 = storage_array_data_slot v10
@@ -560,21 +546,4 @@ fn @clear_recursive_storage_0(arg0: i256) {
     icall @clear_recursive_storage_0, v16
     v17 = add v12, 1
     jump bb3
-}
-
-fn @default_struct_0() -> ptr<memory> {
-  bb0:
-    v0 = alloc 96
-    mstore v0, 0
-    v1 = alloc 32
-    mstore v1, 0
-    v2 = ptradd v0, 32
-    v3 = ptrtoint ptr<memory> v1 to i256
-    mstore v2, v3
-    v4 = alloc 32
-    mstore v4, 0
-    v5 = ptradd v0, 64
-    v6 = ptrtoint ptr<memory> v4 to i256
-    mstore v5, v6
-    ret v0
 }

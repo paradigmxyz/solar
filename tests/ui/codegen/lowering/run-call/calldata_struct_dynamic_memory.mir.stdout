@@ -42,47 +42,25 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v82 = eq v81, false
     icall panic_if<0x32>, v82
     v83 = ptradd v22, 32
-    v84 = mload v83
-    v85 = inttoptr i256 v84 to ptr<memory>
-    v86 = eq v84, 0
-    jumpi v86, bb4, bb5
-  bb4:
-    v87 = icall @default_struct_0
-    v88 = ptradd v22, 32
-    v89 = ptrtoint ptr<memory> v87 to i256
-    mstore v88, v89
-    jump bb5
-  bb5:
-    v90 = phi [bb3: v85], [bb4: v87]
-    v91 = mload v90, ptr<memory>
-    v92 = mload v91
-    v93 = checked_add u256, v79, v92
-    v94 = mload v22
-    v95 = lt 1, v94
+    v84 = mload v83, ptr<memory>
+    v85 = mload v84, ptr<memory>
+    v86 = mload v85
+    v87 = checked_add u256, v79, v86
+    v88 = mload v22
+    v89 = lt 1, v88
+    v90 = eq v89, false
+    icall panic_if<0x32>, v90
+    v91 = ptradd v22, 64
+    v92 = mload v91, ptr<memory>
+    v93 = mload v92, ptr<memory>
+    v94 = mload v93
+    v95 = lt 0, v94
     v96 = eq v95, false
     icall panic_if<0x32>, v96
-    v97 = ptradd v22, 64
+    v97 = ptradd v93, 32
     v98 = mload v97
-    v99 = inttoptr i256 v98 to ptr<memory>
-    v100 = eq v98, 0
-    jumpi v100, bb6, bb7
-  bb6:
-    v101 = icall @default_struct_0
-    v102 = ptradd v22, 64
-    v103 = ptrtoint ptr<memory> v101 to i256
-    mstore v102, v103
-    jump bb7
-  bb7:
-    v104 = phi [bb5: v99], [bb6: v101]
-    v105 = mload v104, ptr<memory>
-    v106 = mload v105
-    v107 = lt 0, v106
-    v108 = eq v107, false
-    icall panic_if<0x32>, v108
-    v109 = ptradd v105, 32
-    v110 = mload v109
-    v111 = checked_add u256, v93, v110
-    ret v111
+    v99 = checked_add u256, v87, v98
+    ret v99
   bb2:
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
@@ -151,14 +129,4 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     mstore v77, v74
     v78 = add v23, 1
     jump bb1
-}
-
-fn @default_struct_0() -> ptr<memory> {
-  bb0:
-    v0 = alloc 32
-    v1 = alloc 32
-    mstore v1, 0
-    v2 = ptrtoint ptr<memory> v1 to i256
-    mstore v0, v2
-    ret v0
 }

@@ -622,11 +622,7 @@ bb9:
   add
   mstore
   dup 6
-  iszero
-  iszero
-  dup 7
   mload
-  mul
   dup 1
   dup 7
   mstore
@@ -653,11 +649,7 @@ bb9:
   add
   mstore
   dup 2
-  iszero
-  iszero
-  dup 3
   mload
-  mul
   push 31
   dup 2
   add

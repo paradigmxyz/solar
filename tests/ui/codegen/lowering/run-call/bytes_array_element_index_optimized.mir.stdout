@@ -50,59 +50,35 @@ fn @sumElement1(arg0: ptr<memory>) -> i256 [pure] {
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = ptradd arg0, 32
-    v3 = mload v2
-    v4 = inttoptr i256 v3 to ptr<memory>
-    v5 = eq v3, 0
-    jumpi v5, bb1, bb2
-  bb1:
-    v6 = alloc 32
-    mstore v6, 0
-    v7 = ptradd arg0, 32
-    v8 = ptrtoint ptr<memory> v6 to i256
-    mstore v7, v8
-    jump bb2
-  bb2:
-    v9 = phi [bb0: v4], [bb1: v6]
-    v10 = mload v9
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = ptradd v9, 32
-    v14 = mload v13
-    v15 = byte 0, v14
-    v16 = shl 248, v15
-    v17 = shr 248, v16
-    v18 = trunc i256 v17 to i8
-    v19 = lt 1, 2
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = ptradd arg0, 32
-    v22 = mload v21
-    v23 = inttoptr i256 v22 to ptr<memory>
-    v24 = eq v22, 0
-    jumpi v24, bb3, bb4
-  bb3:
-    v25 = alloc 32
-    mstore v25, 0
-    v26 = ptradd arg0, 32
-    v27 = ptrtoint ptr<memory> v25 to i256
-    mstore v26, v27
-    jump bb4
-  bb4:
-    v28 = phi [bb2: v23], [bb3: v25]
-    v29 = mload v28
-    v30 = lt 1, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = ptradd v28, 33
-    v33 = mload v32
-    v34 = byte 0, v33
-    v35 = shl 248, v34
-    v36 = shr 248, v35
-    v37 = trunc i256 v36 to i8
-    v38 = checked_add u8, v18, v37
-    v39 = zext i8 v38 to i256
-    ret v39
+    v3 = mload v2, ptr<memory>
+    v4 = mload v3
+    v5 = lt 0, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = ptradd v3, 32
+    v8 = mload v7
+    v9 = byte 0, v8
+    v10 = shl 248, v9
+    v11 = shr 248, v10
+    v12 = trunc i256 v11 to i8
+    v13 = lt 1, 2
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptradd arg0, 32
+    v16 = mload v15, ptr<memory>
+    v17 = mload v16
+    v18 = lt 1, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptradd v16, 33
+    v21 = mload v20
+    v22 = byte 0, v21
+    v23 = shl 248, v22
+    v24 = shr 248, v23
+    v25 = trunc i256 v24 to i8
+    v26 = checked_add u8, v12, v25
+    v27 = zext i8 v26 to i256
+    ret v27
 }
 
 fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -111,104 +87,58 @@ fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=
     v1 = lt 0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = mload v0
-    v4 = inttoptr i256 v3 to ptr<memory>
-    v5 = eq v3, 0
-    jumpi v5, bb1, bb2
-  bb1:
-    v6 = alloc 32
-    mstore v6, 0
-    v7 = ptrtoint ptr<memory> v6 to i256
-    mstore v0, v7
-    jump bb2
-  bb2:
-    v8 = phi [bb0: v4], [bb1: v6]
-    v9 = mload v8
-    v10 = lt 0, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptradd v8, 32
-    v13 = mload v12
-    v14 = byte 0, v13
-    v15 = shl 248, v14
-    v16 = lt 1, 2
+    v3 = mload v0, ptr<memory>
+    v4 = mload v3
+    v5 = lt 0, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = ptradd v3, 32
+    v8 = mload v7
+    v9 = byte 0, v8
+    v10 = shl 248, v9
+    v11 = lt 1, 2
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptradd v0, 32
+    v14 = mload v13, ptr<memory>
+    v15 = mload v14
+    v16 = lt 0, v15
     v17 = eq v16, false
     icall panic_if<0x32>, v17
-    v18 = ptradd v0, 32
+    v18 = ptradd v14, 32
     v19 = mload v18
-    v20 = inttoptr i256 v19 to ptr<memory>
-    v21 = eq v19, 0
-    jumpi v21, bb3, bb4
-  bb3:
-    v22 = alloc 32
-    mstore v22, 0
-    v23 = ptradd v0, 32
-    v24 = ptrtoint ptr<memory> v22 to i256
-    mstore v23, v24
-    jump bb4
-  bb4:
-    v25 = phi [bb2: v20], [bb3: v22]
-    v26 = mload v25
-    v27 = lt 0, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = ptradd v25, 32
-    v30 = mload v29
-    v31 = byte 0, v30
-    v32 = shl 248, v31
-    v33 = eq v15, v32
-    v34 = eq v33, false
-    icall panic_if<0x1>, v34
-    v35 = lt 0, 2
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = mload v0
-    v38 = inttoptr i256 v37 to ptr<memory>
-    v39 = eq v37, 0
-    jumpi v39, bb5, bb6
-  bb5:
-    v40 = alloc 32
-    mstore v40, 0
-    v41 = ptrtoint ptr<memory> v40 to i256
-    mstore v0, v41
-    jump bb6
-  bb6:
-    v42 = phi [bb4: v38], [bb5: v40]
-    v43 = mload v42
-    v44 = lt 1, v43
-    v45 = eq v44, false
-    icall panic_if<0x32>, v45
-    v46 = ptradd v42, 33
-    v47 = mload v46
-    v48 = byte 0, v47
-    v49 = shl 248, v48
-    v50 = lt 1, 2
-    v51 = eq v50, false
-    icall panic_if<0x32>, v51
-    v52 = ptradd v0, 32
-    v53 = mload v52
-    v54 = inttoptr i256 v53 to ptr<memory>
-    v55 = eq v53, 0
-    jumpi v55, bb7, bb8
-  bb7:
-    v56 = alloc 32
-    mstore v56, 0
-    v57 = ptradd v0, 32
-    v58 = ptrtoint ptr<memory> v56 to i256
-    mstore v57, v58
-    jump bb8
-  bb8:
-    v59 = phi [bb6: v54], [bb7: v56]
-    v60 = mload v59
-    v61 = lt 1, v60
-    v62 = eq v61, false
-    icall panic_if<0x32>, v62
-    v63 = ptradd v59, 33
-    v64 = mload v63
-    v65 = byte 0, v64
-    v66 = shl 248, v65
-    v67 = eq v49, v66
-    v68 = eq v67, false
-    icall panic_if<0x1>, v68
+    v20 = byte 0, v19
+    v21 = shl 248, v20
+    v22 = eq v10, v21
+    v23 = eq v22, false
+    icall panic_if<0x1>, v23
+    v24 = lt 0, 2
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = mload v0, ptr<memory>
+    v27 = mload v26
+    v28 = lt 1, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = ptradd v26, 33
+    v31 = mload v30
+    v32 = byte 0, v31
+    v33 = shl 248, v32
+    v34 = lt 1, 2
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = ptradd v0, 32
+    v37 = mload v36, ptr<memory>
+    v38 = mload v37
+    v39 = lt 1, v38
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = ptradd v37, 33
+    v42 = mload v41
+    v43 = byte 0, v42
+    v44 = shl 248, v43
+    v45 = eq v33, v44
+    v46 = eq v45, false
+    icall panic_if<0x1>, v46
     ret 1
 }
