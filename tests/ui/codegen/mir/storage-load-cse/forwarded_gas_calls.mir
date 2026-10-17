@@ -1,0 +1,50 @@
+//@compile-flags: -Zmir-pipeline=storage-load-cse
+//@filecheck:
+@module ForwardedGasCalls
+
+// A helper whose only `gas` read sets its external call's gas forwards gas
+// without observing it, as the same read would within the caller, so a load
+// after the call reuses the one before it.
+// CHECK-LABEL: {{^[ +].*}}fn @after_forwarding_helper{{[( ]}}
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = sload 0
+// CHECK: {{^[ +].*}}icall @forwards_gas
+// CHECK-NOT: {{^[ +].*}} = sload 0
+// CHECK: {{^[ +].*}} = add [[LOAD]], [[LOAD]]
+fn @after_forwarding_helper(arg0: i256) -> i256 {
+  bb0:
+    v0 = sload 0
+    v1 = icall @forwards_gas, arg0
+    v2 = sload 0
+    v3 = add v0, v2
+    ret v3
+}
+
+fn @forwards_gas(arg0: i256) -> i256 {
+  bb0:
+    v0 = gas
+    v1 = staticcall v0, arg0, 0, 0, 0, 32
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+// A helper that returns the remaining gas observes it, so the caller keeps the
+// load whose warm-access cost a later read could measure.
+// CHECK-LABEL: {{^[ +].*}}fn @after_observing_helper{{[( ]}}
+// CHECK: {{^[ +].*}} = sload 0
+// CHECK: {{^[ +].*}}icall @returns_gas
+// CHECK: {{^[ +].*}} = sload 0
+fn @after_observing_helper() -> i256 {
+  bb0:
+    v0 = sload 0
+    v1 = icall @returns_gas
+    v2 = sload 0
+    v3 = add v0, v2
+    v4 = add v3, v1
+    ret v4
+}
+
+fn @returns_gas() -> i256 {
+  bb0:
+    v0 = gas
+    ret v0
+}

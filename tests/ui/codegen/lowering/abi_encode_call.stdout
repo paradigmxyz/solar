@@ -3,15 +3,15 @@
 @phase lowered
 fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
   bb0:
-    v2 = calldatasize
-    v3 = lt v2, 68
-    jumpi v3, bb1, bb2
-  bb2:
     v4 = calldataload 4
     v5 = shr 160, v4
-    v6 = eq v5, 0
-    jumpi v6, bb3, bb1
-  bb3:
+    v2 = calldatasize
+    v3 = lt v2, 68
+    v42 = zext i1 v3 to i256
+    v43 = or v42, v5
+    v44 = ne v43, 0
+    jumpi v44, bb1, bb2
+  bb2:
     v39 = mload 64 !metadata(memory=scratch)
     v40 = add v39, 128
     mstore 64, v40 !metadata(memory=scratch)
@@ -44,18 +44,16 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 100
-    jumpi v9, bb1, bb2
-  bb2:
     v10 = calldataload 4
     v11 = shr 160, v10
-    v12 = eq v11, 0
-    jumpi v12, bb3, bb1
-  bb3:
+    v32 = zext i1 v9 to i256
+    v33 = or v32, v11
     v13 = calldataload 36
     v14 = shr 160, v13
-    v15 = eq v14, 0
-    jumpi v15, bb4, bb1
-  bb4:
+    v35 = or v33, v14
+    v36 = ne v35, 0
+    jumpi v36, bb1, bb2
+  bb2:
     v0 = gas
     v30 = mload 64 !metadata(memory=scratch)
     v31 = add v30, 128
@@ -78,20 +76,20 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:
     v2 = calldatasize
     v3 = lt v2, 4
-    jumpi v3, bb5, bb2
-  bb2:
+    v6 = zext i1 v3 to i256
+    v7 = or v0, v6
+    v8 = ne v7, 0
+    jumpi v8, bb4, bb1
+  bb1:
     v4 = calldataload 0
     v5 = shr 224, v4
-    switch v5, default bb5, [0x23d014a1 => bb3, 0x440a9300 => bb4]
-  bb4:
-    tail_call @asValue
+    switch v5, default bb4, [0x23d014a1 => bb2, 0x440a9300 => bb3]
   bb3:
+    tail_call @asValue
+  bb2:
     tail_call @viaCall
-  bb5:
+  bb4:
     revert 0, 0
 }

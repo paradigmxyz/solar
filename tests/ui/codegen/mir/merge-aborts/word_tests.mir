@@ -1,0 +1,88 @@
+//@compile-flags: -Zmir-pipeline=merge-aborts
+//@filecheck:
+@module WordTests
+
+// A non-payable entry's value check and its calldata size check branch once:
+// the word joins the size test as it is, and the branch tests the combined
+// word for free.
+// CHECK-LABEL: {{^[ +].*}}fn @entry_guards{{[( ]}}
+// CHECK: + jump bb1
+// CHECK: {{^[ +].*}}[[SHORT:v[0-9]+]] = lt {{v[0-9]+}}, 36
+// CHECK: + [[WIDE:v[0-9]+]] = zext i1 [[SHORT]] to i256
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = or {{v[0-9]+}}, [[WIDE]]
+// CHECK-NEXT: + [[TEST:v[0-9]+]] = ne [[WORD]], 0
+// CHECK-NEXT: + jumpi [[TEST]], bb3, bb2
+fn @entry_guards() -> i256 {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldatasize
+    v3 = lt v2, 36
+    jumpi v3, bb3, bb2
+  bb2:
+    v4 = calldataload 4
+    ret v4
+  bb3:
+    revert 0, 0
+}
+
+// Two words, and an `eq w, 0` that continues on its true edge, join as words.
+// The merged test is a word test again, so a third test joins it too.
+// CHECK-LABEL: {{^[ +].*}}fn @three_words{{[( ]}}
+// CHECK: + [[AB:v[0-9]+]] = or {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: + {{v[0-9]+}} = or [[AB]], {{v[0-9]+}}
+// CHECK: + jumpi {{v[0-9]+}}, bb4, bb3
+fn @three_words(arg0: i256, arg1: i256, arg2: i256) {
+  bb0:
+    v0 = shr 160, arg0
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = shr 160, arg1
+    v3 = eq v2, 0
+    jumpi v3, bb2, bb4
+  bb2:
+    v4 = shr 160, arg2
+    v5 = ne v4, 0
+    jumpi v5, bb4, bb3
+  bb3:
+    stop
+  bb4:
+    revert 0, 0
+}
+
+// A test that aborts when its word is zero would pay an `iszero`, so it stays.
+// CHECK-LABEL: {{^[ +].*}}fn @aborts_on_zero{{[( ]}}
+// CHECK-NOT: {{^\+}}
+// CHECK-LABEL: {{^[ +].*}}fn @latch{{[( ]}}
+fn @aborts_on_zero(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = lt arg1, 4
+    jumpi v1, bb3, bb2
+  bb2:
+    stop
+  bb3:
+    revert 0, 0
+}
+
+// A loop's word tests stay apart: the latch's test also takes the back edge.
+// CHECK-NOT: {{^\+}}
+fn @latch(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb2
+  bb2:
+    v3 = lt v0, 4
+    v4 = add v0, 1
+    jumpi v3, bb3, bb1
+  bb3:
+    revert 0, 0
+}
