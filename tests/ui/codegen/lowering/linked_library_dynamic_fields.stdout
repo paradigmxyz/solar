@@ -368,7 +368,7 @@ bb0:
   dup 1
   push 0x2220ae27
   eq
-  push bb9
+  push bb8
   jumpi
   dup 1
   push 0x776f3843
@@ -381,15 +381,14 @@ bb4 [cold]:
   push 0
   revert
 bb5:
-  push 36
-  calldatasize
-  lt
-  push bb4
-  jumpi
   push 4
   calldataload
   push 160
   shr
+  push 36
+  calldatasize
+  lt
+  or
   push bb4
   jumpi
   push 4
@@ -408,21 +407,18 @@ bb5:
   push 32
   push 128
   return
-bb9:
+bb8:
   push 160
   push 64
   mstore
-  push 132
-  calldatasize
-  lt
-  push bb4
-  jumpi
   push 100
   calldataload
   push 160
   shr
-  push bb4
-  jumpi
+  push 132
+  calldatasize
+  lt
+  or
   push 36
   calldataload
   push 4
@@ -442,15 +438,19 @@ bb9:
   gt
   or
   swap 1
+  swap 3
+  or
+  swap 2
   calldataload
-  swap 1
-  dup 3
+  dup 2
   calldatasize
   sub
   push 5
   shr
-  dup 3
+  dup 2
   gt
+  swap 1
+  swap 3
   or
   push 68
   calldataload
@@ -482,11 +482,11 @@ bb9:
   swap 1
   swap 3
   or
-  dup 4
+  dup 5
   push 5
   shl
   swap 1
-  dup 6
+  dup 5
   calldatasize
   sub
   dup 3
@@ -504,15 +504,15 @@ bb9:
   add
   push 64
   mstore
-  swap 4
-  dup 5
+  swap 5
+  dup 6
   mstore
   push 32
-  dup 5
+  dup 6
   add
   swap 1
   swap 2
-  swap 5
+  swap 4
   swap 1
   calldatacopy
   push 0
@@ -524,7 +524,7 @@ bb9:
   dup 2
   calldatasize
   sub
-  dup 5
+  dup 4
   sgt
   or
   push bb4
@@ -548,9 +548,9 @@ bb9:
   push 32
   dup 2
   add
-  swap 4
+  swap 3
   swap 1
-  swap 4
+  swap 3
   calldatacopy
   push 64
   mload
@@ -566,14 +566,14 @@ bb9:
   push 32
   dup 2
   add
-  swap 2
-  dup 3
+  swap 3
+  dup 4
   mstore
   push 64
   dup 2
   add
-  swap 3
-  dup 4
+  swap 2
+  dup 3
   mstore
   push 96
   dup 2
@@ -604,16 +604,16 @@ bb9:
   mstore
   swap 3
   mload
-  swap 4
-  mload
   swap 5
+  mload
+  swap 4
   mload
   swap 2
   mload
   push 128
   dup 5
   add
-  swap 5
+  swap 6
   dup 5
   mstore
   push 128
@@ -621,28 +621,28 @@ bb9:
   dup 6
   add
   mstore
-  dup 6
+  dup 5
   mload
   dup 1
-  dup 7
+  dup 8
   mstore
   push 5
   shl
+  swap 6
+  push 32
+  add
   swap 5
   push 32
   add
-  swap 6
-  push 32
+  dup 7
+  dup 7
   add
-  dup 6
-  dup 8
-  add
-  swap 6
-  swap 2
   swap 7
+  swap 2
+  swap 6
   mcopy
   dup 3
-  dup 5
+  dup 6
   sub
   push 64
   dup 5
@@ -657,27 +657,27 @@ bb9:
   not
   and
   push 32
-  dup 7
+  dup 8
   add
   push 0
   dup 3
-  dup 9
+  dup 10
   add
   mstore
   dup 3
   swap 1
-  swap 7
+  swap 8
   mstore
-  dup 6
+  dup 7
   add
   swap 3
   push 32
   add
   swap 1
   swap 2
-  swap 5
+  swap 6
   mcopy
-  swap 3
+  swap 2
   push 0
   not
   push 96
@@ -687,7 +687,6 @@ bb9:
   push 96
   add
   mstore
-  swap 1
   sub
   push 4
   add
@@ -712,7 +711,7 @@ bb9:
   gas
   delegatecall
   iszero
-  push bb16
+  push bb13
   jumpi
   returndatasize
   push 32
@@ -726,7 +725,7 @@ bb9:
   push 32
   push 128
   return
-bb16 [cold]:
+bb13 [cold]:
   returndatasize
   push 0
   push 0
