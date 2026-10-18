@@ -109,7 +109,7 @@ use crate::{
         pass::{MirPass, run_function_pass_with_alias_and_cfg},
         utils as mir_utils,
     },
-    target::{GasTier, Target, Warmth},
+    target::{Target, Warmth},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -267,15 +267,6 @@ struct LoadPreCostInput<'a> {
 }
 
 impl LoadPreCostModel {
-    const MEMORY_READ: i64 = GasTier::VeryLow.fixed_gas() as i64;
-    const TRANSIENT_READ: i64 = GasTier::Transient.fixed_gas() as i64;
-    const KECCAK_BASE: i64 = GasTier::Keccak.fixed_gas() as i64;
-    const KECCAK_WORD: i64 = GasTier::Keccak.fixed_dynamic_gas() as i64;
-    /// One `DUP` on the edge.
-    const NON_LOOP_PHI_EDGE_COPY: i64 = GasTier::VeryLow.fixed_gas() as i64;
-    /// One `DUP` to reach the operand.
-    const CROSS_BLOCK_OPERAND: i64 = GasTier::VeryLow.fixed_gas() as i64;
-
     fn estimate(&self, input: LoadPreCostInput<'_>) -> LoadPreCost {
         let read = self.read_cost(input.key);
         let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
@@ -295,9 +286,10 @@ impl LoadPreCostModel {
         let phi = if !input.needs_phi || input.loop_carried {
             0
         } else {
-            Self::NON_LOOP_PHI_EDGE_COPY * input.predecessors.len() as i64
+            // One `DUP` per edge.
+            i64::from(self.target.dup().gas) * input.predecessors.len() as i64
         };
-        let operands = Self::inserted_operand_cost(input.func, input.kind, input.insertions);
+        let operands = self.inserted_operand_cost(input.func, input.kind, input.insertions);
         LoadPreCost { saved, inserted, phi, operands }
     }
 
@@ -305,18 +297,26 @@ impl LoadPreCostModel {
         match key {
             // A repeated storage read is warm, whatever the first access cost.
             LoadKey::Storage(_) => self.target.opcode_gas_at(op::SLOAD, Warmth::Warm) as i64,
-            LoadKey::Transient(_) => Self::TRANSIENT_READ,
-            LoadKey::Memory(_) => Self::MEMORY_READ,
-            LoadKey::Keccak(_, size) => match size {
-                KeccakSize::Const(size) => {
-                    Self::KECCAK_BASE + Self::KECCAK_WORD * size.div_ceil(32) as i64
-                }
-                KeccakSize::Dyn(_) => Self::KECCAK_BASE + Self::KECCAK_WORD * 2,
-            },
+            LoadKey::Transient(_) => self.target.opcode_gas(op::TLOAD) as i64,
+            LoadKey::Memory(_) => self.target.opcode_gas(op::MLOAD) as i64,
+            LoadKey::Keccak(_, size) => {
+                // A dynamic size is priced as a two-word mapping key.
+                let size = match size {
+                    KeccakSize::Const(size) => size,
+                    KeccakSize::Dyn(_) => 64,
+                };
+                let arguments = [None, Some(U256::from(size))];
+                self.target.opcode_with_immediates(op::KECCAK256, &arguments).gas as i64
+            }
         }
     }
 
-    fn inserted_operand_cost(func: &Function, kind: &InstKind, insertions: &[BlockId]) -> i64 {
+    fn inserted_operand_cost(
+        &self,
+        func: &Function,
+        kind: &InstKind,
+        insertions: &[BlockId],
+    ) -> i64 {
         if insertions.is_empty() {
             return 0;
         }
@@ -325,7 +325,8 @@ impl LoadPreCostModel {
             .into_iter()
             .filter(|&value| matches!(func.value(value), Value::Inst(_) | Value::Undef(_)))
             .count();
-        Self::CROSS_BLOCK_OPERAND * cross_block_operands as i64 * insertions.len() as i64
+        // One `DUP` to reach each operand.
+        i64::from(self.target.dup().gas) * cross_block_operands as i64 * insertions.len() as i64
     }
 }
 
