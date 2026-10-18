@@ -237,18 +237,10 @@ impl MirPass for LateCheckElim {
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
-            // Only folds of selected branches with a reverting arm are kept, so without one
-            // and without a check to remove, the elimination cannot change anything.
+            // Only folds of selected branches with a reverting arm are kept, and `lower-checks`
+            // has already expanded every check, so without such a branch the elimination
+            // cannot change anything.
             if let Some(selected) = selected
-                && !func.instructions().any(|inst| {
-                    matches!(
-                        func.inst(inst).kind,
-                        InstKind::ICall {
-                            function: Callee::Builtin(Builtin::Check { .. } | Builtin::Require(_)),
-                            ..
-                        }
-                    )
-                })
                 && !selected.iter().any(|block| {
                     let Some(Terminator::Branch { then_block, else_block, .. }) =
                         func.blocks[block].terminator
