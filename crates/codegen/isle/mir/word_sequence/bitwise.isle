@@ -412,48 +412,58 @@
       (sequence (Op.Eq compared zero)))
 
 ;; (x & m) | (y & ~m) => y ^ ((x ^ y) & m).
+;; Mask blends run after storage forwarding and mask simplification.
 (rule (sequence_rewrite (Op.Or (band x m) (band y (bnot m))))
+      (if-let true (late_word_sequence))
       (if-let changed (make (Op.Xor x y))) (if-let masked (make (Op.And changed m)))
       (sequence (Op.Xor y masked)))
 
 ;; (m & x) | (y & ~m) => y ^ ((x ^ y) & m).
 (rule (sequence_rewrite (Op.Or (band m x) (band y (bnot m))))
+      (if-let true (late_word_sequence))
       (if-let changed (make (Op.Xor x y))) (if-let masked (make (Op.And changed m)))
       (sequence (Op.Xor y masked)))
 
 ;; (x & m) | (~m & y) => y ^ ((x ^ y) & m).
 (rule (sequence_rewrite (Op.Or (band x m) (band (bnot m) y)))
+      (if-let true (late_word_sequence))
       (if-let changed (make (Op.Xor x y))) (if-let masked (make (Op.And changed m)))
       (sequence (Op.Xor y masked)))
 
 ;; (m & x) | (~m & y) => y ^ ((x ^ y) & m).
 (rule (sequence_rewrite (Op.Or (band m x) (band (bnot m) y)))
+      (if-let true (late_word_sequence))
       (if-let changed (make (Op.Xor x y))) (if-let masked (make (Op.And changed m)))
       (sequence (Op.Xor y masked)))
 
 ;; (y & ~m) | (x & m) => y ^ ((x ^ y) & m).
 (rule (sequence_rewrite (Op.Or (band y (bnot m)) (band x m)))
+      (if-let true (late_word_sequence))
       (if-let changed (make (Op.Xor x y))) (if-let masked (make (Op.And changed m)))
       (sequence (Op.Xor y masked)))
 
 ;; (y & ~m) | (m & x) => y ^ ((x ^ y) & m).
 (rule (sequence_rewrite (Op.Or (band y (bnot m)) (band m x)))
+      (if-let true (late_word_sequence))
       (if-let changed (make (Op.Xor x y))) (if-let masked (make (Op.And changed m)))
       (sequence (Op.Xor y masked)))
 
 ;; (~m & y) | (x & m) => y ^ ((x ^ y) & m).
 (rule (sequence_rewrite (Op.Or (band (bnot m) y) (band x m)))
+      (if-let true (late_word_sequence))
       (if-let changed (make (Op.Xor x y))) (if-let masked (make (Op.And changed m)))
       (sequence (Op.Xor y masked)))
 
 ;; (~m & y) | (m & x) => y ^ ((x ^ y) & m).
 (rule (sequence_rewrite (Op.Or (band (bnot m) y) (band m x)))
+      (if-let true (late_word_sequence))
       (if-let changed (make (Op.Xor x y))) (if-let masked (make (Op.And changed m)))
       (sequence (Op.Xor y masked)))
 
 ;; (x & a) | (y & b) => y ^ ((x ^ y) & a).
 ;; Requires: a, b are complementary constants.
 (rule (sequence_rewrite (Op.Or (band x (iconst a)) (band y (iconst b))))
+      (if-let true (late_word_sequence))
       (if-let true (u256_same (u256_xor a b) (u256_max)))
       (if-let changed (make (Op.Xor x y))) (if-let mask (imm a))
       (if-let masked (make (Op.And changed mask))) (sequence (Op.Xor y masked)))
@@ -461,6 +471,7 @@
 ;; (x & a) | (y & b) => x ^ ((x ^ y) & b).
 ;; Requires: a, b are complementary constants.
 (rule (sequence_rewrite (Op.Or (band x (iconst a)) (band y (iconst b))))
+      (if-let true (late_word_sequence))
       (if-let true (u256_same (u256_xor a b) (u256_max)))
       (if-let changed (make (Op.Xor x y))) (if-let mask (imm b))
       (if-let masked (make (Op.And changed mask))) (sequence (Op.Xor x masked)))

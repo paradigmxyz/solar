@@ -1,0 +1,39 @@
+// === ROOT/tests/ui/codegen/mir/word-sequence/mask_blend_packed_struct.sol:MaskBlendPackedStruct ===
+@module MaskBlendPackedStruct
+@types
+  struct0: {i160, i96}
+
+fn @assign(arg0: i160, arg1: i96) -> struct0 [selector=0x5af968c6, abi_params=[address, u96], abi_returns=[word<u160>, word<u96>], abi_return_params=[address, u96]] {
+  bb0:
+    v0 = alloc 64
+    v1 = zext i160 arg0 to i256
+    v2 = zext i96 arg1 to i256
+    mstore v0, v1
+    v3 = ptradd v0, 32
+    mstore v3, v2
+    v4 = mload v0
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = and v5, v6
+    v8 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v7, v8
+    sstore 0, v9 !metadata(storage=slot(0))
+    v10 = ptradd v0, 32
+    v11 = mload v10
+    v12 = shl 160, 0xffffffffffffffffffffffff
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = not v12
+    v15 = and v13, v14
+    v16 = and v11, 0xffffffffffffffffffffffff
+    v17 = shl 160, v16
+    v18 = or v15, v17
+    sstore 0, v18 !metadata(storage=slot(0))
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = trunc i256 v19 to i160
+    v21 = sload 0 !metadata(storage=slot(0))
+    v22 = shr 160, v21
+    v23 = trunc i256 v22 to i96
+    v24 = insert_value struct0, undef struct0, 0, v20
+    v25 = insert_value struct0, v24, 1, v23
+    ret v25
+}

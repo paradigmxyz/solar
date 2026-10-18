@@ -22,6 +22,8 @@
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost.
 //! Pure, nontrapping operations without recipes stay in place without breaking
 //! the segment; they never earn deletion credit.
+//! Mask blends wait until storage forwarding and mask simplification have run,
+//! so early recipes do not hide overwritten packed fields from those passes.
 
 use crate::{
     backend::evm::{op, select},
@@ -42,7 +44,10 @@ mod isle;
 
 const MAX_CONE: usize = 16;
 
-pub(crate) struct WordSequence;
+pub(crate) enum WordSequence {
+    Early,
+    Late,
+}
 
 impl MirPass for WordSequence {
     fn name(&self) -> &'static str {
@@ -55,7 +60,9 @@ impl MirPass for WordSequence {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| run(func, Target::new(gcx)))
+        run_function_pass(module, analyses, |func, _| {
+            run(func, Target::new(gcx), matches!(self, Self::Late))
+        })
     }
 }
 
@@ -276,7 +283,7 @@ fn recipe_type(func: &Function, kind: &InstKind, scalar_ty: MirType) -> MirType 
     }
 }
 
-fn run(func: &mut Function, target: Target) -> bool {
+fn run(func: &mut Function, target: Target, late: bool) -> bool {
     let mut uses = None;
     let mut changed = false;
     for block in func.blocks.indices().collect::<Vec<_>>() {
@@ -301,7 +308,7 @@ fn run(func: &mut Function, target: Target) -> bool {
             }
             let op = func.inst(inst).kind.op();
             let mut best = None;
-            for recipe in isle::alternatives(func, &seen, &op, target) {
+            for recipe in isle::alternatives(func, &seen, &op, target, late) {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target) {
                     // Nothing changed before the first count; this block is detached.
                     let uses = uses.get_or_insert_with(|| {
