@@ -196,11 +196,10 @@ bb29:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
+  push 64
   shr
-  lt
+  iszero
+  iszero
   calldatasize
   dup 4
   gt
@@ -239,12 +238,11 @@ bb29:
   dup 2
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
+  iszero
+  iszero
   or
   push bb36
   jumpi
