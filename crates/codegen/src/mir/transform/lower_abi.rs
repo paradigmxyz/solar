@@ -1000,9 +1000,11 @@ impl LowerAbiCx {
     ) -> Option<FunctionId> {
         let original = module.function(wrapper_id).clone();
         let static_bytes_return = static_bytes_return(&original);
-        // Keep the external body in place only when several dynamic
-        // aggregates can benefit from calldata aliases. A single aggregate
-        // does not repay the duplicate body in the gas/size trade-off.
+        // An internally called function keeps one body, which its wrapper
+        // calls. In gas mode, a function with three or more dynamic
+        // parameters also keeps a copy inside its wrapper, which saves moving
+        // each decoded slice through the call protocol at the price of the
+        // duplicate body.
         let keep_external_body = gas_mode
             && original.abi_params.as_ref().is_some_and(|layout| {
                 layout.types.iter().filter(|ty| ty.is_dynamic()).count() >= 3
