@@ -104,7 +104,7 @@ use crate::{
         Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-            Location, LocationSize, MemoryAddress, MemoryLocation, ModRef,
+            Location, LocationSize, MemoryAddress, MemoryCallSummaries, MemoryLocation, ModRef,
         },
         pass::{MirPass, run_function_pass_with_alias_and_cfg},
         utils as mir_utils,
@@ -116,7 +116,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
-use std::{cell::OnceCell, collections::BTreeMap, rc::Rc};
+use std::{cell::OnceCell, collections::BTreeMap, rc::Rc, sync::Arc};
 
 /// Function pass for load PRE.
 pub(crate) enum LoadPre {
@@ -141,6 +141,7 @@ impl MirPass for LoadPre {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = Target::new(gcx);
+        let summaries = analyses.call_summaries(module);
         run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
             let mut eliminator = LoadRedundancyEliminator {
                 storage_only: matches!(self, Self::Storage),
@@ -148,6 +149,7 @@ impl MirPass for LoadPre {
                 cfg: Some(Rc::clone(analyses.cfg())),
                 stats: LoadPreStats::default(),
                 alias: Rc::clone(analyses.alias()),
+                summaries: Arc::clone(&summaries),
                 target,
             };
             eliminator.run(func).total() != 0
@@ -180,6 +182,8 @@ struct LoadRedundancyEliminator {
     cfg: Option<Rc<CfgInfo>>,
     stats: LoadPreStats,
     alias: Rc<AliasAnalysis>,
+    /// Call summaries for the alias snapshot rebuilt after edge splitting.
+    summaries: Arc<MemoryCallSummaries>,
     target: Target,
 }
 
@@ -523,7 +527,8 @@ impl LoadRedundancyEliminator {
             }
             if func.blocks.len() != blocks_before {
                 self.cfg = None;
-                self.alias = Rc::new(AliasAnalysis::new(func));
+                self.alias =
+                    Rc::new(AliasAnalysis::with_call_summaries(func, Arc::clone(&self.summaries)));
             } else {
                 self.alias().clear_cached_addresses();
             }
