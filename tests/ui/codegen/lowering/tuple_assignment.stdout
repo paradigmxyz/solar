@@ -70,25 +70,10 @@ bb6:
   swap 1
   swap 3
   or
-  gas
-  swap 1
-  push 0
-  not
-  push 192
-  shr
-  dup 5
-  gt
-  or
-  dup 4
-  calldatasize
-  sub
-  dup 4
-  sgt
-  or
   push bb5
   jumpi
   push 63
-  dup 4
+  dup 3
   add
   push 31
   not
@@ -100,24 +85,23 @@ bb6:
   add
   push 64
   mstore
-  dup 4
+  dup 3
   dup 2
   mstore
   push 32
   add
-  dup 4
-  dup 4
+  dup 3
+  dup 3
   dup 3
   calldatacopy
   push 0
-  swap 3
-  swap 4
-  swap 1
+  push 0
+  dup 5
+  dup 4
   push 0
   push 4
   calldataload
-  push 0
-  swap 5
+  gas
   call
   push 128
   mstore

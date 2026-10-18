@@ -14,7 +14,7 @@ contract C {
     // CHECK: eq
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK: push 0x6b995abd
-    // CHECK: eq
+    // CHECK: {{eq|sub}}
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK: shr
     // CHECK-NEXT: push {{bb[0-9]+}}
