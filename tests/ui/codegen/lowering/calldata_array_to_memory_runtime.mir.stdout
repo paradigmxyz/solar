@@ -37,45 +37,34 @@ fn @viaStructLiteral(arg0: i256, arg1: slice<calldata>, arg2: slice<calldata>) -
     v27 = extract_value slice<calldata>, v24, 1
     calldatacopy v25, v26, v27
     v28 = ptrtoint ptr<memory> v23 to i256
-    v29 = extract_value slice<calldata>, arg2, 0
-    v30 = extract_value slice<calldata>, arg2, 1
-    v31 = calldatasize
-    v32 = gt v30, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v32
-    v33 = sub v31, v30
-    v34 = ptrtoint ptr<calldata> v29 to i256
-    v35 = sgt v34, v33
-    icall revert_if<calldata_tail_too_short>, v35
+    v29 = extract_value slice<calldata>, arg2, 1
+    v30 = add v29, 63
+    v31 = not 31
+    v32 = and v30, v31
+    v33 = alloc v32
+    mstore v33, v29
+    v34 = ptradd v33, 32
+    v35 = extract_value slice<calldata>, arg2, 0
     v36 = extract_value slice<calldata>, arg2, 1
-    v37 = add v36, 63
-    v38 = lt v37, v36
-    icall panic_if<0x41>, v38
-    v39 = not 31
-    v40 = and v37, v39
-    v41 = alloc v40
-    mstore v41, v36
-    v42 = ptradd v41, 32
-    v43 = extract_value slice<calldata>, arg2, 0
-    v44 = extract_value slice<calldata>, arg2, 1
-    calldatacopy v42, v43, v44
-    v45 = ptrtoint ptr<memory> v41 to i256
+    calldatacopy v34, v35, v36
+    v37 = ptrtoint ptr<memory> v33 to i256
     mstore v0, arg0
-    v46 = ptradd v0, 32
-    mstore v46, v28
-    v47 = ptradd v0, 64
-    mstore v47, v45
-    v48 = mload v0
-    v49 = ptradd v0, 32
-    v50 = mload v49, ptr<memory>
-    v51 = mload v50
-    v52 = checked_mul u256, v51, 10
-    v53 = checked_add u256, v48, v52
-    v54 = ptradd v0, 64
-    v55 = mload v54, ptr<memory>
-    v56 = mload v55
-    v57 = checked_mul u256, v56, 100
-    v58 = checked_add u256, v53, v57
-    ret v58
+    v38 = ptradd v0, 32
+    mstore v38, v28
+    v39 = ptradd v0, 64
+    mstore v39, v37
+    v40 = mload v0
+    v41 = ptradd v0, 32
+    v42 = mload v41, ptr<memory>
+    v43 = mload v42
+    v44 = checked_mul u256, v43, 10
+    v45 = checked_add u256, v40, v44
+    v46 = ptradd v0, 64
+    v47 = mload v46, ptr<memory>
+    v48 = mload v47
+    v49 = checked_mul u256, v48, 100
+    v50 = checked_add u256, v45, v49
+    ret v50
 }
 
 fn @viaDeclaration(arg0: slice<calldata>) -> i256 [selector=0xcd64a752, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {

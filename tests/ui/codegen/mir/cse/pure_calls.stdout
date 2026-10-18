@@ -1,0 +1,84 @@
+- // === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (after cse) ===
+  @module PureCalls
+  fn @to_u32(arg0: i256) -> i256 [pure] {
+    bb0:
+      v0 = gt arg0, 0xffffffff
+      jumpi v0, bb2, bb1
+    bb1:
+      ret arg0
+    bb2:
+      mstore 32, 32
+      mstore 64, arg0
+      mstore 0, 0x6dfcc650
+      revert 28, 68
+  }
+  
+  fn @read_word(arg0: i256) -> i256 [pure] {
+    bb0:
+      v0 = mload arg0
+      ret v0
+  }
+  
+  fn @returned_size(arg0: i256) -> i256 [pure] {
+    bb0:
+      v0 = returndatasize
+      v1 = add v0, arg0
+      ret v1
+  }
+  
+  fn @stored(arg0: i256) -> i256 [view] {
+    bb0:
+      v0 = sload arg0
+      ret v0
+  }
+  
+  fn @hash_slot(arg0: i256) -> i256 [view] {
+    bb0:
+      mstore 0, arg0
+      v0 = keccak256 0, 32
+      ret v0
+  }
+  
+  fn @same_block(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @to_u32, arg0
+      v1 = icall @hash_slot, v0
+-     v2 = icall @to_u32, arg0
+-     v3 = add v0, v2
++     v3 = add v0, v0
+      v4 = add v3, v1
+      ret v4
+  }
+  
+  fn @dominated(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      v0 = icall @to_u32, arg0
+      jumpi arg1, bb1, bb2
+    bb2:
+      ret v0
+    bb1:
+-     v1 = icall @to_u32, arg0
+-     ret v1
++     ret v0
+  }
+  
+  fn @not_pure_leaves(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @read_word, arg0
+      mstore arg0, 7
+      v1 = icall @read_word, arg0
+      v2 = icall @returned_size, arg0
+      v3 = staticcall 100, arg0, 0, 0, 0, 0
+      v4 = icall @returned_size, arg0
+      v5 = icall @stored, arg0
+      sstore arg0, 7
+      v6 = icall @stored, arg0
+      v7 = add v0, v1
+      v8 = add v5, v6
+      v9 = add v7, v8
+      v10 = add v2, v4
+      v11 = add v9, v10
+      ret v11
+  }
+  

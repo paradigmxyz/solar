@@ -861,6 +861,22 @@ impl<'a> FunctionBuilder<'a> {
         object
     }
 
+    /// Allocates a bytes object whose `length` is known to be far below `2^256 - 63`, such as
+    /// the length of calldata, so its padded size needs no overflow check.
+    pub(crate) fn alloc_bounded_bytes_object(
+        &mut self,
+        length: ValueId,
+        semantics: AllocationSemantics,
+    ) -> ValueId {
+        // size = (length + 63) & ~31
+        let padding = self.imm(63);
+        let rounded = self.add(length, padding);
+        let size = self.mask_padded_size(rounded);
+        let object = self.alloc(size, semantics);
+        self.set_memory_len(object, length);
+        object
+    }
+
     /// Allocates a fixed array whose elements each occupy one memory word.
     pub(crate) fn alloc_word_array(
         &mut self,

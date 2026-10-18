@@ -782,7 +782,7 @@ fn local_summary(
 /// Blocks from which control can still leave the function without reverting.
 /// Every other block lies on paths that end in `revert` or `invalid`, whose
 /// state changes are discarded with the call frame.
-fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
+pub(crate) fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let mut returning = DenseBitSet::new_empty(func.blocks.len());
     let mut worklist = Vec::new();
     for (block_id, block) in func.blocks.iter_enumerated() {
