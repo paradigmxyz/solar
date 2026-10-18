@@ -126,6 +126,9 @@ fn lower_function(func: &mut Function) -> bool {
 }
 
 /// Replaces each word cast of a pointer cast of a word with that word, so one value names it.
+///
+/// A pointer cast of a narrower integer keeps its casts: its result word is the zero-extended
+/// integer, which `lower-evm-shaped` materializes.
 fn fold_word_casts(func: &mut Function) {
     // address = ptrtoint (inttoptr word) => word
     let replacements: FxHashMap<_, _> = func
@@ -134,6 +137,9 @@ fn fold_word_casts(func: &mut Function) {
             let InstKind::PtrToInt(ptr, 256) = func.inst(inst).kind else { return None };
             let Value::Inst(def) = *func.value(ptr) else { return None };
             let InstKind::IntToPtr(word) = func.inst(def).kind else { return None };
+            if func.value_ty(word) != Some(MirType::I256) {
+                return None;
+            }
             Some((func.inst_result_value(inst)?, word))
         })
         .collect();
