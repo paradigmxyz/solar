@@ -235,9 +235,10 @@ fn synthesize_tuple_helpers(
             builder.set_return_type(result_ty);
             builder.ret([encoded]);
         }
-        let body = target.code_estimate(&function);
+        let body_bytes = target.code_estimate(&function).bytes;
         let sites = u32::try_from(sites).unwrap_or(u32::MAX);
-        let (with_helper, expanded) = target.helper_sharing(body, function.params.len(), 1, sites);
+        let (with_helper, expanded) =
+            target.helper_sharing(body_bytes, function.params.len(), 1, sites);
         if target.cmp(with_helper, expanded).is_lt() {
             shared.push((key, function));
         }
