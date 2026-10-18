@@ -1,0 +1,60 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/decoded_struct_field.sol:DecodedStructField ===
+@module DecodedStructField
+@phase lowered
+fn @tokenId() [selector=0x8f25c453, abi_wrapper, pure] {
+  bb0:
+    v29 = calldatasize
+    v30 = lt v29, 36
+    v31 = calldataload 4
+    v32 = add v31, 4
+    v33 = add v32, 32
+    v34 = gt v31, 0xffffffffffffffff
+    v35 = gt v33, v29
+    v36 = or v34, v35
+    v38 = calldataload v32
+    v40 = sub v29, v33
+    v41 = gt v38, v40
+    v44 = or v36, v41
+    v55 = or v30, v44
+    jumpi v55, bb3, bb5
+  bb5:
+    v2 = add v38, 63
+    v3 = lt v2, v38
+    jumpi v3, bb1, bb2
+  bb2:
+    v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v53 = mload 64 !metadata(memory=scratch)
+    v54 = add v53, v5
+    mstore 64, v54 !metadata(memory=scratch)
+    mstore v53, v38
+    v50 = add v53, 32
+    calldatacopy v50, v33, v38
+    v14 = slt v38, 128
+    jumpi v14, bb3, bb4
+  bb4:
+    v15 = alloc 128 !metadata(deferred_alloc)
+    v16 = mload v50
+    mstore 128, v16
+    returndata 128, 32
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x8f25c453 => bb2]
+  bb2:
+    tail_call @tokenId
+  bb3:
+    revert 0, 0
+}
