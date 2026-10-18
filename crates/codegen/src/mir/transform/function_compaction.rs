@@ -4,8 +4,10 @@
 //! function bodies. These transforms preserve external ABI entry signatures: only direct MIR call
 //! edges are rewritten. Before pruning, direct callers reuse an argument or constant when every
 //! explicit return in the callee returns that same value. Calls remain in place, including their
-//! effects and failure paths. Tail calls, mixed return values, and baked signature-frame addresses
-//! prevent forwarding; no recursive summary or control-flow fixed point is needed.
+//! effects and failure paths. Tail calls to functions that may return, mixed return values, and
+//! baked signature-frame addresses prevent forwarding; a tail call to a function that never
+//! returns, such as a revert helper from `outline-reverts`, returns nothing. No recursive summary
+//! or control-flow fixed point is needed.
 //!
 //! Constants must reach a pure instruction or a non-return terminator. Direct stores and returns
 //! alone do not justify discarding the call result and pushing the same constant again.
@@ -23,6 +25,7 @@
 use crate::mir::{
     ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
+    analysis::cold_functions,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -74,11 +77,12 @@ impl MirPass for DeadArgElim {
 }
 
 fn forward_returned_values(module: &mut Module) -> usize {
+    let cold = cold_functions(module);
     let returned = module
         .functions
         .iter_enumerated()
         .filter_map(|(id, func)| {
-            let value = returned_value(func)?;
+            let value = returned_value(func, &cold)?;
             (is_internal_body(module, id, func) && frame_offsets_are_local(func))
                 .then_some((id, value))
         })
@@ -158,7 +162,9 @@ enum ReturnedValue {
     Constant(Immediate),
 }
 
-fn returned_value(func: &Function) -> Option<ReturnedValue> {
+/// The argument or constant every return of `func` returns. A tail call to a function that
+/// never returns, such as a shared revert helper, returns nothing.
+fn returned_value(func: &Function, cold: &DenseBitSet<FunctionId>) -> Option<ReturnedValue> {
     if func.return_components().len() != 1 {
         return None;
     }
@@ -177,7 +183,9 @@ fn returned_value(func: &Function) -> Option<ReturnedValue> {
                 }
                 returned = Some(value);
             }
-            Some(Terminator::TailCall { .. }) => return None,
+            Some(Terminator::TailCall { function, .. }) if !cold.contains(*function) => {
+                return None;
+            }
             _ => {}
         }
     }
@@ -520,6 +528,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
         }
     }
 
+    let cold = cold_functions(module);
     let mut candidates = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
         if called.contains(func_id)
@@ -561,7 +570,10 @@ fn prune_unused_returns(module: &mut Module) -> usize {
                 }
             }
             for block in &caller.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                // A tail call to a function that never returns delivers no result.
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && !cold.contains(*function)
+                {
                     if candidates.contains(*function)
                         && !live.contains(*function)
                         && live.contains(caller_id)

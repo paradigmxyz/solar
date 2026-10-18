@@ -1,0 +1,53 @@
+//@ compile-flags: -Zmir-pipeline=dead-arg-elim -Osize
+//@ filecheck:
+@module ColdTailCall
+
+// A tail call to a helper that never returns, as `outline-reverts` leaves on
+// failure paths, delivers no result.
+
+fn @revert_stub() {
+  bb0:
+    revert 0, 0
+}
+
+// Every return returns `arg0`, so callers use their own argument instead, and
+// the result then goes unread.
+// CHECK-LABEL: fn @checked(arg0: i256, arg1: i1) {
+fn @checked(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb1:
+    tail_call fn0
+  bb2:
+    ret arg0
+}
+
+// No caller reads the result, so it goes away.
+// CHECK-LABEL: fn @discarded(arg0: i1) {
+// CHECK: ret{{$}}
+fn @discarded(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    tail_call fn0
+  bb2:
+    mstore 0, 1
+    ret 7
+}
+
+// CHECK-LABEL: fn @entry()
+// CHECK: [[WORD:v[0-9]+]] = calldataload 4
+// CHECK: {{^[+ ] +}}icall @checked, [[WORD]]
+// CHECK: {{^[+ ] +}}v{{[0-9]+}} = add [[WORD]], 1
+// CHECK: {{^[+ ] +}}icall @discarded
+fn @entry() [selector=0x01020304] {
+  bb0:
+    v0 = calldataload 4
+    v1 = calldataload 36
+    v2 = ne v1, 0
+    v3 = icall fn1, v0, v2
+    v4 = add v3, 1
+    mstore 0, v4
+    v5 = icall fn2, v2
+    ret
+}

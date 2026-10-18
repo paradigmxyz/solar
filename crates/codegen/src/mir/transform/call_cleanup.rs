@@ -33,7 +33,8 @@
 //!
 //! Boolean values are canonical by type, so double negation needs no call-graph proof.
 //! Raw-word return bounds require every explicit return to fit within one bit;
-//! tail calls and unknown recursive results remain conservative. These transient
+//! tail calls to functions that may return and unknown recursive results remain
+//! conservative. These transient
 //! proofs remove normalization from comparisons and zero-extended results without
 //! changing raw call signatures or assuming that a Solidity boolean is clean.
 
@@ -41,7 +42,7 @@ use super::egraph::max_bits_with_args;
 use crate::mir::{
     ArgIdx, Callee, Function, FunctionId, Immediate, InstId, InstKind, Instruction, MirType,
     Module, Terminator, Value, ValueId,
-    analysis::Liveness,
+    analysis::{Liveness, cold_functions},
     pass::{MirPass, ModuleAnalyses},
     utils,
 };
@@ -293,15 +294,18 @@ fn normalized_word(
 
 /// Proves raw-word return widths without assuming facts about recursive calls.
 pub(super) fn infer_returns(module: &Module) -> ReturnBits {
+    let cold = cold_functions(module);
     module
         .functions
         .iter_enumerated()
         .filter_map(|(id, func)| {
+            // A tail call to a function that never returns, such as a shared revert helper,
+            // returns nothing; any other tail call returns an unknown word.
             if func.return_components() != [MirType::I256]
-                || func
-                    .blocks
-                    .iter()
-                    .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })))
+                || func.blocks.iter().any(|block| {
+                    matches!(block.terminator, Some(Terminator::TailCall { function, .. })
+                        if !cold.contains(function))
+                })
             {
                 return None;
             }
