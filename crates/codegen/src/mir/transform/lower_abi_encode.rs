@@ -18,6 +18,9 @@
 //! whose only dynamic values are literal byte strings has a known size, so it
 //! reserves its output before encoding; empty literal tails keep the general
 //! path, whose short encoder needs less stack setup around external calls.
+//! A `bytes` argument that only holds a copy of a calldata slice, as passing
+//! `bytes calldata` to a `bytes memory` parameter makes, encodes from the slice;
+//! the copy's length and bytes go, while its allocation keeps its pointer bump.
 //!
 //! Literal objects. A `bytes memory` argument allocated and initialized with
 //! constant words in the encoding's block, with no intervening opaque memory
@@ -68,6 +71,7 @@ use crate::{
 };
 
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::RevertStrings;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -438,6 +442,7 @@ fn lower_function(
             }
         }
     }
+    let calldata_copies = calldata_copy_objects(func);
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
@@ -456,9 +461,12 @@ fn lower_function(
                 continue;
             };
             let selector = selector.map(|value| resolve_replacement(value, &replacements));
+            // A `bytes` argument that only holds a copy of a calldata slice encodes from the
+            // slice itself, so its bytes are copied once.
             let args = args
                 .iter()
                 .map(|&value| resolve_replacement(value, &replacements))
+                .map(|value| calldata_copies.get(&value).map_or(value, |&(slice, _)| slice))
                 .collect::<Vec<_>>();
             let layout = std::sync::Arc::clone(layout);
             let mode = *mode;
@@ -494,6 +502,15 @@ fn lower_function(
             replacements.insert(result, replacement);
         }
         move_terminator(&mut builder, block, original_terminator, terminator_metadata);
+    }
+    // Every reader of such a copy now reads the slice, so its length and bytes are dead; the
+    // allocation keeps its free-memory-pointer bump.
+    let dead_copies =
+        calldata_copies.values().flat_map(|&(_, writes)| writes).collect::<FxHashSet<_>>();
+    if !dead_copies.is_empty() {
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|inst| !dead_copies.contains(inst));
+        }
     }
     fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
@@ -1752,4 +1769,100 @@ fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> 
     } else {
         builder.add_u64_offset(base, offset)
     }
+}
+
+/// Memory objects that hold nothing but an unmodified copy of a calldata slice and are read only
+/// as top-level `bytes` arguments of encodings, mapped to that slice. Materializing such an
+/// argument for a `bytes memory` parameter copies it once from calldata; encoding the copy then
+/// copies it again.
+fn calldata_copy_objects(func: &Function) -> FxHashMap<ValueId, (ValueId, [InstId; 2])> {
+    #[derive(Default)]
+    struct Uses {
+        fill: Option<(ValueId, BlockId, usize)>,
+        lengths: Vec<(ValueId, InstId)>,
+        encodes: Vec<(BlockId, usize)>,
+        escapes: bool,
+    }
+    let is_object = |value: ValueId| {
+        func.value_ty(value) == Some(MirType::MEMPTR)
+            && matches!(func.value(value), Value::Inst(inst)
+                if matches!(func.inst(*inst).kind, InstKind::Alloc { .. }))
+    };
+    let mut uses = FxHashMap::<ValueId, Uses>::default();
+    for (block, body) in func.blocks.iter_enumerated() {
+        for (position, &inst) in body.instructions.iter().enumerate() {
+            if func.is_object_derivation(inst) {
+                continue;
+            }
+            let mut objects = SmallVec::<[ValueId; 2]>::new();
+            for operand in func.inst(inst).operands() {
+                if let Some((object, _)) = func.object_address(operand)
+                    && is_object(object)
+                    && !objects.contains(&object)
+                {
+                    objects.push(object);
+                }
+            }
+            for object in objects {
+                let entry = uses.entry(object).or_default();
+                if let Some((base, length)) = func.memory_length_store(inst)
+                    && base == object
+                {
+                    entry.lengths.push((length, inst));
+                    continue;
+                }
+                match func.inst(inst).kind {
+                    InstKind::Copy(destination, data, len, PtrLocation::Calldata)
+                        if func.object_address(destination)
+                            == Some((object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE))
+                            && entry.fill.is_none()
+                            && let Some(slice) =
+                                super::lower_abi::calldata_slice_copy(func, data, len) =>
+                    {
+                        entry.fill = Some((slice, block, position));
+                    }
+                    InstKind::AbiEncode { ref args, ref layout, selector, .. }
+                        if selector != Some(object)
+                            && args.iter().zip(&layout.types).all(|(&arg, ty)| {
+                                func.object_address(arg).is_none_or(|(base, _)| base != object)
+                                    || (arg == object && matches!(ty, AbiType::Bytes(_)))
+                            }) =>
+                    {
+                        entry.encodes.push((block, position));
+                    }
+                    _ => entry.escapes = true,
+                }
+            }
+        }
+        if let Some(terminator) = &body.terminator {
+            for operand in terminator.operands() {
+                if let Some((object, _)) = func.object_address(operand)
+                    && let Some(entry) = uses.get_mut(&object)
+                {
+                    entry.escapes = true;
+                }
+            }
+        }
+    }
+    uses.into_iter()
+        .filter_map(|(object, uses)| {
+            let (slice, fill_block, fill_position) = uses.fill?;
+            let [(length, length_store)] = uses.lengths[..] else { return None };
+            let fill = func.blocks[fill_block].instructions[fill_position];
+            let Value::Inst(length) = func.value(length) else { return None };
+            let Value::Inst(alloc) = func.value(object) else { return None };
+            // The copy fills the object in its allocating block, before any encoding there reads
+            // it, and nothing else writes, measures, or passes it on.
+            (!uses.escapes
+                && !uses.encodes.is_empty()
+                && func.inst(*length).kind.slice_projection()
+                    == Some((slice, MirType::SLICE_LEN_FIELD))
+                && func.blocks[fill_block].instructions.contains(alloc)
+                && uses
+                    .encodes
+                    .iter()
+                    .all(|&(block, position)| block != fill_block || position > fill_position))
+            .then_some((object, (slice, [length_store, fill])))
+        })
+        .collect()
 }
