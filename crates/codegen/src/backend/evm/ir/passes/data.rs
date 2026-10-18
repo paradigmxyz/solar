@@ -286,7 +286,7 @@ fn find_run(
 }
 
 /// Returns the word count and exclusive end of a consecutive literal `MSTORE` run.
-pub(super) fn literal_store_words(
+fn literal_store_words(
     instructions: &[Instruction],
     start: usize,
 ) -> Option<(usize, usize)> {
@@ -318,7 +318,7 @@ pub(super) fn literal_store_words(
 }
 
 /// Returns the bytes of the `words` literal `MSTORE`s from `start` to `end`.
-pub(super) fn literal_store_bytes(
+fn literal_store_bytes(
     instructions: &[Instruction],
     start: usize,
     end: usize,
