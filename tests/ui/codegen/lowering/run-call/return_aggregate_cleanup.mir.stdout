@@ -86,6 +86,52 @@ fn @dirtyNested() -> ptr<memory> [selector=0x40e736da, pure, abi_params=[], abi_
     jump bb1
 }
 
+fn @sharedDirtyChildren() -> ptr<memory> [selector=0x2671b4c3, pure, abi_params=[], abi_returns=[memory_array<memory_array<word<uint160>>>], abi_return_params=[array<_, array<_, address>>]] {
+  bb0:
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    v1 = alloc zeroed checked 96
+    mstore v1, 2
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v7]
+    v3 = lt v2, 2
+    jumpi v3, bb2, bb3
+  bb3:
+    v8 = mload v1
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = ptrtoint ptr<memory> v0 to i256
+    v12 = ptradd v1, 32
+    mstore v12, v11
+    v13 = mload v1
+    v14 = lt 1, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptrtoint ptr<memory> v0 to i256
+    v17 = ptradd v1, 64
+    mstore v17, v16
+    v18 = shl 0xabc, 160
+    v19 = or 255, v18
+    v20 = ptrtoint ptr<memory> v0 to i256
+    v21 = add v20, 32
+    mstore v21, v19
+    v22 = shl 1, 255
+    v23 = or 1, v22
+    v24 = ptrtoint ptr<memory> v0 to i256
+    v25 = add v24, 64
+    mstore v25, v23
+    ret v1
+  bb2:
+    v4 = shl v2, 5
+    v5 = ptradd v1, v4
+    v6 = ptradd v5, 32
+    mstore v6, 96
+    v7 = add v2, 1
+    jump bb1
+}
+
 fn @badEnum() -> ptr<memory> [selector=0xcae49006, pure, abi_params=[], abi_returns=[tuple<word<enum 2>>], abi_return_params=[tuple<enum<2, uint8>>]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)

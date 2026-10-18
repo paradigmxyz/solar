@@ -20,8 +20,9 @@
 //! branch can still be rematerialized instead of spilled. Dynamic return
 //! encoding becomes a semantic `abi_encode_scratch` operation here and lowers later;
 //! static returns use the fixed low-memory return buffer directly. A returned memory
-//! aggregate is encoded as it is: the encoder cleans every word it reads from memory, so
-//! no cleaned copy precedes it. Internal
+//! aggregate is encoded as it is when its return layout gives every narrow word a
+//! validator: the encoder then cleans each word it reads from memory, so no cleaned copy
+//! precedes it. Internal
 //! call sites that targeted a wrapped function are retargeted to its extracted
 //! raw-return body, so internal calls to public functions keep their convention.
 //!
@@ -546,7 +547,16 @@ impl LowerAbiCx {
                             has_bitwise_shifting,
                         );
                     }
-                    if canonical_returns.contains(&index) {
+                    // The encoder cleans each word it reads from a memory aggregate, so a
+                    // cleaned copy would only clean every word twice.
+                    if canonical_returns.contains(&index)
+                        || (!ty.is_scalar_word()
+                            && builder.func().value_ty(value) == Some(MirType::MEMPTR)
+                            && layout
+                                .types
+                                .get(index)
+                                .is_some_and(|abi| encoder_cleans_return(abi, &ty)))
+                    {
                         return value;
                     }
                     canonicalize_return_value(
@@ -3622,11 +3632,6 @@ fn canonicalize_return_value(
     {
         return value;
     }
-    // The encoder reads a memory aggregate's words as memory values and cleans each with the
-    // same validator, so copying the aggregate first would only clean every word twice.
-    if !ty.is_scalar_word() && builder.func().value_ty(value) == Some(MirType::MEMPTR) {
-        return value;
-    }
 
     if let AbiParamType::Enum { variants, .. } = ty {
         builder.validate_enum_value(*variants, value);
@@ -3691,6 +3696,32 @@ fn canonicalize_return_value(
             });
             output
         }
+    }
+}
+
+/// Whether encoding a memory value of shape `ty` with `abi` cleans every word that
+/// [`AbiParamType::needs_return_cleanup`] requires. Source layouts always carry the
+/// validators; a hand-written layout may not, and then needs a cleaned copy.
+fn encoder_cleans_return(abi: &AbiType, ty: &AbiParamType) -> bool {
+    if !ty.needs_return_cleanup() {
+        return true;
+    }
+    match (abi, ty) {
+        (AbiType::Word(Some(validator)), _) => ty.word_validator() == Some(*validator),
+        (AbiType::Function, AbiParamType::Scalar(crate::mir::ValueLayout::Function)) => true,
+        (AbiType::Tuple(fields), AbiParamType::Tuple(tys)) => {
+            fields.len() == tys.len()
+                && fields.iter().zip(tys).all(|(abi, ty)| encoder_cleans_return(abi, ty))
+        }
+        (
+            AbiType::FixedArray { element, len },
+            AbiParamType::FixedArray { element: ty, len: ty_len },
+        ) => len == ty_len && encoder_cleans_return(element, ty),
+        (
+            AbiType::DynamicArray { element, location: PtrLocation::Memory },
+            AbiParamType::DynamicArray(ty),
+        ) => encoder_cleans_return(element, ty),
+        _ => false,
     }
 }
 

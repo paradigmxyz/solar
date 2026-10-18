@@ -2,6 +2,7 @@
 //@ run-call: dirtyStruct => (0x00000000000000000000000000000000000000ff, 7)
 //@ run-call: dirtyFixedArray => [0x00000000000000000000000000000000000000ff, 0x0000000000000000000000000000000000000001]
 //@ run-call: dirtyNested => [(0x00000000000000000000000000000000000000ff, 7)]
+//@ run-call: sharedDirtyChildren => [[0x00000000000000000000000000000000000000ff, 0x0000000000000000000000000000000000000001], [0x00000000000000000000000000000000000000ff, 0x0000000000000000000000000000000000000001]]
 //@ run-call-fail: badEnum => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 
 // Returned memory aggregates are cleaned once, by the encoder, as it reads each
@@ -46,6 +47,17 @@ contract ReturnAggregateCleanup {
         Pair memory p = list[0];
         assembly {
             mstore(p, or(0xff, shl(160, 0xabc)))
+        }
+    }
+
+    function sharedDirtyChildren() external pure returns (address[][] memory list) {
+        address[] memory child = new address[](2);
+        list = new address[][](2);
+        list[0] = child;
+        list[1] = child;
+        assembly {
+            mstore(add(child, 32), or(0xff, shl(160, 0xabc)))
+            mstore(add(child, 64), or(1, shl(255, 1)))
         }
     }
 
