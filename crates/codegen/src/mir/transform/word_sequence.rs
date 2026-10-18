@@ -145,7 +145,7 @@ fn operation_cost(
 fn root_cost(
     func: &Function,
     op: &Op,
-    target: Target,
+    target: &Target,
     constants: &FxHashMap<ValueId, Temporary>,
     branch_only: bool,
 ) -> Cost {

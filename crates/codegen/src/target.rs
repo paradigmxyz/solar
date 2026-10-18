@@ -707,7 +707,7 @@ impl Target {
     /// takes fewer bytes than a copy at every site. When optimizing for size, a copy no larger
     /// than a jump to and from a shared body stays with the backend, whose terminal-block sharing
     /// and outlining handle it in its final layout; sharing it earlier grew the measured code.
-    pub(crate) fn shares_terminal_copy(self, copy: Cost, sites: u32) -> bool {
+    pub(crate) fn shares_terminal_copy(&self, copy: Cost, sites: u32) -> bool {
         let jump = self.label_push() + self.opcode(op::JUMP);
         if matches!(self.optimization, OptimizationMode::Size) && copy.bytes <= jump.times(2).bytes
         {
