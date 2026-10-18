@@ -19,7 +19,9 @@
 //! to nonzero before reducing them, so uninitialized padding cannot affect the
 //! result. The original byte loop remains unreachable and later CFG cleanup
 //! removes it. The copy requires the two ranges to be disjoint, since `mcopy`
-//! moves as if through a buffer while the loop copies upwards. This pass runs
+//! moves as if through a buffer while the loop copies upwards. Word loads and
+//! `mcopy` touch different memory than the byte loads they replace, so in a
+//! module that reads `msize` only the calldata counter applies. This pass runs
 //! after memory-object lowering and `lower-mcopy`, and before stack scheduling.
 //! It is enabled only for gas optimization because the word setup grows code.
 
@@ -44,8 +46,14 @@ impl MirPass for LoopIdioms {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         // `lower-mcopy` has already run, so a copy loop becomes `mcopy` only where it exists.
         let has_mcopy = gcx.sess.opts.evm_version.has_mcopy();
+        // Word loads touch different memory than the byte loads they replace. A caller can read
+        // `msize` after the loop's function returns, so check every function.
+        // NOTE: Switch to `analysis::module_may_observe_msize` once #1949 lands.
+        let memory_idioms = !module.functions.iter().any(|func| {
+            func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
+        });
         run_function_pass_with_alias(module, analyses, |func, analyses| {
-            run_function(func, analyses.alias(), has_mcopy)
+            run_function(func, analyses.alias(), has_mcopy, memory_idioms)
         })
     }
 }
@@ -201,15 +209,22 @@ fn emit_return(builder: &mut FunctionBuilder<'_>, exit: ReturnShape, value: Valu
     }
 }
 
-fn run_function(func: &mut Function, alias: &AliasAnalysis, has_mcopy: bool) -> bool {
+fn run_function(
+    func: &mut Function,
+    alias: &AliasAnalysis,
+    has_mcopy: bool,
+    memory_idioms: bool,
+) -> bool {
     let mut changed = false;
     loop {
-        if let Some(candidate) =
-            func.blocks.indices().find_map(|header| match_ascii_loop(func, header))
+        if memory_idioms
+            && let Some(candidate) =
+                func.blocks.indices().find_map(|header| match_ascii_loop(func, header))
         {
             rewrite_ascii_loop(func, candidate);
-        } else if let Some(candidate) =
-            func.blocks.indices().find_map(|header| match_zero_count_loop(func, header))
+        } else if memory_idioms
+            && let Some(candidate) =
+                func.blocks.indices().find_map(|header| match_zero_count_loop(func, header))
         {
             rewrite_zero_count_loop(func, candidate);
         } else if let Some(candidate) =
@@ -217,6 +232,7 @@ fn run_function(func: &mut Function, alias: &AliasAnalysis, has_mcopy: bool) -> 
         {
             rewrite_zero_count_loop(func, candidate);
         } else if has_mcopy
+            && memory_idioms
             && let Some(candidate) =
                 func.blocks.indices().find_map(|header| match_copy_loop(func, alias, header))
         {
@@ -1115,11 +1131,6 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     }
     let ((source_address, _), byte, dest_address) = (load?, extract?, store?);
     if !step || counter_escapes(func, header, body, index) {
-        return None;
-    }
-    // A discarded read raises the memory high-water mark, and the copy this
-    // builds touches less of it than the reads it replaces.
-    if alias.may_observe_msize(func) {
         return None;
     }
     // The byte read must feed only the write.
