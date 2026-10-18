@@ -67,6 +67,16 @@
 //! naturally leave the carried words; the cheapest plan wins under the objective, weighting loop
 //! blocks by their nesting depth in gas mode.
 //!
+//! Optimized functions also try keeping their most expensive repeated immediate on the stack.
+//! The trial materializes it once in the nearest block outside loops that dominates its uses,
+//! then treats it like a live value. A complete replan prices the resulting copies, shuffles,
+//! and edges. It keeps the original spill set and falls back if the constant makes a word
+//! unreachable. The trial must improve the target's runs-weighted objective without increasing
+//! estimated gas or bytes. Gas outside loops must not increase either, so estimated loop trips
+//! cannot fund more setup. Size mode reserves a jump's bytes as a margin: small local savings can
+//! disrupt later outlining. Within the defining block, materialization waits until the first use,
+//! or the terminator if only successors need it. Call-chain overflow retries omit this word.
+//!
 //! When a needed word lies beyond the target's reach, the value is spilled: it is stored once
 //! when defined, reloaded at every use, and planning restarts. After many restarts, every other
 //! value beyond reach at the failure spills with it, in growing batches. When no value can make
@@ -158,8 +168,8 @@ enum Step {
     ReloadRet,
     /// Pushes a filler word for a layout position that nothing reads.
     Filler,
-    /// Starts the code of an instruction, for debug metadata.
-    Begin(InstId),
+    /// Starts an instruction's debug metadata, or clears it for shared generated code.
+    Begin(Option<InstId>),
     /// Emits one opcode of an instruction whose operands are prepared.
     Op(u8),
     /// Emits the remaining code of an instruction whose operands are prepared.
@@ -257,6 +267,7 @@ struct FunctionPlan {
     /// Internal calls and the physical height below each callee's arguments.
     calls: Vec<(FunctionId, usize)>,
     cost: Cost,
+    non_loop_gas: u32,
 }
 
 /// Module-wide facts shared by every function plan.
@@ -726,7 +737,32 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        Ok(best.expect("at least one plan"))
+        let mut best = best.expect("at least one plan");
+        let hints = FxHashMap::default();
+        if call_spill == CallSpill::None
+            && (target.optimization().is_gas() || target.optimization().is_size())
+            && let Ok(planner) = Planner::new(
+                module,
+                info,
+                func_id,
+                analysis,
+                target,
+                &spilled,
+                ret_spilled,
+                restarts >= single_spills,
+                &hints,
+            )
+            && let Some(planner) = planner.retain_constant()
+            && let Ok(candidate) = planner.plan()
+            && candidate.plan.cost.dominates(best.cost)
+            && candidate.plan.non_loop_gas <= best.non_loop_gas
+            && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
+            && (!target.optimization().is_size()
+                || candidate.plan.cost.bytes.saturating_add(target.jump().bytes) < best.cost.bytes)
+        {
+            best = candidate.plan;
+        }
+        Ok(best)
     }
 
     /// The callers along the deepest non-recursive call chain, when it is deeper than the EVM

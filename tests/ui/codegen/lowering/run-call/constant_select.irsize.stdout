@@ -447,15 +447,11 @@ bb37 [continuation]:
   push 32
   shr
   not
-  swap 1
-  shl
-  push 0
-  not
-  push 32
-  shr
-  not
+  dup 1
   swap 2
-  swap 3
+  shl
+  dup 2
+  swap 4
   swap 1
   dup 3
   swap 1
@@ -463,11 +459,6 @@ bb37 [continuation]:
   mul
   add
   and
-  push 0
-  not
-  push 32
-  shr
-  not
   and
   jump bb88
 bb39:

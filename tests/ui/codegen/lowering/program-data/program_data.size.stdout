@@ -460,10 +460,27 @@ bb30:
   push 32
   dup 2
   add
-  push bb34
-  jump bb32
-bb32:
   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  dup 1
+  dup 3
+  mstore
+  push 64
+  dup 4
+  add
+  mstore
+  push 64
+  dup 2
+  push 96
+  dup 5
+  add
+  mcopy
+  push 32
+  dup 2
+  push 160
+  dup 5
+  add
+  mcopy
+  pop
   swap 1
   jump
 bb22:
@@ -508,28 +525,3 @@ bb26:
   mstore
   push bb23
   jump bb30
-bb33 [continuation]:
-  push 64
-  dup 4
-  add
-  mstore
-  push 64
-  dup 2
-  push 96
-  dup 5
-  add
-  mcopy
-  push 32
-  dup 2
-  push 160
-  dup 5
-  add
-  mcopy
-  pop
-  swap 1
-  jump
-bb34 [continuation]:
-  dup 2
-  mstore
-  push bb33
-  jump bb32
