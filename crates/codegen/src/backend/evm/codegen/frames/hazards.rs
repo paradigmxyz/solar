@@ -446,10 +446,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // These semantic memory operations are normally gone by the `lowered` phase. If
             // one remains, its complete accessed range is not represented as physical operands
             // here, so retain the Solidity memory invariant conservatively.
-            InstKind::AbiEncode { .. }
-            | InstKind::StorageToMemory { .. }
-            | InstKind::MemoryToStorage { .. }
-            | InstKind::MappingSlotBytes(_, _) => true,
+            InstKind::AbiEncode { .. } | InstKind::MappingSlotBytes(_, _) => true,
             _ => false,
         }) {
             return true;

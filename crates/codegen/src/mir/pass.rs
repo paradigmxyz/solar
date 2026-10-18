@@ -100,7 +100,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_integers::LowerIntegers,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
-    &lower_aggregates::LowerAggregates,
     &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
@@ -292,7 +291,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
-    &lower_aggregates::LowerAggregates,
     // Aggregate lowering exposes packed read-modify-write sequences. Forward
     // whole words before deleting the overwritten stores, then simplify masks.
     &storage_load_cse::StorageLoadCse,

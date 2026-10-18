@@ -179,10 +179,10 @@ only static specialization data; runtime values never live in the callee.
 Specializations print in angle brackets, including empty `<>` for fixed targets.
 Return signatures come from the callee. Expansion adds no runtime call overhead.
 
-ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
-allocations, checked arithmetic, packed encoding, and precompiles follow this
-approach. `lower-arithmetic` expands checked word operations and exponentiation
-loops. Loop analysis recognizes checked unsigned word recurrences and affine
+ABI encoding/decoding, memory-object accesses, abstract allocations, checked
+arithmetic, packed encoding, and precompiles follow this approach.
+`lower-arithmetic` expands checked word operations and exponentiation loops.
+Loop analysis recognizes checked unsigned word recurrences and affine
 expressions without removing their checks. When a checked update must stay live,
 strength reduction adds at most one scaled address counter; extra plain-add or
 per-field counters can cost more than the arithmetic they replace. LICM also checks

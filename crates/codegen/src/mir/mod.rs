@@ -30,9 +30,6 @@ pub(crate) use abi::{
 mod packed;
 pub(crate) use packed::{PackedArraySource, PackedPart, packed_element_bytes};
 
-mod storage;
-pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
-
 mod value;
 pub(crate) use value::{Immediate, Value};
 

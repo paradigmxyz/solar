@@ -31,8 +31,8 @@ use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationSemantics,
     ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
     FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, StorageLayoutRef,
-    StructId, ValueId, ValueLayout, typing,
+    MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, StructId, ValueId,
+    ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
 #[cfg(test)]
@@ -631,7 +631,6 @@ opaque_attributes! {
     Bytes, Callee, RevertKind,
     AbiLayoutRef,
     AbiParamLayoutRef,
-    StorageLayoutRef,
 }
 
 /// Emits a wildcard for a named tuple field in a generated match.
@@ -1742,61 +1741,6 @@ define_mir_ops! {
         data: ValueId,
         /// Interned ABI input layout, including scalar validation types.
         layout: AbiParamLayoutRef,
-    },
-    /// Copy a statically shaped aggregate from storage into an existing memory allocation.
-    #[mir_op(
-        mnemonic = "storage_to_memory",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = Some("aggregate")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::MEMPTR]))]
-    StorageToMemory {
-        /// Base storage slot.
-        storage: ValueId,
-        /// Destination memory pointer.
-        memory: ValueId,
-        /// Aggregate layout.
-        layout: StorageLayoutRef,
-    },
-    /// Copy a statically shaped aggregate from memory into storage.
-    #[mir_op(
-        mnemonic = "memory_to_storage",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = StorageWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = Some("aggregate")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::MEMPTR, MirType::I256]))]
-    MemoryToStorage {
-        /// Source memory pointer.
-        memory: ValueId,
-        /// Base storage slot.
-        storage: ValueId,
-        /// Aggregate layout.
-        layout: StorageLayoutRef,
-    },
-    /// Clear every storage slot occupied by a statically shaped aggregate.
-    #[mir_op(
-        mnemonic = "clear_storage",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = StorageWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = Some("aggregate")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256]))]
-    ClearStorage {
-        /// Base storage slot.
-        storage: ValueId,
-        /// Aggregate layout.
-        layout: StorageLayoutRef,
     },
     /// Copy `len` bytes from `src` in memory, calldata, or returndata to `dest` in memory.
     #[mir_op(
