@@ -24,7 +24,7 @@
 //! - Across the CFG: a backward liveness dataflow over constant, word-aligned addresses removes a
 //!   full-word store that no path reads before overwriting it. A symbolic or unbounded read, a
 //!   call, a return to the caller, and a tail call make all memory live; revert and return data
-//!   keep only the words they cover.
+//!   keep only the words they cover, and halts such as `stop` keep none.
 //!
 //! Keys come from alias analysis, which canonicalizes an address as a base plus a constant offset.
 //! Allocation-based keys require the complete access range to fit; wider accesses may overlap
@@ -551,17 +551,19 @@ impl MemoryStoreEliminator {
                 Self::mark_read(func, &mut live, *offset, *size);
             }
             // A `return` value may be a memory pointer the caller dereferences,
-            // a tail call forwards memory to its callee, and a halt observes
-            // nothing but is rare — keep all memory live rather than reason
-            // about escape. `jump`/`branch`/`switch` read no memory; their
-            // successors already contribute liveness via `live_out`.
-            Some(Terminator::Return { .. })
-            | Some(Terminator::TailCall { .. })
-            | Some(Terminator::RevertReturndata)
+            // and a tail call forwards memory to its callee: keep all memory live
+            // rather than reason about escape.
+            Some(Terminator::Return { .. }) | Some(Terminator::TailCall { .. }) => {
+                live = MemLive::All
+            }
+            // Halts end the call and discard its memory without reading it.
+            // `jump`/`branch`/`switch` read no memory; their successors already
+            // contribute liveness via `live_out`.
+            Some(Terminator::RevertReturndata)
             | Some(Terminator::Stop)
             | Some(Terminator::Invalid)
-            | Some(Terminator::SelfDestruct { .. }) => live = MemLive::All,
-            Some(Terminator::Jump(_))
+            | Some(Terminator::SelfDestruct { .. })
+            | Some(Terminator::Jump(_))
             | Some(Terminator::Branch { .. })
             | Some(Terminator::Switch { .. })
             | None => {}
