@@ -10,7 +10,7 @@
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
-      v1 = shr 224, v0
+      v1 = shr v0, 224
       v2 = eq v1, 0x9507d39a
       jumpi v2, bb1, bb2
     bb2:

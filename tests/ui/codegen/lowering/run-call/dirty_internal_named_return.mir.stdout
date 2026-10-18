@@ -16,7 +16,7 @@ fn @narrowAddress(arg0: i256) -> i256 [selector=0x44c29f35, pure, abi_params=[ui
 fn @bytesAddress(arg0: i256) -> i160 [selector=0xab9e6c0c, pure, abi_params=[bytes20], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v1 = shr 96, v0
+    v1 = shr v0, 96
     v2 = trunc i256 v1 to i160
     ret v2
 }
@@ -36,7 +36,7 @@ fn @joinAddress(arg0: i1) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool],
 
 fn @dirtyAddress(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = shl 160, 1
+    v0 = shl 1, 160
     v1 = or arg0, v0
     ret v1
 }
@@ -49,7 +49,7 @@ fn @dirtyBytes(arg0: i256) -> i256 [pure] {
 
 fn @dirtyUint8(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = shl 8, 1
+    v0 = shl 1, 8
     v1 = or arg0, v0
     ret v1
 }
@@ -63,7 +63,7 @@ fn @dirtyBool(arg0: i256) -> i256 [pure] {
 fn @addressBits() -> i256 [selector=0xf41cb93b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyAddress, 2
-    v1 = shr 160, v0
+    v1 = shr v0, 160
     v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v3 = eq v2, 2
     v4 = zext i1 v3 to i256
@@ -74,7 +74,7 @@ fn @addressBits() -> i256 [selector=0xf41cb93b, pure, abi_params=[], abi_returns
 fn @bytesBits() -> i256 [selector=0x92ad518d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
-    v1 = shr 248, v0
+    v1 = shr v0, 248
     v2 = eq v1, 66
     v3 = zext i1 v2 to i256
     v4 = and v3, v0

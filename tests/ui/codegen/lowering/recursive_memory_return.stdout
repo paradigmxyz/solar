@@ -72,7 +72,7 @@ fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[uin
     v24 = lt v20, v23
     v25 = eq v24, false
     icall panic_if<0x32>, v25
-    v26 = shl 5, v20
+    v26 = shl v20, 5
     v27 = ptradd v19, v26
     v28 = ptradd v27, 32
     mstore v28, v22
@@ -97,7 +97,7 @@ fn @fillImpl(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v4 = lt arg1, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = shl 5, arg1
+    v6 = shl arg1, 5
     v7 = ptradd arg0, v6
     v8 = ptradd v7, 32
     mstore v8, v2

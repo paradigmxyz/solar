@@ -96,7 +96,7 @@ fn @fillWords(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xa534f1f0, pure,
     v27 = lt v22, v26
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = shl 5, v22
+    v29 = shl v22, 5
     v30 = ptradd v20, v29
     v31 = ptradd v30, 32
     mstore v31, 7

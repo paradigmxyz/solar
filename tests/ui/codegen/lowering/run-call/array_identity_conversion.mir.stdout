@@ -34,7 +34,7 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
     mstore v3, 0
     v4 = ptradd v3, 32
     mstore v4, 0
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd v0, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v3 to i256
@@ -75,7 +75,7 @@ fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[wo
     mstore v3, 0
     v4 = ptradd v3, 32
     mstore v4, 0
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd v0, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v3 to i256
@@ -113,7 +113,7 @@ fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[
     mstore v3, 0
     v4 = ptradd v3, 32
     mstore v4, 0
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd v0, v5
     v7 = ptrtoint ptr<memory> v3 to i256
     mstore v6, v7

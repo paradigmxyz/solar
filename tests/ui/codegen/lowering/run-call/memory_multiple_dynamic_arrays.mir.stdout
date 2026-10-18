@@ -249,14 +249,14 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
   bb16:
     ret 7
   bb5:
-    v55 = shl 5, v53
+    v55 = shl v53, 5
     v56 = ptradd v52, v55
     v57 = ptradd v56, 32
     mstore v57, 96
     v58 = add v53, 1
     jump bb4
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96

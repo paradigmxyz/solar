@@ -20,7 +20,7 @@ fn @canonicalAddresses() -> ptr<memory> {
     jumpi v3, bb2, bb3
   bb2:
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v112 = shl 5, v2
+    v112 = shl v2, 5
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v112
     mstore v9002, v4
@@ -58,7 +58,7 @@ fn @canonicalAddressArrays() -> ptr<memory> {
     v8 = ptrtoint ptr<memory> v4 to i256
     v9 = inttoptr i256 v8 to ptr<memory>
     v6 = ptrtoint ptr<memory> v9 to i256
-    v113 = shl 5, v2
+    v113 = shl v2, 5
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v113
     mstore v9002, v6
@@ -96,7 +96,7 @@ fn @dirtyAddressArrays() -> ptr<memory> {
     v9001 = ptradd v4, 32
     mstore v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v6 = ptrtoint ptr<memory> v4 to i256
-    v114 = shl 5, v2
+    v114 = shl v2, 5
     v9002 = ptradd v0, 32
     v9003 = ptradd v9002, v114
     mstore v9003, v6
@@ -143,7 +143,7 @@ fn @dirtyAddressAliases() -> ptr<memory> {
     v7 = inttoptr i256 v6 to ptr<memory>
     v9001 = ptradd v7, 32
     mstore v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v115 = shl 5, v2
+    v115 = shl v2, 5
     v9002 = ptradd v0, 32
     v9003 = ptradd v9002, v115
     mstore v9003, v6
@@ -167,11 +167,11 @@ fn @dirtyAddressReloads() -> ptr<memory> {
   bb2:
     v4 = icall @canonicalAddresses
     v6 = ptrtoint ptr<memory> v4 to i256
-    v116 = shl 5, v2
+    v116 = shl v2, 5
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v116
     mstore v9002, v6
-    v117 = shl 5, v2
+    v117 = shl v2, 5
     v9003 = ptradd v0, 32
     v9004 = ptradd v9003, v117
     v7 = mload v9004
@@ -198,7 +198,7 @@ fn @escapingAddressArrays() -> ptr<memory> {
   bb2:
     v4 = icall @canonicalAddresses
     v6 = ptrtoint ptr<memory> v4 to i256
-    v118 = shl 5, v2
+    v118 = shl v2, 5
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v118
     mstore v9002, v6
@@ -333,7 +333,7 @@ fn @bypassedArrayLoop(arg0: i1) -> ptr<memory> {
     jumpi v3, bb2, bb3
   bb2:
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v119 = shl 5, v2
+    v119 = shl v2, 5
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v119
     mstore v9002, v4
@@ -356,7 +356,7 @@ fn @lateArrayLength() -> ptr<memory> {
     v6 = ptrtoint ptr<memory> v0 to i256
     mstore v6, v1
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v120 = shl 5, v2
+    v120 = shl v2, 5
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v120
     mstore v9002, v4

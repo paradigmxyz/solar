@@ -184,7 +184,7 @@ fn @bytesPair(arg0: i256) -> struct1 [view] {
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = insert_value struct1, undef struct1, 0, v6
     v8 = insert_value struct1, v7, 1, arg0

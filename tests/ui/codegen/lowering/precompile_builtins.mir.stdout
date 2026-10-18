@@ -139,7 +139,7 @@ fn @ripemdWord() [selector=0x5c2b7c72, abi_wrapper, pure] {
     revert 0, v11
   bb2:
     v8 = mload 0 !metadata(memory=scratch)
-    v9 = shl 96, v8
+    v9 = shl v8, 96
     mstore 128, v9
     returndata 128, 32
   bb3:
@@ -153,7 +153,7 @@ fn @entry() [entry] {
     jumpi v1, bb12, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb12, [0x8f4bed => bb2, 0x62c5650 => bb3, 0xc4b170a => bb4, 0x1a7d61f8 => bb5, 0x4aa7a4c7 => bb6, 0x5c2b7c72 => bb7, 0x65707d6f => bb8, 0xa1e754ea => bb9, 0xce746024 => bb10, 0xf1609893 => bb11]
   bb11:
     tail_call @shaEmpty

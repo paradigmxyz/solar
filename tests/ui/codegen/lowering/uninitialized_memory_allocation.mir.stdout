@@ -118,7 +118,7 @@ fn @fixedArrayDynamicDefaults() -> struct2 [selector=0x94633452, pure, abi_param
     v16 = insert_value struct2, v15, 2, v13
     ret v16
   bb2:
-    v4 = shl 5, v2
+    v4 = shl v2, 5
     v5 = ptradd v1, v4
     mstore v5, 96
     v6 = add v2, 1
@@ -176,8 +176,8 @@ fn @rawAssemblyPointers() -> struct3 [selector=0x46fec25e, pure, abi_params=[], 
     v6 = ptradd v1, 32
     v7 = mload v6
     v8 = byte 0, v7
-    v9 = shl 248, v8
-    v10 = shr 248, v9
+    v9 = shl v8, 248
+    v10 = shr v9, 248
     v11 = trunc i256 v10 to i8
     v12 = zext i8 v11 to i256
     v13 = mload v2
@@ -187,8 +187,8 @@ fn @rawAssemblyPointers() -> struct3 [selector=0x46fec25e, pure, abi_params=[], 
     v16 = ptradd v2, 32
     v17 = mload v16
     v18 = byte 0, v17
-    v19 = shl 248, v18
-    v20 = shr 248, v19
+    v19 = shl v18, 248
+    v20 = shr v19, 248
     v21 = trunc i256 v20 to i8
     v22 = zext i8 v21 to i256
     v23 = insert_value struct3, undef struct3, 0, v12
@@ -210,11 +210,11 @@ fn @rawPointerPair() -> struct4 [pure] {
     v2 = add v1, 64
     mstore 64, v2 !metadata(memory=scratch)
     mstore v0, 1
-    v3 = shl 248, 17
+    v3 = shl 17, 248
     v4 = add v0, 32
     mstore v4, v3
     mstore v1, 1
-    v5 = shl 248, 34
+    v5 = shl 34, 248
     v6 = add v1, 32
     mstore v6, v5
     v7 = inttoptr i256 v0 to ptr<memory>

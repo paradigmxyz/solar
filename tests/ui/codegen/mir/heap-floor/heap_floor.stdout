@@ -294,7 +294,7 @@
 +     v4 = heap_floor
 +     v5 = lt v1, v4
 +     v6 = select v5, v4, v1
-      v2 = shl 255, 1
+      v2 = shl 1, 255
       v3 = checked_mul uint256, v1, v2
 -     mstore v3, 1
 +     v7 = mul v6, v2
@@ -528,7 +528,7 @@
       v1 = calldataload 4
       v2 = calldataload 36
       mstore 64, v2
-      v3 = shl 5, v1
+      v3 = shl v1, 5
       v4 = ptradd v0, 32
       v5 = ptradd v4, v3
       v6 = mload v5

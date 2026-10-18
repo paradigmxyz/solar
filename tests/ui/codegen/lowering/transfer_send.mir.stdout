@@ -16,7 +16,7 @@ fn @receive() [receive, payable] {
 @module RevertReceiver
 fn @receive() [receive, payable] {
   bb0:
-    v0 = shl 224, 0xdeadbeef
+    v0 = shl 0xdeadbeef, 224
     mstore 0, v0 !metadata(memory=scratch)
     revert 0, 4
 }

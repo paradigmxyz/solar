@@ -31,7 +31,7 @@ fn @reduce(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
     v8 = lt v4, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = shl 5, v4
+    v10 = shl v4, 5
     v11 = ptradd v0, v10
     v12 = ptradd v11, 32
     v13 = mload v12

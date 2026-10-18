@@ -43,7 +43,7 @@
 +     v17 = lt v16, 2
 +     jumpi v17, bb9, bb10
 +   bb10:
-+     v24 = shl 5, v11
++     v24 = shl v11, 5
 +     v25 = ptradd v10, v24
 +     v26 = ptrtoint ptr<memory> v15 to i256
 +     mstore v25, v26
@@ -53,7 +53,7 @@
 +     v18 = mul v16, 32
 +     v19 = add v14, v18
 +     v20 = mload v19
-+     v21 = shl 5, v16
++     v21 = shl v16, 5
 +     v22 = ptradd v15, v21
 +     mstore v22, v20
 +     v23 = add v16, 1

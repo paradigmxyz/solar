@@ -100,7 +100,7 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
   bb2:
     v4 = alloc 32 !metadata(preserves_fmp)
     memory_zero v4, 32
-    v5 = shl 5, v2
+    v5 = shl v2, 5
     v6 = ptradd v1, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v4 to i256
@@ -210,7 +210,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
   bb5:
     v14 = alloc 64 !metadata(preserves_fmp)
     memory_zero v14, 64
-    v15 = shl 5, v12
+    v15 = shl v12, 5
     v16 = ptradd v11, v15
     v17 = ptradd v16, 32
     v18 = ptrtoint ptr<memory> v14 to i256
@@ -220,7 +220,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
   bb2:
     v4 = alloc 64 !metadata(preserves_fmp)
     memory_zero v4, 64
-    v5 = shl 5, v2
+    v5 = shl v2, 5
     v6 = ptradd v1, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v4 to i256

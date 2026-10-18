@@ -16,15 +16,15 @@
 
 // A slice whose length or offset assembly set keeps the copy's checks.
 // CHECK-LABEL: fn @lengthSet
-// CHECK: shr 64, arg1
+// CHECK: shr arg1, 64
 // CHECK: sgt
 // CHECK-LABEL: fn @offsetSet
-// CHECK: shr 64,
+// CHECK: shr {{[^ ,]+}}, 64{{$}}
 // CHECK: sgt
 
 // A public function also takes slices from internal calls, so it keeps them.
 // CHECK-LABEL: fn @forwarded
-// CHECK: shr 64,
+// CHECK: shr {{[^ ,]+}}, 64{{$}}
 // CHECK: sgt
 contract CalldataBytesToMemoryChecks {
     function length(bytes memory b) internal pure returns (uint256) {

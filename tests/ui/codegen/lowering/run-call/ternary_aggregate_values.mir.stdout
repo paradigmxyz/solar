@@ -45,12 +45,12 @@ fn @memoryChoice(arg0: i1, arg1: i256) -> struct1 [selector=0xe6b97384, pure, ab
     v7 = lt arg1, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = shl 5, arg1
+    v9 = shl arg1, 5
     v10 = ptradd v5, v9
     v11 = ptradd v10, 32
     v12 = mload v11
     v13 = checked_add uint256, v12, 7
-    v14 = shl 5, arg1
+    v14 = shl arg1, 5
     v15 = ptradd v5, v14
     v16 = ptradd v15, 32
     mstore v16, v13

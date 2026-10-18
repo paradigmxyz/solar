@@ -172,11 +172,11 @@ fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0xaf36778b
     v12 = and v11, 0xffffffff
-    v13 = shl 224, v12
-    v14 = shr 32, v11
+    v13 = shl v12, 224
+    v14 = shr v11, 32
     v15 = gas
     v16 = abi_encode [], selector v13
     v17 = extract_value slice<memory>, v16, 0
@@ -228,7 +228,7 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
     icall revert_if<tuple_data_too_short>, v16
     v17 = add 0, 0
     v18 = mload v17
-    v19 = shr 160, v18
+    v19 = shr v18, 160
     v20 = eq v19, 0
     v21 = eq v20, false
     icall revert_if<empty>, v21

@@ -69,7 +69,7 @@ contract PointerLoops {
     // end adds the length shifted by five to the start, so that bit is the length's lowest.
     // CHECK-LABEL: fn @sumWords()
     // CHECK: [[LENGTH:v[0-9]+]] = calldataload {{v[0-9]+}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl 5, [[LENGTH]]
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[LENGTH]], 5
     // CHECK: calldatacopy
     // CHECK: = add {{v[0-9]+}}, [[SHIFTED]]
     // CHECK-NEXT: [[BIT:v[0-9]+]] = and [[LENGTH]], 1

@@ -6,8 +6,8 @@
 fn @invoke(arg0: i256, arg1: ptr<memory>) {
   bb0:
     v0 = and arg0, 0xffffffff
-    v1 = shl 224, v0
-    v2 = shr 32, arg0
+    v1 = shl v0, 224
+    v2 = shr arg0, 32
     v3 = gas
     v4 = abi_encode [tuple<word>], selector v1, args arg1
     v5 = extract_value slice<memory>, v4, 0
@@ -26,7 +26,7 @@ fn @invoke(arg0: i256, arg1: ptr<memory>) {
     v15 = extract_value slice<memory>, v13, 1
     v16 = extract_value slice<memory>, v13, 0
     v17 = mload v16
-    v18 = shr 224, v17
+    v18 = shr v17, 224
     jumpi true, bb4, bb5
   bb5:
     revert v14, v15
@@ -68,8 +68,8 @@ fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x76ea4d37, pure, abi_params=[t
 fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
   bb0:
     v0 = and arg0, 0xffffffff
-    v1 = shl 224, v0
-    v2 = shr 32, arg0
+    v1 = shl v0, 224
+    v2 = shr arg0, 32
     v3 = gas
     v4 = abi_encode [tuple<word>], selector v1, args arg1
     v5 = extract_value slice<memory>, v4, 0
@@ -107,7 +107,7 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0x93edcd0d
     v4 = alloc 32
     mstore v4, 7
@@ -120,7 +120,7 @@ fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word]
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xe8be0a6f
     v4 = alloc 32
     mstore v4, 7
@@ -133,7 +133,7 @@ fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word,
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0x76ea4d37
     v4 = alloc 32
     mstore v4, 7

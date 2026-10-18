@@ -7,7 +7,7 @@ fn @single(arg0: ptr<memory>, arg1: i8) -> ptr<memory> [selector=0x1f48d2ce, pur
     v2 = alloc zeroed checked v1
     mstore v2, 1
     v3 = zext i8 arg1 to i256
-    v4 = shl 248, v3
+    v4 = shl v3, 248
     v5 = mload v2
     v6 = lt 0, v5
     v7 = eq v6, false

@@ -44,7 +44,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
   bb2:
     v3 = alloc 32 !metadata(preserves_fmp)
     mstore v3, 0
-    v4 = shl 5, v1
+    v4 = shl v1, 5
     v5 = ptradd v0, v4
     v6 = ptradd v5, 32
     v7 = ptrtoint ptr<memory> v3 to i256
@@ -73,7 +73,7 @@ fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_
     v14 = zext i1 v13 to i256
     ret v14
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96

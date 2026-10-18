@@ -45,7 +45,7 @@ contract C {
     // CHECK-NEXT: [[LEN:v[0-9]+]] = mload arg0
     // CHECK-NEXT: lt arg1, [[LEN]]
     // CHECK: icall panic_if<0x32>
-    // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg1
+    // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl arg1, 5
     // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd arg0, [[OFF1]]
     // CHECK-NEXT: [[ELEM_32:v[0-9]+]] = ptradd [[ELEM]], 32
     // CHECK-NEXT: mstore [[ELEM_32]],

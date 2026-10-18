@@ -11,7 +11,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = eq v7, false
@@ -25,11 +25,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v31 = add v0, 2
     v32 = sub 31, v6
     v33 = mul v32, 8
-    v34 = shl v33, 255
+    v34 = shl 255, v33
     v35 = not v34
     v36 = and v31, v35
     v37 = byte 0, 0x700000000000000000000000000000000000000000000000000000000000000
-    v38 = shl v33, v37
+    v38 = shl v37, v33
     v39 = or v36, v38
     sstore 0, v39 !metadata(storage=slot(0))
     jump bb5
@@ -46,18 +46,18 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
-    v12 = shr 5, v6
+    v12 = shr v6, 5
     v13 = add v11, v12
     v14 = and v6, 31
     v15 = sub 31, v14
     v16 = mul v15, 8
-    v17 = shl v16, 255
+    v17 = shl 255, v16
     v18 = sload v13 !metadata(storage=symbolic(v13))
     v19 = not v17
     v20 = and v18, v19
-    v21 = shr 248, 0x700000000000000000000000000000000000000000000000000000000000000
+    v21 = shr 0x700000000000000000000000000000000000000000000000000000000000000, 248
     v22 = and v21, 255
-    v23 = shl v16, v22
+    v23 = shl v22, v16
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
     jump bb5
@@ -68,7 +68,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v42 = eq v41, 1
     v43 = sub 0, v41
     v44 = or 127, v43
-    v45 = shr 1, v40
+    v45 = shr v40, 1
     v46 = and v45, v44
     v47 = lt v46, 0x10000000000000000
     v48 = eq v47, false
@@ -82,11 +82,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v71 = add v40, 2
     v72 = sub 31, v46
     v73 = mul v72, 8
-    v74 = shl v73, 255
+    v74 = shl 255, v73
     v75 = not v74
     v76 = and v71, v75
     v77 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
-    v78 = shl v73, v77
+    v78 = shl v77, v73
     v79 = or v76, v78
     sstore 0, v79 !metadata(storage=slot(0))
     jump bb10
@@ -103,18 +103,18 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v50 = add v40, 2
     sstore 0, v50 !metadata(storage=slot(0))
     v51 = storage_array_data_slot 0
-    v52 = shr 5, v46
+    v52 = shr v46, 5
     v53 = add v51, v52
     v54 = and v46, 31
     v55 = sub 31, v54
     v56 = mul v55, 8
-    v57 = shl v56, 255
+    v57 = shl 255, v56
     v58 = sload v53 !metadata(storage=symbolic(v53))
     v59 = not v57
     v60 = and v58, v59
-    v61 = shr 248, 0x300000000000000000000000000000000000000000000000000000000000000
+    v61 = shr 0x300000000000000000000000000000000000000000000000000000000000000, 248
     v62 = and v61, 255
-    v63 = shl v56, v62
+    v63 = shl v62, v56
     v64 = or v60, v63
     sstore v53, v64 !metadata(storage=symbolic(v53))
     jump bb10
@@ -125,7 +125,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v82 = eq v81, 1
     v83 = sub 0, v81
     v84 = or 127, v83
-    v85 = shr 1, v80
+    v85 = shr v80, 1
     v86 = and v85, v84
     v87 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v87
@@ -133,7 +133,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v89 = eq v88, 1
     v90 = sub 0, v88
     v91 = or 127, v90
-    v92 = shr 1, v87
+    v92 = shr v87, 1
     v93 = and v92, v91
     v94 = eq v93, 0
     icall panic_if<0x31>, v94
@@ -145,18 +145,18 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jumpi v107, bb12, bb13
   bb13:
     v116 = storage_array_data_slot 0
-    v117 = shr 5, v106
+    v117 = shr v106, 5
     v118 = add v116, v117
     v119 = and v106, 31
     v120 = sub 31, v119
     v121 = mul v120, 8
-    v122 = shl v121, 255
+    v122 = shl 255, v121
     v123 = sload v118 !metadata(storage=symbolic(v118))
     v124 = not v122
     v125 = and v123, v124
-    v126 = shr 248, 0
+    v126 = shr 0, 248
     v127 = and v126, 255
-    v128 = shl v121, v127
+    v128 = shl v127, v121
     v129 = or v125, v128
     sstore v118, v129 !metadata(storage=symbolic(v118))
     v130 = sub v87, 2
@@ -165,7 +165,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb12:
     v108 = sub 32, v106
     v109 = mul v108, 8
-    v110 = shl v109, 1
+    v110 = shl 1, v109
     v111 = sub v110, 1
     v112 = not v111
     v113 = and v87, v112
@@ -178,7 +178,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v97 = sload v96 !metadata(storage=symbolic(v96))
     v98 = sub 32, 31
     v99 = mul v98, 8
-    v100 = shl v99, 1
+    v100 = shl 1, v99
     v101 = sub v100, 1
     v102 = not v101
     v103 = and v97, v102
@@ -194,7 +194,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v133 = eq v132, 1
     v134 = sub 0, v132
     v135 = or 127, v134
-    v136 = shr 1, v131
+    v136 = shr v131, 1
     v137 = and v136, v135
     v138 = eq v137, 0
     icall panic_if<0x31>, v138
@@ -206,18 +206,18 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jumpi v151, bb17, bb18
   bb18:
     v160 = storage_array_data_slot 0
-    v161 = shr 5, v150
+    v161 = shr v150, 5
     v162 = add v160, v161
     v163 = and v150, 31
     v164 = sub 31, v163
     v165 = mul v164, 8
-    v166 = shl v165, 255
+    v166 = shl 255, v165
     v167 = sload v162 !metadata(storage=symbolic(v162))
     v168 = not v166
     v169 = and v167, v168
-    v170 = shr 248, 0
+    v170 = shr 0, 248
     v171 = and v170, 255
-    v172 = shl v165, v171
+    v172 = shl v171, v165
     v173 = or v169, v172
     sstore v162, v173 !metadata(storage=symbolic(v162))
     v174 = sub v131, 2
@@ -226,7 +226,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb17:
     v152 = sub 32, v150
     v153 = mul v152, 8
-    v154 = shl v153, 1
+    v154 = shl 1, v153
     v155 = sub v154, 1
     v156 = not v155
     v157 = and v131, v156
@@ -239,7 +239,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v141 = sload v140 !metadata(storage=symbolic(v140))
     v142 = sub 32, 31
     v143 = mul v142, 8
-    v144 = shl v143, 1
+    v144 = shl 1, v143
     v145 = sub v144, 1
     v146 = not v145
     v147 = and v141, v146
@@ -255,7 +255,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v177 = eq v176, 1
     v178 = sub 0, v176
     v179 = or 127, v178
-    v180 = shr 1, v175
+    v180 = shr v175, 1
     v181 = and v180, v179
     v182 = lt v181, 0x10000000000000000
     v183 = eq v182, false
@@ -269,11 +269,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v206 = add v175, 2
     v207 = sub 31, v181
     v208 = mul v207, 8
-    v209 = shl v208, 255
+    v209 = shl 255, v208
     v210 = not v209
     v211 = and v206, v210
     v212 = byte 0, 0x200000000000000000000000000000000000000000000000000000000000000
-    v213 = shl v208, v212
+    v213 = shl v212, v208
     v214 = or v211, v213
     sstore 0, v214 !metadata(storage=slot(0))
     jump bb25
@@ -290,18 +290,18 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v185 = add v175, 2
     sstore 0, v185 !metadata(storage=slot(0))
     v186 = storage_array_data_slot 0
-    v187 = shr 5, v181
+    v187 = shr v181, 5
     v188 = add v186, v187
     v189 = and v181, 31
     v190 = sub 31, v189
     v191 = mul v190, 8
-    v192 = shl v191, 255
+    v192 = shl 255, v191
     v193 = sload v188 !metadata(storage=symbolic(v188))
     v194 = not v192
     v195 = and v193, v194
-    v196 = shr 248, 0x200000000000000000000000000000000000000000000000000000000000000
+    v196 = shr 0x200000000000000000000000000000000000000000000000000000000000000, 248
     v197 = and v196, 255
-    v198 = shl v191, v197
+    v198 = shl v197, v191
     v199 = or v195, v198
     sstore v188, v199 !metadata(storage=symbolic(v188))
     jump bb25
@@ -312,7 +312,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v217 = eq v216, 1
     v218 = sub 0, v216
     v219 = or 127, v218
-    v220 = shr 1, v215
+    v220 = shr v215, 1
     v221 = and v220, v219
     v222 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v222
@@ -320,7 +320,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v224 = eq v223, 1
     v225 = sub 0, v223
     v226 = or 127, v225
-    v227 = shr 1, v222
+    v227 = shr v222, 1
     v228 = and v227, v226
     v229 = insert_value struct0, undef struct0, 0, v86
     v230 = insert_value struct0, v229, 1, v221

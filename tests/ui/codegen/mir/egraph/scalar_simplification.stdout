@@ -15,8 +15,8 @@
 -     v1 = div v0, 8
 -     v2 = mod arg0, 16
 -     v3 = exp arg0, 2
-+     v0 = shl 5, arg0
-+     v1 = shr 3, v0
++     v0 = shl arg0, 5
++     v1 = shr v0, 3
 +     v2 = and arg0, 15
 +     v3 = mul arg0, arg0
       v4 = add arg0, 4
@@ -84,8 +84,8 @@
 -     v5 = lt 0, v4
 -     v6 = zext i1 arg1 to i256
 -     v7 = gt v6, 0
--     v8 = shl 256, arg0
--     v9 = shr 300, arg0
+-     v8 = shl arg0, 256
+-     v9 = shr arg0, 300
 -     v10 = byte 32, arg0
 -     v11 = signextend 32, arg0
 -     ret v0, v1, v3, v5, v7, v8, v9, v10, v11
@@ -153,9 +153,9 @@
 -     v13 = and 255, 15
 -     v14 = or 16, 1
 -     v15 = xor 15, 3
--     v16 = shl 8, 1
--     v17 = shr 4, 256
--     v18 = sar 1, v7
+-     v16 = shl 1, 8
+-     v17 = shr 256, 4
+-     v18 = sar v7, 1
 -     v19 = byte 31, 255
 -     v20 = signextend 0, 255
 -     v21 = addmod 5, 7, 10
@@ -630,27 +630,27 @@
   
   fn @narrow_shift_roundtrip(arg0: i8) -> i8 {
     bb0:
--     v0 = shl i8 1, arg0
+-     v0 = shl arg0, i8 1
 +     v0 = add arg0, arg0
       v1 = or v0, i8 1
-      v2 = shr i8 1, v1
+      v2 = shr v1, i8 1
       ret v2
   }
   
   fn @address_shift_roundtrip(arg0: i160) -> i160 {
     bb0:
--     v0 = shl i160 1, arg0
+-     v0 = shl arg0, i160 1
 +     v0 = add arg0, arg0
       v1 = or v0, i160 1
-      v2 = shr i160 1, v1
+      v2 = shr v1, i160 1
       ret v2
   }
   
   fn @saturated_narrow_shift_roundtrip(arg0: i8) -> i8 {
     bb0:
--     v0 = shl i8 8, arg0
+-     v0 = shl arg0, i8 8
 -     v1 = or v0, i8 1
--     v2 = shr i8 8, v1
+-     v2 = shr v1, i8 8
 -     ret v2
 +     ret i8 0
   }
@@ -658,10 +658,10 @@
   fn @safe_shift_roundtrip(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 255
--     v1 = shl 248, v0
-+     v1 = shl 248, arg0
+-     v1 = shl v0, 248
++     v1 = shl arg0, 248
       v2 = or v1, 1
--     v3 = shr 248, v2
+-     v3 = shr v2, 248
 -     ret v3
 +     ret v0
   }
@@ -669,10 +669,10 @@
   fn @safe_narrow_shift_roundtrip(arg0: i8) -> i8 {
     bb0:
       v0 = and arg0, i8 127
--     v1 = shl i8 1, v0
+-     v1 = shl v0, i8 1
 +     v1 = add arg0, arg0
       v2 = or v1, i8 1
--     v3 = shr i8 1, v2
+-     v3 = shr v2, i8 1
 -     ret v3
 +     ret v0
   }

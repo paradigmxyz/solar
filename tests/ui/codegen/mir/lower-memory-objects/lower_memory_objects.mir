@@ -35,11 +35,11 @@ fn @objects(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>, arg3: ptr<m
     mstore8 v6, v5
     v11 = ptradd arg2, 32
     mstore v11, v5
-    v115 = shl 5, v5
+    v115 = shl v5, 5
     v12 = ptradd arg1, 32
     v17 = ptradd v12, v115
     mstore v17, v5
-    v116 = shl 5, v5
+    v116 = shl v5, 5
     v13 = ptradd arg3, v116
     mstore v13, v5
     stop

@@ -49,7 +49,7 @@ fn @readDynamic(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xcd97b1f2, pur
     v1 = lt arg1, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = shl 5, arg1
+    v3 = shl arg1, 5
     v4 = ptradd arg0, v3
     v5 = ptradd v4, 32
     v6 = mload v5
@@ -86,7 +86,7 @@ fn @readBytes(arg0: ptr<memory>) -> i256 [selector=0x8b33268b, pure, abi_params=
     v3 = ptradd arg0, 33
     v4 = mload v3
     v5 = byte 0, v4
-    v6 = shl 248, v5
+    v6 = shl v5, 248
     ret v6
 }
 
@@ -101,7 +101,7 @@ fn @readBytesCalldata(arg0: slice<calldata>) -> i256 [selector=0x4bc2c5d5, pure,
     v5 = ptradd v4, 1
     v6 = calldataload v5
     v7 = byte 0, v6
-    v8 = shl 248, v7
+    v8 = shl v7, 248
     ret v8
 }
 

@@ -132,7 +132,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     sstore v80, v82 !metadata(storage=offset(v61, 2))
     jump bb15
   bb13:
-    v63 = shl 5, v58
+    v63 = shl v58, 5
     v64 = ptradd v40, v63
     v65 = mload v64
     v66 = mload v65
@@ -164,7 +164,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v52 = ptradd v45, 64
     mstore v52, v51
     v53 = ptrtoint ptr<memory> v45 to i256
-    v54 = shl 5, v41
+    v54 = shl v41, 5
     v55 = ptradd v40, v54
     mstore v55, v53
     v56 = add v41, 1

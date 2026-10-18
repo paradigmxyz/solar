@@ -88,7 +88,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     jumpi v47, bb5, bb6
   bb6:
     v86 = ptrtoint ptr<memory> v45 to i256
-    v87 = shl 5, v25
+    v87 = shl v25, 5
     v88 = ptradd v24, v87
     v89 = ptradd v88, 32
     mstore v89, v86
@@ -138,7 +138,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     v81 = extract_value slice<calldata>, v78, 1
     calldatacopy v79, v80, v81
     v82 = ptrtoint ptr<memory> v76 to i256
-    v83 = shl 5, v46
+    v83 = shl v46, 5
     v84 = ptradd v45, v83
     mstore v84, v82
     v85 = add v46, 1

@@ -53,7 +53,7 @@ fn @count_caller(arg0: i256, arg1: i256) -> i256 {
 fn @counts(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = and arg0, 0xffff
-    v1 = shr 16, arg0
+    v1 = shr arg0, 16
     v2 = and v1, 0xffff
     v3 = insert_value struct0, undef struct0, 0, v0
     v4 = insert_value struct0, v3, 1, v2

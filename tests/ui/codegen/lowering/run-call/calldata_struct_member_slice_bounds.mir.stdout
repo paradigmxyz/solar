@@ -90,11 +90,11 @@ fn @_decodeBatch(arg0: slice<calldata>) -> slice<calldata> [pure] {
     v17 = extract_value slice<calldata>, v15, 0
     v18 = make_calldata_slice v17, v16
     v19 = extract_value slice<calldata>, v18, 1
-    v20 = shl 5, v19
+    v20 = shl v19, 5
     v21 = add v5, v20
     v22 = gt v21, v10
     v23 = zext i1 v22 to i256
-    v24 = shr 64, v2
+    v24 = shr v2, 64
     v25 = or v24, v23
     v26 = ne v25, 0
     jumpi v26, bb1, bb2

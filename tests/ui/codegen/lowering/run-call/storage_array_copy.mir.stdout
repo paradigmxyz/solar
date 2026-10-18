@@ -160,7 +160,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     v12 = sload v11 !metadata(storage=offset(v7, 1))
     v13 = ptradd v9, 32
     mstore v13, v12
-    v14 = shl 5, v6
+    v14 = shl v6, 5
     v15 = ptradd v4, v14
     v16 = ptradd v15, 32
     v17 = ptrtoint ptr<memory> v9 to i256

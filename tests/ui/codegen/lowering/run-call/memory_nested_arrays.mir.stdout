@@ -72,7 +72,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[uint2
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = ptrtoint ptr<memory> v12 to i256
-    v23 = shl 5, v10
+    v23 = shl v10, 5
     v24 = ptradd v9, v23
     v25 = ptradd v24, 32
     mstore v25, v22
@@ -101,7 +101,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[uint2
     v34 = lt v29, v33
     v35 = eq v34, false
     icall panic_if<0x32>, v35
-    v36 = shl 5, v29
+    v36 = shl v29, 5
     v37 = ptradd v28, v36
     v38 = ptradd v37, 32
     v39 = mload v38, ptr<memory>
@@ -110,7 +110,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[uint2
     v42 = eq v41, false
     icall panic_if<0x32>, v42
     v43 = ptrtoint ptr<memory> v32 to i256
-    v44 = shl 5, v30
+    v44 = shl v30, 5
     v45 = ptradd v39, v44
     v46 = ptradd v45, 32
     mstore v46, v43
@@ -121,14 +121,14 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[uint2
     v47 = checked_add uint256, v30, 1
     jump bb13
   bb11:
-    v15 = shl 5, v13
+    v15 = shl v13, 5
     v16 = ptradd v12, v15
     v17 = ptradd v16, 32
     mstore v17, 96
     v18 = add v13, 1
     jump bb10
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -190,7 +190,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[uint256
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = ptrtoint ptr<memory> v12 to i256
-    v23 = shl 5, v10
+    v23 = shl v10, 5
     v24 = ptradd v9, v23
     v25 = ptradd v24, 32
     mstore v25, v22
@@ -219,7 +219,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[uint256
     v34 = lt v29, v33
     v35 = eq v34, false
     icall panic_if<0x32>, v35
-    v36 = shl 5, v29
+    v36 = shl v29, 5
     v37 = ptradd v28, v36
     v38 = ptradd v37, 32
     v39 = mload v38, ptr<memory>
@@ -228,7 +228,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[uint256
     v42 = eq v41, false
     icall panic_if<0x32>, v42
     v43 = ptrtoint ptr<memory> v32 to i256
-    v44 = shl 5, v30
+    v44 = shl v30, 5
     v45 = ptradd v39, v44
     v46 = ptradd v45, 32
     mstore v46, v43
@@ -239,14 +239,14 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[uint256
     v47 = checked_add uint256, v30, 1
     jump bb13
   bb11:
-    v15 = shl 5, v13
+    v15 = shl v13, 5
     v16 = ptradd v12, v15
     v17 = ptradd v16, 32
     mstore v17, 96
     v18 = add v13, 1
     jump bb10
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96

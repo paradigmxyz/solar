@@ -95,7 +95,7 @@ fn @scan(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x8090fa42, pure, 
   bb2:
     ret v2
   bb4:
-    v5 = shl 5, v3
+    v5 = shl v3, 5
     v6 = extract_value slice<calldata>, v0, 0
     v7 = ptrtoint ptr<calldata> v6 to i256
     v8 = add v7, v5
@@ -127,7 +127,7 @@ fn @scanFrom1(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xa64f2d9f, p
   bb2:
     ret v2
   bb4:
-    v5 = shl 5, v3
+    v5 = shl v3, 5
     v6 = extract_value slice<calldata>, v0, 0
     v7 = ptrtoint ptr<calldata> v6 to i256
     v8 = add v7, v5
