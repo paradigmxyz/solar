@@ -753,7 +753,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 info,
                 func_id,
                 analysis,
-                target,
+                &target,
                 &spilled,
                 ret_spilled,
                 restarts >= single_spills,
