@@ -7,8 +7,11 @@
 //! `lower-evm-shaped` later erases pointer types altogether. Unreachable blocks are removed first:
 //! their definitions need not obey SSA and can contain cast cycles.
 //!
-//! A function whose signature carries a memory reference is marked as possibly returning memory.
-//! Allocations stay as they are; `coalesce-allocs` fuses constant-size runs after slice lowering.
+//! Within a block, a run of constant-size internal allocations separated only by stores into them
+//! and their address arithmetic becomes one allocation and constant offsets from it, provided
+//! every member is written, so the group pays for one free-memory-pointer bump. `coalesce-allocs`
+//! later fuses the wider groups this conservative scan leaves, once slice lowering has run. A
+//! function whose signature carries a memory reference is marked as possibly returning memory.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
@@ -17,9 +20,11 @@
 //! subsequent phase checks.
 
 use crate::mir::{
-    Function, FunctionBuilder, InstId, InstKind, MirType, Module, Value, pass::MirPass,
+    AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType, Module,
+    PtrLocation, Value, pass::MirPass,
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use alloy_primitives::U256;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Lowers semantic object layouts under the selected physical memory policy.
@@ -114,6 +119,7 @@ fn lower_function(func: &mut Function) -> bool {
 
     func.attributes.may_return_memory |=
         func.params.iter().chain(func.return_components()).any(|ty| ty.is_memory_reference());
+    coalesce_constant_allocations(func);
     normalize_pointer_operands(func);
     remove_unused_pointer_casts(func);
     true
@@ -167,6 +173,127 @@ fn remove_unused_pointer_casts(func: &mut Function) {
     for block in func.blocks.iter_mut() {
         block.instructions.retain(|&inst| !dead.contains(inst));
     }
+}
+
+/// Combines adjacent constant-size internal allocations before their first observable
+/// operation. Lowering a call's literal arguments commonly emits one small
+/// allocation per argument; one bump for the whole group keeps the same
+/// disjoint ranges while removing repeated free-memory-pointer updates.
+fn coalesce_constant_allocations(func: &mut Function) {
+    for block in func.blocks.indices() {
+        let instructions = func.blocks[block].instructions.clone();
+        let mut position = 0;
+        while position < instructions.len() {
+            let inst_id = instructions[position];
+            let Some(first) = constant_allocation(func, inst_id) else {
+                position += 1;
+                continue;
+            };
+
+            let mut allocations = Vec::new();
+            allocations.push((inst_id, first, false));
+            // The member each address belongs to, and whether it is an integer cast of the
+            // member, which only addresses its header word.
+            let mut owners = IndexVec::from_vec(vec![None; func.num_values()]);
+            owners[first.result] = Some((0, false));
+            let mut scan = position + 1;
+            while scan < instructions.len() {
+                let next_id = instructions[scan];
+                if let Some(allocation) = constant_allocation(func, next_id) {
+                    if allocation.deferred_alloc != first.deferred_alloc {
+                        break;
+                    }
+                    let index = allocations.len();
+                    allocations.push((next_id, allocation, false));
+                    owners[allocation.result] = Some((index, false));
+                    scan += 1;
+                    continue;
+                }
+
+                let member =
+                    |value: crate::mir::ValueId| owners[value].filter(|&(_, header)| !header);
+                let derived = match func.inst(next_id).kind {
+                    InstKind::Store(address, .., PtrLocation::Memory)
+                    | InstKind::Store8(address, ..) => {
+                        let Some((owner, _)) = owners[address] else { break };
+                        allocations[owner].2 = true;
+                        scan += 1;
+                        continue;
+                    }
+                    InstKind::Add(lhs, rhs) if func.value_u64(rhs).is_some() => member(lhs),
+                    InstKind::Add(lhs, rhs) if func.value_u64(lhs).is_some() => member(rhs),
+                    InstKind::PtrToInt(base, 256) => member(base).map(|(owner, _)| (owner, true)),
+                    _ => None,
+                };
+                let (Some(derived), Some(result)) = (derived, func.inst_result_value(next_id))
+                else {
+                    break;
+                };
+                owners[result] = Some(derived);
+                scan += 1;
+            }
+
+            if allocations.len() < 2 || allocations.iter().any(|(_, _, stored)| !stored) {
+                position += 1;
+                continue;
+            }
+
+            let Some(total) = allocations
+                .iter()
+                .try_fold(0_u64, |total, (_, allocation, _)| total.checked_add(allocation.size))
+            else {
+                position = scan;
+                continue;
+            };
+            let preserves_fmp =
+                allocations.iter().any(|(inst, _, _)| func.inst(*inst).metadata.preserves_fmp());
+            let base = allocations[0].1.result;
+            let size = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(total))));
+            let mut offset = 0_u64;
+            // base = alloc total !preserves_fmp(any member)
+            // remaining members = base + offset
+            for (index, (allocation_id, allocation, _)) in allocations.iter().enumerate() {
+                if index == 0 {
+                    let inst = func.inst_mut(*allocation_id);
+                    inst.kind = InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL };
+                    inst.metadata.set_preserves_fmp(preserves_fmp);
+                } else {
+                    let offset_value =
+                        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(offset))));
+                    let inst = func.inst_mut(*allocation_id);
+                    inst.kind = InstKind::Add(base, offset_value);
+                    inst.metadata.set_effect(Some(inst.kind.effect_kind()));
+                    inst.metadata.set_memory_region(None);
+                    inst.metadata.set_storage_alias(None);
+                    inst.metadata.clear_deferred_alloc();
+                    inst.metadata.set_preserves_fmp(false);
+                }
+                offset = offset.saturating_add(allocation.size);
+            }
+            position = scan;
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ConstantAllocation {
+    result: crate::mir::ValueId,
+    size: u64,
+    deferred_alloc: bool,
+}
+
+fn constant_allocation(func: &Function, inst_id: crate::mir::InstId) -> Option<ConstantAllocation> {
+    let InstKind::Alloc { size, semantics } = func.inst(inst_id).kind else {
+        return None;
+    };
+    if semantics != AllocationSemantics::INTERNAL {
+        return None;
+    }
+    Some(ConstantAllocation {
+        result: func.inst_result_value(inst_id)?,
+        size: func.value_u64(size)?,
+        deferred_alloc: func.inst(inst_id).metadata.deferred_alloc(),
+    })
 }
 
 /// Gives an EVM opcode with a pointer operand, or whose operands or result do not match its types,
