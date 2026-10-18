@@ -4,19 +4,19 @@
 
 // === ROOT/tests/ui/codegen/lowering/checked_bit_search.sol:CheckedBitSearch ===
 @module CheckedBitSearch
-fn @fls.0(arg0: i256) -> i256 [selector=0x27be8b2d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fls.0(arg0: i256) -> i256 [selector=0x27be8b2d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @fls.3, arg0
     ret v0
 }
 
-fn @clz.1(arg0: i256) -> i256 [selector=0x30244f7a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @clz.1(arg0: i256) -> i256 [selector=0x30244f7a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @clz.4, arg0
     ret v0
 }
 
-fn @ffs.2(arg0: i256) -> i256 [selector=0x2297890a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @ffs.2(arg0: i256) -> i256 [selector=0x2297890a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @ffs.5, arg0
     ret v0
@@ -125,7 +125,7 @@ fn @clz.4(arg0: i256) -> i256 [pure] {
     jumpi v0, bb1, bb2
   bb2:
     v1 = icall @fls.3, arg0
-    v2 = checked_sub u256, 255, v1
+    v2 = checked_sub uint256, 255, v1
     jump bb3
   bb1:
     jump bb3
@@ -140,7 +140,7 @@ fn @ffs.5(arg0: i256) -> i256 [pure] {
     jumpi v0, bb1, bb2
   bb2:
     v1 = not arg0
-    v2 = checked_add u256, v1, 1
+    v2 = checked_add uint256, v1, 1
     v3 = and arg0, v2
     v4 = icall @fls.3, v3
     jump bb3

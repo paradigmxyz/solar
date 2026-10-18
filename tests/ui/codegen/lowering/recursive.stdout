@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive.sol:Recursive ===
 @module Recursive
-fn @fact(arg0: i256) -> i256 [selector=0x0b95d228, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fact(arg0: i256) -> i256 [selector=0x0b95d228, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, 1
     v1 = eq v0, false
@@ -8,15 +8,15 @@ fn @fact(arg0: i256) -> i256 [selector=0x0b95d228, pure, abi_params=[u256], abi_
   bb2:
     jump bb3
   bb3:
-    v2 = checked_sub u256, arg0, 1
+    v2 = checked_sub uint256, arg0, 1
     v3 = icall @fact, v2
-    v4 = checked_mul u256, arg0, v3
+    v4 = checked_mul uint256, arg0, v3
     ret v4
   bb1:
     ret 1
 }
 
-fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, 1
     v1 = eq v0, false
@@ -24,38 +24,38 @@ fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_r
   bb2:
     jump bb3
   bb3:
-    v2 = checked_sub u256, arg0, 1
+    v2 = checked_sub uint256, arg0, 1
     v3 = icall @fib, v2
-    v4 = checked_sub u256, arg0, 2
+    v4 = checked_sub uint256, arg0, 2
     v5 = icall @fib, v4
-    v6 = checked_add u256, v3, v5
+    v6 = checked_add uint256, v3, v5
     ret v6
   bb1:
     ret arg0
 }
 
-fn @isEven(arg0: i256) -> i1 [selector=0x2a2e1320, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @isEven(arg0: i256) -> i1 [selector=0x2a2e1320, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v1 = checked_sub u256, arg0, 1
+    v1 = checked_sub uint256, arg0, 1
     v2 = icall @isOdd, v1
     ret v2
   bb1:
     ret true
 }
 
-fn @isOdd(arg0: i256) -> i1 [selector=0xd8b3a2eb, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @isOdd(arg0: i256) -> i1 [selector=0xd8b3a2eb, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v1 = checked_sub u256, arg0, 1
+    v1 = checked_sub uint256, arg0, 1
     v2 = icall @isEven, v1
     ret v2
   bb1:

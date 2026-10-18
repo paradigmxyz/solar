@@ -71,7 +71,7 @@ fn @freshInLoop(arg0: i256) -> i1 [selector=0x533a7d1b, pure, abi_params=[bytes1
   bb6:
     jump bb3
   bb3:
-    v33 = checked_add u256, v3, 1
+    v33 = checked_add uint256, v3, 1
     jump bb1
   bb16:
     ret false
@@ -79,14 +79,14 @@ fn @freshInLoop(arg0: i256) -> i1 [selector=0x533a7d1b, pure, abi_params=[bytes1
     ret false
 }
 
-fn @emptyLiteral() -> i256 [selector=0x298b653f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptyLiteral() -> i256 [selector=0x298b653f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @empty
     v1 = mload v0
     ret v1
 }
 
-fn @encoded(arg0: i256) -> ptr<memory> [selector=0xdbafcb80, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encoded(arg0: i256) -> ptr<memory> [selector=0xdbafcb80, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = shl 224, 0x12345678
     v1 = icall @encodedWord

@@ -2,7 +2,7 @@
 //@filecheck:
 // `tail_call` round-trips through the text format: control transfers to the
 // callee and does not return, so the case block needs no trailing terminator.
-// The arity is validated against the callee (one u256 argument here).
+// The arity is validated against the callee (one `i256` argument here).
 @module TailCallRoundtrip
 @phase semantic
 fn @wrapper(arg0: i256) {

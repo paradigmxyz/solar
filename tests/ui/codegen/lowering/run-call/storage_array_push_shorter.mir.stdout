@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64
     mstore v0, 5
@@ -85,7 +85,7 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
     jump bb1
 }
 
-fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64
     mstore v0, 1
@@ -163,7 +163,7 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
     jump bb1
 }
 
-fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64
     mstore v0, 7

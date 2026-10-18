@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_copy_memory_storage.sol:ArrayCopyMemoryStorage ===
 @module ArrayCopyMemoryStorage
-fn @copyDynamic() -> i32 [selector=0x902a0a84, abi_params=[], abi_returns=[word<u32>], abi_return_params=[u32]] {
+fn @copyDynamic() -> i32 [selector=0x902a0a84, abi_params=[], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
   bb0:
     v0 = alloc zeroed checked 128
     mstore v0, 3
@@ -111,7 +111,7 @@ fn @copyDynamic() -> i32 [selector=0x902a0a84, abi_params=[], abi_returns=[word<
     jump bb3
 }
 
-fn @copyFixed() -> i32 [selector=0x23235673, abi_params=[], abi_returns=[word<u32>], abi_return_params=[u32]] {
+fn @copyFixed() -> i32 [selector=0x23235673, abi_params=[], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     memory_zero v0, 96
@@ -183,7 +183,7 @@ fn @copyFixed() -> i32 [selector=0x23235673, abi_params=[], abi_returns=[word<u3
     v96 = mul v94, 8
     v97 = shr v96, v95
     v98 = trunc i256 v97 to i32
-    v99 = checked_add u32, v88, v98
+    v99 = checked_add uint32, v88, v98
     v100 = sload 0 !metadata(storage=slot(0))
     v101 = lt 2, v100
     v102 = eq v101, false
@@ -197,7 +197,7 @@ fn @copyFixed() -> i32 [selector=0x23235673, abi_params=[], abi_returns=[word<u3
     v109 = mul v107, 8
     v110 = shr v109, v108
     v111 = trunc i256 v110 to i32
-    v112 = checked_add u32, v99, v111
+    v112 = checked_add uint32, v99, v111
     ret v112
   bb10:
     v52 = div v50, 8

@@ -124,3 +124,21 @@ fn @merged_allocations() -> ptr<memory> {
     mstore v3, 0
     ret v1
 }
+
+// A pointer cast of a narrower integer keeps its casts: folding them would return or merge the
+// `i1` where the word belongs.
+// CHECK-LABEL: {{^[ +].*}}fn @narrow_word{{[( ]}}
+// CHECK: [[POINTER:v[0-9]+]] = inttoptr i1 arg0 to ptr<memory>
+// CHECK-NEXT: [[WORD:v[0-9]+]] = ptrtoint ptr<memory> [[POINTER]] to i256
+// CHECK: phi [bb0: [[WORD]]], [bb1: arg1]
+fn @narrow_word(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    v0 = inttoptr i1 arg0 to ptr<memory>
+    v1 = ptrtoint ptr<memory> v0 to i256
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb2
+  bb2:
+    v2 = phi [bb0: v1], [bb1: arg1]
+    ret v2
+}

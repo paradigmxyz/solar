@@ -124,7 +124,7 @@ fn @constructor() [constructor] {
     jump bb1
 }
 
-fn @getXs() -> ptr<memory> [selector=0x462bb004, view, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @getXs() -> ptr<memory> [selector=0x462bb004, view, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = icall @load_storage_word_array, 0
     ret v0
@@ -148,7 +148,7 @@ fn @getBytes() -> ptr<memory> [selector=0x0bcd3b33, pure, abi_params=[], abi_ret
     ret v0
 }
 
-fn @getFixed() -> ptr<memory> [selector=0x86952750, view, abi_params=[], abi_returns=[array<3, word>], abi_return_params=[array<3, u256>]] {
+fn @getFixed() -> ptr<memory> [selector=0x86952750, view, abi_params=[], abi_returns=[array<3, word>], abi_return_params=[array<3, uint256>]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     memory_zero v0, 96
@@ -182,7 +182,7 @@ fn @getName() -> ptr<memory> [selector=0x17d7de7c, view, abi_params=[], abi_retu
     ret v5
 }
 
-fn @getNested() -> ptr<memory> [selector=0x2ec68451, view, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
+fn @getNested() -> ptr<memory> [selector=0x2ec68451, view, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, uint256>>]] {
   bb0:
     v0 = sload 5 !metadata(storage=slot(5))
     v1 = mul v0, 1
@@ -234,7 +234,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }
 
@@ -246,7 +246,7 @@ fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
-fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
@@ -274,7 +274,7 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     revert_returndata
   bb4:
     v15 = icall returndata_bytes<>
-    v16 = abi_decode [array<_, u256>], v15
+    v16 = abi_decode [array<_, uint256>], v15
     v17 = mload v16
     jump bb5
   bb5:
@@ -300,12 +300,12 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     v28 = ptradd v20, v27
     v29 = ptradd v28, 32
     v30 = mload v29
-    v31 = checked_add u256, v19, v30
+    v31 = checked_add uint256, v19, v30
     jump bb10
   bb10:
     jump bb7
   bb7:
-    v32 = checked_add u256, v21, 1
+    v32 = checked_add uint256, v21, 1
     jump bb5
 }
 
@@ -317,7 +317,7 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
-fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, u256]] {
+fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
@@ -365,7 +365,7 @@ fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
-fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
@@ -403,7 +403,7 @@ fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[w
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
-fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
@@ -435,7 +435,7 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
     v17 = lt v16, 96
     icall revert_if<tuple_data_too_short>, v17
     v18 = make_memory_slice v13, 96
-    v19 = abi_decode [array<3, u256>], v18
+    v19 = abi_decode [array<3, uint256>], v18
     v20 = lt 0, 3
     v21 = eq v20, false
     icall panic_if<0x32>, v21
@@ -445,13 +445,13 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
     icall panic_if<0x32>, v24
     v25 = ptradd v19, 32
     v26 = mload v25
-    v27 = checked_add u256, v22, v26
+    v27 = checked_add uint256, v22, v26
     v28 = lt 2, 3
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v19, 64
     v31 = mload v30
-    v32 = checked_add u256, v27, v31
+    v32 = checked_add uint256, v27, v31
     ret v32
 }
 
@@ -460,7 +460,7 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
-fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
@@ -498,7 +498,7 @@ fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
-fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
@@ -526,7 +526,7 @@ fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word],
     revert_returndata
   bb4:
     v15 = icall returndata_bytes<>
-    v16 = abi_decode [array<_, array<_, u256>>], v15
+    v16 = abi_decode [array<_, array<_, uint256>>], v15
     v17 = mload v16
     v18 = lt 0, v17
     v19 = eq v18, false

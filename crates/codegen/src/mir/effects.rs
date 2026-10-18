@@ -170,9 +170,6 @@ impl InstKind {
             | Self::MSize
             | Self::Fmp
             | Self::SetFmp(..)
-            | Self::StorageToMemory { .. }
-            | Self::MemoryToStorage { .. }
-            | Self::ClearStorage { .. }
             | Self::Copy(..)
             | Self::CalldataSize
             | Self::MakeSlice { .. }
@@ -271,7 +268,6 @@ impl InstKind {
                 Self::Alloc { .. }
                     | Self::AbiEncode { .. }
                     | Self::AbiEncodePacked { .. }
-                    | Self::StorageToMemory { .. }
                     | Self::StorageBytesLoad(..)
                     | Self::StorageArrayLoad { .. }
                     | Self::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }

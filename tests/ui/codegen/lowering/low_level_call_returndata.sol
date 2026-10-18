@@ -7,7 +7,7 @@ interface IERC20Minimal {
 
 contract LowLevelCallReturndata {
     // CHECK-LABEL: fn @safeTransfer{{[( ]}}
-    // CHECK: {{v[0-9]+}} = abi_encode [word<u160>, word], object, selector 0xa9059cbb
+    // CHECK: {{v[0-9]+}} = abi_encode [word<uint160>, word], object, selector 0xa9059cbb
     // CHECK: {{v[0-9]+}} = address_call arg0,
     // CHECK: {{v[0-9]+}} = icall returndata_bytes<>
     // CHECK: abi_decode [bool]
@@ -18,10 +18,10 @@ contract LowLevelCallReturndata {
     }
 
     // CHECK-LABEL: fn @balanceOf{{[( ]}}
-    // CHECK: abi_encode [word<u160>], object, selector 0x70a08231
+    // CHECK: abi_encode [word<uint160>], object, selector 0x70a08231
     // CHECK: {{v[0-9]+}} = address_staticcall arg0,
     // CHECK: {{v[0-9]+}} = icall returndata_bytes<>
-    // CHECK: {{v[0-9]+}} = abi_decode [u256]
+    // CHECK: {{v[0-9]+}} = abi_decode [uint256]
     function balanceOf(address token) public view returns (uint256) {
         (bool success, bytes memory data) =
             token.staticcall(abi.encodeWithSignature("balanceOf(address)", address(this)));

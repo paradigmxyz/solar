@@ -2,7 +2,7 @@
 //@filecheck: --enable-var-scope
 @module LicmMemoryAlias
 @immutables
-  value: u256
+  value: uint256
 
 // CHECK-LABEL: @hoist_non_aliasing_mload
 // CHECK: +     [[LOAD:v[0-9]+]] = mload [[ADDR:[0-9]+]]

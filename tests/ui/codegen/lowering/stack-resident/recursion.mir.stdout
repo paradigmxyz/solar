@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/stack-resident/recursion.sol:Recursion ===
 @module Recursion
-fn @fact(arg0: i256) -> i256 [selector=0x0b95d228, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fact(arg0: i256) -> i256 [selector=0x0b95d228, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @factorial, arg0
     ret v0
 }
 
-fn @total(arg0: i256) -> i256 [selector=0xb119ebfe, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @total(arg0: i256) -> i256 [selector=0xb119ebfe, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @sum, arg0, 0
     ret v0
@@ -20,9 +20,9 @@ fn @factorial(arg0: i256) -> i256 [pure] {
   bb2:
     jump bb3
   bb3:
-    v2 = checked_sub u256, arg0, 1
+    v2 = checked_sub uint256, arg0, 1
     v3 = icall @factorial, v2
-    v4 = checked_mul u256, arg0, v3
+    v4 = checked_mul uint256, arg0, v3
     ret v4
   bb1:
     ret 1

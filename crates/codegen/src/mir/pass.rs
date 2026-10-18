@@ -101,7 +101,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_integers::LowerIntegers,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
-    &lower_aggregates::LowerAggregates,
     &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
@@ -293,9 +292,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
-    &lower_aggregates::LowerAggregates,
-    // Aggregate lowering exposes packed read-modify-write sequences. Forward
-    // whole words before deleting the overwritten stores, then simplify masks.
+    // Packed storage writes leave read-modify-write sequences. Forward whole
+    // words before deleting the overwritten stores, then simplify masks.
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &egraph::Egraph,
@@ -304,7 +302,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &memory_dse::MemoryDse,
     // Check elimination and CFG cleanup expose straight-line immutable helpers.
     &inline::InlineImmutableLeaves,
-    // Late CSE reduces runtime gas after aggregate lowering, but can grow
+    // Late CSE reduces runtime gas after ABI encoding lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly::new(cse::Cse),
     // Common dominated loads before PRE replaces join loads with phis, then

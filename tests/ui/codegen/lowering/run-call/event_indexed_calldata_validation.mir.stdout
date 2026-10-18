@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/event_indexed_calldata_validation.sol:EventIndexedCalldataValidation ===
 @module EventIndexedCalldataValidation
-fn @emitValues(arg0: slice<calldata>) -> i256 [selector=0x797a5ca9, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @emitValues(arg0: slice<calldata>) -> i256 [selector=0x797a5ca9, abi_params=[array<_, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -36,7 +36,7 @@ fn @emitValues(arg0: slice<calldata>) -> i256 [selector=0x797a5ca9, abi_params=[
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
-    v36 = abi_encode_packed (array<word<u8>> memoryarray<1> v22)
+    v36 = abi_encode_packed (array<word<uint8>> memoryarray<1> v22)
     v37 = ptradd v36, 32
     v38 = mload v36
     v39 = keccak256 v37, v38

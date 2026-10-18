@@ -1,30 +1,30 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/narrow_bitwise_not.sol:NarrowBitwiseNot ===
 @module NarrowBitwiseNot
-fn @notUint8(arg0: i8) -> i8 [selector=0x129f3ff5, pure, abi_params=[u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @notUint8(arg0: i8) -> i8 [selector=0x129f3ff5, pure, abi_params=[uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = not arg0
     ret v0
 }
 
-fn @notUint16(arg0: i16) -> i16 [selector=0xfec0a8c2, pure, abi_params=[u16], abi_returns=[word<u16>], abi_return_params=[u16]] {
+fn @notUint16(arg0: i16) -> i16 [selector=0xfec0a8c2, pure, abi_params=[uint16], abi_returns=[word<uint16>], abi_return_params=[uint16]] {
   bb0:
     v0 = not arg0
     ret v0
 }
 
-fn @notUint256(arg0: i256) -> i256 [selector=0x245aff7f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @notUint256(arg0: i256) -> i256 [selector=0x245aff7f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not arg0
     ret v0
 }
 
-fn @notInt8(arg0: i8) -> i8 [selector=0x78e60e9a, pure, abi_params=[i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @notInt8(arg0: i8) -> i8 [selector=0x78e60e9a, pure, abi_params=[int8], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
     v0 = not arg0
     ret v0
 }
 
-fn @notInt16(arg0: i16) -> i16 [selector=0x5465f970, pure, abi_params=[i16], abi_returns=[word<i16>], abi_return_params=[i16]] {
+fn @notInt16(arg0: i16) -> i16 [selector=0x5465f970, pure, abi_params=[int16], abi_returns=[word<int16>], abi_return_params=[int16]] {
   bb0:
     v0 = not arg0
     ret v0
@@ -61,7 +61,7 @@ fn @notBytes32(arg0: i256) -> i256 [selector=0xb683cb30, pure, abi_params=[bytes
     ret v0
 }
 
-fn @notLiteral() -> i256 [selector=0x3fa60fe7, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @notLiteral() -> i256 [selector=0x3fa60fe7, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }

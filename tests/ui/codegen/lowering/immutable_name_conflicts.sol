@@ -11,9 +11,9 @@ contract Base {
 
 // CHECK-LABEL: @module Derived
 // CHECK-NEXT: @immutables
-// CHECK-NEXT: value0_: u256
-// CHECK-NEXT: value1: u256
-// CHECK-NEXT: value0: u256
+// CHECK-NEXT: value0_: uint256
+// CHECK-NEXT: value1: uint256
+// CHECK-NEXT: value0: uint256
 //
 // CHECK-LABEL: fn @derivedValue{{[( ]}}
 // CHECK: loadimmutable value1

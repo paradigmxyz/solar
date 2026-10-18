@@ -30,7 +30,7 @@ fn @mapRef(arg0: i256) -> i256 [selector=0xca34aaa5, pure, abi_params=[storagept
     ret arg0
 }
 
-fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, u256>]] {
+fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -43,7 +43,7 @@ fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storag
     ret v4
 }
 
-fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[u256, storageptr]] {
+fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[uint256, storageptr]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = insert_value struct1, undef struct1, 0, v0
@@ -57,7 +57,7 @@ fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[stora
   struct0: {i256, i256}
   struct1: {i256, ptr<memory>}
 
-fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
     v1 = extract_value slice<memory>, v0, 0
@@ -78,7 +78,7 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
     ret v10
 }
 
-fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0x4d5b8d5600000000000000000000000000000000000000000000000000000000, args 1
     v1 = extract_value slice<memory>, v0, 0
@@ -106,7 +106,7 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     ret v16
 }
 
-fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0xd4ba105300000000000000000000000000000000000000000000000000000000, args 2
     v1 = extract_value slice<memory>, v0, 0
@@ -127,7 +127,7 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     ret v10
 }
 
-fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0x4a3c24da00000000000000000000000000000000000000000000000000000000, args 0
     v1 = extract_value slice<memory>, v0, 0
@@ -157,7 +157,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     ret v19
 }
 
-fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0x23fe6d5e00000000000000000000000000000000000000000000000000000000, args 3
     v1 = extract_value slice<memory>, v0, 0
@@ -182,7 +182,7 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     ret v13
 }
 
-fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0xca34aaa500000000000000000000000000000000000000000000000000000000, args 6
     v1 = extract_value slice<memory>, v0, 0
@@ -204,7 +204,7 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], 
     ret v11
 }
 
-fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 96
     v1 = abi_encode [word], selector 0xed18bf2100000000000000000000000000000000000000000000000000000000, args 2
@@ -221,7 +221,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
   bb2:
     mcopy v0, v2, 96
     v8 = make_memory_slice v0, 96
-    v9 = abi_decode [storageptr, array<2, u256>], v8
+    v9 = abi_decode [storageptr, array<2, uint256>], v8
     v10 = extract_value struct1, v9, 0
     v11 = extract_value struct1, v9, 1
     v12 = insert_value struct1, undef struct1, 0, v10
@@ -239,7 +239,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     ret v22
 }
 
-fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
     v1 = extract_value slice<memory>, v0, 0

@@ -3,17 +3,17 @@
 fn @rec(arg0: i256) -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 100
-    v2 = checked_add u256, v1, arg0
+    v1 = checked_mul uint256, v0, 100
+    v2 = checked_add uint256, v1, arg0
     sstore 0, v2 !metadata(storage=slot(0))
     ret arg0
 }
 
-fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
-    v1 = checked_add u256, arg0, 1
+    v1 = checked_add uint256, arg0, 1
     jump bb2
   bb2:
     jump bb1
@@ -86,23 +86,23 @@ fn @inner(arg0: i256) {
     ret
 }
 
-fn @orderFull(arg0: i256) -> i256 [selector=0xcd96f9ce, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @orderFull(arg0: i256) -> i256 [selector=0xcd96f9ce, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @inner, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @double(arg0: i256) -> i256 [selector=0xeee97206, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @double(arg0: i256) -> i256 [selector=0xeee97206, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, arg0
+    v1 = checked_add uint256, v0, arg0
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
   bb2:
     v3 = sload 0 !metadata(storage=slot(0))
-    v4 = checked_add u256, v3, arg0
+    v4 = checked_add uint256, v3, arg0
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     jump bb3
@@ -112,7 +112,7 @@ fn @double(arg0: i256) -> i256 [selector=0xeee97206, abi_params=[u256], abi_retu
     ret v5
 }
 
-fn @maybe(arg0: i1) -> i256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @maybe(arg0: i1) -> i256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb2, bb3
   bb3:
@@ -128,13 +128,13 @@ fn @maybe(arg0: i1) -> i256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi_r
     ret v0
 }
 
-fn @retMid() -> i256 [selector=0x436126b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @retMid() -> i256 [selector=0x436126b8, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb3
   bb3:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 0x3e8
+    v1 = checked_add uint256, v0, 0x3e8
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb2
   bb2:
@@ -146,7 +146,7 @@ fn @retMid() -> i256 [selector=0x436126b8, abi_params=[], abi_returns=[word], ab
     ret 9
 }
 
-fn @lazy(arg0: i1) -> i256 [selector=0x90bca39b, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @lazy(arg0: i1) -> i256 [selector=0x90bca39b, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb3, bb4
   bb4:
@@ -172,7 +172,7 @@ fn @lazy(arg0: i1) -> i256 [selector=0x90bca39b, abi_params=[bool], abi_returns=
     ret v3
 }
 
-fn @clamped(arg0: i256) -> i256 [selector=0x50df8187, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @clamped(arg0: i256) -> i256 [selector=0x50df8187, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, 5
     jumpi v0, bb2, bb3
@@ -193,31 +193,31 @@ fn @clamped(arg0: i256) -> i256 [selector=0x50df8187, abi_params=[u256], abi_ret
 
 fn @repeatedInner() {
   bb0:
-    v0 = checked_add u256, 1, 10
-    v1 = checked_add u256, 2, 10
+    v0 = checked_add uint256, 1, 10
+    v1 = checked_add uint256, 2, 10
     sstore 0, 0 !metadata(storage=slot(0))
     jump bb3
   bb3:
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = checked_mul u256, v2, 0x3e8
-    v4 = checked_mul u256, 2, 100
-    v5 = checked_add u256, v3, v4
-    v6 = checked_add u256, v5, v1
+    v3 = checked_mul uint256, v2, 0x3e8
+    v4 = checked_mul uint256, 2, 100
+    v5 = checked_add uint256, v3, v4
+    v6 = checked_add uint256, v5, v1
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb2
   bb2:
     v7 = sload 0 !metadata(storage=slot(0))
-    v8 = checked_mul u256, v7, 0x3e8
-    v9 = checked_mul u256, 1, 100
-    v10 = checked_add u256, v8, v9
-    v11 = checked_add u256, v10, v0
+    v8 = checked_mul uint256, v7, 0x3e8
+    v9 = checked_mul uint256, 1, 100
+    v10 = checked_add uint256, v8, v9
+    v11 = checked_add uint256, v10, v0
     sstore 0, v11 !metadata(storage=slot(0))
     jump bb1
   bb1:
     ret
 }
 
-fn @repeated() -> i256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @repeated() -> i256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @repeatedInner
     v0 = sload 0 !metadata(storage=slot(0))
@@ -226,10 +226,10 @@ fn @repeated() -> i256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word], 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:ModBase ===
 @module ModBase
-fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
@@ -241,10 +241,10 @@ fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:ModDerived ===
 @module ModDerived
-fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 100
+    v1 = checked_add uint256, v0, 100
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
@@ -261,7 +261,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:CtorMod ===
 @module CtorMod
-fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -271,12 +271,12 @@ fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 7
+    v1 = checked_add uint256, v0, 7
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb2
   bb2:
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = checked_add u256, v2, 1
+    v3 = checked_add uint256, v2, 1
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb1
   bb1:
