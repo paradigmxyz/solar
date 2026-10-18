@@ -251,7 +251,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let created = self.lower_create_contract(ty, contract_id, args, call_opts)?;
-        self.revert_external_call(created);
+        self.builder.revert_returndata_unless(created);
         Some(created)
     }
 
@@ -419,7 +419,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(options),
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         // results = decode_buffer | decode_returndata | load_words(ret_offset)
         self.finish_external_call(
             return_plan,
@@ -967,7 +967,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(options),
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         // result = decode_buffer | decode_returndata | load_words(ret_offset)
         let values = self.finish_external_call(
             return_plan,
@@ -1110,7 +1110,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             None,
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         if return_types.is_empty() {
             return Some(CallResult::Void);
         }

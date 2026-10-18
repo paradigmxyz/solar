@@ -10,7 +10,8 @@
 // - unsigned mul: `or(iszero(rhs), eq(div(p, rhs), lhs))` (sub-word <= 128
 //   bits: `gt` max only).
 // - signed add/sub: `xor` of two `slt`/`sgt` comparisons, no constants.
-// - signed mul: division-inverse check plus `and(eq(lhs, MIN), slt(rhs, 0))`.
+// - signed mul: division-inverse check plus `and(eq(lhs, MIN), slt(rhs, 0))`
+//   (sub-word: range check instead of the `MIN` test; <= 128 bits: range only).
 // - div/mod: branch directly on the divisor, no `iszero`/`eq` flag.
 // - sub-word left shifts: mask unsigned results and sign-extend signed results.
 // SEM-LABEL: fn @sadd
@@ -111,7 +112,7 @@ contract CheckedArithmeticShapes {
     // CHECK: [[LHS:v[0-9]+]] = zext i128 arg0 to i256
     // CHECK: [[RHS:v[0-9]+]] = zext i128 arg1 to i256
     // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
-    // CHECK: div [[RESULT]], [[RHS]]
+    // CHECK-NOT: div
     // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffff
     // CHECK: mstore 32, 17
     function umul128(uint128 a, uint128 b) public pure returns (uint128) {
@@ -122,11 +123,25 @@ contract CheckedArithmeticShapes {
     // CHECK: [[LHS:v[0-9]+]] = sext i128 arg0 to i256
     // CHECK: [[RHS:v[0-9]+]] = sext i128 arg1 to i256
     // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
-    // CHECK: sdiv [[RESULT]], [[RHS]]
+    // CHECK-NOT: sdiv
     // CHECK: slt [[RESULT]], 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
     // CHECK: sgt [[RESULT]], 0x7fffffffffffffffffffffffffffffff
+    // CHECK-NOT: eq
     // CHECK: mstore 32, 17
     function smul128(int128 a, int128 b) public pure returns (int128) {
+        return a * b;
+    }
+
+    // CHECK-LABEL: fn @smul192{{[( ]}}
+    // CHECK: [[LHS:v[0-9]+]] = sext i192 arg0 to i256
+    // CHECK: [[RHS:v[0-9]+]] = sext i192 arg1 to i256
+    // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
+    // CHECK: sdiv [[RESULT]], [[RHS]]
+    // CHECK: slt [[RESULT]], 0xffffffffffffffff800000000000000000000000000000000000000000000000
+    // CHECK: sgt [[RESULT]], 0x7fffffffffffffffffffffffffffffffffffffffffffffff
+    // CHECK-NOT: eq [[LHS]],
+    // CHECK: mstore 32, 17
+    function smul192(int192 a, int192 b) public pure returns (int192) {
         return a * b;
     }
 

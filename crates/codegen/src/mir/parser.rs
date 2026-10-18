@@ -39,8 +39,7 @@ use super::{
     BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode, FrameSlotKind,
     Function, FunctionBuilder, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
     InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
-    MemoryRegion, Module, StorageAlias, StorageField, StorageLayout, StorageLayoutRef, StructId,
-    StructType, Terminator, Value, ValueId,
+    MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator, Value, ValueId,
 };
 use crate::mir::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
 use alloy_primitives::U256;
@@ -1126,47 +1125,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
-    /// Parses a storage layout: `struct<field, ...>` or `array<len, field>`.
-    fn parse_storage_layout(&mut self) -> PResult<'sess, StorageLayoutRef> {
-        let name = self.parser.parse_ident()?;
-        let layout = match name {
-            kw::Struct => {
-                self.parser.expect(TokenKind::Lt)?;
-                let mut fields = Vec::new();
-                if !self.eat_gt() {
-                    loop {
-                        fields.push(self.parse_storage_field()?);
-                        if self.eat_gt() {
-                            break;
-                        }
-                        self.parser.expect(TokenKind::Comma)?;
-                    }
-                }
-                StorageLayout::Struct(fields.into())
-            }
-            sym::array => {
-                self.parser.expect(TokenKind::Lt)?;
-                let len = self.parser.parse_uint()?;
-                let len = len
-                    .try_into()
-                    .map_err(|_| self.parser.error("storage array length does not fit in u64"))?;
-                self.parser.expect(TokenKind::Comma)?;
-                let element = self.parse_storage_field()?;
-                self.expect_gt()?;
-                StorageLayout::Array { element, len }
-            }
-            _ => return Err(self.parser.error(format!("unknown storage layout `{name}`"))),
-        };
-        Ok(std::sync::Arc::new(layout))
-    }
-
-    fn parse_storage_field(&mut self) -> PResult<'sess, StorageField> {
-        if self.parser.eat_keyword(sym::word) {
-            return Ok(StorageField::Word);
-        }
-        Ok(StorageField::Aggregate(self.parse_storage_layout()?))
-    }
-
     /// Parses a memory-object layout whose kind identifier `name` has already
     /// been consumed, with optional `<...>` layout arguments.
     fn parse_memory_object_layout(&mut self, name: Symbol) -> PResult<'sess, MemoryObjectLayout> {
@@ -1774,30 +1732,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let layout = self.intern_abi_param_layout(layout);
                 (InstKind::AbiDecode { data, layout }, result_ty)
             }
-            // Aggregate storage/memory copies with recursive layouts.
-            sym::storage_to_memory => {
-                let layout = self.parse_storage_layout()?;
-                self.parser.expect(TokenKind::Comma)?;
-                let storage = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let memory = self.parse_value(builder)?;
-                (InstKind::StorageToMemory { storage, memory, layout }, None)
-            }
-            sym::memory_to_storage => {
-                let layout = self.parse_storage_layout()?;
-                self.parser.expect(TokenKind::Comma)?;
-                let memory = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let storage = self.parse_value(builder)?;
-                (InstKind::MemoryToStorage { memory, storage, layout }, None)
-            }
-            sym::clear_storage => {
-                let layout = self.parse_storage_layout()?;
-                self.parser.expect(TokenKind::Comma)?;
-                let storage = self.parse_value(builder)?;
-                (InstKind::ClearStorage { storage, layout }, None)
-            }
-
             kw::Mload | kw::Calldataload | sym::returndataload | kw::Sload | kw::Tload => {
                 let location = mnemonic_location(mnemonic);
                 let ptr = self.parse_value(builder)?;
