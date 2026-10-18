@@ -9,10 +9,11 @@
 //! 1. copies the original into a fresh internal function `f.body` with its parameter list preserved
 //!    when there are internal callers, and
 //! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries. Scalar
-//!    arguments remain lazy ABI head words (up to `MAX_LAZY_ARG_WORDS`), static calldata aggregates
-//!    stay calldata offsets, and dynamic calldata arguments remain logical slices until
-//!    `lower-slices` projects their pointer and length. Value-carrying returns are ABI-encoded
-//!    according to the function's return layout and terminate with `returndata`.
+//!    arguments remain lazy ABI head words (up to `MAX_LAZY_ARG_WORDS`), calldata aggregates become
+//!    `slice<calldata>` values over their validated encoding until `lower-slices` projects their
+//!    pointer and length, and memory aggregates decode into fresh memory objects. Value-carrying
+//!    returns are ABI-encoded according to the function's return layout and terminate with
+//!    `returndata`.
 //!
 //! The wrapper keeps argument materialization lazy so values used after a
 //! branch can still be rematerialized instead of spilled. Dynamic return
