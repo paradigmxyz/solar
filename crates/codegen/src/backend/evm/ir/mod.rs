@@ -21,6 +21,7 @@ use crate::{
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
+use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
 use std::fmt;
@@ -477,12 +478,11 @@ impl Instruction {
     }
 
     /// Returns whether a repeated push of this value may reuse an earlier copy through `DUP`:
-    /// a nonzero immediate, which `PUSH0` does not already encode in one byte, or a size
-    /// derived from a data length.
+    /// an immediate other than a native `PUSH0`, or a size derived from a data length.
     #[must_use]
-    pub(in crate::backend) fn is_duplicable_push(&self) -> bool {
+    pub(in crate::backend) fn is_duplicable_push(&self, evm_version: EvmVersion) -> bool {
         match self.value {
-            Some(PushValue::Immediate(value)) => !value.is_zero(),
+            Some(PushValue::Immediate(value)) => !value.is_zero() || !evm_version.has_push0(),
             Some(PushValue::DataSize(_)) => true,
             _ => false,
         }
