@@ -145,8 +145,8 @@ enum Placement {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Improvement {
-    runtime_gas: i128,
-    bytes: i128,
+    runtime_gas: i64,
+    bytes: i64,
 }
 
 impl Improvement {
@@ -156,7 +156,7 @@ impl Improvement {
     }
 
     /// The objective order of a saving: gas first when optimizing for gas, bytes first otherwise.
-    fn objective_key(self, target: Target) -> [i128; 2] {
+    fn objective_key(self, target: Target) -> [i64; 2] {
         if target.optimization().is_gas() {
             [self.runtime_gas, self.bytes]
         } else {
@@ -352,8 +352,8 @@ struct Run {
 impl Run {
     fn saving(&self) -> Improvement {
         Improvement {
-            runtime_gas: i128::from(self.old.gas) - i128::from(self.new.gas),
-            bytes: i128::from(self.old.bytes) - i128::from(self.new.bytes),
+            runtime_gas: i64::from(self.old.gas) - i64::from(self.new.gas),
+            bytes: i64::from(self.old.bytes) - i64::from(self.new.bytes),
         }
     }
 }
@@ -569,10 +569,10 @@ fn rewrite_improvement<'a>(
     rewrites: impl IntoIterator<Item = &'a Rewrite>,
     additional_bytes: isize,
 ) -> Improvement {
-    let mut improvement = Improvement { runtime_gas: 0, bytes: -(additional_bytes as i128) };
+    let mut improvement = Improvement { runtime_gas: 0, bytes: -(additional_bytes as i64) };
     for rewrite in rewrites {
-        improvement.runtime_gas += i128::from(rewrite.old.gas) - i128::from(rewrite.new.gas);
-        improvement.bytes += i128::from(rewrite.old.bytes) - i128::from(rewrite.new.bytes);
+        improvement.runtime_gas += i64::from(rewrite.old.gas) - i64::from(rewrite.new.gas);
+        improvement.bytes += i64::from(rewrite.old.bytes) - i64::from(rewrite.new.bytes);
     }
     improvement
 }

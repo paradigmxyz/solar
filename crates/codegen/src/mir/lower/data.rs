@@ -118,8 +118,7 @@ fn data_copy_is_profitable_for(gcx: Gcx<'_>, data: &[u8], separate_tail: bool) -
         new_gas += offset_gas + zero_gas + 9;
     }
 
-    Target::new(gcx)
-        .improves(old_gas as i128 - new_gas as i128, old_size as i128 - new_size as i128)
+    Target::new(gcx).improves(old_gas as i64 - new_gas as i64, old_size as i64 - new_size as i64)
 }
 
 /// Stores data as words for short values and word-level constant pooling.

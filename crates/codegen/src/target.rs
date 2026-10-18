@@ -716,7 +716,7 @@ impl Target {
 
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
-    pub(crate) fn improves(self, gas_saving: i128, byte_saving: i128) -> bool {
+    pub(crate) fn improves(self, gas_saving: i64, byte_saving: i64) -> bool {
         if self.optimization.is_gas() {
             gas_saving > 0 && byte_saving >= 0
         } else {
