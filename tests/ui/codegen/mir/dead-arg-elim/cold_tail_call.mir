@@ -1,9 +1,14 @@
-//@ compile-flags: -Zmir-pipeline=dead-arg-elim -Osize
-//@ filecheck:
+//@ revisions: gas size
+//@[gas] compile-flags: -Zmir-pipeline=dead-arg-elim -Ogas
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] compile-flags: -Zmir-pipeline=dead-arg-elim -Osize
+//@[size] filecheck: --check-prefix=SIZE
 @module ColdTailCall
 
 // A tail call to a helper that never returns, as `outline-reverts` leaves on
-// failure paths, delivers no result.
+// failure paths, delivers no result. Only `-Osize` relies on that: it also
+// prunes the results that forwarding leaves unread, while `-Ogas` would keep
+// the callee's result and push the forwarded value again.
 
 fn @revert_stub() {
   bb0:
@@ -12,7 +17,7 @@ fn @revert_stub() {
 
 // Every return returns `arg0`, so callers use their own argument instead, and
 // the result then goes unread.
-// CHECK-LABEL: fn @checked(arg0: i256, arg1: i1) {
+// SIZE-LABEL: fn @checked(arg0: i256, arg1: i1) {
 fn @checked(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
@@ -23,8 +28,8 @@ fn @checked(arg0: i256, arg1: i1) -> i256 {
 }
 
 // No caller reads the result, so it goes away.
-// CHECK-LABEL: fn @discarded(arg0: i1) {
-// CHECK: ret{{$}}
+// SIZE-LABEL: fn @discarded(arg0: i1) {
+// SIZE: ret{{$}}
 fn @discarded(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
@@ -35,11 +40,14 @@ fn @discarded(arg0: i1) -> i256 {
     ret 7
 }
 
-// CHECK-LABEL: fn @entry()
-// CHECK: [[WORD:v[0-9]+]] = calldataload 4
-// CHECK: {{^[+ ] +}}icall @checked, [[WORD]]
-// CHECK: {{^[+ ] +}}v{{[0-9]+}} = add [[WORD]], 1
-// CHECK: {{^[+ ] +}}icall @discarded
+// GAS-LABEL: fn @entry()
+// GAS: [[RESULT:v[0-9]+]] = icall @checked
+// GAS: add [[RESULT]], 1
+// SIZE-LABEL: fn @entry()
+// SIZE: [[WORD:v[0-9]+]] = calldataload 4
+// SIZE: {{^[+ ] +}}icall @checked, [[WORD]]
+// SIZE: {{^[+ ] +}}v{{[0-9]+}} = add [[WORD]], 1
+// SIZE: {{^[+ ] +}}icall @discarded
 fn @entry() [selector=0x01020304] {
   bb0:
     v0 = calldataload 4

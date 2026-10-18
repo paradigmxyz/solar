@@ -4,10 +4,11 @@
 //! function bodies. These transforms preserve external ABI entry signatures: only direct MIR call
 //! edges are rewritten. Before pruning, direct callers reuse an argument or constant when every
 //! explicit return in the callee returns that same value. Calls remain in place, including their
-//! effects and failure paths. Tail calls to functions that may return, mixed return values, and
-//! baked signature-frame addresses prevent forwarding; a tail call to a function that never
-//! returns, such as a revert helper from `outline-reverts`, returns nothing. No recursive summary
-//! or control-flow fixed point is needed.
+//! effects and failure paths. Tail calls, mixed return values, and baked signature-frame addresses
+//! prevent forwarding. In `-Osize`, which also prunes the results forwarding leaves unread, a tail
+//! call to a function that never returns, such as a revert helper from `outline-reverts`, returns
+//! nothing; elsewhere the callee would keep returning its value and the caller would push the
+//! constant again. No recursive summary or control-flow fixed point is needed.
 //!
 //! Constants must reach a pure instruction or a non-return terminator. Direct stores and returns
 //! alone do not justify discarding the call result and pushing the same constant again.
@@ -60,8 +61,9 @@ impl MirPass for DeadArgElim {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let forwarded = forward_returned_values(module);
-        if !gcx.sess.opts.optimization.is_size() {
+        let size = gcx.sess.opts.optimization.is_size();
+        let forwarded = forward_returned_values(module, size);
+        if !size {
             return prune_unused_args(module) != 0 || forwarded != 0;
         }
         let mut changed = forwarded != 0;
@@ -76,8 +78,9 @@ impl MirPass for DeadArgElim {
     }
 }
 
-fn forward_returned_values(module: &mut Module) -> usize {
-    let cold = cold_functions(module);
+fn forward_returned_values(module: &mut Module, size: bool) -> usize {
+    let cold =
+        if size { cold_functions(module) } else { DenseBitSet::new_empty(module.functions.len()) };
     let returned = module
         .functions
         .iter_enumerated()
