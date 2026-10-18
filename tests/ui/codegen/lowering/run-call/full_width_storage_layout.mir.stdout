@@ -48,8 +48,8 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
   bb2:
     jump bb3
   bb1:
-    v34 = checked_add u256, 0x100000000000000000000000000000000000000010000000000000000, 0x800000000000000
-    v35 = checked_add u256, v34, 1
+    v34 = checked_add uint256, 0x100000000000000000000000000000000000000010000000000000000, 0x800000000000000
+    v35 = checked_add uint256, v34, 1
     v36 = eq 0x100000000000000000000000000000000000000010800000000000001, v35
     jump bb3
   bb3:
@@ -126,7 +126,7 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     ret v72
 }
 
-fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 0x10000000000000000
     v1 = eq v0, false

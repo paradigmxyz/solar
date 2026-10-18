@@ -138,7 +138,7 @@
   
   fn @fixed_nested_dynamic_arrays(arg0: ptr<memory>) -> slice<memory> {
     bb0:
--     v0 = abi_encode [array<2, memory_array<word<u8>>>], args arg0
+-     v0 = abi_encode [array<2, memory_array<word<uint8>>>], args arg0
 -     ret v0
 +     v1 = fmp
 +     v2 = ptrtoint ptr<memory> v1 to i256

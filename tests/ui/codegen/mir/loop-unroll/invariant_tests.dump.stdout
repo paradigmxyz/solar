@@ -4,9 +4,9 @@
 fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
   bb0:
     v11 = ne arg1, 0
-    v30 = sub 0, arg2
-    v34 = ne v30, 0
-    jumpi v34, bb6, bb9
+    v28 = sub 0, arg2
+    v32 = ne v28, 0
+    jumpi v32, bb6, bb9
   bb6:
     jumpi v11, bb7, bb4
   bb4:
@@ -14,43 +14,43 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb7:
-    v35 = div arg0, arg1
-    v36 = mul v35, arg1
-    v37 = add 0, v36
-    v39 = add arg0, 0xe10
-    v40 = lt v39, arg0
-    jumpi v40, bb5, bb8
+    v33 = div arg0, arg1
+    v34 = mul v33, arg1
+    v35 = add 0, v34
+    v37 = add arg0, 0xe10
+    v38 = lt v37, arg0
+    jumpi v38, bb5, bb8
   bb8:
-    v41 = add v30, 1
+    v39 = add v28, 1
     jump bb9
   bb9:
-    v42 = phi [bb0: arg0], [bb8: v39]
-    v43 = phi [bb0: 0], [bb8: v37]
-    v44 = phi [bb0: v30], [bb8: v41]
-    v67 = and v44, 1
-    v68 = ne v67, 0
-    jumpi v68, bb10, bb13
+    v40 = phi [bb0: arg0], [bb8: v37]
+    v41 = phi [bb0: 0], [bb8: v35]
+    v42 = phi [bb0: v28], [bb8: v39]
+    v65 = and v42, 1
+    v66 = ne v65, 0
+    jumpi v66, bb10, bb13
   bb10:
-    v49 = div v42, arg1
-    v50 = mul v49, arg1
-    v51 = add v43, v50
-    v52 = lt v51, v43
-    v53 = add v42, 0xe10
-    v54 = lt v53, v42
-    v75 = or v52, v54
-    jumpi v75, bb5, bb11
+    v47 = div v40, arg1
+    v48 = mul v47, arg1
+    v49 = add v41, v48
+    v50 = lt v49, v41
+    v51 = add v40, 0xe10
+    v52 = lt v51, v40
+    v73 = or v50, v52
+    jumpi v73, bb5, bb11
   bb11:
-    v55 = add v44, 1
+    v53 = add v42, 1
     jump bb13
   bb13:
+    v67 = phi [bb9: v40], [bb11: v51]
+    v68 = phi [bb9: v41], [bb11: v49]
     v69 = phi [bb9: v42], [bb11: v53]
-    v70 = phi [bb9: v43], [bb11: v51]
-    v71 = phi [bb9: v44], [bb11: v55]
     jump bb1
   bb1:
-    v0 = phi [bb13: v69], [bb12: v64]
-    v3 = phi [bb13: v70], [bb12: v62]
-    v4 = phi [bb13: v71], [bb12: v66]
+    v0 = phi [bb13: v67], [bb12: v62]
+    v3 = phi [bb13: v68], [bb12: v60]
+    v4 = phi [bb13: v69], [bb12: v64]
     v5 = ne v4, 0
     jumpi v5, bb3, bb2
   bb2:
@@ -63,18 +63,18 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
     v21 = lt v20, v3
     v22 = add v0, 0xe10
     v23 = lt v22, v0
-    v72 = or v21, v23
-    v60 = div v22, arg1
-    v61 = mul v60, arg1
-    v62 = add v20, v61
-    v63 = lt v62, v20
-    v73 = or v72, v63
-    v64 = add v22, 0xe10
-    v65 = lt v64, v22
-    v74 = or v73, v65
-    jumpi v74, bb5, bb12
+    v70 = or v21, v23
+    v58 = div v22, arg1
+    v59 = mul v58, arg1
+    v60 = add v20, v59
+    v61 = lt v60, v20
+    v71 = or v70, v61
+    v62 = add v22, 0xe10
+    v63 = lt v62, v22
+    v72 = or v71, v63
+    jumpi v72, bb5, bb12
   bb12:
-    v66 = add v4, 2
+    v64 = add v4, 2
     jump bb1
   bb5:
     mstore 32, 17 !metadata(memory=scratch)
@@ -85,9 +85,9 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
 fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
   bb0:
     v11 = ne arg1, 0
-    v25 = sub 0, arg2
-    v29 = ne v25, 0
-    jumpi v29, bb6, bb9
+    v23 = sub 0, arg2
+    v27 = ne v23, 0
+    jumpi v27, bb6, bb9
   bb6:
     jumpi v11, bb7, bb4
   bb4:
@@ -95,43 +95,43 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb7:
-    v30 = div arg0, arg1
-    v31 = sub arg0, v30
-    v32 = add 0, v31
-    v34 = add arg0, 0xde0b6b3a7640000
-    v35 = lt v34, arg0
-    jumpi v35, bb5, bb8
+    v28 = div arg0, arg1
+    v29 = sub arg0, v28
+    v30 = add 0, v29
+    v32 = add arg0, 0xde0b6b3a7640000
+    v33 = lt v32, arg0
+    jumpi v33, bb5, bb8
   bb8:
-    v36 = add v25, 1
+    v34 = add v23, 1
     jump bb9
   bb9:
-    v37 = phi [bb0: arg0], [bb8: v34]
-    v38 = phi [bb0: 0], [bb8: v32]
-    v39 = phi [bb0: v25], [bb8: v36]
-    v62 = and v39, 1
-    v63 = ne v62, 0
-    jumpi v63, bb10, bb13
+    v35 = phi [bb0: arg0], [bb8: v32]
+    v36 = phi [bb0: 0], [bb8: v30]
+    v37 = phi [bb0: v23], [bb8: v34]
+    v60 = and v37, 1
+    v61 = ne v60, 0
+    jumpi v61, bb10, bb13
   bb10:
-    v44 = div v37, arg1
-    v45 = sub v37, v44
-    v46 = add v38, v45
-    v47 = lt v46, v38
-    v48 = add v37, 0xde0b6b3a7640000
-    v49 = lt v48, v37
-    v70 = or v47, v49
-    jumpi v70, bb5, bb11
+    v42 = div v35, arg1
+    v43 = sub v35, v42
+    v44 = add v36, v43
+    v45 = lt v44, v36
+    v46 = add v35, 0xde0b6b3a7640000
+    v47 = lt v46, v35
+    v68 = or v45, v47
+    jumpi v68, bb5, bb11
   bb11:
-    v50 = add v39, 1
+    v48 = add v37, 1
     jump bb13
   bb13:
+    v62 = phi [bb9: v35], [bb11: v46]
+    v63 = phi [bb9: v36], [bb11: v44]
     v64 = phi [bb9: v37], [bb11: v48]
-    v65 = phi [bb9: v38], [bb11: v46]
-    v66 = phi [bb9: v39], [bb11: v50]
     jump bb1
   bb1:
-    v0 = phi [bb13: v64], [bb12: v59]
-    v3 = phi [bb13: v65], [bb12: v57]
-    v4 = phi [bb13: v66], [bb12: v61]
+    v0 = phi [bb13: v62], [bb12: v57]
+    v3 = phi [bb13: v63], [bb12: v55]
+    v4 = phi [bb13: v64], [bb12: v59]
     v5 = ne v4, 0
     jumpi v5, bb3, bb2
   bb2:
@@ -144,18 +144,18 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
     v16 = lt v15, v3
     v17 = add v0, 0xde0b6b3a7640000
     v18 = lt v17, v0
-    v67 = or v16, v18
-    v55 = div v17, arg1
-    v56 = sub v17, v55
-    v57 = add v15, v56
-    v58 = lt v57, v15
-    v68 = or v67, v58
-    v59 = add v17, 0xde0b6b3a7640000
-    v60 = lt v59, v17
-    v69 = or v68, v60
-    jumpi v69, bb5, bb12
+    v65 = or v16, v18
+    v53 = div v17, arg1
+    v54 = sub v17, v53
+    v55 = add v15, v54
+    v56 = lt v55, v15
+    v66 = or v65, v56
+    v57 = add v17, 0xde0b6b3a7640000
+    v58 = lt v57, v17
+    v67 = or v66, v58
+    jumpi v67, bb5, bb12
   bb12:
-    v61 = add v4, 2
+    v59 = add v4, 2
     jump bb1
   bb5:
     mstore 32, 17 !metadata(memory=scratch)

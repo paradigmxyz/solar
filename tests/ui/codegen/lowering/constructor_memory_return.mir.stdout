@@ -28,7 +28,7 @@ fn @consume(arg0: ptr<memory>) -> ptr<memory> [pure] {
     ret arg0
 }
 
-fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 5
@@ -46,17 +46,17 @@ fn @makePair(arg0: i256) -> ptr<memory> [pure] {
     v1 = ptradd v0, 32
     mstore v1, 0
     v2 = alloc 64
-    v3 = checked_add u256, arg0, 1
+    v3 = checked_add uint256, arg0, 1
     mstore v2, arg0
     v4 = ptradd v2, 32
     mstore v4, v3
     ret v2
 }
 
-fn @pairValue() -> i256 [selector=0x393eabbf, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pairValue() -> i256 [selector=0x393eabbf, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
-    v1 = checked_add u256, 2, 1
+    v1 = checked_add uint256, 2, 1
     mstore v0, 2
     v2 = ptradd v0, 32
     mstore v2, v1

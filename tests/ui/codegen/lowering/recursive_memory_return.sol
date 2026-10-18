@@ -49,7 +49,7 @@ contract C {
     // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd arg0, [[OFF1]]
     // CHECK-NEXT: [[ELEM_32:v[0-9]+]] = ptradd [[ELEM]], 32
     // CHECK-NEXT: mstore [[ELEM_32]],
-    // CHECK: [[NEXT:v[0-9]+]] = checked_add {{[ui][0-9]+}}, arg1, 1
+    // CHECK: [[NEXT:v[0-9]+]] = checked_add {{u?int[0-9]+}}, arg1, 1
     // CHECK: [[RESULT:v[0-9]+]] = icall @fillImpl, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]
     // CHECK: ret arg0

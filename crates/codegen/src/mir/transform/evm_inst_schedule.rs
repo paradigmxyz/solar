@@ -78,7 +78,7 @@ impl EvmInstSchedule {
         let shared_results = Self::shared_results(func);
         let mut scratch = ScheduleScratch::new(func.num_insts());
         let liveness = Liveness::compute_live_sets(func);
-        let users = Self::user_counts(func);
+        let users = super::egraph::use_counts(func);
 
         for block_id in block_ids {
             changed |= Self::sink_past_barriers(func, block_id, &liveness, &users);
@@ -264,32 +264,17 @@ impl EvmInstSchedule {
     /// observe neither the gas left nor the words a pure instruction computes.
     fn is_crossable(inst: &Instruction) -> bool {
         let crossable = |effect| matches!(effect, EffectKind::MemoryWrite | EffectKind::Log);
-        !matches!(inst.kind, InstKind::Gas | InstKind::MSize | InstKind::Phi(_))
-            && !inst.kind.effects().control.any()
+        !inst.kind.effects().control.any()
             && crossable(inst.kind.effect_kind())
             && inst.metadata.effect().is_none_or(crossable)
     }
 
-    fn user_counts(func: &Function) -> IndexVec<ValueId, u32> {
-        let mut counts = index_vec![0u32; func.num_values()];
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                func.inst(inst_id).kind.visit_operands(|operand| counts[operand] += 1);
-            }
-            if let Some(terminator) = &block.terminator {
-                terminator.operands().into_iter().for_each(|operand| counts[operand] += 1);
-            }
-        }
-        counts
-    }
-
     /// Whether an instruction may move among other read-only instructions in the same segment.
     fn is_movable(inst: &Instruction) -> bool {
-        if matches!(inst.kind, InstKind::Phi(_) | InstKind::Gas | InstKind::MSize) {
-            return false;
-        }
-
-        !inst.kind.effects().control.any()
+        let effects = inst.kind.effects();
+        !matches!(inst.kind, InstKind::Phi(_))
+            && !effects.observes_execution()
+            && !effects.control.any()
             && inst.kind.effect_kind().is_read_only()
             && inst.metadata.effect().is_none_or(EffectKind::is_read_only)
     }

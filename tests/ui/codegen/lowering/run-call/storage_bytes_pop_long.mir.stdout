@@ -52,7 +52,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v70 = mul v68, 8
     v71 = shr v70, v69
     v72 = shl 248, v71
-    v73 = checked_add u256, v51, 1
+    v73 = checked_add uint256, v51, 1
     v74 = trunc i256 v73 to i8
     v75 = zext i8 v74 to i256
     v76 = shl 248, v75
@@ -67,7 +67,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v83 = or 127, v82
     v84 = shr 1, v79
     v85 = and v84, v83
-    v86 = checked_add i256, v51, 1
+    v86 = checked_add int256, v51, 1
     v87 = eq v85, v86
     v88 = eq v87, false
     icall revert_if<empty>, v88
@@ -136,10 +136,10 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
   bb17:
     jump bb14
   bb14:
-    v133 = checked_sub i256, v51, 1
+    v133 = checked_sub int256, v51, 1
     jump bb12
   bb4:
-    v4 = checked_add u256, v1, 1
+    v4 = checked_add uint256, v1, 1
     v5 = trunc i256 v4 to i8
     v6 = zext i8 v5 to i256
     v7 = shl 248, v6
@@ -204,6 +204,6 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
   bb6:
     jump bb3
   bb3:
-    v48 = checked_add u256, v1, 1
+    v48 = checked_add uint256, v1, 1
     jump bb1
 }

@@ -1,17 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Impl ===
 @module Impl
-fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=0xe6a9b505, abi_params=[u256, u256, u256, bytes], abi_returns=[], abi_return_params=[]] {
+fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=0xe6a9b505, abi_params=[uint256, uint256, uint256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = checked_add u256, arg0, arg1
-    v1 = checked_add u256, v0, arg2
+    v0 = checked_add uint256, arg0, arg1
+    v1 = checked_add uint256, v0, arg2
     v2 = extract_value slice<calldata>, arg3, 1
-    v3 = checked_add u256, v1, v2
+    v3 = checked_add uint256, v1, v2
     sstore 0, v3 !metadata(storage=slot(0))
     ret
 }
@@ -78,7 +78,7 @@ fn @fallback() [fallback, payable] {
   Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Impl"
   Proxy_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy"
 
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Impl_creation_code_0
@@ -96,7 +96,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = abi_encode [word<u160>], args v9
+    v10 = abi_encode [word<uint160>], args v9
     v11 = datasize Proxy_creation_code_1
     v12 = datasize Proxy_creation_code_1, 32
     v13 = datasize Proxy_creation_code_1, 63, aligned

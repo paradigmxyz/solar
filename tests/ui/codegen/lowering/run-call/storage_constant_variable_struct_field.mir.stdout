@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i160}
 
-fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word<uint160>], abi_return_params=[uint256, address]] {
   bb0:
     sstore 0, 0x7521d1cadbcfa91eec65aa16715b94ffc1c9654ba57ea2ef1a2127bca1127a83 !metadata(storage=slot(0))
     v0 = add 0, 1

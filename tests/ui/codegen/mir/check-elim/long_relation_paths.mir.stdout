@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/long_relation_paths.sol:RelationPaths ===
 @module RelationPaths
-fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_params=[array<66, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_params=[array<66, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 0, v0
@@ -1259,7 +1259,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     ret 1
 }
 
-fn @sibling(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x9446c675, pure, abi_params=[bool, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sibling(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x9446c675, pure, abi_params=[bool, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
