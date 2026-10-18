@@ -73,8 +73,10 @@ struct StorageLoadCseCx {
 struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
-    cached_loads: FxHashMap<StorageAlias, (ValueId, bool)>,
+    cached_loads: StorageFacts,
 }
+
+type StorageFacts = FxHashMap<StorageAlias, (ValueId, bool)>;
 
 impl RunState {
     fn new(func: &Function) -> Self {
@@ -109,21 +111,29 @@ impl StorageLoadCseCx {
         let gas = GasObservations::new(func, &cfg, self.alias.as_ref().unwrap());
         // A block entered only from one predecessor starts with the facts that predecessor ends
         // with: no terminator that continues to a successor touches storage. Reverse postorder
-        // visits that predecessor first; every other block starts empty.
-        let mut exits = FxHashMap::<BlockId, FxHashMap<StorageAlias, (ValueId, bool)>>::default();
+        // visits that predecessor first; every other block starts empty. Each exit is kept with
+        // the number of successors still waiting for it, and the last one takes it.
+        let mut exits = FxHashMap::<BlockId, (usize, StorageFacts)>::default();
         for &block_id in cfg.rpo() {
-            let entry = match cfg.predecessors(block_id) {
-                &[pred] => exits.get(&pred).cloned(),
-                _ => None,
+            state.cached_loads = match cfg.predecessors(block_id) {
+                &[pred] => match exits.get_mut(&pred) {
+                    Some((1, _)) => exits.remove(&pred).unwrap().1,
+                    Some((waiting, facts)) => {
+                        *waiting -= 1;
+                        facts.clone()
+                    }
+                    None => StorageFacts::default(),
+                },
+                _ => StorageFacts::default(),
             };
-            state.cached_loads = entry.unwrap_or_default();
             self.process_block(func, block_id, &liveness, &gas, state);
-            if cfg
+            let waiting = cfg
                 .successors(block_id)
                 .iter()
-                .any(|&successor| cfg.predecessors(successor).len() == 1)
-            {
-                exits.insert(block_id, state.cached_loads.clone());
+                .filter(|&&successor| cfg.predecessors(successor).len() == 1)
+                .count();
+            if waiting != 0 {
+                exits.insert(block_id, (waiting, std::mem::take(&mut state.cached_loads)));
             }
         }
 
