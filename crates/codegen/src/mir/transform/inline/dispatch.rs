@@ -26,37 +26,15 @@ use crate::{
     backend::evm::select::opcode_lowering,
     mir::{
         EffectKind, Function, FunctionBuilder, InstKind, MirType, Module, PtrLocation, Terminator,
-        analysis::CallGraphInfo,
-        memory::EvmMemoryLayout,
-        pass::{MirPass, ModuleAnalyses},
+        analysis::CallGraphInfo, memory::EvmMemoryLayout,
     },
+    target::Target,
 };
 use solar_ast::StateMutability;
-use solar_sema::Gcx;
 
 const MAX_DISPATCH_INSTRUCTIONS: usize = 512;
 
-pub(crate) struct InlineDispatch;
-
-impl MirPass for InlineDispatch {
-    fn name(&self) -> &'static str {
-        "inline-dispatch"
-    }
-
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        gcx.sess.opts.optimization != solar_config::OptimizationMode::None
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        if !inline_dispatch(module) {
-            return false;
-        }
-        let _ = super::super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
-        true
-    }
-}
-
-fn inline_dispatch(module: &mut Module) -> bool {
+pub(super) fn inline_dispatch(module: &mut Module, target: Target) -> bool {
     let Some(entry_id) = module.dispatch_entry() else { return false };
     if module.is_library
         || module
@@ -118,6 +96,10 @@ fn inline_dispatch(module: &mut Module) -> bool {
     }
     let argument_count =
         routes.iter().map(|&id| module.function(id).arg_indices().count()).max().unwrap_or(0);
+    let saved = target.jump().times(routes.len() as u32);
+    if !super::profitable(target, 0, saved.bytes as usize, u64::from(saved.gas), 1) {
+        return false;
+    }
     // switch selector, cases
     //   => input0 = calldataload 4; input1 = calldataload 36; ...
     //      switch selector, cases[inputN/argN]

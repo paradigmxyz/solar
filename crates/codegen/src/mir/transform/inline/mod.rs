@@ -1,44 +1,25 @@
-//! Function inlining passes.
+//! Inline profitable calls and expose their bodies to caller analyses.
 //!
-//! Every pass here clones internal callees into their callers to remove the
-//! internal-call protocol and expose further optimization. They share one inliner
-//! and differ in which callees and call sites they admit:
+//! One policy admits small leaves and forwarders, consumes sole-use helpers,
+//! and allows bounded clones where constants, loops, or shared storage reads
+//! offer further optimization. All candidates use the same legality checks and
+//! lifetime cost comparison. Four bounded rounds remove consumed functions and
+//! revisit their callees with updated call counts. The pipeline repeats this
+//! pass after lowering and cleanup expose smaller bodies.
 //!
-//! - `inline` is the general inliner, available through `-Zmir-pipeline`. It does nothing in size
-//!   mode, where general inlining only ever grew real contracts.
-//! - `inline-single-use` consumes frameless helpers without reference returns at their only call
-//!   site; function DCE then removes the original body, so nothing is duplicated. Consuming a
-//!   helper moves its calls into the caller, where each may have become the only call of its
-//!   callee, so the pass repeats for a few bounded rounds until one inlines nothing. Small helpers
-//!   with phis also qualify, whatever their effects and calls, but only scalar ones may contain a
-//!   loop.
-//! - `inline-tiny-leaves` clones one-block leaves of at most four instructions, or twelve at a sole
-//!   call site. It also admits tiny check wrappers (a semantic check and an optional boolean
-//!   negation), which exposes the guard to caller analyses; frameless one-word literal initializers
-//!   when each artifact contains at most one call site, counting creation and runtime reachability
-//!   separately; and transparent forwarders. A forwarder returns an argument, returns one call
-//!   result, forwards a void call, or only builds and projects a slice, which copies its pointer,
-//!   length and address space without touching memory (`calldatasize` may measure it, as `msg.data`
-//!   does in `_msgData()`). Shared void forwarders that add arguments stay shared: cloning their
-//!   setup can outweigh the removed wrapper and raise stack pressure at every caller.
-//! - `inline-constant-leaves` specializes one constant-argument call to a shared pure leaf.
-//! - `inline-hot-leaves` (gas only) clones bounded acyclic scalar helpers called from inside loops.
-//!   Call-protocol savings are weighed over the loop's trip count, ten iterations when none is
-//!   computable, and callees shared by more than eight sites keep the call. Read-only loops become
-//!   eligible after loop-idiom lowering replaces them with a bounded shape.
-//! - `inline-immutable-leaves` revisits argument-free immutable word helpers after range checks and
-//!   CFG cleanup make them straight-line leaves. It admits only immutable loads and pure
-//!   single-opcode computations, under the tiny-leaf limits, and assumes no runtime immutable
-//!   bounds.
-//! - `inline-memory-wrappers` (gas only) clones frameless wrappers of one returning call followed
-//!   by at most five physical address, load and store operations, in order, without moving accesses
-//!   across the call or assuming alias freedom.
-//! - `inline-storage-readers` (gas only) exposes shared constant-slot reads to caller CSE. Only
-//!   callees without storage writes or gas observations qualify, and the call block must itself
-//!   read one of the callee's direct slots. Multi-value returns stay shared because their staging
-//!   stores would miss memory cleanup. Ordinary size and call-protocol profitability limits apply.
-//! - `specialize-function-pointers` turns calls through constant internal function pointers into
-//!   direct calls.
+//! Size mode admits only tiny bodies whose estimated bytes do not grow. Gas
+//! mode also considers scalar loop helpers, constant-argument wrappers, and
+//! callees sharing a direct constant-slot read with the call block. The latter
+//! must not write storage or observe gas; later CSE removes redundant reads.
+//! Reference-returning helpers stay shared except for transparent forwarders
+//! and one-word literals used once per emitted artifact. Shared void forwarders
+//! that add arguments stay shared to avoid duplicating their setup.
+//!
+//! After memory lowering, frame allocation and multi-word return staging cannot
+//! be introduced again. At this stage the pass also partially clones returning
+//! guards in loops and moves eligible external wrappers into the dispatcher.
+//! These use the same cost comparison, but need distinct rewrites because they
+//! retain the slow-path call or preserve an external exit, respectively.
 //!
 //! Profitability compares the call protocol a clone removes, weighted by expected
 //! executions and, for statically counted loops, by iteration count, with the
@@ -72,7 +53,10 @@ use crate::{
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
         ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, PtrLocation,
         StorageAlias, Terminator, Value, ValueId,
-        analysis::{AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries},
+        analysis::{
+            AddressSpace, CallGraphInfo, Liveness, LocalSummaryCache, LoopAnalyzer,
+            MemoryCallSummaries,
+        },
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
         pass::MirPass,
@@ -84,146 +68,23 @@ use smallvec::SmallVec;
 use solar_ast::StateMutability;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
-use std::sync::Arc;
 
 mod dispatch;
-pub(crate) use dispatch::InlineDispatch;
-
 mod guards;
-pub(crate) use guards::InlineGuards;
 
-/// Module pass for metadata-backed MIR inlining.
-pub(crate) struct Inline;
+/// One inlining policy, before and after physical memory lowering.
+pub(crate) enum Inline {
+    Semantic,
+    Physical,
+}
 
 impl MirPass for Inline {
     fn name(&self) -> &'static str {
         "inline"
     }
 
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        // General inlining only ever grew emitted code on real contracts in size mode: both
-        // multi-use duplication and the cascades that single-call inlining sets off were measured
-        // to increase size.
-        if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
-            return false;
-        }
-        MirInliner::default().run(gcx, module).inlined != 0
-    }
-}
-
-/// Module pass for inlining only trivial leaf helpers in gas mode.
-pub(crate) struct InlineTinyLeaves;
-
-impl MirPass for InlineTinyLeaves {
-    fn name(&self) -> &'static str {
-        "inline-tiny-leaves"
-    }
-
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        let mut inliner = MirInliner::for_tiny_leaves();
-        inliner.run(gcx, module).inlined != 0
-    }
-}
-
-/// Revisits small immutable computations exposed by late check elimination.
-pub(crate) struct InlineImmutableLeaves;
-
-impl MirPass for InlineImmutableLeaves {
-    fn name(&self) -> &'static str {
-        "inline-immutable-leaves"
-    }
-
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        if !module.functions.iter().any(is_immutable_word_leaf) {
-            return false;
-        }
-        MirInliner { immutable_leaves_only: true, ..MirInliner::for_tiny_leaves() }
-            .run(gcx, module)
-            .inlined
-            != 0
-    }
-}
-
-/// Inlines small post-call memory wrappers after physical memory lowering.
-pub(crate) struct InlineMemoryWrappers;
-
-impl MirPass for InlineMemoryWrappers {
-    fn name(&self) -> &'static str {
-        "inline-memory-wrappers"
-    }
-
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() || !module.functions.iter().any(is_memory_wrapper) {
-            return false;
-        }
-        MirInliner {
-            memory_wrappers_only: true,
-            objects_lowered: true,
-            max_instructions: 6,
-            max_single_call_sanity_instructions: 6,
-            ..MirInliner::for_tiny_leaves()
-        }
-        .run(gcx, module)
-        .inlined
-            != 0
-    }
-}
-
-/// Clones bounded scalar helpers into the loops that call them in gas mode.
-pub(crate) struct InlineHotLeaves;
-
-impl MirPass for InlineHotLeaves {
-    fn name(&self) -> &'static str {
-        "inline-hot-leaves"
-    }
-
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() {
-            return false;
-        }
-        MirInliner {
-            mode: InlineMode::HotLeaves,
-            max_shared_callee_blocks: 16,
-            max_caller_inlined_instructions: 128,
-            ..MirInliner::default()
-        }
-        .run(gcx, module)
-        .inlined
-            != 0
-    }
-}
-
-/// Exposes repeated constant-slot storage reads across internal calls.
-pub(crate) struct InlineStorageReaders;
-
-impl MirPass for InlineStorageReaders {
-    fn name(&self) -> &'static str {
-        "inline-storage-readers"
+    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
+        gcx.sess.opts.optimization != solar_config::OptimizationMode::None
     }
 
     fn run_pass(
@@ -232,61 +93,12 @@ impl MirPass for InlineStorageReaders {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() {
-            return false;
-        }
-        MirInliner {
-            storage_readers: Some(analyses.call_summaries(module)),
-            ..MirInliner::default()
-        }
-        .run(gcx, module)
-        .inlined
-            != 0
-    }
-}
-
-/// Module pass for consuming a single-use helper without duplicating its body.
-pub(crate) enum InlineSingleUse {
-    /// May introduce frame staging before memory lowering.
-    Semantic,
-    /// Must not introduce semantic frame operations after memory lowering.
-    Physical,
-}
-
-impl InlineSingleUse {
-    /// Rounds of consuming helpers whose last call a previous round moved.
-    const MAX_ROUNDS: usize = 4;
-}
-
-impl MirPass for InlineSingleUse {
-    fn name(&self) -> &'static str {
-        "inline-single-use"
-    }
-
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        // Consuming a callee moves its calls into the caller, where each can be
-        // single-use in turn. Rounds repeat until one inlines nothing, at most
-        // `MAX_ROUNDS` times.
+        let target = Target::new(gcx);
+        let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
         let mut changed = false;
-        for _ in 0..Self::MAX_ROUNDS {
-            let stats = MirInliner {
-                mode: InlineMode::SingleUse,
-                max_single_call_sanity_instructions: 256,
-                frame_staging_allowed: matches!(self, Self::Semantic)
-                    && module.phase < MirPhase::Lowered,
-                objects_lowered: matches!(self, Self::Physical),
-                ..MirInliner::default()
-            }
-            .run(gcx, module);
-            // The consumed bodies are dead now. Remove exactly those instead of a
-            // module-wide dead-function sweep, which would also delete uncalled
-            // functions that were never reachable, such as the subjects of
-            // pipeline tests.
+        for _ in 0..4 {
+            let calls = MemoryCallSummaries::new_cached(module, &mut LocalSummaryCache::default());
+            let stats = MirInliner { target, physical, calls }.run(module);
             if !stats.consumed.is_empty() {
                 super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
             }
@@ -295,26 +107,14 @@ impl MirPass for InlineSingleUse {
             }
             changed = true;
         }
+        if physical {
+            changed |= guards::inline_guards(module, target);
+            if dispatch::inline_dispatch(module, target) {
+                let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
+                changed = true;
+            }
+        }
         changed
-    }
-}
-
-/// Module pass for specializing one constant-argument call to a shared pure leaf.
-pub(crate) struct InlineConstantLeaves;
-
-impl MirPass for InlineConstantLeaves {
-    fn name(&self) -> &'static str {
-        "inline-constant-leaves"
-    }
-
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        let mut inliner = MirInliner::for_constant_leaves();
-        inliner.run(gcx, module).inlined != 0
     }
 }
 
@@ -342,79 +142,9 @@ impl MirPass for SpecializeFunctionPointers {
 /// inline expansion gets a fresh internal-frame range so copied local slots do
 /// not overlap caller locals.
 struct MirInliner {
-    /// Maximum instruction count for ordinary inline candidates.
-    max_instructions: usize,
-    /// Hard sanity limit for single-call-site callees. These bypass the normal
-    /// size and block caps because function DCE removes their original body.
-    max_single_call_sanity_instructions: usize,
-    /// Maximum number of blocks to clone from one multi-use callee.
-    max_blocks: usize,
-    /// Maximum block count for a shared callee to inline at every profitable
-    /// call site. Larger shared callees inline only at their best call site.
-    max_shared_callee_blocks: usize,
-    /// Maximum number of instructions a single caller may gain from inlining
-    /// multi-use callees, bounding total code growth per function.
-    max_caller_inlined_instructions: usize,
-    /// The cost model pricing call protocol against deposited bytes, including the expected
-    /// executions per deployment from the optimizer runs.
     target: Target,
-    /// Restricts late expansion to argument-free immutable word computations.
-    immutable_leaves_only: bool,
-    /// Restricts late expansion to small post-call memory wrappers.
-    memory_wrappers_only: bool,
-    /// Restricts expansion to callees sharing constant storage reads with the call block.
-    storage_readers: Option<Arc<MemoryCallSummaries>>,
-    /// Whether multi-value returns may stage through semantic frame slots. Once
-    /// frame slots are lowered to physical memory, a late run must leave such
-    /// callees alone: the staging instructions would survive the phase boundary.
-    frame_staging_allowed: bool,
-    /// Whether memory objects are already lowered to raw memory. Returned pointers then carry
-    /// no object identity, so only slice returns count as reference returns.
-    objects_lowered: bool,
-    mode: InlineMode,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum InlineMode {
-    Normal,
-    TinyLeaves,
-    ConstantLeaves,
-    SingleUse,
-    HotLeaves,
-}
-
-/// Which callees get a stack-peak estimate when the module is summarized.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum PeakAnalysis {
-    /// No estimate; phi-carrying callees stay shared.
-    None,
-    /// Bounded helpers with phis, for their sole call site.
-    Phis,
-    /// Every bounded scalar helper, for loop call sites.
-    Scalars,
-}
-
-impl Default for MirInliner {
-    fn default() -> Self {
-        Self {
-            max_instructions: 96,
-            max_single_call_sanity_instructions: 4096,
-            max_blocks: 16,
-            max_shared_callee_blocks: 10,
-            max_caller_inlined_instructions: 64,
-            target: Target::with(
-                solar_config::EvmVersion::default(),
-                solar_config::OptimizationMode::Gas,
-                Target::DEFAULT_EXPECTED_EXECUTIONS,
-            ),
-            immutable_leaves_only: false,
-            memory_wrappers_only: false,
-            storage_readers: None,
-            frame_staging_allowed: true,
-            objects_lowered: false,
-            mode: InlineMode::Normal,
-        }
-    }
+    physical: bool,
+    calls: MemoryCallSummaries,
 }
 
 impl MirInliner {
@@ -428,26 +158,6 @@ impl MirInliner {
     /// lookups stayed calls that drained every carried word, and twelve took 15%
     /// off decoding.
     const STACK_BUDGET: usize = 12;
-
-    /// Creates the gas-focused leaf inliner. Shared helpers stay limited to four instructions;
-    /// a modestly larger single-use leaf disappears after function DCE and can also shed both
-    /// sides of the internal-call protocol without duplicating its body.
-    #[must_use]
-    fn for_tiny_leaves() -> Self {
-        Self {
-            max_instructions: 4,
-            max_single_call_sanity_instructions: 12,
-            max_blocks: 1,
-            max_shared_callee_blocks: 1,
-            mode: InlineMode::TinyLeaves,
-            ..Self::default()
-        }
-    }
-
-    #[must_use]
-    fn for_constant_leaves() -> Self {
-        Self { max_instructions: 64, mode: InlineMode::ConstantLeaves, ..Self::default() }
-    }
 }
 
 /// Statistics for MIR-level inlining.
@@ -479,7 +189,7 @@ struct MirInlineSummary {
     has_control_flow: bool,
     is_check_wrapper: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
-    /// its carried words inside the caller's. Only hot-leaf summaries compute it.
+    /// its carried words inside the caller's.
     has_loop: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
@@ -494,39 +204,32 @@ struct MirInlineSummary {
     is_constructor: bool,
     is_function_pointer_dispatcher: bool,
     is_pure: bool,
+    is_scalar: bool,
 }
 
 impl MirInliner {
     /// Runs the inliner over the whole module.
-    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> MirInlineStats {
+    fn run(&mut self, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
-        self.target = Target::new(gcx);
 
         let mut call_counts = call_counts(module);
         // Keep the initial candidate set stable as inlining removes call sites.
-        let memory_wrappers = if self.memory_wrappers_only {
-            module
-                .functions
-                .iter_enumerated()
-                .filter(|(id, func)| {
-                    call_counts.get(id).copied().unwrap_or(0) > 0 && is_memory_wrapper(func)
-                })
-                .map(|(id, func)| (id, scalar_stack_peak(func)))
-                .collect::<FxHashMap<_, _>>()
-        } else {
-            FxHashMap::default()
-        };
-
-        if self.memory_wrappers_only && memory_wrappers.is_empty() {
-            return stats;
-        }
+        let memory_wrappers = module
+            .functions
+            .iter_enumerated()
+            .filter(|(id, func)| {
+                call_counts.get(id).copied().unwrap_or(0) > 0 && is_memory_wrapper(func)
+            })
+            .map(|(id, func)| (id, scalar_stack_peak(func)))
+            .collect::<FxHashMap<_, _>>();
 
         let mut summaries = self.summarize_module(module);
 
         let call_graph = CallGraphInfo::new(module);
-        let mut artifact_calls = (self.mode == InlineMode::TinyLeaves
-            && summaries.values().any(|summary| summary.is_small_literal_return))
-        .then(|| ArtifactCallCounts::new(module, &call_graph));
+        let mut artifact_calls = summaries
+            .values()
+            .any(|summary| summary.is_small_literal_return)
+            .then(|| ArtifactCallCounts::new(module, &call_graph));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
@@ -535,18 +238,11 @@ impl MirInliner {
             summaries.get(caller).is_some_and(|summary| summary.is_function_pointer_dispatcher)
         });
         for caller_id in caller_ids {
-            // Leaf bodies cannot contain an inline candidate. Keep their summary for
-            // callers, but avoid rebuilding loop analysis for every inlining mode.
+            // Leaf bodies cannot contain an inline candidate.
             if !summaries.get(&caller_id).is_some_and(|summary| summary.has_icall) {
                 continue;
             }
-            // Single-use and constant-leaf candidates are decided without loop weights.
-            let mut loop_costs =
-                if matches!(self.mode, InlineMode::SingleUse | InlineMode::ConstantLeaves) {
-                    FxHashMap::default()
-                } else {
-                    block_loop_costs(module.function(caller_id))
-                };
+            let mut loop_costs = block_loop_costs(module.function(caller_id));
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
             // balloon past the deployable code-size limit.
@@ -573,7 +269,7 @@ impl MirInliner {
                 .unwrap_or_else(|| call_counts.get(&site.callee).copied().unwrap_or_default());
                 let grew_too_much = summaries.get(&caller_id).is_some_and(|s| {
                     s.instruction_count.saturating_sub(base_instructions)
-                        > self.max_caller_inlined_instructions
+                        > if site.loop_depth > 0 { 128 } else { 64 }
                 });
                 let framed_constructor_call = summaries.get(&caller_id).is_some_and(|caller| {
                     caller.is_constructor && summary.internal_frame_size != 0
@@ -581,14 +277,9 @@ impl MirInliner {
                 if grew_too_much
                     || framed_constructor_call
                     || call_graph.is_recursive(site.callee)
-                    || (self.immutable_leaves_only
-                        && !is_immutable_word_leaf(module.function(site.callee)))
-                    || (self.memory_wrappers_only && !memory_wrappers.contains_key(&site.callee))
-                    || (self.storage_readers.is_some()
-                        && !self.shares_storage_read(module, caller_id, site))
-                    || (self.mode == InlineMode::SingleUse
-                        && module.function(site.callee).attributes.no_inline)
+                    || module.function(site.callee).attributes.no_inline
                     || !self.is_inlineable(
+                        module,
                         caller_id,
                         site,
                         summary,
@@ -599,8 +290,10 @@ impl MirInliner {
                     continue;
                 }
 
-                if let Some(peak) =
-                    summary.phi_stack_peak.or_else(|| memory_wrappers.get(&site.callee).copied())
+                if let Some(peak) = (summary.has_phi || site.loop_depth > 0)
+                    .then_some(summary.phi_stack_peak)
+                    .flatten()
+                    .or_else(|| memory_wrappers.get(&site.callee).copied())
                 {
                     let caller = module.function(caller_id);
                     let liveness =
@@ -616,22 +309,19 @@ impl MirInliner {
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
-                    if self.mode == InlineMode::SingleUse && call_count == 1 {
+                    if call_counts.get(&site.callee) == Some(&1) {
                         stats.consumed.push(site.callee);
                     }
                     caller_liveness = None;
                     // The clone split the call block, so the loop membership
                     // of the calls that followed it must be recomputed before
                     // they are weighed.
-                    if self.mode == InlineMode::HotLeaves {
-                        loop_costs = block_loop_costs(module.function(caller_id));
-                    }
+                    loop_costs = block_loop_costs(module.function(caller_id));
                     let new_summary = summarize_function(
                         self.target,
                         module,
                         module.function(caller_id),
-                        self.peak_analysis(),
-                        self.objects_lowered,
+                        self.physical,
                     );
                     summaries.insert(caller_id, new_summary);
                     // Remove this call site and count the calls cloned into its caller.
@@ -657,30 +347,8 @@ impl MirInliner {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| {
-                (
-                    id,
-                    summarize_function(
-                        self.target,
-                        module,
-                        func,
-                        self.peak_analysis(),
-                        self.objects_lowered,
-                    ),
-                )
-            })
+            .map(|(id, func)| (id, summarize_function(self.target, module, func, self.physical)))
             .collect()
-    }
-
-    /// The stack-peak estimate the current mode needs from callee summaries.
-    fn peak_analysis(&self) -> PeakAnalysis {
-        match self.mode {
-            InlineMode::SingleUse => PeakAnalysis::Phis,
-            InlineMode::HotLeaves => PeakAnalysis::Scalars,
-            InlineMode::Normal | InlineMode::TinyLeaves | InlineMode::ConstantLeaves => {
-                PeakAnalysis::None
-            }
-        }
     }
 
     /// Picks one call site for each large shared callee.
@@ -706,18 +374,17 @@ impl MirInliner {
                     else {
                         continue;
                     };
-                    if !summaries.get(&function).is_some_and(|summary| {
-                        summary.block_count > self.max_shared_callee_blocks
-                            || (self.mode == InlineMode::ConstantLeaves
-                                && summary.instruction_count > 4)
-                    }) {
+                    if !summaries
+                        .get(&function)
+                        .is_some_and(|summary| summary.instruction_count > 4)
+                    {
                         continue;
                     }
                     let instructions_after = block.instructions.len() - inst_index - 1;
                     let has_constant_argument =
                         args.iter().any(|&arg| func.value(arg).as_immediate().is_some());
                     let score = (
-                        self.mode == InlineMode::ConstantLeaves && !has_constant_argument,
+                        !has_constant_argument,
                         instructions_after,
                         caller_size,
                         caller.index(),
@@ -775,47 +442,24 @@ impl MirInliner {
 
     fn is_inlineable(
         &self,
+        module: &Module,
         caller: MirFunctionId,
         site: CallSite,
         summary: MirInlineSummary,
         call_count: usize,
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
-        // Constant-leaf specialization only targets shared callees.
-        let single_call = call_count == 1 && self.mode != InlineMode::ConstantLeaves;
-        let bounded_phi = summary.phi_stack_peak.is_some()
-            && match self.mode {
-                InlineMode::SingleUse => single_call,
-                InlineMode::HotLeaves => true,
-                InlineMode::Normal | InlineMode::TinyLeaves | InlineMode::ConstantLeaves => false,
-            };
-        if self.mode == InlineMode::SingleUse
-            && (!single_call
-                || summary.internal_frame_size != 0
-                || summary.has_reference_return
-                || (summary.has_phi && !bounded_phi)
-                || (!self.frame_staging_allowed && summary.return_values > 1))
-        {
-            return false;
-        }
-
-        // A hot leaf is a bounded scalar helper called from inside a loop. Its
-        // other call sites keep the shared body; the lifetime check below
-        // weighs each clone against the call protocol it removes per iteration.
-        if self.mode == InlineMode::HotLeaves
-            && (site.loop_depth == 0
-                || summary.phi_stack_peak.is_none()
-                || summary.has_loop
-                || summary.has_returning_icall
-                || summary.internal_frame_size != 0
-                || summary.has_reference_return
-                || call_count > Self::MAX_HOT_LEAF_CALL_SITES)
-        {
-            return false;
-        }
-
-        // Keep shared helpers intact unless a constant function selector lets
-        // later passes discard all but one dispatcher arm.
+        let single_call = call_count == 1;
+        let gas = self.target.optimization().is_gas();
+        let hot = gas
+            && site.loop_depth > 0
+            && summary.is_scalar
+            && summary.phi_stack_peak.is_some()
+            && !summary.has_loop
+            && !summary.has_returning_icall
+            && summary.internal_frame_size == 0
+            && !summary.has_reference_return
+            && call_count <= Self::MAX_HOT_LEAF_CALL_SITES;
         let can_specialize_dispatcher =
             summary.is_function_pointer_dispatcher && site.has_constant_function_selector;
         if caller == site.callee
@@ -824,64 +468,73 @@ impl MirInliner {
                 && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
-            || (summary.has_phi && !bounded_phi)
+            || (summary.has_phi && !(summary.phi_stack_peak.is_some() && (single_call || hot)))
             || summary.has_unsupported_terminator
             || summary.return_count == 0
+            || (self.physical
+                && (summary.return_values > 1
+                    || summary.internal_frame_size != 0
+                    || module.function(site.callee).instructions().any(|inst| {
+                        matches!(
+                            module.function(site.callee).inst(inst).kind,
+                            InstKind::Alloc { .. }
+                        )
+                    })))
         {
             return false;
         }
 
-        if self.mode == InlineMode::TinyLeaves
-            && (summary.block_count != 1
-                || summary.instruction_count
-                    > if single_call {
-                        self.max_single_call_sanity_instructions
-                    } else {
-                        self.max_instructions
-                    }
-                || summary.return_count != 1
-                || (summary.has_reference_return
-                    && !summary.is_transparent_forwarder
-                    && !self.memory_wrappers_only
-                    && !(single_call && summary.is_small_literal_return))
-                || (summary.has_icall
-                    && !summary.is_transparent_forwarder
-                    && !self.memory_wrappers_only)
-                || (!single_call && summary.void_forwarder_adds_args)
-                || (summary.has_control_flow && !summary.is_check_wrapper))
-        {
-            return false;
-        }
-
-        if self.mode == InlineMode::ConstantLeaves {
-            return call_count > 1
-                && preferred_large_call_site == Some((caller, site.inst))
-                && site.has_constant_argument
-                && summary.is_pure
-                && summary.block_count == 1
-                && summary.instruction_count <= self.max_instructions
-                && !summary.has_icall
-                && !summary.has_reference_return
-                && !summary.has_control_flow;
-        }
-
-        if !single_call
-            && summary.block_count > self.max_shared_callee_blocks
-            && preferred_large_call_site != Some((caller, site.inst))
-        {
-            return false;
-        }
-
-        if can_specialize_dispatcher {
-            return summary.instruction_count <= self.max_single_call_sanity_instructions;
-        }
-
-        if single_call {
-            if summary.instruction_count > self.max_single_call_sanity_instructions {
-                return false;
-            }
-        } else if summary.block_count > self.max_blocks
-            || summary.instruction_count > self.max_instructions
+        let has_reference_return = module
+            .function(site.callee)
+            .return_components()
+            .iter()
+            .any(|&ty| matches!(ty, MirType::MEMPTR | MirType::Slice(_)));
+        let memory_wrapper = is_memory_wrapper(module.function(site.callee));
+        let tiny = summary.block_count == 1
+            && summary.return_count == 1
+            && summary.instruction_count
+                <= if memory_wrapper && gas {
+                    6
+                } else if single_call {
+                    12
+                } else {
+                    4
+                }
+            && (!has_reference_return
+                || summary.is_transparent_forwarder
+                || (single_call && summary.is_small_literal_return))
+            && (!summary.has_icall || summary.is_transparent_forwarder || (memory_wrapper && gas))
+            && (single_call || !summary.void_forwarder_adds_args)
+            && (!summary.has_control_flow || summary.is_check_wrapper);
+        let consume = gas
+            && single_call
+            && summary.internal_frame_size == 0
+            && !summary.has_reference_return
+            && summary.instruction_count <= 256;
+        let specialize = gas
+            && call_count > 1
+            && preferred_large_call_site == Some((caller, site.inst))
+            && module.function(caller).blocks.len() == 1
+            && module.function(caller).instructions().count() == 1
+            && site.has_constant_argument
+            && summary.is_pure
+            && summary.is_scalar
+            && summary.block_count == 1
+            && summary.instruction_count <= 64
+            && !summary.has_icall
+            && !has_reference_return
+            && !summary.has_control_flow;
+        let storage = gas && self.shares_storage_read(module, caller, site);
+        let bounded = summary.instruction_count <= 96
+            && summary.block_count <= 16
+            && (single_call
+                || hot
+                || summary.block_count <= 10
+                || preferred_large_call_site == Some((caller, site.inst)));
+        if !(tiny
+            || consume
+            || specialize
+            || (bounded && (hot || storage || can_specialize_dispatcher)))
         {
             return false;
         }
@@ -916,8 +569,6 @@ impl MirInliner {
         site: CallSite,
         single_call: bool,
     ) -> bool {
-        const CODE_DEPOSIT_GAS_PER_BYTE: u128 = Target::CODE_DEPOSIT_GAS_PER_BYTE as u128;
-
         let inlined_bytes = summary.estimated_code_size;
         let mut removed_bytes = estimated_icall_code_size(self.target, site);
         if single_call {
@@ -926,27 +577,24 @@ impl MirInliner {
                     + estimated_internal_return_code_size(self.target, summary, site),
             );
         }
-        if inlined_bytes <= removed_bytes {
-            return true;
-        }
-
-        let added_deposit_cost =
-            (inlined_bytes - removed_bytes) as u128 * CODE_DEPOSIT_GAS_PER_BYTE;
         let loop_executions = if !self.target.optimization().is_gas() {
             1
-        } else if self.mode == InlineMode::HotLeaves && site.loop_depth > 0 && !site.loop_counted {
+        } else if site.loop_depth > 0 && !site.loop_counted {
             Target::UNCOUNTED_LOOP_ITERATIONS
         } else {
             site.loop_executions
         };
-        let execution_savings = u128::from(estimated_icall_savings(self.target, site, summary))
-            .saturating_mul(u128::from(self.target.expected_executions()))
-            .saturating_mul(u128::from(loop_executions));
-        execution_savings > added_deposit_cost
+        profitable(
+            self.target,
+            inlined_bytes,
+            removed_bytes,
+            estimated_icall_savings(self.target, site, summary),
+            loop_executions,
+        )
     }
 
     fn shares_storage_read(&self, module: &Module, caller: MirFunctionId, site: CallSite) -> bool {
-        let Some(summary) = self.storage_readers.as_ref().and_then(|s| s.get(site.callee)) else {
+        let Some(summary) = self.calls.get(site.callee) else {
             return false;
         };
         let callee = module.function(site.callee);
@@ -970,6 +618,23 @@ impl MirInliner {
                 })))
         })
     }
+}
+
+fn profitable(
+    target: Target,
+    added_bytes: usize,
+    removed_bytes: usize,
+    saved_gas: u64,
+    executions: u64,
+) -> bool {
+    if added_bytes <= removed_bytes {
+        return true;
+    }
+    target.optimization().is_gas()
+        && u128::from(saved_gas)
+            .saturating_mul(u128::from(target.expected_executions()))
+            .saturating_mul(u128::from(executions))
+            > (added_bytes - removed_bytes) as u128 * u128::from(Target::CODE_DEPOSIT_GAS_PER_BYTE)
 }
 
 #[derive(Clone, Copy)]
@@ -1163,7 +828,6 @@ fn summarize_function(
     target: Target,
     module: &Module,
     func: &Function,
-    peak: PeakAnalysis,
     objects_lowered: bool,
 ) -> MirInlineSummary {
     let mut summary = MirInlineSummary {
@@ -1185,7 +849,7 @@ fn summarize_function(
         is_check_wrapper: is_check_wrapper(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
-        has_loop: peak == PeakAnalysis::Scalars && has_back_edge(func),
+        has_loop: !func.blocks.is_empty() && has_back_edge(func),
         ..MirInlineSummary::default()
     };
 
@@ -1198,8 +862,7 @@ fn summarize_function(
             match kind {
                 InstKind::ICall { function: Callee::Function(_), args } => {
                     summary.has_icall = true;
-                    summary.has_returning_icall |=
-                        peak != PeakAnalysis::Scalars || !is_terminal_call(module, kind);
+                    summary.has_returning_icall |= !is_terminal_call(module, kind);
                     if summary.is_transparent_forwarder && func.return_components().is_empty() {
                         summary.void_forwarder_adds_args = args.len() > func.params.len();
                     }
@@ -1289,24 +952,18 @@ fn summarize_function(
         }
     }
 
-    let scalar = || {
-        (!summary.has_icall
-            || (peak == PeakAnalysis::Scalars
-                && !summary.has_phi
-                && summary.return_count == 1
-                && !summary.has_returning_icall))
-            && func.instructions().all(|inst| {
-                is_terminal_call(module, &func.inst(inst).kind)
-                    || matches!(
-                        func.inst(inst).kind.effect_kind(),
-                        EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
-                    )
-            })
-    };
+    summary.is_scalar = (!summary.has_icall
+        || (!summary.has_phi && summary.return_count == 1 && !summary.has_returning_icall))
+        && func.instructions().all(|inst| {
+            is_terminal_call(module, &func.inst(inst).kind)
+                || matches!(
+                    func.inst(inst).kind.effect_kind(),
+                    EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
+                )
+        });
     // A single-use helper's effects and calls stay at its one call site, so any loop-free body may
     // fit the stack budget there. Loops outside the scalar class stay calls: consuming Solady's
     // insertion sort, which swaps memory words, raised its runtime gas by up to 0.35%.
-    let single_use = || scalar() || !has_back_edge(func);
     if summary.block_count <= 16
         && summary.instruction_count <= 112
         && summary.param_count <= 4
@@ -1315,8 +972,7 @@ fn summarize_function(
         && summary.return_count != 0
         && summary.internal_frame_size == 0
         && !summary.has_reference_return
-        && (peak == PeakAnalysis::Scalars && scalar()
-            || peak == PeakAnalysis::Phis && summary.has_phi && single_use())
+        && (summary.is_scalar || (summary.has_phi && !summary.has_loop))
     {
         summary.phi_stack_peak = Some(scalar_stack_peak(func));
     }
@@ -1440,33 +1096,6 @@ fn is_memory_wrapper(func: &Function) -> bool {
             )
         })
         && matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() == 1)
-}
-
-/// Recognizes immutable loads combined without calls, memory access, or control flow.
-fn is_immutable_word_leaf(func: &Function) -> bool {
-    if func.attributes.no_inline
-        || !func.params.is_empty()
-        || func.internal_frame_size != 0
-        || func.blocks.len() != 1
-        || func.return_components().len() != 1
-        || func.blocks[BlockId::ENTRY].instructions.len() > 12
-        || !matches!(func.blocks[BlockId::ENTRY].terminator.as_ref(),
-            Some(Terminator::Return { values }) if values.len() == 1)
-    {
-        return false;
-    }
-    let mut has_immutable = false;
-    for inst in func.instructions() {
-        let kind = &func.inst(inst).kind;
-        if matches!(kind, InstKind::LoadImmutable(_)) {
-            has_immutable = true;
-        } else if !matches!(kind, InstKind::Zext(_))
-            && (kind.effect_kind() != EffectKind::Pure || kind.evm_opcode().is_none())
-        {
-            return false;
-        }
-    }
-    has_immutable
 }
 
 /// A semantic check has one returning path and no allocation on that path.
@@ -1878,7 +1507,7 @@ fn block_loop_costs(func: &Function) -> FxHashMap<BlockId, LoopCost> {
             {
                 let count = count.saturating_add(u64::from(block == loop_data.header));
                 cost.executions = cost.executions.saturating_mul(count);
-            } else {
+            } else if counted.is_none() {
                 cost.counted = false;
             }
         }

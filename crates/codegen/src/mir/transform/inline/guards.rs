@@ -11,20 +11,17 @@
 //! This is a gas-mode loop optimization, bounded to four sites per caller, four
 //! scalar arguments, and six comparison instructions per guard. It trades a small
 //! caller-side guard for avoiding the internal call protocol on the returning
-//! path. The other path pays an extra guard, so this is deliberately not a general
-//! inliner. Run once after memory lowering and local CSE; subsequent CFG and word
-//! cleanup can simplify the copied comparisons.
+//! path. The other path pays an extra guard; the shared inliner cost model weighs
+//! both paths equally. The inliner invokes this after memory lowering; subsequent
+//! CFG and word cleanup can simplify the copied comparisons. Calls already in
+//! guard diamonds are excluded so repeated runs do not duplicate their guards.
 
 use crate::mir::{
     BlockId, EffectKind, Function, InstKind, Instruction, MirType, Module, Terminator, Value,
-    ValueId,
-    analysis::CfgInfo,
-    pass::{MirPass, ModuleAnalyses},
+    ValueId, analysis::CfgInfo,
 };
+use crate::target::Target;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
-use solar_sema::Gcx;
-
-pub(crate) struct InlineGuards;
 
 struct Guard {
     function: Function,
@@ -32,59 +29,81 @@ struct Guard {
     returns_if: bool,
 }
 
-impl MirPass for InlineGuards {
-    fn name(&self) -> &'static str {
-        "inline-guards"
+pub(super) fn inline_guards(module: &mut Module, target: Target) -> bool {
+    if !target.optimization().is_gas() {
+        return false;
     }
-
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_gas()
+    let guards = module
+        .functions
+        .iter_enumerated()
+        .filter_map(|(id, func)| returning_guard(func).map(|guard| (id, guard)))
+        .collect::<FxHashMap<_, _>>();
+    if guards.is_empty() {
+        return false;
     }
-
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, _: &mut ModuleAnalyses) -> bool {
-        let guards = module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(id, func)| returning_guard(func).map(|guard| (id, guard)))
-            .collect::<FxHashMap<_, _>>();
-        if guards.is_empty() {
-            return false;
-        }
-        let mut changed = false;
-        for (caller, func) in module.functions.iter_mut_enumerated() {
-            let mut sites = Vec::new();
-            for (block, body) in func.blocks.iter_enumerated() {
-                for (index, &inst) in body.instructions.iter().enumerate() {
-                    if let InstKind::ICall {
-                        function: crate::mir::Callee::Function(function),
-                        args,
-                    } = &func.inst(inst).kind
-                        && *function != caller
-                        && let Some(guard) = guards.get(function)
-                        && args.len() == guard.function.params.len()
-                        && func
-                            .inst(inst)
-                            .metadata
-                            .effect()
-                            .is_none_or(|effect| effect == func.inst(inst).kind.effect_kind())
-                    {
-                        sites.push((block, index, *function));
-                    }
+    let mut changed = false;
+    for (caller, func) in module.functions.iter_mut_enumerated() {
+        let mut sites = Vec::new();
+        for (block, body) in func.blocks.iter_enumerated() {
+            for (index, &inst) in body.instructions.iter().enumerate() {
+                if let InstKind::ICall { function: crate::mir::Callee::Function(function), args } =
+                    &func.inst(inst).kind
+                    && *function != caller
+                    && let Some(guard) = guards.get(function)
+                    && args.len() == guard.function.params.len()
+                    && !already_guarded(func, block, index)
+                    && profitable(target, guard)
+                    && func
+                        .inst(inst)
+                        .metadata
+                        .effect()
+                        .is_none_or(|effect| effect == func.inst(inst).kind.effect_kind())
+                {
+                    sites.push((block, index, *function));
                 }
             }
-            if sites.is_empty() {
-                continue;
-            }
-            let cfg = CfgInfo::new(func);
-            sites.retain(|&(block, _, _)| cfg.cyclic_blocks().contains(block));
-            sites.truncate(4);
-            // Splitting later calls first preserves the earlier instruction indices.
-            for (block, index, callee) in sites.into_iter().rev() {
-                split_guard(func, block, index, &guards[&callee]);
-                changed = true;
-            }
         }
-        changed
+        if sites.is_empty() {
+            continue;
+        }
+        let cfg = CfgInfo::new(func);
+        sites.retain(|&(block, _, _)| cfg.cyclic_blocks().contains(block));
+        sites.truncate(4);
+        // Splitting later calls first preserves the earlier instruction indices.
+        for (block, index, callee) in sites.into_iter().rev() {
+            split_guard(func, block, index, &guards[&callee]);
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn profitable(target: Target, guard: &Guard) -> bool {
+    let prefix = target.block_code_estimate(&guard.function, BlockId::ENTRY);
+    let protocol = target.icall(guard.function.params.len(), 0, 0)
+        + target.internal_return(guard.function.params.len(), 0);
+    // With no branch profile, weight the returning and continuing edges equally.
+    let savings = protocol.gas.saturating_sub(prefix.gas) / 2;
+    super::profitable(
+        target,
+        (prefix + target.jump()).bytes as usize,
+        0,
+        u64::from(savings),
+        Target::UNCOUNTED_LOOP_ITERATIONS,
+    )
+}
+
+fn already_guarded(caller: &Function, block: BlockId, index: usize) -> bool {
+    if index == 0
+        && let [pred] = caller.blocks[block].predecessors.as_slice()
+        && let Some(Terminator::Branch { then_block, else_block, .. }) =
+            caller.blocks[*pred].terminator
+        && let Some(Terminator::Jump(join)) = caller.blocks[block].terminator
+    {
+        // A guard diamond survives integer lowering and scalar canonicalization.
+        (then_block == block && else_block == join) || (else_block == block && then_block == join)
+    } else {
+        false
     }
 }
 
