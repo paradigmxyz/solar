@@ -38,10 +38,7 @@
 use super::{
     EvmPass,
     compact_pushes::selected_len,
-    utils::{
-        FreshLabels, MachineInstKey, instruction_size_lower_bound, is_position_independent,
-        is_split_point,
-    },
+    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point},
 };
 use crate::{
     backend::evm::{
@@ -139,7 +136,7 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
         }
         metrics.clear();
         metrics.extend(block.instructions.iter().map(|inst| {
-            whitelisted_effect(inst).map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
+            shared_body_effect(inst).map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
         }));
         let mut remaining = metrics.iter().flatten().map(|&(_, size)| size).sum::<usize>();
         for start in 0..metrics.len() {
@@ -244,7 +241,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             hashes
                 .repeats(block_id, index)
                 .then(|| {
-                    whitelisted_effect(inst)
+                    shared_body_effect(inst)
                         .map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
                 })
                 .flatten()
@@ -459,7 +456,7 @@ fn outline_parametric_machine_runs(
             hashes
                 .repeats(block_id, index)
                 .then(|| {
-                    whitelisted_effect(inst).map(|effect| (effect, parameterizable_push(inst)))
+                    shared_body_effect(inst).map(|effect| (effect, parameterizable_push(inst)))
                 })
                 .flatten()
         }));
@@ -686,7 +683,7 @@ fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<I
             delta += 1;
             continue;
         }
-        let (_, pops, pushes) = whitelisted_effect(inst)?;
+        let (_, pops, pushes) = shared_body_effect(inst)?;
         delta = delta - i32::from(pops) + i32::from(pushes);
         if delta < 0 {
             return None;
@@ -771,22 +768,6 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             .then_some((value, push_size))
         })
         .collect();
-    if values.is_empty() {
-        return false;
-    }
-    values.retain(|(value, push_size)| {
-        let occurrences = &sites[value];
-        let inline = occurrences.len() * push_size;
-        let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
-        let saved_bytes = inline.saturating_sub(outlined);
-        occurrences.len() >= 2
-            && inline >= outlined + MIN_SAVING
-            && (!gcx.sess.opts.optimization.is_gas()
-                || target.deposit_repays_gas(
-                    saved_bytes as u64,
-                    occurrences.len() as u64 * u64::from(transfer_gas),
-                ))
-    });
     if values.is_empty() {
         return false;
     }
@@ -913,7 +894,7 @@ fn split_outline_site(
 
 /// The words an instruction reads, pops, and pushes, when it may run in a shared body: a push, a
 /// stack operation, or a position-independent operation.
-fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
+fn shared_body_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
     if inst.is_encoded_push() {
         return Some((0, 0, 1));
     }
@@ -924,7 +905,7 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
         let outputs = u16::try_from(growth.max(0)).ok()?;
         return Some((required, inputs, outputs));
     }
-    let definition = inst.definition().filter(|definition| is_position_independent(definition))?;
+    let definition = inst.definition().filter(|definition| definition.is_position_independent())?;
     let (inputs, outputs) = definition.stack_io?;
     Some((u16::from(inputs), u16::from(inputs), u16::from(outputs)))
 }

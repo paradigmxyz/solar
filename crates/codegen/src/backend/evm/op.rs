@@ -529,6 +529,17 @@ impl OpDef {
     pub(crate) const fn observes_gas(self) -> bool {
         self.traits.contains(OpcodeTraits::OBSERVES_GAS)
     }
+
+    /// Returns whether this operation behaves the same wherever it runs: it has a fixed stack
+    /// effect and neither transfers control nor observes its code position or the gas left. Code
+    /// may move such an operation to another position, such as a shared body or a copied tail.
+    #[must_use]
+    pub(crate) const fn is_position_independent(self) -> bool {
+        self.stack_io.is_some()
+            && !self.is_terminal()
+            && !self.observes_gas()
+            && !matches!(self.opcode, JUMPI | JUMPDEST | PC)
+    }
 }
 
 /// Returns the ISLE declarations of the opcode vocabulary: the primitive
@@ -876,19 +887,18 @@ pub(crate) const fn is_pure(op: u8) -> bool {
 
 /// Returns whether inserting a push immediately before this opcode preserves its behavior.
 ///
-/// This holds for operations that produce one word without writing state, halting, or observing
-/// the gas left or the code position. It includes opcodes that expand memory or warm an account or
-/// storage slot because the push does not affect those changes.
+/// This holds for position-independent operations that produce one word without writing state.
+/// It includes opcodes that expand memory or warm an account or storage slot because the push does
+/// not affect those changes.
 #[must_use]
 pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
     match definition(op) {
         Some(definition) => {
-            matches!(definition.stack_io, Some((_, 1)))
+            definition.is_position_independent()
+                && matches!(definition.stack_io, Some((_, 1)))
                 && !definition.writes_memory()
                 && !definition.writes_storage()
-                && !definition.is_terminal()
-                && !definition.observes_gas()
-                && !matches!(op, PC | PUSH1..=PUSH32)
+                && !matches!(op, PUSH1..=PUSH32)
         }
         None => false,
     }

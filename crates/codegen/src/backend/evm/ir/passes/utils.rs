@@ -104,16 +104,6 @@ pub(super) fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
     inst.as_stack_op().map(SymbolicStackOp::Physical)
 }
 
-/// Returns whether an operation behaves the same wherever it runs: it has a fixed stack effect
-/// and neither transfers control nor observes its code position or the gas left. Code may move
-/// such an operation to another position, such as a shared body or a copied tail.
-pub(super) fn is_position_independent(definition: &op::OpDef) -> bool {
-    definition.stack_io.is_some()
-        && !definition.is_terminal()
-        && !definition.observes_gas()
-        && !matches!(definition.opcode, op::JUMPI | op::JUMPDEST | op::PC)
-}
-
 /// Returns whether the boundary at `index` in `instructions` may be disturbed.
 ///
 /// The boundary right after a `keep_with_next` instruction is not a legal split point, so no
