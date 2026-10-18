@@ -154,20 +154,36 @@ fn @swapped_slt_sgt_predecessors(arg0: i256, arg1: i256, arg2: i256) -> i1 {
 // Casts move like arithmetic. A cast to another width is a different
 // expression, so bb2 does not count as available.
 // CHECK-LABEL: fn @cast_predecessors
-// CHECK: + [[INSERTED:v[0-9]+]] = zext i1 arg0 to i256
+// CHECK: + [[INSERTED:v[0-9]+]] = trunc i256 arg0 to i160
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
-fn @cast_predecessors(arg0: i1, arg1: i1) -> i256 {
+fn @cast_predecessors(arg0: i256, arg1: i1) -> i160 {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb1:
+    v2 = trunc i256 arg0 to i160
+    jump bb3
+  bb2:
+    v3 = trunc i256 arg0 to i8
+    jump bb3
+  bb3:
+    v4 = trunc i256 arg0 to i160
+    ret v4
+}
+
+// A `zext` emits no code, so a phi would only add stack traffic.
+// CHECK-LABEL: fn @free_cast_stays
+// CHECK-NOT: phi
+fn @free_cast_stays(arg0: i1, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
     v2 = zext i1 arg0 to i256
     jump bb3
   bb2:
-    v3 = zext i1 arg0 to i160
     jump bb3
   bb3:
-    v4 = zext i1 arg0 to i256
-    ret v4
+    v3 = zext i1 arg0 to i256
+    ret v3
 }
 
 // Immediates keep their operand position: `sub 7, arg0` is not `sub arg0, 7`.

@@ -30,12 +30,15 @@
 //! predecessor, so they are never join targets, and the only instructions they
 //! hold are inserted-this-run and excluded by rule 1.
 
-use crate::mir::{
-    BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata,
-    MirType, Module, Terminator, Value, ValueId,
-    analysis::{CfgInfo, DominatorTree},
-    pass::{MirPass, run_function_pass},
-    utils::split_edge,
+use crate::{
+    mir::{
+        BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction,
+        InstructionMetadata, MirType, Module, Terminator, Value, ValueId,
+        analysis::{CfgInfo, DominatorTree},
+        pass::{MirPass, run_function_pass},
+        utils::split_edge,
+    },
+    target::{Cost, Target},
 };
 use smallvec::SmallVec;
 use solar_data_structures::{
@@ -53,12 +56,13 @@ impl MirPass for Pre {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let target = Target::new(gcx);
         run_function_pass(module, analyses, |func, _| {
-            PartialRedundancyEliminator::new().run(func).total() != 0
+            PartialRedundancyEliminator::new(target).run(func).total() != 0
         })
     }
 }
@@ -82,8 +86,9 @@ impl PreStats {
 }
 
 /// Partial redundancy eliminator for pure expressions.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct PartialRedundancyEliminator {
+    target: Target,
     stats: PreStats,
 }
 
@@ -115,8 +120,8 @@ struct PreCandidate {
 
 impl PartialRedundancyEliminator {
     /// Creates a new PRE pass.
-    fn new() -> Self {
-        Self::default()
+    fn new(target: Target) -> Self {
+        Self { target, stats: PreStats::default() }
     }
 
     /// Runs PRE to a fixed point.
@@ -128,7 +133,7 @@ impl PartialRedundancyEliminator {
             block.predecessors.len() >= 2
                 && block.instructions.iter().any(|&inst| {
                     let instruction = func.inst(inst);
-                    Self::is_pre_expression(instruction) && func.inst_result_value(inst).is_some()
+                    self.is_candidate(instruction) && func.inst_result_value(inst).is_some()
                 })
         });
         if !has_candidate {
@@ -206,7 +211,7 @@ impl PartialRedundancyEliminator {
                     continue;
                 }
                 let instruction = func.inst(inst);
-                if !Self::is_pre_expression(instruction) {
+                if !self.is_candidate(instruction) {
                     continue;
                 }
                 let Some(result_ty) = instruction.result_ty else {
@@ -485,6 +490,14 @@ impl PartialRedundancyEliminator {
                 Self::make_expr_key(func, &instruction.kind, instruction.result_ty?)?;
             (candidate_key == *key).then(|| func.inst_result_value(inst)).flatten()
         })
+    }
+
+    /// Returns whether moving `instruction` can save work: a PRE expression
+    /// that emits code, since replacing a free cast with a phi only adds stack
+    /// traffic.
+    fn is_candidate(&self, instruction: &Instruction) -> bool {
+        Self::is_pre_expression(instruction)
+            && self.target.op(&instruction.kind.op(), |_| None) != Cost::ZERO
     }
 
     /// Returns whether `instruction` computes a word from its operands alone,
