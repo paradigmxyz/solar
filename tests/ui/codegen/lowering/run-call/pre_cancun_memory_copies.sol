@@ -10,6 +10,7 @@
 //@ run-call: fresh => [1, 2, 3]
 //@ run-call: freshEmpty => []
 //@ run-call: recycledTail => 0x2222222222222222222222222222222222222222222222222222222222222233
+//@ run-call: pair 0x010203 => 0x6434eef45d1cf9636a9110e89819a6e75faf47621e0cf3d88b23b7903b0eed83
 
 // Without `MCOPY`, memory copies lower to word loops: whole-word lengths skip
 // the partial-word merge, and a partial tail changes exactly the copied bytes.
@@ -118,6 +119,10 @@ contract PreCancunMemoryCopies {
         assembly {
             last := mload(add(copy, 64))
         }
+    }
+
+    function pair(bytes memory payload) external pure returns (bytes32) {
+        return keccak256(abi.encode(payload, payload));
     }
 
     // SHARED: {{^}}fn @[[FORWARD]](
