@@ -591,13 +591,10 @@ impl Target {
         GasTier::Copy.dynamic_gas(self.evm_version)
     }
 
-    /// Gas of one program-data copy of `size` bytes: three pushes, the copy,
-    /// and its words.
-    pub(crate) fn data_copy_gas(self, size: usize) -> u32 {
+    /// Word gas of copying `size` bytes with a copy opcode, beyond its static gas.
+    pub(crate) fn copied_words(self, size: usize) -> Cost {
         let words = u32::try_from(size.div_ceil(32)).unwrap_or(u32::MAX);
-        GasTier::VeryLow.gas(self.evm_version) * 3
-            + self.opcode_gas(op::CODECOPY)
-            + self.copy_word_gas().saturating_mul(words)
+        Cost::new(self.copy_word_gas().saturating_mul(words), 0)
     }
 
     /// Cost of one internal call site with its return landing: the pushed
@@ -1021,7 +1018,7 @@ mod tests {
         assert_eq!(target.label_push(), Cost::new(3, 3));
         assert_eq!(target.push(U256::ZERO), Cost::new(2, 1));
         assert_eq!(target.push(U256::from(0x1234)), Cost::new(3, 3));
-        assert_eq!(target.data_copy_gas(64), 18);
+        assert_eq!(target.copied_words(64), Cost::new(6, 0));
         let legacy = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
         assert_eq!(legacy.push(U256::ZERO), Cost::new(3, 2));
         assert_eq!(target.stack_op(op::StackOp::Swap(16)), Some(Cost::new(3, 1)));

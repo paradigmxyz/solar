@@ -46,6 +46,7 @@ use crate::{
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
+use smallvec::SmallVec;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::sym;
 use solar_sema::Gcx;
@@ -120,6 +121,21 @@ struct Rewrite {
     tail: Vec<Instruction>,
 }
 
+impl Rewrite {
+    fn saving(&self) -> Improvement {
+        Improvement {
+            runtime_gas: i64::from(self.old.gas) - i64::from(self.new.gas),
+            bytes: i64::from(self.old.bytes) - i64::from(self.new.bytes),
+        }
+    }
+
+    /// Whether this saves at least as much as `other` under the objective: `self.old - self.new
+    /// >= other.old - other.new`, compared without signed costs.
+    fn saves_at_least(&self, other: &Self, target: Target) -> bool {
+        target.cmp(other.old + self.new, self.old + other.new).is_le()
+    }
+}
+
 struct PreparedRewrite {
     rewrite: Rewrite,
     /// The copied program data, or `None` for a zero fill from past the end of calldata.
@@ -153,15 +169,6 @@ impl Improvement {
     fn add(&mut self, other: Self) {
         self.runtime_gas += other.runtime_gas;
         self.bytes += other.bytes;
-    }
-
-    /// The objective order of a saving: gas first when optimizing for gas, bytes first otherwise.
-    fn objective_key(self, target: Target) -> [i64; 2] {
-        if target.optimization().is_gas() {
-            [self.runtime_gas, self.bytes]
-        } else {
-            [self.bytes, self.runtime_gas]
-        }
     }
 }
 
@@ -216,6 +223,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
         a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
     });
 
+    let target = Target::new(gcx);
     let mut pool = DataPool::new(&module.data);
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
@@ -225,7 +233,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
             prepared.extend(
                 rewrites
                     .into_iter()
-                    .filter(|rewrite| is_profitable(gcx, rewrite_improvement([rewrite], 0)))
+                    .filter(|rewrite| is_profitable(target, rewrite.saving()))
                     .map(|rewrite| PreparedRewrite { rewrite, data: None }),
             );
             continue;
@@ -241,12 +249,12 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
                 continue;
             };
             let contained_improvement = rewrite_improvement(contained_rewrites, 0);
-            if is_profitable(gcx, contained_improvement) {
+            if is_profitable(target, contained_improvement) {
                 improvement.add(contained_improvement);
                 absorbed.push((index, offset));
             }
         }
-        if !is_profitable(gcx, improvement) {
+        if !is_profitable(target, improvement) {
             rejected.push((data, rewrites));
             continue;
         }
@@ -305,19 +313,17 @@ fn find_run(
     instructions: &[Instruction],
     start: usize,
 ) -> Option<(Bytes, Rewrite)> {
-    let mut best = scan_run(target, instructions, start)?;
+    let mut best = scan_run(target, block, instructions, start)?;
     for later in start + 1..best.first_store {
-        if let Some(run) = scan_run(target, instructions, later)
-            && run.end == best.end
+        if let Some(run) = scan_run(target, block, instructions, later)
+            && run.rewrite.end == best.rewrite.end
             && run.data == best.data
-            && run.saving().objective_key(target) >= best.saving().objective_key(target)
+            && run.rewrite.saves_at_least(&best.rewrite, target)
         {
             best = run;
         }
     }
-    let Run { start, end, data, old, new, tail, .. } = best;
-    let rewrite = Rewrite { block, start, end, size: data.len(), old, new, tail };
-    Some((data, rewrite))
+    Some((best.data, best.rewrite))
 }
 
 /// A word on the symbolic stack of a literal-store run: input slot `slot` of the run, counted
@@ -340,25 +346,12 @@ impl RunWord {
 
 /// Stores of constants to one base address that a single copy can replace.
 struct Run {
-    start: usize,
-    first_store: usize,
-    end: usize,
+    rewrite: Rewrite,
     data: Bytes,
-    old: Cost,
-    new: Cost,
-    tail: Vec<Instruction>,
+    first_store: usize,
 }
 
-impl Run {
-    fn saving(&self) -> Improvement {
-        Improvement {
-            runtime_gas: i64::from(self.old.gas) - i64::from(self.new.gas),
-            bytes: i64::from(self.old.bytes) - i64::from(self.new.bytes),
-        }
-    }
-}
-
-/// The state of a run scan after a store.
+/// The state of a run scan after a store; the stack words above `kept` are saved separately.
 struct RunEnd {
     end: usize,
     old: Cost,
@@ -366,13 +359,17 @@ struct RunEnd {
     range: (u64, u64),
     inputs: usize,
     kept: usize,
-    extras: Vec<RunWord>,
 }
 
 /// Symbolically runs the pushes, stack operations, constant expressions, and constant `MSTORE`
 /// and `MSTORE8`s from `start`, and returns the longest prefix whose stores fill one contiguous
 /// range and whose final stack a copy can rebuild.
-fn scan_run(target: Target, instructions: &[Instruction], start: usize) -> Option<Run> {
+fn scan_run(
+    target: Target,
+    block: BlockId,
+    instructions: &[Instruction],
+    start: usize,
+) -> Option<Run> {
     if !is_split_point(instructions, start) {
         return None;
     }
@@ -384,6 +381,7 @@ fn scan_run(target: Target, instructions: &[Instruction], start: usize) -> Optio
     let mut stores = Vec::<(u64, U256, bool)>::new();
     let mut ranges = Vec::<(u64, u64)>::new();
     let mut best = None;
+    let mut extras = Vec::new();
     let ensure = |stack: &mut Vec<RunWord>, inputs: &mut usize, depth: usize| {
         while stack.len() < depth {
             stack.insert(0, RunWord::input(*inputs));
@@ -443,8 +441,9 @@ fn scan_run(target: Target, instructions: &[Instruction], start: usize) -> Optio
                 && is_split_point(instructions, end)
                 && (kept == inputs || kept == stack.len())
             {
-                let extras = stack[kept..].to_vec();
-                best = Some(RunEnd { end, old, stores: stores.len(), range, inputs, kept, extras });
+                extras.clear();
+                extras.extend_from_slice(&stack[kept..]);
+                best = Some(RunEnd { end, old, stores: stores.len(), range, inputs, kept });
             }
             continue;
         }
@@ -452,7 +451,7 @@ fn scan_run(target: Target, instructions: &[Instruction], start: usize) -> Optio
         let input_count = usize::from(input_count);
         ensure(&mut stack, &mut inputs, input_count);
         let operands = stack.split_off(stack.len() - input_count);
-        let arguments = operands.iter().rev().map(|word| word.offset).collect::<Vec<_>>();
+        let arguments = operands.iter().rev().map(|word| word.offset).collect::<SmallVec<[_; 3]>>();
         let result = match operands[..] {
             [a, b] if opcode == op::ADD && a.slot.xor(b.slot).is_some() => {
                 RunWord { slot: a.slot.or(b.slot), offset: a.offset.wrapping_add(b.offset) }
@@ -463,12 +462,12 @@ fn scan_run(target: Target, instructions: &[Instruction], start: usize) -> Optio
             }
             _ => break,
         };
-        let arguments = arguments.into_iter().map(Some).collect::<Vec<_>>();
+        let arguments = arguments.into_iter().map(Some).collect::<SmallVec<[_; 3]>>();
         old += target.opcode_with_immediates(opcode, &arguments);
         stack.push(result);
     }
 
-    let RunEnd { end, old, stores: store_count, range: (low, high), inputs, kept, extras } = best?;
+    let RunEnd { end, old, stores: store_count, range: (low, high), inputs, kept } = best?;
     let mut data = vec![0; (high - low) as usize];
     for &(offset, value, word) in &stores[..store_count] {
         let at = (offset - low) as usize;
@@ -488,14 +487,12 @@ fn scan_run(target: Target, instructions: &[Instruction], start: usize) -> Optio
     let tail = copy_tail(destination, zero, inputs, kept, &extras);
     // Reserve PUSH3 for an unresolved data address.
     let source = if zero { target.opcode(op::CALLDATASIZE) } else { target.opcode(op::PUSH3) };
-    let words = u32::try_from(data.len().div_ceil(WORD_BYTES)).ok()?;
-    let mut new = target.push(U256::from(data.len()))
-        + source
-        + Cost::new(target.copy_word_gas().saturating_mul(words), 0);
+    let mut new = target.push(U256::from(data.len())) + source + target.copied_words(data.len());
     for inst in &tail {
         new += instruction_cost(target, inst)?;
     }
-    Some(Run { start, first_store: first_store?, end, data: data.into(), old, new, tail })
+    let rewrite = Rewrite { block, start, end, size: data.len(), old, new, tail };
+    Some(Run { rewrite, data: data.into(), first_store: first_store? })
 }
 
 /// Adds `range` to the sorted disjoint `ranges`, merging touching ranges.
@@ -565,22 +562,18 @@ fn instruction_cost(target: Target, inst: &Instruction) -> Option<Cost> {
     }
 }
 
-fn rewrite_improvement<'a>(
-    rewrites: impl IntoIterator<Item = &'a Rewrite>,
-    additional_bytes: isize,
-) -> Improvement {
+fn rewrite_improvement(rewrites: &[Rewrite], additional_bytes: isize) -> Improvement {
     let mut improvement = Improvement { runtime_gas: 0, bytes: -(additional_bytes as i64) };
     for rewrite in rewrites {
-        improvement.runtime_gas += i64::from(rewrite.old.gas) - i64::from(rewrite.new.gas);
-        improvement.bytes += i64::from(rewrite.old.bytes) - i64::from(rewrite.new.bytes);
+        improvement.add(rewrite.saving());
     }
     improvement
 }
 
-fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
+fn is_profitable(target: Target, improvement: Improvement) -> bool {
     // Static sites have no execution-frequency estimate, so never buy gas by
     // growing code for a copy that may stay cold.
-    Target::new(gcx).improves(improvement.runtime_gas, improvement.bytes)
+    target.improves(improvement.runtime_gas, improvement.bytes)
 }
 
 /// Shares storage between data entries after deferred data is linked in.
