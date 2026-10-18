@@ -1,27 +1,36 @@
-//! Loop Optimization passes for MIR.
+//! Loop-invariant code motion (`licm`).
 //!
-//! This module provides loop optimizations for MIR.
+//! Moves instructions whose operands do not change inside a natural loop to the loop's
+//! preheader, so each runs once per entry instead of once per iteration. The pass needs the
+//! dedicated preheader `loop-canonicalize` inserts, and moves an instruction together with its
+//! in-loop operands, in dependence order, as one closure.
 //!
-//! **Loop Invariant Code Motion (LICM)** moves computations that don't change
-//! within a loop to the preheader block, reducing redundant work.
+//! Safety. An instruction moves only when running it early, and possibly on a zero-trip
+//! entry, is unobservable. Pure operations move freely. Memory, storage, transient and
+//! immutable reads move only when no loop instruction may write what they read, judged by the
+//! shared alias analysis with module call summaries, so a call to a memory-clean helper is not
+//! a barrier; scalar evolution separates affine element ranges of one base that the
+//! value-local analysis cannot. Every read additionally needs an execution guarantee: its block
+//! dominates every live exit, or the loop runs a verified first iteration that reaches it, and
+//! no semantic check or call that may exit without a CFG edge runs before it in the loop.
+//! Memory reads and hashes expand memory, so they never move in a function that may observe
+//! `msize`. A semantic length read of an existing heap object (a fresh allocation or an object
+//! argument) reads allocated memory and needs no execution guarantee. Fixed-width slot hashes
+//! move with their scratch writes only when nothing else in the function touches scratch.
+//! Environment reads that calls or creates change (balances, code size and hash, return data
+//! size) stay in loops that call or create, and nothing moves out of a loop that reads the
+//! remaining gas. Frame loads and the free memory pointer never move.
 //!
-//! Memory reads hoist only when no loop instruction may write what they read,
-//! judged by the shared alias analysis with module call summaries, so a call
-//! to a memory-clean helper is not a barrier. A semantic length read of an
-//! existing heap object (a fresh allocation or an object argument) needs no
-//! execution guarantee: its header is allocated memory, so reading it early
-//! cannot expand memory or trap on a zero-trip loop.
-//!
-//! An instruction is a hoisting root when its estimated per-iteration saving reaches the
-//! pass threshold, or when it is the invariant base of an affine address the loop reads or
-//! writes. In gas mode, pure word arithmetic that executes on every iteration is a root as
-//! well: the backend carries a preheader value on the stack through the loop or rebuilds it
-//! at its uses, so hoisting only widens its choice. Those below-threshold hoists are held to
-//! a budget of loop-carried words, the header's phis plus the values the loop reads from
-//! outside, computed per loop of the nest containing the instruction and updated as roots
-//! are accepted: past the budget, the backend's layouts spill loop values to frame slots,
-//! and a hoisted base costs more in reloads of the words it displaces than its in-loop
-//! recomputation saved.
+//! Profitability. An instruction is a hoisting root when its estimated per-iteration saving
+//! reaches the pass threshold, or when it is the invariant base of an affine address the loop
+//! reads or writes. In gas mode, pure word arithmetic that executes on every iteration is a
+//! root as well: the backend carries a preheader value on the stack through the loop or
+//! rebuilds it at its uses, so hoisting only widens its choice. Those below-threshold hoists
+//! are held to a budget of loop-carried words, the header's phis plus the values the loop reads
+//! from outside, computed per loop of the nest containing the instruction and updated as roots
+//! are accepted: past the budget, the backend's layouts spill loop values to frame slots, and a
+//! hoisted base costs more in reloads of the words it displaces than its in-loop recomputation
+//! saved. At most a fixed number of instructions leave one loop.
 //!
 //! The pass runs once on the semantic MIR and once more in gas mode after memory lowering,
 //! which materializes each element access as `add base, 32` plus an index term inside the
@@ -36,20 +45,11 @@
 //! `x` meets. Each iteration then compares instead of dividing. The check keeps its branch,
 //! which panics when the comparison fails: flipping the branch so the check could merge with
 //! the add overflow check after it made the loop carry more words, and it measured slower.
-//!
-//! ## Gas Savings
-//!
-//! This optimization is particularly important for EVM:
-//! - LICM: Avoids recomputing `arr.length` each iteration (MLOAD/SLOAD costs)
-//!
-//! Hoisting loads requires both independence and an execution guarantee. Semantic checks
-//! and calls may exit before a load without an explicit CFG edge; their control effects
-//! therefore constrain the guarantee even when a constant loop bound is known.
+//! The rewrite is skipped in loops that check the gas left, since the bound runs first.
 
 use crate::mir::{
-    BlockId, Callee, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId,
-    InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
-    ValueId,
+    BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
         Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ScalarEvolution,
@@ -99,11 +99,13 @@ impl MirPass for Licm {
             analyses,
             &selected,
             |func, analyses| {
-                let mut optimizer = LoopOptimizer::with_limits(3, 8);
-                optimizer.hoist_cheap = hoist_cheap;
-                optimizer.alias = Some(Rc::clone(analyses.alias()));
-                let changed =
-                    optimizer.optimize(func, Rc::clone(analyses.cfg())).instructions_hoisted != 0;
+                let mut optimizer = LoopOptimizer {
+                    hoist_cheap,
+                    alias: Rc::clone(analyses.alias()),
+                    hoisted: 0,
+                    annotated_aliases: false,
+                };
+                let changed = optimizer.optimize(func, Rc::clone(analyses.cfg())) != 0;
                 if optimizer.annotated_aliases {
                     analyses.note_unreported_edit();
                 }
@@ -134,71 +136,39 @@ struct LoopOptContext<'a> {
     analyzer: &'a LoopAnalyzer,
 }
 
+/// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
+const MIN_LICM_PROFIT: u16 = 3;
+
+/// Maximum number of instructions hoisted from one loop.
+const MAX_LICM_HOISTED_INSTS: usize = 8;
+
 /// Loop optimizer.
-#[derive(Debug)]
 struct LoopOptimizer {
-    /// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
-    min_licm_profit: u16,
-    /// Maximum number of instructions hoisted from one loop.
-    max_licm_hoisted_insts: usize,
     /// Whether pure arithmetic executed on every iteration is hoisted even when its per-iteration
-    /// saving is below `min_licm_profit`. The backend carries a preheader value on the stack
+    /// saving is below [`MIN_LICM_PROFIT`]. The backend carries a preheader value on the stack
     /// through a loop or rebuilds it at its use sites, whichever its pricing prefers, so
     /// hoisting only widens its choice; the cost is bytecode when the value is spilled, which
     /// gas mode accepts.
     hoist_cheap: bool,
-    stats: LoopOptStats,
-    alias: Option<Rc<AliasAnalysis>>,
+    alias: Rc<AliasAnalysis>,
+    /// Number of instructions hoisted or rewritten.
+    hoisted: usize,
     /// Whether storage-alias annotation changed metadata, which is not reported as a change.
     annotated_aliases: bool,
 }
 
-impl Default for LoopOptimizer {
-    fn default() -> Self {
-        Self {
-            min_licm_profit: 0,
-            max_licm_hoisted_insts: usize::MAX,
-            hoist_cheap: false,
-            stats: LoopOptStats::default(),
-            alias: None,
-            annotated_aliases: false,
-        }
-    }
-}
-
-/// Statistics from loop optimization.
-#[derive(Clone, Debug, Default)]
-struct LoopOptStats {
-    /// Number of instructions hoisted out of loops.
-    instructions_hoisted: usize,
-}
-
 impl LoopOptimizer {
-    fn with_limits(min_licm_profit: u16, max_licm_hoisted_insts: usize) -> Self {
-        Self {
-            min_licm_profit,
-            max_licm_hoisted_insts,
-            hoist_cheap: false,
-            stats: LoopOptStats::default(),
-            alias: None,
-            annotated_aliases: false,
-        }
-    }
-
-    /// Runs loop-invariant code motion on a function.
-    fn optimize(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &LoopOptStats {
-        self.stats = LoopOptStats::default();
+    /// Runs loop-invariant code motion on a function and returns the number of instructions
+    /// hoisted or rewritten.
+    fn optimize(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> usize {
         self.annotated_aliases |=
             func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
-        if self.alias.is_none() {
-            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
-        }
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze_with_cfg(func, cfg);
 
         if loop_info.loops.is_empty() {
-            return &self.stats;
+            return 0;
         }
 
         let loops = loop_info.loops.values().cloned().collect::<Vec<_>>();
@@ -207,7 +177,7 @@ impl LoopOptimizer {
                 // The product's limit runs before the loop, so whatever in the loop checks the gas
                 // left would see what the limit cost before the first check paid for it.
                 if !self.loop_checks_gas_left(func, loop_data) {
-                    self.stats.instructions_hoisted += reduce_product_checks(func, loop_data);
+                    self.hoisted += reduce_product_checks(func, loop_data);
                 }
             }
         }
@@ -220,7 +190,7 @@ impl LoopOptimizer {
             self.apply_licm(func, loop_data, &analyzer, &loops, &mut carried);
         }
 
-        &self.stats
+        self.hoisted
     }
 
     /// The words the backend carries through a loop: the header's phis and the values defined
@@ -318,7 +288,7 @@ impl LoopOptimizer {
     }
 
     fn alias(&self) -> &AliasAnalysis {
-        self.alias.as_ref().expect("loop optimizer alias snapshot is initialized")
+        &self.alias
     }
 
     fn apply_licm(
@@ -367,7 +337,7 @@ impl LoopOptimizer {
             }
 
             let new_count = closure.iter().filter(|&&inst_id| !selected.contains(inst_id)).count();
-            if selected.count() + new_count > self.max_licm_hoisted_insts {
+            if selected.count() + new_count > MAX_LICM_HOISTED_INSTS {
                 continue;
             }
             // The root leaves every loop of this nest that contains it; each of those loops
@@ -390,7 +360,7 @@ impl LoopOptimizer {
                     )
                 })
                 .collect::<Vec<_>>();
-            if self.licm_profit(func, root) < self.min_licm_profit
+            if self.licm_profit(func, root) < MIN_LICM_PROFIT
                 && nest.iter().any(|&(header, delta)| {
                     carried[&header].saturating_add_signed(delta) > LOOP_CARRY_BUDGET
                 })
@@ -427,7 +397,7 @@ impl LoopOptimizer {
             }
             if removed {
                 func.blocks[preheader].instructions.push(inst_id);
-                self.stats.instructions_hoisted += 1;
+                self.hoisted += 1;
             }
         }
     }
@@ -497,17 +467,8 @@ impl LoopOptimizer {
             InstKind::Keccak256(offset, size) => {
                 return !self.function_observes_msize(func)
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
-                    && !self.loop_may_mutate_memory_range(
-                        func,
-                        ctx,
-                        offset,
-                        self.const_addr(func, size),
-                    );
+                    && !self.loop_may_mutate_memory_range(func, ctx, offset, func.value_u64(size));
             }
-            InstKind::MappingSlot(_, _)
-            | InstKind::MappingSlotBytes(_, _)
-            | InstKind::StorageArrayDataSlot(_)
-            | InstKind::StorageArrayElementSlot { .. } => return false,
             InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_storage_slot(func, ctx, inst_id, slot, location);
@@ -516,9 +477,8 @@ impl LoopOptimizer {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_assign_immutable(func, ctx.loop_data, id);
             }
-            // MSIZE observes every memory expansion, including from other hoisted
-            // instructions; never move it.
-            InstKind::MSize | InstKind::Fmp => return false,
+            // The free memory pointer moves with every allocation.
+            InstKind::Fmp => return false,
             // Environment reads that calls or creates can change: balances move with value
             // transfers, code size/hash change on deploy/selfdestruct, and every external
             // call rewrites the return-data buffer.
@@ -602,7 +562,7 @@ impl LoopOptimizer {
             let Some(term) = &func.blocks[block_id].terminator else { continue };
             let escapes = match term {
                 Terminator::Branch { condition, then_block, else_block } => {
-                    match self.const_condition(func, *condition) {
+                    match func.value_u256(*condition).map(|condition| !condition.is_zero()) {
                         Some(true) => !loop_data.blocks.contains(*then_block),
                         Some(false) => !loop_data.blocks.contains(*else_block),
                         None => {
@@ -667,7 +627,7 @@ impl LoopOptimizer {
         inst_id: InstId,
         ctx: LoopOptContext<'_>,
     ) -> bool {
-        self.licm_profit(func, inst_id) >= self.min_licm_profit
+        self.licm_profit(func, inst_id) >= MIN_LICM_PROFIT
             || (self.loop_has_known_multiple_iterations(ctx.loop_data)
                 && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
             || (self.inst_dominates_loop_backedges(func, inst_id, ctx.loop_data, ctx.analyzer)
@@ -681,7 +641,7 @@ impl LoopOptimizer {
     fn is_cheap_invariant_arithmetic(&self, func: &Function, inst_id: InstId) -> bool {
         let inst = func.inst(inst_id);
         self.hoist_cheap
-            && inst.kind.effect_kind() == crate::mir::EffectKind::Pure
+            && inst.kind.effect_kind() == EffectKind::Pure
             && func.inst_result_value(inst_id).is_some()
     }
 
@@ -764,7 +724,6 @@ impl LoopOptimizer {
                     {
                         return true;
                     }
-                    InstKind::MSize => return true,
                     _ => {}
                 }
             }
@@ -827,16 +786,13 @@ impl LoopOptimizer {
         loop_data: &Loop,
         load_id: ImmutableId,
     ) -> bool {
+        let aa = self.alias();
+        let load = Location::Immutable(load_id);
         loop_data.blocks.iter().any(|block_id| {
-            func.blocks[block_id].instructions.iter().any(|&inst_id| {
-                matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::StoreImmutable(id, _) if id == load_id
-                ) || matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::ICall { function: Callee::Function(_), .. }
-                )
-            })
+            func.blocks[block_id]
+                .instructions
+                .iter()
+                .any(|&inst_id| aa.instruction_mod_ref(func, inst_id).may_write(aa, load))
         })
     }
 
@@ -944,25 +900,8 @@ impl LoopOptimizer {
         })
     }
 
-    fn const_addr(&self, func: &Function, value: ValueId) -> Option<u64> {
-        match func.value(value) {
-            Value::Immediate(imm) => imm.as_u256()?.try_into().ok(),
-            Value::Arg(_) | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
-        }
-    }
-
-    fn const_condition(&self, func: &Function, value: ValueId) -> Option<bool> {
-        match func.value(value) {
-            Value::Immediate(imm) => Some(!imm.as_u256()?.is_zero()),
-            Value::Arg(_) | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
-        }
-    }
-
     fn const_i128(&self, func: &Function, value: ValueId) -> Option<i128> {
-        match func.value(value) {
-            Value::Immediate(imm) => u256_to_i128(imm.as_u256()?),
-            Value::Arg(_) | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
-        }
+        i128::try_from(func.value_u256(value)?).ok()
     }
 
     fn storage_alias_for_loop_value(
@@ -1103,7 +1042,7 @@ impl LoopOptimizer {
     /// no other observer or clobber of scratch in the whole function, including calls; retain
     /// the existing must-execute proof so zero-trip loops do not acquire a hash.
     fn slot_hash_scratch_is_private(&self, func: &Function, candidate: InstId) -> bool {
-        let Some(aa) = self.alias.as_deref() else { return false };
+        let aa = self.alias();
         let scratch = Location::Memory(MemoryLocation::new(
             MemoryAddress::absolute(0),
             LocationSize::Const(crate::mir::memory::EvmMemoryLayout::FMP_SLOT),
@@ -1121,10 +1060,6 @@ impl LoopOptimizer {
             )
         })
     }
-}
-
-fn u256_to_i128(value: U256) -> Option<i128> {
-    if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
 }
 
 /// Rewrites each check of a product `x * y` with a factor `y` defined before the loop, lowered as
