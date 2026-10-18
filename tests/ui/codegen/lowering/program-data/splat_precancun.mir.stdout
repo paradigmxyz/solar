@@ -1,0 +1,37 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/splat_precancun.sol:C ===
+@module C
+@data
+  literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff001100000000000000000000000000000000000000000000000000000000000000"
+
+fn @data() -> ptr<memory> [pure] {
+  bb0:
+    v0 = alloc 224 !metadata(preserves_fmp)
+    mstore v0, 161
+    v1 = ptradd v0, 32
+    datacopy literal_0, v1, 192
+    ret v0
+}
+
+fn @hash() -> i256 [selector=0x09bd5a60, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = icall @data
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @paddingIsZero() -> i256 [selector=0x06793283, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @data
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v0
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    v5 = add v4, v2
+    v6 = mload v5
+    v7 = shr 8, v6
+    v8 = eq v7, 0
+    v9 = zext i1 v8 to i256
+    ret v9
+}

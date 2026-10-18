@@ -156,7 +156,7 @@ fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: DataDest, data: &[u
     }
 }
 
-/// Expands a repeated word with logarithmically many `MCOPY` operations.
+/// Expands a repeated word with logarithmically many memory copies.
 fn copy_splat_to_memory(
     gcx: Gcx<'_>,
     builder: &mut FunctionBuilder<'_>,
@@ -165,10 +165,7 @@ fn copy_splat_to_memory(
     clear_tail: bool,
 ) -> bool {
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
-    if !gcx.sess.opts.optimization.is_size()
-        || !gcx.sess.opts.evm_version.has_mcopy()
-        || !is_repeated_word(data)
-    {
+    if !gcx.sess.opts.optimization.is_size() || !is_repeated_word(data) {
         return false;
     }
 
