@@ -13,7 +13,9 @@
 //! bytes under the target model than a jump at each site plus one landed copy
 //! is synthesized once as a shared no-return helper, and each occurrence is
 //! rewritten into an argless `tail_call` to it — a bare jump in the backend.
-//! Only bytes are priced: the extra jump runs on the failure path alone.
+//! Only bytes are priced: the extra jump runs on the failure path alone. When
+//! optimizing for size, `Target::shares_terminal_copy` leaves shapes no larger
+//! than a jump to and from a helper to the backend's terminal sharing.
 
 use crate::{
     backend::evm::op,
@@ -121,8 +123,7 @@ fn constant_revert_shape(func: &Function, block: BlockId) -> Option<RevertShape>
     Some((stores, imm(offset)?, imm(size)?))
 }
 
-/// Whether one landed copy of a shape and a jump at each of its `sites` take fewer bytes than
-/// a copy at every site.
+/// Whether sharing one copy of a shape among its `sites` pays under the target model.
 fn saves_bytes(target: Target, (stores, offset, size): &RevertShape, sites: usize) -> bool {
     let copy = stores
         .iter()
@@ -133,11 +134,5 @@ fn saves_bytes(target: Target, (stores, offset, size): &RevertShape, sites: usiz
         + target.push(*offset)
         + target.push(*size)
         + target.opcode(op::REVERT);
-    let jump = target.label_push() + target.opcode(op::JUMP);
-    let sites = sites as u64;
-    let inline = u64::from(copy.bytes) * sites;
-    let shared = u64::from(jump.bytes) * sites
-        + u64::from(copy.bytes)
-        + u64::from(target.opcode(op::JUMPDEST).bytes);
-    shared < inline
+    target.shares_terminal_copy(copy, u32::try_from(sites).unwrap_or(u32::MAX))
 }
