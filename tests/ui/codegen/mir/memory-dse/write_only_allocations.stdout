@@ -1,0 +1,52 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_allocations.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_allocations.mir (after memory-dse) ===
+  @module WriteOnlyAllocations
+  fn @write_only(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = alloc 64 !metadata(deferred_alloc)
+-     mstore v0, arg0
+      v1 = ptradd v0, 32
+-     mstore v1, arg1
+      mstore 128, arg0
+      returndata 128, 32
+  }
+  
+  fn @read_back(arg0: i256, arg1: i1) {
+    bb0:
+      v0 = alloc 32 !metadata(deferred_alloc)
+      mstore v0, arg0
+      jumpi arg1, bb1, bb2
+    bb2:
+      stop
+    bb1:
+      v1 = mload v0
+      mstore 128, v1
+      returndata 128, 32
+  }
+  
+  fn @escapes(arg0: i256) {
+    bb0:
+      v0 = alloc 32 !metadata(deferred_alloc)
+      mstore v0, arg0
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore 128, v1
+      returndata 128, 32
+  }
+  
+  fn @observes_msize(arg0: i256) {
+    bb0:
+      v0 = alloc 32 !metadata(deferred_alloc)
+      mstore v0, arg0
+      v1 = msize
+      mstore 128, v1
+      returndata 128, 32
+  }
+  
+  fn @heap_allocation(arg0: i256) {
+    bb0:
+      v0 = alloc 32
+      mstore v0, arg0
+      mstore 128, arg0
+      returndata 128, 32
+  }
+  
