@@ -10,9 +10,9 @@
 //! Placement. A static layout reserves its output first and stores into it. A
 //! dynamic layout writes at the free-memory pointer, then reserves the encoded
 //! extent with `preserves_fmp`, so that reservation keeps its address even
-//! after later folding makes its size constant. Under the gas objective that
-//! extent is the encoding, a whole number of words, plus the padded selector,
-//! with no rounding at runtime. `Scratch` encodings stage at
+//! after later folding makes its size constant. That extent is the encoding, a
+//! whole number of words, plus the padded selector, with no rounding at
+//! runtime. `Scratch` encodings stage at
 //! the free-memory pointer without reserving. `Bytes` results keep their
 //! allocation point because source code can observe the pointer bump. A tuple
 //! whose only dynamic values are literal byte strings has a known size, so it
@@ -117,7 +117,6 @@ impl MirPass for LowerAbiEncode {
         }
         let mut inline_helpers = EncodeHelpers {
             branchless_byte_tails: !target.optimization().is_size(),
-            aligned_reservations: target.optimization().is_gas(),
             ..EncodeHelpers::default()
         };
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
@@ -190,9 +189,6 @@ struct EncodeHelpers {
     /// Proven on the original function, before encoding emits raw memory operations.
     literal_objects: FxHashSet<ValueId>,
     branchless_byte_tails: bool,
-    /// Reserve an encoding as its word-aligned size plus the padded selector. Size mode keeps
-    /// the rounded reservation, whose larger body its tuple-helper sharing estimate expects.
-    aligned_reservations: bool,
 }
 
 /// Builds `encode_abi_tuple(args.., [selector]) -> encoded` for every encoding shape at least
@@ -321,7 +317,6 @@ fn synthesize_array_helpers(
 
     let mut helpers = EncodeHelpers {
         branchless_byte_tails: !target.optimization().is_size(),
-        aligned_reservations: target.optimization().is_gas(),
         ..EncodeHelpers::default()
     };
     for (_, key) in keys {
@@ -821,17 +816,9 @@ fn lower_encode(
     if mode == AbiEncodeMode::Scratch {
         return builder.make_slice(allocation_base, total, PtrLocation::Memory);
     }
-    let aligned = if helpers.aligned_reservations {
-        // aligned = encoded_size + align32(selector_size)
-        let padded_prefix = builder.imm(padded_prefix);
-        builder.add(encoded_size, padded_prefix)
-    } else {
-        // aligned = (total + 31) & ~31
-        let thirty_one = builder.imm(31);
-        let rounded = builder.add(total, thirty_one);
-        let mask = builder.not(thirty_one);
-        builder.and(rounded, mask)
-    };
+    // aligned = encoded_size + align32(selector_size)
+    let padded_prefix = builder.imm(padded_prefix);
+    let aligned = builder.add(encoded_size, padded_prefix);
     // allocated = alloc aligned !metadata(preserves_fmp)
     // make_slice allocated, total
     let allocated = builder.alloc(aligned, crate::mir::AllocationSemantics::INTERNAL);
