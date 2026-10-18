@@ -56,6 +56,60 @@ fn @third(arg0: i256) {
     returndata 128, 32
 }
 
+// An 8-byte shape at four sites pays for its helper under the target model:
+// four 4-byte jumps plus one landed copy take 25 bytes against 32 inline.
+// CHECK-LABEL: {{^[ +].*}}fn @small_a{{[( ]}}
+// CHECK: + tail_call @[[SMALL:revert_stub[.0-9]*]]
+fn @small_a(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 0, 1
+    revert 0, 32
+  bb2:
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @small_b{{[( ]}}
+// CHECK: + tail_call @[[SMALL]]
+fn @small_b(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 0, 1
+    revert 0, 32
+  bb2:
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @small_c{{[( ]}}
+// CHECK: + tail_call @[[SMALL]]
+fn @small_c(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 0, 1
+    revert 0, 32
+  bb2:
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @small_d{{[( ]}}
+// CHECK: + tail_call @[[SMALL]]
+fn @small_d(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 0, 1
+    revert 0, 32
+  bb2:
+    stop
+}
+
 // CHECK-LABEL: + fn @revert_stub{{.*}}
 // CHECK: + mstore 4, 17
-// CHECK: {{^ +}}revert 0, 36
+// CHECK: {{^[ +].*}}revert 0, 36
+
+// CHECK: + fn @[[SMALL]]()
+// CHECK: + mstore 0, 1
+// CHECK: {{^[ +].*}}revert 0, 32

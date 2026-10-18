@@ -9,14 +9,19 @@
 //! from hiding those duplicates from the backend passes.
 //!
 //! This pass hashes every block whose instructions are all `mstore(imm, imm)`
-//! and whose terminator is `revert(imm, imm)`. A shape that occurs at least
-//! twice (and is big enough for the jump to pay for itself) is synthesized
-//! once as a shared no-return helper, and each occurrence is rewritten into an
-//! argless `tail_call` to it — a bare jump in the backend.
+//! and whose terminator is `revert(imm, imm)`. A shape whose copies take more
+//! bytes under the target model than a jump at each site plus one landed copy
+//! is synthesized once as a shared no-return helper, and each occurrence is
+//! rewritten into an argless `tail_call` to it — a bare jump in the backend.
+//! Only bytes are priced: the extra jump runs on the failure path alone.
 
-use crate::mir::{
-    BlockId, Function, FunctionBuilder, FunctionId, InstKind, Module, PtrLocation, Terminator,
-    Value, pass::MirPass,
+use crate::{
+    backend::evm::op,
+    mir::{
+        BlockId, Function, FunctionBuilder, FunctionId, InstKind, Module, PtrLocation, Terminator,
+        Value, pass::MirPass,
+    },
+    target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -33,32 +38,32 @@ impl MirPass for OutlineReverts {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        outline_reverts(module)
+        outline_reverts(module, Target::new(gcx))
     }
 }
 
 /// A constant revert block: `mstore(offset, value)*` then `revert(offset, size)`.
 type RevertShape = (SmallVec<[(U256, U256); 2]>, U256, U256);
 
-fn outline_reverts(module: &mut Module) -> bool {
+fn outline_reverts(module: &mut Module, target: Target) -> bool {
     // Collect every constant revert block, keyed by shape.
     let mut shapes = FxHashMap::<RevertShape, Vec<(FunctionId, BlockId)>>::default();
     for (func_id, func) in module.functions.iter_enumerated() {
         for block_id in func.blocks.indices() {
-            if let Some(shape) = constant_revert_shape(func, block_id)
-                && estimated_inline_size(&shape) >= MIN_OUTLINED_SIZE
-            {
+            if let Some(shape) = constant_revert_shape(func, block_id) {
                 shapes.entry(shape).or_default().push((func_id, block_id));
             }
         }
     }
 
-    let mut worth_outlining: Vec<_> =
-        shapes.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
+    let mut worth_outlining: Vec<_> = shapes
+        .into_iter()
+        .filter(|(shape, sites)| saves_bytes(target, shape, sites.len()))
+        .collect();
     if worth_outlining.is_empty() {
         return false;
     }
@@ -94,9 +99,6 @@ fn create_revert(module: &mut Module, (stores, offset, size): &RevertShape) -> F
     module.add_function(func)
 }
 
-/// Below this estimated inline footprint the jump to a helper saves nothing.
-const MIN_OUTLINED_SIZE: usize = 12;
-
 /// Returns the block's shape when every instruction is a fully-constant
 /// `mstore` and the terminator is a fully-constant `revert`.
 fn constant_revert_shape(func: &Function, block: BlockId) -> Option<RevertShape> {
@@ -119,9 +121,23 @@ fn constant_revert_shape(func: &Function, block: BlockId) -> Option<RevertShape>
     Some((stores, imm(offset)?, imm(size)?))
 }
 
-/// Rough emitted size of the shape when left inline: pushes at minimal width
-/// plus one byte per operation.
-fn estimated_inline_size((stores, offset, size): &RevertShape) -> usize {
-    let push = |v: &U256| 1 + v.byte_len();
-    stores.iter().map(|(o, v)| push(o) + push(v) + 1).sum::<usize>() + push(offset) + push(size) + 1
+/// Whether one landed copy of a shape and a jump at each of its `sites` take fewer bytes than
+/// a copy at every site.
+fn saves_bytes(target: Target, (stores, offset, size): &RevertShape, sites: usize) -> bool {
+    let copy = stores
+        .iter()
+        .map(|&(offset, value)| {
+            target.push(offset) + target.push(value) + target.opcode(op::MSTORE)
+        })
+        .sum::<Cost>()
+        + target.push(*offset)
+        + target.push(*size)
+        + target.opcode(op::REVERT);
+    let jump = target.label_push() + target.opcode(op::JUMP);
+    let sites = sites as u64;
+    let inline = u64::from(copy.bytes) * sites;
+    let shared = u64::from(jump.bytes) * sites
+        + u64::from(copy.bytes)
+        + u64::from(target.opcode(op::JUMPDEST).bytes);
+    shared < inline
 }
