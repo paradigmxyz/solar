@@ -214,23 +214,12 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
 
 fn @inner(arg0: slice<calldata>) -> i256 [selector=0x3c12b05c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = extract_value slice<calldata>, arg0, 1
-    v1 = extract_value slice<calldata>, arg0, 0
-    v2 = add v0, 63
-    v3 = lt v2, v0
-    icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc v5
-    mstore v6, v0
-    v7 = ptradd v6, 32
-    calldatacopy v7, v1, v0 !metadata(memory=heap)
-    v8 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, i256, bytes>], v6
-    v9 = ptradd v8, 32
-    v10 = mload v9, ptr<memory>
-    v11 = ptrtoint ptr<memory> v10 to i256
-    v12 = keccak256 v11, 160
-    ret v12
+    v0 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, i256, bytes>], arg0
+    v1 = ptradd v0, 32
+    v2 = mload v1, ptr<memory>
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = keccak256 v3, 160
+    ret v4
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===

@@ -37,20 +37,9 @@ fn @decodeReturn(arg0: ptr<memory>) -> i256 [selector=0x59f6030d, abi_params=[by
 fn @decodeCalldata(arg0: slice<calldata>) -> i256 [selector=0xea59e64a, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
-    v0 = extract_value slice<calldata>, arg0, 1
-    v1 = extract_value slice<calldata>, arg0, 0
-    v2 = add v0, 63
-    v3 = lt v2, v0
-    icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc v5
-    mstore v6, v0
-    v7 = ptradd v6, 32
-    calldatacopy v7, v1, v0 !metadata(memory=heap)
-    abi_decode [], v6
-    v8 = sload 0 !metadata(storage=slot(0))
-    ret v8
+    abi_decode [], arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -69,18 +58,7 @@ fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_par
     v10 = make_calldata_slice v9, v8
     v11 = extract_value slice<calldata>, v10, 0
     v12 = make_calldata_slice v11, arg0
-    v13 = extract_value slice<calldata>, v12, 1
-    v14 = extract_value slice<calldata>, v12, 0
-    v15 = add v13, 63
-    v16 = lt v15, v13
-    icall panic_if<0x41>, v16
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = alloc v18
-    mstore v19, v13
-    v20 = ptradd v19, 32
-    calldatacopy v20, v14, v13 !metadata(memory=heap)
-    abi_decode [], v19
+    abi_decode [], v12
     ret 3
 }
 

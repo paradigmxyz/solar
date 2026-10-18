@@ -3,44 +3,28 @@
 @phase lowered
 fn @tokenId() [selector=0x8f25c453, abi_wrapper, pure] {
   bb0:
-    v29 = calldatasize
-    v30 = lt v29, 36
-    v31 = calldataload 4
-    v32 = add v31, 4
-    v33 = add v32, 32
-    v34 = gt v31, 0xffffffffffffffff
-    v35 = gt v33, v29
-    v36 = or v34, v35
-    v38 = calldataload v32
-    v40 = sub v29, v33
-    v41 = gt v38, v40
-    v44 = or v36, v41
-    v55 = or v30, v44
-    jumpi v55, bb3, bb5
-  bb5:
-    v2 = add v38, 63
-    v3 = lt v2, v38
-    jumpi v3, bb1, bb2
+    v23 = calldatasize
+    v24 = lt v23, 36
+    v25 = calldataload 4
+    v26 = add v25, 4
+    v27 = add v26, 32
+    v28 = gt v25, 0xffffffffffffffff
+    v29 = gt v27, v23
+    v30 = or v28, v29
+    v32 = calldataload v26
+    v34 = sub v23, v27
+    v35 = gt v32, v34
+    v38 = or v30, v35
+    v44 = or v24, v38
+    v6 = slt v32, 128
+    v45 = or v44, v6
+    jumpi v45, bb1, bb2
   bb2:
-    v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v53 = mload 64 !metadata(memory=scratch)
-    v54 = add v53, v5
-    mstore 64, v54 !metadata(memory=scratch)
-    mstore v53, v38
-    v50 = add v53, 32
-    calldatacopy v50, v33, v38
-    v14 = slt v38, 128
-    jumpi v14, bb3, bb4
-  bb4:
-    v15 = alloc 128 !metadata(deferred_alloc)
-    v16 = mload v50
-    mstore 128, v16
+    v7 = alloc 128 !metadata(deferred_alloc)
+    v8 = calldataload v27
+    mstore 128, v8
     returndata 128, 32
   bb1:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-  bb3:
     revert 0, 0
 }
 
