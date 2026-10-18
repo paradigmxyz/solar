@@ -41,13 +41,3 @@ pub(crate) fn data_copy_gas(evm_version: EvmVersion, size: usize) -> usize {
     Target::with(evm_version, OptimizationMode::Gas, Target::DEFAULT_EXPECTED_EXECUTIONS)
         .data_copy_gas(size) as usize
 }
-
-/// Returns whether a program-data copy improves the selected objective.
-pub(crate) fn data_copy_is_profitable(
-    optimization: OptimizationMode,
-    runtime_gas_saving: i128,
-    byte_saving: i128,
-) -> bool {
-    Target::with(EvmVersion::default(), optimization, Target::DEFAULT_EXPECTED_EXECUTIONS)
-        .improves(runtime_gas_saving, byte_saving)
-}

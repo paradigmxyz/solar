@@ -19,7 +19,7 @@
 use super::{EvmPass, utils::instruction_size_lower_bound};
 use crate::{
     backend::evm::{
-        data_copy_cost, data_copy_gas, data_copy_is_profitable,
+        data_copy_cost, data_copy_gas,
         ir::{
             BlockId, Data, DataId, DataRef, DataSize, Instruction, Module, PushValue, Terminator,
             TerminatorKind, immediate_materialization_cost,
@@ -27,7 +27,7 @@ use crate::{
         op::{self, WORD_BYTES},
     },
     link::LibraryRelocation,
-    target::GasTier,
+    target::{GasTier, Target},
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
@@ -349,7 +349,7 @@ fn rewrite_improvement(
 fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
     // Static sites have no execution-frequency estimate, so never buy gas by
     // growing code for a copy that may stay cold.
-    data_copy_is_profitable(gcx.sess.opts.optimization, improvement.runtime_gas, improvement.bytes)
+    Target::new(gcx).improves(improvement.runtime_gas, improvement.bytes)
 }
 
 /// Shares storage between data entries after deferred data is linked in.

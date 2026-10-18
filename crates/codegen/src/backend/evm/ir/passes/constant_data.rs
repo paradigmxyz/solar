@@ -11,12 +11,10 @@ use super::{
     data::{literal_store_bytes, literal_store_words},
     utils::instruction_size_lower_bound,
 };
-use crate::{
-    backend::evm::{
-        ir::{BlockId, Data, DataRef, Instruction, Metadata, Module},
-        op,
-    },
-    mir::lower::data_copy_cost,
+use crate::backend::evm::{
+    data_copy_cost,
+    ir::{BlockId, Data, DataRef, Instruction, Metadata, Module},
+    op,
 };
 use alloy_primitives::{Bytes, U256};
 use solar_interface::sym;
