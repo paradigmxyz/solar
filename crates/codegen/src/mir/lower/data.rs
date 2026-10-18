@@ -165,7 +165,11 @@ fn copy_splat_to_memory(
     clear_tail: bool,
 ) -> bool {
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
-    if !gcx.sess.opts.optimization.is_size() || !is_repeated_word(data) {
+    // Partial copies need a masked merge before Cancun; retain the ordinary data lowering.
+    if !gcx.sess.opts.optimization.is_size()
+        || !is_repeated_word(data)
+        || (!gcx.sess.opts.evm_version.has_mcopy() && !data.len().is_multiple_of(word_size))
+    {
         return false;
     }
 

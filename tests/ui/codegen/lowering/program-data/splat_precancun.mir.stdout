@@ -2,6 +2,7 @@
 @module C
 @data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff001100000000000000000000000000000000000000000000000000000000000000"
+  literal_1: hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
 
 fn @data() -> ptr<memory> [pure] {
   bb0:
@@ -34,4 +35,30 @@ fn @paddingIsZero() -> i256 [selector=0x06793283, pure, abi_params=[], abi_retur
     v8 = eq v7, 0
     v9 = zext i1 v8 to i256
     ret v9
+}
+
+fn @shortHash() -> i256 [selector=0x0c6b2786, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 33
+    v1 = ptradd v0, 32
+    mstore v1, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v2 = ptradd v0, 64
+    mstore v2, 0x100000000000000000000000000000000000000000000000000000000000000
+    v3 = ptradd v0, 32
+    v4 = mload v0
+    v5 = keccak256 v3, v4
+    ret v5
+}
+
+fn @fullWordsHash() -> i256 [selector=0x58653188, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = alloc 128 !metadata(preserves_fmp)
+    mstore v0, 96
+    v1 = ptradd v0, 32
+    datacopy literal_1, v1, 96
+    v2 = ptradd v0, 32
+    v3 = mload v0
+    v4 = keccak256 v2, v3
+    ret v4
 }
