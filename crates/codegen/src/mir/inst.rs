@@ -1,6 +1,6 @@
 //! MIR instructions.
 
-use super::{Function, InstKind, MirPhase, MirType, PtrLocation, Value, ValueId};
+use super::{Function, InstKind, MirPhase, MirType, PhaseCategory, PtrLocation, Value, ValueId};
 use crate::mir::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -683,14 +683,14 @@ impl Instruction {
     }
 
     /// Returns the semantic operation that still needs representation lowering.
-    pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<&'static str> {
+    pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<PhaseCategory> {
         if self.result_ty == Some(MirType::I1)
             && self.kind.op_def().result == super::ResultKind::Integer
             && !matches!(self.kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
             || matches!(self.kind, InstKind::SLt(a, _) | InstKind::SGt(a, _)
                 if func.value_ty(a) == Some(MirType::I1))
         {
-            return Some("narrow integer arithmetic");
+            return Some(PhaseCategory::NarrowIntegerArithmetic);
         }
         self.kind.phase_violation(MirPhase::Lowered, &self.metadata)
     }

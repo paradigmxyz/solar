@@ -457,9 +457,8 @@ impl PackedEncoder<'_, '_> {
         for (term, shift, size, signed, fixed_bytes) in terms {
             if fixed_bytes {
                 // word |= (term & high_width_mask) >> (256 - shift - width)
-                let bits = usize::try_from(size * 8).unwrap();
-                let mask = self.builder.imm(!(U256::MAX >> bits));
-                let term = self.builder.and(term, mask);
+                let bits = u16::try_from(size * 8).unwrap();
+                let term = AbiWordValidator::LeftAligned(bits).cleanup(self.builder, term);
                 let right = 256 - shift - size * 8;
                 let term = if right == 0 {
                     term
@@ -472,10 +471,8 @@ impl PackedEncoder<'_, '_> {
             }
             // word |= (term & width_mask_if_signed) << shift
             let term = if signed {
-                let mask = self
-                    .builder
-                    .imm((U256::from(1) << usize::try_from(size * 8).unwrap()) - U256::from(1));
-                self.builder.and(term, mask)
+                let bits = u16::try_from(size * 8).unwrap();
+                AbiWordValidator::Unsigned(bits).cleanup(self.builder, term)
             } else {
                 term
             };

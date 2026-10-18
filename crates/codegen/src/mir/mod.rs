@@ -49,7 +49,7 @@ mod effects;
 pub(crate) use effects::ControlEffects;
 mod op_schema;
 pub(crate) use op_schema::{
-    BUILTIN_CATEGORY, InstKind, LogTopics, Op, OpTraits, RawMemoryAccess, RawMemorySize, ResultKind,
+    InstKind, LogTopics, Op, OpTraits, PhaseCategory, RawMemoryAccess, RawMemorySize, ResultKind,
 };
 
 mod block;

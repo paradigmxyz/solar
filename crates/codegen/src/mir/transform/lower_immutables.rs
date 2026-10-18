@@ -36,6 +36,11 @@ impl MirPass for LowerImmutables {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        if !module.iter_functions().any(|(_, func)| {
+            func.instructions().any(|id| matches!(func.inst(id).kind, InstKind::StoreImmutable(..)))
+        }) {
+            return false;
+        }
         let staging_base = immutable_staging_base(module);
         let runtime_reachable = runtime_reachable_functions(module);
         let mut changed = false;
@@ -70,17 +75,21 @@ impl MirPass for LowerImmutables {
 }
 
 fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {
-    let roots = module
+    let function_count = module.functions.len();
+    let mut reachable = DenseBitSet::new_empty(function_count);
+    let mut worklist = module
         .dispatch_entry()
         .into_iter()
         .chain(module.functions.iter_enumerated().filter_map(|(id, func)| {
             (func.selector.is_some() || func.attributes.is_fallback || func.attributes.is_receive)
                 .then_some(id)
         }))
+        .filter(|&id| reachable.insert(id))
         .collect::<Vec<_>>();
-    let mut reachable = CallGraphInfo::new(module).reachable_callees_from(roots.iter().copied());
-    for root in roots {
-        reachable.insert(root);
+    while let Some(func_id) = worklist.pop() {
+        let callees =
+            CallGraphInfo::collect_internal_callees(module.function(func_id), function_count);
+        worklist.extend(callees.iter().filter(|&callee| reachable.insert(callee)));
     }
     reachable
 }

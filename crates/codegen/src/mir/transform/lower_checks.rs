@@ -18,8 +18,8 @@
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
-    FunctionId, InstKind, InstructionMetadata, MirType, Module, PtrLocation, RequireKind,
-    RevertKind, RevertPayload, pass::MirPass, transform::utils::expand_block,
+    FunctionId, InstKind, InstructionMetadata, MirType, Module, PhaseCategory, PtrLocation,
+    RequireKind, RevertKind, RevertPayload, pass::MirPass, transform::utils::expand_block,
 };
 use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
@@ -155,11 +155,7 @@ fn lower_function(
 }
 
 fn is_check(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
-            | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. }
-    )
+    kind.op_def().phase_category == Some(PhaseCategory::ConditionalCheck)
 }
 
 fn emit_payload(

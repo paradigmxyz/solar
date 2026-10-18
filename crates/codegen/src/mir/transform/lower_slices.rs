@@ -189,18 +189,15 @@ impl LowerSlices {
         for block_id in func.blocks.indices() {
             // Collect the leading slice phis before mutating, since forming the
             // paired words allocates instructions and values.
-            let mut slice_phis = Vec::new();
-            for &inst_id in &func.blocks[block_id].instructions {
-                if !matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
-                    continue;
-                }
-                if let Some(location) = func
-                    .inst_result_value(inst_id)
-                    .and_then(|result| func.value_slice_location(result))
-                {
-                    slice_phis.push((inst_id, location));
-                }
-            }
+            let slice_phis = func.blocks[block_id]
+                .instructions
+                .iter()
+                .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                .filter_map(|&inst_id| {
+                    let result = func.inst_result_value(inst_id)?;
+                    Some((inst_id, func.value_slice_location(result)?))
+                })
+                .collect::<Vec<_>>();
             let mut split_map = FxHashMap::default();
             for (inst_id, location) in slice_phis {
                 let incoming = match &mut func.inst_mut(inst_id).kind {

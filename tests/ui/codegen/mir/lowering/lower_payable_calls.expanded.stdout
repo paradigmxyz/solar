@@ -26,10 +26,10 @@
 +     v3 = select v2, 0x8fc, 0 !metadata(span=30..40, modifier_depth=3)
 +     v4 = zext i160 arg1 to i256 !metadata(span=30..40, modifier_depth=3)
 +     v5 = call v3, v4, arg2, 0, 0, 0, 0 !metadata(span=30..40, modifier_depth=3)
-+     jumpi v5, bb4, bb5 !metadata(span=30..40, modifier_depth=3)
-+   bb5:
-+     revert_returndata !metadata(span=30..40, modifier_depth=3)
++     jumpi v5, bb5, bb4 !metadata(span=30..40, modifier_depth=3)
 +   bb4:
++     revert_returndata !metadata(span=30..40, modifier_depth=3)
++   bb5:
 +     v6 = eq 0, 0
 +     v7 = select v6, 0x8fc, 0
 +     v8 = zext i160 arg1 to i256
@@ -39,14 +39,14 @@
 +     v12 = select v11, 0x8fc, 0
 +     v13 = zext i160 arg1 to i256
 +     v14 = call v12, v13, 1, 0, 0, 0, 0
-+     jumpi v14, bb6, bb7
-+   bb7:
-+     revert_returndata
++     jumpi v14, bb7, bb6
 +   bb6:
++     revert_returndata
++   bb7:
       jump bb3
     bb3:
 -     v1 = phi [bb1: v0], [bb2: 0]
-+     v1 = phi [bb6: v10], [bb2: 0]
++     v1 = phi [bb7: v10], [bb2: 0]
       ret v1
   }
   

@@ -14,8 +14,9 @@
 //! capture allocates and copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AddressCallKind, AllocationSemantics, BUILTIN_CATEGORY, Builtin, Callee, FunctionBuilder,
-    InstKind, Instruction, MemoryObjectKind, MirPhase, Module, PanicCode, PtrLocation, ValueId,
+    AddressCallKind, AllocationSemantics, Builtin, Callee, FunctionBuilder, InstKind,
+    MemoryObjectKind, Module, PanicCode, PhaseCategory, PtrLocation, ValueId,
+    memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
 };
@@ -84,17 +85,21 @@ impl MirPass for LowerBuiltins {
             })
             .collect::<FxHashMap<_, _>>();
         run_function_pass(module, analyses, |func, _| {
-            if !func.instructions().any(|id| is_builtin(func.inst(id))) {
+            if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
             }
             let mut replacements = FxHashMap::default();
             for block in func.blocks.indices() {
-                if !func.blocks[block].instructions.iter().any(|&id| is_builtin(func.inst(id))) {
+                if !func.blocks[block]
+                    .instructions
+                    .iter()
+                    .any(|&id| is_builtin(&func.inst(id).kind))
+                {
                     continue;
                 }
                 let mut builder = FunctionBuilder::new(func);
                 expand_block(&mut builder, block, |builder, id| {
-                    if !is_builtin(builder.func().inst(id)) {
+                    if !is_builtin(&builder.func().inst(id).kind) {
                         return false;
                     }
                     let inst = builder.func().inst(id).clone();
@@ -106,7 +111,7 @@ impl MirPass for LowerBuiltins {
                             };
                             // success = send(address, amount)
                             let success = lower_send(builder, address, amount);
-                            revert_unless(builder, success);
+                            builder.revert_returndata_unless(success);
                             return true;
                         }
                         InstKind::ValidateStorageBytes(header) => {
@@ -252,8 +257,8 @@ impl MirPass for LowerBuiltins {
     }
 }
 
-fn is_builtin(inst: &Instruction) -> bool {
-    inst.kind.phase_violation(MirPhase::Lowered, &inst.metadata) == Some(BUILTIN_CATEGORY)
+fn is_builtin(kind: &InstKind) -> bool {
+    kind.op_def().phase_category == Some(PhaseCategory::Builtin)
 }
 
 fn lower_address_call(
@@ -321,18 +326,19 @@ fn lower_hash(
     // NOTE: A successful call always writes the whole digest, so it can land in scratch memory.
     // input_ptr = add (ptrtoint input), 32
     // input_len = mload input
-    // success = precompile_call(sha256 ? 2 : 3, input_ptr, input_len, 0, 32)
+    // success = precompile_call(sha256 ? 2 : 3, input_ptr, input_len, scratch, 32)
     // branch success, done, failed
     // failed: revert_returndata
-    // done: result = load(0)
+    // done: result = load(scratch)
     let input_ptr = builder.memory_data(input);
     let input_len = builder.memory_len(input);
     let address = builder.imm(if ripemd { 3 } else { 2 });
-    let zero = builder.imm(0);
+    let scratch = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
     let output_size = builder.imm(32);
-    let success = precompile_call(builder, evm, address, input_ptr, input_len, zero, output_size);
-    revert_unless(builder, success);
-    let value = builder.load(zero, PtrLocation::Memory);
+    let success =
+        precompile_call(builder, evm, address, input_ptr, input_len, scratch, output_size);
+    builder.revert_returndata_unless(success);
+    let value = builder.load(scratch, PtrLocation::Memory);
     if ripemd {
         // result = result << 96
         let scale = builder.imm(1_u128 << 96);
@@ -357,11 +363,11 @@ fn lower_ecrecover(
     // store(input + 32, v)
     // store(input + 64, r)
     // store(input + 96, s)
-    // store(0, 0)
-    // success = precompile_call(1, input, 128, 0, 32)
+    // store(scratch, 0)
+    // success = precompile_call(1, input, 128, scratch, 32)
     // branch success, done, failed
     // failed: revert_returndata
-    // done: result = load(0)
+    // done: result = load(scratch)
     let input = builder.fmp();
     let input = builder.cast_word(input);
     for (offset, value) in [(0, hash), (32, v), (64, r), (96, s)] {
@@ -369,14 +375,15 @@ fn lower_ecrecover(
         let value = builder.cast_word(value);
         builder.store(address, value);
     }
+    let scratch = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
     let zero = builder.imm(0);
-    builder.store(zero, zero);
+    builder.store(scratch, zero);
     let address = builder.imm(1);
     let input_size = builder.imm(128);
     let output_size = builder.imm(32);
-    let success = precompile_call(builder, evm, address, input, input_size, zero, output_size);
-    revert_unless(builder, success);
-    builder.load(zero, PtrLocation::Memory)
+    let success = precompile_call(builder, evm, address, input, input_size, scratch, output_size);
+    builder.revert_returndata_unless(success);
+    builder.load(scratch, PtrLocation::Memory)
 }
 
 fn precompile_call(
@@ -397,18 +404,6 @@ fn precompile_call(
         let zero = builder.imm(0);
         builder.call(gas, address, zero, input, input_size, output, output_size)
     }
-}
-
-/// Forwards the return data of a failed call, as solc does for precompile calls.
-fn revert_unless(builder: &mut FunctionBuilder<'_>, success: ValueId) {
-    // branch success, done, failed
-    // failed: revert_returndata
-    let done = builder.create_block();
-    let failed = builder.create_block();
-    builder.branch(success, done, failed);
-    builder.switch_to_block(failed);
-    builder.revert_returndata();
-    builder.switch_to_block(done);
 }
 
 fn lower_erc7201(builder: &mut FunctionBuilder<'_>, input: ValueId) -> ValueId {

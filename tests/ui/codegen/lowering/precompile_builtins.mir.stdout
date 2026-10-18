@@ -14,13 +14,13 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     mstore 0, 0 !metadata(memory=scratch)
     v7 = gas
     v8 = staticcall v7, 1, v16, 128, 0, 32
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
     revert 0, v11
-  bb1:
+  bb2:
     v9 = mload 0 !metadata(memory=scratch)
     v17 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v17
@@ -40,13 +40,13 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     mstore 0, 0 !metadata(memory=scratch)
     v7 = gas
     v8 = staticcall v7, 1, v16, 128, 0, 32
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
     revert 0, v11
-  bb1:
+  bb2:
     v9 = mload 0 !metadata(memory=scratch)
     v17 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v17
@@ -103,13 +103,13 @@ fn @shaWord() [selector=0x1a7d61f8, abi_wrapper, pure] {
     mstore v16, arg0
     v6 = gas
     v7 = staticcall v6, 2, v16, 32, 0, 32
-    jumpi v7, bb1, bb2
-  bb2:
+    jumpi v7, bb2, bb1
+  bb1:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
     revert 0, v10
-  bb1:
+  bb2:
     v8 = mload 0 !metadata(memory=scratch)
     mstore 128, v8
     returndata 128, 32
@@ -131,13 +131,13 @@ fn @ripemdWord() [selector=0x5c2b7c72, abi_wrapper, pure] {
     mstore v17, arg0
     v6 = gas
     v7 = staticcall v6, 3, v17, 32, 0, 32
-    jumpi v7, bb1, bb2
-  bb2:
+    jumpi v7, bb2, bb1
+  bb1:
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
     revert 0, v11
-  bb1:
+  bb2:
     v8 = mload 0 !metadata(memory=scratch)
     v9 = shl 96, v8
     mstore 128, v9
