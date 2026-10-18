@@ -6,8 +6,9 @@
 //!   `mload` of the same word, as assembly reading clone arguments does, reuses the word an
 //!   identical dominating copy loaded and becomes an `mstore` of it.
 //! - Frame stores: a store to an internal-frame word that no instruction or terminator of the
-//!   function can read is removed, unless the function makes internal calls or observes gas or
-//!   `msize`.
+//!   function can read is removed, unless the function makes internal calls or observes gas, or any
+//!   function in the module reads `msize`: internal calls share memory, so a caller could observe
+//!   the lower memory expansion.
 //! - Within each block: `keccak256` over words that constant stores fully define folds to its hash;
 //!   an `mload` reads the value of the latest store to the same canonical word; a store of the
 //!   value the word already holds is removed; and a backward scan removes a full-word store that a
@@ -38,7 +39,7 @@ use crate::mir::{
     Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
-        MemoryAddress, MemoryBase, MemoryLocation,
+        MemoryAddress, MemoryBase, MemoryLocation, module_may_observe_msize,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -76,13 +77,18 @@ impl MirPass for MemoryDse {
                 selected.insert(func_id);
             }
         }
+        let observes_msize = module_may_observe_msize(module);
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,
             &selected,
             |func, analyses| {
-                MemoryStoreEliminator::new(Rc::clone(analyses.alias()), Rc::clone(analyses.cfg()))
-                    .run_to_fixpoint(func)
+                MemoryStoreEliminator::new(
+                    Rc::clone(analyses.alias()),
+                    Rc::clone(analyses.cfg()),
+                    observes_msize,
+                )
+                .run_to_fixpoint(func)
                     != 0
             },
         )
@@ -109,6 +115,8 @@ struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
     alias: Rc<AliasAnalysis>,
+    /// Whether any function in the module reads `msize`; see [`module_may_observe_msize`].
+    observes_msize: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -409,8 +417,8 @@ impl BlockScratch {
 
 impl MemoryStoreEliminator {
     /// Creates a new memory optimization pass.
-    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>) -> Self {
-        Self { cfg, eliminated_count: 0, alias }
+    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>, observes_msize: bool) -> Self {
+        Self { cfg, eliminated_count: 0, alias, observes_msize }
     }
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
@@ -1514,15 +1522,16 @@ impl MemoryStoreEliminator {
     }
 
     fn has_frame_observer(&self, func: &Function) -> bool {
-        func.instructions().any(|inst_id| {
-            let effects = self.alias().instruction_mod_ref(func, inst_id);
-            effects.observes_gas()
-                || effects.observes_memory_size()
-                || matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::ICall { function: Callee::Function(_), .. }
-                )
-        })
+        self.observes_msize
+            || func.instructions().any(|inst_id| {
+                let effects = self.alias().instruction_mod_ref(func, inst_id);
+                effects.observes_gas()
+                    || effects.observes_memory_size()
+                    || matches!(
+                        func.inst(inst_id).kind,
+                        InstKind::ICall { function: Callee::Function(_), .. }
+                    )
+            })
     }
 
     fn internal_frame_read_ranges(&self, func: &Function) -> Option<Vec<(u64, u64)>> {

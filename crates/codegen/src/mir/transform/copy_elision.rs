@@ -15,10 +15,14 @@
 //! allocation extent; writes outside it can affect other objects, even when this object is unread.
 //! Indexed element stores also qualify when their sole incoming edge proves an unsigned index
 //! bound whose final word fits the allocation. Other dynamic addresses remain conservative.
+//! Modules where any function reads `msize` are skipped: internal calls share memory, so a caller
+//! or callee could observe the lower memory expansion.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryLocation},
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, Location, MemoryLocation, module_may_observe_msize,
+    },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
 };
@@ -38,6 +42,11 @@ impl MirPass for CopyElision {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        // Removing writes can lower memory expansion, which `msize` in any function can
+        // observe: internal calls share memory.
+        if module_may_observe_msize(module) {
+            return false;
+        }
         run_function_pass_with_alias(module, analyses, |func, analyses| {
             CopyElisionCx::default().run(func, analyses.alias())
         })
@@ -58,9 +67,6 @@ struct CopyElisionCx {
 
 impl CopyElisionCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
-        if func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize)) {
-            return false;
-        }
         let allocs: Vec<ValueId> = func
             .instructions()
             .filter_map(|inst_id| {

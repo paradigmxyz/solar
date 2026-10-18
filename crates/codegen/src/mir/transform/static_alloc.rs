@@ -16,13 +16,14 @@
 //!   resets the free-memory pointer or reads `msize`, and that it never relates the pointer to a
 //!   value derived from the free-memory pointer, since memory-safe assembly could otherwise derive
 //!   aliases from where the object lies relative to the heap;
-//! - functions observing `msize` are skipped: eliding a bump changes the high-water mark.
+//! - functions observing `msize`, directly or in a callee, are skipped: eliding a bump changes the
+//!   high-water mark.
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionId, InstId, InstKind, MirType, Module, PtrLocation,
     Terminator, ValueId,
-    analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
+    analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries, may_observe_msize},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -147,21 +148,17 @@ fn eligible_static_allocations(
     calls: &CallGraphInfo,
     summaries: &MemoryCallSummaries,
 ) -> Vec<StaticAllocCandidate> {
-    if !is_entry(func) || calls.is_recursive(func_id) {
-        return Vec::new();
-    }
-
-    let mut has_alloc = false;
-    for inst_id in func.instructions() {
-        match func.inst(inst_id).kind {
-            InstKind::MSize => return Vec::new(),
-            InstKind::Alloc { semantics: crate::mir::AllocationSemantics::INTERNAL, .. } => {
-                has_alloc = true
-            }
-            _ => {}
-        }
-    }
-    if !has_alloc {
+    // Entries have no internal callers, so only the entry and its callees can read `msize`.
+    if !is_entry(func)
+        || calls.is_recursive(func_id)
+        || !func.instructions().any(|inst_id| {
+            matches!(
+                func.inst(inst_id).kind,
+                InstKind::Alloc { semantics: crate::mir::AllocationSemantics::INTERNAL, .. }
+            )
+        })
+        || may_observe_msize(func, Some(summaries))
+    {
         return Vec::new();
     }
 
@@ -395,9 +392,8 @@ fn call_use_is_safe(
     let Some(summary) = summaries.get(function) else { return false };
     // A callee can only relate the object to the heap by combining the pointer with a value
     // derived from the free-memory pointer; dereferencing it, or comparing it against its own
-    // derivations, is placement-agnostic. `msize` sees the elided bump regardless.
+    // derivations, is placement-agnostic.
     !summary.may_recycle_fmp()
-        && !summary.may_observe_msize()
         && args.iter().enumerate().filter(|(_, arg)| **arg == operand).all(|(index, _)| {
             let index = ArgIdx::new(index);
             !summary.captures_param(index)

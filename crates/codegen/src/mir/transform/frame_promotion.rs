@@ -11,11 +11,16 @@
 //! - reject escaped addresses, partial stores, dynamic memory aliases, calls, returndata
 //!   observations, and ABI return-buffer overlap
 //! - preserve SSA values across control flow with explicit phi insertion
+//! - skip modules where any function reads `msize`: internal calls share memory, so a caller or
+//!   callee could observe the lower memory expansion
 
 use crate::mir::{
     BlockId, Callee, FrameMode, Function, InstId, InstKind, Instruction, MirType, Module,
     PtrLocation, Terminator, ValueId,
-    analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
+    analysis::{
+        AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation,
+        module_may_observe_msize,
+    },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -40,6 +45,11 @@ impl MirPass for FrameSlotPromotion {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        // Removing local-slot traffic can lower memory expansion, which `msize` in any
+        // function can observe: internal calls share memory.
+        if module_may_observe_msize(module) {
+            return false;
+        }
         run_function_pass(module, analyses, |func, _| {
             FrameSlotPromoter::new().run(func).total() != 0
         })
@@ -263,21 +273,15 @@ impl FrameSlotPromoter {
     }
 
     /// Only internal-frame slots and the external entry's locals promote, and both need a
-    /// frame. `msize` observes the memory extent, which removing local-slot traffic changes, so
-    /// it stays a barrier. `gas()` is deliberately NOT one: exact gas is never a semantic
-    /// guarantee, and barring it blocked promotion in every forwarding proxy, whose
-    /// `delegatecall(gas(), ...)` is exactly the construct that scribbles compiler locals and
-    /// needs them off memory.
+    /// frame. `msize` is a barrier for the whole module (see the pass). `gas()` is deliberately
+    /// NOT one: exact gas is never a semantic guarantee, and barring it blocked promotion in
+    /// every forwarding proxy, whose `delegatecall(gas(), ...)` is exactly the construct that
+    /// scribbles compiler locals and needs them off memory.
     fn may_promote(func: &Function) -> bool {
-        let mut has_frame = func.internal_frame_size != 0;
-        for inst_id in func.instructions() {
-            match func.inst(inst_id).kind {
-                InstKind::MSize => return false,
-                InstKind::InternalFrameAddr(_) => has_frame = true,
-                _ => {}
-            }
-        }
-        has_frame
+        func.internal_frame_size != 0
+            || func
+                .instructions()
+                .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::InternalFrameAddr(_)))
     }
 
     fn collect_promotable_slots(
