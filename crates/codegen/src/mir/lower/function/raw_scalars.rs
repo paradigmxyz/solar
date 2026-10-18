@@ -114,6 +114,15 @@ impl<'gcx> Exposure<'gcx> {
                 self.sources(yes, out);
                 self.sources(no, out);
             }
+            // An assignment's value is its target.
+            ExprKind::Assign(lhs, None, _) => self.sources(lhs, out),
+            // `connect` only links bindings of equal types, so a conversion between them copies.
+            ExprKind::Call(callee, args)
+                if let hir::CallArgsKind::Unnamed([argument]) = args.kind
+                    && expressions::is_type_conversion(self.gcx, callee) =>
+            {
+                self.sources(argument, out);
+            }
             ExprKind::Call(callee, _) => {
                 for id in self.callees(callee) {
                     out.extend_from_slice(self.gcx.hir.function(id).returns);
@@ -458,10 +467,16 @@ impl LoweringState {
                 let _ = exposure.visit_nested_function(id);
             }
             for id in base.variables() {
-                if gcx.hir.variable(id).is_state_variable()
-                    && let Some(initializer) = gcx.hir.variable(id).initializer
+                let variable = gcx.hir.variable(id);
+                if variable.is_state_variable()
+                    && let Some(initializer) = variable.initializer
                 {
-                    exposure.connect_pointers(&[id], initializer);
+                    // An immutable stores the raw bits of its initializer.
+                    if variable.is_immutable() {
+                        exposure.connect(&[id], initializer);
+                    } else {
+                        exposure.connect_pointers(&[id], initializer);
+                    }
                 }
             }
         }

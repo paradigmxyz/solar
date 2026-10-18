@@ -117,7 +117,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // result = lower_struct_ctor(callee, args)
             return self.lower_struct_constructor(expr, struct_id, args).map(CallResult::Value);
         }
-        if self.is_type_conversion(callee) {
+        if expressions::is_type_conversion(self.cx.gcx, callee) {
             // result = convert(callee, args)
             if args.len() != 1 {
                 return self.cx.report_unsupported(expr.span, "type conversion");
