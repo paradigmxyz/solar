@@ -2,25 +2,25 @@
 + // === ROOT/tests/ui/codegen/mir/immutable-check-elim/bounds.mir (after immutable-check-elim) ===
   @module ImmutableBounds
   @immutables
-    small: u64
-    signed: i64
-    wide: u256
--   clean_address: u256
--   dirty_address: u256
--   repeated: u256
-+   clean_address: u160
-+   dirty_address: u168
-+   repeated: u24
-    unknown: u256
-    unwritten: u256
--   called: u256
--   narrow_scalar: u64
--   narrow_address_width: u160
--   narrow_three_bytes: u24
-+   called: u16
-+   narrow_scalar: u8
-+   narrow_address_width: u16
-+   narrow_three_bytes: u8
+    small: uint64
+    signed: int64
+    wide: uint256
+-   clean_address: uint256
+-   dirty_address: uint256
+-   repeated: uint256
++   clean_address: uint160
++   dirty_address: uint168
++   repeated: uint24
+    unknown: uint256
+    unwritten: uint256
+-   called: uint256
+-   narrow_scalar: uint64
+-   narrow_address_width: uint160
+-   narrow_three_bytes: uint24
++   called: uint16
++   narrow_scalar: uint8
++   narrow_address_width: uint16
++   narrow_three_bytes: uint8
   
   fn @runtime() -> i256 [selector=0x00000001] {
     bb0:

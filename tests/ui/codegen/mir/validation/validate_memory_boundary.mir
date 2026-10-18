@@ -94,7 +94,7 @@ fn @unlowered_precompile() -> i256 {
 //~? ERROR: [fn10] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
 fn @unlowered_arithmetic(arg0: i256) -> i256 {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     ret v0
 }
 

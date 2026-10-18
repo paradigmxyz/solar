@@ -1,17 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingImplementation ===
 @module ForwardingImplementation
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=0x5269df1a, abi_params=[u256, u256, u256, bytes], abi_returns=[], abi_return_params=[]] {
+fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=0x5269df1a, abi_params=[uint256, uint256, uint256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = checked_add u256, arg0, arg1
-    v1 = checked_add u256, v0, arg2
+    v0 = checked_add uint256, arg0, arg1
+    v1 = checked_add uint256, v0, arg2
     v2 = extract_value slice<calldata>, arg3, 1
-    v3 = checked_add u256, v1, v2
+    v3 = checked_add uint256, v1, v2
     sstore 1, v3 !metadata(storage=slot(1))
     ret
 }
@@ -124,7 +124,7 @@ fn @fallback() [fallback] {
   RevertingProducer_creation_code_3: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer"
   DynamicReturnWrapper_creation_code_4: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:DynamicReturnWrapper"
 
-fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize ForwardingImplementation_creation_code_0
@@ -142,7 +142,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = abi_encode [word<u160>], args v9
+    v10 = abi_encode [word<uint160>], args v9
     v11 = datasize FixedRangeProxy_creation_code_1
     v12 = datasize FixedRangeProxy_creation_code_1, 32
     v13 = datasize FixedRangeProxy_creation_code_1, 63, aligned
@@ -196,7 +196,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     ret 1
 }
 
-fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize ForwardingImplementation_creation_code_0
@@ -214,7 +214,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = abi_encode [word<u160>], args v9
+    v10 = abi_encode [word<uint160>], args v9
     v11 = datasize CrossBlockProxy_creation_code_2
     v12 = datasize CrossBlockProxy_creation_code_2, 32
     v13 = datasize CrossBlockProxy_creation_code_2, 63, aligned
@@ -268,7 +268,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     ret 1
 }
 
-fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize RevertingProducer_creation_code_3
@@ -286,7 +286,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = abi_encode [word<u160>], args v9
+    v10 = abi_encode [word<uint160>], args v9
     v11 = datasize DynamicReturnWrapper_creation_code_4
     v12 = datasize DynamicReturnWrapper_creation_code_4, 32
     v13 = datasize DynamicReturnWrapper_creation_code_4, 63, aligned
@@ -330,7 +330,7 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes]
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:DynamicReturnWrapper ===
 @module DynamicReturnWrapper
 @immutables
-  producer: u256
+  producer: uint256
 
 fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
   bb0:
@@ -358,13 +358,13 @@ fn @bubble() -> ptr<memory> [selector=0x4ce637d6, view, abi_params=[], abi_retur
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===
 @module SharedPublicFrame
-fn @helper(arg0: i256) -> i256 [selector=0xdabf7ec4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @helper(arg0: i256) -> i256 [selector=0xdabf7ec4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     calldatacopy 0, 0, 0x1000 !metadata(memory=scratch)
     ret arg0
 }
 
-fn @entry() -> i256 [selector=0x67f239dd, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @entry() -> i256 [selector=0x67f239dd, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @helper, 42
     ret v0

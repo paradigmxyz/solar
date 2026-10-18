@@ -129,7 +129,7 @@
 - fn @narrowEncoding() -> ptr<memory> [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @narrowEncoding() [selector=0x0a0a0a09, abi_wrapper] {
     bb0:
-      v0 = abi_encode [word<u8>], object, args 0x1234
+      v0 = abi_encode [word<uint8>], object, args 0x1234
 -     ret v0
 +     v1 = abi_encode [memory_bytes], scratch, args v0
 +     v2 = extract_value slice<memory>, v1, 0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_memory_nested_struct.sol:StorageMemoryNestedStruct ===
 @module StorageMemoryNestedStruct
-fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -275,7 +275,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v242 = ptradd v241, 32
     v243 = mload v242
     v244 = trunc i256 v243 to i8
-    v245 = checked_add u8, v232, v244
+    v245 = checked_add uint8, v232, v244
     v246 = mload v189
     v247 = lt 0, v246
     v248 = eq v247, false
@@ -296,7 +296,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v260 = ptradd v256, 32
     v261 = mload v260
     v262 = zext i8 v245 to i256
-    v263 = checked_add u256, v262, v261
+    v263 = checked_add uint256, v262, v261
     v264 = mload v189
     v265 = lt 1, v264
     v266 = eq v265, false
@@ -311,7 +311,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v273 = mload v272
     v274 = trunc i256 v273 to i8
     v275 = zext i8 v274 to i256
-    v276 = checked_add u256, v263, v275
+    v276 = checked_add uint256, v263, v275
     v277 = mload v189
     v278 = lt 1, v277
     v279 = eq v278, false
@@ -327,7 +327,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v287 = mload v286
     v288 = trunc i256 v287 to i8
     v289 = zext i8 v288 to i256
-    v290 = checked_add u256, v276, v289
+    v290 = checked_add uint256, v276, v289
     v291 = mload v189
     v292 = lt 1, v291
     v293 = eq v292, false
@@ -347,7 +347,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     icall panic_if<0x32>, v304
     v305 = ptradd v301, 32
     v306 = mload v305
-    v307 = checked_add u256, v290, v306
+    v307 = checked_add uint256, v290, v306
     ret v307
   bb2:
     v192 = storage_array_data_slot 0
@@ -396,6 +396,6 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }

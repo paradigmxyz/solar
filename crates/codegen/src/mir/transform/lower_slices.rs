@@ -740,7 +740,7 @@ impl LowerSlices {
             let Some(ty) = func.value_ty(slice) else { continue };
             if let Value::Undef(MirType::Slice(location)) = *func.value(slice) {
                 // extract_value undef, 0 -> undef pointer
-                // extract_value undef, 1 -> undef u256
+                // extract_value undef, 1 -> undef i256
                 let ty = MirType::slice_fields(location)[usize::from(!is_ptr)];
                 let value = func.alloc_value(Value::Undef(ty));
                 let result = func.inst_result_value(inst).expect("slice projection has a result");

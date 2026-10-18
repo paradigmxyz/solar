@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:MutatingBase ===
 @module MutatingBase
-fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     ret v1
 }
@@ -14,13 +14,13 @@ fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], ab
   MutatingBase_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:MutatingBase"
 
 @immutables
-  target: u256
+  target: uint256
 
 fn @receiver() -> i160 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 1
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 1
     sstore 1, v2 !metadata(storage=slot(1))
     v3 = address
     ret v3
@@ -29,8 +29,8 @@ fn @receiver() -> i160 {
 fn @arg() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 4
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 4
     sstore 1, v2 !metadata(storage=slot(1))
     ret 7
 }
@@ -38,8 +38,8 @@ fn @arg() -> i256 {
 fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 2
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 2
     sstore 1, v2 !metadata(storage=slot(1))
     v3 = gas
     ret v3
@@ -48,18 +48,18 @@ fn @gasOpt() -> i256 {
 fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 3
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 3
     sstore 1, v2 !metadata(storage=slot(1))
     ret 0
 }
 
-fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @externalReceiver() -> i256 [selector=0x7b42c356, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalReceiver() -> i256 [selector=0x7b42c356, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @receiver
     v1 = gas
@@ -81,7 +81,7 @@ fn @externalReceiver() -> i256 [selector=0x7b42c356, abi_params=[], abi_returns=
     ret v11
 }
 
-fn @callOptions() -> i256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callOptions() -> i256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -132,7 +132,7 @@ fn @dirtySend() -> i1 [selector=0x82ec93de, payable, abi_params=[], abi_returns=
     ret v4
 }
 
-fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 0x2020 !metadata(preserves_fmp)
     memory_zero v0, 0x2020
@@ -157,14 +157,14 @@ fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=
     ret v13
 }
 
-fn @mutate() -> i256 [selector=0x7795b5fc, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @mutate() -> i256 [selector=0x7795b5fc, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 7
+    v1 = checked_add uint256, v0, 7
     ret v1
 }
 
-fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable target
     v1 = gas

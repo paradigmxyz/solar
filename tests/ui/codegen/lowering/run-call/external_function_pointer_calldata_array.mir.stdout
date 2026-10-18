@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = eq v0, 3
@@ -105,7 +105,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     ret v74
 }
 
-fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -193,22 +193,22 @@ fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[a
     jump bb1
 }
 
-fn @getter1() -> i256 [selector=0x0ec1632e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getter1() -> i256 [selector=0x0ec1632e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 23
 }
 
-fn @getter2() -> i256 [selector=0xe255e5f9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getter2() -> i256 [selector=0xe255e5f9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 37
 }
 
-fn @getter3() -> i256 [selector=0xec202537, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getter3() -> i256 [selector=0xec202537, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 71
 }
 
-fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 128
     mstore v0, 3

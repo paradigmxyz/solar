@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/ternary.sol:Ternary ===
 @module Ternary
-fn @max(arg0: i256, arg1: i256) -> i256 [selector=0x6d5433e6, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @max(arg0: i256, arg1: i256) -> i256 [selector=0x6d5433e6, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, arg1
     jumpi v0, bb1, bb2
@@ -13,7 +13,7 @@ fn @max(arg0: i256, arg1: i256) -> i256 [selector=0x6d5433e6, pure, abi_params=[
     ret v1
 }
 
-fn @clamp(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x9e422447, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @clamp(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x9e422447, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, arg1
     jumpi v0, bb1, bb2
@@ -34,16 +34,16 @@ fn @clamp(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x9e422447, pure
     ret v3
 }
 
-fn @abs_diff(arg0: i256, arg1: i256) -> i256 [selector=0xef0baf7e, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @abs_diff(arg0: i256, arg1: i256) -> i256 [selector=0xef0baf7e, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, arg1
     v1 = eq v0, false
     jumpi v1, bb1, bb2
   bb2:
-    v3 = checked_sub u256, arg1, arg0
+    v3 = checked_sub uint256, arg1, arg0
     jump bb3
   bb1:
-    v2 = checked_sub u256, arg0, arg1
+    v2 = checked_sub uint256, arg0, arg1
     jump bb3
   bb3:
     v4 = phi [bb1: v2], [bb2: v3]

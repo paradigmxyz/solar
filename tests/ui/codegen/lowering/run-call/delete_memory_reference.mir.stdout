@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -29,7 +29,7 @@ fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[w
     ret v15
 }
 
-fn @bytesValue() -> struct0 [selector=0x5a286ac0, pure, abi_params=[], abi_returns=[word, word, word<bytes2>], abi_return_params=[u256, u256, bytes2]] {
+fn @bytesValue() -> struct0 [selector=0x5a286ac0, pure, abi_params=[], abi_returns=[word, word, word<bytes2>], abi_return_params=[uint256, uint256, bytes2]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 2

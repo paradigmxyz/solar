@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -31,7 +31,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb18
   bb18:
     v81 = sload 1 !metadata(storage=slot(1))
-    v82 = checked_sub u256, v81, 1
+    v82 = checked_sub uint256, v81, 1
     v83 = sload 1 !metadata(storage=slot(1))
     v84 = lt v82, v83
     v85 = eq v84, false
@@ -67,7 +67,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb24
   bb24:
     v121 = sload 1 !metadata(storage=slot(1))
-    v122 = checked_sub u256, v121, 1
+    v122 = checked_sub uint256, v121, 1
     v123 = sload 1 !metadata(storage=slot(1))
     v124 = lt v122, v123
     v125 = eq v124, false
@@ -104,7 +104,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb30
   bb30:
     v162 = sload 1 !metadata(storage=slot(1))
-    v163 = checked_sub u256, v162, 1
+    v163 = checked_sub uint256, v162, 1
     v164 = sload 1 !metadata(storage=slot(1))
     v165 = lt v163, v164
     v166 = eq v165, false
@@ -173,7 +173,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb40:
     jump bb37
   bb37:
-    v203 = checked_add u256, v189, 1
+    v203 = checked_add uint256, v189, 1
     jump bb35
   bb32:
     v150 = sload 1 !metadata(storage=slot(1))
@@ -195,7 +195,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb34:
     jump bb31
   bb31:
-    v161 = checked_add u256, v147, 1
+    v161 = checked_add uint256, v147, 1
     jump bb29
   bb26:
     v109 = sload 1 !metadata(storage=slot(1))
@@ -217,7 +217,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb28:
     jump bb25
   bb25:
-    v120 = checked_add u256, v106, 1
+    v120 = checked_add uint256, v106, 1
     jump bb23
   bb20:
     v69 = sload 1 !metadata(storage=slot(1))
@@ -239,7 +239,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb22:
     jump bb19
   bb19:
-    v80 = checked_add u256, v66, 1
+    v80 = checked_add uint256, v66, 1
     jump bb17
   bb4:
     v6 = icall @load_storage_packed_array_2_0, 0
@@ -289,7 +289,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb6:
     jump bb3
   bb3:
-    v61 = checked_add u256, v3, 1
+    v61 = checked_add uint256, v3, 1
     jump bb1
   bb13:
     v33 = shl 5, v31
@@ -333,7 +333,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
 
 fn @load_storage_packed_array_2_0(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u16, arg0
+    v0 = load_storage_array uint16, arg0
     ret v0
 }
 

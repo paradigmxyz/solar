@@ -22,7 +22,7 @@ fn @widenSigned(arg0: i8) -> i256 [pure] {
     ret v0
 }
 
-fn @viaWiden(arg0: i256) -> i256 [selector=0xb878f209, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @viaWiden(arg0: i256) -> i256 [selector=0xb878f209, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @inject, arg0
     v1 = trunc i256 v0 to i8
@@ -30,7 +30,7 @@ fn @viaWiden(arg0: i256) -> i256 [selector=0xb878f209, pure, abi_params=[u256], 
     ret v2
 }
 
-fn @viaWidenSigned(arg0: i256) -> i256 [selector=0xe025fca0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+fn @viaWidenSigned(arg0: i256) -> i256 [selector=0xe025fca0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = icall @injectSigned, arg0
     v1 = trunc i256 v0 to i8

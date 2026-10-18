@@ -89,7 +89,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb17:
     jump bb14
   bb14:
-    v92 = checked_add u256, v46, 1
+    v92 = checked_add uint256, v46, 1
     jump bb12
   bb4:
     v3 = sload 0 !metadata(storage=slot(0))
@@ -153,7 +153,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb6:
     jump bb3
   bb3:
-    v43 = checked_add u256, v1, 1
+    v43 = checked_add uint256, v1, 1
     jump bb1
 }
 
@@ -232,11 +232,11 @@ fn @testNoPop() -> ptr<memory> [selector=0xa43e8948, abi_params=[], abi_returns=
   bb6:
     jump bb3
   bb3:
-    v43 = checked_add u256, v1, 1
+    v43 = checked_add uint256, v1, 1
     jump bb1
 }
 
-fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     jump bb1
   bb1:
@@ -400,6 +400,6 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
   bb6:
     jump bb3
   bb3:
-    v43 = checked_add u256, v1, 1
+    v43 = checked_add uint256, v1, 1
     jump bb1
 }

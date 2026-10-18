@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i8, i8}
 
-fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[u256, enum<6, u8>, enum<6, u8>]] {
+fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[uint256, enum<6, uint8>, enum<6, uint8>]] {
   bb0:
     v0 = alloc 64
     v1 = lt i8 4, i8 6

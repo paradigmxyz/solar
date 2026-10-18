@@ -10,7 +10,7 @@ fn @f() -> struct0 [view] {
     ret v1
 }
 
-fn @declared() -> i256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @declared() -> i256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 11 !metadata(storage=slot(0))
     v0 = add 0, 1
@@ -26,17 +26,17 @@ fn @declared() -> i256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word], 
     v8 = ptradd v4, 32
     mstore v8, v7
     sstore 0, 99 !metadata(storage=slot(0))
-    v9 = checked_mul u256, v2, 0x3e8
+    v9 = checked_mul uint256, v2, 0x3e8
     v10 = mload v4
-    v11 = checked_mul u256, v10, 10
-    v12 = checked_add u256, v9, v11
+    v11 = checked_mul uint256, v10, 10
+    v12 = checked_add uint256, v9, v11
     v13 = ptradd v4, 32
     v14 = mload v13
-    v15 = checked_add u256, v12, v14
+    v15 = checked_add uint256, v12, v14
     ret v15
 }
 
-fn @assigned() -> i256 [selector=0xadb4d990, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @assigned() -> i256 [selector=0xadb4d990, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 11 !metadata(storage=slot(0))
     v0 = add 0, 1
@@ -59,12 +59,12 @@ fn @assigned() -> i256 [selector=0xadb4d990, abi_params=[], abi_returns=[word], 
     v11 = add 0, 1
     sstore v11, 77 !metadata(storage=slot(1))
     v12 = sload 2 !metadata(storage=slot(2))
-    v13 = checked_mul u256, v12, 0x2710
+    v13 = checked_mul uint256, v12, 0x2710
     v14 = mload v6
-    v15 = checked_mul u256, v14, 100
-    v16 = checked_add u256, v13, v15
+    v15 = checked_mul uint256, v14, 100
+    v16 = checked_add uint256, v13, v15
     v17 = ptradd v6, 32
     v18 = mload v17
-    v19 = checked_add u256, v16, v18
+    v19 = checked_add uint256, v16, v18
     ret v19
 }

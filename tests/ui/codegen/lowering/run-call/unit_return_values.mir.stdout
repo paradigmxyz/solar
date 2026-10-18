@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/unit_return_values.sol:UnitReturnValues ===
 @module UnitReturnValues
-fn @deleteReturn() -> i256 [selector=0x2ff7c86b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @deleteReturn() -> i256 [selector=0x2ff7c86b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 7 !metadata(storage=slot(0))
     icall @deleteAndReturn
@@ -14,7 +14,7 @@ fn @deleteAndReturn() {
     ret
 }
 
-fn @assignmentReturn() -> i256 [selector=0xb3fb91a9, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @assignmentReturn() -> i256 [selector=0xb3fb91a9, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @assignAndReturn
     v0 = sload 0 !metadata(storage=slot(0))
@@ -27,7 +27,7 @@ fn @assignAndReturn() {
     ret
 }
 
-fn @conditionalReturn(arg0: i1) -> i256 [selector=0xb8c11060, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @conditionalReturn(arg0: i1) -> i256 [selector=0xb8c11060, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 9 !metadata(storage=slot(0))
     icall @selectAndReturn, arg0

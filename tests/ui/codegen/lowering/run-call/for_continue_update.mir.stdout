@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/for_continue_update.sol:ForContinueUpdate ===
 @module ForContinueUpdate
-fn @yulLoop() -> i256 [selector=0x8bd7fdaf, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @yulLoop() -> i256 [selector=0x8bd7fdaf, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -34,7 +34,7 @@ fn @yulLoop() -> i256 [selector=0x8bd7fdaf, pure, abi_params=[], abi_returns=[wo
     jump bb1
 }
 
-fn @solidityLoop() -> i256 [selector=0xf8459dc8, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @solidityLoop() -> i256 [selector=0xf8459dc8, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -50,13 +50,13 @@ fn @solidityLoop() -> i256 [selector=0xf8459dc8, pure, abi_params=[], abi_return
   bb8:
     jump bb9
   bb9:
-    v4 = checked_add u256, v0, v1
+    v4 = checked_add uint256, v0, v1
     jump bb3
   bb7:
     jump bb3
   bb3:
     v5 = phi [bb9: v4], [bb7: v0]
-    v6 = checked_add u256, v1, 1
+    v6 = checked_add uint256, v1, 1
     jump bb1
   bb4:
     jump bb2

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_is_consistent_v2.sol:AbiEncodeCallConsistent ===
 @module AbiEncodeCallConsistent
-fn @fExternal(arg0: i256, arg1: ptr<memory>) [selector=0x33d85810, abi_params=[u256, bytes], abi_returns=[], abi_return_params=[]] {
+fn @fExternal(arg0: i256, arg1: ptr<memory>) [selector=0x33d85810, abi_params=[uint256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -20,7 +20,7 @@ fn @getExternalFunctionPointer() -> i256 [selector=0x0d5de1f2, abi_params=[], ab
     ret v8
 }
 
-fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
     v1 = ptrtoint ptr<memory> v0 to i256

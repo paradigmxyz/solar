@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_options.sol:ExternalFunctionPointerOptions ===
 @module ExternalFunctionPointerOptions
-fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -8,8 +8,8 @@ fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_retur
 fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 2
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 2
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = gas
     ret v3
@@ -18,8 +18,8 @@ fn @gasOpt() -> i256 {
 fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 3
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 3
     sstore 0, v2 !metadata(storage=slot(0))
     ret 0
 }
@@ -27,13 +27,13 @@ fn @valueOpt() -> i256 {
 fn @arg() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 4
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 4
     sstore 0, v2 !metadata(storage=slot(0))
     ret 7
 }
 
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -61,7 +61,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     ret v17
 }
 
-fn @fail(arg0: i256) [selector=0x132e4f3c, payable, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @fail(arg0: i256) [selector=0x132e4f3c, payable, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall revert_if<empty>, true
     invalid
@@ -70,7 +70,7 @@ fn @fail(arg0: i256) [selector=0x132e4f3c, payable, abi_params=[u256], abi_retur
 fn @receiver() -> i160 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = address
     ret v2
@@ -79,7 +79,7 @@ fn @receiver() -> i160 {
 fn @functionValue() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = address
     v3 = zext i160 v2 to i256
@@ -88,7 +88,7 @@ fn @functionValue() -> i256 {
     ret v5
 }
 
-fn @discardOptions() -> i256 [selector=0x0035efd4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @discardOptions() -> i256 [selector=0x0035efd4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = icall @gasOpt
@@ -143,7 +143,7 @@ fn @directSelector() -> i1 [selector=0x2c3bf323, abi_params=[], abi_returns=[wor
     v2 = shl 32, v1
     v3 = or v2, 0x132e4f3c
     v4 = icall @valueOpt
-    v5 = checked_add u256, 1, v4
+    v5 = checked_add uint256, 1, v4
     v6 = icall @gasOpt
     v7 = and v3, 0xffffffff
     v8 = shl 224, v7
@@ -188,7 +188,7 @@ fn @pointerSelector(arg0: i1) -> i1 [selector=0x7700d7ca, abi_params=[bool], abi
     v8 = phi [bb1: v3], [bb2: v7]
     v9 = icall @gasOpt
     v10 = icall @valueOpt
-    v11 = checked_add u256, 1, v10
+    v11 = checked_add uint256, 1, v10
     v12 = and v8, 0xffffffff
     v13 = shl 224, v12
     jumpi arg0, bb4, bb5
@@ -225,7 +225,7 @@ fn @returnedSelector() -> i1 [selector=0x9be40e11, abi_params=[], abi_returns=[w
     v0 = icall @functionValue
     v1 = icall @gasOpt
     v2 = icall @valueOpt
-    v3 = checked_add u256, 1, v2
+    v3 = checked_add uint256, 1, v2
     v4 = and v0, 0xffffffff
     v5 = shl 224, v4
     v6 = eq v5, 0x132e4f3c00000000000000000000000000000000000000000000000000000000

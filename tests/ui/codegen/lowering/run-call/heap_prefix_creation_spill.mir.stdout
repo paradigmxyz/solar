@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Implementation ===
 @module Implementation
-fn @ping() -> i256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @ping() -> i256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 7
 }
@@ -10,7 +10,7 @@ fn @ping() -> i256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word]
 @data
   Implementation_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Implementation"
 
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Implementation_creation_code_0
@@ -135,7 +135,7 @@ fn @_creationStart(arg0: ptr<memory>) -> i256 [pure] {
 @types
   struct0: {i256, i256}
 
-fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = icall @pair.2
@@ -146,7 +146,7 @@ fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi
     ret v4
 }
 
-fn @checkSecond(arg0: i256) -> i256 [selector=0x509876d9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkSecond(arg0: i256) -> i256 [selector=0x509876d9, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = icall @pair.3
@@ -177,13 +177,13 @@ fn @pair.3() -> struct0 {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixConstructor ===
 @module HeapPrefixConstructor
-fn @saved() -> i256 [selector=0x164b045a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @saved() -> i256 [selector=0x164b045a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -198,13 +198,13 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixConstructorHelper ===
 @module HeapPrefixConstructorHelper
-fn @saved() -> i256 [selector=0x164b045a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @saved() -> i256 [selector=0x164b045a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     v0 = icall @build, arg0
     sstore 0, v0 !metadata(storage=slot(0))
@@ -225,7 +225,7 @@ fn @build(arg0: i256) -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixRecursive ===
 @module HeapPrefixRecursive
-fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @build, arg0, arg1
     ret v0
@@ -247,8 +247,8 @@ fn @build(arg0: i256, arg1: i256) -> i256 [pure] {
     mstore v8, 0xdeadbeef
     ret arg0
   bb1:
-    v1 = checked_sub u256, arg1, 1
+    v1 = checked_sub uint256, arg1, 1
     v2 = icall @build, arg0, v1
-    v3 = checked_add u256, v2, 1
+    v3 = checked_add uint256, v2, 1
     ret v3
 }

@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_getter.sol:C ===
 @module C
 @immutables
-  owner: u256
+  owner: uint256
 
-fn @owner() -> i160 [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @owner() -> i160 [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = loadimmutable owner
     v1 = trunc i256 v0 to i160

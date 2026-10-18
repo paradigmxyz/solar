@@ -1,19 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_named_return.sol:DirtyInternalNamedReturn ===
 @module DirtyInternalNamedReturn
-fn @dispatchAddress(arg0: i256) -> i256 [selector=0x58955a9d, pure, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @dispatchAddress(arg0: i256) -> i256 [selector=0x58955a9d, pure, abi_params=[address], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = icall @internal_dispatcher_p_address_r_address, 5, arg0
     ret v0
 }
 
-fn @narrowAddress(arg0: i256) -> i256 [selector=0x44c29f35, pure, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @narrowAddress(arg0: i256) -> i256 [selector=0x44c29f35, pure, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = trunc i256 arg0 to i160
     v1 = zext i160 v0 to i256
     ret v1
 }
 
-fn @bytesAddress(arg0: i256) -> i160 [selector=0xab9e6c0c, pure, abi_params=[bytes20], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @bytesAddress(arg0: i256) -> i160 [selector=0xab9e6c0c, pure, abi_params=[bytes20], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     v1 = shr 96, v0
@@ -21,7 +21,7 @@ fn @bytesAddress(arg0: i256) -> i160 [selector=0xab9e6c0c, pure, abi_params=[byt
     ret v2
 }
 
-fn @joinAddress(arg0: i1) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @joinAddress(arg0: i1) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -230,14 +230,14 @@ fn @inspectSigned(arg0: i256) -> i256 [pure] {
     ret arg0
 }
 
-fn @signedPointer() -> i256 [selector=0x9c657eab, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedPointer() -> i256 [selector=0x9c657eab, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sext i8 255 to i256
-    v1 = icall @internal_dispatcher_p_i8_r_i256, 20, v0
+    v1 = icall @internal_dispatcher_p_int8_r_int256, 20, v0
     ret v1
 }
 
-fn @signedOperator() -> i8 [selector=0x4cad5a4a, pure, abi_params=[], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @signedOperator() -> i8 [selector=0x4cad5a4a, pure, abi_params=[], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
     v0 = sext i8 255 to i256
     v1 = icall @signedCarrierSign, v0
@@ -250,9 +250,9 @@ fn @identity(arg0: i256) -> i256 [pure] {
     ret arg0
 }
 
-fn @throughPointer() -> i256 [selector=0xb80d6cd3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @throughPointer() -> i256 [selector=0xb80d6cd3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_u8_r_u8, 23, 257
+    v0 = icall @internal_dispatcher_p_uint8_r_uint8, 23, 257
     ret v0
 }
 
@@ -263,9 +263,9 @@ fn @cleanPair() -> struct0 [pure] {
     ret v1
 }
 
-fn @cleanPairDispatch() -> struct0 [selector=0xc5500c7d, pure, abi_params=[], abi_returns=[word<u8>, word<u16>], abi_return_params=[u8, u16]] {
+fn @cleanPairDispatch() -> struct0 [selector=0xc5500c7d, pure, abi_params=[], abi_returns=[word<uint8>, word<uint16>], abi_return_params=[uint8, uint16]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_none_r_u8_u16, 25
+    v0 = icall @internal_dispatcher_p_none_r_uint8_uint16, 25
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = trunc i256 v1 to i8
@@ -307,7 +307,7 @@ fn @modifierLoop() [selector=0x2a9574e8, pure, abi_params=[], abi_returns=[], ab
   bb7:
     jump bb4
   bb4:
-    v4 = checked_add u256, v1, 1
+    v4 = checked_add uint256, v1, 1
     jump bb2
 }
 
@@ -316,7 +316,7 @@ fn @negative8() -> i8 [pure] {
     ret i8 254
 }
 
-fn @signedJoin(arg0: i1, arg1: i8) -> i256 [selector=0x4f3ee4d1, pure, abi_params=[bool, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @signedJoin(arg0: i1, arg1: i8) -> i256 [selector=0x4f3ee4d1, pure, abi_params=[bool, int8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -332,7 +332,7 @@ fn @signedJoin(arg0: i1, arg1: i8) -> i256 [selector=0x4f3ee4d1, pure, abi_param
     ret v4
 }
 
-fn @signedLoop(arg0: i256, arg1: i8) -> i256 [selector=0xd2122ca9, pure, abi_params=[u256, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @signedLoop(arg0: i256, arg1: i8) -> i256 [selector=0xd2122ca9, pure, abi_params=[uint256, int8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jump bb1
   bb1:
@@ -356,7 +356,7 @@ fn @signedLoop(arg0: i256, arg1: i8) -> i256 [selector=0xd2122ca9, pure, abi_par
   bb6:
     jump bb3
   bb3:
-    v8 = checked_add u256, v4, 1
+    v8 = checked_add uint256, v4, 1
     jump bb1
   bb7:
     jump bb2
@@ -367,7 +367,7 @@ fn @signedLoop(arg0: i256, arg1: i8) -> i256 [selector=0xd2122ca9, pure, abi_par
     ret v11
 }
 
-fn @signedLocal() -> i256 [selector=0xbacceb2b, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedLocal() -> i256 [selector=0xbacceb2b, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sext i8 255 to i256
     ret v0
@@ -380,7 +380,7 @@ fn @signedCarrierSign(arg0: i256) -> i256 [pure] {
     ret v1
 }
 
-fn @internal_dispatcher_p_i8_r_i256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_int8_r_int256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 20
     jumpi v0, bb1, bb2
@@ -392,7 +392,7 @@ fn @internal_dispatcher_p_i8_r_i256(arg0: i256, arg1: i256) -> i256 [function_po
     ret v1
 }
 
-fn @internal_dispatcher_p_u8_r_u8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 23
     jumpi v0, bb1, bb2
@@ -404,7 +404,7 @@ fn @internal_dispatcher_p_u8_r_u8(arg0: i256, arg1: i256) -> i256 [function_poin
     ret v1
 }
 
-fn @internal_dispatcher_p_none_r_u8_u16(arg0: i256) -> struct1 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_uint8_uint16(arg0: i256) -> struct1 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 25
     jumpi v0, bb1, bb2
@@ -428,7 +428,7 @@ fn @identity(arg0: i256) -> i256 [pure] {
     ret arg0
 }
 
-fn @throughVirtual() -> i256 [selector=0x1286f860, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @throughVirtual() -> i256 [selector=0x1286f860, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @identity, 257
     ret v0

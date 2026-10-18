@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = not 31
     v1 = and 66, v0
@@ -73,7 +73,7 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
     ret v54
 }
 
-fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 3
@@ -95,13 +95,13 @@ fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns
     ret v13
 }
 
-fn @run(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x194e10ce, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @run(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x194e10ce, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @copy, arg0, arg1
     ret v0
 }
 
-fn @twice(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x5a2aaa96, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @twice(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x5a2aaa96, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @copy, arg0, arg1
     v1 = icall @copy, v0, arg1
