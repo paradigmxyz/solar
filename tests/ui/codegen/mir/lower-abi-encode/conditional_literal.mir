@@ -51,8 +51,9 @@ fn @overlapping(arg0: i256) -> slice<memory> {
 // Literal folding cannot remove an observable free-memory-pointer bump.
 // CHECK: fn @preserved
 // CHECK: alloc 64 !metadata(preserves_fmp)
-// CHECK: + {{v[0-9]+}} = mload v0
-// CHECK-NOT: = mul
+// CHECK: mstore v1, 1
+// CHECK: mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
+// CHECK-NOT: mcopy
 fn @preserved() -> slice<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)

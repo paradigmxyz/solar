@@ -18,6 +18,8 @@
 //! before encoding, keeping stores tied to the allocated base. This is limited
 //! to nonempty payloads: empty tails already have a short encoder, and moving
 //! their reservation earlier can increase stack setup around external calls.
+//! Literal bytes with observable allocations can still fold into encoder stores;
+//! their original allocations and initialization remain for later observers.
 //! Word-cleanup loops use a guarded do-while with a destination cursor and fixed
 //! source displacement, returning the final cursor instead of retaining a
 //! separate tail. The original count controls iteration even if addresses wrap;
@@ -1604,9 +1606,7 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
     if !func.blocks[block].instructions.contains(defining_inst) {
         return None;
     }
-    if !matches!(func.inst(*defining_inst).kind, InstKind::Alloc { .. })
-        || func.inst(*defining_inst).metadata.preserves_fmp()
-    {
+    if !matches!(func.inst(*defining_inst).kind, InstKind::Alloc { .. }) {
         return None;
     }
 
@@ -1670,6 +1670,9 @@ fn remove_literal_objects(func: &mut Function, values: &[ValueId]) {
     let mut removed = FxHashSet::default();
     for &object in values {
         let Value::Inst(defining_inst) = func.value(object) else { continue };
+        if func.inst(*defining_inst).metadata.preserves_fmp() {
+            continue;
+        }
         let Some(block) = func
             .blocks
             .iter_enumerated()
