@@ -18,7 +18,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
     mstore v16, v17
     v19 = add v40, 32
     v20 = mload v19
-    v21 = shr 160, v20
+    v21 = shr v20, 160
     v22 = eq v21, 0
     jumpi v22, bb3, bb1
   bb3:
@@ -67,7 +67,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     mstore v121, v28
     v29 = add v20, 32
     v30 = mload v29
-    v31 = shr 160, v30
+    v31 = shr v30, 160
     v32 = eq v31, 0
     jumpi v32, bb4, bb1
   bb4:
@@ -210,11 +210,11 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     jumpi v17, bb4, bb5
   bb5:
     v18 = add v15, 1
-    v19 = shl 5, v18
+    v19 = shl v18, 5
     v50 = icall @alloc, v19
     mstore v50, v15
     v22 = sub v5, v10
-    v23 = shr 5, v22
+    v23 = shr v22, 5
     v24 = gt v15, v23
     jumpi v24, bb1, bb6
   bb6:
@@ -231,7 +231,7 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     returndata 128, 32
   bb8:
     v29 = icall @decode_memory_type, v26, v10, v5
-    v30 = shl 5, v27
+    v30 = shl v27, 5
     v45 = add v50, v30
     v46 = add v45, 32
     mstore v46, v29
@@ -336,12 +336,12 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     jumpi v42, bb4, bb8
   bb8:
     v43 = add v40, 1
-    v44 = shl 5, v43
+    v44 = shl v43, 5
     v71 = icall @alloc, v44
     mstore v71, v40
-    v46 = shl 5, v40
+    v46 = shl v40, 5
     v47 = sub arg2, v35
-    v48 = shr 5, v47
+    v48 = shr v47, 5
     v49 = gt v40, v48
     jumpi v49, bb1, bb9
   bb9:
@@ -369,7 +369,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     switch v7, default bb1, [0x6644232b => bb3, 0xaca542ca => bb4, 0xc298c02b => bb5, 0xfc7ec666 => bb6]
   bb6:
     tail_call @dNested

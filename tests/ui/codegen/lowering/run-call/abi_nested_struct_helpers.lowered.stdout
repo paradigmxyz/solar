@@ -37,11 +37,11 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     jumpi v46, bb8, bb9
   bb9:
     v47 = add v44, 1
-    v48 = shl 5, v47
+    v48 = shl v47, 5
     v84 = icall @alloc, v48
     mstore v84, v44
     v51 = sub v35, v39
-    v52 = shr 5, v51
+    v52 = shr v51, 5
     v53 = gt v44, v52
     jumpi v53, bb6, bb10
   bb10:
@@ -59,7 +59,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v85 = add v84, 32
     v88 = gt v29, 0x20000000000000000
     v89 = select v88, 0x20000000000000000, v29
-    v90 = shl 5, v89
+    v90 = shl v89, 5
     v91 = add v84, v90
     v92 = add v91, 32
     jump bb1
@@ -201,7 +201,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     switch v7, default bb1, [0x54d20d9 => bb3, 0x7a5de1e9 => bb4]
   bb4:
     tail_call @pair
