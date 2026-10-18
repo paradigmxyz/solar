@@ -13,6 +13,12 @@
       ret v0
   }
   
+  fn @create2_salt(arg0: i256, arg1: i160, arg2: i256) -> i256 {
+    bb0:
+      v0 = keccak256_packed (bytes1 arg0, address arg1, bytes32 arg2)
+      ret v0
+  }
+  
   fn @arrays(arg0: ptr<memory>, arg1: slice<calldata>) -> ptr<memory> {
     bb0:
       v0 = abi_encode_packed (array<word<i16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)

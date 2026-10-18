@@ -1,6 +1,17 @@
 //@[mir] filecheck:
 // CHECK: @module
 // CHECK: staticcall
+// A digest lands in scratch memory, and a failed call forwards its return data.
+// CHECK-LABEL: fn @shaWord(
+// CHECK: [[SUCCESS:v[0-9]+]] = staticcall {{v[0-9]+}}, 2, {{v[0-9]+}}, 32, 0, 32
+// CHECK-NEXT: jumpi [[SUCCESS]], [[DONE:bb[0-9]+]], [[FAILED:bb[0-9]+]]
+// CHECK: [[FAILED]]:
+// CHECK: returndatacopy 0, 0
+// CHECK: [[DONE]]:
+// CHECK-NEXT: mload 0
+// CHECK-LABEL: fn @ripemdWord(
+// CHECK: [[SUCCESS:v[0-9]+]] = staticcall {{v[0-9]+}}, 3, {{v[0-9]+}}, 32, 0, 32
+// CHECK-NEXT: jumpi [[SUCCESS]], [[DONE:bb[0-9]+]], [[FAILED:bb[0-9]+]]
 //@ revisions: homestead byzantium constantinople osaka mir
 //@[homestead] compile-flags: --evm-version homestead --emit=abi,bin
 //@[byzantium] compile-flags: --evm-version byzantium --emit=abi,bin
@@ -15,6 +26,8 @@
 //@ run-call: ripemdLiteral => 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc
 //@ run-call: shaEmpty => 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 //@ run-call: ripemdEmpty => 0x9c1185a5c5e9fc54612808977ee8f548b2258d31
+//@ run-call: shaWord 1 => 0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5
+//@ run-call: ripemdWord 1 => 0xae387fcfeb723c3f5964509af111cf5a67f30661
 
 contract PrecompileBuiltins {
     function recover() external pure returns (address) {
@@ -52,5 +65,13 @@ contract PrecompileBuiltins {
 
     function ripemdEmpty() external pure returns (bytes20) {
         return ripemd160("");
+    }
+
+    function shaWord(uint256 x) external pure returns (bytes32) {
+        return sha256(abi.encodePacked(x));
+    }
+
+    function ripemdWord(uint256 x) external pure returns (bytes20) {
+        return ripemd160(abi.encodePacked(x));
     }
 }

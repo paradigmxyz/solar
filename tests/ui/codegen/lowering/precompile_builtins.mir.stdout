@@ -14,13 +14,13 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     mstore 0, 0 !metadata(memory=scratch)
     v7 = gas
     v8 = staticcall v7, 1, v16, 128, 0, 32
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
     revert 0, v11
-  bb1:
+  bb2:
     v9 = mload 0 !metadata(memory=scratch)
     v17 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v17
@@ -40,13 +40,13 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     mstore 0, 0 !metadata(memory=scratch)
     v7 = gas
     v8 = staticcall v7, 1, v16, 128, 0, 32
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
     revert 0, v11
-  bb1:
+  bb2:
     v9 = mload 0 !metadata(memory=scratch)
     v17 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v17
@@ -89,31 +89,92 @@ fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
     returndata 128, 32
 }
 
+fn @shaWord() [selector=0x1a7d61f8, abi_wrapper, pure] {
+  bb0:
+    v11 = calldatasize
+    v12 = lt v11, 36
+    jumpi v12, bb3, bb4
+  bb4:
+    v18 = mload 64 !metadata(memory=scratch)
+    v19 = add v18, 64
+    mstore 64, v19 !metadata(memory=scratch)
+    mstore v18, 32
+    v16 = add v18, 32
+    mstore v16, arg0
+    v6 = gas
+    v7 = staticcall v6, 2, v16, 32, 0, 32
+    jumpi v7, bb2, bb1
+  bb1:
+    v9 = returndatasize
+    returndatacopy 0, 0, v9 !metadata(memory=abi_return)
+    v10 = returndatasize
+    revert 0, v10
+  bb2:
+    v8 = mload 0 !metadata(memory=scratch)
+    mstore 128, v8
+    returndata 128, 32
+  bb3:
+    revert 0, 0
+}
+
+fn @ripemdWord() [selector=0x5c2b7c72, abi_wrapper, pure] {
+  bb0:
+    v12 = calldatasize
+    v13 = lt v12, 36
+    jumpi v13, bb3, bb4
+  bb4:
+    v19 = mload 64 !metadata(memory=scratch)
+    v20 = add v19, 64
+    mstore 64, v20 !metadata(memory=scratch)
+    mstore v19, 32
+    v17 = add v19, 32
+    mstore v17, arg0
+    v6 = gas
+    v7 = staticcall v6, 3, v17, 32, 0, 32
+    jumpi v7, bb2, bb1
+  bb1:
+    v10 = returndatasize
+    returndatacopy 0, 0, v10 !metadata(memory=abi_return)
+    v11 = returndatasize
+    revert 0, v11
+  bb2:
+    v8 = mload 0 !metadata(memory=scratch)
+    v9 = shl 96, v8
+    mstore 128, v9
+    returndata 128, 32
+  bb3:
+    revert 0, 0
+}
+
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb10, bb1
+    jumpi v1, bb12, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr 224, v2
-    switch v3, default bb10, [0x8f4bed => bb2, 0x62c5650 => bb3, 0xc4b170a => bb4, 0x4aa7a4c7 => bb5, 0x65707d6f => bb6, 0xa1e754ea => bb7, 0xce746024 => bb8, 0xf1609893 => bb9]
-  bb9:
+    switch v3, default bb12, [0x8f4bed => bb2, 0x62c5650 => bb3, 0xc4b170a => bb4, 0x1a7d61f8 => bb5, 0x4aa7a4c7 => bb6, 0x5c2b7c72 => bb7, 0x65707d6f => bb8, 0xa1e754ea => bb9, 0xce746024 => bb10, 0xf1609893 => bb11]
+  bb11:
     tail_call @shaEmpty
-  bb8:
+  bb10:
     tail_call @recover
-  bb7:
+  bb9:
     tail_call @ripemd
-  bb6:
+  bb8:
     tail_call @sha
-  bb5:
+  bb7:
+    tail_call @ripemdWord
+  bb6:
     tail_call @shaLiteral
+  bb5:
+    tail_call @shaWord
   bb4:
     tail_call @ripemdEmpty
   bb3:
     tail_call @ripemdLiteral
   bb2:
     tail_call @recoverInvalid
-  bb10:
+  bb12:
     revert 0, 0
 }
