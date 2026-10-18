@@ -203,7 +203,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<CallResult> {
-        // data = materialize_memory_argument(input)
+        // data = input (a calldata slice) | materialize_memory_argument(input)
         // layout = intern_abi_layout(target_types)
         // value = abi_decode(layout, data)
         let args = self.builtin_args::<2>(Builtin::AbiDecode, &args)?;
@@ -225,9 +225,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data_expr = &args[0];
         let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
         let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        // `abi_decode` reads a calldata slice in place, so calldata needs no copy.
         let data = if lies_in_calldata(data_ty) {
-            let data = self.lower_expr(data_expr)?;
-            self.copy_calldata_bytes_unchecked(data)?
+            self.lower_expr(data_expr)?
         } else {
             let data = self.lower_typed_expr(data_expr, memory_ty)?;
             self.materialize_memory_argument(memory_ty, data, data_expr.span)?
@@ -248,11 +248,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         types: &[Ty<'gcx>],
         span: Span,
     ) -> Option<(ValueId, AbiParamLayout)> {
-        // `abi_decode` reads a memory slice in place.
+        // `abi_decode` reads a memory or calldata slice in place; returndata needs a copy.
         let data = match self.builder.func().value_ty(data) {
-            Some(MirType::Slice(PtrLocation::Calldata | PtrLocation::Returndata)) => {
-                self.materialize_memory_slice(data)
-            }
+            Some(MirType::Slice(PtrLocation::Returndata)) => self.materialize_memory_slice(data),
             _ => data,
         };
         let mut abi_types = Vec::with_capacity(types.len());

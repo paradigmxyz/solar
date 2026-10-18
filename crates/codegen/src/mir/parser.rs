@@ -1752,10 +1752,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Value::Inst(inst)
                         if matches!(builder.func().inst(*inst).kind, InstKind::ICall { function: super::Callee::Function(_), .. })
                 );
-                if !matches!(data_ty, Some(MirType::MEMPTR | MirType::Slice(PtrLocation::Memory)))
-                    && !pending_call
+                if !matches!(
+                    data_ty,
+                    Some(
+                        MirType::MEMPTR
+                            | MirType::Slice(PtrLocation::Memory | PtrLocation::Calldata)
+                    )
+                ) && !pending_call
                 {
-                    return Err(self.parser.error("ABI decode requires bytes or a memory slice"));
+                    return Err(self
+                        .parser
+                        .error("ABI decode requires bytes or a memory or calldata slice"));
                 }
                 let fields = layout.types.iter().map(AbiParamType::mir_type).collect::<Vec<_>>();
                 let result_ty = match fields.as_slice() {
