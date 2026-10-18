@@ -33,7 +33,7 @@ pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_pass
 static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
     &inline::InlineSingleUse::Semantic,
-    &inline_guards::InlineGuards,
+    &inline::InlineGuards,
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
     &inline::InlineHotLeaves,
@@ -41,7 +41,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::InlineImmutableLeaves,
     &inline::InlineMemoryWrappers,
     &inline::InlineStorageReaders,
-    &inline_dispatch::InlineDispatch,
+    &inline::InlineDispatch,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &call_cleanup::CallCleanup,
@@ -333,7 +333,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // branch condition, body, exit; body: ...; branch condition, checked, panic
     // => body: ...; jump checked
     &check_elim::LateCheckElim,
-    &inline_guards::InlineGuards,
+    &inline::InlineGuards,
     &inline::InlineMemoryWrappers,
     // Revisit allocations after semantic memory accesses become bounded raw
     // operations, so fixed-size hash buffers can use backend-known static
@@ -358,7 +358,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Carry proved argument widths across calls before simplifying word masks.
     &call_cleanup::CallCleanup,
     // Shared scalar ABI words and wrapper bodies become one CFG before extraction.
-    &inline_dispatch::InlineDispatch,
+    &inline::InlineDispatch,
     &check_elim::IntegerCleanup,
     // Memory lowering materializes address arithmetic; number and simplify it
     // once more before the physical shape is fixed. The stack-aware cost keeps

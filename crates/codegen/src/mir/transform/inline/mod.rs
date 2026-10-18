@@ -86,6 +86,12 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMa
 use solar_sema::Gcx;
 use std::sync::Arc;
 
+mod dispatch;
+pub(crate) use dispatch::InlineDispatch;
+
+mod guards;
+pub(crate) use guards::InlineGuards;
+
 /// Module pass for metadata-backed MIR inlining.
 pub(crate) struct Inline;
 

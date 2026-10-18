@@ -51,7 +51,7 @@ impl MirPass for InlineDispatch {
         if !inline_dispatch(module) {
             return false;
         }
-        let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
+        let _ = super::super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
         true
     }
 }
@@ -133,7 +133,7 @@ fn inline_dispatch(module: &mut Module) -> bool {
     };
     for (block, id) in sites {
         let callee = module.function(id);
-        if super::inline::inline_dispatch_route(&mut entry, block, callee, args.clone()).is_none() {
+        if super::inline_dispatch_route(&mut entry, block, callee, args.clone()).is_none() {
             return false;
         }
         entry.external_static_return_size =
