@@ -1,6 +1,6 @@
-//@ compile-flags: -Zevm-ir-pipeline=constant-data
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
 //@ filecheck:
-@module DebugInfo
+@module StoreOrigins
 
 // The copy carries the origins of every store it replaces, and the function
 // event of the run lands on the copy itself.

@@ -21,8 +21,8 @@ use crate::{
     backend::evm::{
         data_copy_cost, data_copy_gas,
         ir::{
-            BlockId, Data, DataId, DataRef, DataSize, Instruction, Module, PushValue, Terminator,
-            TerminatorKind, immediate_materialization_cost,
+            BlockId, Data, DataId, DataRef, DataSize, Instruction, Metadata, Module, PushValue,
+            Terminator, TerminatorKind, immediate_materialization_cost,
         },
         op::{self, WORD_BYTES},
     },
@@ -232,22 +232,26 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     }
     prepared.sort_unstable_by_key(|rewrite| (rewrite.block, rewrite.start));
     for rewrite in prepared.iter().rev() {
-        let metadata = module.blocks[rewrite.block].instructions[rewrite.start].metadata.clone();
+        let instructions = &mut module.blocks[rewrite.block].instructions;
+        // The copy carries every origin of the stores it replaces; their function events land
+        // on the copy itself, the last replacement.
+        let mut metadata = Metadata::default();
+        for inst in &instructions[rewrite.start..rewrite.end] {
+            metadata.absorb_debug_info(&inst.metadata);
+        }
         // push size
         // push data
         // dup 3
         // codecopy
-        let replacement = [
+        let mut replacement = [
             Instruction::push_value(U256::from(rewrite.size)),
             Instruction::push_data(rewrite.data),
             Instruction::opcode(op::DUP3),
             Instruction::opcode(op::CODECOPY),
         ]
-        .map(|mut inst| {
-            inst.metadata.copy_source_debug_from(&metadata);
-            inst
-        });
-        module.blocks[rewrite.block].instructions.splice(rewrite.start..rewrite.end, replacement);
+        .map(|inst| inst.with_source_debug(&metadata));
+        replacement[3].metadata.absorb_debug_info(&metadata);
+        instructions.splice(rewrite.start..rewrite.end, replacement);
     }
     !prepared.is_empty()
 }

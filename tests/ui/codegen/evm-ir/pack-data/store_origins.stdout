@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/evm-ir/constant-data/debug_info.evmir (before constant-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/constant-data/debug_info.evmir (after constant-data) ===
-  @module DebugInfo
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/store_origins.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/store_origins.evmir (after pack-data) ===
+  @module StoreOrigins
 + @data
 +   literal_0: hex"111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222223333333333333333333333333333333333333333333333333333333333333333"
 + 
