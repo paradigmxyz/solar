@@ -30,7 +30,8 @@
 //! site; arbitrary reference-returning helpers remain excluded.
 //! Slice-only helpers are also transparent: constructing and projecting a slice
 //! copies its pointer, length and address space without reading the payload or
-//! allocating memory. Inlining exposes these components before slice lowering
+//! allocating memory. `calldatasize` may measure the slice, as `msg.data` does in
+//! the ubiquitous `_msgData()` helper. Inlining exposes these components before slice lowering
 //! expands a returned slice into the internal multi-word return convention.
 //! The existing leaf-size and lifetime-cost limits still apply.
 //! A targeted late adapter revisits argument-free immutable word helpers after
@@ -1543,7 +1544,10 @@ fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
         && func.instructions().all(|inst| {
             matches!(
                 func.inst(inst).kind,
-                InstKind::MakeSlice { .. } | InstKind::ExtractValue { ty: MirType::Slice(_), .. }
+                InstKind::MakeSlice { .. }
+                    | InstKind::ExtractValue { ty: MirType::Slice(_), .. }
+                    // `msg.data` measures its slice with `calldatasize`, a fixed-cost read.
+                    | InstKind::CalldataSize
             )
         })
     {
@@ -1799,12 +1803,14 @@ fn estimate_inst_cost(
         }
     };
     let instructions = match kind {
-        // Casts and slice projections emit no code of their own.
+        // Casts, slice construction, and aggregate insertions and projections emit no code of their
+        // own: `lower-structs` turns struct fields into separate words.
         InstKind::Zext(_)
         | InstKind::IntToPtr(..)
         | InstKind::PtrToInt(_, 256)
         | InstKind::MakeSlice { .. }
-        | InstKind::ExtractValue { ty: MirType::Slice(_), .. } => 0,
+        | InstKind::InsertValue { .. }
+        | InstKind::ExtractValue { .. } => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
         InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
         InstKind::MappingSlotBytes(..) => 9,
