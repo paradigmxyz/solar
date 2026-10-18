@@ -582,7 +582,7 @@ impl<'a> Planner<'a> {
         Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
     }
 
-    pub(super) fn retain_constant(mut self) -> Option<Self> {
+    pub(super) fn constant_to_retain(&self) -> Option<(BlockId, ValueId)> {
         let value = self
             .remat
             .iter()
@@ -639,9 +639,13 @@ impl<'a> Planner<'a> {
         {
             block = idom;
         }
-        self.remat.remove(value);
-        self.constant_def = Some((block, value));
-        Some(self)
+        Some((block, value))
+    }
+
+    pub(super) fn retain_constant(mut self, definition: (BlockId, ValueId)) -> Self {
+        self.remat.remove(definition.1);
+        self.constant_def = Some(definition);
+        self
     }
 
     /// Plans a block's instructions in their MIR order.

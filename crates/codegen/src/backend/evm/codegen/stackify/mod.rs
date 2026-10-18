@@ -669,6 +669,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             SINGLE_SPILL_RESTARTS
         };
         let mut best: Option<FunctionPlan> = None;
+        let mut constant = None;
         // Candidate loop header layouts: as the preheader leaves its stack, by first use in the
         // loop, and then repeatedly as the best plan's latches leave their stacks.
         let mut candidates = vec![FxHashMap::default()];
@@ -694,6 +695,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                     &hints,
                 )
                 .map_err(|reason| Decline::Unsupported(func_id, reason))?;
+                if round == 1
+                    && restarts == 0
+                    && call_spill == CallSpill::None
+                    && (target.optimization().is_gas() || target.optimization().is_size())
+                {
+                    constant = planner.constant_to_retain();
+                }
                 match planner.plan() {
                     Ok(planned) => break planned,
                     Err(Fail::Deep(victim, beyond)) => {
@@ -739,8 +747,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let mut best = best.expect("at least one plan");
         let hints = FxHashMap::default();
-        if call_spill == CallSpill::None
-            && (target.optimization().is_gas() || target.optimization().is_size())
+        if let Some(constant) = constant
             && let Ok(planner) = Planner::new(
                 module,
                 info,
@@ -752,8 +759,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 restarts >= single_spills,
                 &hints,
             )
-            && let Some(planner) = planner.retain_constant()
-            && let Ok(candidate) = planner.plan()
+            && let Ok(candidate) = planner.retain_constant(constant).plan()
             && candidate.plan.cost.dominates(best.cost)
             && candidate.plan.non_loop_gas <= best.non_loop_gas
             && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
