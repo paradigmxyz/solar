@@ -114,7 +114,7 @@ contract C {
     // BYZANTIUM-LABEL: fn @aggregate
     // BYZANTIUM-NOT: extcodesize
     // BYZANTIUM: delegatecall {{.*}}, 64
-    // BYZANTIUM: abi_decode [array<2, u256>]
+    // BYZANTIUM: abi_decode [array<2, uint256>]
     function aggregate(uint256 x) external pure returns (uint256[2] memory) {
         return Lib.arr(x);
     }
@@ -142,10 +142,10 @@ contract C {
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
     // HOMESTEAD: mcopy [[BUF]], [[IN]], 64
     // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[BUF]], 64
-    // HOMESTEAD: abi_decode [tuple<bool, u256>], [[SLICE]]
+    // HOMESTEAD: abi_decode [tuple<bool, uint256>], [[SLICE]]
     // BYZANTIUM-LABEL: fn @structBool
     // BYZANTIUM: delegatecall {{.*}}, 64
-    // BYZANTIUM: abi_decode [tuple<bool, u256>]
+    // BYZANTIUM: abi_decode [tuple<bool, uint256>]
     function structBool(uint256 x) external pure returns (Lib.Flagged memory) {
         return Lib.flagged(x);
     }

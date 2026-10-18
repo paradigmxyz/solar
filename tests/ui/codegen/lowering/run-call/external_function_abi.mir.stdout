@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_abi.sol:ExternalFunctionAbi ===
 @module ExternalFunctionAbi
-fn @target(arg0: i256) -> i256 [selector=0x9811c7c1, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @target(arg0: i256) -> i256 [selector=0x9811c7c1, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     ret v0
 }
 
@@ -11,7 +11,7 @@ fn @echo(arg0: i256) -> i256 [selector=0x90898ee4, pure, abi_params=[function], 
     ret arg0
 }
 
-fn @echoHolder(arg0: ptr<memory>) -> ptr<memory> [selector=0x030fb1b2, pure, abi_params=[tuple<function, u256>], abi_returns=[tuple<function, word>], abi_return_params=[tuple<function, u256>]] {
+fn @echoHolder(arg0: ptr<memory>) -> ptr<memory> [selector=0x030fb1b2, pure, abi_params=[tuple<function, uint256>], abi_returns=[tuple<function, word>], abi_return_params=[tuple<function, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 0
@@ -25,7 +25,7 @@ fn @echoArray(arg0: ptr<memory>) -> ptr<memory> [selector=0xb4b16456, pure, abi_
     ret arg0
 }
 
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -91,7 +91,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v46 = lt v45, 64
     icall revert_if<tuple_data_too_short>, v46
     v47 = make_memory_slice v42, 64
-    v48 = abi_decode [tuple<function, u256>], v47
+    v48 = abi_decode [tuple<function, uint256>], v47
     v49 = mload v48
     v50 = shr 64, v49
     v51 = shr 32, v50

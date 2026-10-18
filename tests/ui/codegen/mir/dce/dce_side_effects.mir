@@ -147,8 +147,10 @@ fn @unused_storage_array(arg0: i256) {
     ret
 }
 
+// Other functions in this module still read `msize`, so the read stays even
+// though its own observer is dead.
 // CHECK-LABEL: fn @dead_memory_observer
-// CHECK: - {{v[0-9]+}} = mload 0x1000
+// CHECK: {{^ +}}v0 = mload 0x1000
 // CHECK: - {{v[0-9]+}} = msize
 // CHECK: - {{v[0-9]+}} = add {{v[0-9]+}}, {{v[0-9]+}}
 fn @dead_memory_observer() {

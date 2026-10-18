@@ -39,6 +39,7 @@ use crate::mir::{
     AbiParamType, AbiWordValidator, AllocationInitialization, ArgIdx, EffectKind, Function,
     FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PtrLocation, Terminator, Value,
     ValueId,
+    analysis::direct_callees,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils,
@@ -294,18 +295,6 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
     bound
 }
 
-fn callees(func: &Function) -> impl Iterator<Item = FunctionId> + '_ {
-    let calls = func.instructions().filter_map(|inst| match func.inst(inst).kind {
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => Some(function),
-        _ => None,
-    });
-    let tail_calls = func.blocks.iter().filter_map(|block| match block.terminator {
-        Some(Terminator::TailCall { function, .. }) => Some(function),
-        _ => None,
-    });
-    calls.chain(tail_calls)
-}
-
 /// Each function's store bound including the functions it calls.
 fn transitive_bounds(
     module: &Module,
@@ -322,7 +311,8 @@ fn transitive_bounds(
     for _ in 0..MAX_ROUNDS {
         let mut changed = false;
         for (id, func) in module.functions.iter_enumerated() {
-            let widened = callees(func).map(|callee| bounds[callee]).fold(bounds[id], u32::max);
+            let widened =
+                direct_callees(func).map(|callee| bounds[callee]).fold(bounds[id], u32::max);
             if widened != bounds[id] {
                 bounds[id] = widened;
                 changed = true;

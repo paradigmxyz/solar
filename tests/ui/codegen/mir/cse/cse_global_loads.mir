@@ -2,7 +2,7 @@
 //@filecheck:
 @module CseGlobalLoads
 @immutables
-  value: u256
+  value: uint256
 
 // CHECK-LABEL: {{^[ +].*}}fn @dominating_mload{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload 0

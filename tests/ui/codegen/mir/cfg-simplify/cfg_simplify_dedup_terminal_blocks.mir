@@ -219,3 +219,18 @@ fn @keep_distinct_libraries(arg0: i1) -> i160 {
     v1 = library_address L_1
     ret v1
 }
+
+// Fresh objects merge like any other payload: each path allocates once either way.
+// CHECK-LABEL: {{^[ +].*}}fn @merge_equal_allocations{{[( ]}}
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
+// CHECK: {{^[ +].*}}alloc zeroed checked 64
+fn @merge_equal_allocations(arg0: i1) -> ptr<memory> {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = alloc zeroed checked 64
+    ret v0
+  bb2:
+    v1 = alloc zeroed checked 64
+    ret v1
+}

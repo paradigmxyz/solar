@@ -100,11 +100,11 @@ fn @emptyEncoding() -> ptr<memory> [selector=0x0a0a0a08, abi_params=[], abi_retu
 }
 
 // CHECK-LABEL: + fn @narrowEncoding()
-// CHECK: abi_encode [word<u8>], object, args 0x1234
+// CHECK: abi_encode [word<uint8>], object, args 0x1234
 // CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], scratch, args
 fn @narrowEncoding() -> ptr<memory> [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = abi_encode [word<u8>], object, args 0x1234
+    v0 = abi_encode [word<uint8>], object, args 0x1234
     ret v0
 }
 

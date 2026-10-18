@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/exchanged_phis.sol:Swap ===
 @module Swap
-fn @swaps(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdb9a27fa, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @swaps(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdb9a27fa, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -20,6 +20,6 @@ fn @swaps(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdb9a27fa, pure
   bb6:
     jump bb3
   bb3:
-    v6 = checked_add u256, v4, 1
+    v6 = checked_add uint256, v4, 1
     jump bb1
 }

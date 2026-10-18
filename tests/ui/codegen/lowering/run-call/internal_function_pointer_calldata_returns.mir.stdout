@@ -15,12 +15,12 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @dynamic(arg0: slice<calldata>) -> struct0 [selector=0xd543852a, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @dynamic(arg0: slice<calldata>) -> struct0 [selector=0xd543852a, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i64
     v2 = zext i64 v1 to i256
-    v3 = icall @internal_dispatcher_p_slice_calldata_r_slice_calldata_u256_slice_calldata, v2, arg0
+    v3 = icall @internal_dispatcher_p_slice_calldata_r_slice_calldata_uint256_slice_calldata, v2, arg0
     v4 = extract_value struct1, v3, 0
     v5 = extract_value struct1, v3, 1
     v6 = extract_value struct1, v3, 2
@@ -32,9 +32,9 @@ fn @dynamic(arg0: slice<calldata>) -> struct0 [selector=0xd543852a, abi_params=[
     ret v11
 }
 
-fn @specialized(arg0: slice<calldata>) -> struct0 [selector=0xe932b9d2, pure, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @specialized(arg0: slice<calldata>) -> struct0 [selector=0xe932b9d2, pure, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_slice_calldata_r_slice_calldata_u256_slice_calldata, 4, arg0
+    v0 = icall @internal_dispatcher_p_slice_calldata_r_slice_calldata_uint256_slice_calldata, 4, arg0
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = extract_value struct1, v0, 2
@@ -56,7 +56,7 @@ fn @identity(arg0: slice<calldata>) -> struct1 [pure] {
     ret v4
 }
 
-fn @internal_dispatcher_p_slice_calldata_r_slice_calldata_u256_slice_calldata(arg0: i256, arg1: slice<calldata>) -> struct1 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_slice_calldata_r_slice_calldata_uint256_slice_calldata(arg0: i256, arg1: slice<calldata>) -> struct1 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 4
     jumpi v0, bb1, bb2

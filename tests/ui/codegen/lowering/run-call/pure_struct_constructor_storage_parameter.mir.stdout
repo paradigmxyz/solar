@@ -63,7 +63,7 @@ fn @build(arg0: i256, arg1: i256) -> ptr<memory> [pure] {
     ret v6
 }
 
-fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[u256], abi_returns=[word, word<u160>, word<bool>], abi_return_params=[u256, address, bool]] {
+fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[uint256], abi_returns=[word, word<uint160>, word<bool>], abi_return_params=[uint256, address, bool]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = alloc 64
@@ -91,7 +91,7 @@ fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[u256], abi_
     v18 = ptradd v1, 32
     v19 = mload v18, ptr<memory>
     v20 = mload v19
-    v21 = checked_add u256, v17, v20
+    v21 = checked_add uint256, v17, v20
     v22 = ptradd v1, 32
     v23 = mload v22, ptr<memory>
     v24 = ptradd v23, 32
