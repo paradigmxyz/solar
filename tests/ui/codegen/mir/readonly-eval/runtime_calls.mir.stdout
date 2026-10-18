@@ -27,7 +27,7 @@ fn @isEmpty(arg0: ptr<memory>) -> i256 [pure] {
     ret v3
 }
 
-fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -40,7 +40,7 @@ fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_return
     ret v5
 }
 
-fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -53,7 +53,7 @@ fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256
     ret v5
 }
 
-fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0

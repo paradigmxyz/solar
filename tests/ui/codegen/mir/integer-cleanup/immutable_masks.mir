@@ -4,8 +4,8 @@
 //@[legacy] compile-flags: -Ogas --evm-version=byzantium -Zmir-pipeline=integer-cleanup
 @module ImmutableMasks
 @immutables
-  account: u160
-  signed: i64
+  account: uint160
+  signed: int64
 
 fn @runtime() -> i256 [selector=1] {
   bb0:

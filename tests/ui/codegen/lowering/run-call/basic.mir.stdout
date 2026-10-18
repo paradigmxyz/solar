@@ -10,10 +10,10 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @add(arg0: i256) -> i256 [selector=0x1003e2d2, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @add(arg0: i256) -> i256 [selector=0x1003e2d2, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, arg0
+    v1 = checked_add uint256, v0, arg0
     ret v1
 }
 
@@ -23,16 +23,16 @@ fn @negate(arg0: i1) -> i1 [selector=0xb9225c15, pure, abi_params=[bool], abi_re
     ret v0
 }
 
-fn @pair(arg0: i256, arg1: i1) -> struct0 [selector=0xedaceefe, pure, abi_params=[u256, bool], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @pair(arg0: i256, arg1: i1) -> struct0 [selector=0xedaceefe, pure, abi_params=[uint256, bool], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     v1 = eq arg1, false
     v2 = insert_value struct0, undef struct0, 0, v0
     v3 = insert_value struct0, v2, 1, v1
     ret v3
 }
 
-fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -63,19 +63,19 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[a
     v16 = ptrtoint ptr<calldata> v8 to i256
     v17 = add v16, v9
     v18 = calldataload v17
-    v19 = checked_add u256, v1, v18
+    v19 = checked_add uint256, v1, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v2, 1
+    v20 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @increment() -> i256 [selector=0xd09de08a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @increment() -> i256 [selector=0xd09de08a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     ret v1
 }
@@ -89,7 +89,7 @@ fn @testInline() [selector=0x2bb29eb9, view, abi_params=[], abi_returns=[], abi_
     ret
 }
 
-fn @fullyInitializedNamedStruct() -> ptr<memory> [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, u256>, bytes>]] {
+fn @fullyInitializedNamedStruct() -> ptr<memory> [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, uint256>, bytes>]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -109,24 +109,24 @@ fn @fullyInitializedNamedStruct() -> ptr<memory> [selector=0x03e8d290, pure, abi
     ret v1
 }
 
-fn @reservedSpillFreshness(arg0: i1) -> i256 [selector=0x45f98aed, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @reservedSpillFreshness(arg0: i1) -> i256 [selector=0x45f98aed, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jumpi arg0, bb1, bb2
   bb2:
     sstore 0, 99 !metadata(storage=slot(0))
-    v5 = checked_add u256, v0, 7
+    v5 = checked_add uint256, v0, 7
     v6 = icall @pairInternal, v5
     v7 = extract_value struct1, v6, 0
     v8 = extract_value struct1, v6, 1
-    v9 = checked_add u256, v7, v8
-    v10 = checked_add u256, v9, v0
+    v9 = checked_add uint256, v7, v8
+    v10 = checked_add uint256, v9, v0
     jump bb3
   bb1:
     v1 = icall @pairInternal, v0
     v2 = extract_value struct1, v1, 0
     v3 = extract_value struct1, v1, 1
-    v4 = checked_add u256, v2, v3
+    v4 = checked_add uint256, v2, v3
     jump bb3
   bb3:
     v11 = phi [bb1: v4], [bb2: v10]
@@ -137,14 +137,14 @@ fn @reservedSpillFreshness(arg0: i1) -> i256 [selector=0x45f98aed, abi_params=[b
 
 fn @pairInternal(arg0: i256) -> struct1 [pure] {
   bb0:
-    v0 = checked_add u256, arg0, 1
-    v1 = checked_add u256, arg0, 2
+    v0 = checked_add uint256, arg0, 1
+    v1 = checked_add uint256, arg0, 2
     v2 = insert_value struct1, undef struct1, 0, v0
     v3 = insert_value struct1, v2, 1, v1
     ret v3
 }
 
-fn @fill(arg0: i256) -> ptr<memory> [selector=0x3fda5389, pure, abi_params=[u256], abi_returns=[array<4, word>], abi_return_params=[array<4, u256>]] {
+fn @fill(arg0: i256) -> ptr<memory> [selector=0x3fda5389, pure, abi_params=[uint256], abi_returns=[array<4, word>], abi_return_params=[array<4, uint256>]] {
   bb0:
     v0 = gt arg0, 4
     v1 = eq v0, false
@@ -173,6 +173,6 @@ fn @fill(arg0: i256) -> ptr<memory> [selector=0x3fda5389, pure, abi_params=[u256
   bb6:
     jump bb3
   bb3:
-    v12 = checked_add u256, v6, 1
+    v12 = checked_add uint256, v6, 1
     jump bb1
 }

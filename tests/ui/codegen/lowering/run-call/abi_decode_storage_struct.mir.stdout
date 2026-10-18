@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256}
 
-fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 0
@@ -42,7 +42,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v23 = abi_encode [tuple<word, memory_array<word>>], object, args v0
     icall @store_storage_bytes, 0, v23
     v24 = load_storage_bytes 0
-    v25 = abi_decode [tuple<u256, array<_, u256>>], v24
+    v25 = abi_decode [tuple<uint256, array<_, uint256>>], v24
     v26 = mload v25
     v27 = ptradd v25, 32
     v28 = mload v27, ptr<memory>

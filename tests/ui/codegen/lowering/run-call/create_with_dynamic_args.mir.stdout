@@ -6,14 +6,14 @@ fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns
     ret v0
 }
 
-fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = trunc i256 v0 to i8
     ret v1
 }
 
-fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, u8]] {
+fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, uint8]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
     v0 = sload 1 !metadata(storage=slot(1))
@@ -40,13 +40,13 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 @data
   Token_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token"
 
-fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[word, word<u8>], abi_return_params=[u256, u8]] {
+fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[word, word<uint8>], abi_return_params=[uint256, uint8]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 5
     v1 = ptradd v0, 32
     mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v2 = abi_encode [memory_bytes, word<u8>], args v0, 18
+    v2 = abi_encode [memory_bytes, word<uint8>], args v0, 18
     v3 = extract_value slice<memory>, v2, 1
     v4 = datasize Token_creation_code_0
     v5 = add v4, v3

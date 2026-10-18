@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x7a5de1e9, pure, abi_params=[tuple<tuple<u256, bytes>, tuple<u256, bytes>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x7a5de1e9, pure, abi_params=[tuple<tuple<uint256, bytes>, tuple<uint256, bytes>>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = mload arg0, ptr<memory>
     v1 = mload v0
@@ -21,7 +21,7 @@ fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x7a5de1e9, pure, abi_params=[t
     ret v12
 }
 
-fn @pairs(arg0: ptr<memory>) -> i256 [selector=0x054d20d9, pure, abi_params=[array<_, tuple<tuple<u256, bytes>, tuple<u256, bytes>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @pairs(arg0: ptr<memory>) -> i256 [selector=0x054d20d9, pure, abi_params=[array<_, tuple<tuple<uint256, bytes>, tuple<uint256, bytes>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -59,12 +59,12 @@ fn @pairs(arg0: ptr<memory>) -> i256 [selector=0x054d20d9, pure, abi_params=[arr
     v23 = ptradd v22, 32
     v24 = mload v23, ptr<memory>
     v25 = mload v24
-    v26 = checked_add u256, v13, v25
-    v27 = checked_add u256, v1, v26
+    v26 = checked_add uint256, v13, v25
+    v27 = checked_add uint256, v1, v26
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v28 = checked_add u256, v2, 1
+    v28 = checked_add uint256, v2, 1
     jump bb1
 }

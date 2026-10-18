@@ -1,51 +1,51 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/checked_narrow_mul.sol:CheckedNarrowMul ===
 @module CheckedNarrowMul
-fn @u8(arg0: i8, arg1: i8) -> i8 [selector=0x535cc622, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @u8(arg0: i8, arg1: i8) -> i8 [selector=0x535cc622, pure, abi_params=[uint8, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
-    v0 = checked_mul u8, arg0, arg1
+    v0 = checked_mul uint8, arg0, arg1
     ret v0
 }
 
-fn @i8(arg0: i8, arg1: i8) -> i8 [selector=0x1bd8de3c, pure, abi_params=[i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @i8(arg0: i8, arg1: i8) -> i8 [selector=0x1bd8de3c, pure, abi_params=[int8, int8], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
-    v0 = checked_mul i8, arg0, arg1
+    v0 = checked_mul int8, arg0, arg1
     ret v0
 }
 
-fn @u128(arg0: i128, arg1: i128) -> i128 [selector=0x3663acf0, pure, abi_params=[u128, u128], abi_returns=[word<u128>], abi_return_params=[u128]] {
+fn @u128(arg0: i128, arg1: i128) -> i128 [selector=0x3663acf0, pure, abi_params=[uint128, uint128], abi_returns=[word<uint128>], abi_return_params=[uint128]] {
   bb0:
-    v0 = checked_mul u128, arg0, arg1
+    v0 = checked_mul uint128, arg0, arg1
     ret v0
 }
 
-fn @i128(arg0: i128, arg1: i128) -> i128 [selector=0x858039ca, pure, abi_params=[i128, i128], abi_returns=[word<i128>], abi_return_params=[i128]] {
+fn @i128(arg0: i128, arg1: i128) -> i128 [selector=0x858039ca, pure, abi_params=[int128, int128], abi_returns=[word<int128>], abi_return_params=[int128]] {
   bb0:
-    v0 = checked_mul i128, arg0, arg1
+    v0 = checked_mul int128, arg0, arg1
     ret v0
 }
 
-fn @i192(arg0: i192, arg1: i192) -> i192 [selector=0x8b951aa5, pure, abi_params=[i192, i192], abi_returns=[word<i192>], abi_return_params=[i192]] {
+fn @i192(arg0: i192, arg1: i192) -> i192 [selector=0x8b951aa5, pure, abi_params=[int192, int192], abi_returns=[word<int192>], abi_return_params=[int192]] {
   bb0:
-    v0 = checked_mul i192, arg0, arg1
+    v0 = checked_mul int192, arg0, arg1
     ret v0
 }
 
-fn @i256(arg0: i256, arg1: i256) -> i256 [selector=0x1e6ca0fe, pure, abi_params=[i256, i256], abi_returns=[word], abi_return_params=[i256]] {
+fn @i256(arg0: i256, arg1: i256) -> i256 [selector=0x1e6ca0fe, pure, abi_params=[int256, int256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = checked_mul i256, arg0, arg1
+    v0 = checked_mul int256, arg0, arg1
     ret v0
 }
 
-fn @p8(arg0: i8, arg1: i8) -> i8 [selector=0xfcfc3021, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @p8(arg0: i8, arg1: i8) -> i8 [selector=0xfcfc3021, pure, abi_params=[uint8, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = zext i8 arg1 to i256
-    v1 = checked_pow u8, arg0, v0
+    v1 = checked_pow uint8, arg0, v0
     ret v1
 }
 
-fn @pi8(arg0: i8, arg1: i8) -> i8 [selector=0x50e8a733, pure, abi_params=[i8, u8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @pi8(arg0: i8, arg1: i8) -> i8 [selector=0x50e8a733, pure, abi_params=[int8, uint8], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
     v0 = zext i8 arg1 to i256
-    v1 = checked_pow i8, arg0, v0
+    v1 = checked_pow int8, arg0, v0
     ret v1
 }

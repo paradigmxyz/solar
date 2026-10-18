@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack-resident/spilled_phi_input_reloaded_after_store.sol:C ===
 @module C
-fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:

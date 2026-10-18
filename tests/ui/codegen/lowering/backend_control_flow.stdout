@@ -1,24 +1,24 @@
 // === ROOT/tests/ui/codegen/lowering/backend_control_flow.sol:BackendControlFlow ===
 @module BackendControlFlow
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @totalSupply() -> i256 [selector=0x18160ddd, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @totalSupply() -> i256 [selector=0x18160ddd, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @reserve0() -> i256 [selector=0x443cb4bc, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @reserve0() -> i256 [selector=0x443cb4bc, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
 }
 
-fn @reserve1() -> i256 [selector=0x5a76f25e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @reserve1() -> i256 [selector=0x5a76f25e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     ret v0
@@ -32,7 +32,7 @@ fn @localVarInConditional() [selector=0xf2ca9be5, abi_params=[], abi_returns=[],
   bb2:
     jump bb3
   bb1:
-    v2 = checked_sub u256, v0, 1
+    v2 = checked_sub uint256, v0, 1
     sstore 0, v2 !metadata(storage=slot(0))
     jump bb3
   bb3:
@@ -48,14 +48,14 @@ fn @directStorageInConditional() [selector=0xf5a03547, abi_params=[], abi_return
     jump bb3
   bb1:
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = checked_sub u256, v2, 1
+    v3 = checked_sub uint256, v2, 1
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb3
   bb3:
     ret
 }
 
-fn @phiAfterBranch() -> i256 [selector=0x3c96aa28, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @phiAfterBranch() -> i256 [selector=0x3c96aa28, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
@@ -67,12 +67,12 @@ fn @phiAfterBranch() -> i256 [selector=0x3c96aa28, abi_params=[], abi_returns=[w
   bb3:
     v2 = phi [bb1: 1], [bb2: 2]
     v3 = sload 1 !metadata(storage=slot(1))
-    v4 = checked_add u256, v3, v2
+    v4 = checked_add uint256, v3, v2
     sstore 1, v4 !metadata(storage=slot(1))
     ret v2
 }
 
-fn @phiUsedMultipleTimes() -> i256 [selector=0x4e3a23dd, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @phiUsedMultipleTimes() -> i256 [selector=0x4e3a23dd, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
@@ -84,27 +84,27 @@ fn @phiUsedMultipleTimes() -> i256 [selector=0x4e3a23dd, abi_params=[], abi_retu
   bb3:
     v2 = phi [bb1: 1], [bb2: 2]
     v3 = sload 1 !metadata(storage=slot(1))
-    v4 = checked_add u256, v3, v2
+    v4 = checked_add uint256, v3, v2
     sstore 1, v4 !metadata(storage=slot(1))
-    v5 = checked_mul u256, v2, 2
-    v6 = checked_add u256, v5, v2
+    v5 = checked_mul uint256, v2, 2
+    v6 = checked_add uint256, v5, v2
     ret v6
 }
 
-fn @phiWithTernary() -> i256 [selector=0x2318217a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @phiWithTernary() -> i256 [selector=0x2318217a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
   bb2:
     v3 = sload 1 !metadata(storage=slot(1))
-    v4 = checked_mul u256, 100, v3
+    v4 = checked_mul uint256, 100, v3
     v5 = sload 2 !metadata(storage=slot(2))
-    v6 = checked_div u256, v4, v5
+    v6 = checked_div uint256, v4, v5
     v7 = sload 1 !metadata(storage=slot(1))
-    v8 = checked_mul u256, 200, v7
+    v8 = checked_mul uint256, 200, v7
     v9 = sload 3 !metadata(storage=slot(3))
-    v10 = checked_div u256, v8, v9
+    v10 = checked_div uint256, v8, v9
     v11 = lt v6, v10
     jumpi v11, bb4, bb5
   bb5:
@@ -115,12 +115,12 @@ fn @phiWithTernary() -> i256 [selector=0x2318217a, abi_params=[], abi_returns=[w
     v12 = phi [bb4: v6], [bb5: v10]
     jump bb3
   bb1:
-    v2 = checked_mul u256, 100, 200
+    v2 = checked_mul uint256, 100, 200
     jump bb3
   bb3:
     v13 = phi [bb1: v2], [bb6: v12]
     v14 = sload 1 !metadata(storage=slot(1))
-    v15 = checked_add u256, v14, v13
+    v15 = checked_add uint256, v14, v13
     sstore 1, v15 !metadata(storage=slot(1))
     ret v13
 }

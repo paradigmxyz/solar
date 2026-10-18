@@ -33,7 +33,7 @@ fn @value() -> i256 [pure] {
     ret 2
 }
 
-fn @result() -> struct0 [selector=0x65372147, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @result() -> struct0 [selector=0x65372147, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sload 0 !metadata(storage=slot(0))

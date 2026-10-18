@@ -11,7 +11,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -71,16 +71,16 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[a
     v37 = phi [bb7: v35], [bb8: v2]
     v38 = phi [bb7: v36], [bb8: v4]
     v39 = sload v38 !metadata(storage=symbolic(v38))
-    v40 = checked_add u256, v1, v39
+    v40 = checked_add uint256, v1, v39
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v41 = checked_add u256, v3, 1
+    v41 = checked_add uint256, v3, 1
     jump bb1
 }
 
-fn @write(arg0: i1, arg1: i256) -> struct0 [selector=0x6eb8533f, abi_params=[bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @write(arg0: i1, arg1: i256) -> struct0 [selector=0x6eb8533f, abi_params=[bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:

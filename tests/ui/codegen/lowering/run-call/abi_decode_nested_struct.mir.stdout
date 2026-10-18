@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe ===
 @module Probe
-fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 192
     v1 = alloc 160
@@ -40,8 +40,8 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     mstore v20, 0
     v21 = ptradd v0, 160
     mstore v21, 0
-    v22 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes, word<bool>, word<bool>>], object, args v0
-    v23 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes, bool, bool>], v22
+    v22 = abi_encode [tuple<word<uint160>, tuple<word<uint160>, word<uint160>, word<uint24>, word<int24>, word<uint160>>, tuple<word<int24>, word<int24>, word, word>, memory_bytes, word<bool>, word<bool>>], object, args v0
+    v23 = abi_decode [tuple<address, tuple<address, address, uint24, int24, address>, tuple<int24, int24, int256, bytes32>, bytes, bool, bool>], v22
     v24 = mload v23
     v25 = trunc i256 v24 to i160
     v26 = mload v0
@@ -161,7 +161,7 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe2 ===
 @module Probe2
-fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 128
     v1 = alloc 160
@@ -190,7 +190,7 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     v14 = mload v13, ptr<memory>
     v15 = ptrtoint ptr<memory> v14 to i256
     v16 = keccak256 v15, 160
-    v17 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word, memory_bytes>], object, args v0
+    v17 = abi_encode [tuple<word<uint160>, tuple<word<uint160>, word<uint160>, word<uint24>, word<int24>, word<uint160>>, word, memory_bytes>], object, args v0
     v18 = address
     v19 = gas
     v20 = abi_encode [memory_bytes], selector 0x3c12b05c00000000000000000000000000000000000000000000000000000000, args v17
@@ -214,7 +214,7 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
 
 fn @inner(arg0: slice<calldata>) -> i256 [selector=0x3c12b05c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, i256, bytes>], arg0
+    v0 = abi_decode [tuple<address, tuple<address, address, uint24, int24, address>, int256, bytes>], arg0
     v1 = ptradd v0, 32
     v2 = mload v1, ptr<memory>
     v3 = ptrtoint ptr<memory> v2 to i256
@@ -224,21 +224,21 @@ fn @inner(arg0: slice<calldata>) -> i256 [selector=0x3c12b05c, pure, abi_params=
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===
 @module Probe3
-fn @idOfKeyOnly(arg0: ptr<memory>, arg1: i160) -> i256 [selector=0x128e91fc, pure, abi_params=[tuple<address, address, u24, i24, address>, u160], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @idOfKeyOnly(arg0: ptr<memory>, arg1: i160) -> i256 [selector=0x128e91fc, pure, abi_params=[tuple<address, address, uint24, int24, address>, uint160], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = keccak256 v0, 160
     ret v1
 }
 
-fn @idOfKeyMixed(arg0: ptr<memory>, arg1: ptr<memory>, arg2: slice<calldata>) -> i256 [selector=0xd0a3f749, pure, abi_params=[tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @idOfKeyMixed(arg0: ptr<memory>, arg1: ptr<memory>, arg2: slice<calldata>) -> i256 [selector=0xd0a3f749, pure, abi_params=[tuple<address, address, uint24, int24, address>, tuple<int24, int24, int256, bytes32>, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = keccak256 v0, 160
     ret v1
 }
 
-fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 160
     v1 = sext i24 60 to i256
@@ -265,7 +265,7 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v13 = keccak256 v12, 160
     v14 = address
     v15 = gas
-    v16 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word<u160>], selector 0x128e91fc00000000000000000000000000000000000000000000000000000000, args v0, 1
+    v16 = abi_encode [tuple<word<uint160>, word<uint160>, word<uint24>, word<int24>, word<uint160>>, word<uint160>], selector 0x128e91fc00000000000000000000000000000000000000000000000000000000, args v0, 1
     v17 = extract_value slice<memory>, v16, 0
     v18 = extract_value slice<memory>, v16, 1
     v19 = zext i160 v14 to i256
@@ -283,7 +283,7 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v26 = gas
     v27 = alloc 32
     mstore v27, 0
-    v28 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v6, v27
+    v28 = abi_encode [tuple<word<uint160>, word<uint160>, word<uint24>, word<int24>, word<uint160>>, tuple<word<int24>, word<int24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v6, v27
     v29 = extract_value slice<memory>, v28, 0
     v30 = extract_value slice<memory>, v28, 1
     v31 = zext i160 v25 to i256

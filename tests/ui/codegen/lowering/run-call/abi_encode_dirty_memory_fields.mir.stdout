@@ -39,7 +39,7 @@ fn @dirty() -> ptr<memory> [pure] {
 fn @encodeStruct() -> i256 [selector=0x01e941a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @dirty
-    v1 = abi_encode [tuple<word<u8>, word<bool>, word<enum 2>, word<u160>, word<i8>, word<bytes2>>], scratch, args v0
+    v1 = abi_encode [tuple<word<uint8>, word<bool>, word<enum 2>, word<uint160>, word<int8>, word<bytes2>>], scratch, args v0
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     v4 = keccak256 v2, v3
@@ -68,7 +68,7 @@ fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns
     v11 = ptrtoint ptr<memory> v0 to i256
     v12 = add v11, 64
     mstore v12, 260
-    v13 = abi_encode [memory_array<word<u8>>], scratch, args v0
+    v13 = abi_encode [memory_array<word<uint8>>], scratch, args v0
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     v16 = keccak256 v14, v15
@@ -81,6 +81,6 @@ fn @encodeBadEnum() -> ptr<memory> [selector=0xc72bddb9, pure, abi_params=[], ab
     v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 64
     mstore v2, 5
-    v3 = abi_encode [tuple<word<u8>, word<bool>, word<enum 2>, word<u160>, word<i8>, word<bytes2>>], object, args v0
+    v3 = abi_encode [tuple<word<uint8>, word<bool>, word<enum 2>, word<uint160>, word<int8>, word<bytes2>>], object, args v0
     ret v3
 }

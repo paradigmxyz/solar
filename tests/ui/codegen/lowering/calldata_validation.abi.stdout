@@ -187,7 +187,7 @@ fn @vMulti() [selector=0x403ecab4, abi_wrapper, pure] {
   bb1:
     v0 = zext i32 arg0 to i256
     v1 = zext i8 v11 to i256
-    v2 = checked_add u256, v0, v1
+    v2 = checked_add uint256, v0, v1
     mstore 128, v2
     v12 = add 128, 32
     v13 = sub v12, 128
@@ -204,8 +204,8 @@ fn @vFull() [selector=0x76fef307, abi_wrapper, pure] {
   bb3:
     jump bb1
   bb1:
-    v0 = checked_add u256, arg0, arg1
-    v1 = checked_add u256, v0, arg2
+    v0 = checked_add uint256, arg0, arg1
+    v1 = checked_add uint256, v0, arg2
     mstore 128, v1
     v4 = add 128, 32
     v5 = sub v4, 128

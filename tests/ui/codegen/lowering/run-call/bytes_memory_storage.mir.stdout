@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/bytes_memory_storage.sol:BytesMemoryStorage ===
 @module BytesMemoryStorage
-fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 4
@@ -45,11 +45,11 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v28 = shr 248, v27
     v29 = trunc i256 v28 to i8
     v30 = zext i8 v29 to i256
-    v31 = checked_add u256, v8, v30
+    v31 = checked_add uint256, v8, v30
     ret v31
 }
 
-fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
     v1 = and 66, v0
@@ -98,7 +98,7 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v32 = shr 248, v31
     v33 = trunc i256 v32 to i8
     v34 = zext i8 v33 to i256
-    v35 = checked_add u256, v12, v34
+    v35 = checked_add uint256, v12, v34
     v36 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v36
     v37 = and v36, 1
@@ -129,7 +129,7 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v55 = shr 248, v54
     v56 = trunc i256 v55 to i8
     v57 = zext i8 v56 to i256
-    v58 = checked_add u256, v35, v57
+    v58 = checked_add uint256, v35, v57
     ret v58
 }
 

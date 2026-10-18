@@ -1,31 +1,31 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:Child ===
 @module Child
-fn @start() -> i256 [selector=0xbe9a6555, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @start() -> i256 [selector=0xbe9a6555, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @b0() -> i256 [selector=0x3602175c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @b0() -> i256 [selector=0x3602175c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @b1() -> i256 [selector=0xee495002, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @b1() -> i256 [selector=0xee495002, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
 }
 
-fn @r0() -> i160 [selector=0x659621b5, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @r0() -> i160 [selector=0x659621b5, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     v1 = trunc i256 v0 to i160
     ret v1
 }
 
-fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [constructor, abi_params=[array<_, address>, array<_, u256>, u256]] {
+fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [constructor, abi_params=[array<_, address>, array<_, uint256>, uint256]] {
   bb0:
     sstore 0, arg2 !metadata(storage=slot(0))
     v0 = mload arg1
@@ -81,7 +81,7 @@ fn @one(arg0: i160) -> ptr<memory> [pure] {
     ret v0
 }
 
-fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -111,7 +111,7 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     icall panic_if<0x32>, v16
     v17 = ptradd v9, 64
     mstore v17, 200
-    v18 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v0, v9, 17
+    v18 = abi_encode [memory_array<word<uint160>>, memory_array<word>, word], args v0, v9, 17
     v19 = extract_value slice<memory>, v18, 1
     v20 = datasize Child_creation_code_0
     v21 = add v20, v19
@@ -207,7 +207,7 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     ret v81
 }
 
-fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -224,7 +224,7 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v8 = ptradd v0, 64
     mstore v8, 2
     v9 = icall @one, i160 153
-    v10 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v9, v0, 5
+    v10 = abi_encode [memory_array<word<uint160>>, memory_array<word>, word], args v9, v0, 5
     v11 = extract_value slice<memory>, v10, 1
     v12 = datasize Child_creation_code_0
     v13 = add v12, v11

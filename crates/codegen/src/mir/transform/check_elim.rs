@@ -355,7 +355,10 @@ impl MirPass for ImmutableCheckElim {
 /// Shrinks unsigned encodings only when every assignment preserves all stored bits.
 /// Narrow loads extend back to their original result types so existing uses remain well-typed.
 fn narrow_immutable_layouts(module: &mut Module) -> bool {
-    let can_narrow = |ty| matches!(ty, ValueLayout::UInt(size) if size.bits() > 8);
+    let can_narrow = |ty| {
+        matches!(ty, ValueLayout::Address)
+            || matches!(ty, ValueLayout::UInt(size) if size.bits() > 8)
+    };
     if !module.iter_immutables().any(|(_, immutable)| can_narrow(immutable.ty)) {
         return false;
     }
@@ -379,7 +382,7 @@ fn narrow_immutable_layouts(module: &mut Module) -> bool {
     let mut types = FxHashMap::default();
     for (id, bits) in widths {
         let bits = bits.max(1).div_ceil(8) * 8;
-        if let ValueLayout::UInt(size) = module.immutable(id).ty
+        if let Some(size) = module.immutable(id).ty.type_size()
             && bits < u32::from(size.bits())
         {
             module.immutable_mut(id).ty = ValueLayout::UInt(TypeSize::new_int_bits(bits as u16));

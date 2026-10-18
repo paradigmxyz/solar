@@ -2,7 +2,7 @@
 //@filecheck:
 @module CoalesceAllocsBasic
 @immutables
-  stored: u256
+  stored: uint256
 
 // Three consecutive constant-size allocations fuse into one bump of the
 // summed size; later members become constant offsets from the fused base.
@@ -164,7 +164,7 @@ fn @keep_across_check(arg0: i256) -> i256 {
   bb0:
     v24 = alloc 64
     v0 = ptrtoint ptr<memory> v24 to i256
-    v1 = checked_add u256, arg0, 1
+    v1 = checked_add uint256, arg0, 1
     v25 = alloc 32
     v2 = ptrtoint ptr<memory> v25 to i256
     ret v1

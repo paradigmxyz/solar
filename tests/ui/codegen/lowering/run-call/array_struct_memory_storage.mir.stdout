@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_struct_memory_storage.sol:ArrayStructMemoryStorage ===
 @module ArrayStructMemoryStorage
-fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 128
     mstore v0, 3
@@ -112,7 +112,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v193 = add v191, v192
     v194 = add v193, 3
     v195 = sload v194 !metadata(storage=offset(v193, 3))
-    v196 = checked_add u256, 3, v195
+    v196 = checked_add uint256, 3, v195
     v197 = sload 0 !metadata(storage=slot(0))
     v198 = lt 1, v197
     v199 = eq v198, false
@@ -133,7 +133,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v212 = shr v211, v210
     v213 = trunc i256 v212 to i128
     v214 = zext i128 v213 to i256
-    v215 = checked_add u256, v196, v214
+    v215 = checked_add uint256, v196, v214
     v216 = sload 0 !metadata(storage=slot(0))
     v217 = lt 1, v216
     v218 = eq v217, false
@@ -156,7 +156,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v233 = shr v232, v231
     v234 = trunc i256 v233 to i128
     v235 = zext i128 v234 to i256
-    v236 = checked_add u256, v215, v235
+    v236 = checked_add uint256, v215, v235
     ret v236
   bb13:
     v83 = shl 5, v81

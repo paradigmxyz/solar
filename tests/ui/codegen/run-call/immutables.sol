@@ -14,6 +14,7 @@
 //@ run-call: OneByteImmutables::read; constructor=[171, -5, 0xab] => 171, -5, 0xab
 //@ run-call: SyntheticImmutableFrame::marker => 77
 //@ run-call: DirtyImmutables::read => true, 3, 0x0000000000000000000000000000000000000007, 1461501637330902918203684832716283019655932542983
+//@ run-call: IndirectDirtyImmutables::read => 115792089237316195423570985008687907853269984665640564039457584007913129639935, 115792089237316195423570985008687907853269984665640564039457584007913129639935, 115792089237316195423570985008687907853269984665640564039457584007913129639935, 2
 
 type Tiny is uint16;
 
@@ -110,6 +111,52 @@ contract DirtyImmutables {
         assembly {
             rawFlag := loadedFlag
             rawAccount := loadedAccount
+        }
+    }
+}
+
+// Raw bits reach these immutables through an initializer, an assignment's
+// value, and an identity conversion, and leave the same ways.
+contract IndirectDirtyImmutables {
+    address immutable initialized = dirtyAccount();
+    address immutable copied = initialized;
+    address immutable assigned;
+    address immutable converted;
+    bool immutable flag = dirtyFlag();
+    bool immutable copiedFlag = flag;
+
+    constructor() {
+        address scratch;
+        address dirty;
+        assembly {
+            dirty := not(0)
+        }
+        assigned = (scratch = dirty);
+        converted = address(dirty);
+    }
+
+    function dirtyAccount() internal pure returns (address account) {
+        assembly {
+            account := not(0)
+        }
+    }
+
+    function dirtyFlag() internal pure returns (bool value) {
+        assembly {
+            value := 2
+        }
+    }
+
+    function read() external view returns (uint256 a, uint256 b, uint256 c, uint256 d) {
+        address x = copied;
+        address y = address(assigned);
+        address z = address(converted);
+        bool f = copiedFlag;
+        assembly {
+            a := x
+            b := y
+            c := z
+            d := f
         }
     }
 }

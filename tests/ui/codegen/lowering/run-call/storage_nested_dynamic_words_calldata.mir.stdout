@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_dynamic_words_calldata.sol:StorageNestedDynamicWordsCalldata ===
 @module StorageNestedDynamicWordsCalldata
-fn @copyDynamic(arg0: slice<calldata>) -> i256 [selector=0x2662f0b3, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamic(arg0: slice<calldata>) -> i256 [selector=0x2662f0b3, abi_params=[array<_, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -70,7 +70,7 @@ fn @copyDynamic(arg0: slice<calldata>) -> i256 [selector=0x2662f0b3, abi_params=
     v116 = storage_array_data_slot v112
     v117 = add v116, 1
     v118 = sload v117 !metadata(storage=offset(v116, 1))
-    v119 = checked_add u256, v107, v118
+    v119 = checked_add uint256, v107, v118
     v120 = sload 0 !metadata(storage=slot(0))
     v121 = lt 1, v120
     v122 = eq v121, false
@@ -84,7 +84,7 @@ fn @copyDynamic(arg0: slice<calldata>) -> i256 [selector=0x2662f0b3, abi_params=
     v128 = storage_array_data_slot v124
     v129 = add v128, 0
     v130 = sload v129 !metadata(storage=symbolic(v128))
-    v131 = checked_add u256, v119, v130
+    v131 = checked_add uint256, v119, v130
     ret v131
   bb13:
     v83 = shl 5, v81
@@ -205,7 +205,7 @@ fn @copyDynamic(arg0: slice<calldata>) -> i256 [selector=0x2662f0b3, abi_params=
     jump bb1
 }
 
-fn @copyFixedDynamic(arg0: slice<calldata>) -> i256 [selector=0x8b16421b, abi_params=[array<2, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyFixedDynamic(arg0: slice<calldata>) -> i256 [selector=0x8b16421b, abi_params=[array<2, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
@@ -242,7 +242,7 @@ fn @copyFixedDynamic(arg0: slice<calldata>) -> i256 [selector=0x8b16421b, abi_pa
     v103 = storage_array_data_slot v99
     v104 = add v103, 1
     v105 = sload v104 !metadata(storage=offset(v103, 1))
-    v106 = checked_add u256, v96, v105
+    v106 = checked_add uint256, v96, v105
     v107 = lt 1, 2
     v108 = eq v107, false
     icall panic_if<0x32>, v108
@@ -254,7 +254,7 @@ fn @copyFixedDynamic(arg0: slice<calldata>) -> i256 [selector=0x8b16421b, abi_pa
     v113 = storage_array_data_slot v109
     v114 = add v113, 0
     v115 = sload v114 !metadata(storage=symbolic(v113))
-    v116 = checked_add u256, v106, v115
+    v116 = checked_add uint256, v106, v115
     ret v116
   bb5:
     v51 = add 1, v49
@@ -399,7 +399,7 @@ fn @copyFixedDynamic(arg0: slice<calldata>) -> i256 [selector=0x8b16421b, abi_pa
     jump bb1
 }
 
-fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0xde674e0a, abi_params=[array<_, array<2, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0xde674e0a, abi_params=[array<_, array<2, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -468,7 +468,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0xde674e0a, abi_pa
     icall panic_if<0x32>, v83
     v84 = add v81, 1
     v85 = sload v84 !metadata(storage=offset(v81, 1))
-    v86 = checked_add u256, v75, v85
+    v86 = checked_add uint256, v75, v85
     v87 = sload 3 !metadata(storage=slot(3))
     v88 = lt 1, v87
     v89 = eq v88, false
@@ -481,7 +481,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0xde674e0a, abi_pa
     icall panic_if<0x32>, v94
     v95 = add v92, 0
     v96 = sload v95 !metadata(storage=symbolic(v92))
-    v97 = checked_add u256, v86, v96
+    v97 = checked_add uint256, v86, v96
     ret v97
   bb13:
     v59 = shl 5, v57
@@ -558,7 +558,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0xde674e0a, abi_pa
     jump bb1
 }
 
-fn @copyDynamicFixedWiden(arg0: slice<calldata>) -> i256 [selector=0x48878fa6, abi_params=[array<_, array<2, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamicFixedWiden(arg0: slice<calldata>) -> i256 [selector=0x48878fa6, abi_params=[array<_, array<2, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -627,7 +627,7 @@ fn @copyDynamicFixedWiden(arg0: slice<calldata>) -> i256 [selector=0x48878fa6, a
     icall panic_if<0x32>, v83
     v84 = add v81, 0
     v85 = sload v84 !metadata(storage=symbolic(v81))
-    v86 = checked_add u256, v75, v85
+    v86 = checked_add uint256, v75, v85
     v87 = sload 4 !metadata(storage=slot(4))
     v88 = lt 0, v87
     v89 = eq v88, false
@@ -640,7 +640,7 @@ fn @copyDynamicFixedWiden(arg0: slice<calldata>) -> i256 [selector=0x48878fa6, a
     icall panic_if<0x32>, v94
     v95 = add v92, 1
     v96 = sload v95 !metadata(storage=offset(v92, 1))
-    v97 = checked_add u256, v86, v96
+    v97 = checked_add uint256, v86, v96
     v98 = sload 4 !metadata(storage=slot(4))
     v99 = lt 0, v98
     v100 = eq v99, false
@@ -653,7 +653,7 @@ fn @copyDynamicFixedWiden(arg0: slice<calldata>) -> i256 [selector=0x48878fa6, a
     icall panic_if<0x32>, v105
     v106 = add v103, 2
     v107 = sload v106 !metadata(storage=offset(v103, 2))
-    v108 = checked_add u256, v97, v107
+    v108 = checked_add uint256, v97, v107
     v109 = sload 4 !metadata(storage=slot(4))
     v110 = lt 0, v109
     v111 = eq v110, false
@@ -666,7 +666,7 @@ fn @copyDynamicFixedWiden(arg0: slice<calldata>) -> i256 [selector=0x48878fa6, a
     icall panic_if<0x32>, v116
     v117 = add v114, 3
     v118 = sload v117 !metadata(storage=offset(v114, 3))
-    v119 = checked_add u256, v108, v118
+    v119 = checked_add uint256, v108, v118
     ret v119
   bb13:
     v59 = shl 5, v57
@@ -743,7 +743,7 @@ fn @copyDynamicFixedWiden(arg0: slice<calldata>) -> i256 [selector=0x48878fa6, a
     jump bb1
 }
 
-fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x4ae52609, abi_params=[array<2, array<2, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x4ae52609, abi_params=[array<2, array<2, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
@@ -784,7 +784,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x4ae52609, abi_params=[a
     icall panic_if<0x32>, v60
     v61 = add v58, 1
     v62 = sload v61 !metadata(storage=offset(v57, 6))
-    v63 = checked_add u256, v54, v62
+    v63 = checked_add uint256, v54, v62
     ret v63
   bb5:
     v22 = mul v20, 2

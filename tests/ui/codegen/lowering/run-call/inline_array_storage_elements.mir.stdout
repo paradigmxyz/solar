@@ -29,7 +29,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @ternary(arg0: i1) -> ptr<memory> [selector=0xee58c378, view, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @ternary(arg0: i1) -> ptr<memory> [selector=0xee58c378, view, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = alloc 32
     jumpi arg0, bb1, bb2
@@ -49,7 +49,7 @@ fn @ternary(arg0: i1) -> ptr<memory> [selector=0xee58c378, view, abi_params=[boo
     ret v6
 }
 
-fn @ternaryLength(arg0: i1) -> i256 [selector=0x3dabb232, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @ternaryLength(arg0: i1) -> i256 [selector=0x3dabb232, view, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32
     jumpi arg0, bb1, bb2
@@ -70,7 +70,7 @@ fn @ternaryLength(arg0: i1) -> i256 [selector=0x3dabb232, view, abi_params=[bool
     ret v7
 }
 
-fn @pointer(arg0: i1) -> ptr<memory> [selector=0xa5e90171, view, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @pointer(arg0: i1) -> ptr<memory> [selector=0xa5e90171, view, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -90,7 +90,7 @@ fn @pointer(arg0: i1) -> ptr<memory> [selector=0xa5e90171, view, abi_params=[boo
     ret v6
 }
 
-fn @stateVariable() -> ptr<memory> [selector=0xe1967eae, view, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @stateVariable() -> ptr<memory> [selector=0xe1967eae, view, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = alloc 32
     v1 = icall @load_storage_word_array, 1
@@ -105,6 +105,6 @@ fn @stateVariable() -> ptr<memory> [selector=0xe1967eae, view, abi_params=[], ab
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }

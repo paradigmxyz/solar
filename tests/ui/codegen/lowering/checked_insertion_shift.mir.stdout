@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_insertion_shift.sol:CheckedInsertionShift ===
 @module CheckedInsertionShift
-fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     jump bb1
   bb1:
@@ -35,7 +35,7 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
   bb10:
     jump bb11
   bb9:
-    v18 = checked_sub u256, v16, 1
+    v18 = checked_sub uint256, v16, 1
     v19 = mload v12
     v20 = lt v18, v19
     v21 = eq v20, false
@@ -64,10 +64,10 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
   bb6:
     jump bb3
   bb3:
-    v49 = checked_add u256, v14, 1
+    v49 = checked_add uint256, v14, 1
     jump bb1
   bb12:
-    v28 = checked_sub u256, v16, 1
+    v28 = checked_sub uint256, v16, 1
     v29 = mload v12
     v30 = lt v28, v29
     v31 = eq v30, false
@@ -84,20 +84,20 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
     v40 = ptradd v12, v39
     v41 = ptradd v40, 32
     mstore v41, v35
-    v42 = checked_sub u256, v16, 1
+    v42 = checked_sub uint256, v16, 1
     jump bb14
   bb14:
     jump bb7
 }
 
-fn @shiftAt(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xa227bfd8, pure, abi_params=[array<_, u256>, u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @shiftAt(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xa227bfd8, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v1 = checked_sub u256, arg1, 1
+    v1 = checked_sub uint256, arg1, 1
     v2 = mload arg0
     v3 = lt v1, v2
     v4 = eq v3, false
