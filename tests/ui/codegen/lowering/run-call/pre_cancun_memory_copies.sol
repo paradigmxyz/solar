@@ -9,6 +9,7 @@
 //@ run-call: recycled => true
 //@ run-call: fresh => [1, 2, 3]
 //@ run-call: freshEmpty => []
+//@ run-call: recycledTail => 0x2222222222222222222222222222222222222222222222222222222222222233
 
 // Without `MCOPY`, memory copies lower to word loops: whole-word lengths skip
 // the partial-word merge, and a partial tail changes exactly the copied bytes.
@@ -103,6 +104,20 @@ contract PreCancunMemoryCopies {
 
     function freshEmpty() external pure returns (uint256[] memory) {
         return new uint256[](0);
+    }
+
+    function recycledTail() external pure returns (bytes32 last) {
+        bytes memory source = new bytes(63);
+        assembly {
+            mstore(add(source, 32), 0x1111111111111111111111111111111111111111111111111111111111111111)
+            mstore(add(source, 64), 0x2222222222222222222222222222222222222222222222222222222222222222)
+            mstore(add(source, 96), 0x3333333333333333333333333333333333333333333333333333333333333333)
+            mstore(0x40, add(source, 32))
+        }
+        bytes memory copy = bytes.concat(source, "");
+        assembly {
+            last := mload(add(copy, 64))
+        }
     }
 
     // SHARED: {{^}}fn @[[FORWARD]](

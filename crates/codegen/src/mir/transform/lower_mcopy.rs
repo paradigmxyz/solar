@@ -550,9 +550,10 @@ fn emit_partial_copy(
 ) {
     // partial = len & 31
     // shift = (32 - (len & 31)) << 3
-    // source_top = (mload(src + partial_offset) >> shift) << shift
-    // destination_low = mload(dest + partial_offset) & ((1 << shift) - 1)
-    // mstore(dest + partial_offset, source_top | destination_low)
+    // source = mload(src + partial_offset)
+    // destination = mload(dest + partial_offset)
+    // changed_top = ((source ^ destination) >> shift) << shift
+    // mstore(dest + partial_offset, destination ^ changed_top)
     // jump continuation
     let word_size = builder.imm(32);
     let thirty_one = builder.imm(31);
@@ -562,15 +563,12 @@ fn emit_partial_copy(
     let shift = builder.shl(three, gap);
     let src_tail_ptr = builder.add(src, partial_offset);
     let src_word = builder.load(src_tail_ptr, PtrLocation::Memory);
-    let src_shifted = builder.shr(shift, src_word);
-    let src_top = builder.shl(shift, src_shifted);
     let dest_tail_ptr = builder.add(dest, partial_offset);
     let dest_word = builder.load(dest_tail_ptr, PtrLocation::Memory);
-    let one = builder.imm(1);
-    let low_bound = builder.shl(shift, one);
-    let low_mask = builder.sub(low_bound, one);
-    let dest_low = builder.and(dest_word, low_mask);
-    let merged = builder.or(src_top, dest_low);
+    let changed = builder.xor(src_word, dest_word);
+    let changed_shifted = builder.shr(shift, changed);
+    let changed_top = builder.shl(shift, changed_shifted);
+    let merged = builder.xor(dest_word, changed_top);
     builder.store(dest_tail_ptr, merged);
     builder.jump(continuation);
 }
