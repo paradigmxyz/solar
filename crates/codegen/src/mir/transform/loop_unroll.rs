@@ -761,6 +761,10 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
         Some(&InstKind::PtrToInt(pointer, _)) => pointer,
         _ => word,
     };
+    // The copies step and test the counter as a word.
+    if func.value_ty(word) != Some(MirType::I256) {
+        return None;
+    }
     let Value::Inst(phi) = func.value(counter) else { return None };
     if !func.blocks[l.header].instructions.contains(phi) {
         return None;
@@ -929,6 +933,10 @@ fn plan_reverse(func: &Function, l: &Loop) -> Option<Reverse> {
         InstKind::Lt(counter, bound) | InstKind::Gt(bound, counter) => (counter, bound),
         _ => return None,
     };
+    // The reversed counter starts at the word `0 - n`.
+    if func.value_ty(counter) != Some(MirType::I256) {
+        return None;
+    }
     let Value::Inst(phi) = *func.value(counter) else { return None };
     if !func.blocks[l.header].instructions.contains(&phi) {
         return None;
