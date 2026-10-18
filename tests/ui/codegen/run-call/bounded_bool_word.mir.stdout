@@ -1,0 +1,9 @@
+// === ROOT/tests/ui/codegen/run-call/bounded_bool_word.sol:BoundedBoolWord ===
+@module BoundedBoolWord
+fn @fromWord(arg0: i256) -> i256 [selector=0xe49449e9, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = lt arg0, 3
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    ret arg0
+}

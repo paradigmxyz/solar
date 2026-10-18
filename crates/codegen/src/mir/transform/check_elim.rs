@@ -199,7 +199,8 @@ impl MirPass for IntegerCleanup {
                     .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. }))))
                 || !func.instructions().any(|id| {
                     let kind = &func.inst(id).kind;
-                    low_mask_input(func, kind).is_some() || zero_test_word(func, kind).is_some()
+                    low_mask_input(func, kind).is_some()
+                        || widened_nonzero_test(func, kind).is_some()
                 })
             {
                 return false;
@@ -1130,7 +1131,7 @@ impl<'a> CheckEliminator<'a> {
     fn redundant_mask(&mut self, func: &Function, id: InstId) -> Option<ValueId> {
         let inst = func.inst(id);
         let (value, mask) = low_mask_input(func, &inst.kind)
-            .or_else(|| zero_test_word(func, &inst.kind).map(|value| (value, U256::ONE)))?;
+            .or_else(|| widened_nonzero_test(func, &inst.kind).map(|value| (value, U256::ONE)))?;
         (self.range_of(func, value, MAX_DEPTH).hi <= mask
             && inst.result_ty == func.value_ty(value)
             && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure))
@@ -2373,16 +2374,9 @@ fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
 
 /// The word `v` of `zext(v != 0)`, which is `v` itself whenever `v` is 0 or 1, as a
 /// boolean that ABI decoding already checked is.
-fn zero_test_word(func: &Function, kind: &InstKind) -> Option<ValueId> {
+fn widened_nonzero_test(func: &Function, kind: &InstKind) -> Option<ValueId> {
     let InstKind::Zext(test) = *kind else { return None };
-    let Some(InstKind::Ne(a, b)) = inst_kind(func, test) else { return None };
-    if const_of(func, *b).is_some_and(|value| value.is_zero()) {
-        Some(*a)
-    } else if const_of(func, *a).is_some_and(|value| value.is_zero()) {
-        Some(*b)
-    } else {
-        None
-    }
+    inst_kind(func, test)?.nonzero_test_operand(func)
 }
 
 /// The values a header phi `p = phi [pre: initial], [latch: next]` can take when every value

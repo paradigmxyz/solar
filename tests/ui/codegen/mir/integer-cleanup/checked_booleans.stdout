@@ -15,6 +15,19 @@
       returndata 128, 32
   }
   
+  fn @loosely_checked(arg0: i256) {
+    bb0:
+      v0 = lt arg0, 3
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      v1 = ne arg0, 0
+      v2 = zext i1 v1 to i256
+      mstore 128, v2
+      returndata 128, 32
+  }
+  
   fn @unchecked(arg0: i256) {
     bb0:
       v0 = ne arg0, 0

@@ -20,6 +20,25 @@ fn @checked(arg0: i256) {
     revert 0, 0
 }
 
+// A bound of 3 still admits the word 2, so the normalization stays.
+// CHECK-LABEL: fn @loosely_checked
+// CHECK-NOT: {{^[-+]}}
+// CHECK: ne arg0, 0
+// CHECK-NEXT: zext i1
+// CHECK-NOT: {{^[-+]}}
+fn @loosely_checked(arg0: i256) {
+  bb0:
+    v0 = lt arg0, 3
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = ne arg0, 0
+    v2 = zext i1 v1 to i256
+    mstore 128, v2
+    returndata 128, 32
+  bb2:
+    revert 0, 0
+}
+
 // Without the check the word may be any value and keeps its normalization.
 // CHECK-LABEL: fn @unchecked
 // CHECK-NOT: {{^[-+]}}
