@@ -129,8 +129,8 @@ impl Rewrite {
         }
     }
 
-    /// Whether this saves at least as much as `other` under the objective: `self.old - self.new
-    /// >= other.old - other.new`, compared without signed costs.
+    /// Whether this saves at least as much as `other` under the objective, compared without
+    /// signed costs: `other.old + self.new <= self.old + other.new`.
     fn saves_at_least(&self, other: &Self, target: Target) -> bool {
         target.cmp(other.old + self.new, self.old + other.new).is_le()
     }
