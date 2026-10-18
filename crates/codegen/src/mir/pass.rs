@@ -348,6 +348,10 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // direction check.
     &lower_mcopy::LowerMCopy,
     &lower_alloc::LowerAlloc,
+    // Allocation lowering exposes zero fills and free-memory-pointer stores
+    // that later stores in the same block can overwrite completely. Keep this
+    // gas-only: late constant-keccak folding can grow bytecode under `-Osize`.
+    &GasOnly::new(memory_dse::MemoryDse),
     &lower_memory_zero::LowerMemoryZero,
     // Materialize integer cleanup before word-level extraction and scheduling.
     &lower_integers::LowerIntegers,
