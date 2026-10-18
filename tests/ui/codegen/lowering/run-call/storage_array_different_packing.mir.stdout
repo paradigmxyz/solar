@@ -231,7 +231,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
   bb16:
     jump bb13
   bb13:
-    v80 = checked_add u256, v57, 1
+    v80 = checked_add uint256, v57, 1
     jump bb11
   bb7:
     v23 = shl 5, v21

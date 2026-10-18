@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_packed_calldata_struct_field.sol:AbiPackedCalldataStructField ===
 @module AbiPackedCalldataStructField
-fn @pack(arg0: slice<calldata>) -> ptr<memory> [selector=0xc917a597, pure, abi_params=[tuple<address, address, u256, u256, u48, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pack(arg0: slice<calldata>) -> ptr<memory> [selector=0xc917a597, pure, abi_params=[tuple<address, address, uint256, uint256, uint48, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -38,11 +38,11 @@ fn @pack(arg0: slice<calldata>) -> ptr<memory> [selector=0xc917a597, pure, abi_p
     v29 = eq v28, false
     icall revert_if<empty>, v29
     v30 = trunc i256 v26 to i160
-    v31 = abi_encode_packed (bytes v22, u160 v30)
+    v31 = abi_encode_packed (bytes v22, uint160 v30)
     ret v31
 }
 
-fn @packHash(arg0: slice<calldata>) -> i256 [selector=0x26915e91, pure, abi_params=[tuple<address, address, u256, u256, u48, bytes, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @packHash(arg0: slice<calldata>) -> i256 [selector=0x26915e91, pure, abi_params=[tuple<address, address, uint256, uint256, uint48, bytes, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -80,6 +80,6 @@ fn @packHash(arg0: slice<calldata>) -> i256 [selector=0x26915e91, pure, abi_para
     v29 = eq v28, false
     icall revert_if<empty>, v29
     v30 = trunc i256 v26 to i160
-    v31 = keccak256_packed (bytes v22, u160 v30)
+    v31 = keccak256_packed (bytes v22, uint160 v30)
     ret v31
 }

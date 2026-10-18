@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_to_storage.sol:ArraySliceCalldataToStorage ===
 @module ArraySliceCalldataToStorage
-fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50eb, abi_params=[array<_, i256>, u256, u256], abi_returns=[word], abi_return_params=[i256]] {
+fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50eb, abi_params=[array<_, int256>, uint256, uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1

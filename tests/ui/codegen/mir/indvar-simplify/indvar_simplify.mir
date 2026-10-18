@@ -106,9 +106,9 @@ fn @keep_scale_one_single_use(arg0: i256) -> i256 {
 // Two address uses pay for carrying the extra pointer under the stack cost model.
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_checked_address{{[( ]}}
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
-// CHECK: {{^[ +].*}}checked_mul u256,
+// CHECK: {{^[ +].*}}checked_mul uint256,
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
-// CHECK: {{^[ +].*}}checked_add u256,
+// CHECK: {{^[ +].*}}checked_add uint256,
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
 fn @strength_reduce_checked_address(arg0: i256, arg1: i256) -> i256 {
   bb0:
@@ -118,12 +118,12 @@ fn @strength_reduce_checked_address(arg0: i256, arg1: i256) -> i256 {
     v2 = lt v1, arg1
     jumpi v2, bb2, bb3
   bb2:
-    v3 = checked_mul u256, v1, 32
+    v3 = checked_mul uint256, v1, 32
     v4 = add arg0, v3
     mstore v4, v1
     v7 = add arg0, v3
     mstore v7, v1
-    v6 = checked_add u256, v1, 1
+    v6 = checked_add uint256, v1, 1
     jump bb1
   bb3:
     ret 0
@@ -132,7 +132,7 @@ fn @strength_reduce_checked_address(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_commuted_checked_step{{[( ]}}
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
-// CHECK: {{^[ +].*}}checked_add u256, 1,
+// CHECK: {{^[ +].*}}checked_add uint256, 1,
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
 fn @strength_reduce_commuted_checked_step(arg0: i256) -> i256 {
   bb0:
@@ -147,7 +147,7 @@ fn @strength_reduce_commuted_checked_step(arg0: i256) -> i256 {
     mstore v4, v1
     v7 = add arg0, v3
     mstore v7, v1
-    v5 = checked_add u256, 1, v1
+    v5 = checked_add uint256, 1, v1
     jump bb1
   bb3:
     ret 0
@@ -158,7 +158,7 @@ fn @strength_reduce_commuted_checked_step(arg0: i256) -> i256 {
 // CHECK: {{^[ +].*}}shl 5,
 // CHECK: {{^[ +].*}}add arg0,
 // CHECK: {{^[ +](.*[^a-z_])?}}mstore
-// CHECK: {{^[ +].*}}checked_sub u256,
+// CHECK: {{^[ +].*}}checked_sub uint256,
 fn @keep_checked_descending_address(arg0: i256) -> i256 {
   bb0:
     jump bb1
@@ -170,7 +170,7 @@ fn @keep_checked_descending_address(arg0: i256) -> i256 {
     v3 = shl 5, v1
     v4 = add arg0, v3
     mstore v4, v1
-    v6 = checked_sub u256, v1, 1
+    v6 = checked_sub uint256, v1, 1
     jump bb1
   bb3:
     ret 0
@@ -195,7 +195,7 @@ fn @keep_shared_field_addresses(arg0: i256) -> i256 {
     v5 = add v4, 16
     mstore v4, v1
     mstore v5, v1
-    v6 = checked_add u256, v1, 1
+    v6 = checked_add uint256, v1, 1
     jump bb1
   bb3:
     ret 0
@@ -206,7 +206,7 @@ fn @keep_shared_field_addresses(arg0: i256) -> i256 {
 // CHECK-NOT: + {{.*}}phi
 // CHECK: {{^[ +].*}}add arg0,
 // CHECK: {{^[ +].*}}mstore8
-// CHECK: {{^[ +].*}}checked_add u256,
+// CHECK: {{^[ +].*}}checked_add uint256,
 fn @keep_checked_scale_one_address(arg0: i256) -> i256 {
   bb0:
     jump bb1
@@ -217,7 +217,7 @@ fn @keep_checked_scale_one_address(arg0: i256) -> i256 {
   bb2:
     v3 = add arg0, v1
     mstore8 v3, v1
-    v5 = checked_add u256, v1, 1
+    v5 = checked_add uint256, v1, 1
     jump bb1
   bb3:
     ret 0

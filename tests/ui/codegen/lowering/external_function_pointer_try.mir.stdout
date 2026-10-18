@@ -40,20 +40,20 @@ fn @invoke(arg0: i256, arg1: ptr<memory>) {
     ret
 }
 
-fn @succeed(arg0: ptr<memory>) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
+fn @succeed(arg0: ptr<memory>) [selector=0x93edcd0d, abi_params=[tuple<uint256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mload arg0
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
-fn @fail(arg0: ptr<memory>) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
+fn @fail(arg0: ptr<memory>) [selector=0xe8be0a6f, pure, abi_params=[tuple<uint256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<uint256>], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = mload arg0
     v1 = alloc 64 !metadata(preserves_fmp)
@@ -91,7 +91,7 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     ret v17
   bb1:
     v8 = icall returndata_bytes<>
-    v9 = abi_decode [u256, bytes], v8
+    v9 = abi_decode [uint256, bytes], v8
     v10 = extract_value struct0, v9, 0
     v11 = extract_value struct0, v9, 1
     v12 = insert_value struct0, undef struct0, 0, v10
@@ -103,7 +103,7 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     ret v19
 }
 
-fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -116,7 +116,7 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]
     ret v5
 }
 
-fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -129,7 +129,7 @@ fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word]
     ret v5
 }
 
-fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256

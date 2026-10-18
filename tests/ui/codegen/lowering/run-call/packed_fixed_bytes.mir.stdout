@@ -3,28 +3,28 @@
 fn @create2Hash(arg0: i256, arg1: i160, arg2: i256) -> i256 [selector=0xdc2eb4cb, pure, abi_params=[bytes1, address, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_packed (bytes1 v0, u160 arg1, bytes32 arg2)
+    v1 = keccak256_packed (bytes1 v0, uint160 arg1, bytes32 arg2)
     ret v1
 }
 
-fn @mixedHash(arg0: i8, arg1: i256, arg2: i16, arg3: i256) -> i256 [selector=0x63695be5, pure, abi_params=[u8, bytes3, i16, bytes2], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @mixedHash(arg0: i8, arg1: i256, arg2: i16, arg3: i256) -> i256 [selector=0x63695be5, pure, abi_params=[uint8, bytes3, int16, bytes2], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = and arg1, 0xffffff0000000000000000000000000000000000000000000000000000000000
     v1 = and arg3, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v2 = keccak256_packed (u8 arg0, bytes3 v0, i16 arg2, bytes2 v1)
+    v2 = keccak256_packed (uint8 arg0, bytes3 v0, int16 arg2, bytes2 v1)
     ret v2
 }
 
-fn @fixedFirstHash(arg0: i256, arg1: i8, arg2: i8) -> i256 [selector=0xe413c2b0, pure, abi_params=[bytes3, u8, u8], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @fixedFirstHash(arg0: i256, arg1: i8, arg2: i8) -> i256 [selector=0xe413c2b0, pure, abi_params=[bytes3, uint8, uint8], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_packed (bytes3 v0, u8 arg1, u8 arg2)
+    v1 = keccak256_packed (bytes3 v0, uint8 arg1, uint8 arg2)
     ret v1
 }
 
-fn @selectorWord(arg0: i256, arg1: i32) -> ptr<memory> [selector=0x7a94b2fc, pure, abi_params=[bytes4, u32], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @selectorWord(arg0: i256, arg1: i32) -> ptr<memory> [selector=0x7a94b2fc, pure, abi_params=[bytes4, uint32], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes4 v0, u32 arg1)
+    v1 = abi_encode_packed (bytes4 v0, uint32 arg1)
     ret v1
 }

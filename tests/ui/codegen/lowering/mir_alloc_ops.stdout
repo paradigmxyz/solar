@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256}
 
-fn @fixedArray(arg0: i256) -> i256 [selector=0x9a5009ac, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedArray(arg0: i256) -> i256 [selector=0x9a5009ac, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -33,7 +33,7 @@ fn @dynamic(arg0: slice<calldata>) -> ptr<memory> [selector=0xd543852a, pure, ab
     ret v4
 }
 
-fn @frameShadow() -> struct0 [selector=0x7953faf2, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @frameShadow() -> struct0 [selector=0x7953faf2, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 1
     v1 = insert_value struct0, v0, 1, 2
@@ -42,7 +42,7 @@ fn @frameShadow() -> struct0 [selector=0x7953faf2, pure, abi_params=[], abi_retu
     ret v3
 }
 
-fn @rawAssembly() -> i256 [selector=0x89eb38b4, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @rawAssembly() -> i256 [selector=0x89eb38b4, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 64, v0 !metadata(memory=scratch)

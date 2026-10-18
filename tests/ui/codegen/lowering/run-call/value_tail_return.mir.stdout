@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/value_tail_return.sol:ValueTailReturn ===
 @module ValueTailReturn
-fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @forward, arg0
-    v1 = checked_add u256, arg0, 1
+    v1 = checked_add uint256, arg0, 1
     v2 = icall @forward, v1
-    v3 = checked_add u256, v0, v2
+    v3 = checked_add uint256, v0, v2
     ret v3
 }
 

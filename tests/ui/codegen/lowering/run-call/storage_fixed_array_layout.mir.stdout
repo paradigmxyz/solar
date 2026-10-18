@@ -5,7 +5,7 @@
   struct1: {i256, i256, i256, i256, i128, i256}
   struct2: {i72, i72, i72, i256}
 
-fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 0
     v1 = insert_value struct0, v0, 1, 3
@@ -16,7 +16,7 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
     ret v5
 }
 
-fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_returns=[word<bytes9>, word, word<bytes17>, word, word<u128>, word], abi_return_params=[bytes9, u256, bytes17, u256, u128, u256]] {
+fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_returns=[word<bytes9>, word, word<bytes17>, word, word<uint128>, word], abi_return_params=[bytes9, uint256, bytes17, uint256, uint128, uint256]] {
   bb0:
     v0 = lt 6, 7
     v1 = eq v0, false
@@ -116,7 +116,7 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
     ret v82
 }
 
-fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], abi_returns=[word<u72>, word<u72>, word<u72>, word], abi_return_params=[u72, u72, u72, bytes32]] {
+fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], abi_returns=[word<uint72>, word<uint72>, word<uint72>, word], abi_return_params=[uint72, uint72, uint72, bytes32]] {
   bb0:
     jump bb1
   bb1:
@@ -248,6 +248,6 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
   bb6:
     jump bb3
   bb3:
-    v24 = checked_add u256, v4, 1
+    v24 = checked_add uint256, v4, 1
     jump bb1
 }

@@ -3,10 +3,10 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb2
   bb2:
@@ -22,23 +22,23 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     ret v6
 }
 
-fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = checked_add u256, v2, 1
+    v3 = checked_add uint256, v2, 1
     sstore 0, v3 !metadata(storage=slot(0))
-    v4 = checked_add u256, 0, 0
-    v5 = checked_sub u256, 0, 0
+    v4 = checked_add uint256, 0, 0
+    v5 = checked_sub uint256, 0, 0
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = checked_add u256, v6, 1
+    v7 = checked_add uint256, v6, 1
     sstore 0, v7 !metadata(storage=slot(0))
-    v8 = checked_mul u256, 0, 0
+    v8 = checked_mul uint256, 0, 0
     v9 = and 0, 0
     v10 = sload 0 !metadata(storage=slot(0))
-    v11 = checked_add u256, v10, 1
+    v11 = checked_add uint256, v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
     v12 = sload 0 !metadata(storage=slot(0))
     jump bb5

@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @invoke(arg0: ptr<memory>) -> struct0 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
+fn @invoke(arg0: ptr<memory>) -> struct0 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[uint256, bytes32]] {
   bb0:
     v0 = address
     v1 = gas

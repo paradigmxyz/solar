@@ -38,7 +38,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160

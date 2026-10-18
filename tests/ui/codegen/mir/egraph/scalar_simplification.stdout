@@ -177,17 +177,17 @@
   
   fn @checked_constants() -> i8 {
     bb0:
-      v0 = checked_add u8, i8 255, i8 1
-      v1 = checked_div i8, i8 128, i8 255
-      v2 = checked_div u256, 1, 0
--     v3 = checked_pow u8, i8 3, 5
+      v0 = checked_add uint8, i8 255, i8 1
+      v1 = checked_div int8, i8 128, i8 255
+      v2 = checked_div uint256, 1, 0
+-     v3 = checked_pow uint8, i8 3, 5
 -     ret v3
 +     ret i8 243
   }
   
   fn @wrapping_signed_division() -> i8 {
     bb0:
--     v0 = wrapping_div i8, i8 128, i8 255
+-     v0 = wrapping_div int8, i8 128, i8 255
 -     ret v0
 +     ret i8 128
   }

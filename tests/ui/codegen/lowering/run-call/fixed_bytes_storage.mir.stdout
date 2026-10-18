@@ -50,7 +50,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u16>, word<i8>, word<u24>], abi_return_params=[u8, u8, u16, i8, u24]] {
+fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint16>, word<int8>, word<uint24>], abi_return_params=[uint8, uint8, uint16, int8, uint24]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shl 248, v0
@@ -87,7 +87,7 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
     ret v0
 }
 
-fn @selector() -> struct1 [selector=0xea3d508a, pure, abi_params=[], abi_returns=[word<bytes4>, word<u32>], abi_return_params=[bytes4, u32]] {
+fn @selector() -> struct1 [selector=0xea3d508a, pure, abi_params=[], abi_returns=[word<bytes4>, word<uint32>], abi_return_params=[bytes4, uint32]] {
   bb0:
     v0 = calldataload 0
     v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000

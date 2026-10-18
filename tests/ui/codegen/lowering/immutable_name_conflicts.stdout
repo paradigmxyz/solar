@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Base ===
 @module Base
 @immutables
-  value: u256
+  value: uint256
 
-fn @baseValue() -> i256 [selector=0x61bb9c52, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @baseValue() -> i256 [selector=0x61bb9c52, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable value
     ret v0
@@ -18,23 +18,23 @@ fn @constructor() [constructor] {
 // === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Derived ===
 @module Derived
 @immutables
-  value0_: u256
-  value1: u256
-  value0: u256
+  value0_: uint256
+  value1: uint256
+  value0: uint256
 
-fn @derivedValue() -> i256 [selector=0x13f1a030, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @derivedValue() -> i256 [selector=0x13f1a030, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable value1
     ret v0
 }
 
-fn @numberedValue() -> i256 [selector=0x4abe616f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @numberedValue() -> i256 [selector=0x4abe616f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable value0
     ret v0
 }
 
-fn @baseValue() -> i256 [selector=0x61bb9c52, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @baseValue() -> i256 [selector=0x61bb9c52, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable value0_
     ret v0

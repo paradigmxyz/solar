@@ -1,24 +1,24 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_memory_oversized_length.sol:AbiDecodeMemoryOversizedLength ===
 @module AbiDecodeMemoryOversizedLength
-fn @decodeWordArray(arg0: ptr<memory>) -> i256 [selector=0x5592ecdf, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @decodeWordArray(arg0: ptr<memory>) -> i256 [selector=0x5592ecdf, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     ret v0
 }
 
-fn @decodeNarrowArray(arg0: ptr<memory>) -> i256 [selector=0x42670e32, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @decodeNarrowArray(arg0: ptr<memory>) -> i256 [selector=0x42670e32, pure, abi_params=[array<_, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     ret v0
 }
 
-fn @decodeBytes(arg0: ptr<memory>) -> i256 [selector=0x197621ce, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @decodeBytes(arg0: ptr<memory>) -> i256 [selector=0x197621ce, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     ret v0
 }
 
-fn @decodeNestedArray(arg0: ptr<memory>) -> i256 [selector=0xad885292, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @decodeNestedArray(arg0: ptr<memory>) -> i256 [selector=0xad885292, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     ret v0
@@ -51,7 +51,7 @@ fn @nestedArray() -> i1 [selector=0x810ef4b8, abi_params=[], abi_returns=[word<b
 fn @oversized(arg0: i256) -> i1 {
   bb0:
     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes4 v0, u256 32, u256 0xffffffffffffffff)
+    v1 = abi_encode_packed (bytes4 v0, uint256 32, uint256 0xffffffffffffffff)
     v2 = address
     v3 = gas
     v4 = address_call v2, v1, gas v3

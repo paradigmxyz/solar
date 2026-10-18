@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/fallback_bytes_modified.sol:ModifiedFallbackBytes ===
 @module ModifiedFallbackBytes
-fn @invoke(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x33298e25, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @invoke(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x33298e25, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas

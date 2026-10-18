@@ -70,7 +70,10 @@ the branch condition type.
 Source bindings exposed to inline assembly use explicit `i256` carriers where
 raw upper bits must survive copies and internal calls. Typed Solidity uses
 convert these carriers to their native types. ABI and memory layout metadata
-retain signedness and storage widths independently of SSA types.
+retain signedness and storage widths independently of SSA types. Layout
+metadata spells scalars with Solidity names, `uintN`, `intN`, `bool`, `address`,
+`bytesN`, and `function`, as in `checked_add int64`, `abi_params=[uint8]`, or
+an `@immutables` entry `owner: address`; only SSA types use `iN`.
 
 Every `i1` is zero or one. Branches and select conditions require `i1`;
 compare a word with zero using `eq value, 0` or `ne value, 0` before branching.
@@ -104,8 +107,9 @@ This includes loop phis.
 Mixed narrow-integer/`i256` joins widen the narrow input without normalizing the word.
 Logical operations convert those words to
 canonical booleans. This keeps the MIR invariant without changing the bits
-that source assembly can observe. Immutable encodings may shrink only when
-every assignment proves that all stored bits fit the shorter encoding.
+that source assembly can observe. Other immutables keep their source layout,
+so an `address` immutable loads as `i160`. Immutable encodings may shrink only
+when every assignment proves that all stored bits fit the shorter encoding.
 
 ## Phase model
 

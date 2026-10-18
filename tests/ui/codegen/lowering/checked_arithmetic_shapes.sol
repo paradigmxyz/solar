@@ -15,13 +15,13 @@
 // - div/mod: branch directly on the divisor, no `iszero`/`eq` flag.
 // - sub-word left shifts: mask unsigned results and sign-extend signed results.
 // SEM-LABEL: fn @sadd
-// SEM: checked_add i256, arg0, arg1
+// SEM: checked_add int256, arg0, arg1
 // SEM-LABEL: fn @ssub
-// SEM: checked_sub i256, arg0, arg1
+// SEM: checked_sub int256, arg0, arg1
 // SEM-LABEL: fn @smul
-// SEM: checked_mul i256, arg0, arg1
+// SEM: checked_mul int256, arg0, arg1
 // SEM-LABEL: fn @sdiv
-// SEM: checked_div i256, arg0, arg1
+// SEM: checked_div int256, arg0, arg1
 contract CheckedArithmeticShapes {
     // CHECK-LABEL: fn @sadd{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1

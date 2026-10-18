@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/revert_phi_join.sol:RevertPhiJoin ===
 @module RevertPhiJoin
-fn @latchRevert(arg0: i256, arg1: i256) -> i256 [selector=0x76f4ddf4, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @latchRevert(arg0: i256, arg1: i256) -> i256 [selector=0x76f4ddf4, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
