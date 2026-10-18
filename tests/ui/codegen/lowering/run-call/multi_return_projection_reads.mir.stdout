@@ -60,7 +60,7 @@ fn @constructor() [constructor] {
     jump bb1
 }
 
-fn @f(arg0: i256) -> i256 [selector=0xb3de648b, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @resolve, arg0
     v1 = extract_value struct0, v0, 0
@@ -86,7 +86,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, view, abi_params=[u256], abi_ret
     invalid
 }
 
-fn @g(arg0: i256) -> i160 [selector=0xe420264a, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @g(arg0: i256) -> i160 [selector=0xe420264a, view, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = icall @resolve, arg0
     v1 = extract_value struct0, v0, 0
@@ -105,17 +105,17 @@ fn @g(arg0: i256) -> i160 [selector=0xe420264a, view, abi_params=[u256], abi_ret
     ret v7
 }
 
-fn @h(arg0: i256, arg1: i256) -> i256 [selector=0xa61510ae, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @h(arg0: i256, arg1: i256) -> i256 [selector=0xa61510ae, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 128
     mstore v0, arg1
-    v1 = checked_add u256, arg1, 1
+    v1 = checked_add uint256, arg1, 1
     v2 = ptradd v0, 32
     mstore v2, v1
-    v3 = checked_add u256, arg1, 2
+    v3 = checked_add uint256, arg1, 2
     v4 = ptradd v0, 64
     mstore v4, v3
-    v5 = checked_add u256, arg1, 3
+    v5 = checked_add uint256, arg1, 3
     v6 = ptradd v0, 96
     mstore v6, v5
     v7 = icall @resolve, arg0
@@ -135,7 +135,7 @@ fn @h(arg0: i256, arg1: i256) -> i256 [selector=0xa61510ae, abi_params=[u256, u2
     jump bb3
   bb1:
     v18 = zext i160 v8 to i256
-    v19 = checked_add u256, v16, v18
+    v19 = checked_add uint256, v16, v18
     jump bb3
   bb3:
     v20 = phi [bb1: v19], [bb2: v16]
@@ -199,12 +199,12 @@ fn @resolve(arg0: i256) -> struct0 [view] {
 fn @mix(arg0: i256, arg1: i160, arg2: i256) -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, arg0
+    v1 = checked_add uint256, v0, arg0
     sstore 1, v1 !metadata(storage=slot(1))
-    v2 = checked_mul u256, arg0, 0x10000
+    v2 = checked_mul uint256, arg0, 0x10000
     v3 = zext i160 arg1 to i256
-    v4 = checked_mul u256, v3, 256
-    v5 = checked_add u256, v2, v4
-    v6 = checked_add u256, v5, arg2
+    v4 = checked_mul uint256, v3, 256
+    v5 = checked_add uint256, v2, v4
+    v6 = checked_add uint256, v5, arg2
     ret v6
 }

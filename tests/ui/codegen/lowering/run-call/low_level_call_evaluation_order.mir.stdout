@@ -7,8 +7,8 @@
 fn @receiver() -> i160 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 1
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = address
     ret v3
@@ -17,8 +17,8 @@ fn @receiver() -> i160 {
 fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 2
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 2
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = gas
     ret v3
@@ -27,8 +27,8 @@ fn @gasOpt() -> i256 {
 fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 3
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 3
     sstore 0, v2 !metadata(storage=slot(0))
     ret 0
 }
@@ -36,8 +36,8 @@ fn @valueOpt() -> i256 {
 fn @data() -> ptr<memory> {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 4
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 4
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = alloc 32
     mstore v3, 0
@@ -49,7 +49,7 @@ fn @receive() [receive, payable] {
     ret
 }
 
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @receiver
     v1 = gas
@@ -68,7 +68,7 @@ fn @echo(arg0: ptr<memory>) -> ptr<memory> [selector=0x624fbfdc, pure, abi_param
     ret arg0
 }
 
-fn @number() -> i256 [selector=0x8381f58a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @number() -> i256 [selector=0x8381f58a, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 7
 }
@@ -134,7 +134,7 @@ fn @staticRead() -> struct1 [selector=0xf511364b, view, abi_params=[], abi_retur
     ret v6
 }
 
-fn @delegateWrite() -> i256 [selector=0xeedb6db6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @delegateWrite() -> i256 [selector=0xeedb6db6, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = address

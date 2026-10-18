@@ -3,69 +3,69 @@
 @types
   struct0: {i256, i256}
 
-fn @thirds() -> i256 [selector=0x700de8d5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @thirds() -> i256 [selector=0x700de8d5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
-fn @halves() -> i256 [selector=0x7e618622, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @halves() -> i256 [selector=0x7e618622, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 5
 }
 
-fn @negativeExponent() -> i256 [selector=0x13a47541, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @negativeExponent() -> i256 [selector=0x13a47541, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
 }
 
-fn @fractionalBase() -> i256 [selector=0x2a9168b6, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fractionalBase() -> i256 [selector=0x2a9168b6, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
 }
 
-fn @negativeBase() -> i256 [selector=0x6cb0814e, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @negativeBase() -> i256 [selector=0x6cb0814e, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
 }
 
-fn @fractionalRemainder() -> i256 [selector=0x5f21d68d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fractionalRemainder() -> i256 [selector=0x5f21d68d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 3
 }
 
-fn @negativeRemainder() -> i256 [selector=0x5356187e, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @negativeRemainder() -> i256 [selector=0x5356187e, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
 }
 
-fn @wideIntermediate() -> i256 [selector=0x88f9c96d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @wideIntermediate() -> i256 [selector=0x88f9c96d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0x400
 }
 
-fn @maxIntermediate() -> i256 [selector=0x4afd1ba6, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @maxIntermediate() -> i256 [selector=0x4afd1ba6, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 
-fn @decimals() -> i256 [selector=0x313ce567, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @decimals() -> i256 [selector=0x313ce567, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0xde0b6b3a7640000
 }
 
-fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 
-fn @typedDivision() -> struct0 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
+fn @typedDivision() -> struct0 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[int256, int256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 2
     v1 = insert_value struct0, v0, 1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
     ret v1
 }
 
-fn @discarded() -> i256 [selector=0x96dadfbc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @discarded() -> i256 [selector=0x96dadfbc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }

@@ -19,15 +19,16 @@
 //! Shared integer casts can move outside a select when their source widths match;
 //! temporary selects retain that source type. Pointer and wider-than-word roots
 //! remain excluded from arithmetic selection.
-//! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost.
+//! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost, except
+//! that a nonzero test whose only use is a branch costs nothing: `JUMPI` reads the word.
 //! Pure, nontrapping operations without recipes stay in place without breaking
 //! the segment; they never earn deletion credit.
 
 use crate::{
     backend::evm::{op, select},
     mir::{
-        EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Op, Value,
-        ValueId,
+        EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Op,
+        Terminator, Value, ValueId,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
@@ -139,6 +140,29 @@ fn operation_cost(
     cost
 }
 
+/// The cost of a recipe root. A nonzero test whose only use is a branch condition costs
+/// nothing, because `JUMPI` takes its operand as the condition.
+fn root_cost(
+    func: &Function,
+    op: &Op,
+    target: Target,
+    constants: &FxHashMap<ValueId, Temporary>,
+    branch_only: bool,
+) -> Cost {
+    let immediate = |value| match constants.get(&value) {
+        Some(Temporary::Constant(value)) => Some(*value),
+        Some(Temporary::Operation(_)) => None,
+        None => func.value_u256(value),
+    };
+    if branch_only
+        && matches!(op, Op::Ne { .. })
+        && Target::zero_test_input(op, immediate).is_some()
+    {
+        return Cost::ZERO;
+    }
+    operation_cost(func, op, target, constants)
+}
+
 impl Recipe {
     /// Visits only reachable temporary definitions, in dependency order.
     fn collect(
@@ -167,6 +191,7 @@ impl Recipe {
         &self,
         func: &Function,
         target: Target,
+        branch_only: bool,
     ) -> Option<(Cost, FxHashSet<ValueId>)> {
         let mut nodes = Vec::new();
         let mut leaves = FxHashSet::default();
@@ -174,8 +199,14 @@ impl Recipe {
         if nodes.len() > MAX_CONE || nodes.iter().any(|node| !legal(node, target)) {
             return None;
         }
+        let root = nodes.pop().expect("a recipe has a root");
+        let root_cost = root_cost(func, &root, target, &self.temporaries, branch_only);
         Some((
-            nodes.iter().map(|node| operation_cost(func, node, target, &self.temporaries)).sum(),
+            nodes
+                .iter()
+                .map(|node| operation_cost(func, node, target, &self.temporaries))
+                .sum::<Cost>()
+                + root_cost,
             leaves,
         ))
     }
@@ -277,6 +308,7 @@ fn recipe_type(func: &Function, kind: &InstKind, scalar_ty: MirType) -> MirType 
 }
 
 fn run(func: &mut Function, target: Target) -> bool {
+    let branch_only = branch_only_conditions(func);
     let mut uses = None;
     let mut changed = false;
     for block in func.blocks.indices().collect::<Vec<_>>() {
@@ -300,9 +332,12 @@ fn run(func: &mut Function, target: Target) -> bool {
                 continue;
             }
             let op = func.inst(inst).kind.op();
+            let is_branch_only =
+                func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
             let mut best = None;
             for recipe in isle::alternatives(func, &seen, &op, target) {
-                if let Some((after, leaves)) = recipe.cost_and_leaves(func, target) {
+                if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
+                {
                     // Nothing changed before the first count; this block is detached.
                     let uses = uses.get_or_insert_with(|| {
                         let mut uses = super::egraph::use_counts(func);
@@ -314,7 +349,7 @@ fn run(func: &mut Function, target: Target) -> bool {
                     let mut dead = FxHashSet::default();
                     collect_dead(func, &op, uses, &seen, &leaves, target, &mut dead);
                     let empty = FxHashMap::default();
-                    let before = operation_cost(func, &op, target, &empty)
+                    let before = root_cost(func, &op, target, &empty, is_branch_only)
                         + dead
                             .iter()
                             .map(|&inst| {
@@ -385,4 +420,23 @@ fn collect_dead(
         }
         value
     });
+}
+
+/// Values whose only use is the condition of a branch in their defining block, the shape
+/// the backend folds into `JUMPI`.
+fn branch_only_conditions(func: &Function) -> FxHashSet<ValueId> {
+    let uses = super::egraph::use_counts(func);
+    func.blocks
+        .iter()
+        .filter_map(|block| match block.terminator {
+            Some(Terminator::Branch { condition, .. })
+                if uses[condition] == 1
+                    && let Value::Inst(def) = *func.value(condition)
+                    && block.instructions.contains(&def) =>
+            {
+                Some(condition)
+            }
+            _ => None,
+        })
+        .collect()
 }

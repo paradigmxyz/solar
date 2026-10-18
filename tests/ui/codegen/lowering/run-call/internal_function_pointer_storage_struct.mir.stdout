@@ -86,7 +86,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = lt 0, 2
     v1 = eq v0, false
@@ -96,7 +96,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, wo
     v4 = shr 16, v3
     v5 = trunc i256 v4 to i64
     v6 = zext i64 v5 to i256
-    v7 = icall @internal_dispatcher_p_none_r_u256, v6
+    v7 = icall @internal_dispatcher_p_none_r_uint256, v6
     v8 = lt 1, 2
     v9 = eq v8, false
     icall panic_if<0x32>, v9
@@ -105,13 +105,13 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, wo
     v12 = shr 16, v11
     v13 = trunc i256 v12 to i64
     v14 = zext i64 v13 to i256
-    v15 = icall @internal_dispatcher_p_none_r_u256, v14
+    v15 = icall @internal_dispatcher_p_none_r_uint256, v14
     v16 = insert_value struct0, undef struct0, 0, v7
     v17 = insert_value struct0, v16, 1, v15
     ret v17
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2

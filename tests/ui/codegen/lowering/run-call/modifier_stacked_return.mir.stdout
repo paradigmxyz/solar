@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_stacked_return.sol:ModifierStackedReturn ===
 @module ModifierStackedReturn
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb2
   bb2:
@@ -48,27 +48,27 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     jump bb22
   bb26:
     v13 = sload 0 !metadata(storage=slot(0))
-    v14 = checked_add u256, v13, 1
+    v14 = checked_add uint256, v13, 1
     sstore 0, v14 !metadata(storage=slot(0))
     jump bb22
   bb22:
     v15 = phi [bb26: 42], [bb24: v10]
     v16 = sload 0 !metadata(storage=slot(0))
-    v17 = checked_add u256, v16, 1
+    v17 = checked_add uint256, v16, 1
     sstore 0, v17 !metadata(storage=slot(0))
     jump bb15
   bb15:
     v18 = phi [bb22: v9], [bb17: v3]
     v19 = phi [bb22: v15], [bb17: v7]
     v20 = sload 0 !metadata(storage=slot(0))
-    v21 = checked_add u256, v20, 1
+    v21 = checked_add uint256, v20, 1
     sstore 0, v21 !metadata(storage=slot(0))
     jump bb8
   bb8:
     v22 = phi [bb15: v18], [bb10: v0]
     v23 = phi [bb15: v19], [bb10: v4]
     v24 = sload 0 !metadata(storage=slot(0))
-    v25 = checked_add u256, v24, 1
+    v25 = checked_add uint256, v24, 1
     sstore 0, v25 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -92,7 +92,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     invalid
 }
 
-fn @fAndRead() -> i256 [selector=0x4e03d23b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fAndRead() -> i256 [selector=0x4e03d23b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @f
     v1 = sload 0 !metadata(storage=slot(0))

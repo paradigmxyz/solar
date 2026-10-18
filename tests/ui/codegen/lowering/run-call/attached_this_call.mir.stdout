@@ -39,14 +39,14 @@ fn @attachedThis() -> i1 [selector=0x9c4e0a78, view, abi_params=[], abi_returns=
     ret v7
 }
 
-fn @attachedValue() -> i256 [selector=0xe18b1132, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @attachedValue() -> i256 [selector=0xe18b1132, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = icall @addValue, v0, 7
     ret v1
 }
 
-fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 12
 }
@@ -73,6 +73,6 @@ fn @addValue(arg0: i160, arg1: i256) -> i256 [pure] {
     icall revert_if<tuple_data_too_short>, v7
     v8 = add 0, 0
     v9 = mload v8
-    v10 = checked_add u256, v9, arg1
+    v10 = checked_add uint256, v9, arg1
     ret v10
 }

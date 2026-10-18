@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_struct_calldata.sol:StorageNestedStructCalldata ===
 @module StorageNestedStructCalldata
-fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, uint8>, array<2, uint8>>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -107,7 +107,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v331 = mul v329, 8
     v332 = shr v331, v330
     v333 = trunc i256 v332 to i8
-    v334 = checked_add u8, v311, v333
+    v334 = checked_add uint8, v311, v333
     v335 = sload 0 !metadata(storage=slot(0))
     v336 = lt 0, v335
     v337 = eq v336, false
@@ -133,7 +133,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v354 = mul v352, 8
     v355 = shr v354, v353
     v356 = trunc i256 v355 to i8
-    v357 = checked_add u8, v334, v356
+    v357 = checked_add uint8, v334, v356
     v358 = zext i8 v357 to i256
     ret v358
   bb25:
@@ -524,7 +524,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     jump bb7
 }
 
-fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[array<1, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[array<1, array<_, tuple<array<_, uint8>, array<2, uint8>>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
@@ -592,7 +592,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v396 = mul v394, 8
     v397 = shr v396, v395
     v398 = trunc i256 v397 to i8
-    v399 = checked_add u8, v378, v398
+    v399 = checked_add uint8, v378, v398
     v400 = lt 0, 1
     v401 = eq v400, false
     icall panic_if<0x32>, v401
@@ -616,7 +616,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v417 = mul v415, 8
     v418 = shr v417, v416
     v419 = trunc i256 v418 to i8
-    v420 = checked_add u8, v399, v419
+    v420 = checked_add uint8, v399, v419
     v421 = zext i8 v420 to i256
     ret v421
   bb14:
@@ -1151,7 +1151,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     jump bb7
 }
 
-fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_params=[array<_, array<1, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_params=[array<_, array<1, tuple<array<_, uint8>, array<2, uint8>>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -1256,7 +1256,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v382 = mul v380, 8
     v383 = shr v382, v381
     v384 = trunc i256 v383 to i8
-    v385 = checked_add u8, v363, v384
+    v385 = checked_add uint8, v363, v384
     v386 = sload 2 !metadata(storage=slot(2))
     v387 = lt 1, v386
     v388 = eq v387, false
@@ -1281,7 +1281,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v404 = mul v402, 8
     v405 = shr v404, v403
     v406 = trunc i256 v405 to i8
-    v407 = checked_add u8, v385, v406
+    v407 = checked_add uint8, v385, v406
     v408 = zext i8 v407 to i256
     ret v408
   bb25:

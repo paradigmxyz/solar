@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_init_return.sol:ModifierInitReturn ===
 @module ModifierInitReturn
-fn @f(arg0: i256) -> ptr<memory> [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[array<5, word>], abi_return_params=[array<5, u256>]] {
+fn @f(arg0: i256) -> ptr<memory> [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[array<5, word>], abi_return_params=[array<5, uint256>]] {
   bb0:
     v0 = alloc 160 !metadata(preserves_fmp)
     memory_zero v0, 160

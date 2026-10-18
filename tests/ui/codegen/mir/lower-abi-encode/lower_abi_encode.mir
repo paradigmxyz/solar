@@ -77,7 +77,7 @@ fn @nested_dynamic_array(arg0: ptr<memory>) -> slice<memory> {
 // CHECK-NEXT: + {{v[0-9]+}} = add [[TAIL]], [[ENCODED_LEN]]
 fn @fixed_nested_dynamic_arrays(arg0: ptr<memory>) -> slice<memory> {
   bb0:
-    v0 = abi_encode [array<2, memory_array<word<u8>>>], args arg0
+    v0 = abi_encode [array<2, memory_array<word<uint8>>>], args arg0
     ret v0
 }
 

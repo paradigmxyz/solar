@@ -64,7 +64,7 @@
 +     returndata 128, v9
   }
   
-- fn @typed_address(arg0: i160, arg1: i256) -> i160 [selector=0x01020305, abi_params=[address, bool], abi_returns=[word<u160>], abi_return_params=[address]] {
+- fn @typed_address(arg0: i160, arg1: i256) -> i160 [selector=0x01020305, abi_params=[address, bool], abi_returns=[word<uint160>], abi_return_params=[address]] {
 + fn @typed_address() [selector=0x01020305, abi_wrapper] {
     bb0:
 -     ret arg0

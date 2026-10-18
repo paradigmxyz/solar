@@ -38,7 +38,7 @@ fn @storageTuple(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selec
     ret v19
 }
 
-fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, abi_params=[array<_, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     mstore v0, 96
@@ -119,7 +119,7 @@ fn @split(arg0: slice<calldata>) -> struct2 [pure] {
     ret v12
 }
 
-fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_params=[array<2, u256>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_params=[array<2, uint256>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = lt 2, 3
     v1 = eq v0, false
@@ -191,7 +191,7 @@ fn @pair(arg0: slice<calldata>) -> struct4 [pure] {
     ret v2
 }
 
-fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_params=[array<_, u256>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_params=[array<_, uint256>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1

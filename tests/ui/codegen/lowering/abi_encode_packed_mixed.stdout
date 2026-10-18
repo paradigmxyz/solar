@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_mixed.sol:AbiEncodePackedMixed ===
 @module AbiEncodePackedMixed
-fn @fixedBytesArg(arg0: i256, arg1: i160, arg2: i256) -> i256 [selector=0x795867e4, pure, abi_params=[u256, address, bytes2], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @fixedBytesArg(arg0: i256, arg1: i160, arg2: i256) -> i256 [selector=0x795867e4, pure, abi_params=[uint256, address, bytes2], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = and arg2, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_packed (u256 arg0, u160 arg1, bytes2 v0)
+    v1 = keccak256_packed (uint256 arg0, uint160 arg1, bytes2 v0)
     ret v1
 }
 
@@ -13,11 +13,11 @@ fn @dynamicArg(arg0: i256, arg1: ptr<memory>) -> i256 [selector=0xde52036d, pure
     ret v0
 }
 
-fn @materialized(arg0: i16, arg1: ptr<memory>, arg2: i1) -> ptr<memory> [selector=0x16cbcf25, pure, abi_params=[u16, bytes, bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @materialized(arg0: i16, arg1: ptr<memory>, arg2: i1) -> ptr<memory> [selector=0x16cbcf25, pure, abi_params=[uint16, bytes, bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ne arg2, false
     v1 = zext i1 v0 to i8
-    v2 = abi_encode_packed (u16 arg0, bytes arg1, u8 v1)
+    v2 = abi_encode_packed (uint16 arg0, bytes arg1, uint8 v1)
     ret v2
 }
 
@@ -30,9 +30,9 @@ fn @hashArray(arg0: ptr<memory>) -> i256 [selector=0x42233547, pure, abi_params=
     ret v3
 }
 
-fn @signedStaticRun(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0xc570e197, pure, abi_params=[u8, i16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @signedStaticRun(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0xc570e197, pure, abi_params=[uint8, int16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_packed (u8 arg0, i16 arg1, bytes3 v0)
+    v1 = keccak256_packed (uint8 arg0, int16 arg1, bytes3 v0)
     ret v1
 }

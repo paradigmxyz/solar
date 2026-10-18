@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol:Base ===
 @module Base
-fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_mul u256, 1, 100
-    v1 = checked_add u256, v0, 2
+    v0 = checked_mul uint256, 1, 100
+    v1 = checked_add uint256, v0, 2
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
@@ -19,10 +19,10 @@ fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi
     ret v2
 }
 
-fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_mul u256, 1, 100
-    v1 = checked_add u256, v0, 2
+    v0 = checked_mul uint256, 1, 100
+    v1 = checked_add uint256, v0, 2
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
@@ -34,16 +34,16 @@ fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol:Derived ===
 @module Derived
-fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_mul u256, 2, 100
-    v1 = checked_add u256, v0, 1
+    v0 = checked_mul uint256, 2, 100
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
@@ -53,10 +53,10 @@ fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi
     ret v2
 }
 
-fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_mul u256, 2, 100
-    v1 = checked_add u256, v0, 1
+    v0 = checked_mul uint256, 2, 100
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
