@@ -77,8 +77,8 @@
 //! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
-    AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, MirType, Module, PtrLocation, StorageAlias, Value, ValueId,
+    BlockId, Callee, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
+    MirType, Module, PtrLocation, StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -1335,7 +1335,7 @@ impl CommonSubexprEliminator {
                 Access::Any(AddressSpace::Immutable) => Clobber::Immutable(ClobberScope::All),
             });
         }
-        if Self::may_change_account_environment(kind) {
+        if kind.may_change_account_state() {
             clobbers.push(Clobber::AccountEnvironment);
         }
     }
@@ -1438,20 +1438,6 @@ impl CommonSubexprEliminator {
                 | ExprKey::ExtCodeHash(_)
                 | ExprKey::Balance(_)
                 | ExprKey::SelfBalance
-        )
-    }
-
-    /// STATICCALL is excluded: the whole static context forbids value transfers, `SSTORE`,
-    /// `CREATE`, and `SELFDESTRUCT`, so balances and deployed code cannot change. Its memory
-    /// clobber (the return buffer write) is represented precisely by ModRef analysis.
-    fn may_change_account_environment(kind: &InstKind) -> bool {
-        matches!(
-            kind.effect_kind(),
-            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
-        ) && !matches!(
-            kind,
-            InstKind::StaticCall { .. }
-                | InstKind::AddressCall { kind: AddressCallKind::Static, .. }
         )
     }
 
