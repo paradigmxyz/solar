@@ -38,7 +38,8 @@
 //! immutable loads and pure single-opcode computations, retaining the ordinary
 //! tiny-leaf size and lifetime-cost limits. Inlining stays at the original call
 //! site, including constructor calls; no runtime immutable bounds are assumed.
-//! Small scalar helpers with phis may also inline at their sole call site.
+//! Small helpers with phis may also inline at their sole call site, whatever their
+//! effects and calls; only scalar ones may contain a loop.
 //! Backward liveness estimates the callee's peak live words and the caller values
 //! surviving the call. Their sum must fit twelve words, leaving stack-addressing
 //! headroom for operand staging. The gas-only hot-leaf pass reuses that estimate
@@ -363,7 +364,7 @@ enum InlineMode {
 enum PeakAnalysis {
     /// No estimate; phi-carrying callees stay shared.
     None,
-    /// Bounded scalar helpers with phis, for their sole call site.
+    /// Bounded helpers with phis, for their sole call site.
     Phis,
     /// Every bounded scalar helper, for loop call sites.
     Scalars,
@@ -1309,8 +1310,25 @@ fn summarize_function(
         }
     }
 
-    if (peak == PeakAnalysis::Scalars || (peak == PeakAnalysis::Phis && summary.has_phi))
-        && summary.block_count <= 16
+    let scalar = || {
+        (!summary.has_icall
+            || (peak == PeakAnalysis::Scalars
+                && !summary.has_phi
+                && summary.return_count == 1
+                && !summary.has_returning_icall))
+            && func.instructions().all(|inst| {
+                is_terminal_call(module, &func.inst(inst).kind)
+                    || matches!(
+                        func.inst(inst).kind.effect_kind(),
+                        EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
+                    )
+            })
+    };
+    // A single-use helper's effects and calls stay at its one call site, so any loop-free body may
+    // fit the stack budget there. Loops outside the scalar class stay calls: consuming Solady's
+    // insertion sort, which swaps memory words, raised its runtime gas by up to 0.35%.
+    let single_use = || scalar() || !has_back_edge(func);
+    if summary.block_count <= 16
         && summary.instruction_count <= 112
         && summary.param_count <= 4
         && !func.params.iter().any(|ty| matches!(ty, MirType::Slice(_)))
@@ -1318,18 +1336,8 @@ fn summarize_function(
         && summary.return_count != 0
         && summary.internal_frame_size == 0
         && !summary.has_reference_return
-        && (!summary.has_icall
-            || (peak == PeakAnalysis::Scalars
-                && !summary.has_phi
-                && summary.return_count == 1
-                && !summary.has_returning_icall))
-        && func.instructions().all(|inst| {
-            is_terminal_call(module, &func.inst(inst).kind)
-                || matches!(
-                    func.inst(inst).kind.effect_kind(),
-                    EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
-                )
-        })
+        && (peak == PeakAnalysis::Scalars && scalar()
+            || peak == PeakAnalysis::Phis && summary.has_phi && single_use())
     {
         summary.phi_stack_peak = Some(scalar_stack_peak(func));
     }
