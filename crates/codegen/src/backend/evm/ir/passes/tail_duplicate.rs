@@ -8,7 +8,7 @@
 //!
 //! Only immediate pushes, physical stack operations, and position-independent computations qualify.
 //! Immutable patches and protected predecessor boundaries are excluded. Cold and loop tails stay
-//! shared, and no branches are copied, leaving loop-test duplication to loop layout. Block order
+//! shared, and no branches are copied, leaving loop placement to loop layout. Block order
 //! and existing label identities stay intact; assembly omits labels whose last reference
 //! disappears. Debug origins remain on the copied operations and never affect eligibility.
 //! Copies start beyond the one-byte address range, using an instruction-only lower bound on the
@@ -40,9 +40,11 @@ impl EvmPass for TailDuplicate {
             return false;
         }
         let target = Target::new(gcx);
+        // Bound the removed transfer by its smallest encoding: even a non-entry label can
+        // resolve to zero when the entry block falls through without emitting instructions.
         let transfer = target.push(U256::ZERO) + target.opcode(op::JUMP);
         let saved_gas = transfer.gas + target.opcode_gas(op::JUMPDEST);
-        let copied_transfer = target.opcode(op::PUSH2) + target.opcode(op::JUMP);
+        let copied_transfer = target.label_push() + target.opcode(op::JUMP);
         let mut changed = false;
         let mut prefix_bytes = 0;
         for caller in module.blocks.indices() {
@@ -55,8 +57,8 @@ impl EvmPass for TailDuplicate {
                     .sum::<usize>();
                 continue;
             }
-            let Some(TerminatorKind::Jump(callee)) =
-                block.terminator.as_ref().map(|term| term.kind.clone())
+            let Some(&TerminatorKind::Jump(callee)) =
+                block.terminator.as_ref().map(|term| &term.kind)
             else {
                 continue;
             };
@@ -89,7 +91,7 @@ impl EvmPass for TailDuplicate {
                     let bytes = if inst.is_encoded_push() {
                         target.push(inst.concrete_immediate()?).bytes
                     } else if let Some(stack) = inst.as_stack_op() {
-                        stack.assembled_len(target.evm_version())? as u32
+                        target.stack_op(stack)?.bytes
                     } else if op::is_unaffected_by_preceding_push(inst.opcode) {
                         target.opcode(inst.opcode).bytes
                     } else {
