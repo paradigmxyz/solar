@@ -42,24 +42,17 @@ impl MirPass for JumpThreading {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            JumpThreader::default().run_to_fixpoint(func) != 0
-        })
+        run_function_pass(module, analyses, |func, _| JumpThreader.run_to_fixpoint(func) != 0)
     }
 }
 
 /// Jump threading optimization pass.
-#[derive(Debug, Default)]
-struct JumpThreader {
-    /// Number of rewritten terminators in the current round.
-    threaded: usize,
-}
+struct JumpThreader;
 
 impl JumpThreader {
     /// Runs jump threading on a function.
     /// Returns the number of MIR mutations performed.
     fn run(&mut self, func: &mut Function) -> usize {
-        self.threaded = 0;
         let mut changed = 0;
 
         // Build a map of blocks that are "forwarders" - blocks that only jump unconditionally
@@ -70,8 +63,7 @@ impl JumpThreader {
             let final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
 
             // Update all terminators to use final targets
-            self.thread_jumps(func, &final_targets);
-            changed += self.threaded;
+            changed += self.thread_jumps(func, &final_targets);
         }
 
         changed += self.thread_phi_constant_edges(func);
@@ -156,32 +148,39 @@ impl JumpThreader {
         current
     }
 
-    /// Updates all terminators to use the final targets.
-    fn thread_jumps(&mut self, func: &mut Function, final_targets: &FxHashMap<BlockId, BlockId>) {
+    /// Updates all terminators to use the final targets. Returns the number of rewritten
+    /// terminators.
+    fn thread_jumps(
+        &self,
+        func: &mut Function,
+        final_targets: &FxHashMap<BlockId, BlockId>,
+    ) -> usize {
+        let mut threaded = 0;
         let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let Some(mut term) = func.blocks[block_id].terminator.clone() else {
                 continue;
             };
-            self.thread_terminator(func, &mut term, final_targets);
+            threaded += usize::from(Self::thread_terminator(func, &mut term, final_targets));
             // jump/branch/switch through forwarders -> their final targets
             replace_terminator(func, block_id, term);
         }
+        threaded
     }
 
-    /// Threads a single terminator's targets.
+    /// Threads a single terminator's targets. Returns whether any target changed.
     fn thread_terminator(
-        &mut self,
         func: &Function,
         term: &mut Terminator,
         final_targets: &FxHashMap<BlockId, BlockId>,
-    ) {
+    ) -> bool {
         match term {
             Terminator::Jump(target) => {
-                if let Some(final_target) = Self::threaded_target(func, *target, final_targets) {
-                    *target = final_target;
-                    self.threaded += 1;
-                }
+                let Some(final_target) = Self::threaded_target(func, *target, final_targets) else {
+                    return false;
+                };
+                *target = final_target;
+                true
             }
 
             Terminator::Branch { then_block, else_block, .. } => {
@@ -196,9 +195,7 @@ impl JumpThreader {
                     *else_block = final_target;
                     changed = true;
                 }
-                if changed {
-                    self.threaded += 1;
-                }
+                changed
             }
 
             Terminator::Switch { default, cases, .. } => {
@@ -214,9 +211,7 @@ impl JumpThreader {
                         changed = true;
                     }
                 }
-                if changed {
-                    self.threaded += 1;
-                }
+                changed
             }
 
             Terminator::Return { .. }
@@ -226,7 +221,7 @@ impl JumpThreader {
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }
             | Terminator::TailCall { .. }
-            | Terminator::Invalid => {}
+            | Terminator::Invalid => false,
         }
     }
 

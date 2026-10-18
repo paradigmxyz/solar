@@ -54,7 +54,7 @@ impl CallGraphInfo {
         }
 
         for (func_id, func) in module.functions.iter_enumerated() {
-            if Self::is_entry_function(func) {
+            if func.is_external_entry() {
                 entry_functions.insert(func_id);
             }
 
@@ -138,15 +138,6 @@ impl CallGraphInfo {
             callees.insert(function);
         }
         callees
-    }
-
-    /// Returns whether `func` is an external root: a selector route, constructor, fallback, or
-    /// receive function.
-    pub(crate) fn is_entry_function(func: &Function) -> bool {
-        func.selector.is_some()
-            || func.attributes.is_constructor
-            || func.attributes.is_fallback
-            || func.attributes.is_receive
     }
 
     fn reachable_from_roots_in_graph(

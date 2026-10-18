@@ -30,7 +30,7 @@
 use crate::mir::{
     BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
     Terminator, Value, ValueId,
-    analysis::{CallGraphInfo, CfgInfo},
+    analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
     utils::{replace_terminator, retain_blocks},
 };
@@ -832,10 +832,12 @@ pub(super) fn remove_unreferenced_functions(module: &mut Module, candidates: &[F
         referenced.insert(entry);
     }
     for (id, func) in module.functions.iter_enumerated() {
-        if CallGraphInfo::is_entry_function(func) {
+        if func.is_external_entry() {
             referenced.insert(id);
         }
-        referenced.union(&CallGraphInfo::collect_internal_callees(func, count));
+        for callee in direct_callees(func) {
+            referenced.insert(callee);
+        }
     }
     let mut keep = DenseBitSet::new_filled(count);
     for &candidate in candidates {

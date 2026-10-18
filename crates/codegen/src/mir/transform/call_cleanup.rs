@@ -34,9 +34,9 @@
 //! Boolean values are canonical by type, so double negation needs no call-graph proof.
 //! Raw-word return bounds require every explicit return to fit within one bit;
 //! tail calls to functions that may return and unknown recursive results remain
-//! conservative. These transient
-//! proofs remove normalization from comparisons and zero-extended results without
-//! changing raw call signatures or assuming that a Solidity boolean is clean.
+//! conservative. These transient proofs remove normalization from comparisons and
+//! zero-extended results without changing raw call signatures or assuming that a
+//! Solidity boolean is clean.
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{

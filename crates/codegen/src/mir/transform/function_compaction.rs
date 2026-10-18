@@ -26,7 +26,7 @@
 use crate::mir::{
     ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
-    analysis::{CallGraphInfo, cold_functions},
+    analysis::{cold_functions, direct_callees},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -67,8 +67,10 @@ impl MirPass for DeadArgElim {
             return prune_unused_args(module) != 0 || forwarded != 0;
         }
         let mut changed = forwarded != 0;
+        // Pruning keeps every `ret` and tail call, so the returning set holds for the loop.
+        let returning = module.returning_functions();
         loop {
-            let pruned = prune_unused_args(module) + prune_unused_returns(module);
+            let pruned = prune_unused_args(module) + prune_unused_returns(module, &returning);
             if pruned == 0 {
                 break;
             }
@@ -514,13 +516,14 @@ fn record_arg_dependencies(
 /// Scalar and struct results both have one SSA value. Legacy multi-result signatures still carry
 /// extra results through a shared buffer and remain unchanged. Preserve the memory-return flag
 /// before erasing the signature, including when a nested struct field refers to memory.
-fn prune_unused_returns(module: &mut Module) -> usize {
+fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>) -> usize {
     let mut called = DenseBitSet::new_empty(module.functions.len());
     for func in &module.functions {
-        called.union(&CallGraphInfo::collect_internal_callees(func, module.functions.len()));
+        for callee in direct_callees(func) {
+            called.insert(callee);
+        }
     }
 
-    let returning = module.returning_functions();
     let mut candidates = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
         if called.contains(func_id)
