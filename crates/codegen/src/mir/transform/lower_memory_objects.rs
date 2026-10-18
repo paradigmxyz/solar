@@ -7,6 +7,12 @@
 //! `lower-evm-shaped` later erases pointer types altogether. Unreachable blocks are removed first:
 //! their definitions need not obey SSA and can contain cast cycles.
 //!
+//! Within a block, a run of constant-size internal allocations separated only by stores into them
+//! and their address arithmetic becomes one allocation and constant offsets from it, provided
+//! every member is written, so the group pays for one free-memory-pointer bump. `coalesce-allocs`
+//! later fuses the wider groups this conservative scan leaves, once slice lowering has run. A
+//! function whose signature carries a memory reference is marked as possibly returning memory.
+//!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
 //! verifies all backend representation requirements.
@@ -14,8 +20,8 @@
 //! subsequent phase checks.
 
 use crate::mir::{
-    AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirPhase, MirType,
-    Module, PtrLocation, Value, pass::MirPass,
+    AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType, Module,
+    PtrLocation, Value, pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -47,9 +53,6 @@ impl MirPass for LowerMemoryObjects {
                     )
                     .emit(),
             );
-            return false;
-        }
-        if module.phase() == MirPhase::Lowered {
             return false;
         }
         let mut changed = false;

@@ -10,7 +10,7 @@
 
 use crate::mir::{
     Function, FunctionBuilder, InstKind, MemoryObjectLayout, Module, StorageField, StorageLayout,
-    ValueId, pass::MirPass,
+    ValueId, pass::MirPass, transform::utils::expand_block,
 };
 use solar_sema::Gcx;
 
@@ -93,43 +93,28 @@ fn lower_function(func: &mut Function) -> bool {
         return false;
     }
 
-    let blocks = func.blocks.indices();
-    for block in blocks {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
-        let (terminator, terminator_metadata) = func.blocks[block].take_terminator();
+    for block in func.blocks.indices() {
         let mut builder = FunctionBuilder::new(func);
-        builder.switch_to_block(block);
-        for inst in instructions {
+        expand_block(&mut builder, block, |builder, inst| {
             let metadata = builder.func().inst(inst).metadata.debug_context();
             builder.set_debug_context(&metadata);
             match &builder.func().inst(inst).kind {
                 InstKind::StorageToMemory { storage, memory, layout } => {
                     let (storage, memory, layout) = (*storage, *memory, layout.clone());
-                    lower_storage_to_memory(&mut builder, &layout, storage, memory);
+                    lower_storage_to_memory(builder, &layout, storage, memory);
                 }
                 InstKind::MemoryToStorage { memory, storage, layout } => {
                     let (memory, storage, layout) = (*memory, *storage, layout.clone());
-                    lower_memory_to_storage(&mut builder, &layout, memory, storage);
+                    lower_memory_to_storage(builder, &layout, memory, storage);
                 }
                 InstKind::ClearStorage { storage, layout } => {
                     let (storage, layout) = (*storage, layout.clone());
-                    lower_clear_storage(&mut builder, &layout, storage);
+                    lower_clear_storage(builder, &layout, storage);
                 }
-                _ => {
-                    let current = builder.current_block();
-                    builder.func_mut().blocks[current].instructions.push(inst);
-                    continue;
-                }
+                _ => return false,
             }
-        }
-        let current = builder.current_block();
-        // final_block: lowered_aggregate_ops; terminator !metadata(original block)
-        builder.func_mut().blocks[current].terminator = terminator;
-        builder.func_mut().blocks[current].terminator_metadata = terminator_metadata;
-        if current != block {
-            // successor: phi [block: value] -> phi [current: value]
-            super::utils::redirect_successor_predecessors(builder.func_mut(), block, current);
-        }
+            true
+        });
     }
     true
 }

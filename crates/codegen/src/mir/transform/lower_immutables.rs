@@ -4,6 +4,11 @@
 //! immutable-aware passes reason about assignments without treating the
 //! backend staging area as arbitrary memory. This pass expands assignments
 //! only after those optimizations have finished.
+//!
+//! Each assignment becomes a word store to the immutable's constructor-memory home, which the
+//! backend copies into the deployed code's placeholders. Only functions unreachable from the
+//! runtime entry, selectors, receive, and fallback are rewritten: an assignment left in runtime
+//! code stays semantic and fails the lowered-phase check rather than writing memory there.
 
 use crate::mir::{
     Callee, EffectKind, FunctionBuilder, FunctionId, InstKind, MemoryRegion, Module, PtrLocation,

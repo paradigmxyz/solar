@@ -7,6 +7,17 @@
 //! and becomes a `ptr<location>` again at its projection, so the casts cancel. SSA structs must
 //! have been lowered first; otherwise expanding a slice would invalidate the struct field's
 //! declared type.
+//!
+//! Slice-typed `select` and `phi` first split into pointer and length operations. An internal
+//! slice parameter becomes a pointer and a length word, except a calldata slice whose every caller
+//! forwards the calldata argument of an external entry or of another such parameter: that one
+//! stays a single word, the ABI head offset, and its projections read the length and data from
+//! calldata. External entries use the same head form. A returned slice whose producer is a real
+//! slice returns its pointer as the result and its length in the multi-return buffer; other slice
+//! results return one word. Each signature change shifts local frame offsets, which are checked
+//! for the whole module first, so an unrepresentable offset leaves the module unchanged.
+//! Projections of a slice that is already a memory object read its length from the object's
+//! header.
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,

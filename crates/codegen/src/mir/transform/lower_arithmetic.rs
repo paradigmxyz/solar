@@ -8,7 +8,7 @@
 use crate::mir::{
     ArithmeticKind, CheckedOp, FunctionBuilder, InstKind, MirType, Module, PanicCode, ValueId,
     pass::{MirPass, run_function_pass},
-    transform::utils::redirect_successor_predecessors,
+    transform::utils::expand_block,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -44,37 +44,25 @@ impl MirPass for LowerArithmetic {
                 {
                     continue;
                 }
-                let instructions = std::mem::take(&mut func.blocks[block].instructions);
-                let (terminator, metadata) = func.blocks[block].take_terminator();
                 let mut builder = FunctionBuilder::new(func);
-                builder.switch_to_block(block);
-                for id in instructions {
+                expand_block(&mut builder, block, |builder, id| {
                     let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } =
                         builder.func().inst(id).kind
                     else {
-                        let current = builder.current_block();
-                        builder.func_mut().blocks[current].instructions.push(id);
-                        continue;
+                        return false;
                     };
                     let context = builder.func().inst(id).metadata.debug_context();
                     builder.set_debug_context(&context);
                     // result = scalar arithmetic(lhs, rhs); check overflow/zero
-                    let result = ArithmeticLowerer { builder: &mut builder }
+                    let result = ArithmeticLowerer { builder: &mut *builder }
                         .binary(op, lhs, rhs, arithmetic);
                     let result = builder.cast(result, arithmetic.ty().mir_type());
                     replacements.insert(
                         builder.func().inst_result_value(id).expect("arithmetic result"),
                         result,
                     );
-                }
-                // continuation: remaining instructions; original terminator
-                let end = builder.current_block();
-                if let Some(terminator) = terminator {
-                    builder.func_mut().blocks[end].set_terminator(terminator, metadata);
-                }
-                if end != block {
-                    redirect_successor_predecessors(builder.func_mut(), block, end);
-                }
+                    true
+                });
             }
             func.replace_uses_canonicalized(&replacements);
             true

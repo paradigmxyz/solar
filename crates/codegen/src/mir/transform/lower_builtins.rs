@@ -15,6 +15,7 @@ use crate::mir::{
     AddressCallKind, AllocationSemantics, Builtin, Callee, FunctionBuilder, InstKind,
     MemoryObjectKind, Module, PanicCode, PtrLocation, ValueId,
     pass::{MirPass, run_function_pass},
+    transform::utils::expand_block,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -93,15 +94,10 @@ impl MirPass for LowerBuiltins {
                 {
                     continue;
                 }
-                let instructions = std::mem::take(&mut func.blocks[block].instructions);
-                let (terminator, metadata) = func.blocks[block].take_terminator();
                 let mut builder = FunctionBuilder::new(func);
-                builder.switch_to_block(block);
-                for id in instructions {
+                expand_block(&mut builder, block, |builder, id| {
                     if !is_builtin(&builder.func().inst(id).kind) {
-                        let current = builder.current_block();
-                        builder.func_mut().blocks[current].instructions.push(id);
-                        continue;
+                        return false;
                     }
                     let inst = builder.func().inst(id).clone();
                     builder.set_debug_context(&inst.metadata);
@@ -112,30 +108,30 @@ impl MirPass for LowerBuiltins {
                             };
                             // success = send(address, amount)
                             // if !success { revert_returndata }
-                            let success = lower_send(&mut builder, address, amount);
+                            let success = lower_send(builder, address, amount);
                             let revert = builder.create_block();
                             let continuation = builder.create_block();
                             builder.branch(success, continuation, revert);
                             builder.switch_to_block(revert);
                             builder.revert_returndata();
                             builder.switch_to_block(continuation);
-                            continue;
+                            return true;
                         }
                         InstKind::ValidateStorageBytes(header) => {
                             // validate_storage_bytes(header) -> encoding predicate; panic if
                             // invalid
-                            super::lower_storage_bytes::validate(&mut builder, header);
-                            continue;
+                            super::lower_storage_bytes::validate(builder, header);
+                            return true;
                         }
                         InstKind::StorageBytesStore(slot, object) => {
                             // validate header; clear old tail; write header and data
                             super::lower_storage_bytes::store(
-                                &mut builder,
+                                builder,
                                 slot,
                                 object,
                                 clear_helper.expect("storage store requires a clear helper"),
                             );
-                            continue;
+                            return true;
                         }
                         InstKind::StorageBytesStoreLiteral { slot, bytes } => {
                             // header = sload(slot)
@@ -143,31 +139,31 @@ impl MirPass for LowerBuiltins {
                             if let Some(&helper) = literal_helpers.get(&bytes) {
                                 // icall store_literal, slot, header
                                 builder.icall_void(helper, vec![slot, header]);
-                                continue;
+                                return true;
                             }
                             // validate header; clear old tail; store literal header and data
                             super::lower_storage_bytes::store_literal(
-                                &mut builder,
+                                builder,
                                 slot,
                                 header,
                                 &bytes,
                                 clear_helper
                                     .expect("literal storage store requires a clear helper"),
                             );
-                            continue;
+                            return true;
                         }
                         InstKind::StorageClearWords(slot, first, end) => {
                             // for index in first..end { sstore(storage_array_data_slot(slot) +
                             // index, 0) }
-                            super::lower_storage_bytes::clear_words(&mut builder, slot, first, end);
-                            continue;
+                            super::lower_storage_bytes::clear_words(builder, slot, first, end);
+                            return true;
                         }
                         _ => {}
                     }
                     // builtin(args) -> buffer setup; copies or precompile call; result
                     let result = match inst.kind {
                         InstKind::AbiEncodePacked { parts, hash } => {
-                            super::lower_packed::lower_packed(&mut builder, parts, hash)
+                            super::lower_packed::lower_packed(builder, parts, hash)
                         }
                         InstKind::ICall {
                             function:
@@ -190,7 +186,7 @@ impl MirPass for LowerBuiltins {
                         }
                         InstKind::StorageArrayLoad { slot, element, enum_variants } => {
                             super::lower_storage_arrays::load(
-                                &mut builder,
+                                builder,
                                 slot,
                                 element,
                                 enum_variants,
@@ -198,13 +194,13 @@ impl MirPass for LowerBuiltins {
                             )
                         }
                         InstKind::StorageBytesLoad(slot) => super::lower_storage_bytes::load(
-                            &mut builder,
+                            builder,
                             slot,
                             gcx.sess.opts.optimization.is_size(),
                         ),
                         InstKind::AddressCall { kind, address, input, gas, value } => {
                             lower_address_call(
-                                &mut builder,
+                                builder,
                                 gcx.sess.opts.evm_version,
                                 kind,
                                 address,
@@ -216,36 +212,36 @@ impl MirPass for LowerBuiltins {
                         InstKind::ICall {
                             function: Callee::Builtin(Builtin::ReturndataBytes),
                             ..
-                        } => lower_returndata(&mut builder, gcx.sess.opts.evm_version),
+                        } => lower_returndata(builder, gcx.sess.opts.evm_version),
                         InstKind::ICall { function: Callee::Builtin(Builtin::Send), args } => {
                             let [address, amount] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
                             };
-                            lower_send(&mut builder, address, amount)
+                            lower_send(builder, address, amount)
                         }
                         InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), args } => {
                             let [input] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
                             };
-                            lower_erc7201(&mut builder, input)
+                            lower_erc7201(builder, input)
                         }
                         InstKind::ICall { function: Callee::Builtin(Builtin::Sha256), args } => {
                             let [input] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
                             };
-                            lower_hash(&mut builder, gcx.sess.opts.evm_version, input, false)
+                            lower_hash(builder, gcx.sess.opts.evm_version, input, false)
                         }
                         InstKind::ICall { function: Callee::Builtin(Builtin::Ripemd160), args } => {
                             let [input] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
                             };
-                            lower_hash(&mut builder, gcx.sess.opts.evm_version, input, true)
+                            lower_hash(builder, gcx.sess.opts.evm_version, input, true)
                         }
                         InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), args } => {
                             let [hash, v, r, s] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
                             };
-                            lower_ecrecover(&mut builder, gcx.sess.opts.evm_version, hash, v, r, s)
+                            lower_ecrecover(builder, gcx.sess.opts.evm_version, hash, v, r, s)
                         }
                         _ => unreachable!("builtin checked above"),
                     };
@@ -255,15 +251,8 @@ impl MirPass for LowerBuiltins {
                     let result =
                         builder.cast(result, builder.func().value_ty(old).expect("typed builtin"));
                     replacements.insert(old, result);
-                }
-                // continuation: remaining instructions; original terminator
-                let end = builder.current_block();
-                if let Some(terminator) = terminator {
-                    builder.func_mut().blocks[end].set_terminator(terminator, metadata);
-                }
-                if end != block {
-                    super::utils::redirect_successor_predecessors(builder.func_mut(), block, end);
-                }
+                    true
+                });
             }
             func.replace_uses_canonicalized(&replacements);
             true
