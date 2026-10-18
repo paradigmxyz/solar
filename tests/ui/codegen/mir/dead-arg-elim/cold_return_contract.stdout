@@ -1,0 +1,27 @@
+- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/cold_return_contract.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/cold_return_contract.mir (after dead-arg-elim) ===
+  @module ColdReturnContract
+  fn @abort() {
+    bb0:
+      revert 0, 0
+  }
+  
+  fn @cold() -> i256 {
+    bb0:
+      icall @abort
+      ret 7
+  }
+  
+  fn @forward() -> i256 {
+    bb0:
+      tail_call @cold
+  }
+  
+  fn @entry() [selector=0x01020304] {
+    bb0:
+      v0 = icall @forward
+      v1 = icall @cold
+      mstore 0, v1
+      ret
+  }
+  

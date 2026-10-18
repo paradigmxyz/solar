@@ -520,7 +520,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
         called.union(&CallGraphInfo::collect_internal_callees(func, module.functions.len()));
     }
 
-    let cold = cold_functions(module);
+    let returning = module.returning_functions();
     let mut candidates = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
         if called.contains(func_id)
@@ -562,9 +562,11 @@ fn prune_unused_returns(module: &mut Module) -> usize {
                 }
             }
             for block in &caller.blocks {
-                // A tail call to a function that never returns delivers no result.
+                // A tail call to a function that reaches no `ret` delivers no result, so the
+                // validator checks no result arity for it. A cold callee that still reaches a
+                // `ret`, such as one that calls an aborting helper first, keeps the contract.
                 if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && !cold.contains(*function)
+                    && returning.contains(*function)
                 {
                     if candidates.contains(*function)
                         && !live.contains(*function)
