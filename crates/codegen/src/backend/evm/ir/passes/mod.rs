@@ -182,7 +182,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(dce::Dce),
     &late_structural::LateStructural,
     &peephole::Peephole::FINAL,
-    &inline_returns::InlineReturns,
+    &peephole::Cleanup(inline_returns::InlineReturns),
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
