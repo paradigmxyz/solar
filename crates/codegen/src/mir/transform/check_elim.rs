@@ -17,8 +17,9 @@
 //! The pass walks the dominator tree. On entry to a block with a unique
 //! predecessor ending in a two-way branch, it records what the branch
 //! condition implies on that edge: value ranges refined by constants
-//! (`x < C` => `x` in `[0, C-1]`) and relational predicates between SSA
-//! values (`!(a < b)` => `b <= a`). Facts attach to SSA values, which are
+//! (`x < C` => `x` in `[0, C-1]`, and `x >> k == 0` => `x` in `[0, 2^k - 1]`)
+//! and relational predicates between SSA values (`!(a < b)` => `b <= a`).
+//! Facts attach to SSA values, which are
 //! never redefined, so a fact derived on a dominating edge holds in every
 //! dominated block. Branch conditions are then evaluated against the
 //! recorded facts with checked 256-bit arithmetic; a condition that is
@@ -1105,6 +1106,19 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Or(a, b) if !truth => {
                 self.assume(func, a, false, depth);
                 self.assume(func, b, false, depth);
+            }
+            // `x >> k` is zero iff `x < 2^k`, the range test word-sequence prefers.
+            InstKind::Shr(shift, x)
+                if let Some(shift) = const_of(func, shift)
+                    && shift > U256::ZERO
+                    && shift < U256::from(256) =>
+            {
+                let bound = U256::from(1) << shift.to::<usize>();
+                if truth {
+                    self.narrow(x, Range::new(bound, U256::MAX));
+                } else {
+                    self.narrow(x, Range::new(U256::ZERO, bound - U256::from(1)));
+                }
             }
             _ => {}
         }
