@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedConstantStore ===
 @module OutlinedConstantStore
-fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 128, 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     v0 = and arg0, 128
@@ -9,7 +9,7 @@ fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi
     ret v1
 }
 
-fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 128, 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     v0 = and arg0, 160
@@ -20,7 +20,7 @@ fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, pure, abi_params=[u256], ab
 
 // === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedNarrowing ===
 @module OutlinedNarrowing
-fn @narrow8(arg0: i256) -> i8 [selector=0x2da3006c, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @narrow8(arg0: i256) -> i8 [selector=0x2da3006c, pure, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = gt arg0, 255
     v1 = eq v0, false
@@ -35,7 +35,7 @@ fn @narrow8(arg0: i256) -> i8 [selector=0x2da3006c, pure, abi_params=[u256], abi
     ret v5
 }
 
-fn @narrow32(arg0: i256) -> i32 [selector=0xb5be099a, pure, abi_params=[u256], abi_returns=[word<u32>], abi_return_params=[u32]] {
+fn @narrow32(arg0: i256) -> i32 [selector=0xb5be099a, pure, abi_params=[uint256], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
   bb0:
     v0 = gt arg0, 0xffffffff
     v1 = eq v0, false
@@ -50,7 +50,7 @@ fn @narrow32(arg0: i256) -> i32 [selector=0xb5be099a, pure, abi_params=[u256], a
     ret v5
 }
 
-fn @narrow128(arg0: i256) -> i128 [selector=0x9646654f, pure, abi_params=[u256], abi_returns=[word<u128>], abi_return_params=[u128]] {
+fn @narrow128(arg0: i256) -> i128 [selector=0x9646654f, pure, abi_params=[uint256], abi_returns=[word<uint128>], abi_return_params=[uint128]] {
   bb0:
     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
     v1 = eq v0, false

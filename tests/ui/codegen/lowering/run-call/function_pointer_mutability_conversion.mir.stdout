@@ -3,17 +3,17 @@
 @types
   struct0: {i256, i256}
 
-fn @externalDefaultTarget() -> i256 [selector=0x7660b402, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalDefaultTarget() -> i256 [selector=0x7660b402, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 11
 }
 
-fn @externalViewTarget() -> i256 [selector=0xbfbc85ef, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalViewTarget() -> i256 [selector=0xbfbc85ef, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 12
 }
 
-fn @externalPureTarget() -> i256 [selector=0xf620336b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalPureTarget() -> i256 [selector=0xf620336b, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 13
 }
@@ -28,7 +28,7 @@ fn @internalPureTarget() -> i256 [pure] {
     ret 23
 }
 
-fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32
     v1 = address
@@ -92,7 +92,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v93 = shr v92, v91
     v94 = trunc i256 v93 to i64
     v95 = zext i64 v94 to i256
-    v96 = icall @internal_dispatcher_p_none_r_u256, v95
+    v96 = icall @internal_dispatcher_p_none_r_uint256, v95
     v97 = insert_value struct0, undef struct0, 0, v84
     v98 = insert_value struct0, v97, 1, v96
     ret v98
@@ -169,7 +169,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     jump bb1
 }
 
-fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32
     v1 = address
@@ -233,7 +233,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v93 = shr v92, v91
     v94 = trunc i256 v93 to i64
     v95 = zext i64 v94 to i256
-    v96 = icall @internal_dispatcher_p_none_r_u256, v95
+    v96 = icall @internal_dispatcher_p_none_r_uint256, v95
     v97 = insert_value struct0, undef struct0, 0, v84
     v98 = insert_value struct0, v97, 1, v96
     ret v98
@@ -310,7 +310,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     jump bb1
 }
 
-fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32
     v1 = address
@@ -374,7 +374,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v93 = shr v92, v91
     v94 = trunc i256 v93 to i64
     v95 = zext i64 v94 to i256
-    v96 = icall @internal_dispatcher_p_none_r_u256, v95
+    v96 = icall @internal_dispatcher_p_none_r_uint256, v95
     v97 = insert_value struct0, undef struct0, 0, v84
     v98 = insert_value struct0, v97, 1, v96
     ret v98
@@ -451,7 +451,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     jump bb1
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2

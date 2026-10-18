@@ -4,7 +4,7 @@
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
 
-fn @tuple(arg0: i256, arg1: i256) -> struct0 [selector=0x420f3440, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @tuple(arg0: i256, arg1: i256) -> struct0 [selector=0x420f3440, abi_params=[uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     icall @forwardTuple, arg0, arg1
     icall @forwardTuple, arg1, arg0
@@ -37,14 +37,14 @@ fn @tupleSink(arg0: i256, arg1: i256, arg2: i256) {
     ret
 }
 
-fn @once(arg0: i256, arg1: i256) -> i256 [selector=0x4c579d9d, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @once(arg0: i256, arg1: i256) -> i256 [selector=0x4c579d9d, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @forward, arg0, arg1
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @twice(arg0: i256, arg1: i256) -> i256 [selector=0x09d3ef31, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @twice(arg0: i256, arg1: i256) -> i256 [selector=0x09d3ef31, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @forward, arg0, arg1
     icall @forward, arg1, arg0
@@ -83,17 +83,17 @@ fn @sink(arg0: i256, arg1: i256, arg2: i256) {
     v5 = eq v4, false
     icall revert_if<empty>, v5
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = checked_mul u256, v6, 0x3e8
-    v8 = checked_mul u256, arg0, 100
-    v9 = checked_add u256, v7, v8
-    v10 = checked_mul u256, arg1, 10
-    v11 = checked_add u256, v9, v10
-    v12 = checked_add u256, v11, arg2
+    v7 = checked_mul uint256, v6, 0x3e8
+    v8 = checked_mul uint256, arg0, 100
+    v9 = checked_add uint256, v7, v8
+    v10 = checked_mul uint256, arg1, 10
+    v11 = checked_add uint256, v9, v10
+    v12 = checked_add uint256, v11, arg2
     sstore 0, v12 !metadata(storage=slot(0))
     ret
 }
 
-fn @zero(arg0: i256) -> i256 [selector=0xe0353e59, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @zero(arg0: i256) -> i256 [selector=0xe0353e59, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @zeroForward, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -121,19 +121,19 @@ fn @finish() {
     jump bb2
   bb2:
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = checked_add u256, v6, 6
+    v7 = checked_add uint256, v6, 6
     sstore 0, v7 !metadata(storage=slot(0))
     ret
   bb4:
-    v2 = checked_add u256, v0, 1
+    v2 = checked_add uint256, v0, 1
     v3 = sload 0 !metadata(storage=slot(0))
-    v4 = checked_add u256, v3, v2
+    v4 = checked_add uint256, v3, v2
     sstore 0, v4 !metadata(storage=slot(0))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v5 = checked_add u256, v0, 1
+    v5 = checked_add uint256, v0, 1
     jump bb1
 }
 
@@ -161,22 +161,22 @@ fn @toggleQuiet(arg0: i256) {
     ret
 }
 
-fn @toggleLoud(arg0: i256) -> i1 [selector=0x8131966e, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @toggleLoud(arg0: i256) -> i1 [selector=0x8131966e, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @toggleBit, 0, arg0
     ret v0
 }
 
-fn @callQuiet(arg0: i256) -> i256 [selector=0x240caa21, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @callQuiet(arg0: i256) -> i256 [selector=0x240caa21, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @quietTwice, arg0
     ret v0
 }
 
-fn @quietTwice(arg0: i256) -> i256 [selector=0xf4c54f25, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @quietTwice(arg0: i256) -> i256 [selector=0xf4c54f25, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @toggleQuiet, arg0
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     icall @toggleQuiet, v0
     v1 = shr 8, arg0
     v2 = mapping_slot v1, 3
@@ -184,7 +184,7 @@ fn @quietTwice(arg0: i256) -> i256 [selector=0xf4c54f25, abi_params=[u256], abi_
     ret v3
 }
 
-fn @recurse(arg0: i256) -> i256 [selector=0xb2041d21, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recurse(arg0: i256) -> i256 [selector=0xb2041d21, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @recursive, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -194,21 +194,21 @@ fn @recurse(arg0: i256) -> i256 [selector=0xb2041d21, abi_params=[u256], abi_ret
 fn @recursive(arg0: i256) {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, arg0
+    v1 = checked_add uint256, v0, arg0
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = ne arg0, 0
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v3 = checked_sub u256, arg0, 1
+    v3 = checked_sub uint256, arg0, 1
     icall @recursive, v3
     jump bb3
   bb3:
     ret
 }
 
-fn @recursePair(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x6920ce60, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @recursePair(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x6920ce60, abi_params=[uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     icall @recursivePair, arg0, arg1, arg2
     v0 = sload 0 !metadata(storage=slot(0))
@@ -223,8 +223,8 @@ fn @recursivePair(arg0: i256, arg1: i256, arg2: i256) {
     v0 = eq arg2, 0
     jumpi v0, bb1, bb2
   bb2:
-    v1 = checked_add u256, arg0, 1
-    v2 = checked_sub u256, arg2, 1
+    v1 = checked_add uint256, arg0, 1
+    v2 = checked_sub uint256, arg2, 1
     icall @recursivePair, arg1, v1, v2
     jump bb3
   bb1:
@@ -235,7 +235,7 @@ fn @recursivePair(arg0: i256, arg1: i256, arg2: i256) {
     ret
 }
 
-fn @recurseYul(arg0: i256) -> i256 [selector=0xdcf2147e, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recurseYul(arg0: i256) -> i256 [selector=0xdcf2147e, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @recursiveYul, arg0
     v0 = sload 0 !metadata(storage=slot(0))

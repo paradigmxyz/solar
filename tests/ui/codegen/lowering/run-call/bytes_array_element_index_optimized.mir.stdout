@@ -37,7 +37,7 @@ fn @build() -> ptr<memory> [pure] {
     jump bb1
 }
 
-fn @sumSecond() -> i256 [selector=0xee09deba, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @sumSecond() -> i256 [selector=0xee09deba, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @build
     v1 = icall @sumElement1, v0
@@ -76,12 +76,12 @@ fn @sumElement1(arg0: ptr<memory>) -> i256 [pure] {
     v23 = shl 248, v22
     v24 = shr 248, v23
     v25 = trunc i256 v24 to i8
-    v26 = checked_add u8, v12, v25
+    v26 = checked_add uint8, v12, v25
     v27 = zext i8 v26 to i256
     ret v27
 }
 
-fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @build
     v1 = lt 0, 2

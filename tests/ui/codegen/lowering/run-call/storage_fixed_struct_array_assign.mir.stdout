@@ -37,7 +37,7 @@ fn @read(arg0: i256) -> struct0 [view] {
     ret v7
 }
 
-fn @testDynamicIndex() -> struct0 [selector=0x8fa50415, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @testDynamicIndex() -> struct0 [selector=0x8fa50415, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = icall @read, 3
     v1 = extract_value struct0, v0, 0
@@ -49,7 +49,7 @@ fn @testDynamicIndex() -> struct0 [selector=0x8fa50415, view, abi_params=[], abi
     ret v6
 }
 
-fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = lt 3, 4
     v1 = eq v0, false
@@ -76,7 +76,7 @@ fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_retu
     ret v17
 }
 
-fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 96
     mstore v0, 1
@@ -85,7 +85,7 @@ fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns
     v2 = ptradd v0, 64
     mstore v2, 1
     v3 = sload 24 !metadata(storage=slot(24))
-    v4 = checked_add u256, v3, 1
+    v4 = checked_add uint256, v3, 1
     v5 = lt v4, 4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
@@ -116,7 +116,7 @@ fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns
     ret v27
 }
 
-fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 24 !metadata(storage=slot(24))
     v1 = lt v0, 2

@@ -175,14 +175,14 @@ class MiningTests(unittest.TestCase):
 
     def test_function_local_ids_and_frequency(self):
         report = self.mine_source("""@module M
-fn @first(arg0: u256, arg1: u256) {
+fn @first(arg0: i256, arg1: i256) {
   bb0:
     v0 = or arg0, arg1
     v1 = and arg0, arg1
     v2 = sub v0, v1
     ret v2
 }
-fn @second(arg0: u256, arg1: u256) {
+fn @second(arg0: i256, arg1: i256) {
   bb0:
     v10 = or arg0, arg1
     v11 = and arg0, arg1
@@ -198,7 +198,7 @@ fn @second(arg0: u256, arg1: u256) {
         self.assertEqual(len(report["sources"][0]["sha256"]), 64)
 
     def test_boundaries_and_shared_producers(self):
-        template = """fn @f(arg0: u256, arg1: u256) {
+        template = """fn @f(arg0: i256, arg1: i256) {
   bb0:
     v0 = not arg0
 %s
@@ -219,7 +219,7 @@ fn @second(arg0: u256, arg1: u256) {
         self.assertEqual(report["candidates"], [])
 
     def test_mined_seed_is_proved_before_emission(self):
-        report = self.mine_source("""fn @f(arg0: u256) {
+        report = self.mine_source("""fn @f(arg0: i256) {
   bb0:
     v0 = not arg0
     v1 = not v0
@@ -245,7 +245,7 @@ fn @second(arg0: u256, arg1: u256) {
         self.assertEqual(rules[0][1], Expr.var("x"))
 
     def test_subtree_abstraction_exposes_dynamic_masks(self):
-        source = """fn @mask(arg0: u256) {
+        source = """fn @mask(arg0: i256) {
   bb0:
     v0 = sub 32, arg0
     v1 = shl 3, v0

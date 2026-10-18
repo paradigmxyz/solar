@@ -1,6 +1,6 @@
 error: immutable `invalid` cannot use type `void`
 
-error: [fn0] inst0 stores `slice<memory>` value into immutable `narrow` of type `u8`
+error: [fn0] inst0 stores `slice<memory>` value into immutable `narrow` of type `uint8`
 
 error: [fn0] non-word type `slice<memory>` survives the `lowered` phase boundary
 

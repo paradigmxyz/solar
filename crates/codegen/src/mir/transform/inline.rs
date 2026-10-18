@@ -1589,12 +1589,6 @@ fn estimate_inst_cost(
             op::SWAP1,
         ])
         .plus(seq(&[op::CALLDATALOAD, op::DUP1, op::MSTORE]).times(layout.types.len() as u32)),
-        InstKind::StorageToMemory { layout, .. } => seq(&[op::SLOAD, op::MSTORE])
-            .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX)),
-        InstKind::MemoryToStorage { layout, .. } | InstKind::ClearStorage { layout, .. } => {
-            seq(&[op::MLOAD, op::SSTORE])
-                .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX))
-        }
         // A pushed offset into the immutables area and the store.
         InstKind::StoreImmutable(..) => seq(&[op::PUSH2, op::MSTORE]),
         InstKind::DataCopy(..) => seq(&[op::CODECOPY]),
