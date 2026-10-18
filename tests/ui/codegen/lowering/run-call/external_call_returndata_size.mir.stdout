@@ -91,12 +91,12 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0x26121ff0
     v12 = mload 64 !metadata(memory=scratch)
     v13 = and v11, 0xffffffff
-    v14 = shl 224, v13
-    v15 = shr 32, v11
+    v14 = shl v13, 224
+    v15 = shr v11, 32
     v16 = gas
     v17 = abi_encode [], selector v14
     v18 = extract_value slice<memory>, v17, 0
@@ -185,12 +185,12 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0x26121ff0
     v12 = mload 64 !metadata(memory=scratch)
     v13 = and v11, 0xffffffff
-    v14 = shl 224, v13
-    v15 = shr 32, v11
+    v14 = shl v13, 224
+    v15 = shr v11, 32
     v16 = gas
     v17 = abi_encode [], selector v14
     v18 = extract_value slice<memory>, v17, 0
@@ -280,11 +280,11 @@ fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0x26121ff0
     v12 = and v11, 0xffffffff
-    v13 = shl 224, v12
-    v14 = shr 32, v11
+    v13 = shl v12, 224
+    v14 = shr v11, 32
     v15 = gas
     v16 = abi_encode [], selector v13
     v17 = extract_value slice<memory>, v16, 0
@@ -365,11 +365,11 @@ fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0x26121ff0
     v12 = and v11, 0xffffffff
-    v13 = shl 224, v12
-    v14 = shr 32, v11
+    v13 = shl v12, 224
+    v14 = shr v11, 32
     v15 = gas
     v16 = abi_encode [], selector v13
     v17 = extract_value slice<memory>, v16, 0

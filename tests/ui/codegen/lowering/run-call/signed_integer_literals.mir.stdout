@@ -27,13 +27,13 @@ fn @mixedDivision() -> i256 [selector=0x3f885fe0, pure, abi_params=[], abi_retur
 
 fn @rightShift(arg0: i256) -> i256 [selector=0xd0ba8aa1, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = sar arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0
+    v0 = sar 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0, arg0
     ret v0
 }
 
 fn @leftShift(arg0: i256) -> i256 [selector=0xc96a98f8, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = shl arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v0 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
     ret v0
 }
 
@@ -71,7 +71,7 @@ fn @largePositiveDivision() -> i256 [selector=0x01ad88db, pure, abi_params=[], a
 
 fn @largePositiveRightShift(arg0: i256) -> i256 [selector=0xba4becb8, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = shr arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v0 = shr 0x8000000000000000000000000000000000000000000000000000000000000000, arg0
     ret v0
 }
 

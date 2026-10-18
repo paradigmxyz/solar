@@ -1546,9 +1546,9 @@ impl LowerAbiCx {
                         *value = Some(replacement);
                     }
                     if matches!(abi_ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function)) {
-                        // value = shr 64, value
+                        // value = shr value, 64
                         let shift = builder.imm(64);
-                        replacement = builder.shr(shift, replacement);
+                        replacement = builder.shr(replacement, shift);
                     }
                     for &use_value in
                         arg_uses.get(crate::mir::ArgIdx::new(logical)).into_iter().flatten()
@@ -2496,7 +2496,7 @@ impl LowerAbiCx {
         let remaining = builder.sub(input_end, data);
         let max_len = if element_head_size == 32 {
             let shift = builder.imm(5);
-            builder.shr(shift, remaining)
+            builder.shr(remaining, shift)
         } else {
             let element_head_size = builder.imm(element_head_size);
             builder.div(remaining, element_head_size)
@@ -3243,7 +3243,7 @@ impl LowerAbiCx {
     ) -> ValueId {
         if matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function)) {
             let shift = builder.imm(64);
-            builder.shr(shift, value)
+            builder.shr(value, shift)
         } else {
             value
         }
@@ -3256,7 +3256,7 @@ impl LowerAbiCx {
     ) -> ValueId {
         if matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function)) {
             let shift = builder.imm(64);
-            return builder.shl(shift, value);
+            return builder.shl(value, shift);
         }
         value
     }

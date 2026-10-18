@@ -33,7 +33,7 @@
 //! ```text
 //! check:
 //!   state = phi [preheader: start]
-//!   jumpi (ne (and (shr t, (sub n, i)), 1), 0), body_a, enter
+//!   jumpi (ne (and (shr (sub n, i), t), 1), 0), body_a, enter
 //! body_a: peeled copy; jump enter
 //! enter: state_0 = phi [check: state], [latch_a: next_a]; jump header
 //! header: state = phi [enter: state_0], [latch_b: next_b]
@@ -1202,7 +1202,7 @@ fn addend(func: &Function, sum: ValueId, start: ValueId) -> Option<ValueId> {
     }
 }
 
-/// `m` when `value` is `shl bits, m`.
+/// `m` when `value` is `shl m, bits`.
 fn shifted_left(func: &Function, value: ValueId, bits: usize) -> Option<ValueId> {
     let &InstKind::Shl(count, shifted) = inst_kind(func, value)? else { return None };
     (func.value_u256(count) == Some(U256::from(bits))).then_some(shifted)
@@ -1332,8 +1332,8 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     let (entry, main_header) = if let MainTest::Parity = unroll.main_test {
         // check: state' = phi [preheader: start]
         //        left = sub bound, word' | word' when bound = 0 | d when bound = add start, d
-        //        jumpi (ne (and (shr zeros(step), left), 1), 0), body', header
-        //        jumpi (ne (and m, 1), 0), body', header   when left = shl zeros(step), m
+        //        jumpi (ne (and (shr left, zeros(step)), 1), 0), body', header
+        //        jumpi (ne (and m, 1), 0), body', header   when left = shl m, zeros(step)
         let check = first.blocks[&unroll.header];
         let word = first.value(unroll.word);
         // Against a zero bound, `0 - i` and `i` agree at bit `t` whenever `i` is a multiple of

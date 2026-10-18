@@ -18,7 +18,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
     mstore v16, v17
     v19 = add v40, 32
     v20 = mload v19
-    v21 = shr 160, v20
+    v21 = shr v20, 160
     v22 = eq v21, 0
     jumpi v22, bb3, bb1
   bb3:
@@ -67,7 +67,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     mstore v121, v28
     v29 = add v20, 32
     v30 = mload v29
-    v31 = shr 160, v30
+    v31 = shr v30, 160
     v32 = eq v31, 0
     jumpi v32, bb4, bb1
   bb4:
@@ -210,8 +210,8 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     v18 = eq v17, 0
     jumpi v18, bb4, bb5
   bb5:
-    v19 = shl 5, v17
-    v21 = shr 5, v19
+    v19 = shl v17, 5
+    v21 = shr v19, 5
     v25 = ne v21, v17
     jumpi v25, bb4, bb6
   bb6:
@@ -221,7 +221,7 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     jumpi v30, bb7, bb4
   bb7:
     v34 = sub v5, v10
-    v35 = shr 5, v34
+    v35 = shr v34, 5
     v36 = gt v15, v35
     jumpi v36, bb1, bb8
   bb8:
@@ -238,7 +238,7 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     returndata 128, 32
   bb10:
     v41 = icall @decode_memory_type, v38, v10, v5
-    v42 = shl 5, v39
+    v42 = shl v39, 5
     v57 = add v62, v42
     v58 = add v57, 32
     mstore v58, v41
@@ -343,20 +343,20 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     v43 = eq v42, 0
     jumpi v43, bb4, bb8
   bb8:
-    v44 = shl 5, v42
-    v46 = shr 5, v44
+    v44 = shl v42, 5
+    v46 = shr v44, 5
     v50 = ne v46, v42
     jumpi v50, bb4, bb9
   bb9:
     v83 = icall @alloc, v44
     mstore v83, v40
-    v52 = shl 5, v40
-    v54 = shr 5, v52
+    v52 = shl v40, 5
+    v54 = shr v52, 5
     v58 = ne v54, v40
     jumpi v58, bb4, bb10
   bb10:
     v59 = sub arg2, v35
-    v60 = shr 5, v59
+    v60 = shr v59, 5
     v61 = gt v40, v60
     jumpi v61, bb1, bb11
   bb11:
@@ -384,7 +384,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     switch v7, default bb1, [0x6644232b => bb3, 0xaca542ca => bb4, 0xc298c02b => bb5, 0xfc7ec666 => bb6]
   bb6:
     tail_call @dNested

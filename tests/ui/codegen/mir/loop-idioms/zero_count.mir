@@ -23,7 +23,7 @@ fn @count_zero(arg0: i256) -> i256 {
     v5 = add v4, v1
     v6 = mload v5
     v7 = byte 0, v6
-    v8 = shl 248, v7
+    v8 = shl v7, 248
     v14 = ne v8, 0
     jumpi v14, bb5, bb3
   bb3:

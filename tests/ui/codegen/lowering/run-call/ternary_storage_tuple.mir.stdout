@@ -268,7 +268,7 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     v41 = insert_value struct0, v40, 1, v39
     ret v41
   bb18:
-    v31 = shl 5, v29
+    v31 = shl v29, 5
     v32 = ptradd v20, v31
     v33 = ptradd v32, 32
     v34 = mload v33
@@ -284,7 +284,7 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     v28 = add v24, 1
     jump bb14
   bb10:
-    v13 = shl 5, v11
+    v13 = shl v11, 5
     v14 = ptradd v2, v13
     v15 = ptradd v14, 32
     v16 = mload v15
@@ -415,7 +415,7 @@ fn @assignMixed(arg0: i1) -> struct0 [selector=0xe3f7893c, abi_params=[bool], ab
     v23 = insert_value struct0, v22, 1, v21
     ret v23
   bb10:
-    v13 = shl 5, v11
+    v13 = shl v11, 5
     v14 = ptradd v2, v13
     v15 = ptradd v14, 32
     v16 = mload v15

@@ -82,8 +82,8 @@ fn @viewCall() -> i256 [selector=0x33fd44fa, view, abi_params=[], abi_returns=[w
 fn @pointer() -> i256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and 0, 0xffffffff
-    v1 = shl 224, v0
-    v2 = shr 32, 0
+    v1 = shl v0, 224
+    v2 = shr 0, 32
     v3 = fmp
     v4 = ptrtoint ptr<memory> v3 to i256
     v5 = add v4, 32
@@ -158,8 +158,8 @@ fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[], abi_re
 fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = and 0, 0xffffffff
-    v1 = shl 224, v0
-    v2 = shr 32, 0
+    v1 = shl v0, 224
+    v2 = shr 0, 32
     v3 = abi_encode [], selector v1
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1

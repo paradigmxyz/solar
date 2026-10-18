@@ -308,11 +308,11 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0x7271bb2c
     v12 = and v11, 0xffffffff
-    v13 = shl 224, v12
-    v14 = shr 32, v11
+    v13 = shl v12, 224
+    v14 = shr v11, 32
     v15 = fmp
     v16 = ptrtoint ptr<memory> v15 to i256
     v17 = add v16, 32

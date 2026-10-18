@@ -172,7 +172,7 @@ fn fuse(
         }
     }
 
-    // %result = shr(256 - 8 * run, %lowest_word)
+    // %result = shr %lowest_word, 256 - 8 * run
     let amount = 256 - 8 * run as u64;
     let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(amount))));
     let word = leaves[0].word;

@@ -37,7 +37,7 @@ fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns
     v25 = lt v22, v24
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    v27 = shl 5, v22
+    v27 = shl v22, 5
     v28 = ptradd v21, v27
     v29 = ptradd v28, 32
     mstore v29, 7
@@ -52,7 +52,7 @@ fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns
     v15 = lt v12, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = shl 5, v12
+    v17 = shl v12, 5
     v18 = ptradd v11, v17
     v19 = ptradd v18, 32
     mstore v19, 9
@@ -67,7 +67,7 @@ fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns
     v5 = lt v2, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = shl 5, v2
+    v7 = shl v2, 5
     v8 = ptradd v1, v7
     v9 = ptradd v8, 32
     mstore v9, 8

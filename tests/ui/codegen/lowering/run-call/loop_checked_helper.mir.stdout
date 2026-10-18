@@ -16,7 +16,7 @@ fn @checkedAdd(arg0: i256, arg1: i256) -> i256 [pure] {
 
 fn @panicArithmetic() [pure] {
   bb0:
-    v0 = shl 224, 0x4e487b71
+    v0 = shl 0x4e487b71, 224
     mstore 0, v0 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36

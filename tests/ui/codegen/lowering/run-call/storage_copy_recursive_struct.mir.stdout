@@ -330,7 +330,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v264 = eq v263, 1
     v265 = sub 0, v263
     v266 = or 127, v265
-    v267 = shr 1, v262
+    v267 = shr v262, 1
     v268 = and v267, v266
     v269 = sload 6 !metadata(storage=slot(6))
     v270 = lt 1, v269
@@ -372,7 +372,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v301 = eq v300, 1
     v302 = sub 0, v300
     v303 = or 127, v302
-    v304 = shr 1, v299
+    v304 = shr v299, 1
     v305 = and v304, v303
     v306 = insert_value struct0, undef struct0, 0, v186
     v307 = insert_value struct0, v306, 1, v194
@@ -434,7 +434,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     v25 = ptrtoint ptr<memory> v24 to i256
     v26 = ptradd v15, 64
     mstore v26, v25
-    v27 = shl 5, v12
+    v27 = shl v12, 5
     v28 = ptradd v10, v27
     v29 = ptradd v28, 32
     v30 = ptrtoint ptr<memory> v15 to i256
@@ -483,7 +483,7 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: ptr<memory>) {
   bb8:
     ret
   bb7:
-    v24 = shl 5, v22
+    v24 = shl v22, 5
     v25 = inttoptr i256 v12 to ptr<memory>
     v26 = ptradd v25, v24
     v27 = ptradd v26, 32
@@ -519,7 +519,7 @@ fn @clear_recursive_storage_0(arg0: i256) {
     v3 = eq v2, 1
     v4 = sub 0, v2
     v5 = or 127, v4
-    v6 = shr 1, v1
+    v6 = shr v1, 1
     v7 = and v6, v5
     v8 = add v7, 31
     v9 = div v8, 32

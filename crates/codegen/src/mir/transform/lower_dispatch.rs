@@ -422,7 +422,7 @@ fn load_selector(builder: &mut FunctionBuilder<'_>, has_bitwise_shifting: bool) 
     let word = builder.load(zero, PtrLocation::Calldata);
     if has_bitwise_shifting {
         let shift = builder.imm(224);
-        builder.shr(shift, word)
+        builder.shr(word, shift)
     } else {
         let divisor = builder.imm(U256::from(1) << 224);
         builder.div(word, divisor)

@@ -53,7 +53,7 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
   bb2:
     v3 = alloc 128 !metadata(preserves_fmp)
     memory_zero v3, 128
-    v4 = shl 5, v1
+    v4 = shl v1, 5
     v5 = ptradd v0, v4
     v6 = ptradd v5, 32
     v7 = ptrtoint ptr<memory> v3 to i256
@@ -110,7 +110,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     mstore v3, v6
     v7 = ptradd v3, 32
     mstore v7, 0
-    v8 = shl 5, v1
+    v8 = shl v1, 5
     v9 = ptradd v0, v8
     v10 = ptradd v9, 32
     v11 = ptrtoint ptr<memory> v3 to i256
@@ -159,7 +159,7 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     mstore v3, 0
     v4 = ptradd v3, 32
     mstore v4, 0
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd v0, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v3 to i256

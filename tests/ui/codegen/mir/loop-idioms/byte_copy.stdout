@@ -396,7 +396,7 @@ fn @entry() [entry] {
     jumpi v1, bb10, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb10, [0x1e820d5e => bb2, 0x3facacff => bb3, 0x46aad008 => bb4, 0xb7a73332 => bb5, 0xda1b3040 => bb6, 0xe0041396 => bb7, 0xe0b1133b => bb8, 0xfb7c0847 => bb9]
   bb9:
     tail_call @headerExpansion

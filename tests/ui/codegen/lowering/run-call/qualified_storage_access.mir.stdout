@@ -15,13 +15,13 @@ fn @signers(arg0: i160) -> ptr<memory> [selector=0x736c0d5b, abi_params=[address
     v6 = mod v0, 1
     v7 = mul v6, 20
     v8 = mul v7, 8
-    v9 = shl v8, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = shl 0xffffffffffffffffffffffffffffffffffffffff, v8
     v10 = sload v5 !metadata(storage=symbolic(v5))
     v11 = not v9
     v12 = and v10, v11
     v13 = zext i160 arg0 to i256
     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = shl v8, v14
+    v15 = shl v14, v8
     v16 = or v12, v15
     sstore v5, v16 !metadata(storage=symbolic(v5))
     sstore 1, v2 !metadata(storage=slot(1))

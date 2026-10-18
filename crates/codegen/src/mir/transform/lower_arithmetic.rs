@@ -196,7 +196,7 @@ impl ArithmeticLowerer<'_, '_> {
         self.builder.panic_if(product_check, PanicCode::ArithmeticOverflowUnderflow);
         let next_power = self.builder.select(odd, product, power);
 
-        let next_exponent = self.builder.shr(one, current_exponent);
+        let next_exponent = self.builder.shr(current_exponent, one);
         let square = self.builder.mul(current_base, current_base);
         let square_overflow = self.mul_overflow(current_base, current_base, square, kind);
         let has_next_exponent = self.builder.gt(next_exponent, zero);

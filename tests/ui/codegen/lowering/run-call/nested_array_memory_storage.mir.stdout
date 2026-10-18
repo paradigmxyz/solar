@@ -163,7 +163,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v147 = checked_add uint256, v135, v146
     ret v147
   bb13:
-    v89 = shl 5, v87
+    v89 = shl v87, 5
     v90 = ptradd v0, v89
     v91 = ptradd v90, 32
     v92 = mload v91, ptr<memory>
@@ -192,7 +192,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v112 = add v87, 1
     jump bb12
   bb21:
-    v105 = shl 5, v103
+    v105 = shl v103, 5
     v106 = ptradd v92, v105
     v107 = ptradd v106, 32
     v108 = mload v107
@@ -227,7 +227,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v85 = add v81, 1
     jump bb9
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -313,7 +313,7 @@ fn @test1() -> i256 [selector=0x6b59084d, abi_params=[], abi_returns=[word], abi
     v75 = checked_add uint256, v64, v74
     ret v75
   bb13:
-    v39 = shl 5, v37
+    v39 = shl v37, 5
     v40 = ptradd v0, v39
     v41 = ptradd v40, 32
     v42 = mload v41, ptr<memory>
@@ -336,7 +336,7 @@ fn @test1() -> i256 [selector=0x6b59084d, abi_params=[], abi_returns=[word], abi
     sstore v48, 0 !metadata(storage=symbolic(v48))
     jump bb20
   bb18:
-    v50 = shl 5, v46
+    v50 = shl v46, 5
     v51 = ptradd v42, v50
     v52 = mload v51
     sstore v48, v52 !metadata(storage=symbolic(v48))
@@ -364,7 +364,7 @@ fn @test1() -> i256 [selector=0x6b59084d, abi_params=[], abi_returns=[word], abi
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     memory_zero v3, 64
-    v4 = shl 5, v1
+    v4 = shl v1, 5
     v5 = ptradd v0, v4
     v6 = ptradd v5, 32
     v7 = ptrtoint ptr<memory> v3 to i256
@@ -471,7 +471,7 @@ fn @test2() -> i256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi
     sstore v46, 0 !metadata(storage=symbolic(v46))
     jump bb21
   bb19:
-    v48 = shl 5, v44
+    v48 = shl v44, 5
     v49 = ptradd v43, v48
     v50 = mload v49
     sstore v46, v50 !metadata(storage=symbolic(v46))
@@ -480,7 +480,7 @@ fn @test2() -> i256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi
     v51 = add v44, 1
     jump bb16
   bb7:
-    v31 = shl 5, v26
+    v31 = shl v26, 5
     v32 = ptradd v0, v31
     v33 = mload v32
     jump bb10
@@ -501,7 +501,7 @@ fn @test2() -> i256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi
     sstore v36, 0 !metadata(storage=symbolic(v36))
     jump bb15
   bb13:
-    v38 = shl 5, v34
+    v38 = shl v34, 5
     v39 = inttoptr i256 v33 to ptr<memory>
     v40 = ptradd v39, v38
     v41 = mload v40
@@ -513,7 +513,7 @@ fn @test2() -> i256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     memory_zero v3, 64
-    v4 = shl 5, v1
+    v4 = shl v1, 5
     v5 = ptradd v0, v4
     v6 = ptrtoint ptr<memory> v3 to i256
     mstore v5, v6
@@ -647,7 +647,7 @@ fn @test3() -> i256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word], abi
     v115 = checked_add uint256, v103, v114
     ret v115
   bb13:
-    v60 = shl 5, v58
+    v60 = shl v58, 5
     v61 = ptradd v0, v60
     v62 = mload v61, ptr<memory>
     v63 = storage_array_data_slot 0
@@ -674,7 +674,7 @@ fn @test3() -> i256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word], abi
     v80 = add v58, 1
     jump bb12
   bb21:
-    v74 = shl 5, v72
+    v74 = shl v72, 5
     v75 = ptradd v62, v74
     v76 = mload v75
     v77 = storage_array_data_slot v64
@@ -710,7 +710,7 @@ fn @test3() -> i256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word], abi
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     memory_zero v3, 64
-    v4 = shl 5, v1
+    v4 = shl v1, 5
     v5 = ptradd v0, v4
     v6 = ptrtoint ptr<memory> v3 to i256
     mstore v5, v6

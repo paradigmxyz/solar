@@ -11,7 +11,7 @@
 // CHECK: + [[SIZE:v[0-9]+]] = calldatasize
 // CHECK: + [[SHORT:v[0-9]+]] = lt {{v[0-9]+}}, 4
 // CHECK: + jumpi [[SHORT]]
-// CHECK: + [[SELECTOR:v[0-9]+]] = shr 224
+// CHECK: + [[SELECTOR:v[0-9]+]] = shr {{v[0-9]+}}, 224
 // CHECK: + switch [[SELECTOR]], default {{.*}}[0x12000000 =>
 // CHECK: + tail_call @pong
 // CHECK: + tail_call @ping

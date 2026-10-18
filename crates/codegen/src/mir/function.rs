@@ -203,7 +203,7 @@ impl Function {
         ))
     }
 
-    /// Returns the element index of a word offset `shl 5, index`.
+    /// Returns the element index of a word offset `shl index, 5`.
     #[must_use]
     pub(crate) fn word_index(&self, offset: ValueId) -> Option<ValueId> {
         let Value::Inst(inst) = self.value(offset) else { return None };
@@ -271,7 +271,7 @@ impl Function {
         self.value_u64(size)
     }
 
-    /// Resolves the address of a runtime-indexed word, `ptradd base, shl 5, index` with constant
+    /// Resolves the address of a runtime-indexed word, `ptradd base, shl index, 5` with constant
     /// offsets around it, to the object it points into, the byte offset of word zero from the
     /// object start, and the index.
     #[must_use]

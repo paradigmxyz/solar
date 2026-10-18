@@ -10,7 +10,7 @@ fn @guardedFix(arg0: i256) -> i256 [selector=0x93390577, pure, abi_params=[uint2
     v1 = lt arg0, 3
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = shl 5, arg0
+    v3 = shl arg0, 5
     v4 = ptradd v0, v3
     v5 = mload v4
     ret v5
@@ -27,7 +27,7 @@ fn @structArr(arg0: i256) -> i256 [selector=0x40b8037f, pure, abi_params=[uint25
     v4 = lt arg0, 3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = shl 5, arg0
+    v6 = shl arg0, 5
     v7 = ptradd v3, v6
     v8 = mload v7
     ret v8
@@ -53,20 +53,20 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
     v13 = lt arg0, 3
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    v15 = shl 5, arg0
+    v15 = shl arg0, 5
     v16 = ptradd v0, v15
     v17 = mload v16, ptr<memory>
     v18 = lt arg1, 2
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = shl 5, arg1
+    v20 = shl arg1, 5
     v21 = ptradd v17, v20
     v22 = mload v21
     ret v22
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     memory_zero v3, 64
-    v4 = shl 5, v1
+    v4 = shl v1, 5
     v5 = ptradd v0, v4
     v6 = ptrtoint ptr<memory> v3 to i256
     mstore v5, v6
@@ -130,7 +130,7 @@ fn @bulkDefault(arg0: i256) -> i256 [selector=0xbe4421b6, pure, abi_params=[uint
     v1 = lt arg0, 4
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = shl 5, arg0
+    v3 = shl arg0, 5
     v4 = ptradd v0, v3
     v5 = mload v4
     ret v5
@@ -174,8 +174,8 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
     v17 = ptradd v8, 32
     v18 = mload v17
     v19 = byte 0, v18
-    v20 = shl 248, v19
-    v21 = shr 248, v20
+    v20 = shl v19, 248
+    v21 = shr v20, 248
     v22 = trunc i256 v21 to i8
     v23 = zext i8 v22 to i256
     v24 = insert_value struct0, undef struct0, 0, v0

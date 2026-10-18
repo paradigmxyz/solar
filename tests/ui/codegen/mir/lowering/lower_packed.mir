@@ -16,7 +16,7 @@ fn @mixed(arg0: i16, arg1: ptr<memory>) -> ptr<memory> {
 // shifted down to its offset.
 // CHECK-LABEL: fn @hash(
 // CHECK: [[FIXED:v[0-9]+]] = and 0xcdef000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
-// CHECK: [[SHIFTED:v[0-9]+]] = shr 24, [[FIXED]]
+// CHECK: [[SHIFTED:v[0-9]+]] = shr [[FIXED]], 24
 // CHECK: [[WORD:v[0-9]+]] = or {{v[0-9]+}}, [[SHIFTED]]
 // CHECK-NEXT: mstore 0, [[WORD]]
 // CHECK-NOT: mstore
@@ -30,7 +30,7 @@ fn @hash(arg0: i16) -> i256 {
 // CHECK-LABEL: fn @create2_salt(
 // CHECK: [[PREFIX:v[0-9]+]] = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
 // CHECK-NEXT: [[WORD:v[0-9]+]] = or 0, [[PREFIX]]
-// CHECK: [[ADDRESS:v[0-9]+]] = shl 88, {{v[0-9]+}}
+// CHECK: [[ADDRESS:v[0-9]+]] = shl {{v[0-9]+}}, 88
 // CHECK-NEXT: [[WORD2:v[0-9]+]] = or [[WORD]], [[ADDRESS]]
 // CHECK-NEXT: mstore 0, [[WORD2]]
 // CHECK-NEXT: mstore 21, arg2
@@ -82,7 +82,7 @@ fn @edge(arg0: i1, arg1: ptr<memory>, arg2: ptr<memory>) -> ptr<memory> {
 // CHECK: [[BODY]]:
 // CHECK-NEXT: {{.*}}[[OFFSET:v[0-9]+]] = mul [[INDEX]], 32
 // CHECK-NEXT: {{.*}}[[DEST:v[0-9]+]] = add 1, [[OFFSET]]
-// CHECK-NEXT: {{.*}}[[OFF1:v[0-9]+]] = shl 5, [[INDEX]]
+// CHECK-NEXT: {{.*}}[[OFF1:v[0-9]+]] = shl [[INDEX]], 5
 // CHECK-NEXT: {{.*}}[[ELEMENT:v[0-9]+]] = ptradd arg0, [[OFF1]]
 // CHECK-NEXT: {{.*}}[[ELEMENT_32:v[0-9]+]] = ptradd [[ELEMENT]], 32
 // CHECK-NEXT: {{.*}}mload [[ELEMENT_32]]

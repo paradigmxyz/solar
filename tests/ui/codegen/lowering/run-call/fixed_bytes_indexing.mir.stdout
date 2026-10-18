@@ -6,7 +6,7 @@ fn @at1(arg0: i256, arg1: i256) -> i256 [selector=0xc793e4d2, pure, abi_params=[
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = byte arg1, arg0
-    v3 = shl 248, v2
+    v3 = shl v2, 248
     ret v3
 }
 
@@ -16,7 +16,7 @@ fn @at7(arg0: i256, arg1: i256) -> i256 [selector=0x84f023b5, pure, abi_params=[
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = byte arg1, arg0
-    v3 = shl 248, v2
+    v3 = shl v2, 248
     ret v3
 }
 
@@ -26,6 +26,6 @@ fn @at32(arg0: i256, arg1: i256) -> i256 [selector=0xabb4fb46, pure, abi_params=
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = byte arg1, arg0
-    v3 = shl 248, v2
+    v3 = shl v2, 248
     ret v3
 }

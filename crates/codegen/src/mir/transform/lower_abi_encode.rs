@@ -638,7 +638,7 @@ fn encode_dynamic_return_in_place(
     let source = builder.memory_data(*object);
     let bytes = if is_array {
         let five = builder.imm(5);
-        builder.shl(five, length)
+        builder.shl(length, five)
     } else {
         let thirty_one = builder.imm(31);
         let rounded = builder.add(length, thirty_one);
@@ -918,7 +918,7 @@ fn encode_static_impl(
         AbiType::Function => {
             let value = if source == AbiValueSource::Scalar {
                 let shift = builder.imm(64);
-                builder.shl(shift, value)
+                builder.shl(value, shift)
             } else {
                 AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
                     .expect("function words always require cleanup")

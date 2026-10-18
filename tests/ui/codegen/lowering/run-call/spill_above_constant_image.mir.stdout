@@ -11,7 +11,7 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
     mstore 53, v0 !metadata(memory=scratch)
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 96, v2
+    v3 = shl v2, 96
     mstore 1, v3 !metadata(memory=scratch)
     mstore 21, arg1 !metadata(memory=scratch)
     v4 = keccak256 0, 85 !metadata(memory=scratch)
@@ -23,8 +23,8 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
   bb2:
     jump bb3
   bb3:
-    v13 = shl 96, v4
-    v14 = shr 96, v13
+    v13 = shl v4, 96
+    v14 = shr v13, 96
     mstore 0, v14 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
@@ -81,7 +81,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall revert_if<tuple_data_too_short>, v16
     v17 = add 0, 0
     v18 = mload v17
-    v19 = shr 160, v18
+    v19 = shr v18, 160
     v20 = eq v19, 0
     v21 = eq v20, false
     icall revert_if<empty>, v21

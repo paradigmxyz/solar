@@ -78,7 +78,7 @@
       v4 = lt arg1, v3
       v5 = eq v4, false
       icall panic_if<0x32>, v5
-      v6 = shl 5, arg1
+      v6 = shl arg1, 5
       v7 = ptradd arg0, v6
       v8 = ptradd v7, 32
       v9 = mload v8

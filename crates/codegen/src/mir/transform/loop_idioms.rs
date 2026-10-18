@@ -260,7 +260,7 @@ fn match_ascii_loop(func: &Function, header: BlockId) -> Option<AsciiLoop> {
     }
 
     // body: [base = object + 32]; ptr = base + index; word = mload ptr; byte = byte 0, word
-    //       [aligned = shl 248, byte]; rejected = gt byte, 127; jumpi rejected, reject, latch
+    //       [aligned = shl byte, 248]; rejected = gt byte, 127; jumpi rejected, reject, latch
     let (ptr, rest) = payload_pointer(func, &func.blocks[*body].instructions, object, index)?;
     let [load_inst, byte_inst, rest @ ..] = rest else { reject!("body shape") };
     let InstKind::Load(load_ptr, PtrLocation::Memory) = func.inst(*load_inst).kind else {
@@ -436,7 +436,7 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     }
 
     // body: [base = object + 32]; ptr = base + index; word = mload ptr; byte = byte 0, word
-    //       aligned = shl 248, byte; nonzero = ne aligned, 0; jumpi nonzero, latch, increment
+    //       aligned = shl byte, 248; nonzero = ne aligned, 0; jumpi nonzero, latch, increment
     let InstKind::Phi(index_incoming) = &func.inst(index_phi).kind else { unreachable!() };
     let [(preheader, _), _] = index_incoming.as_slice() else { return None };
     let object = length_object(func, *preheader, len_inst, length)?;
@@ -713,7 +713,7 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         let byte_bits = builder.imm(8);
         let data_bits = builder.mul(length, byte_bits);
         let all = builder.imm(U256::MAX);
-        let padding_mask = builder.shr(data_bits, all);
+        let padding_mask = builder.shr(all, data_bits);
         let word = builder.load(data, candidate.source.location());
         let word = builder.or(word, padding_mask);
         let result = emit_zero_byte_count(&mut builder, word);
@@ -758,7 +758,7 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         let byte_bits = builder.imm(8);
         let data_bits = builder.mul(remainder, byte_bits);
         let all_bits = builder.imm(U256::MAX);
-        let padding_mask = builder.shr(data_bits, all_bits);
+        let padding_mask = builder.shr(all_bits, data_bits);
         let word = builder.load(pointer, candidate.source.location());
         let word = builder.or(word, padding_mask);
         let tail_count = emit_zero_byte_count(&mut builder, word);
@@ -781,7 +781,7 @@ fn emit_zero_byte_count(builder: &mut FunctionBuilder<'_>, word: ValueId) -> Val
     let occupied = builder.or(occupied, lane_mask);
     let vacant = builder.not(occupied);
     let seven = builder.imm(7);
-    let lanes = builder.shr(seven, vacant);
+    let lanes = builder.shr(vacant, seven);
     let sum_factor = builder.imm(U256::MAX / U256::from(255));
     let product = builder.mul(lanes, sum_factor);
     let first = builder.imm(0);
@@ -844,7 +844,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         let padding = builder.sub(word_size, length);
         let byte_bits = builder.imm(8);
         let shift = builder.mul(padding, byte_bits);
-        let word = builder.shr(shift, word);
+        let word = builder.shr(word, shift);
         let one_result = emit_ascii_result(&mut builder, word);
         builder.jump(finish);
 
@@ -860,7 +860,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         let padding = builder.sub(pair_size, length);
         let byte_bits = builder.imm(8);
         let shift = builder.mul(padding, byte_bits);
-        let second = builder.shr(shift, second);
+        let second = builder.shr(second, shift);
         let words = builder.or(first, second);
         let two_result = emit_ascii_result(&mut builder, words);
         builder.jump(finish);
@@ -922,7 +922,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         let byte_bits = builder.imm(8);
         let padding_bits = builder.mul(padding, byte_bits);
         let word = builder.load(tail_pointer, PtrLocation::Memory);
-        let word = builder.shr(padding_bits, word);
+        let word = builder.shr(word, padding_bits);
         let final_aggregate = builder.or(tail_aggregate, word);
         let tail_result = emit_ascii_result(&mut builder, final_aggregate);
         builder.jump(finish);

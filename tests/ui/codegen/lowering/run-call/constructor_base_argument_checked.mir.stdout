@@ -173,7 +173,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
 @module CheckedBaseArgShift
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
-    v0 = shl 1, arg0
+    v0 = shl arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -201,7 +201,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v1 = lt arg0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = shl 5, arg0
+    v3 = shl arg0, 5
     v4 = ptradd v0, v3
     v5 = mload v4
     sstore 0, v5 !metadata(storage=slot(0))

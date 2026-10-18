@@ -23,7 +23,7 @@ contract AbiPackedFunctionPointerArray {
     // SEMANTIC-NEXT: [[BASE:v[0-9]+]] = ptrtoint ptr<calldata> {{v[0-9]+}} to i256
     // SEMANTIC-NEXT: [[HEAD:v[0-9]+]] = add [[BASE]], [[OFFSET]]
     // SEMANTIC-NEXT: [[VALUE:v[0-9]+]] = calldataload [[HEAD]]
-    // SEMANTIC: shl 192, [[VALUE]]
+    // SEMANTIC: shl [[VALUE]], 192
     // SEMANTIC: icall revert_if<empty>, {{v[0-9]+}}
     function encode(function() external returns (uint256)[] calldata pointers)
         external

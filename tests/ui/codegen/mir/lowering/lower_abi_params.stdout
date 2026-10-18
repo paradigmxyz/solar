@@ -65,7 +65,7 @@
 +     v33 = alloc checked v31
 +     mstore v33, v22
 +     v34 = sub v6, v23
-+     v35 = shr 5, v34
++     v35 = shr v34, 5
 +     v36 = gt v22, v35
 +     jumpi v36, bb4, bb11
 +   bb11:
@@ -118,7 +118,7 @@
 +     jumpi v3, bb2, bb3
 +   bb3:
 +     v4 = calldataload 100
-+     v5 = shr 160, v4
++     v5 = shr v4, 160
 +     v6 = eq v5, 0
 +     jumpi v6, bb4, bb2
 +   bb4:
@@ -160,7 +160,7 @@
 +     jumpi v3, bb2, bb3
 +   bb3:
 +     v4 = calldataload 4
-+     v5 = shr 160, v4
++     v5 = shr v4, 160
 +     v6 = eq v5, 0
 +     jumpi v6, bb4, bb2
 +   bb4:
@@ -208,7 +208,7 @@
 +     jumpi v2, bb2, bb3
 +   bb3:
 +     v3 = calldataload 4
-+     v4 = shr 160, v3
++     v4 = shr v3, 160
 +     v5 = eq v4, 0
 +     jumpi v5, bb4, bb2
 +   bb4:
@@ -240,7 +240,7 @@
 +     jumpi v2, bb2, bb3
 +   bb3:
 +     v3 = calldataload 4
-+     v4 = shr 160, v3
++     v4 = shr v3, 160
 +     v5 = eq v4, 0
 +     jumpi v5, bb4, bb2
 +   bb4:

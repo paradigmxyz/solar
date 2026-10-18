@@ -42,7 +42,7 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[
     icall @store_storage_bytes, 1, arg1
     ret
   bb7:
-    v10 = shl 5, v8
+    v10 = shl v8, 5
     v11 = ptradd arg0, v10
     v12 = ptradd v11, 32
     v13 = mload v12

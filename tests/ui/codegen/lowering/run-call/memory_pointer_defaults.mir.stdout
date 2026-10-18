@@ -41,7 +41,7 @@ fn @defaultReturn() -> ptr<memory> [selector=0x099c80fd, pure, abi_params=[], ab
     mstore v14, 96
     ret v0
   bb2:
-    v9 = shl 5, v7
+    v9 = shl v7, 5
     v10 = ptradd v6, v9
     mstore v10, 96
     v11 = add v7, 1
@@ -126,7 +126,7 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     v70 = insert_value struct0, v69, 2, v25
     ret v70
   bb17:
-    v62 = shl 5, v60
+    v62 = shl v60, 5
     v63 = ptradd v59, v62
     mstore v63, 96
     v64 = add v60, 1
@@ -138,7 +138,7 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     mstore v47, 96
     v48 = ptradd v46, 64
     mstore v48, 96
-    v49 = shl 5, v44
+    v49 = shl v44, 5
     v50 = ptradd v43, v49
     v51 = ptrtoint ptr<memory> v46 to i256
     mstore v50, v51
@@ -155,7 +155,7 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
   bb12:
     v37 = ptrtoint ptr<memory> v29 to i256
     mstore v28, v37
-    v38 = shl 5, v26
+    v38 = shl v26, 5
     v39 = ptradd v25, v38
     v40 = ptradd v39, 32
     v41 = ptrtoint ptr<memory> v28 to i256
@@ -165,7 +165,7 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
   bb11:
     v32 = alloc 64 !metadata(preserves_fmp)
     memory_zero v32, 64
-    v33 = shl 5, v30
+    v33 = shl v30, 5
     v34 = ptradd v29, v33
     v35 = ptrtoint ptr<memory> v32 to i256
     mstore v34, v35
@@ -178,14 +178,14 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     mstore v19, 96
     v20 = ptradd v18, 64
     mstore v20, 96
-    v21 = shl 5, v16
+    v21 = shl v16, 5
     v22 = ptradd v15, v21
     v23 = ptrtoint ptr<memory> v18 to i256
     mstore v22, v23
     v24 = add v16, 1
     jump bb4
   bb2:
-    v9 = shl 5, v7
+    v9 = shl v7, 5
     v10 = ptradd v6, v9
     mstore v10, 96
     v11 = add v7, 1
@@ -298,7 +298,7 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     mstore v18, 96
     v19 = ptradd v17, 64
     mstore v19, 96
-    v20 = shl 5, v15
+    v20 = shl v15, 5
     v21 = ptradd v14, v20
     v22 = ptradd v21, 32
     v23 = ptrtoint ptr<memory> v17 to i256
@@ -306,14 +306,14 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     v24 = add v15, 1
     jump bb7
   bb5:
-    v10 = shl 5, v8
+    v10 = shl v8, 5
     v11 = ptradd v7, v10
     v12 = ptradd v11, 32
     mstore v12, 96
     v13 = add v8, 1
     jump bb4
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -376,13 +376,13 @@ fn @decodeDefaults() -> ptr<memory> [selector=0x977b799b, pure, abi_params=[], a
     v31 = abi_decode [tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>], v15
     ret v31
   bb5:
-    v25 = shl 5, v23
+    v25 = shl v23, 5
     v26 = ptradd v22, v25
     mstore v26, 96
     v27 = add v23, 1
     jump bb4
   bb2:
-    v9 = shl 5, v7
+    v9 = shl v7, 5
     v10 = ptradd v6, v9
     mstore v10, 96
     v11 = add v7, 1
@@ -451,7 +451,7 @@ fn @deleteElement() -> ptr<memory> [selector=0xfd57e9f9, pure, abi_params=[], ab
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptradd v7, 32
     v9 = ptrtoint ptr<memory> v3 to i256
@@ -606,7 +606,7 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     v109 = ptradd v40, 64
     mstore v109, v108
     v110 = ptrtoint ptr<memory> v40 to i256
-    v111 = shl 5, v23
+    v111 = shl v23, 5
     v112 = ptradd v22, v111
     v113 = ptradd v112, 32
     mstore v113, v110
@@ -799,7 +799,7 @@ fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_return
     v125 = add v124, v122
     v126 = icall @load_storage_word_array, v125
     v127 = ptrtoint ptr<memory> v126 to i256
-    v128 = shl 5, v122
+    v128 = shl v122, 5
     v129 = ptradd v121, v128
     v130 = ptradd v129, 32
     mstore v130, v127
@@ -809,13 +809,13 @@ fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_return
     v91 = add v87, v89
     v92 = icall @load_storage_bytes, v91
     v93 = ptrtoint ptr<memory> v92 to i256
-    v94 = shl 5, v89
+    v94 = shl v89, 5
     v95 = ptradd v88, v94
     mstore v95, v93
     v96 = add v89, 1
     jump bb4
   bb2:
-    v65 = shl 5, v63
+    v65 = shl v63, 5
     v66 = ptradd v62, v65
     mstore v66, 96
     v67 = add v63, 1
@@ -963,14 +963,14 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v185 = add v184, v182
     v186 = icall @load_storage_word_array, v185
     v187 = ptrtoint ptr<memory> v186 to i256
-    v188 = shl 5, v182
+    v188 = shl v182, 5
     v189 = ptradd v181, v188
     v190 = ptradd v189, 32
     mstore v190, v187
     v191 = add v182, 1
     jump bb60
   bb58:
-    v156 = shl 5, v154
+    v156 = shl v154, 5
     v157 = ptradd v130, v156
     v158 = ptradd v157, 32
     v159 = mload v158, ptr<memory>
@@ -988,7 +988,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v146 = eq v145, 1
     v147 = sub 0, v145
     v148 = or 127, v147
-    v149 = shr 1, v144
+    v149 = shr v144, 1
     v150 = and v149, v148
     v151 = add v150, 31
     v152 = div v151, 32
@@ -1001,14 +1001,14 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v153 = add v140, 1
     jump bb52
   bb48:
-    v133 = shl 5, v131
+    v133 = shl v131, 5
     v134 = ptradd v130, v133
     v135 = ptradd v134, 32
     mstore v135, 96
     v136 = add v131, 1
     jump bb47
   bb37:
-    v96 = shl 5, v94
+    v96 = shl v94, 5
     v97 = ptradd v73, v96
     v98 = ptradd v97, 32
     v99 = mload v98, ptr<memory>
@@ -1037,7 +1037,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v119 = add v94, 1
     jump bb36
   bb45:
-    v112 = shl 5, v110
+    v112 = shl v110, 5
     v113 = ptradd v99, v112
     v114 = ptradd v113, 32
     v115 = mload v114
@@ -1072,14 +1072,14 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v92 = add v88, 1
     jump bb33
   bb26:
-    v76 = shl 5, v74
+    v76 = shl v74, 5
     v77 = ptradd v73, v76
     v78 = ptradd v77, 32
     mstore v78, 96
     v79 = add v74, 1
     jump bb25
   bb15:
-    v39 = shl 5, v37
+    v39 = shl v37, 5
     v40 = ptradd v0, v39
     v41 = ptradd v40, 32
     v42 = mload v41, ptr<memory>
@@ -1119,7 +1119,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v72 = add v37, 1
     jump bb14
   bb23:
-    v64 = shl 5, v62
+    v64 = shl v62, 5
     v65 = inttoptr i256 v53 to ptr<memory>
     v66 = ptradd v65, v64
     v67 = ptradd v66, 32
@@ -1147,7 +1147,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v22 = eq v21, 1
     v23 = sub 0, v21
     v24 = or 127, v23
-    v25 = shr 1, v20
+    v25 = shr v20, 1
     v26 = and v25, v24
     v27 = add v26, 31
     v28 = div v27, 32
@@ -1181,7 +1181,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptradd v7, 32
     v9 = ptrtoint ptr<memory> v3 to i256
@@ -1247,7 +1247,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     v23 = ptrtoint ptr<memory> v22 to i256
     v24 = ptradd v15, 64
     mstore v24, v23
-    v25 = shl 5, v12
+    v25 = shl v12, 5
     v26 = ptradd v10, v25
     v27 = ptradd v26, 32
     v28 = ptrtoint ptr<memory> v15 to i256

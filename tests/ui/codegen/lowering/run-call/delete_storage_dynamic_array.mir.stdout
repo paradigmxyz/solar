@@ -15,12 +15,12 @@ fn @clearAndPush() -> struct0 [selector=0x1698ee0c, abi_params=[], abi_returns=[
     v6 = mod v0, 10
     v7 = mul v6, 3
     v8 = mul v7, 8
-    v9 = shl v8, 0xffffff
+    v9 = shl 0xffffff, v8
     v10 = sload v5 !metadata(storage=symbolic(v5))
     v11 = not v9
     v12 = and v10, v11
     v13 = and 7, 0xffffff
-    v14 = shl v8, v13
+    v14 = shl v13, v8
     v15 = or v12, v14
     sstore v5, v15 !metadata(storage=symbolic(v5))
     sstore 0, v2 !metadata(storage=slot(0))
@@ -43,12 +43,12 @@ fn @clearAndPush() -> struct0 [selector=0x1698ee0c, abi_params=[], abi_returns=[
     v28 = mod v22, 10
     v29 = mul v28, 3
     v30 = mul v29, 8
-    v31 = shl v30, 0xffffff
+    v31 = shl 0xffffff, v30
     v32 = sload v27 !metadata(storage=symbolic(v27))
     v33 = not v31
     v34 = and v32, v33
     v35 = and 9, 0xffffff
-    v36 = shl v30, v35
+    v36 = shl v35, v30
     v37 = or v34, v36
     sstore v27, v37 !metadata(storage=symbolic(v27))
     sstore 0, v24 !metadata(storage=slot(0))
@@ -64,7 +64,7 @@ fn @clearAndPush() -> struct0 [selector=0x1698ee0c, abi_params=[], abi_returns=[
     v46 = mul v45, 3
     v47 = sload v44 !metadata(storage=symbolic(v44))
     v48 = mul v46, 8
-    v49 = shr v48, v47
+    v49 = shr v47, v48
     v50 = trunc i256 v49 to i24
     v51 = insert_value struct0, undef struct0, 0, v38
     v52 = insert_value struct0, v51, 1, v50

@@ -26,7 +26,7 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vUint8{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[HIGH:v[0-9]+]] = shr 8, [[RAW]]
+    // CHECK: [[HIGH:v[0-9]+]] = shr [[RAW]], 8
     // CHECK: eq [[HIGH]], {{(0|false)}}
     function vUint8(uint8 x) external pure returns (uint8) {
         return x;
@@ -49,7 +49,7 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vAddress{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[HIGH:v[0-9]+]] = shr 160, [[RAW]]
+    // CHECK: [[HIGH:v[0-9]+]] = shr [[RAW]], 160
     // CHECK: eq [[HIGH]], {{(0|false)}}
     function vAddress(address x) external pure returns (address) {
         return x;
@@ -57,7 +57,7 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vBytes4{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[LOW:v[0-9]+]] = shl 32, [[RAW]]
+    // CHECK: [[LOW:v[0-9]+]] = shl [[RAW]], 32
     // CHECK: eq [[LOW]], {{(0|false)}}
     function vBytes4(bytes4 x) external pure returns (bytes4) {
         return x;
@@ -73,7 +73,7 @@ contract CalldataValidation {
     // The ABI wrapper validates the narrow input, so widening needs no mask.
     // CHECK-LABEL: fn @vWidened{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: {{v[0-9]+}} = shr 8, [[RAW]]
+    // CHECK: {{v[0-9]+}} = shr [[RAW]], 8
     // CHECK-NOT: = and arg0
     // CHECK: [[WIDE:v[0-9]+]] = zext i8 arg0 to i16
     // CHECK: [[WORD:v[0-9]+]] = zext i16 [[WIDE]] to i256
@@ -84,7 +84,7 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vMulti{{[( ]}}
     // CHECK: [[A:v[0-9]+]] = calldataload 4
-    // CHECK: {{v[0-9]+}} = shr 32, [[A]]
+    // CHECK: {{v[0-9]+}} = shr [[A]], 32
     // CHECK: [[B:v[0-9]+]] = calldataload 36
     // CHECK: {{v[0-9]+}} = signextend 0, [[B]]
     function vMulti(uint32 a, int8 b) external pure returns (uint256) {

@@ -70,7 +70,7 @@ fn @advance(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>)
     v6 = ptrtoint ptr<calldata> v5 to i256
     v7 = add v6, 64
     v8 = calldataload v7
-    v9 = shr 24, v8
+    v9 = shr v8, 24
     v10 = eq v9, 0
     v11 = eq v10, false
     icall revert_if<empty>, v11
@@ -80,7 +80,7 @@ fn @advance(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>)
     v15 = ptrtoint ptr<calldata> v14 to i256
     v16 = add v15, 64
     v17 = calldataload v16
-    v18 = shr 160, v17
+    v18 = shr v17, 160
     v19 = eq v18, 0
     v20 = eq v19, false
     icall revert_if<empty>, v20
@@ -106,20 +106,20 @@ fn @advance(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>)
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = shl 160, 255
+    v0 = shl 255, 160
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = not v0
     v3 = and v1, v2
     v4 = and 1, 255
-    v5 = shl 160, v4
+    v5 = shl v4, 160
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
-    v7 = shl 168, 255
+    v7 = shl 255, 168
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = not v7
     v10 = and v8, v9
     v11 = and 0, 255
-    v12 = shl 168, v11
+    v12 = shl v11, 168
     v13 = or v10, v12
     sstore 0, v13 !metadata(storage=slot(0))
     v14 = abi_encode []
@@ -286,7 +286,7 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v8 = eq v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff36
     icall require<short_string>, v8, 2, 0x6430000000000000000000000000000000000000000000000000000000000000
     v9 = sload 0 !metadata(storage=slot(0))
-    v10 = shr 160, v9
+    v10 = shr v9, 160
     v11 = trunc i256 v10 to i8
     v12 = ne v11, i8 0
     jumpi v12, bb1, bb2
@@ -294,7 +294,7 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     jump bb3
   bb1:
     v13 = sload 0 !metadata(storage=slot(0))
-    v14 = shr 168, v13
+    v14 = shr v13, 168
     v15 = trunc i256 v14 to i8
     v16 = ne v15, i8 0
     jumpi v16, bb4, bb5

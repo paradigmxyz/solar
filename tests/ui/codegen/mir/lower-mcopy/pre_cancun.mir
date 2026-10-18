@@ -45,7 +45,7 @@ fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 // PRE: {{^[ +].*}}ret arg0
 fn @copy_words(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = shl 5, arg2
+    v0 = shl arg2, 5
     mcopy arg0, arg1, v0
     ret arg0
 }

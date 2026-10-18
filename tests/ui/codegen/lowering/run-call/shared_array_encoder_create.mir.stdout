@@ -12,7 +12,7 @@ fn @xs(arg0: i256) -> i160 [selector=0x6ee65772, view, abi_params=[uint256], abi
     v6 = mul v5, 20
     v7 = sload v4 !metadata(storage=symbolic(v4))
     v8 = mul v6, 8
-    v9 = shr v8, v7
+    v9 = shr v7, v8
     v10 = trunc i256 v9 to i160
     ret v10
 }
@@ -41,7 +41,7 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, address>]]
   bb8:
     ret
   bb7:
-    v21 = shl 5, v19
+    v21 = shl v19, 5
     v22 = ptradd arg0, v21
     v23 = ptradd v22, 32
     v24 = mload v23
@@ -51,12 +51,12 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, address>]]
     v28 = mod v19, 1
     v29 = mul v28, 20
     v30 = mul v29, 8
-    v31 = shl v30, 0xffffffffffffffffffffffffffffffffffffffff
+    v31 = shl 0xffffffffffffffffffffffffffffffffffffffff, v30
     v32 = sload v27 !metadata(storage=symbolic(v27))
     v33 = not v31
     v34 = and v32, v33
     v35 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
-    v36 = shl v30, v35
+    v36 = shl v35, v30
     v37 = or v34, v36
     sstore v27, v37 !metadata(storage=symbolic(v27))
     v38 = add v19, 1
@@ -68,12 +68,12 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, address>]]
     v8 = mod v3, 1
     v9 = mul v8, 20
     v10 = mul v9, 8
-    v11 = shl v10, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = shl 0xffffffffffffffffffffffffffffffffffffffff, v10
     v12 = sload v7 !metadata(storage=symbolic(v7))
     v13 = not v11
     v14 = and v12, v13
     v15 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = shl v10, v15
+    v16 = shl v15, v10
     v17 = or v14, v16
     sstore v7, v17 !metadata(storage=symbolic(v7))
     v18 = add v3, 1
@@ -93,7 +93,7 @@ fn @get(arg0: i256) -> i160 [selector=0x9507d39a, view, abi_params=[uint256], ab
     v7 = mul v6, 20
     v8 = sload v5 !metadata(storage=symbolic(v5))
     v9 = mul v7, 8
-    v10 = shr v9, v8
+    v10 = shr v8, v9
     v11 = trunc i256 v10 to i160
     ret v11
 }
@@ -226,7 +226,7 @@ fn @second() -> i160 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<uint
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
-    v12 = shr 160, v11
+    v12 = shr v11, 160
     v13 = eq v12, 0
     v14 = eq v13, false
     icall revert_if<empty>, v14
@@ -245,7 +245,7 @@ fn @second() -> i160 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<uint
     icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
     v24 = mload v23
-    v25 = shr 160, v24
+    v25 = shr v24, 160
     v26 = eq v25, 0
     v27 = eq v26, false
     icall revert_if<empty>, v27
@@ -272,7 +272,7 @@ fn @both() -> struct0 [selector=0x35f2e0a7, abi_params=[], abi_returns=[word, wo
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
-    v12 = shr 160, v11
+    v12 = shr v11, 160
     v13 = eq v12, 0
     v14 = eq v13, false
     icall revert_if<empty>, v14
@@ -293,7 +293,7 @@ fn @both() -> struct0 [selector=0x35f2e0a7, abi_params=[], abi_returns=[word, wo
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
     v26 = mload v25
-    v27 = shr 160, v26
+    v27 = shr v26, 160
     v28 = eq v27, 0
     v29 = eq v28, false
     icall revert_if<empty>, v29

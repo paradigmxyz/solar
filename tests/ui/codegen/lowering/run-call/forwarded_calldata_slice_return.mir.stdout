@@ -189,14 +189,14 @@ fn @_tryParseSlices(arg0: slice<calldata>) -> struct5 [pure] {
     v8 = ptradd v3, 32
     v9 = mload v8
     v10 = byte 0, v9
-    v11 = shl 248, v10
-    v12 = shr 248, v11
+    v11 = shl v10, 248
+    v12 = shr v11, 248
     v13 = trunc i256 v12 to i8
     v14 = zext i8 v13 to i256
     v15 = ptrtoint ptr<memory> v4 to i256
     v16 = add v15, 32
     v17 = mload v16
-    v18 = shr 96, v17
+    v18 = shr v17, 96
     v19 = insert_value struct5, undef struct5, 0, v1
     v20 = insert_value struct5, v19, 1, v14
     v21 = insert_value struct5, v20, 2, v18
@@ -279,7 +279,7 @@ fn @_delegate(arg0: slice<calldata>) -> struct1 [pure] {
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
     v2 = calldataload v0
-    v3 = shr 96, v2
+    v3 = shr v2, 96
     v4 = extract_value slice<calldata>, arg0, 0
     v5 = ptrtoint ptr<calldata> v4 to i256
     v6 = add v5, 20
@@ -301,7 +301,7 @@ fn @_single(arg0: slice<calldata>) -> struct3 [pure] {
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
     v2 = calldataload v0
-    v3 = shr 96, v2
+    v3 = shr v2, 96
     v4 = extract_value slice<calldata>, arg0, 0
     v5 = ptrtoint ptr<calldata> v4 to i256
     v6 = add v5, 20

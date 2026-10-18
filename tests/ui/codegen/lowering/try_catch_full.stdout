@@ -30,7 +30,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v184 = add v210, 32
     returndatacopy v184, 0, v58
     v21 = mload v184
-    v22 = shr 224, v21
+    v22 = shr v21, 224
     v23 = eq v22, 0x8c379a0
     jumpi v23, bb3, bb5
   bb3:
@@ -168,7 +168,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     v70 = add v81, 32
     returndatacopy v70, 0, v41
     v19 = mload v70
-    v20 = shr 224, v19
+    v20 = shr v19, 224
     v21 = eq v20, 0x8c379a0
     jumpi v21, bb4, bb6
   bb4:
@@ -325,7 +325,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     switch v7, default bb1, [0xd7fadfb => bb3, 0xd17b272f => bb4]
   bb4:
     tail_call @full

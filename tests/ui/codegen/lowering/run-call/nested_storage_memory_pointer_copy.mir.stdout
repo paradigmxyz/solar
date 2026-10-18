@@ -26,12 +26,12 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v20 = mod 0, 3
     v21 = mul v20, 9
     v22 = mul v21, 8
-    v23 = shl v22, 0xffffffffffffffffff
+    v23 = shl 0xffffffffffffffffff, v22
     v24 = sload v19 !metadata(storage=symbolic(v19))
     v25 = not v23
     v26 = and v24, v25
     v27 = and 1, 0xffffffffffffffffff
-    v28 = shl v22, v27
+    v28 = shl v27, v22
     v29 = or v26, v28
     sstore v19, v29 !metadata(storage=symbolic(v19))
     v30 = sload 0 !metadata(storage=slot(0))
@@ -49,12 +49,12 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v40 = mod 3, 3
     v41 = mul v40, 9
     v42 = mul v41, 8
-    v43 = shl v42, 0xffffffffffffffffff
+    v43 = shl 0xffffffffffffffffff, v42
     v44 = sload v39 !metadata(storage=symbolic(v39))
     v45 = not v43
     v46 = and v44, v45
     v47 = and 2, 0xffffffffffffffffff
-    v48 = shl v42, v47
+    v48 = shl v47, v42
     v49 = or v46, v48
     sstore v39, v49 !metadata(storage=symbolic(v39))
     v50 = sload 0 !metadata(storage=slot(0))
@@ -72,12 +72,12 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v60 = mod 1, 3
     v61 = mul v60, 9
     v62 = mul v61, 8
-    v63 = shl v62, 0xffffffffffffffffff
+    v63 = shl 0xffffffffffffffffff, v62
     v64 = sload v59 !metadata(storage=symbolic(v59))
     v65 = not v63
     v66 = and v64, v65
     v67 = and 3, 0xffffffffffffffffff
-    v68 = shl v62, v67
+    v68 = shl v67, v62
     v69 = or v66, v68
     sstore v59, v69 !metadata(storage=symbolic(v59))
     v70 = sload 0 !metadata(storage=slot(0))
@@ -95,12 +95,12 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v80 = mod 4, 3
     v81 = mul v80, 9
     v82 = mul v81, 8
-    v83 = shl v82, 0xffffffffffffffffff
+    v83 = shl 0xffffffffffffffffff, v82
     v84 = sload v79 !metadata(storage=symbolic(v79))
     v85 = not v83
     v86 = and v84, v85
     v87 = and 4, 0xffffffffffffffffff
-    v88 = shl v82, v87
+    v88 = shl v87, v82
     v89 = or v86, v88
     sstore v79, v89 !metadata(storage=symbolic(v79))
     v90 = sload 0 !metadata(storage=slot(0))
@@ -118,12 +118,12 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v100 = mod 0, 3
     v101 = mul v100, 9
     v102 = mul v101, 8
-    v103 = shl v102, 0xffffffffffffffffff
+    v103 = shl 0xffffffffffffffffff, v102
     v104 = sload v99 !metadata(storage=symbolic(v99))
     v105 = not v103
     v106 = and v104, v105
     v107 = and 5, 0xffffffffffffffffff
-    v108 = shl v102, v107
+    v108 = shl v107, v102
     v109 = or v106, v108
     sstore v99, v109 !metadata(storage=symbolic(v99))
     v110 = sload 0 !metadata(storage=slot(0))
@@ -141,12 +141,12 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v120 = mod 2, 3
     v121 = mul v120, 9
     v122 = mul v121, 8
-    v123 = shl v122, 0xffffffffffffffffff
+    v123 = shl 0xffffffffffffffffff, v122
     v124 = sload v119 !metadata(storage=symbolic(v119))
     v125 = not v123
     v126 = and v124, v125
     v127 = and 6, 0xffffffffffffffffff
-    v128 = shl v122, v127
+    v128 = shl v127, v122
     v129 = or v126, v128
     sstore v119, v129 !metadata(storage=symbolic(v119))
     v130 = sload 0 !metadata(storage=slot(0))
@@ -164,12 +164,12 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v140 = mod 3, 3
     v141 = mul v140, 9
     v142 = mul v141, 8
-    v143 = shl v142, 0xffffffffffffffffff
+    v143 = shl 0xffffffffffffffffff, v142
     v144 = sload v139 !metadata(storage=symbolic(v139))
     v145 = not v143
     v146 = and v144, v145
     v147 = and 7, 0xffffffffffffffffff
-    v148 = shl v142, v147
+    v148 = shl v147, v142
     v149 = or v146, v148
     sstore v139, v149 !metadata(storage=symbolic(v139))
     v150 = sload 0 !metadata(storage=slot(0))
@@ -302,7 +302,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     jumpi v175, bb11, bb12
   bb12:
     v188 = ptrtoint ptr<memory> v173 to i256
-    v189 = shl 5, v168
+    v189 = shl v168, 5
     v190 = ptradd v167, v189
     v191 = ptradd v190, 32
     mstore v191, v188
@@ -315,10 +315,10 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v179 = mul v178, 9
     v180 = sload v177 !metadata(storage=symbolic(v177))
     v181 = mul v179, 8
-    v182 = shr v181, v180
+    v182 = shr v180, v181
     v183 = trunc i256 v182 to i72
     v184 = zext i72 v183 to i256
-    v185 = shl 5, v174
+    v185 = shl v174, 5
     v186 = ptradd v173, v185
     mstore v186, v184
     v187 = add v174, 1

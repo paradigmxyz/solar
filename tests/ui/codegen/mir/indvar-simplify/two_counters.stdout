@@ -4,7 +4,7 @@
 fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
   bb0:
     v22 = calldataload 4
-    v23 = shr 8, v22
+    v23 = shr v22, 8
     v20 = calldatasize
     v21 = lt v20, 68
     v27 = zext i1 v21 to i256
@@ -26,7 +26,7 @@ fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
     mstore 128, v2
     returndata 128, 32
   bb3:
-    v6 = shl 5, v3
+    v6 = shl v3, 5
     v7 = add arg0, v6
     v9 = add v7, v14
     v10 = add v2, v9
@@ -66,8 +66,8 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v162 = add v170, 32
     calldatacopy v162, v104, v109
     v74 = div v109, 3
-    v75 = shl 2, v74
-    v77 = shr 2, v75
+    v75 = shl v74, 2
+    v77 = shr v75, 2
     v81 = ne v77, v74
     jumpi v81, bb11, bb12
   bb12:
@@ -189,7 +189,7 @@ fn @entry() [entry] {
     jumpi v1, bb5, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb5, [0x62b0ae87 => bb2, 0xc5e77450 => bb3, 0xcc1fc46b => bb4]
   bb4:
     tail_call @rawBase

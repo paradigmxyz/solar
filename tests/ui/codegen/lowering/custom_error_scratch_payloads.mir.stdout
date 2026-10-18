@@ -78,7 +78,7 @@ fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[ui
     v20 = lt v18, v19
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = shl 5, v18
+    v22 = shl v18, 5
     v23 = ptradd v17, v22
     v24 = ptradd v23, 32
     mstore v24, arg0
@@ -88,7 +88,7 @@ fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[ui
     v28 = lt v26, v27
     v29 = eq v28, false
     icall panic_if<0x32>, v29
-    v30 = shl 5, v26
+    v30 = shl v26, 5
     v31 = ptradd v17, v30
     v32 = ptradd v31, 32
     v33 = mload v32

@@ -4,7 +4,7 @@
   fn @branch_only(arg0: i256) -> i256 {
     bb0:
 -     v0 = gt arg0, 0xffffffffffffffff
-+     v1 = shr 64, arg0
++     v1 = shr arg0, 64
 +     v0 = ne v1, 0
       jumpi v0, bb1, bb2
     bb2:

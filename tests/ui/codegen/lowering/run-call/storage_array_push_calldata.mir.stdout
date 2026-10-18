@@ -62,13 +62,13 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v61 = lt v60, v41
     jumpi v61, bb10, bb11
   bb11:
-    v80 = shr 1, v41
+    v80 = shr v41, 1
     v81 = and v41, 1
     v82 = eq v81, 0
     jumpi v82, bb13, bb12
   bb12:
     v83 = mul v81, 120
-    v84 = shl v83, 1
+    v84 = shl 1, v83
     v85 = sub v84, 1
     v86 = storage_array_data_slot v40
     v87 = add v86, v80
@@ -95,11 +95,11 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v102 = mul v101, 15
     v103 = sload v100 !metadata(storage=symbolic(v100))
     v104 = mul v102, 8
-    v105 = shr v104, v103
+    v105 = shr v103, v104
     v106 = trunc i256 v105 to i120
     ret v106
   bb10:
-    v62 = shl 5, v60
+    v62 = shl v60, 5
     v63 = ptradd v22, v62
     v64 = ptradd v63, 32
     v65 = mload v64
@@ -109,12 +109,12 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v69 = mod v60, 2
     v70 = mul v69, 15
     v71 = mul v70, 8
-    v72 = shl v71, 0xffffffffffffffffffffffffffffff
+    v72 = shl 0xffffffffffffffffffffffffffffff, v71
     v73 = sload v68 !metadata(storage=symbolic(v68))
     v74 = not v72
     v75 = and v73, v74
     v76 = and v65, 0xffffffffffffffffffffffffffffff
-    v77 = shl v71, v76
+    v77 = shl v76, v71
     v78 = or v75, v77
     sstore v68, v78 !metadata(storage=symbolic(v68))
     v79 = add v60, 1
@@ -126,12 +126,12 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v49 = mod v44, 2
     v50 = mul v49, 15
     v51 = mul v50, 8
-    v52 = shl v51, 0xffffffffffffffffffffffffffffff
+    v52 = shl 0xffffffffffffffffffffffffffffff, v51
     v53 = sload v48 !metadata(storage=symbolic(v48))
     v54 = not v52
     v55 = and v53, v54
     v56 = and 0, 0xffffffffffffffffffffffffffffff
-    v57 = shl v51, v56
+    v57 = shl v56, v51
     v58 = or v55, v57
     sstore v48, v58 !metadata(storage=symbolic(v48))
     v59 = add v44, 1
@@ -141,11 +141,11 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v26 = ptrtoint ptr<calldata> v1 to i256
     v27 = add v26, v25
     v28 = calldataload v27
-    v29 = shr 120, v28
+    v29 = shr v28, 120
     v30 = eq v29, 0
     v31 = eq v30, false
     icall revert_if<empty>, v31
-    v32 = shl 5, v23
+    v32 = shl v23, 5
     v33 = ptradd v22, v32
     v34 = ptradd v33, 32
     mstore v34, v28
@@ -163,7 +163,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
     v6 = calldataload v0
-    v7 = shr 16, v6
+    v7 = shr v6, 16
     v8 = eq v7, 0
     v9 = eq v8, false
     icall revert_if<empty>, v9
@@ -175,7 +175,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v14 = slt v13, 32
     icall revert_if<calldata_tail_too_short>, v14
     v15 = calldataload v11
-    v16 = shr 16, v15
+    v16 = shr v15, 16
     v17 = eq v16, 0
     v18 = eq v17, false
     icall revert_if<empty>, v18
@@ -265,12 +265,12 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     sstore v91, v97 !metadata(storage=symbolic(v91))
     v98 = ptradd v1, 32
     v99 = mload v98
-    v100 = shl 16, 0xffff
+    v100 = shl 0xffff, 16
     v101 = sload v91 !metadata(storage=symbolic(v91))
     v102 = not v100
     v103 = and v101, v102
     v104 = and v99, 0xffff
-    v105 = shl 16, v104
+    v105 = shl v104, 16
     v106 = or v103, v105
     sstore v91, v106 !metadata(storage=symbolic(v91))
     v107 = add v91, 1
@@ -305,13 +305,13 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v161 = lt v160, v141
     jumpi v161, bb19, bb20
   bb20:
-    v181 = shr 4, v141
+    v181 = shr v141, 4
     v182 = and v141, 15
     v183 = eq v182, 0
     jumpi v183, bb22, bb21
   bb21:
     v184 = mul v182, 16
-    v185 = shl v184, 1
+    v185 = shl 1, v184
     v186 = sub v185, 1
     v187 = storage_array_data_slot v138
     v188 = add v187, v181
@@ -340,7 +340,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v205 = mul 0, 3
     v206 = add v204, v205
     v207 = sload v206 !metadata(storage=symbolic(v206))
-    v208 = shr 16, v207
+    v208 = shr v207, 16
     v209 = trunc i256 v208 to i16
     v210 = zext i16 v209 to i256
     v211 = checked_mul uint256, v210, 100
@@ -362,7 +362,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v225 = mul v224, 2
     v226 = sload v223 !metadata(storage=symbolic(v223))
     v227 = mul v225, 8
-    v228 = shr v227, v226
+    v228 = shr v226, v227
     v229 = trunc i256 v228 to i16
     v230 = zext i16 v229 to i256
     v231 = checked_mul uint256, v230, 10
@@ -386,13 +386,13 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v247 = mul v246, 2
     v248 = sload v245 !metadata(storage=symbolic(v245))
     v249 = mul v247, 8
-    v250 = shr v249, v248
+    v250 = shr v248, v249
     v251 = trunc i256 v250 to i16
     v252 = zext i16 v251 to i256
     v253 = checked_add uint256, v232, v252
     ret v253
   bb19:
-    v162 = shl 5, v160
+    v162 = shl v160, 5
     v163 = inttoptr i256 v140 to ptr<memory>
     v164 = ptradd v163, v162
     v165 = ptradd v164, 32
@@ -403,12 +403,12 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v170 = mod v160, 16
     v171 = mul v170, 2
     v172 = mul v171, 8
-    v173 = shl v172, 0xffff
+    v173 = shl 0xffff, v172
     v174 = sload v169 !metadata(storage=symbolic(v169))
     v175 = not v173
     v176 = and v174, v175
     v177 = and v166, 0xffff
-    v178 = shl v172, v177
+    v178 = shl v177, v172
     v179 = or v176, v178
     sstore v169, v179 !metadata(storage=symbolic(v169))
     v180 = add v160, 1
@@ -420,12 +420,12 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v149 = mod v144, 16
     v150 = mul v149, 2
     v151 = mul v150, 8
-    v152 = shl v151, 0xffff
+    v152 = shl 0xffff, v151
     v153 = sload v148 !metadata(storage=symbolic(v148))
     v154 = not v152
     v155 = and v153, v154
     v156 = and 0, 0xffff
-    v157 = shl v151, v156
+    v157 = shl v156, v151
     v158 = or v155, v157
     sstore v148, v158 !metadata(storage=symbolic(v148))
     v159 = add v144, 1
@@ -439,27 +439,27 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     jumpi v116, bb10, bb11
   bb11:
     v129 = mul v115, 8
-    v130 = shl v129, 0xffff
+    v130 = shl 0xffff, v129
     v131 = sload v113 !metadata(storage=symbolic(v113))
     v132 = not v130
     v133 = and v131, v132
     v134 = and 0, 0xffff
-    v135 = shl v129, v134
+    v135 = shl v134, v129
     v136 = or v133, v135
     sstore v113, v136 !metadata(storage=symbolic(v113))
     jump bb12
   bb10:
-    v117 = shl 5, v110
+    v117 = shl v110, 5
     v118 = inttoptr i256 v109 to ptr<memory>
     v119 = ptradd v118, v117
     v120 = mload v119
     v121 = mul v115, 8
-    v122 = shl v121, 0xffff
+    v122 = shl 0xffff, v121
     v123 = sload v113 !metadata(storage=symbolic(v113))
     v124 = not v122
     v125 = and v123, v124
     v126 = and v120, 0xffff
-    v127 = shl v121, v126
+    v127 = shl v126, v121
     v128 = or v125, v127
     sstore v113, v128 !metadata(storage=symbolic(v113))
     jump bb12
@@ -470,11 +470,11 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v74 = mul v72, 32
     v75 = add v59, v74
     v76 = calldataload v75
-    v77 = shr 16, v76
+    v77 = shr v76, 16
     v78 = eq v77, 0
     v79 = eq v78, false
     icall revert_if<empty>, v79
-    v80 = shl 5, v72
+    v80 = shl v72, 5
     v81 = ptradd v71, v80
     v82 = ptradd v81, 32
     mstore v82, v76
@@ -484,7 +484,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v28 = mul v26, 32
     v29 = add v21, v28
     v30 = calldataload v29
-    v31 = shr 16, v30
+    v31 = shr v30, 16
     v32 = eq v31, 0
     v33 = eq v32, false
     icall revert_if<empty>, v33

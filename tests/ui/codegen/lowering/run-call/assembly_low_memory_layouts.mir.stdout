@@ -48,7 +48,7 @@ fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_pa
   bb1:
     v18 = icall @_copy, 0x400
     v19 = mload v18
-    v20 = shl 0, v19
+    v20 = shl v19, 0
     jump bb3
   bb3:
     v21 = phi [bb1: v20], [bb2: 0]
@@ -257,7 +257,7 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
   bb5:
     jump bb2
   bb2:
-    v47 = shl 5, v19
+    v47 = shl v19, 5
     v48 = add v38, v47
     mstore 64, v48 !metadata(memory=scratch)
     v49 = xor v21, v22
@@ -276,12 +276,12 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
     v62 = xor v61, v35
     v63 = xor v62, v36
     v64 = xor v63, v37
-    v65 = shl 0, v19
+    v65 = shl v19, 0
     v66 = xor v64, v65
     ret v66
   bb4:
     v43 = not 0
-    v44 = shl 5, v39
+    v44 = shl v39, 5
     v45 = add v38, v44
     mstore v45, v43
     jump bb6
@@ -658,8 +658,8 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[ui
     v13 = ptradd v12, 32
     v14 = mload v13
     v15 = byte 0, v14
-    v16 = shl 248, v15
-    v17 = shr 248, v16
+    v16 = shl v15, 248
+    v17 = shr v16, 248
     v18 = trunc i256 v17 to i8
     v19 = insert_value struct1, undef struct1, 0, v18
     v20 = insert_value struct1, v19, 1, 1
@@ -678,12 +678,12 @@ fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[ui
     v4 = ptrtoint ptr<memory> v0 to i256
     v5 = add v4, 32
     v6 = sub 64, v5
-    v7 = shr 5, v6
+    v7 = shr v6, 5
     v8 = mload v0
     v9 = lt v7, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = shl 5, v7
+    v11 = shl v7, 5
     v12 = ptradd v0, v11
     v13 = ptradd v12, 32
     v14 = mload v13
@@ -791,7 +791,7 @@ fn @hashAroundCheckedAdd(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0
     mstore 64, v0 !metadata(memory=scratch)
     v4 = checked_sub uint256, v2, arg0
     v5 = checked_sub uint256, v4, arg1
-    v6 = shl 0, v5
+    v6 = shl v5, 0
     v7 = xor v3, v6
     ret v7
 }
@@ -819,7 +819,7 @@ fn @_copy(arg0: i256) -> ptr<memory> [pure] {
 fn @_lay(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = calldataload 36
-    v1 = shl 5, v0
+    v1 = shl v0, 5
     v2 = add 160, v1
     jump bb1
   bb1:

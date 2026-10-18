@@ -43,7 +43,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uin
     v58 = mul v57, 2
     v59 = sload v56 !metadata(storage=symbolic(v56))
     v60 = mul v58, 8
-    v61 = shr v60, v59
+    v61 = shr v59, v60
     v62 = trunc i256 v61 to i16
     jump bb13
   bb13:
@@ -72,7 +72,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uin
     v97 = mul v96, 2
     v98 = sload v95 !metadata(storage=symbolic(v95))
     v99 = mul v97, 8
-    v100 = shr v99, v98
+    v100 = shr v98, v99
     v101 = trunc i256 v100 to i16
     jump bb19
   bb19:
@@ -102,7 +102,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uin
     v137 = mul v136, 2
     v138 = sload v135 !metadata(storage=symbolic(v135))
     v139 = mul v137, 8
-    v140 = shr v139, v138
+    v140 = shr v138, v139
     v141 = trunc i256 v140 to i16
     jump bb25
   bb25:
@@ -136,12 +136,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uin
     v158 = mod v154, 16
     v159 = mul v158, 2
     v160 = mul v159, 8
-    v161 = shl v160, 0xffff
+    v161 = shl 0xffff, v160
     v162 = sload v157 !metadata(storage=symbolic(v157))
     v163 = not v161
     v164 = and v162, v163
     v165 = and 0, 0xffff
-    v166 = shl v160, v165
+    v166 = shl v165, v160
     v167 = or v164, v166
     sstore v157, v167 !metadata(storage=symbolic(v157))
     jump bb30
@@ -162,12 +162,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uin
     v117 = mod v113, 16
     v118 = mul v117, 2
     v119 = mul v118, 8
-    v120 = shl v119, 0xffff
+    v120 = shl 0xffff, v119
     v121 = sload v116 !metadata(storage=symbolic(v116))
     v122 = not v120
     v123 = and v121, v122
     v124 = and 0, 0xffff
-    v125 = shl v119, v124
+    v125 = shl v124, v119
     v126 = or v123, v125
     sstore v116, v126 !metadata(storage=symbolic(v116))
     jump bb24
@@ -188,12 +188,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uin
     v77 = mod v73, 16
     v78 = mul v77, 2
     v79 = mul v78, 8
-    v80 = shl v79, 0xffff
+    v80 = shl 0xffff, v79
     v81 = sload v76 !metadata(storage=symbolic(v76))
     v82 = not v80
     v83 = and v81, v82
     v84 = and 0, 0xffff
-    v85 = shl v79, v84
+    v85 = shl v84, v79
     v86 = or v83, v85
     sstore v76, v86 !metadata(storage=symbolic(v76))
     jump bb18
@@ -214,12 +214,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uin
     v38 = mod v34, 16
     v39 = mul v38, 2
     v40 = mul v39, 8
-    v41 = shl v40, 0xffff
+    v41 = shl 0xffff, v40
     v42 = sload v37 !metadata(storage=symbolic(v37))
     v43 = not v41
     v44 = and v42, v43
     v45 = and 0, 0xffff
-    v46 = shl v40, v45
+    v46 = shl v45, v40
     v47 = or v44, v46
     sstore v37, v47 !metadata(storage=symbolic(v37))
     jump bb12
@@ -240,13 +240,13 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uin
     v13 = mod v7, 16
     v14 = mul v13, 2
     v15 = mul v14, 8
-    v16 = shl v15, 0xffff
+    v16 = shl 0xffff, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
     v20 = zext i16 v6 to i256
     v21 = and v20, 0xffff
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     sstore 0, v9 !metadata(storage=slot(0))

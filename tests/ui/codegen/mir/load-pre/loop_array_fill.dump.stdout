@@ -7,8 +7,8 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v8 = eq v7, 0
     jumpi v8, bb4, bb5
   bb5:
-    v9 = shl 5, v7
-    v11 = shr 5, v9
+    v9 = shl v7, 5
+    v11 = shr v9, 5
     v15 = ne v11, v7
     jumpi v15, bb4, bb6
   bb6:
@@ -31,7 +31,7 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     jumpi v20, bb3, bb2
   bb2:
     v50 = add v58, 32
-    v45 = shl 5, arg0
+    v45 = shl arg0, 5
     v52 = add v58, 64
     mcopy v52, v50, v45
     mstore v58, 32
@@ -106,12 +106,12 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v34 = eq v33, 0
     jumpi v34, bb4, bb5
   bb5:
-    v35 = shr 32, arg0
+    v35 = shr arg0, 32
     v36 = and v35, 0xffffffff
     v37 = eq v36, 0
     jumpi v37, bb4, bb6
   bb6:
-    v38 = shr 64, arg0
+    v38 = shr arg0, 64
     v39 = and v38, 0xffffffff
     v40 = eq v39, 0
     v51 = zext i1 v40 to i256
@@ -120,7 +120,7 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
   bb4:
     v41 = phi [bb0: 0], [bb5: 1], [bb6: v53]
     v8 = add v41, 1
-    v10 = shl 5, v8
+    v10 = shl v8, 5
     v74 = icall @alloc, v10
     v76 = calldatasize
     calldatacopy v74, v76, v10
@@ -134,7 +134,7 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     jumpi v22, bb3, bb2
   bb2:
     v66 = add v74, 32
-    v61 = shl 5, v41
+    v61 = shl v41, 5
     v68 = add v74, 64
     mcopy v68, v66, v61
     mstore v74, 32
@@ -142,8 +142,8 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v63 = add v61, 64
     returndata v74, v63
   bb3:
-    v42 = shl 5, v21
-    v24 = shr v42, arg0
+    v42 = shl v21, 5
+    v24 = shr arg0, v42
     v25 = and v24, 0xffffffff
     mstore v78, v25
     v49 = add v21, 1
@@ -169,7 +169,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     switch v7, default bb1, [0x3fda5389 => bb3, 0x713c311a => bb4]
   bb4:
     tail_call @lanes

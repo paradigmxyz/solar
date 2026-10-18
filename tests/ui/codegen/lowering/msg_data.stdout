@@ -57,7 +57,7 @@ fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns
     v16 = xor v14, v15
     v17 = calldataload 0
     v18 = and v17, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v19 = shr 224, v18
+    v19 = shr v18, 224
     v20 = trunc i256 v19 to i32
     v21 = zext i32 v20 to i256
     v22 = xor v16, v21

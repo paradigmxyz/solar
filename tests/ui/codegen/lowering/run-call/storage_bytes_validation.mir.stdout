@@ -9,7 +9,7 @@ fn @unusedInvalidLength() [selector=0x200cc212, abi_params=[], abi_returns=[], a
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     ret
 }
@@ -44,7 +44,7 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[], ab
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 31
     v8 = div v7, 32
@@ -66,7 +66,7 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[], abi
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 31
     v8 = div v7, 32
@@ -88,7 +88,7 @@ fn @invalidShortLength() -> i256 [selector=0xe7a318a7, abi_params=[], abi_return
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     ret v6
 }
@@ -102,7 +102,7 @@ fn @invalidLongLength() -> i256 [selector=0xc14ec391, abi_params=[], abi_returns
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     ret v6
 }
@@ -116,7 +116,7 @@ fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -126,7 +126,7 @@ fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -135,8 +135,8 @@ fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
+    v17 = shr v15, v16
+    v18 = shl v17, 248
     ret v18
 }
 
@@ -149,7 +149,7 @@ fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -159,7 +159,7 @@ fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -168,8 +168,8 @@ fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
+    v17 = shr v15, v16
+    v18 = shl v17, 248
     ret v18
 }
 
@@ -182,7 +182,7 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -192,7 +192,7 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -200,13 +200,13 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     v13 = and 0, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v20 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     ret
@@ -221,7 +221,7 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[],
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -231,7 +231,7 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[],
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -239,13 +239,13 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[],
     v13 = and 0, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v20 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     ret
@@ -260,7 +260,7 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -270,7 +270,7 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -278,13 +278,13 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     v13 = and 0, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0
+    v20 = shr 0, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     ret
@@ -299,7 +299,7 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -309,7 +309,7 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -317,13 +317,13 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     v13 = and 0, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0
+    v20 = shr 0, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     ret
@@ -338,7 +338,7 @@ fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, abi_params=[], a
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 100, v6
     v8 = eq v7, false
@@ -348,7 +348,7 @@ fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, abi_params=[], a
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 100
+    v10 = shr 100, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -357,8 +357,8 @@ fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, abi_params=[], a
     v14 = sub 31, v13
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
-    v17 = shr v16, v15
-    v18 = shl 248, v17
+    v17 = shr v15, v16
+    v18 = shl v17, 248
     ret v18
 }
 
@@ -371,7 +371,7 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 100, v6
     v8 = eq v7, false
@@ -381,7 +381,7 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     jump bb3
   bb1:
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 100
+    v10 = shr 100, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -389,13 +389,13 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     v13 = and 100, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v20 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     ret
@@ -410,7 +410,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = eq v7, false
@@ -424,11 +424,11 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_
     v31 = add v0, 2
     v32 = sub 31, v6
     v33 = mul v32, 8
-    v34 = shl v33, 255
+    v34 = shl 255, v33
     v35 = not v34
     v36 = and v31, v35
     v37 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v38 = shl v33, v37
+    v38 = shl v37, v33
     v39 = or v36, v38
     sstore 0, v39 !metadata(storage=slot(0))
     jump bb5
@@ -445,18 +445,18 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
-    v12 = shr 5, v6
+    v12 = shr v6, 5
     v13 = add v11, v12
     v14 = and v6, 31
     v15 = sub 31, v14
     v16 = mul v15, 8
-    v17 = shl v16, 255
+    v17 = shl 255, v16
     v18 = sload v13 !metadata(storage=symbolic(v13))
     v19 = not v17
     v20 = and v18, v19
-    v21 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v21 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v22 = and v21, 255
-    v23 = shl v16, v22
+    v23 = shl v22, v16
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
     jump bb5
@@ -473,7 +473,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_r
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = eq v7, false
@@ -487,11 +487,11 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_r
     v31 = add v0, 2
     v32 = sub 31, v6
     v33 = mul v32, 8
-    v34 = shl v33, 255
+    v34 = shl 255, v33
     v35 = not v34
     v36 = and v31, v35
     v37 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v38 = shl v33, v37
+    v38 = shl v37, v33
     v39 = or v36, v38
     sstore 0, v39 !metadata(storage=slot(0))
     jump bb5
@@ -508,18 +508,18 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_r
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
-    v12 = shr 5, v6
+    v12 = shr v6, 5
     v13 = add v11, v12
     v14 = and v6, 31
     v15 = sub 31, v14
     v16 = mul v15, 8
-    v17 = shl v16, 255
+    v17 = shl 255, v16
     v18 = sload v13 !metadata(storage=symbolic(v13))
     v19 = not v17
     v20 = and v18, v19
-    v21 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v21 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v22 = and v21, 255
-    v23 = shl v16, v22
+    v23 = shl v22, v16
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
     jump bb5
@@ -536,7 +536,7 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], 
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 1
     v8 = gt v7, 0x10000000000000000
@@ -549,7 +549,7 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], 
   bb4:
     v21 = sub 32, v7
     v22 = mul v21, 8
-    v23 = shl v22, 1
+    v23 = shl 1, v22
     v24 = sub v23, 1
     v25 = not v24
     v26 = and v0, v25
@@ -562,16 +562,16 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], 
     v17 = not 255
     v18 = and v0, v17
     sstore v16, v18 !metadata(storage=symbolic(v16))
-    v19 = shl 1, v7
+    v19 = shl v7, 1
     v20 = or v19, 1
     sstore 0, v20 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v10 = shl 1, v7
+    v10 = shl v7, 1
     v11 = or v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
     v12 = storage_array_data_slot 0
-    v13 = shr 5, v6
+    v13 = shr v6, 5
     v14 = add v12, v13
     jump bb5
   bb5:
@@ -590,7 +590,7 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], a
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 1
     v8 = gt v7, 0x10000000000000000
@@ -603,7 +603,7 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], a
   bb4:
     v21 = sub 32, v7
     v22 = mul v21, 8
-    v23 = shl v22, 1
+    v23 = shl 1, v22
     v24 = sub v23, 1
     v25 = not v24
     v26 = and v0, v25
@@ -616,16 +616,16 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], a
     v17 = not 255
     v18 = and v0, v17
     sstore v16, v18 !metadata(storage=symbolic(v16))
-    v19 = shl 1, v7
+    v19 = shl v7, 1
     v20 = or v19, 1
     sstore 0, v20 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v10 = shl 1, v7
+    v10 = shl v7, 1
     v11 = or v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
     v12 = storage_array_data_slot 0
-    v13 = shr 5, v6
+    v13 = shr v6, 5
     v14 = add v12, v13
     jump bb5
   bb5:
@@ -644,7 +644,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 1
     v8 = gt v7, 0x10000000000000000
@@ -657,7 +657,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
   bb4:
     v21 = sub 32, v7
     v22 = mul v21, 8
-    v23 = shl v22, 1
+    v23 = shl 1, v22
     v24 = sub v23, 1
     v25 = not v24
     v26 = and v0, v25
@@ -670,16 +670,16 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     v17 = not 255
     v18 = and v0, v17
     sstore v16, v18 !metadata(storage=symbolic(v16))
-    v19 = shl 1, v7
+    v19 = shl v7, 1
     v20 = or v19, 1
     sstore 0, v20 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v10 = shl 1, v7
+    v10 = shl v7, 1
     v11 = or v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
     v12 = storage_array_data_slot 0
-    v13 = shr 5, v6
+    v13 = shr v6, 5
     v14 = add v12, v13
     jump bb5
   bb5:
@@ -687,13 +687,13 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     v30 = and v6, 31
     v31 = sub 31, v30
     v32 = mul v31, 8
-    v33 = shl v32, 255
+    v33 = shl 255, v32
     v34 = sload v29 !metadata(storage=symbolic(v29))
     v35 = not v33
     v36 = and v34, v35
-    v37 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v37 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v38 = and v37, 255
-    v39 = shl v32, v38
+    v39 = shl v38, v32
     v40 = or v36, v39
     sstore v29, v40 !metadata(storage=symbolic(v29))
     ret
@@ -708,7 +708,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 1
     v8 = gt v7, 0x10000000000000000
@@ -721,7 +721,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
   bb4:
     v21 = sub 32, v7
     v22 = mul v21, 8
-    v23 = shl v22, 1
+    v23 = shl 1, v22
     v24 = sub v23, 1
     v25 = not v24
     v26 = and v0, v25
@@ -734,16 +734,16 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
     v17 = not 255
     v18 = and v0, v17
     sstore v16, v18 !metadata(storage=symbolic(v16))
-    v19 = shl 1, v7
+    v19 = shl v7, 1
     v20 = or v19, 1
     sstore 0, v20 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v10 = shl 1, v7
+    v10 = shl v7, 1
     v11 = or v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
     v12 = storage_array_data_slot 0
-    v13 = shr 5, v6
+    v13 = shr v6, 5
     v14 = add v12, v13
     jump bb5
   bb5:
@@ -751,13 +751,13 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
     v30 = and v6, 31
     v31 = sub 31, v30
     v32 = mul v31, 8
-    v33 = shl v32, 255
+    v33 = shl 255, v32
     v34 = sload v29 !metadata(storage=symbolic(v29))
     v35 = not v33
     v36 = and v34, v35
-    v37 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v37 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v38 = and v37, 255
-    v39 = shl v32, v38
+    v39 = shl v38, v32
     v40 = or v36, v39
     sstore v29, v40 !metadata(storage=symbolic(v29))
     ret
@@ -772,7 +772,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_r
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = eq v6, 0
     icall panic_if<0x31>, v7
@@ -784,18 +784,18 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_r
     jumpi v20, bb2, bb3
   bb3:
     v29 = storage_array_data_slot 0
-    v30 = shr 5, v19
+    v30 = shr v19, 5
     v31 = add v29, v30
     v32 = and v19, 31
     v33 = sub 31, v32
     v34 = mul v33, 8
-    v35 = shl v34, 255
+    v35 = shl 255, v34
     v36 = sload v31 !metadata(storage=symbolic(v31))
     v37 = not v35
     v38 = and v36, v37
-    v39 = shr 248, 0
+    v39 = shr 0, 248
     v40 = and v39, 255
-    v41 = shl v34, v40
+    v41 = shl v40, v34
     v42 = or v38, v41
     sstore v31, v42 !metadata(storage=symbolic(v31))
     v43 = sub v0, 2
@@ -804,7 +804,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_r
   bb2:
     v21 = sub 32, v19
     v22 = mul v21, 8
-    v23 = shl v22, 1
+    v23 = shl 1, v22
     v24 = sub v23, 1
     v25 = not v24
     v26 = and v0, v25
@@ -817,7 +817,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_r
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = sub 32, 31
     v12 = mul v11, 8
-    v13 = shl v12, 1
+    v13 = shl 1, v12
     v14 = sub v13, 1
     v15 = not v14
     v16 = and v10, v15
@@ -839,7 +839,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = eq v6, 0
     icall panic_if<0x31>, v7
@@ -851,18 +851,18 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
     jumpi v20, bb2, bb3
   bb3:
     v29 = storage_array_data_slot 0
-    v30 = shr 5, v19
+    v30 = shr v19, 5
     v31 = add v29, v30
     v32 = and v19, 31
     v33 = sub 31, v32
     v34 = mul v33, 8
-    v35 = shl v34, 255
+    v35 = shl 255, v34
     v36 = sload v31 !metadata(storage=symbolic(v31))
     v37 = not v35
     v38 = and v36, v37
-    v39 = shr 248, 0
+    v39 = shr 0, 248
     v40 = and v39, 255
-    v41 = shl v34, v40
+    v41 = shl v40, v34
     v42 = or v38, v41
     sstore v31, v42 !metadata(storage=symbolic(v31))
     v43 = sub v0, 2
@@ -871,7 +871,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
   bb2:
     v21 = sub 32, v19
     v22 = mul v21, 8
-    v23 = shl v22, 1
+    v23 = shl 1, v22
     v24 = sub v23, 1
     v25 = not v24
     v26 = and v0, v25
@@ -884,7 +884,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = sub 32, 31
     v12 = mul v11, 8
-    v13 = shl v12, 1
+    v13 = shl 1, v12
     v14 = sub v13, 1
     v15 = not v14
     v16 = and v10, v15
@@ -899,7 +899,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
 
 fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = shl 64, 1
+    v0 = shl 1, 64
     v1 = sub v0, 1
     v2 = mul v1, 2
     v3 = add v2, 1
@@ -910,7 +910,7 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     v6 = eq v5, 1
     v7 = sub 0, v5
     v8 = or 127, v7
-    v9 = shr 1, v4
+    v9 = shr v4, 1
     v10 = and v9, v8
     v11 = lt v10, 0x10000000000000000
     v12 = eq v11, false
@@ -924,11 +924,11 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     v35 = add v4, 2
     v36 = sub 31, v10
     v37 = mul v36, 8
-    v38 = shl v37, 255
+    v38 = shl 255, v37
     v39 = not v38
     v40 = and v35, v39
     v41 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v42 = shl v37, v41
+    v42 = shl v41, v37
     v43 = or v40, v42
     sstore 0, v43 !metadata(storage=slot(0))
     jump bb5
@@ -945,18 +945,18 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     v14 = add v4, 2
     sstore 0, v14 !metadata(storage=slot(0))
     v15 = storage_array_data_slot 0
-    v16 = shr 5, v10
+    v16 = shr v10, 5
     v17 = add v15, v16
     v18 = and v10, 31
     v19 = sub 31, v18
     v20 = mul v19, 8
-    v21 = shl v20, 255
+    v21 = shl 255, v20
     v22 = sload v17 !metadata(storage=symbolic(v17))
     v23 = not v21
     v24 = and v22, v23
-    v25 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v25 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v26 = and v25, 255
-    v27 = shl v20, v26
+    v27 = shl v26, v20
     v28 = or v24, v27
     sstore v17, v28 !metadata(storage=symbolic(v17))
     jump bb5
@@ -967,7 +967,7 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
 
 fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = shl 64, 1
+    v0 = shl 1, 64
     v1 = mul v0, 2
     v2 = add v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
@@ -977,7 +977,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
     v5 = eq v4, 1
     v6 = sub 0, v4
     v7 = or 127, v6
-    v8 = shr 1, v3
+    v8 = shr v3, 1
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
     v11 = eq v10, false
@@ -991,11 +991,11 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
     v34 = add v3, 2
     v35 = sub 31, v9
     v36 = mul v35, 8
-    v37 = shl v36, 255
+    v37 = shl 255, v36
     v38 = not v37
     v39 = and v34, v38
     v40 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v41 = shl v36, v40
+    v41 = shl v40, v36
     v42 = or v39, v41
     sstore 0, v42 !metadata(storage=slot(0))
     jump bb5
@@ -1012,18 +1012,18 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
     v13 = add v3, 2
     sstore 0, v13 !metadata(storage=slot(0))
     v14 = storage_array_data_slot 0
-    v15 = shr 5, v9
+    v15 = shr v9, 5
     v16 = add v14, v15
     v17 = and v9, 31
     v18 = sub 31, v17
     v19 = mul v18, 8
-    v20 = shl v19, 255
+    v20 = shl 255, v19
     v21 = sload v16 !metadata(storage=symbolic(v16))
     v22 = not v20
     v23 = and v21, v22
-    v24 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
+    v24 = shr 0x100000000000000000000000000000000000000000000000000000000000000, 248
     v25 = and v24, 255
-    v26 = shl v19, v25
+    v26 = shl v25, v19
     v27 = or v23, v26
     sstore v16, v27 !metadata(storage=symbolic(v16))
     jump bb5
@@ -1033,7 +1033,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
 
 fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = shl 64, 1
+    v0 = shl 1, 64
     v1 = mul v0, 2
     v2 = add v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
@@ -1043,7 +1043,7 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[],
     v5 = eq v4, 1
     v6 = sub 0, v4
     v7 = or 127, v6
-    v8 = shr 1, v3
+    v8 = shr v3, 1
     v9 = and v8, v7
     v10 = add v9, 1
     v11 = gt v10, 0x10000000000000000
@@ -1056,7 +1056,7 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[],
   bb4:
     v24 = sub 32, v10
     v25 = mul v24, 8
-    v26 = shl v25, 1
+    v26 = shl 1, v25
     v27 = sub v26, 1
     v28 = not v27
     v29 = and v3, v28
@@ -1069,16 +1069,16 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[],
     v20 = not 255
     v21 = and v3, v20
     sstore v19, v21 !metadata(storage=symbolic(v19))
-    v22 = shl 1, v10
+    v22 = shl v10, 1
     v23 = or v22, 1
     sstore 0, v23 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v13 = shl 1, v10
+    v13 = shl v10, 1
     v14 = or v13, 1
     sstore 0, v14 !metadata(storage=slot(0))
     v15 = storage_array_data_slot 0
-    v16 = shr 5, v9
+    v16 = shr v9, 5
     v17 = add v15, v16
     jump bb5
   bb5:

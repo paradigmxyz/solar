@@ -46,7 +46,7 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v15 = extract_value slice<memory>, v13, 1
     v16 = extract_value slice<memory>, v13, 0
     v17 = mload v16
-    v18 = shr 224, v17
+    v18 = shr v17, 224
     v19 = eq v18, 0x8c379a0
     jumpi v19, bb4, bb5
   bb5:

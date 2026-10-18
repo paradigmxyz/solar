@@ -33,7 +33,7 @@
 +     v15 = div v13, 1
 +     v16 = add v12, v15
 +     v17 = sload v16 !metadata(storage=symbolic(v16))
-+     v18 = shl 5, v13
++     v18 = shl v13, 5
 +     v19 = ptradd v11, v18
 +     v20 = ptradd v19, 32
 +     mstore v20, v17
@@ -79,10 +79,10 @@
 +     v17 = sload v16 !metadata(storage=symbolic(v16))
 +     v18 = mod v13, 10
 +     v19 = mul v18, 24
-+     v20 = shr v19, v17
++     v20 = shr v17, v19
 +     v21 = and v20, 0xffffff
 +     v22 = signextend 2, v21
-+     v23 = shl 5, v13
++     v23 = shl v13, 5
 +     v24 = ptradd v11, v23
 +     v25 = ptradd v24, 32
 +     mstore v25, v22
@@ -128,10 +128,10 @@
 +     v17 = sload v16 !metadata(storage=symbolic(v16))
 +     v18 = mod v13, 3
 +     v19 = mul v18, 72
-+     v20 = shr v19, v17
++     v20 = shr v17, v19
 +     v21 = and v20, 0xffffffffffffffffff
-+     v22 = shl 184, v21
-+     v23 = shl 5, v13
++     v22 = shl v21, 184
++     v23 = shl v13, 5
 +     v24 = ptradd v11, v23
 +     v25 = ptradd v24, 32
 +     mstore v25, v22
@@ -177,13 +177,13 @@
 +     v17 = sload v16 !metadata(storage=symbolic(v16))
 +     v18 = mod v13, 32
 +     v19 = mul v18, 8
-+     v20 = shr v19, v17
++     v20 = shr v17, v19
 +     v21 = and v20, 255
 +     v22 = lt v21, 3
 +     v23 = eq v22, false
 +     jumpi v23, bb7, bb8
 +   bb8:
-+     v24 = shl 5, v13
++     v24 = shl v13, 5
 +     v25 = ptradd v11, v24
 +     v26 = ptradd v25, 32
 +     mstore v26, v21
@@ -237,7 +237,7 @@
 +   bb8:
 +     v16 = add v13, v14 !metadata(span=50..60, modifier_depth=5)
 +     v17 = icall @load_storage_bytes, v16 !metadata(span=50..60, modifier_depth=5)
-+     v18 = shl 5, v14 !metadata(span=50..60, modifier_depth=5)
++     v18 = shl v14, 5 !metadata(span=50..60, modifier_depth=5)
 +     v19 = ptradd v12, v18 !metadata(span=50..60, modifier_depth=5)
 +     v20 = ptradd v19, 32 !metadata(span=50..60, modifier_depth=5)
 +     v21 = ptrtoint ptr<memory> v17 to i256 !metadata(span=50..60, modifier_depth=5)
@@ -257,7 +257,7 @@
 +     v3 = eq v2, 1
 +     v4 = sub 0, v2
 +     v5 = or 127, v4
-+     v6 = shr 1, v1
++     v6 = shr v1, 1
 +     v7 = and v6, v5
 +     v8 = lt v7, 32
 +     v9 = eq v3, v8

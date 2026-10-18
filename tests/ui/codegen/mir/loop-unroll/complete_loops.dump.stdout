@@ -13,7 +13,7 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     v46 = calldataload v45
     v47 = byte 0, v46
     v48 = or 0, v47
-    v53 = shl 8, v48
+    v53 = shl v48, 8
     v54 = and v53, 0xffffffff
     v55 = lt 1, arg1
     v83 = and v44, v55
@@ -21,7 +21,7 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     v57 = calldataload v56
     v58 = byte 0, v57
     v59 = or v54, v58
-    v64 = shl 8, v59
+    v64 = shl v59, 8
     v65 = and v64, 0xffffffff
     v66 = lt 2, arg1
     v84 = and v83, v66
@@ -29,7 +29,7 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     v68 = calldataload v67
     v69 = byte 0, v68
     v70 = or v65, v69
-    v75 = shl 8, v70
+    v75 = shl v70, 8
     v76 = and v75, 0xffffffff
     v77 = lt 3, arg1
     v85 = and v84, v77
@@ -52,7 +52,7 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, 
     v48 = byte 0, v47
     v49 = or 0, v48
     v50 = add arg2, 1
-    v56 = shl 8, v49
+    v56 = shl v49, 8
     v57 = and v56, 0xffff
     v58 = lt v50, arg1
     v65 = and v45, v58
@@ -142,7 +142,7 @@ fn @entry() [entry] {
     jumpi v1, bb4, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb4, [0x540a714 => bb2, 0xe5c5e9a3 => bb3]
   bb3:
     tail_call @decode

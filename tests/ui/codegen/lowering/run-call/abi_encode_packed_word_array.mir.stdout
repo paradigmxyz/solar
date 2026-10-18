@@ -88,7 +88,7 @@ fn @packCalldata(arg0: slice<calldata>) -> i256 [selector=0x38651f67, pure, abi_
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
     v7 = calldataload v6
-    v8 = shr 8, v7
+    v8 = shr v7, 8
     v9 = eq v8, 0
     v10 = eq v9, false
     icall revert_if<empty>, v10

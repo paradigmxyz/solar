@@ -26,7 +26,7 @@ fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_return
     invalid
   bb4:
     mstore v3, 0
-    v4 = shl 5, v1
+    v4 = shl v1, 5
     v5 = ptradd v0, v4
     v6 = ptrtoint ptr<memory> v3 to i256
     mstore v5, v6
@@ -63,7 +63,7 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
     invalid
   bb4:
     mstore v3, 0
-    v4 = shl 5, v1
+    v4 = shl v1, 5
     v5 = ptradd v0, v4
     v6 = ptradd v5, 32
     v7 = ptrtoint ptr<memory> v3 to i256

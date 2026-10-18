@@ -84,7 +84,7 @@ fn @pow(arg0: i256, arg1: i256) -> i256 [selector=0x2e4c697f, pure, abi_params=[
   bb5:
     v16 = ne v5, 0
     v17 = select v16, v6, v1
-    v18 = shr 1, v3
+    v18 = shr v3, 1
     v19 = mul v2, v2
     v20 = eq v2, 0
     v21 = div v19, v2
