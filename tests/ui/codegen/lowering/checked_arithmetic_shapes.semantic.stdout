@@ -66,6 +66,12 @@ fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, pure, abi_para
     ret v0
 }
 
+fn @smul192(arg0: i192, arg1: i192) -> i192 [selector=0x94b496be, pure, abi_params=[i192, i192], abi_returns=[word<i192>], abi_return_params=[i192]] {
+  bb0:
+    v0 = checked_mul i192, arg0, arg1
+    ret v0
+}
+
 fn @umul192(arg0: i192, arg1: i192) -> i192 [selector=0xcf392d15, pure, abi_params=[u192, u192], abi_returns=[word<u192>], abi_return_params=[u192]] {
   bb0:
     v0 = checked_mul u192, arg0, arg1

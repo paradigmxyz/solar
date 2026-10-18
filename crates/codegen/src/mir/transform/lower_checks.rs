@@ -18,8 +18,8 @@
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
-    FunctionId, InstKind, InstructionMetadata, MirType, Module, PtrLocation, RequireKind,
-    RevertKind, RevertPayload, pass::MirPass, transform::utils::redirect_successor_predecessors,
+    FunctionId, InstKind, InstructionMetadata, MirType, Module, PhaseCategory, PtrLocation,
+    RequireKind, RevertKind, RevertPayload, pass::MirPass, transform::utils::expand_block,
 };
 use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
@@ -97,15 +97,9 @@ fn lower_function(
         {
             continue;
         }
-        let instructions = std::mem::take(&mut builder.func_mut().blocks[block].instructions);
-        let (terminator, metadata) = builder.func_mut().blocks[block].take_terminator();
-        builder.switch_to_block(block);
-        for id in instructions {
+        expand_block(&mut builder, block, |builder, id| {
             if !is_check(&builder.func().inst(id).kind) {
-                // continuation: original instruction
-                let current = builder.current_block();
-                builder.func_mut().blocks[current].instructions.push(id);
-                continue;
+                return false;
             }
             let inst = builder.func().inst(id).clone();
             builder.set_debug_context(&inst.metadata);
@@ -149,30 +143,19 @@ fn lower_function(
                     let continuation = builder.create_block();
                     builder.branch(condition, continuation, failure);
                     builder.switch_to_block(failure);
-                    emit_payload(&mut builder, payload, helper);
+                    emit_payload(builder, payload, helper);
                     builder.switch_to_block(continuation);
                 }
                 _ => unreachable!(),
             }
-        }
-        // continuation: original terminator
-        let end = builder.current_block();
-        if let Some(terminator) = terminator {
-            builder.func_mut().blocks[end].set_terminator(terminator, metadata);
-        }
-        if end != block {
-            redirect_successor_predecessors(builder.func_mut(), block, end);
-        }
+            true
+        });
     }
     true
 }
 
 fn is_check(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
-            | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. }
-    )
+    kind.op_def().phase_category == Some(PhaseCategory::ConditionalCheck)
 }
 
 fn emit_payload(

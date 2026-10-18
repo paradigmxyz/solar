@@ -367,9 +367,6 @@ impl CfgSimplifier {
                 | InstKind::Alloc { .. }
                 | InstKind::AbiEncode { .. }
                 | InstKind::AbiDecode { .. }
-                | InstKind::StorageToMemory { .. }
-                | InstKind::MemoryToStorage { .. }
-                | InstKind::ClearStorage { .. }
                 | InstKind::FrameLoad { .. }
                 | InstKind::FrameStore { .. }
                 | InstKind::StoreImmutable(_, _)
