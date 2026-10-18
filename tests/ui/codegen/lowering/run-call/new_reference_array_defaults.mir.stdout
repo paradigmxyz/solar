@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/new_reference_array_defaults.sol:NewReferenceArrayDefaults ===
 @module NewReferenceArrayDefaults
-fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -31,7 +31,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v22 = ptradd v0, 32
     v23 = mload v22, ptr<memory>
     v24 = mload v23
-    v25 = checked_mul u256, v24, 100
+    v25 = checked_mul uint256, v24, 100
     v26 = mload v0
     v27 = lt 1, v26
     v28 = eq v27, false
@@ -39,12 +39,12 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v29 = ptradd v0, 64
     v30 = mload v29, ptr<memory>
     v31 = mload v30
-    v32 = checked_add u256, v25, v31
+    v32 = checked_add uint256, v25, v31
     ret v32
   bb2:
     v3 = alloc 32 !metadata(preserves_fmp)
     mstore v3, 0
-    v4 = shl 5, v1
+    v4 = shl v1, 5
     v5 = ptradd v0, v4
     v6 = ptradd v5, 32
     v7 = ptrtoint ptr<memory> v3 to i256
@@ -73,7 +73,7 @@ fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_
     v14 = zext i1 v13 to i256
     ret v14
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96

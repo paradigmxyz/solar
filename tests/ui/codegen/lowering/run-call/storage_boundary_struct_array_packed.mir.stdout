@@ -19,7 +19,7 @@ fn @getCanary() -> i256 [pure] {
     ret 5
 }
 
-fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     v0 = icall @getCanary
     sstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v0))
@@ -102,7 +102,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v252
     v253 = add v250, 9
     v254 = sload v253 !metadata(storage=offset(v250, 9))
-    v255 = shr 192, v254
+    v255 = shr v254, 192
     v256 = trunc i256 v255 to i64
     v257 = eq v256, i64 0
     jump bb27
@@ -133,9 +133,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v214
     v215 = add v212, v195
     v216 = sload v215 !metadata(storage=symbolic(v215))
-    v217 = shr 64, v216
+    v217 = shr v216, 64
     v218 = trunc i256 v217 to i64
-    v219 = checked_add u64, v208, v218
+    v219 = checked_add uint64, v208, v218
     v220 = lt 0, 1
     v221 = eq v220, false
     icall panic_if<0x32>, v221
@@ -146,9 +146,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v225
     v226 = add v223, v195
     v227 = sload v226 !metadata(storage=symbolic(v226))
-    v228 = shr 128, v227
+    v228 = shr v227, 128
     v229 = trunc i256 v228 to i64
-    v230 = checked_add u64, v219, v229
+    v230 = checked_add uint64, v219, v229
     v231 = lt 0, 1
     v232 = eq v231, false
     icall panic_if<0x32>, v232
@@ -159,16 +159,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v236
     v237 = add v234, v195
     v238 = sload v237 !metadata(storage=symbolic(v237))
-    v239 = shr 192, v238
+    v239 = shr v238, 192
     v240 = trunc i256 v239 to i64
-    v241 = checked_add u64, v230, v240
+    v241 = checked_add uint64, v230, v240
     v242 = zext i64 v241 to i256
-    v243 = checked_add u256, v192, v242
+    v243 = checked_add uint256, v192, v242
     jump bb24
   bb24:
     jump bb21
   bb21:
-    v244 = checked_add u256, v195, 1
+    v244 = checked_add uint256, v195, 1
     jump bb19
   bb17:
     v190 = add v187, v188
@@ -197,37 +197,37 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v108, v155 !metadata(storage=symbolic(v108))
     v156 = ptradd v146, 32
     v157 = mload v156
-    v158 = shl 64, 0xffffffffffffffff
+    v158 = shl 0xffffffffffffffff, 64
     v159 = sload v108 !metadata(storage=symbolic(v108))
     v160 = not v158
     v161 = and v159, v160
     v162 = and v157, 0xffffffffffffffff
-    v163 = shl 64, v162
+    v163 = shl v162, 64
     v164 = or v161, v163
     sstore v108, v164 !metadata(storage=symbolic(v108))
     v165 = ptradd v146, 64
     v166 = mload v165
-    v167 = shl 128, 0xffffffffffffffff
+    v167 = shl 0xffffffffffffffff, 128
     v168 = sload v108 !metadata(storage=symbolic(v108))
     v169 = not v167
     v170 = and v168, v169
     v171 = and v166, 0xffffffffffffffff
-    v172 = shl 128, v171
+    v172 = shl v171, 128
     v173 = or v170, v172
     sstore v108, v173 !metadata(storage=symbolic(v108))
     v174 = ptradd v146, 96
     v175 = mload v174
-    v176 = shl 192, 0xffffffffffffffff
+    v176 = shl 0xffffffffffffffff, 192
     v177 = sload v108 !metadata(storage=symbolic(v108))
     v178 = not v176
     v179 = and v177, v178
     v180 = and v175, 0xffffffffffffffff
-    v181 = shl 192, v180
+    v181 = shl v180, 192
     v182 = or v179, v181
     sstore v108, v182 !metadata(storage=symbolic(v108))
     jump bb15
   bb13:
-    v110 = shl 5, v106
+    v110 = shl v106, 5
     v111 = ptradd v78, v110
     v112 = mload v111
     v113 = mload v112
@@ -239,32 +239,32 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v108, v118 !metadata(storage=symbolic(v108))
     v119 = add v112, 32
     v120 = mload v119
-    v121 = shl 64, 0xffffffffffffffff
+    v121 = shl 0xffffffffffffffff, 64
     v122 = sload v108 !metadata(storage=symbolic(v108))
     v123 = not v121
     v124 = and v122, v123
     v125 = and v120, 0xffffffffffffffff
-    v126 = shl 64, v125
+    v126 = shl v125, 64
     v127 = or v124, v126
     sstore v108, v127 !metadata(storage=symbolic(v108))
     v128 = add v112, 64
     v129 = mload v128
-    v130 = shl 128, 0xffffffffffffffff
+    v130 = shl 0xffffffffffffffff, 128
     v131 = sload v108 !metadata(storage=symbolic(v108))
     v132 = not v130
     v133 = and v131, v132
     v134 = and v129, 0xffffffffffffffff
-    v135 = shl 128, v134
+    v135 = shl v134, 128
     v136 = or v133, v135
     sstore v108, v136 !metadata(storage=symbolic(v108))
     v137 = add v112, 96
     v138 = mload v137
-    v139 = shl 192, 0xffffffffffffffff
+    v139 = shl 0xffffffffffffffff, 192
     v140 = sload v108 !metadata(storage=symbolic(v108))
     v141 = not v139
     v142 = and v140, v141
     v143 = and v138, 0xffffffffffffffff
-    v144 = shl 192, v143
+    v144 = shl v143, 192
     v145 = or v142, v144
     sstore v108, v145 !metadata(storage=symbolic(v108))
     jump bb15
@@ -279,45 +279,45 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v85 = zext i64 v84 to i256
     mstore v82, v85
     v86 = sload v81 !metadata(storage=symbolic(v81))
-    v87 = shr 64, v86
+    v87 = shr v86, 64
     v88 = trunc i256 v87 to i64
     v89 = zext i64 v88 to i256
     v90 = ptradd v82, 32
     mstore v90, v89
     v91 = sload v81 !metadata(storage=symbolic(v81))
-    v92 = shr 128, v91
+    v92 = shr v91, 128
     v93 = trunc i256 v92 to i64
     v94 = zext i64 v93 to i256
     v95 = ptradd v82, 64
     mstore v95, v94
     v96 = sload v81 !metadata(storage=symbolic(v81))
-    v97 = shr 192, v96
+    v97 = shr v96, 192
     v98 = trunc i256 v97 to i64
     v99 = zext i64 v98 to i256
     v100 = ptradd v82, 96
     mstore v100, v99
     v101 = ptrtoint ptr<memory> v82 to i256
-    v102 = shl 5, v79
+    v102 = shl v79, 5
     v103 = ptradd v78, v102
     mstore v103, v101
     v104 = add v79, 1
     jump bb7
   bb4:
     v8 = alloc 128
-    v9 = checked_mul u256, v4, 4
-    v10 = checked_add u256, 1, v9
+    v9 = checked_mul uint256, v4, 4
+    v10 = checked_add uint256, 1, v9
     v11 = trunc i256 v10 to i64
     v12 = zext i64 v11 to i256
-    v13 = checked_mul u256, v4, 4
-    v14 = checked_add u256, 2, v13
+    v13 = checked_mul uint256, v4, 4
+    v14 = checked_add uint256, 2, v13
     v15 = trunc i256 v14 to i64
     v16 = zext i64 v15 to i256
-    v17 = checked_mul u256, v4, 4
-    v18 = checked_add u256, 3, v17
+    v17 = checked_mul uint256, v4, 4
+    v18 = checked_add uint256, 3, v17
     v19 = trunc i256 v18 to i64
     v20 = zext i64 v19 to i256
-    v21 = checked_mul u256, v4, 4
-    v22 = checked_add u256, 4, v21
+    v21 = checked_mul uint256, v4, 4
+    v22 = checked_add uint256, 4, v21
     v23 = trunc i256 v22 to i64
     v24 = zext i64 v23 to i256
     mstore v8, v12
@@ -345,38 +345,38 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v34, v40 !metadata(storage=symbolic(v34))
     v41 = ptradd v8, 32
     v42 = mload v41
-    v43 = shl 64, 0xffffffffffffffff
+    v43 = shl 0xffffffffffffffff, 64
     v44 = sload v34 !metadata(storage=symbolic(v34))
     v45 = not v43
     v46 = and v44, v45
     v47 = and v42, 0xffffffffffffffff
-    v48 = shl 64, v47
+    v48 = shl v47, 64
     v49 = or v46, v48
     sstore v34, v49 !metadata(storage=symbolic(v34))
     v50 = ptradd v8, 64
     v51 = mload v50
-    v52 = shl 128, 0xffffffffffffffff
+    v52 = shl 0xffffffffffffffff, 128
     v53 = sload v34 !metadata(storage=symbolic(v34))
     v54 = not v52
     v55 = and v53, v54
     v56 = and v51, 0xffffffffffffffff
-    v57 = shl 128, v56
+    v57 = shl v56, 128
     v58 = or v55, v57
     sstore v34, v58 !metadata(storage=symbolic(v34))
     v59 = ptradd v8, 96
     v60 = mload v59
-    v61 = shl 192, 0xffffffffffffffff
+    v61 = shl 0xffffffffffffffff, 192
     v62 = sload v34 !metadata(storage=symbolic(v34))
     v63 = not v61
     v64 = and v62, v63
     v65 = and v60, 0xffffffffffffffff
-    v66 = shl 192, v65
+    v66 = shl v65, 192
     v67 = or v64, v66
     sstore v34, v67 !metadata(storage=symbolic(v34))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v68 = checked_add u256, v4, 1
+    v68 = checked_add uint256, v4, 1
     jump bb1
 }

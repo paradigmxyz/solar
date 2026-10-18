@@ -20,7 +20,7 @@ fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[], abi_return_param
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 5, v6
     v8 = eq v7, false
@@ -38,13 +38,13 @@ fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[], abi_return_param
     v13 = and 5, 31
     v14 = sub 31, v13
     v15 = mul v14, 8
-    v16 = shl v15, 255
+    v16 = shl 255, v15
     v17 = sload v12 !metadata(storage=symbolic(v12))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 248, 0xaa00000000000000000000000000000000000000000000000000000000000000
+    v20 = shr 0xaa00000000000000000000000000000000000000000000000000000000000000, 248
     v21 = and v20, 255
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v12))
     ret

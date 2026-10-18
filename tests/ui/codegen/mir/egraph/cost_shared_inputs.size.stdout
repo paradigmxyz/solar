@@ -8,7 +8,7 @@
   fn @retained_parent(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
 -     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
 +     v2 = eq v0, 7
       v3 = zext i1 v2 to i256
@@ -18,7 +18,7 @@
   fn @several_consumers(arg0: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
 -     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
 -     v3 = lt v1, 0x800000000000000000000000000000000000000000000000000000000000000
 -     v4 = gt v1, 0x600000000000000000000000000000000000000000000000000000000000000
@@ -33,17 +33,17 @@
   
   fn @repeated_shift_count(arg0: i256) -> i256 {
     bb0:
--     v0 = shl 1, arg0
--     v1 = shl 1, v0
+-     v0 = shl arg0, 1
+-     v1 = shl v0, 1
 +     v0 = add arg0, arg0
-+     v1 = shl 2, arg0
++     v1 = shl arg0, 2
       ret v1
   }
   
   fn @returned_double(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
--     v0 = shl 1, arg0
--     v1 = shl 1, v0
+-     v0 = shl arg0, 1
+-     v1 = shl v0, 1
 +     v0 = add arg0, arg0
 +     v1 = add v0, v0
       ret v0, v1
@@ -59,7 +59,7 @@
   fn @retained_parent(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
-      v1 = shl 248, v0
+      v1 = shl v0, 248
       v2 = eq v0, 7
       v3 = zext i1 v2 to i256
       ret v1, v3
@@ -68,7 +68,7 @@
   fn @several_consumers(arg0: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
       v2 = eq v0, 7
       v3 = lt v0, 8
       v4 = gt v0, 6
@@ -81,7 +81,7 @@
   fn @repeated_shift_count(arg0: i256) -> i256 {
     bb0:
 -     v0 = add arg0, arg0
-      v1 = shl 2, arg0
+      v1 = shl arg0, 2
       ret v1
   }
   

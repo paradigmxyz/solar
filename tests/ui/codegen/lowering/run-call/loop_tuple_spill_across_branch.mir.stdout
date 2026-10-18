@@ -7,7 +7,7 @@ fn @step(arg0: i256, arg1: i256) -> struct0 [pure] {
   bb0:
     v0 = mul arg0, 3
     v1 = add v0, arg1
-    v2 = shl 1, arg1
+    v2 = shl arg1, 1
     v3 = xor arg0, v2
     v4 = insert_value struct0, undef struct0, 0, v1
     v5 = insert_value struct0, v4, 1, v3
@@ -21,7 +21,7 @@ fn @mix(arg0: i256) -> i256 [pure] {
     ret v1
 }
 
-fn @loopTuple(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2a5696fb, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @loopTuple(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2a5696fb, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2
@@ -92,7 +92,7 @@ fn @loopTuple(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2a5696fb, 
     jump bb4
 }
 
-fn @loopTupleInline(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb4233682, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @loopTupleInline(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb4233682, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2
@@ -154,7 +154,7 @@ fn @loopTupleInline(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb423
   bb7:
     v29 = mul v19, 3
     v30 = add v29, v20
-    v31 = shl 1, v20
+    v31 = shl v20, 1
     v32 = xor v19, v31
     jump bb9
   bb9:

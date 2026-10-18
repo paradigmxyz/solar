@@ -4,7 +4,8 @@
 // Pins checked exponentiation lowering:
 // - checked paths use exponentiation by squaring and guard only products that
 //   contribute to the result;
-// - signed and sub-word products use their type bounds;
+// - signed and sub-word products use their type bounds, and products of at most
+//   128-bit operands only those;
 // - unchecked paths keep native `EXP` and truncate narrow results.
 contract CheckedPowShapes {
     // CHECK-LABEL: fn @upow{{[( ]}}
@@ -12,7 +13,7 @@ contract CheckedPowShapes {
     // CHECK: phi [bb0: 1]
     // CHECK: and {{v[0-9]+}}, 1
     // CHECK: mul {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: shr 1,
+    // CHECK: shr {{[^ ,]+}}, 1{{$}}
     // CHECK: mstore 32, 17
     function upow(uint256 a, uint256 b) public pure returns (uint256) {
         return a ** b;
@@ -33,6 +34,7 @@ contract CheckedPowShapes {
 
     // CHECK-LABEL: fn @upow8{{[( ]}}
     // CHECK: phi [bb0: 1]
+    // CHECK-NOT: div
     // CHECK: gt {{v[0-9]+}}, 255
     // CHECK: mstore 32, 17
     function upow8(uint8 a, uint8 b) public pure returns (uint8) {

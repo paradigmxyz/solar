@@ -7,7 +7,7 @@ fn @step(arg0: i256, arg1: i256) -> struct0 [pure] {
   bb0:
     v0 = mul arg0, 3
     v1 = add v0, arg1
-    v2 = shl 1, arg1
+    v2 = shl arg1, 1
     v3 = xor arg0, v2
     v4 = insert_value struct0, undef struct0, 0, v1
     v5 = insert_value struct0, v4, 1, v3
@@ -21,7 +21,7 @@ fn @mix(arg0: i256) -> i256 [pure] {
     ret v1
 }
 
-fn @singleArmCall(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe22d2f30, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @singleArmCall(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe22d2f30, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2
@@ -95,7 +95,7 @@ fn @singleArmCall(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe22d2f
     jump bb4
 }
 
-fn @branchInLoop(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xfa97e8dc, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @branchInLoop(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xfa97e8dc, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2
@@ -178,7 +178,7 @@ fn @branchInLoop(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xfa97e8d
     jump bb4
 }
 
-fn @earlyReturn(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x07b42de1, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @earlyReturn(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x07b42de1, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2
@@ -265,7 +265,7 @@ fn @earlyReturn(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x07b42de1
     ret v41
 }
 
-fn @twoBranchLoops(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x319beeab, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @twoBranchLoops(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x319beeab, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2
@@ -380,7 +380,7 @@ fn @twoBranchLoops(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x319be
     jump bb4
 }
 
-fn @whileTrueThenLoop(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd59917de, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @whileTrueThenLoop(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd59917de, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2

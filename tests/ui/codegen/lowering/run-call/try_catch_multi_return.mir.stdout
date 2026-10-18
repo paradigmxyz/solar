@@ -3,7 +3,7 @@
 @types
   struct0: {i256, ptr<memory>}
 
-fn @value(arg0: i1) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @value(arg0: i1) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = eq arg0, false
     jumpi v0, bb1, bb2
@@ -57,7 +57,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
@@ -79,17 +79,17 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     ret 0
   bb1:
     v10 = icall returndata_bytes<>
-    v11 = abi_decode [u256, bytes], v10
+    v11 = abi_decode [uint256, bytes], v10
     v12 = extract_value struct0, v11, 0
     v13 = extract_value struct0, v11, 1
     v14 = mload v13
-    v15 = checked_add u256, v12, v14
+    v15 = checked_add uint256, v12, v14
     ret v15
   bb3:
     ret 0
 }
 
-fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
@@ -111,7 +111,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     ret 9
   bb1:
     v10 = icall returndata_bytes<>
-    v11 = abi_decode [u256, bytes], v10
+    v11 = abi_decode [uint256, bytes], v10
     v12 = extract_value struct0, v11, 0
     v13 = extract_value struct0, v11, 1
     ret 0

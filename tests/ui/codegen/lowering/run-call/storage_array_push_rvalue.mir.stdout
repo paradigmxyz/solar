@@ -10,7 +10,7 @@
   struct6: {i64, i64, i256}
   struct7: {i8, i256}
 
-fn @wordRvalue(arg0: i256) -> struct0 [selector=0xe87bc9d1, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @wordRvalue(arg0: i256) -> struct0 [selector=0xe87bc9d1, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -29,7 +29,7 @@ fn @wordRvalue(arg0: i256) -> struct0 [selector=0xe87bc9d1, abi_params=[u256], a
     ret v9
 }
 
-fn @packedRvalue(arg0: i256) -> struct1 [selector=0xc89c0702, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
+fn @packedRvalue(arg0: i256) -> struct1 [selector=0xc89c0702, abi_params=[uint256], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -46,7 +46,7 @@ fn @packedRvalue(arg0: i256) -> struct1 [selector=0xc89c0702, abi_params=[u256],
     sstore 1, v3 !metadata(storage=slot(1))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
-    v11 = shr v10, v9
+    v11 = shr v9, v10
     v12 = trunc i256 v11 to i8
     v13 = sload 1 !metadata(storage=slot(1))
     v14 = gt v13, 0xffffffffffffffff
@@ -60,7 +60,7 @@ fn @packedRvalue(arg0: i256) -> struct1 [selector=0xc89c0702, abi_params=[u256],
     sstore 1, v15 !metadata(storage=slot(1))
     v21 = sload v18 !metadata(storage=symbolic(v18))
     v22 = mul v20, 8
-    v23 = shr v22, v21
+    v23 = shr v21, v22
     v24 = trunc i256 v23 to i8
     v25 = sload 1 !metadata(storage=slot(1))
     v26 = insert_value struct1, undef struct1, 0, v12
@@ -69,7 +69,7 @@ fn @packedRvalue(arg0: i256) -> struct1 [selector=0xc89c0702, abi_params=[u256],
     ret v28
 }
 
-fn @boolRvalue(arg0: i256) -> struct2 [selector=0xfa200185, abi_params=[u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
+fn @boolRvalue(arg0: i256) -> struct2 [selector=0xfa200185, abi_params=[uint256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, uint256]] {
   bb0:
     mstore 0, 2 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -86,7 +86,7 @@ fn @boolRvalue(arg0: i256) -> struct2 [selector=0xfa200185, abi_params=[u256], a
     sstore 2, v3 !metadata(storage=slot(2))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
-    v11 = shr v10, v9
+    v11 = shr v9, v10
     v12 = trunc i256 v11 to i8
     v13 = ne v12, i8 0
     v14 = sload 2 !metadata(storage=slot(2))
@@ -101,7 +101,7 @@ fn @boolRvalue(arg0: i256) -> struct2 [selector=0xfa200185, abi_params=[u256], a
     sstore 2, v16 !metadata(storage=slot(2))
     v22 = sload v19 !metadata(storage=symbolic(v19))
     v23 = mul v21, 8
-    v24 = shr v23, v22
+    v24 = shr v22, v23
     v25 = trunc i256 v24 to i8
     v26 = ne v25, i8 0
     v27 = sload 2 !metadata(storage=slot(2))
@@ -111,7 +111,7 @@ fn @boolRvalue(arg0: i256) -> struct2 [selector=0xfa200185, abi_params=[u256], a
     ret v30
 }
 
-fn @tagRvalue(arg0: i256) -> struct3 [selector=0xb8842558, abi_params=[u256], abi_returns=[word<bytes4>, word<bytes4>, word], abi_return_params=[bytes4, bytes4, u256]] {
+fn @tagRvalue(arg0: i256) -> struct3 [selector=0xb8842558, abi_params=[uint256], abi_returns=[word<bytes4>, word<bytes4>, word], abi_return_params=[bytes4, bytes4, uint256]] {
   bb0:
     mstore 0, 3 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -128,8 +128,8 @@ fn @tagRvalue(arg0: i256) -> struct3 [selector=0xb8842558, abi_params=[u256], ab
     sstore 3, v3 !metadata(storage=slot(3))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
-    v11 = shr v10, v9
-    v12 = shl 224, v11
+    v11 = shr v9, v10
+    v12 = shl v11, 224
     v13 = sload 3 !metadata(storage=slot(3))
     v14 = gt v13, 0xffffffffffffffff
     icall panic_if<0x41>, v14
@@ -142,8 +142,8 @@ fn @tagRvalue(arg0: i256) -> struct3 [selector=0xb8842558, abi_params=[u256], ab
     sstore 3, v15 !metadata(storage=slot(3))
     v21 = sload v18 !metadata(storage=symbolic(v18))
     v22 = mul v20, 8
-    v23 = shr v22, v21
-    v24 = shl 224, v23
+    v23 = shr v21, v22
+    v24 = shl v23, 224
     v25 = sload 3 !metadata(storage=slot(3))
     v26 = insert_value struct3, undef struct3, 0, v12
     v27 = insert_value struct3, v26, 1, v24
@@ -151,7 +151,7 @@ fn @tagRvalue(arg0: i256) -> struct3 [selector=0xb8842558, abi_params=[u256], ab
     ret v28
 }
 
-fn @enumRvalue(arg0: i256) -> struct1 [selector=0x8b2cec53, abi_params=[u256], abi_returns=[word<enum 4>, word<enum 4>, word], abi_return_params=[enum<4, u8>, enum<4, u8>, u256]] {
+fn @enumRvalue(arg0: i256) -> struct1 [selector=0x8b2cec53, abi_params=[uint256], abi_returns=[word<enum 4>, word<enum 4>, word], abi_return_params=[enum<4, uint8>, enum<4, uint8>, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -168,7 +168,7 @@ fn @enumRvalue(arg0: i256) -> struct1 [selector=0x8b2cec53, abi_params=[u256], a
     sstore 4, v3 !metadata(storage=slot(4))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
-    v11 = shr v10, v9
+    v11 = shr v9, v10
     v12 = trunc i256 v11 to i8
     v13 = lt v12, i8 4
     v14 = eq v13, false
@@ -188,7 +188,7 @@ fn @enumRvalue(arg0: i256) -> struct1 [selector=0x8b2cec53, abi_params=[u256], a
     sstore 4, v19 !metadata(storage=slot(4))
     v25 = sload v22 !metadata(storage=symbolic(v22))
     v26 = mul v24, 8
-    v27 = shr v26, v25
+    v27 = shr v25, v26
     v28 = trunc i256 v27 to i8
     v29 = lt v28, i8 4
     v30 = eq v29, false
@@ -209,7 +209,7 @@ fn @enumRvalue(arg0: i256) -> struct1 [selector=0x8b2cec53, abi_params=[u256], a
     ret v40
 }
 
-fn @signedRvalue(arg0: i256) -> struct4 [selector=0xb5c04c0f, abi_params=[u256], abi_returns=[word<i128>, word<i128>, word], abi_return_params=[i128, i128, u256]] {
+fn @signedRvalue(arg0: i256) -> struct4 [selector=0xb5c04c0f, abi_params=[uint256], abi_returns=[word<int128>, word<int128>, word], abi_return_params=[int128, int128, uint256]] {
   bb0:
     mstore 0, 5 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -226,7 +226,7 @@ fn @signedRvalue(arg0: i256) -> struct4 [selector=0xb5c04c0f, abi_params=[u256],
     sstore 5, v3 !metadata(storage=slot(5))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
-    v11 = shr v10, v9
+    v11 = shr v9, v10
     v12 = signextend 15, v11
     v13 = trunc i256 v12 to i128
     v14 = sload 5 !metadata(storage=slot(5))
@@ -241,7 +241,7 @@ fn @signedRvalue(arg0: i256) -> struct4 [selector=0xb5c04c0f, abi_params=[u256],
     sstore 5, v16 !metadata(storage=slot(5))
     v22 = sload v19 !metadata(storage=symbolic(v19))
     v23 = mul v21, 8
-    v24 = shr v23, v22
+    v24 = shr v22, v23
     v25 = signextend 15, v24
     v26 = trunc i256 v25 to i128
     v27 = sload 5 !metadata(storage=slot(5))
@@ -251,7 +251,7 @@ fn @signedRvalue(arg0: i256) -> struct4 [selector=0xb5c04c0f, abi_params=[u256],
     ret v30
 }
 
-fn @addressRvalue() -> struct5 [selector=0x2ef1cd4b, abi_params=[], abi_returns=[word<u160>, word], abi_return_params=[address, u256]] {
+fn @addressRvalue() -> struct5 [selector=0x2ef1cd4b, abi_params=[], abi_returns=[word<uint160>, word], abi_return_params=[address, uint256]] {
   bb0:
     mstore 0, 6 !metadata(memory=scratch)
     v0 = not 0
@@ -269,7 +269,7 @@ fn @addressRvalue() -> struct5 [selector=0x2ef1cd4b, abi_params=[], abi_returns=
     sstore 6, v4 !metadata(storage=slot(6))
     v10 = sload v7 !metadata(storage=symbolic(v7))
     v11 = mul v9, 8
-    v12 = shr v11, v10
+    v12 = shr v10, v11
     v13 = trunc i256 v12 to i160
     v14 = sload 6 !metadata(storage=slot(6))
     v15 = insert_value struct5, undef struct5, 0, v13
@@ -277,7 +277,7 @@ fn @addressRvalue() -> struct5 [selector=0x2ef1cd4b, abi_params=[], abi_returns=
     ret v16
 }
 
-fn @unwrapRvalue(arg0: i256) -> struct6 [selector=0x39669bbc, abi_params=[u256], abi_returns=[word<u64>, word<u64>, word], abi_return_params=[u64, u64, u256]] {
+fn @unwrapRvalue(arg0: i256) -> struct6 [selector=0x39669bbc, abi_params=[uint256], abi_returns=[word<uint64>, word<uint64>, word], abi_return_params=[uint64, uint64, uint256]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -294,7 +294,7 @@ fn @unwrapRvalue(arg0: i256) -> struct6 [selector=0x39669bbc, abi_params=[u256],
     sstore 7, v3 !metadata(storage=slot(7))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
-    v11 = shr v10, v9
+    v11 = shr v9, v10
     v12 = trunc i256 v11 to i64
     v13 = sload 7 !metadata(storage=slot(7))
     v14 = gt v13, 0xffffffffffffffff
@@ -308,7 +308,7 @@ fn @unwrapRvalue(arg0: i256) -> struct6 [selector=0x39669bbc, abi_params=[u256],
     sstore 7, v15 !metadata(storage=slot(7))
     v21 = sload v18 !metadata(storage=symbolic(v18))
     v22 = mul v20, 8
-    v23 = shr v22, v21
+    v23 = shr v21, v22
     v24 = trunc i256 v23 to i64
     v25 = sload 7 !metadata(storage=slot(7))
     v26 = insert_value struct6, undef struct6, 0, v12
@@ -317,7 +317,7 @@ fn @unwrapRvalue(arg0: i256) -> struct6 [selector=0x39669bbc, abi_params=[u256],
     ret v28
 }
 
-fn @cleanRvalue() -> struct3 [selector=0xa51842a5, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @cleanRvalue() -> struct3 [selector=0xa51842a5, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -342,7 +342,7 @@ fn @cleanRvalue() -> struct3 [selector=0xa51842a5, abi_params=[], abi_returns=[w
     ret v15
 }
 
-fn @bareRvalue(arg0: i256) -> struct0 [selector=0x1c2b2089, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @bareRvalue(arg0: i256) -> struct0 [selector=0x1c2b2089, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -355,7 +355,7 @@ fn @bareRvalue(arg0: i256) -> struct0 [selector=0x1c2b2089, abi_params=[u256], a
     v5 = add v4, v1
     sstore 0, v3 !metadata(storage=slot(0))
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = checked_sub u256, v6, 1
+    v7 = checked_sub uint256, v6, 1
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = lt v7, v8
     v10 = eq v9, false
@@ -369,7 +369,7 @@ fn @bareRvalue(arg0: i256) -> struct0 [selector=0x1c2b2089, abi_params=[u256], a
     ret v16
 }
 
-fn @enumInvalidRvalue(arg0: i256) -> struct7 [selector=0x12551884, abi_params=[u256], abi_returns=[word<enum 4>, word], abi_return_params=[enum<4, u8>, u256]] {
+fn @enumInvalidRvalue(arg0: i256) -> struct7 [selector=0x12551884, abi_params=[uint256], abi_returns=[word<enum 4>, word], abi_return_params=[enum<4, uint8>, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -386,7 +386,7 @@ fn @enumInvalidRvalue(arg0: i256) -> struct7 [selector=0x12551884, abi_params=[u
     sstore 4, v3 !metadata(storage=slot(4))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
-    v11 = shr v10, v9
+    v11 = shr v9, v10
     v12 = trunc i256 v11 to i8
     v13 = lt v12, i8 4
     v14 = eq v13, false
@@ -400,7 +400,7 @@ fn @enumInvalidRvalue(arg0: i256) -> struct7 [selector=0x12551884, abi_params=[u
     ret v19
 }
 
-fn @enumBareRvalue(arg0: i256) -> struct0 [selector=0x7b8d408b, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @enumBareRvalue(arg0: i256) -> struct0 [selector=0x7b8d408b, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -425,7 +425,7 @@ fn @enumBareRvalue(arg0: i256) -> struct0 [selector=0x7b8d408b, abi_params=[u256
     ret v14
 }
 
-fn @enumTupleBare(arg0: i256) -> struct0 [selector=0xc9f089ea, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @enumTupleBare(arg0: i256) -> struct0 [selector=0xc9f089ea, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -460,7 +460,7 @@ fn @enumTupleBare(arg0: i256) -> struct0 [selector=0xc9f089ea, abi_params=[u256]
     ret v22
 }
 
-fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_params=[u256, bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_params=[uint256, bool], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -501,7 +501,7 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     ret v22
 }
 
-fn @enumDeclHole(arg0: i256) -> struct3 [selector=0xfcfa4d59, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @enumDeclHole(arg0: i256) -> struct3 [selector=0xfcfa4d59, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -528,7 +528,7 @@ fn @enumDeclHole(arg0: i256) -> struct3 [selector=0xfcfa4d59, abi_params=[u256],
     sstore 4, v11 !metadata(storage=slot(4))
     v17 = sload v14 !metadata(storage=symbolic(v14))
     v18 = mul v16, 8
-    v19 = shr v18, v17
+    v19 = shr v17, v18
     v20 = trunc i256 v19 to i8
     v21 = lt v20, i8 4
     v22 = eq v21, false
@@ -548,7 +548,7 @@ fn @enumDeclHole(arg0: i256) -> struct3 [selector=0xfcfa4d59, abi_params=[u256],
     ret v32
 }
 
-fn @enumAssignHole(arg0: i256) -> struct3 [selector=0xb891707d, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @enumAssignHole(arg0: i256) -> struct3 [selector=0xb891707d, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -574,7 +574,7 @@ fn @enumAssignHole(arg0: i256) -> struct3 [selector=0xb891707d, abi_params=[u256
     ret v15
 }
 
-fn @enumNestedHole(arg0: i256) -> struct3 [selector=0xdf286fc3, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @enumNestedHole(arg0: i256) -> struct3 [selector=0xdf286fc3, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -600,7 +600,7 @@ fn @enumNestedHole(arg0: i256) -> struct3 [selector=0xdf286fc3, abi_params=[u256
     ret v15
 }
 
-fn @enumNestedInnerHole(arg0: i256) -> struct3 [selector=0x1f0f0670, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @enumNestedInnerHole(arg0: i256) -> struct3 [selector=0x1f0f0670, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -619,7 +619,7 @@ fn @enumNestedInnerHole(arg0: i256) -> struct3 [selector=0x1f0f0670, abi_params=
     v9 = keccak256 0, 32 !metadata(memory=scratch)
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = and v10, 255
-    v12 = checked_add u256, 1, 2
+    v12 = checked_add uint256, 1, 2
     v13 = sload 4 !metadata(storage=slot(4))
     v14 = insert_value struct3, undef struct3, 0, v12
     v15 = insert_value struct3, v14, 1, v11
@@ -627,7 +627,7 @@ fn @enumNestedInnerHole(arg0: i256) -> struct3 [selector=0x1f0f0670, abi_params=
     ret v16
 }
 
-fn @enumUsedComponent(arg0: i256) -> struct0 [selector=0x3af411b8, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @enumUsedComponent(arg0: i256) -> struct0 [selector=0x3af411b8, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -644,7 +644,7 @@ fn @enumUsedComponent(arg0: i256) -> struct0 [selector=0x3af411b8, abi_params=[u
     sstore 4, v3 !metadata(storage=slot(4))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
-    v11 = shr v10, v9
+    v11 = shr v9, v10
     v12 = trunc i256 v11 to i8
     v13 = lt v12, i8 4
     v14 = eq v13, false
@@ -658,7 +658,7 @@ fn @enumUsedComponent(arg0: i256) -> struct0 [selector=0x3af411b8, abi_params=[u
     ret v19
 }
 
-fn @nestedInStmtRvalue(arg0: i256) -> struct0 [selector=0xa803cfdb, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @nestedInStmtRvalue(arg0: i256) -> struct0 [selector=0xa803cfdb, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -679,7 +679,7 @@ fn @nestedInStmtRvalue(arg0: i256) -> struct0 [selector=0xa803cfdb, abi_params=[
     ret v10
 }
 
-fn @memberRvalue(arg0: i256) -> struct3 [selector=0x818284d1, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @memberRvalue(arg0: i256) -> struct3 [selector=0x818284d1, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     mstore 0, 10 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -728,7 +728,7 @@ fn @pushThrough(arg0: i256) -> i256 {
     ret v5
 }
 
-fn @pointerRvalue(arg0: i256) -> struct0 [selector=0xd6c30975, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pointerRvalue(arg0: i256) -> struct0 [selector=0xd6c30975, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -740,7 +740,7 @@ fn @pointerRvalue(arg0: i256) -> struct0 [selector=0xd6c30975, abi_params=[u256]
     ret v4
 }
 
-fn @lvalueRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0xe30ec141, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @lvalueRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0xe30ec141, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -754,7 +754,7 @@ fn @lvalueRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0xe30ec141, abi_pa
     sstore 0, v3 !metadata(storage=slot(0))
     sstore v5, arg1 !metadata(storage=symbolic(v5))
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = checked_sub u256, v6, 1
+    v7 = checked_sub uint256, v6, 1
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = lt v7, v8
     v10 = eq v9, false
@@ -768,7 +768,7 @@ fn @lvalueRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0xe30ec141, abi_pa
     ret v16
 }
 
-fn @compoundRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0x126c7201, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @compoundRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0x126c7201, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -781,10 +781,10 @@ fn @compoundRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0x126c7201, abi_
     v5 = add v4, v1
     sstore 0, v3 !metadata(storage=slot(0))
     v6 = sload v5 !metadata(storage=symbolic(v5))
-    v7 = checked_add u256, v6, arg1
+    v7 = checked_add uint256, v6, arg1
     sstore v5, v7 !metadata(storage=symbolic(v5))
     v8 = sload 0 !metadata(storage=slot(0))
-    v9 = checked_sub u256, v8, 1
+    v9 = checked_sub uint256, v8, 1
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = lt v9, v10
     v12 = eq v11, false
@@ -798,7 +798,7 @@ fn @compoundRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0x126c7201, abi_
     ret v18
 }
 
-fn @structRvalue(arg0: i256) -> struct3 [selector=0xda0335a1, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @structRvalue(arg0: i256) -> struct3 [selector=0xda0335a1, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 8 !metadata(storage=slot(8))
     v1 = gt v0, 0xffffffffffffffff
@@ -808,7 +808,7 @@ fn @structRvalue(arg0: i256) -> struct3 [selector=0xda0335a1, abi_params=[u256],
     v4 = add v3, v0
     sstore 8, v2 !metadata(storage=slot(8))
     sstore v4, arg0 !metadata(storage=symbolic(v4))
-    v5 = checked_add u256, arg0, 1
+    v5 = checked_add uint256, arg0, 1
     v6 = sload 8 !metadata(storage=slot(8))
     v7 = gt v6, 0xffffffffffffffff
     icall panic_if<0x41>, v7
@@ -838,7 +838,7 @@ fn @structRvalue(arg0: i256) -> struct3 [selector=0xda0335a1, abi_params=[u256],
     ret v26
 }
 
-fn @nestedRvalue(arg0: i256) -> struct3 [selector=0x32226b25, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @nestedRvalue(arg0: i256) -> struct3 [selector=0x32226b25, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 9 !metadata(storage=slot(9))
     v1 = gt v0, 0xffffffffffffffff

@@ -68,7 +68,7 @@ fn @constructor() [constructor] {
     sstore v42, 0 !metadata(storage=symbolic(v42))
     ret
   bb7:
-    v31 = shl 5, v29
+    v31 = shl v29, 5
     v32 = ptradd v15, v31
     v33 = ptradd v32, 32
     v34 = mload v33
@@ -85,7 +85,7 @@ fn @constructor() [constructor] {
     jump bb3
 }
 
-fn @ctorNested() -> struct0 [selector=0x23c43244, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @ctorNested() -> struct0 [selector=0x23c43244, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt 0, v0
@@ -114,7 +114,7 @@ fn @ctorNested() -> struct0 [selector=0x23c43244, view, abi_params=[], abi_retur
     ret v20
 }
 
-fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -153,7 +153,7 @@ fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[u256]
   bb8:
     sstore 1, v8 !metadata(storage=slot(1))
     v28 = sload 1 !metadata(storage=slot(1))
-    v29 = checked_sub u256, v28, 1
+    v29 = checked_sub uint256, v28, 1
     v30 = sload 1 !metadata(storage=slot(1))
     v31 = lt v29, v30
     v32 = eq v31, false
@@ -174,12 +174,12 @@ fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[u256]
     v44 = storage_array_data_slot 1
     v45 = add v44, v29
     v46 = sload v45 !metadata(storage=symbolic(v45))
-    v47 = checked_sub u256, v46, 2
+    v47 = checked_sub uint256, v46, 2
     v48 = insert_value struct1, undef struct1, 0, v40
     v49 = insert_value struct1, v48, 1, v47
     ret v49
   bb7:
-    v21 = shl 5, v19
+    v21 = shl v19, 5
     v22 = ptradd v5, v21
     v23 = ptradd v22, 32
     v24 = mload v23
@@ -196,7 +196,7 @@ fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[u256]
     jump bb3
 }
 
-fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = icall @load_storage_word_array, 0
     v1 = ptrtoint ptr<memory> v0 to i256
@@ -234,15 +234,15 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
     v28 = storage_array_data_slot 2
     v29 = add v28, 1
     v30 = sload v29 !metadata(storage=offset(v28, 1))
-    v31 = checked_add u256, v30, 1
+    v31 = checked_add uint256, v30, 1
     v32 = sload 2 !metadata(storage=slot(2))
-    v33 = checked_add u256, v32, 1
+    v33 = checked_add uint256, v32, 1
     v34 = insert_value struct0, undef struct0, 0, v24
     v35 = insert_value struct0, v34, 1, v31
     v36 = insert_value struct0, v35, 2, v33
     ret v36
   bb7:
-    v12 = shl 5, v10
+    v12 = shl v10, 5
     v13 = ptradd v0, v12
     v14 = ptradd v13, 32
     v15 = mload v14
@@ -261,6 +261,6 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }

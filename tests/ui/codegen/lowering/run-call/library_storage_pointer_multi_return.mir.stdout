@@ -44,7 +44,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @forwardPair() -> struct0 [selector=0x9948ca45, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[u256, array<_, u256>]] {
+fn @forwardPair() -> struct0 [selector=0x9948ca45, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[uint256, array<_, uint256>]] {
   bb0:
     v0 = icall @pair, 0
     v1 = extract_value struct1, v0, 0
@@ -55,7 +55,7 @@ fn @forwardPair() -> struct0 [selector=0x9948ca45, view, abi_params=[], abi_retu
     ret v5
 }
 
-fn @forwardBytesPair() -> struct0 [selector=0x244e77d3, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @forwardBytesPair() -> struct0 [selector=0x244e77d3, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = icall @bytesPair, 1
     v1 = extract_value struct1, v0, 0
@@ -66,7 +66,7 @@ fn @forwardBytesPair() -> struct0 [selector=0x244e77d3, view, abi_params=[], abi
     ret v5
 }
 
-fn @forwardStructPair() -> struct0 [selector=0x89663e35, view, abi_params=[], abi_returns=[word, tuple<word, memory_array<word>>], abi_return_params=[u256, tuple<u256, array<_, u256>>]] {
+fn @forwardStructPair() -> struct0 [selector=0x89663e35, view, abi_params=[], abi_returns=[word, tuple<word, memory_array<word>>], abi_return_params=[uint256, tuple<uint256, array<_, uint256>>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 0
@@ -88,7 +88,7 @@ fn @forwardStructPair() -> struct0 [selector=0x89663e35, view, abi_params=[], ab
     ret v12
 }
 
-fn @forwardNarrowPair() -> struct0 [selector=0x1c173dc4, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[u256, array<_, u256>]] {
+fn @forwardNarrowPair() -> struct0 [selector=0x1c173dc4, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[uint256, array<_, uint256>]] {
   bb0:
     v0 = icall @narrowPair, 0
     v1 = extract_value struct2, v0, 0
@@ -100,7 +100,7 @@ fn @forwardNarrowPair() -> struct0 [selector=0x1c173dc4, view, abi_params=[], ab
     ret v6
 }
 
-fn @forwardLeadingPair() -> struct3 [selector=0x59d1f54e, view, abi_params=[], abi_returns=[memory_array<word>, word], abi_return_params=[array<_, u256>, u256]] {
+fn @forwardLeadingPair() -> struct3 [selector=0x59d1f54e, view, abi_params=[], abi_returns=[memory_array<word>, word], abi_return_params=[array<_, uint256>, uint256]] {
   bb0:
     v0 = icall @leadingPair, 0
     v1 = extract_value struct1, v0, 0
@@ -111,7 +111,7 @@ fn @forwardLeadingPair() -> struct3 [selector=0x59d1f54e, view, abi_params=[], a
     ret v5
 }
 
-fn @forwardTriple() -> struct4 [selector=0xd5d6b86b, view, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, u256>, u256, bytes]] {
+fn @forwardTriple() -> struct4 [selector=0xd5d6b86b, view, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, uint256>, uint256, bytes]] {
   bb0:
     v0 = icall @triple, 0, 1
     v1 = extract_value struct5, v0, 0
@@ -125,7 +125,7 @@ fn @forwardTriple() -> struct4 [selector=0xd5d6b86b, view, abi_params=[], abi_re
     ret v8
 }
 
-fn @declarePair() -> struct0 [selector=0x2538210e, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[u256, array<_, u256>]] {
+fn @declarePair() -> struct0 [selector=0x2538210e, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[uint256, array<_, uint256>]] {
   bb0:
     v0 = icall @pair, 0
     v1 = extract_value struct1, v0, 0
@@ -136,7 +136,7 @@ fn @declarePair() -> struct0 [selector=0x2538210e, view, abi_params=[], abi_retu
     ret v5
 }
 
-fn @assignPair() -> struct0 [selector=0x9355e772, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[u256, array<_, u256>]] {
+fn @assignPair() -> struct0 [selector=0x9355e772, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[uint256, array<_, uint256>]] {
   bb0:
     v0 = icall @pair, 0
     v1 = extract_value struct1, v0, 0
@@ -157,7 +157,7 @@ fn @keepStorage() -> struct1 [view] {
     ret v4
 }
 
-fn @forwardKeepingStorage() -> struct1 [selector=0xe85db471, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @forwardKeepingStorage() -> struct1 [selector=0xe85db471, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @keepStorage
     v1 = extract_value struct1, v0, 0
@@ -184,7 +184,7 @@ fn @bytesPair(arg0: i256) -> struct1 [view] {
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = insert_value struct1, undef struct1, 0, v6
     v8 = insert_value struct1, v7, 1, arg0
@@ -227,6 +227,6 @@ fn @triple(arg0: i256, arg1: i256) -> struct5 [view] {
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }

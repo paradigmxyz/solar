@@ -124,7 +124,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
-                // value = mload (ptradd object, header + shl 5, index)
+                // value = mload (ptradd object, header + shl index, 5)
                 let value = self.builder.memory_load_element_as(
                     object,
                     layout,
@@ -398,7 +398,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.slice_len(slice))
             }
             YulSuffix::FunctionAddress => {
-                // value = and (shr 32, variable), address_mask
+                // value = and (shr variable, 32), address_mask
                 let pointer = self.load_variable(id, span)?;
                 Some(self.external_function_address(pointer))
             }
@@ -449,14 +449,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.make_slice(pointer, value, PtrLocation::Calldata)
             }
             YulSuffix::FunctionAddress => {
-                // address = shl 32, (and value, address_mask)
+                // address = shl (and value, address_mask), 32
                 // pointer = or address, (and variable, 0xffffffff)
                 let pointer = self.load_variable(id, span)?;
                 let mask = self.builder.imm(u32::MAX);
                 let address_mask = self.builder.imm(U256::MAX >> 96);
                 let address = self.builder.and(value, address_mask);
                 let shift = self.builder.imm(32);
-                let address = self.builder.shl(shift, address);
+                let address = self.builder.shl(address, shift);
                 let selector = self.builder.and(pointer, mask);
                 self.builder.or(address, selector)
             }

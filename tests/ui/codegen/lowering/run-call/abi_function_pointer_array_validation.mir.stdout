@@ -5,12 +5,12 @@ fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[], abi_retu
     ret
 }
 
-fn @g(arg0: slice<calldata>) -> i256 [selector=0xc16ea9d4, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @g(arg0: slice<calldata>) -> i256 [selector=0xc16ea9d4, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
 }
 
-fn @h(arg0: slice<calldata>) -> i256 [selector=0xdae6c3bf, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @h(arg0: slice<calldata>) -> i256 [selector=0xdae6c3bf, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 0, v0
@@ -20,32 +20,32 @@ fn @h(arg0: slice<calldata>) -> i256 [selector=0xdae6c3bf, pure, abi_params=[arr
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 0
     v6 = calldataload v5
-    v7 = shl 192, v6
+    v7 = shl v6, 192
     v8 = eq v7, 0
     v9 = eq v8, false
     icall revert_if<empty>, v9
-    v10 = shr 64, v6
+    v10 = shr v6, 64
     ret 3
 }
 
-fn @m(arg0: ptr<memory>) -> i256 [selector=0x4d6e4a29, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @m(arg0: ptr<memory>) -> i256 [selector=0x4d6e4a29, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 4
 }
 
-fn @checkG(arg0: i1) -> i256 [selector=0xb89497e4, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkG(arg0: i1) -> i256 [selector=0xb89497e4, view, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @invoke, 0xc16ea9d400000000000000000000000000000000000000000000000000000000, arg0, 2
     ret v0
 }
 
-fn @checkH(arg0: i1) -> i256 [selector=0x5137faa5, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkH(arg0: i1) -> i256 [selector=0x5137faa5, view, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @invoke, 0xdae6c3bf00000000000000000000000000000000000000000000000000000000, arg0, 3
     ret v0
 }
 
-fn @checkM(arg0: i1) -> i256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkM(arg0: i1) -> i256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @invoke, 0x4d6e4a2900000000000000000000000000000000000000000000000000000000, arg0, 4
     ret v0
@@ -57,13 +57,13 @@ fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
     mstore v0, 1
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0xd4b83992
     v5 = mload v0
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = shl 64, v4
+    v8 = shl v4, 64
     v9 = ptradd v0, 32
     mstore v9, v8
     v10 = abi_encode [memory_array<function>], object, selector arg0, args v0
@@ -83,7 +83,7 @@ fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
     v17 = icall returndata_bytes<>
     v18 = eq v16, false
     icall revert_if<empty>, v18
-    v19 = abi_decode [u256], v17
+    v19 = abi_decode [uint256], v17
     v20 = eq v19, arg2
     v21 = eq v20, false
     icall revert_if<empty>, v21

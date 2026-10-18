@@ -64,3 +64,6 @@
 
 (decl pure integer_sign_bit () u64)
 (extern constructor integer_sign_bit integer_sign_bit)
+
+(decl pure late_word_sequence () bool)
+(extern constructor late_word_sequence late_word_sequence)

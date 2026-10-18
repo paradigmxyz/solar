@@ -13,8 +13,10 @@
 //!   an `mload` reads the value of the latest store to the same canonical word; a store of the
 //!   value the word already holds is removed; and a backward scan removes a full-word store that a
 //!   later full-word store, `memory_zero`, or copy into a constant range overwrites before any
-//!   read, `msize`, or gas observation. Reads over constant ranges, such as hashes, logs, and call
-//!   inputs, only keep the words they cover.
+//!   read, `msize`, or gas observation; a small word-sized zero fill or calldata copy whose every
+//!   word such a write overwrites goes too. Returndata copies stay because their source bounds
+//!   check can revert. Reads over constant ranges, such as hashes, logs, and call inputs, only keep
+//!   the words they cover.
 //! - Write-only deferred allocations: a deferred allocation whose pointer only ever addresses
 //!   stores, as a decoded struct does once forwarding has replaced the reads of its used fields,
 //!   loses those stores. Static placement already keeps every other way to reach its words out of
@@ -32,7 +34,9 @@
 //! adjacent allocations. Every other instruction is classified through its shared ModRef effects:
 //! a possible write invalidates the remembered words it may overlap, and only the explicit writes
 //! above count as definite overwrites. The pass runs late in semantic optimization and again in
-//! lowering, after ABI and aggregate lowering expose word stores.
+//! lowering, after ABI and aggregate lowering expose word stores. A final `-Ogas` run after
+//! allocation lowering removes fills that only become explicit there, before memory-zero lowering
+//! turns them into copies or loops.
 
 use crate::mir::{
     BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, Module, PtrLocation,
@@ -95,8 +99,8 @@ impl MirPass for MemoryDse {
     }
 }
 
-/// Returns whether the function contains a store this pass can remove or forward from, or an
-/// immutable copy it can reuse: every rewrite starts from one of them.
+/// Returns whether the function contains a store or fill this pass can remove or forward from, or
+/// an immutable copy it can reuse: every rewrite starts from one of them.
 fn has_memory_writes(func: &Function) -> bool {
     func.instructions().any(|inst_id| {
         matches!(
@@ -104,6 +108,8 @@ fn has_memory_writes(func: &Function) -> bool {
             InstKind::Store(.., PtrLocation::Memory)
                 | InstKind::Store8(..)
                 | InstKind::CodeCopy(..)
+                | InstKind::MemoryZero(..)
+                | InstKind::Copy(.., PtrLocation::Calldata)
         )
     })
 }
@@ -868,12 +874,18 @@ impl MemoryStoreEliminator {
                 | InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
                 | InstKind::DataCopy(_, dest, size)
                 | InstKind::CodeCopy(dest, _, size) => {
-                    self.insert_or_clear_full_word_overwritten_range(
+                    if self.insert_or_clear_full_word_overwritten_range(
                         func,
                         &mut scratch.overwritten,
                         *dest,
                         *size,
-                    );
+                    ) && matches!(
+                        inst.kind,
+                        InstKind::MemoryZero(..) | InstKind::Copy(.., PtrLocation::Calldata)
+                    ) {
+                        scratch.dead.insert(inst_id);
+                        self.eliminated_count += 1;
+                    }
                 }
                 InstKind::ExtCodeCopy(_, dest, _, size) => {
                     self.insert_or_clear_full_word_overwritten_range(
@@ -1477,35 +1489,36 @@ impl MemoryStoreEliminator {
         overwritten: &mut FxHashSet<MemAddrKey>,
         dest: ValueId,
         size: ValueId,
-    ) -> bool {
-        let Some(size) = func.value_u64(size) else {
-            return false;
-        };
+    ) -> Option<bool> {
+        let size = func.value_u64(size)?;
         if size % 32 != 0 || size > 4096 {
-            return false;
+            return None;
         }
 
-        let Some(base) = self.mem_addr_key(func, dest, size) else {
-            return false;
-        };
+        let base = self.mem_addr_key(func, dest, size)?;
+        let mut fully_overwritten = size != 0;
         for offset in (0..size).step_by(32) {
-            let Some(key) = Self::offset_mem_addr_key(base, offset) else {
-                return false;
-            };
-            overwritten.insert(key);
+            let key = Self::offset_mem_addr_key(base, offset)?;
+            fully_overwritten &= !overwritten.insert(key);
         }
-        true
+        Some(fully_overwritten)
     }
 
+    /// Returns whether every word in a nonempty range was already overwritten.
     fn insert_or_clear_full_word_overwritten_range(
         &self,
         func: &Function,
         overwritten: &mut FxHashSet<MemAddrKey>,
         dest: ValueId,
         size: ValueId,
-    ) {
-        if !self.insert_full_word_overwritten_range(func, overwritten, dest, size) {
+    ) -> bool {
+        if let Some(fully_overwritten) =
+            self.insert_full_word_overwritten_range(func, overwritten, dest, size)
+        {
+            fully_overwritten
+        } else {
             overwritten.clear();
+            false
         }
     }
 

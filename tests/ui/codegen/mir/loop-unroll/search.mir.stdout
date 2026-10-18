@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/search.sol:Search ===
 @module Search
-fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     jump bb1
@@ -40,7 +40,7 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add u256, v4, 1
+    v22 = checked_add uint256, v4, 1
     jump bb1
   bb7:
     jump bb2
@@ -49,7 +49,7 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
     ret v23
 }
 
-fn @findReturn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xc77230d0, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @findReturn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xc77230d0, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -91,13 +91,13 @@ fn @findReturn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xc77230d0, 
   bb6:
     jump bb3
   bb3:
-    v21 = checked_add u256, v3, 1
+    v21 = checked_add uint256, v3, 1
     jump bb1
   bb7:
     ret v3
 }
 
-fn @count(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xb77153be, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @count(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xb77153be, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -140,12 +140,12 @@ fn @count(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xb77153be, pure,
   bb11:
     jump bb12
   bb12:
-    v23 = checked_add u256, v2, 1
+    v23 = checked_add uint256, v2, 1
     jump bb9
   bb9:
     jump bb3
   bb3:
-    v24 = checked_add u256, v3, 1
+    v24 = checked_add uint256, v3, 1
     jump bb1
   bb10:
     jump bb2

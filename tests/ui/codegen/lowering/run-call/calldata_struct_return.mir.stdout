@@ -10,7 +10,7 @@
   struct2: {i1, i256, i256, i256, i256, i256, i256}
   struct3: {i1, ptr<memory>}
 
-fn @direct(arg0: slice<calldata>) -> struct0 [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
+fn @direct(arg0: slice<calldata>) -> struct0 [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word], abi_return_params=[bool, uint256]] {
   bb0:
     v0 = icall @decode.3, arg0
     v1 = extract_value struct1, v0, 0
@@ -24,7 +24,7 @@ fn @direct(arg0: slice<calldata>) -> struct0 [selector=0x18f2e0cb, pure, abi_par
     ret v8
 }
 
-fn @decode.1(arg0: slice<calldata>) -> struct1 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
+fn @decode.1(arg0: slice<calldata>) -> struct1 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>]] {
   bb0:
     v0 = icall @decode.3, arg0
     v1 = extract_value struct1, v0, 0
@@ -34,7 +34,7 @@ fn @decode.1(arg0: slice<calldata>) -> struct1 [selector=0xe5c5e9a3, pure, abi_p
     ret v4
 }
 
-fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_returns=[word<bool>, word, word, word, word, word, word], abi_return_params=[bool, u256, u256, u256, u256, u256, u256]] {
+fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_returns=[word<bool>, word, word, word, word, word, word], abi_return_params=[bool, uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -59,7 +59,7 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     revert_returndata
   bb2:
     v14 = icall returndata_bytes<>
-    v15 = abi_decode [bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>], v14
+    v15 = abi_decode [bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>], v14
     v16 = extract_value struct3, v15, 0
     v17 = extract_value struct3, v15, 1
     v18 = insert_value struct3, undef struct3, 0, v16

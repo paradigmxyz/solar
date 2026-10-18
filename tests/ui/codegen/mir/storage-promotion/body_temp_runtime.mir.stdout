@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/storage-promotion/body_temp_runtime.sol:BodyTemp ===
 @module BodyTemp
-fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -20,37 +20,37 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     jump bb9
   bb7:
     v11 = sload 0 !metadata(storage=slot(0))
-    v12 = checked_add u256, v11, v0
+    v12 = checked_add uint256, v11, v0
     jump bb9
   bb9:
     v13 = phi [bb7: v12], [bb8: v0]
     ret v13
   bb4:
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = checked_mul u256, v4, 2
-    v6 = checked_add u256, v5, 1
+    v5 = checked_mul uint256, v4, 2
+    v6 = checked_add uint256, v5, 1
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v2, 1
+    v7 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @g(arg0: i256) -> i256 [selector=0xe420264a, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @g(arg0: i256) -> i256 [selector=0xe420264a, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @f, arg0
-    v1 = checked_add u256, arg0, 1
+    v1 = checked_add uint256, arg0, 1
     v2 = icall @f, v1
-    v3 = checked_add u256, v0, v2
+    v3 = checked_add uint256, v0, v2
     ret v3
 }
 
-fn @h(arg0: i256) -> i256 [selector=0xcb97492a, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @h(arg0: i256) -> i256 [selector=0xcb97492a, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @f, arg0
-    v1 = checked_mul u256, v0, 3
+    v1 = checked_mul uint256, v0, 3
     ret v1
 }
 

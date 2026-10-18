@@ -10,8 +10,8 @@
 -     v1 = sdiv arg0, arg1
       v2 = smod arg0, arg1
 -     v3 = smod arg0, arg1
-      v4 = sar arg1, arg0
--     v5 = sar arg1, arg0
+      v4 = sar arg0, arg1
+-     v5 = sar arg0, arg1
       v6 = signextend arg1, arg0
 -     v7 = signextend arg1, arg0
       v8 = addmod arg0, arg1, 97

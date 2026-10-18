@@ -1,0 +1,32 @@
+//@ revisions: paris shanghai
+//@ compile-flags: -Zevm-ir-pipeline=block-cse
+//@[paris] compile-flags: --evm-version paris
+//@[shanghai] compile-flags: --evm-version shanghai
+@module ZeroPush
+
+bb0:
+  push 0
+  push 0
+  revert
+
+bb1:
+  push 0
+  push 7
+  push 0
+  mstore
+  push 32
+  mstore
+  push 0
+  push 64
+  return
+
+bb2:
+  push 0
+  push 5
+  push 7
+  swap 2
+  push 0
+  mstore
+  pop
+  pop
+  stop

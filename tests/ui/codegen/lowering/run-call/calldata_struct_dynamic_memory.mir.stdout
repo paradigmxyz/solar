@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_dynamic_memory.sol:CalldataStructDynamicMemory ===
 @module CalldataStructDynamicMemory
-fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[array<_, tuple<array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[array<_, tuple<array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -45,7 +45,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v84 = mload v83, ptr<memory>
     v85 = mload v84, ptr<memory>
     v86 = mload v85
-    v87 = checked_add u256, v79, v86
+    v87 = checked_add uint256, v79, v86
     v88 = mload v22
     v89 = lt 1, v88
     v90 = eq v89, false
@@ -59,7 +59,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     icall panic_if<0x32>, v96
     v97 = ptradd v93, 32
     v98 = mload v97
-    v99 = checked_add u256, v87, v98
+    v99 = checked_add uint256, v87, v98
     ret v99
   bb2:
     v25 = mul v23, 32
@@ -123,7 +123,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v73 = ptrtoint ptr<memory> v67 to i256
     mstore v40, v73
     v74 = ptrtoint ptr<memory> v40 to i256
-    v75 = shl 5, v23
+    v75 = shl v23, 5
     v76 = ptradd v22, v75
     v77 = ptradd v76, 32
     mstore v77, v74

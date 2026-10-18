@@ -19,7 +19,7 @@ fn @getCanary() -> i256 [pure] {
     ret 20
 }
 
-fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     v0 = icall @getCanary
     sstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v0))
@@ -123,7 +123,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v220 = mul v209, 4
     v221 = add v217, v220
     v222 = sload v221 !metadata(storage=symbolic(v221))
-    v223 = checked_add u256, v206, v222
+    v223 = checked_add uint256, v206, v222
     v224 = lt 0, 1
     v225 = eq v224, false
     icall panic_if<0x32>, v225
@@ -138,7 +138,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v233 = sload v232 !metadata(storage=offset(v231, 1))
     v234 = trunc i256 v233 to i128
     v235 = zext i128 v234 to i256
-    v236 = checked_add u256, v223, v235
+    v236 = checked_add uint256, v223, v235
     v237 = lt 0, 1
     v238 = eq v237, false
     icall panic_if<0x32>, v238
@@ -151,10 +151,10 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v244 = add v240, v243
     v245 = add v244, 1
     v246 = sload v245 !metadata(storage=offset(v244, 1))
-    v247 = shr 128, v246
+    v247 = shr v246, 128
     v248 = trunc i256 v247 to i64
     v249 = zext i64 v248 to i256
-    v250 = checked_add u256, v236, v249
+    v250 = checked_add uint256, v236, v249
     v251 = lt 0, 1
     v252 = eq v251, false
     icall panic_if<0x32>, v252
@@ -167,7 +167,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v258 = add v254, v257
     v259 = add v258, 2
     v260 = sload v259 !metadata(storage=offset(v258, 2))
-    v261 = checked_add u256, v250, v260
+    v261 = checked_add uint256, v250, v260
     jumpi v207, bb28, bb29
   bb29:
     jump bb30
@@ -193,7 +193,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb27:
     jump bb24
   bb24:
-    v275 = checked_add u256, v209, 1
+    v275 = checked_add uint256, v209, 1
     jump bb22
   bb17:
     v185 = mul v183, 4
@@ -238,12 +238,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v157 = add v108, 1
     v158 = ptradd v143, 64
     v159 = mload v158
-    v160 = shl 128, 0xffffffffffffffff
+    v160 = shl 0xffffffffffffffff, 128
     v161 = sload v157 !metadata(storage=offset(v108, 1))
     v162 = not v160
     v163 = and v161, v162
     v164 = and v159, 0xffffffffffffffff
-    v165 = shl 128, v164
+    v165 = shl v164, 128
     v166 = or v163, v165
     sstore v157, v166 !metadata(storage=offset(v108, 1))
     v167 = add v108, 2
@@ -261,7 +261,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v170, v177 !metadata(storage=offset(v108, 3))
     jump bb15
   bb13:
-    v110 = shl 5, v105
+    v110 = shl v105, 5
     v111 = ptradd v74, v110
     v112 = mload v111
     v113 = mload v112
@@ -278,12 +278,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v122 = add v108, 1
     v123 = add v112, 64
     v124 = mload v123
-    v125 = shl 128, 0xffffffffffffffff
+    v125 = shl 0xffffffffffffffff, 128
     v126 = sload v122 !metadata(storage=offset(v108, 1))
     v127 = not v125
     v128 = and v126, v127
     v129 = and v124, 0xffffffffffffffff
-    v130 = shl 128, v129
+    v130 = shl v129, 128
     v131 = or v128, v130
     sstore v122, v131 !metadata(storage=offset(v108, 1))
     v132 = add v108, 2
@@ -317,7 +317,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     mstore v85, v84
     v86 = add v78, 1
     v87 = sload v86 !metadata(storage=offset(v78, 1))
-    v88 = shr 128, v87
+    v88 = shr v87, 128
     v89 = trunc i256 v88 to i64
     v90 = zext i64 v89 to i256
     v91 = ptradd v79, 64
@@ -333,26 +333,26 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v99 = ptradd v79, 128
     mstore v99, v98
     v100 = ptrtoint ptr<memory> v79 to i256
-    v101 = shl 5, v75
+    v101 = shl v75, 5
     v102 = ptradd v74, v101
     mstore v102, v100
     v103 = add v75, 1
     jump bb7
   bb4:
     v8 = alloc 160
-    v9 = checked_mul u256, v4, 5
-    v10 = checked_add u256, 1, v9
-    v11 = checked_mul u256, v4, 5
-    v12 = checked_add u256, 2, v11
+    v9 = checked_mul uint256, v4, 5
+    v10 = checked_add uint256, 1, v9
+    v11 = checked_mul uint256, v4, 5
+    v12 = checked_add uint256, 2, v11
     v13 = trunc i256 v12 to i128
     v14 = zext i128 v13 to i256
-    v15 = checked_mul u256, v4, 5
-    v16 = checked_add u256, 3, v15
+    v15 = checked_mul uint256, v4, 5
+    v16 = checked_add uint256, 3, v15
     v17 = trunc i256 v16 to i64
     v18 = zext i64 v17 to i256
-    v19 = checked_mul u256, v4, 5
-    v20 = checked_add u256, 4, v19
-    v21 = shl 0, v20
+    v19 = checked_mul uint256, v4, 5
+    v20 = checked_add uint256, 4, v19
+    v21 = shl v20, 0
     mstore v8, v10
     v22 = ptradd v8, 32
     mstore v22, v14
@@ -386,12 +386,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v43 = add v33, 1
     v44 = ptradd v8, 64
     v45 = mload v44
-    v46 = shl 128, 0xffffffffffffffff
+    v46 = shl 0xffffffffffffffff, 128
     v47 = sload v43 !metadata(storage=offset(v33, 1))
     v48 = not v46
     v49 = and v47, v48
     v50 = and v45, 0xffffffffffffffff
-    v51 = shl 128, v50
+    v51 = shl v50, 128
     v52 = or v49, v51
     sstore v43, v52 !metadata(storage=offset(v33, 1))
     v53 = add v33, 2
@@ -411,6 +411,6 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb6:
     jump bb3
   bb3:
-    v64 = checked_add u256, v4, 1
+    v64 = checked_add uint256, v4, 1
     jump bb1
 }

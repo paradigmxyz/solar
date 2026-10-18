@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/coalesce-allocs/coalesce_allocs_basic.mir (after coalesce-allocs) ===
   @module CoalesceAllocsBasic
   @immutables
-    stored: u256
+    stored: uint256
   
   fn @fuse_consecutive() -> i256 {
     bb0:
@@ -129,7 +129,7 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      v2 = checked_add u256, arg0, 1
+      v2 = checked_add uint256, arg0, 1
       v3 = alloc 32
       v4 = ptrtoint ptr<memory> v3 to i256
       ret v2

@@ -56,14 +56,14 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &pre::Pre,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
-    &word_sequence::WordSequence,
+    &word_sequence::WordSequence::Late,
+    &byte_run::ByteRunLoads,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &load_pre::LoadPre::All,
     &load_pre::LoadPre::Storage,
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
-    &loop_idioms::LoopIdioms,
     &loop_split::LoopSplit,
     &loop_unroll::LoopUnroll,
     &merge_aborts::MergeAborts,
@@ -99,7 +99,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_integers::LowerIntegers,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
-    &lower_aggregates::LowerAggregates,
     &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
@@ -199,7 +198,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &sccp::Sccp,
     &pure_eval::PureEval,
     &egraph::Egraph,
-    &word_sequence::WordSequence,
+    &word_sequence::WordSequence::Early,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
@@ -256,7 +255,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(loop_split::LoopSplit),
     &sccp::Sccp,
     &egraph::Egraph,
-    &word_sequence::WordSequence,
+    &word_sequence::WordSequence::Early,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
@@ -291,18 +290,17 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
-    &lower_aggregates::LowerAggregates,
-    // Aggregate lowering exposes packed read-modify-write sequences. Forward
-    // whole words before deleting the overwritten stores, then simplify masks.
+    // Packed storage writes leave read-modify-write sequences. Forward whole
+    // words before deleting the overwritten stores, then simplify masks.
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &egraph::Egraph,
-    &word_sequence::WordSequence,
+    &word_sequence::WordSequence::Late,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
     // Check elimination and CFG cleanup expose straight-line immutable helpers.
     &inline::InlineImmutableLeaves,
-    // Late CSE reduces runtime gas after aggregate lowering, but can grow
+    // Late CSE reduces runtime gas after ABI encoding lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly::new(cse::Cse),
     // Common dominated loads before PRE replaces join loads with phis, then
@@ -349,6 +347,10 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // direction check.
     &lower_mcopy::LowerMCopy,
     &lower_alloc::LowerAlloc,
+    // Allocation lowering exposes zero fills and free-memory-pointer stores
+    // that later stores in the same block can overwrite completely. Keep this
+    // gas-only: late constant-keccak folding can grow bytecode under `-Osize`.
+    &GasOnly::new(memory_dse::MemoryDse),
     &lower_memory_zero::LowerMemoryZero,
     // Materialize integer cleanup before word-level extraction and scheduling.
     &lower_integers::LowerIntegers,
@@ -361,7 +363,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // once more before the physical shape is fixed. The stack-aware cost keeps
     // rewrites from reaching for values the scheduler would have to keep alive.
     &egraph::Egraph,
-    &word_sequence::WordSequence,
+    &word_sequence::WordSequence::Late,
     // Packing consecutive bytes out of one buffer reads each byte with its own
     // word read. The simplification above canonicalizes each read to one byte
     // extraction; fuse the run into the one read it is a field of, before the
@@ -377,9 +379,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // plus invariants; carry it as a pointer stepped on the latch instead of
     // rebuilding it from the index every iteration.
     &GasOnly::new(indvar_simplify::IndVarSimplify),
-    // Collapse canonical read-only byte scans after bounds cleanup and word
-    // simplification expose their final physical shape.
-    &GasOnly::new(loop_idioms::LoopIdioms),
     // Counted loops test their bound once per two iterations once their
     // physical shape is final; the cleanup below drops the unread clones.
     &GasOnly::new(loop_unroll::LoopUnroll),
