@@ -46,7 +46,7 @@ fn @copy(arg0: ptr<memory>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v165 = mul v164, 1
     v166 = sload v163 !metadata(storage=symbolic(v163))
     v167 = mul v165, 8
-    v168 = shr v167, v166
+    v168 = shr v166, v167
     v169 = trunc i256 v168 to i8
     v170 = sload 0 !metadata(storage=slot(0))
     v171 = lt 0, v170
@@ -71,7 +71,7 @@ fn @copy(arg0: ptr<memory>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v187 = mul v186, 1
     v188 = sload v185 !metadata(storage=symbolic(v185))
     v189 = mul v187, 8
-    v190 = shr v189, v188
+    v190 = shr v188, v189
     v191 = trunc i256 v190 to i8
     v192 = checked_add uint8, v169, v191
     v193 = sload 0 !metadata(storage=slot(0))
@@ -97,13 +97,13 @@ fn @copy(arg0: ptr<memory>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v210 = mul v209, 1
     v211 = sload v208 !metadata(storage=symbolic(v208))
     v212 = mul v210, 8
-    v213 = shr v212, v211
+    v213 = shr v211, v212
     v214 = trunc i256 v213 to i8
     v215 = checked_add uint8, v192, v214
     v216 = zext i8 v215 to i256
     ret v216
   bb13:
-    v28 = shl 5, v26
+    v28 = shl v26, 5
     v29 = ptradd arg0, v28
     v30 = ptradd v29, 32
     v31 = mload v30, ptr<memory>
@@ -132,7 +132,7 @@ fn @copy(arg0: ptr<memory>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v146 = add v26, 1
     jump bb12
   bb24:
-    v56 = shl 5, v54
+    v56 = shl v54, 5
     v57 = ptradd v31, v56
     v58 = ptradd v57, 32
     v59 = mload v58, ptr<memory>
@@ -160,13 +160,13 @@ fn @copy(arg0: ptr<memory>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v84 = lt v83, v64
     jumpi v84, bb32, bb33
   bb33:
-    v104 = shr 5, v64
+    v104 = shr v64, 5
     v105 = and v64, 31
     v106 = eq v105, 0
     jumpi v106, bb35, bb34
   bb34:
     v107 = mul v105, 8
-    v108 = shl v107, 1
+    v108 = shl 1, v107
     v109 = sub v108, 1
     v110 = storage_array_data_slot v62
     v111 = add v110, v104
@@ -195,27 +195,27 @@ fn @copy(arg0: ptr<memory>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     jumpi v123, bb39, bb40
   bb40:
     v136 = mul v122, 8
-    v137 = shl v136, 255
+    v137 = shl 255, v136
     v138 = sload v120 !metadata(storage=symbolic(v120))
     v139 = not v137
     v140 = and v138, v139
     v141 = and 0, 255
-    v142 = shl v136, v141
+    v142 = shl v141, v136
     v143 = or v140, v142
     sstore v120, v143 !metadata(storage=symbolic(v120))
     jump bb41
   bb39:
-    v124 = shl 5, v117
+    v124 = shl v117, 5
     v125 = inttoptr i256 v116 to ptr<memory>
     v126 = ptradd v125, v124
     v127 = mload v126
     v128 = mul v122, 8
-    v129 = shl v128, 255
+    v129 = shl 255, v128
     v130 = sload v120 !metadata(storage=symbolic(v120))
     v131 = not v129
     v132 = and v130, v131
     v133 = and v127, 255
-    v134 = shl v128, v133
+    v134 = shl v133, v128
     v135 = or v132, v134
     sstore v120, v135 !metadata(storage=symbolic(v120))
     jump bb41
@@ -223,7 +223,7 @@ fn @copy(arg0: ptr<memory>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v144 = add v117, 1
     jump bb36
   bb32:
-    v85 = shl 5, v83
+    v85 = shl v83, 5
     v86 = inttoptr i256 v63 to ptr<memory>
     v87 = ptradd v86, v85
     v88 = ptradd v87, 32
@@ -234,12 +234,12 @@ fn @copy(arg0: ptr<memory>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v93 = mod v83, 32
     v94 = mul v93, 1
     v95 = mul v94, 8
-    v96 = shl v95, 255
+    v96 = shl 255, v95
     v97 = sload v92 !metadata(storage=symbolic(v92))
     v98 = not v96
     v99 = and v97, v98
     v100 = and v89, 255
-    v101 = shl v95, v100
+    v101 = shl v100, v95
     v102 = or v99, v101
     sstore v92, v102 !metadata(storage=symbolic(v92))
     v103 = add v83, 1
@@ -251,12 +251,12 @@ fn @copy(arg0: ptr<memory>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v72 = mod v67, 32
     v73 = mul v72, 1
     v74 = mul v73, 8
-    v75 = shl v74, 255
+    v75 = shl 255, v74
     v76 = sload v71 !metadata(storage=symbolic(v71))
     v77 = not v75
     v78 = and v76, v77
     v79 = and 0, 255
-    v80 = shl v74, v79
+    v80 = shl v79, v74
     v81 = or v78, v80
     sstore v71, v81 !metadata(storage=symbolic(v71))
     v82 = add v67, 1
@@ -358,7 +358,7 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v250 = mul v249, 1
     v251 = sload v248 !metadata(storage=symbolic(v248))
     v252 = mul v250, 8
-    v253 = shr v252, v251
+    v253 = shr v251, v252
     v254 = trunc i256 v253 to i8
     v255 = lt 0, 1
     v256 = eq v255, false
@@ -381,7 +381,7 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v270 = mul v269, 1
     v271 = sload v268 !metadata(storage=symbolic(v268))
     v272 = mul v270, 8
-    v273 = shr v272, v271
+    v273 = shr v271, v272
     v274 = trunc i256 v273 to i8
     v275 = checked_add uint8, v254, v274
     v276 = lt 0, 1
@@ -405,7 +405,7 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v291 = mul v290, 1
     v292 = sload v289 !metadata(storage=symbolic(v289))
     v293 = mul v291, 8
-    v294 = shr v293, v292
+    v294 = shr v292, v293
     v295 = trunc i256 v294 to i8
     v296 = checked_add uint8, v275, v295
     v297 = zext i8 v296 to i256
@@ -439,7 +439,7 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
   bb44:
     jump bb6
   bb43:
-    v143 = shl 5, v141
+    v143 = shl v141, 5
     v144 = ptradd v120, v143
     v145 = ptradd v144, 32
     v146 = mload v145, ptr<memory>
@@ -467,13 +467,13 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v171 = lt v170, v151
     jumpi v171, bb51, bb52
   bb52:
-    v191 = shr 5, v151
+    v191 = shr v151, 5
     v192 = and v151, 31
     v193 = eq v192, 0
     jumpi v193, bb54, bb53
   bb53:
     v194 = mul v192, 8
-    v195 = shl v194, 1
+    v195 = shl 1, v194
     v196 = sub v195, 1
     v197 = storage_array_data_slot v149
     v198 = add v197, v191
@@ -502,27 +502,27 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     jumpi v210, bb58, bb59
   bb59:
     v223 = mul v209, 8
-    v224 = shl v223, 255
+    v224 = shl 255, v223
     v225 = sload v207 !metadata(storage=symbolic(v207))
     v226 = not v224
     v227 = and v225, v226
     v228 = and 0, 255
-    v229 = shl v223, v228
+    v229 = shl v228, v223
     v230 = or v227, v229
     sstore v207, v230 !metadata(storage=symbolic(v207))
     jump bb60
   bb58:
-    v211 = shl 5, v204
+    v211 = shl v204, 5
     v212 = inttoptr i256 v203 to ptr<memory>
     v213 = ptradd v212, v211
     v214 = mload v213
     v215 = mul v209, 8
-    v216 = shl v215, 255
+    v216 = shl 255, v215
     v217 = sload v207 !metadata(storage=symbolic(v207))
     v218 = not v216
     v219 = and v217, v218
     v220 = and v214, 255
-    v221 = shl v215, v220
+    v221 = shl v220, v215
     v222 = or v219, v221
     sstore v207, v222 !metadata(storage=symbolic(v207))
     jump bb60
@@ -530,7 +530,7 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v231 = add v204, 1
     jump bb55
   bb51:
-    v172 = shl 5, v170
+    v172 = shl v170, 5
     v173 = inttoptr i256 v150 to ptr<memory>
     v174 = ptradd v173, v172
     v175 = ptradd v174, 32
@@ -541,12 +541,12 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v180 = mod v170, 32
     v181 = mul v180, 1
     v182 = mul v181, 8
-    v183 = shl v182, 255
+    v183 = shl 255, v182
     v184 = sload v179 !metadata(storage=symbolic(v179))
     v185 = not v183
     v186 = and v184, v185
     v187 = and v176, 255
-    v188 = shl v182, v187
+    v188 = shl v187, v182
     v189 = or v186, v188
     sstore v179, v189 !metadata(storage=symbolic(v179))
     v190 = add v170, 1
@@ -558,12 +558,12 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v159 = mod v154, 32
     v160 = mul v159, 1
     v161 = mul v160, 8
-    v162 = shl v161, 255
+    v162 = shl 255, v161
     v163 = sload v158 !metadata(storage=symbolic(v158))
     v164 = not v162
     v165 = and v163, v164
     v166 = and 0, 255
-    v167 = shl v161, v166
+    v167 = shl v166, v161
     v168 = or v165, v167
     sstore v158, v168 !metadata(storage=symbolic(v158))
     v169 = add v154, 1
@@ -595,7 +595,7 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v139 = add v136, 1
     jump bb39
   bb4:
-    v4 = shl 5, v0
+    v4 = shl v0, 5
     v5 = ptradd arg0, v4
     v6 = mload v5
     v7 = mload v6
@@ -623,7 +623,7 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v233 = add v0, 1
     jump bb1
   bb16:
-    v29 = shl 5, v27
+    v29 = shl v27, 5
     v30 = inttoptr i256 v6 to ptr<memory>
     v31 = ptradd v30, v29
     v32 = ptradd v31, 32
@@ -652,13 +652,13 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v58 = lt v57, v38
     jumpi v58, bb24, bb25
   bb25:
-    v78 = shr 5, v38
+    v78 = shr v38, 5
     v79 = and v38, 31
     v80 = eq v79, 0
     jumpi v80, bb27, bb26
   bb26:
     v81 = mul v79, 8
-    v82 = shl v81, 1
+    v82 = shl 1, v81
     v83 = sub v82, 1
     v84 = storage_array_data_slot v36
     v85 = add v84, v78
@@ -687,27 +687,27 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     jumpi v97, bb31, bb32
   bb32:
     v110 = mul v96, 8
-    v111 = shl v110, 255
+    v111 = shl 255, v110
     v112 = sload v94 !metadata(storage=symbolic(v94))
     v113 = not v111
     v114 = and v112, v113
     v115 = and 0, 255
-    v116 = shl v110, v115
+    v116 = shl v115, v110
     v117 = or v114, v116
     sstore v94, v117 !metadata(storage=symbolic(v94))
     jump bb33
   bb31:
-    v98 = shl 5, v91
+    v98 = shl v91, 5
     v99 = inttoptr i256 v90 to ptr<memory>
     v100 = ptradd v99, v98
     v101 = mload v100
     v102 = mul v96, 8
-    v103 = shl v102, 255
+    v103 = shl 255, v102
     v104 = sload v94 !metadata(storage=symbolic(v94))
     v105 = not v103
     v106 = and v104, v105
     v107 = and v101, 255
-    v108 = shl v102, v107
+    v108 = shl v107, v102
     v109 = or v106, v108
     sstore v94, v109 !metadata(storage=symbolic(v94))
     jump bb33
@@ -715,7 +715,7 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v118 = add v91, 1
     jump bb28
   bb24:
-    v59 = shl 5, v57
+    v59 = shl v57, 5
     v60 = inttoptr i256 v37 to ptr<memory>
     v61 = ptradd v60, v59
     v62 = ptradd v61, 32
@@ -726,12 +726,12 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v67 = mod v57, 32
     v68 = mul v67, 1
     v69 = mul v68, 8
-    v70 = shl v69, 255
+    v70 = shl 255, v69
     v71 = sload v66 !metadata(storage=symbolic(v66))
     v72 = not v70
     v73 = and v71, v72
     v74 = and v63, 255
-    v75 = shl v69, v74
+    v75 = shl v74, v69
     v76 = or v73, v75
     sstore v66, v76 !metadata(storage=symbolic(v66))
     v77 = add v57, 1
@@ -743,12 +743,12 @@ fn @copyFixed(arg0: ptr<memory>) -> i256 [selector=0x39bd9a66, abi_params=[array
     v46 = mod v41, 32
     v47 = mul v46, 1
     v48 = mul v47, 8
-    v49 = shl v48, 255
+    v49 = shl 255, v48
     v50 = sload v45 !metadata(storage=symbolic(v45))
     v51 = not v49
     v52 = and v50, v51
     v53 = and 0, 255
-    v54 = shl v48, v53
+    v54 = shl v53, v48
     v55 = or v52, v54
     sstore v45, v55 !metadata(storage=symbolic(v45))
     v56 = add v41, 1
@@ -826,7 +826,7 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v231 = mul v230, 1
     v232 = sload v229 !metadata(storage=symbolic(v229))
     v233 = mul v231, 8
-    v234 = shr v233, v232
+    v234 = shr v232, v233
     v235 = trunc i256 v234 to i8
     v236 = sload 2 !metadata(storage=slot(2))
     v237 = lt 0, v236
@@ -850,7 +850,7 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v252 = mul v251, 1
     v253 = sload v250 !metadata(storage=symbolic(v250))
     v254 = mul v252, 8
-    v255 = shr v254, v253
+    v255 = shr v253, v254
     v256 = trunc i256 v255 to i8
     v257 = checked_add uint8, v235, v256
     v258 = sload 2 !metadata(storage=slot(2))
@@ -875,13 +875,13 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v274 = mul v273, 1
     v275 = sload v272 !metadata(storage=symbolic(v272))
     v276 = mul v274, 8
-    v277 = shr v276, v275
+    v277 = shr v275, v276
     v278 = trunc i256 v277 to i8
     v279 = checked_add uint8, v257, v278
     v280 = zext i8 v279 to i256
     ret v280
   bb13:
-    v27 = shl 5, v25
+    v27 = shl v25, 5
     v28 = ptradd arg0, v27
     v29 = ptradd v28, 32
     v30 = mload v29, ptr<memory>
@@ -933,13 +933,13 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v151 = lt v150, v131
     jumpi v151, bb43, bb44
   bb44:
-    v171 = shr 5, v131
+    v171 = shr v131, 5
     v172 = and v131, 31
     v173 = eq v172, 0
     jumpi v173, bb46, bb45
   bb45:
     v174 = mul v172, 8
-    v175 = shl v174, 1
+    v175 = shl 1, v174
     v176 = sub v175, 1
     v177 = storage_array_data_slot v37
     v178 = add v177, v171
@@ -967,27 +967,27 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     jumpi v190, bb50, bb51
   bb51:
     v203 = mul v189, 8
-    v204 = shl v203, 255
+    v204 = shl 255, v203
     v205 = sload v187 !metadata(storage=symbolic(v187))
     v206 = not v204
     v207 = and v205, v206
     v208 = and 0, 255
-    v209 = shl v203, v208
+    v209 = shl v208, v203
     v210 = or v207, v209
     sstore v187, v210 !metadata(storage=symbolic(v187))
     jump bb52
   bb50:
-    v191 = shl 5, v184
+    v191 = shl v184, 5
     v192 = inttoptr i256 v183 to ptr<memory>
     v193 = ptradd v192, v191
     v194 = mload v193
     v195 = mul v189, 8
-    v196 = shl v195, 255
+    v196 = shl 255, v195
     v197 = sload v187 !metadata(storage=symbolic(v187))
     v198 = not v196
     v199 = and v197, v198
     v200 = and v194, 255
-    v201 = shl v195, v200
+    v201 = shl v200, v195
     v202 = or v199, v201
     sstore v187, v202 !metadata(storage=symbolic(v187))
     jump bb52
@@ -995,7 +995,7 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v211 = add v184, 1
     jump bb47
   bb43:
-    v152 = shl 5, v150
+    v152 = shl v150, 5
     v153 = inttoptr i256 v130 to ptr<memory>
     v154 = ptradd v153, v152
     v155 = ptradd v154, 32
@@ -1006,12 +1006,12 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v160 = mod v150, 32
     v161 = mul v160, 1
     v162 = mul v161, 8
-    v163 = shl v162, 255
+    v163 = shl 255, v162
     v164 = sload v159 !metadata(storage=symbolic(v159))
     v165 = not v163
     v166 = and v164, v165
     v167 = and v156, 255
-    v168 = shl v162, v167
+    v168 = shl v167, v162
     v169 = or v166, v168
     sstore v159, v169 !metadata(storage=symbolic(v159))
     v170 = add v150, 1
@@ -1023,18 +1023,18 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v139 = mod v134, 32
     v140 = mul v139, 1
     v141 = mul v140, 8
-    v142 = shl v141, 255
+    v142 = shl 255, v141
     v143 = sload v138 !metadata(storage=symbolic(v138))
     v144 = not v142
     v145 = and v143, v144
     v146 = and 0, 255
-    v147 = shl v141, v146
+    v147 = shl v146, v141
     v148 = or v145, v147
     sstore v138, v148 !metadata(storage=symbolic(v138))
     v149 = add v134, 1
     jump bb39
   bb18:
-    v39 = shl 5, v34
+    v39 = shl v34, 5
     v40 = ptradd v30, v39
     v41 = mload v40
     v42 = mload v41
@@ -1058,13 +1058,13 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v63 = lt v62, v43
     jumpi v63, bb27, bb28
   bb28:
-    v83 = shr 5, v43
+    v83 = shr v43, 5
     v84 = and v43, 31
     v85 = eq v84, 0
     jumpi v85, bb30, bb29
   bb29:
     v86 = mul v84, 8
-    v87 = shl v86, 1
+    v87 = shl 1, v86
     v88 = sub v87, 1
     v89 = storage_array_data_slot v37
     v90 = add v89, v83
@@ -1095,27 +1095,27 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     jumpi v102, bb34, bb35
   bb35:
     v115 = mul v101, 8
-    v116 = shl v115, 255
+    v116 = shl 255, v115
     v117 = sload v99 !metadata(storage=symbolic(v99))
     v118 = not v116
     v119 = and v117, v118
     v120 = and 0, 255
-    v121 = shl v115, v120
+    v121 = shl v120, v115
     v122 = or v119, v121
     sstore v99, v122 !metadata(storage=symbolic(v99))
     jump bb36
   bb34:
-    v103 = shl 5, v96
+    v103 = shl v96, 5
     v104 = inttoptr i256 v95 to ptr<memory>
     v105 = ptradd v104, v103
     v106 = mload v105
     v107 = mul v101, 8
-    v108 = shl v107, 255
+    v108 = shl 255, v107
     v109 = sload v99 !metadata(storage=symbolic(v99))
     v110 = not v108
     v111 = and v109, v110
     v112 = and v106, 255
-    v113 = shl v107, v112
+    v113 = shl v112, v107
     v114 = or v111, v113
     sstore v99, v114 !metadata(storage=symbolic(v99))
     jump bb36
@@ -1123,7 +1123,7 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v123 = add v96, 1
     jump bb31
   bb27:
-    v64 = shl 5, v62
+    v64 = shl v62, 5
     v65 = inttoptr i256 v42 to ptr<memory>
     v66 = ptradd v65, v64
     v67 = ptradd v66, 32
@@ -1134,12 +1134,12 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v72 = mod v62, 32
     v73 = mul v72, 1
     v74 = mul v73, 8
-    v75 = shl v74, 255
+    v75 = shl 255, v74
     v76 = sload v71 !metadata(storage=symbolic(v71))
     v77 = not v75
     v78 = and v76, v77
     v79 = and v68, 255
-    v80 = shl v74, v79
+    v80 = shl v79, v74
     v81 = or v78, v80
     sstore v71, v81 !metadata(storage=symbolic(v71))
     v82 = add v62, 1
@@ -1151,12 +1151,12 @@ fn @copyDynamicFixed(arg0: ptr<memory>) -> i256 [selector=0x62d70355, abi_params
     v51 = mod v46, 32
     v52 = mul v51, 1
     v53 = mul v52, 8
-    v54 = shl v53, 255
+    v54 = shl 255, v53
     v55 = sload v50 !metadata(storage=symbolic(v50))
     v56 = not v54
     v57 = and v55, v56
     v58 = and 0, 255
-    v59 = shl v53, v58
+    v59 = shl v58, v53
     v60 = or v57, v59
     sstore v50, v60 !metadata(storage=symbolic(v50))
     v61 = add v46, 1

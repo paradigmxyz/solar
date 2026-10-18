@@ -68,7 +68,7 @@ fn @callArray(arg0: i256, arg1: i256) -> i256 [selector=0xefc06ab0, abi_params=[
     v22 = lt arg1, v21
     v23 = eq v22, false
     icall panic_if<0x32>, v23
-    v24 = shl 5, arg1
+    v24 = shl arg1, 5
     v25 = ptradd v0, v24
     v26 = ptradd v25, 32
     v27 = mload v26

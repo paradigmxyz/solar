@@ -47,7 +47,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v91 = add v5, 1
     mstore8 v91, v90
     v92 = mload v87
-    v93 = shr 4, v92
+    v93 = shr v92, 4
     v94 = and v93, 15
     v95 = mload v94
     mstore8 v5, v95
@@ -87,7 +87,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v24 = add v11, 1
     mstore8 v24, v23
     v25 = mload v20
-    v26 = shr 4, v25
+    v26 = shr v25, 4
     v27 = and v26, 15
     v28 = mload v27
     mstore8 v11, v28
@@ -98,7 +98,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v106 = add v11, 3
     mstore8 v106, v105
     v107 = mload v102
-    v108 = shr 4, v107
+    v108 = shr v107, 4
     v109 = and v108, 15
     v110 = mload v109
     v29 = add v11, 2
@@ -131,12 +131,12 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     jumpi v29, bb6, bb7
   bb7:
     v30 = add v27, 1
-    v31 = shl 5, v30
+    v31 = shl v30, 5
     v48 = icall @alloc, v31
     mstore v48, v27
-    v33 = shl 5, v27
+    v33 = shl v27, 5
     v34 = sub v18, v22
-    v35 = shr 5, v34
+    v35 = shr v34, 5
     v36 = gt v27, v35
     jumpi v36, bb4, bb8
   bb8:
@@ -222,7 +222,7 @@ fn @entry() [entry] {
     jumpi v1, bb5, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb5, [0x5a761098 => bb2, 0xbf2eba92 => bb3, 0xc5bec6fc => bb4]
   bb4:
     tail_call @toHex

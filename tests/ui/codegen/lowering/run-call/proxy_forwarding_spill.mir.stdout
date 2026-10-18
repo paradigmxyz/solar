@@ -24,7 +24,7 @@ fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=
 fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
   bb0:
     v0 = zext i160 arg0 to i256
-    v1 = shl 0, v0
+    v1 = shl v0, 0
     storeimmutable _defaultImplementation, v1
     ret
 }

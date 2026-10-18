@@ -17,7 +17,7 @@ fn @plain() [selector=0xc2dcee6a, abi_wrapper, pure] {
     v37 = or v20, v26
     v28 = calldataload v22
     v30 = sub v19, v23
-    v31 = shr 7, v30
+    v31 = shr v30, 7
     v32 = gt v28, v31
     v38 = or v37, v32
     jumpi v38, bb3, bb4
@@ -27,7 +27,7 @@ fn @plain() [selector=0xc2dcee6a, abi_wrapper, pure] {
   bb1:
     tail_call @revert_stub.4
   bb2:
-    v4 = shl 7, arg1
+    v4 = shl arg1, 7
     v12 = add v23, v4
     v17 = add v12, 96
     v18 = calldataload v17
@@ -66,8 +66,8 @@ fn @member() [selector=0x49eb8b89, abi_wrapper, pure] {
   bb3:
     v15 = calldataload v8
     v16 = calldatasize
-    v43 = shr 64, v15
-    v18 = shl 7, v15
+    v43 = shr v15, 64
+    v18 = shl v15, 7
     v19 = add v8, 32
     v20 = sub v16, v18
     v21 = sgt v19, v20
@@ -81,7 +81,7 @@ fn @member() [selector=0x49eb8b89, abi_wrapper, pure] {
   bb5:
     tail_call @revert_stub.4
   bb6:
-    v28 = shl 7, arg1
+    v28 = shl arg1, 7
     v36 = add v19, v28
     v41 = add v36, 96
     v42 = calldataload v41
@@ -120,8 +120,8 @@ fn @word() [selector=0xd192e846, abi_wrapper, pure] {
   bb3:
     v15 = calldataload v8
     v16 = calldatasize
-    v38 = shr 64, v15
-    v18 = shl 5, v15
+    v38 = shr v15, 64
+    v18 = shl v15, 5
     v19 = add v8, 32
     v20 = sub v16, v18
     v21 = sgt v19, v20
@@ -135,7 +135,7 @@ fn @word() [selector=0xd192e846, abi_wrapper, pure] {
   bb5:
     tail_call @revert_stub.4
   bb6:
-    v28 = shl 5, arg1
+    v28 = shl arg1, 5
     v36 = add v19, v28
     v37 = calldataload v36
     mstore 128, v37
@@ -173,8 +173,8 @@ fn @lengths() [selector=0xb7a3bd0f, abi_wrapper, pure] {
   bb3:
     v15 = calldataload v8
     v16 = calldatasize
-    v77 = shr 64, v15
-    v18 = shl 7, v15
+    v77 = shr v15, 64
+    v18 = shl v15, 7
     v19 = add v8, 32
     v20 = sub v16, v18
     v21 = sgt v19, v20
@@ -199,8 +199,8 @@ fn @lengths() [selector=0xb7a3bd0f, abi_wrapper, pure] {
   bb5:
     v40 = calldataload v33
     v41 = calldatasize
-    v79 = shr 64, v40
-    v43 = shl 5, v40
+    v79 = shr v40, 64
+    v43 = shl v40, 5
     v44 = add v33, 32
     v45 = sub v41, v43
     v46 = sgt v44, v45
@@ -225,7 +225,7 @@ fn @lengths() [selector=0xb7a3bd0f, abi_wrapper, pure] {
   bb7:
     v65 = calldataload v58
     v66 = calldatasize
-    v81 = shr 64, v65
+    v81 = shr v65, 64
     v68 = add v58, 32
     v69 = sub v66, v65
     v70 = sgt v68, v69
@@ -263,7 +263,7 @@ fn @entry() [entry] {
     jumpi v1, bb6, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb6, [0x49eb8b89 => bb2, 0xb7a3bd0f => bb3, 0xc2dcee6a => bb4, 0xd192e846 => bb5]
   bb5:
     tail_call @word

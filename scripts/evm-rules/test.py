@@ -248,8 +248,8 @@ fn @second(arg0: i256, arg1: i256) {
         source = """fn @mask(arg0: i256) {
   bb0:
     v0 = sub 32, arg0
-    v1 = shl 3, v0
-    v2 = shl v1, 1
+    v1 = shl v0, 3
+    v2 = shl 1, v1
     v3 = sub v2, 1
     v4 = not v3
     ret v4

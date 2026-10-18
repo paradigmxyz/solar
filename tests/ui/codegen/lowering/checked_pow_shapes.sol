@@ -13,7 +13,7 @@ contract CheckedPowShapes {
     // CHECK: phi [bb0: 1]
     // CHECK: and {{v[0-9]+}}, 1
     // CHECK: mul {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: shr 1,
+    // CHECK: shr {{[^ ,]+}}, 1{{$}}
     // CHECK: mstore 32, 17
     function upow(uint256 a, uint256 b) public pure returns (uint256) {
         return a ** b;

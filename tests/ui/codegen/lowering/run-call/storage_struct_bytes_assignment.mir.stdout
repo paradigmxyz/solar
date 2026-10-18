@@ -49,7 +49,7 @@ fn @cleanupShort() -> struct1 [selector=0x14d48529, abi_params=[], abi_returns=[
     v6 = eq v5, 1
     v7 = sub 0, v5
     v8 = or 127, v7
-    v9 = shr 1, v4
+    v9 = shr v4, 1
     v10 = and v9, v8
     v11 = insert_value struct1, undef struct1, 0, v10
     v12 = insert_value struct1, v11, 1, v1

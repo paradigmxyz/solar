@@ -68,7 +68,7 @@ fn @constructor() [constructor] {
     sstore v42, 0 !metadata(storage=symbolic(v42))
     ret
   bb7:
-    v31 = shl 5, v29
+    v31 = shl v29, 5
     v32 = ptradd v15, v31
     v33 = ptradd v32, 32
     v34 = mload v33
@@ -179,7 +179,7 @@ fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[uint2
     v49 = insert_value struct1, v48, 1, v47
     ret v49
   bb7:
-    v21 = shl 5, v19
+    v21 = shl v19, 5
     v22 = ptradd v5, v21
     v23 = ptradd v22, 32
     v24 = mload v23
@@ -242,7 +242,7 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
     v36 = insert_value struct0, v35, 2, v33
     ret v36
   bb7:
-    v12 = shl 5, v10
+    v12 = shl v10, 5
     v13 = ptradd v0, v12
     v14 = ptradd v13, 32
     v15 = mload v14

@@ -17,7 +17,7 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     icall revert_if<empty>, v5
     v6 = mload 64 !metadata(memory=scratch)
     v7 = mul arg0, arg1
-    v8 = shl 5, v7
+    v8 = shl v7, 5
     v9 = add v6, 32
     mstore v6, v8
     jump bb4
@@ -50,7 +50,7 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     jump bb12
   bb10:
     v21 = mul v16, v11
-    v22 = shl 5, v21
+    v22 = shl v21, 5
     jump bb13
   bb13:
     v23 = phi [bb10: v10], [bb17: v23]
@@ -66,7 +66,7 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
   bb16:
     jump bb14
   bb15:
-    v32 = shl 5, v31
+    v32 = shl v31, 5
     v33 = add v30, v32
     v34 = xor v25, v33
     v35 = add v28, v33

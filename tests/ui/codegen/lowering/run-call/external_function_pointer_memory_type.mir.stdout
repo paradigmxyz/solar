@@ -9,11 +9,11 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xe6d02096
     v4 = and v3, 0xffffffff
-    v5 = shl 224, v4
-    v6 = shr 32, v3
+    v5 = shl v4, 224
+    v6 = shr v3, 32
     v7 = gas
     v8 = alloc 64 !metadata(preserves_fmp)
     mstore v8, 10

@@ -65,7 +65,7 @@ fn @consume(arg0: ptr<memory>) -> struct0 [pure] {
     v7 = lt v4, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = shl 5, v4
+    v9 = shl v4, 5
     v10 = ptradd v1, v9
     v11 = ptradd v10, 32
     v12 = mload v11

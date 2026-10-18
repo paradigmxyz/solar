@@ -101,7 +101,7 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v12 = eq v11, 1
     v13 = sub 0, v11
     v14 = or 127, v13
-    v15 = shr 1, v10
+    v15 = shr v10, 1
     v16 = and v15, v14
     ret v16
 }

@@ -20,11 +20,11 @@ fn @h(arg0: slice<calldata>) -> i256 [selector=0xdae6c3bf, pure, abi_params=[arr
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 0
     v6 = calldataload v5
-    v7 = shl 192, v6
+    v7 = shl v6, 192
     v8 = eq v7, 0
     v9 = eq v8, false
     icall revert_if<empty>, v9
-    v10 = shr 64, v6
+    v10 = shr v6, 64
     ret 3
 }
 
@@ -57,13 +57,13 @@ fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
     mstore v0, 1
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0xd4b83992
     v5 = mload v0
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = shl 64, v4
+    v8 = shl v4, 64
     v9 = ptradd v0, 32
     mstore v9, v8
     v10 = abi_encode [memory_array<function>], object, selector arg0, args v0

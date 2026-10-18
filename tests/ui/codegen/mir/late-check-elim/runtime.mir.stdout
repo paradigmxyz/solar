@@ -7,7 +7,7 @@ fn @ascii(arg0: i8) -> i1 [selector=0x394abd12, pure, abi_params=[uint8], abi_re
     v2 = alloc zeroed checked v1
     mstore v2, 1
     v3 = zext i8 arg0 to i256
-    v4 = shl 248, v3
+    v4 = shl v3, 248
     v5 = mload v2
     v6 = lt 0, v5
     v7 = eq v6, false
@@ -37,8 +37,8 @@ fn @ascii(arg0: i8) -> i1 [selector=0x394abd12, pure, abi_params=[uint8], abi_re
     v20 = ptradd v19, 32
     v21 = mload v20
     v22 = byte 0, v21
-    v23 = shl 248, v22
-    v24 = shr 248, v23
+    v23 = shl v22, 248
+    v24 = shr v23, 248
     v25 = trunc i256 v24 to i8
     v26 = gt v25, i8 127
     jumpi v26, bb7, bb8
@@ -74,7 +74,7 @@ fn @sum(arg0: ptr<memory>) -> i256 [selector=0x0194db8e, pure, abi_params=[array
     v6 = lt v2, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = shl 5, v2
+    v8 = shl v2, 5
     v9 = ptradd v0, v8
     v10 = ptradd v9, 32
     v11 = mload v10
@@ -116,8 +116,8 @@ fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, pure, abi_params=[], abi_retur
     v13 = ptradd v12, 32
     v14 = mload v13
     v15 = byte 0, v14
-    v16 = shl 248, v15
-    v17 = shr 248, v16
+    v16 = shl v15, 248
+    v17 = shr v16, 248
     v18 = trunc i256 v17 to i8
     v19 = zext i8 v18 to i256
     v20 = checked_add uint256, v3, v19

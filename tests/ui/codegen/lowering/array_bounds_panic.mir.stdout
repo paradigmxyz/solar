@@ -12,7 +12,7 @@ fn @memFix(arg0: i256) -> i256 [selector=0x0f1886fa, pure, abi_params=[uint256],
     v4 = lt arg0, 3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = shl 5, arg0
+    v6 = shl arg0, 5
     v7 = ptradd v0, v6
     v8 = mload v7
     ret v8
@@ -74,7 +74,7 @@ fn @memDyn(arg0: i256, arg1: i256) -> i256 [selector=0x24828414, pure, abi_param
     v18 = lt arg1, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = shl 5, arg1
+    v20 = shl arg1, 5
     v21 = ptradd v16, v20
     v22 = ptradd v21, 32
     v23 = mload v22
@@ -169,6 +169,6 @@ fn @cdBytes(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x335b74df, pur
     v6 = add v5, arg1
     v7 = calldataload v6
     v8 = byte 0, v7
-    v9 = shl 248, v8
+    v9 = shl v8, 248
     ret v9
 }

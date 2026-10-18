@@ -134,7 +134,7 @@ fn @forwardStructs(arg0: slice<calldata>, arg1: i160) [selector=0x87c604a5, abi_
     v75 = ptradd v41, 32
     mstore v75, v74
     v76 = ptrtoint ptr<memory> v41 to i256
-    v77 = shl 5, v24
+    v77 = shl v24, 5
     v78 = ptradd v23, v77
     v79 = ptradd v78, 32
     mstore v79, v76

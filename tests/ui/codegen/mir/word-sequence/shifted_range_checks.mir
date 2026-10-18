@@ -6,7 +6,7 @@
 // `x >> k` test when the branch is its only use.
 // CHECK-LABEL: {{^[ +].*}}fn @branch_only{{[( ]}}
 // CHECK: - {{v[0-9]+}} = gt arg0, 0xffffffffffffffff
-// CHECK: + [[HIGH:v[0-9]+]] = shr 64, arg0
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 64
 // CHECK: + {{v[0-9]+}} = ne [[HIGH]], 0
 fn @branch_only(arg0: i256) -> i256 {
   bb0:

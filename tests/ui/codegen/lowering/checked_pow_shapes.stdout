@@ -27,7 +27,7 @@ fn @upow(arg0: i256, arg1: i256) -> i256 [selector=0x11698b2f, pure, abi_params=
   bb5:
     v16 = ne v5, 0
     v17 = select v16, v6, v1
-    v18 = shr 1, v3
+    v18 = shr v3, 1
     v19 = mul v2, v2
     v20 = eq v2, 0
     v21 = div v19, v2
@@ -79,7 +79,7 @@ fn @spow(arg0: i256, arg1: i256) -> i256 [selector=0x8c0da14f, pure, abi_params=
   bb5:
     v21 = ne v5, 0
     v22 = select v21, v6, v1
-    v23 = shr 1, v3
+    v23 = shr v3, 1
     v24 = mul v2, v2
     v25 = eq v2, 0
     v26 = sdiv v24, v2
@@ -131,7 +131,7 @@ fn @upow8(arg0: i8, arg1: i8) -> i8 [selector=0x3f7ced5f, pure, abi_params=[uint
   bb5:
     v13 = ne v7, 0
     v14 = select v13, v8, v3
-    v15 = shr 1, v5
+    v15 = shr v5, 1
     v16 = mul v4, v4
     v17 = gt v16, 255
     v18 = gt v15, 0
@@ -173,7 +173,7 @@ fn @spow8(arg0: i8, arg1: i8) -> i8 [selector=0xd44642ed, pure, abi_params=[int8
   bb5:
     v15 = ne v7, 0
     v16 = select v15, v8, v3
-    v17 = shr 1, v5
+    v17 = shr v5, 1
     v18 = mul v4, v4
     v19 = slt v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     v20 = sgt v18, 127
@@ -219,7 +219,7 @@ fn @const2(arg0: i256) -> i256 [selector=0xb253ebfa, pure, abi_params=[uint256],
   bb5:
     v16 = ne v5, 0
     v17 = select v16, v6, v1
-    v18 = shr 1, v3
+    v18 = shr v3, 1
     v19 = mul v2, v2
     v20 = eq v2, 0
     v21 = div v19, v2
@@ -266,7 +266,7 @@ fn @const10(arg0: i256) -> i256 [selector=0xd325f19a, pure, abi_params=[uint256]
   bb5:
     v16 = ne v5, 0
     v17 = select v16, v6, v1
-    v18 = shr 1, v3
+    v18 = shr v3, 1
     v19 = mul v2, v2
     v20 = eq v2, 0
     v21 = div v19, v2
@@ -318,7 +318,7 @@ fn @const_neg2(arg0: i256) -> i256 [selector=0xf3adabf1, pure, abi_params=[uint2
   bb5:
     v21 = ne v5, 0
     v22 = select v21, v6, v1
-    v23 = shr 1, v3
+    v23 = shr v3, 1
     v24 = mul v2, v2
     v25 = eq v2, 0
     v26 = sdiv v24, v2

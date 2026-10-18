@@ -84,7 +84,7 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     jumpi v58, bb5, bb6
   bb6:
     v98 = ptrtoint ptr<memory> v56 to i256
-    v99 = shl 5, v23
+    v99 = shl v23, 5
     v100 = ptradd v22, v99
     v101 = ptradd v100, 32
     mstore v101, v98
@@ -134,7 +134,7 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     v92 = extract_value slice<calldata>, v89, 1
     calldatacopy v90, v91, v92
     v93 = ptrtoint ptr<memory> v87 to i256
-    v94 = shl 5, v57
+    v94 = shl v57, 5
     v95 = ptradd v56, v94
     v96 = ptradd v95, 32
     mstore v96, v93
@@ -226,7 +226,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     jumpi v58, bb5, bb6
   bb6:
     v77 = ptrtoint ptr<memory> v56 to i256
-    v78 = shl 5, v23
+    v78 = shl v23, 5
     v79 = ptradd v22, v78
     v80 = ptradd v79, 32
     mstore v80, v77
@@ -249,7 +249,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     v71 = extract_value slice<calldata>, v69, 1
     calldatacopy v67, v70, v71
     v72 = ptrtoint ptr<memory> v67 to i256
-    v73 = shl 5, v57
+    v73 = shl v57, 5
     v74 = ptradd v56, v73
     v75 = ptradd v74, 32
     mstore v75, v72

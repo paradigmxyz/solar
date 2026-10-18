@@ -12,14 +12,14 @@
       v3 = sdiv v2, arg1
       v4 = smod v3, arg0
       v5 = not v4
-      v6 = sar arg1, v5
+      v6 = sar v5, arg1
       ret v6
   }
   
   fn @byte_width(arg0: i24, arg1: i24) -> i24 {
     bb0:
-      v0 = shl arg1, arg0
-      v1 = sar arg1, v0
+      v0 = shl arg0, arg1
+      v1 = sar v0, arg1
       v2 = sext i24 v1 to i248
       v3 = trunc i248 v2 to i24
       ret v3

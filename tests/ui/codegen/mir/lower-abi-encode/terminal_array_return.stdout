@@ -18,7 +18,7 @@
 -     returndata v2, v3
 +     v4 = mload v0
 +     v5 = ptradd v0, 32
-+     v6 = shl 5, v4
++     v6 = shl v4, 5
 +     v7 = ptradd v0, 64
 +     mcopy v7, v5, v6
 +     mstore v0, 32

@@ -1013,6 +1013,13 @@ impl InstKind {
             _ => None,
         }
     }
+
+    /// Returns whether the textual form lists the stored operands in reverse: shifts are stored
+    /// in EVM stack order but read as `value, shift`.
+    #[must_use]
+    pub(crate) const fn reverses_text_operands(&self) -> bool {
+        matches!(self, Self::Shl(..) | Self::Shr(..) | Self::Sar(..))
+    }
 }
 
 impl fmt::Display for InstKind {

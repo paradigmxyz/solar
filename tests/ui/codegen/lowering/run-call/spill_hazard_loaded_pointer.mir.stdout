@@ -10,7 +10,7 @@ fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v7 = shl 5, arg3
+    v7 = shl arg3, 5
     v8 = ptrtoint ptr<memory> v0 to i256
     v9 = add v8, 32
     v10 = add v9, v7
@@ -80,7 +80,7 @@ fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6
     v71 = xor v70, v51
     ret v71
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96

@@ -21,7 +21,7 @@
       ret v0
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-      v6 = shl 5, v3
+      v6 = shl v3, 5
       v7 = ptradd v0, 32
       v8 = ptradd v7, v6
       mstore v8, v5
@@ -59,7 +59,7 @@
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
       v8 = ptrtoint ptr<memory> v7 to i256
-      v9 = shl 5, v3
+      v9 = shl v3, 5
       v10 = ptradd v0, 32
       v11 = ptradd v10, v9
       mstore v11, v8
@@ -97,7 +97,7 @@
       v6 = ptradd v5, 32
       mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v7 = ptrtoint ptr<memory> v5 to i256
-      v8 = shl 5, v3
+      v8 = shl v3, 5
       v9 = ptradd v0, 32
       v10 = ptradd v9, v8
       mstore v10, v7
@@ -144,7 +144,7 @@
       v7 = inttoptr i256 v6 to ptr<memory>
       v8 = ptradd v7, 32
       mstore v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      v9 = shl 5, v3
+      v9 = shl v3, 5
       v10 = ptradd v0, 32
       v11 = ptradd v10, v9
       mstore v11, v6
@@ -168,11 +168,11 @@
     bb2:
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
-      v7 = shl 5, v3
+      v7 = shl v3, 5
       v8 = ptradd v0, 32
       v9 = ptradd v8, v7
       mstore v9, v6
-      v10 = shl 5, v3
+      v10 = shl v3, 5
       v11 = ptradd v0, 32
       v12 = ptradd v11, v10
       v13 = mload v12
@@ -199,7 +199,7 @@
     bb2:
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
-      v7 = shl 5, v3
+      v7 = shl v3, 5
       v8 = ptradd v0, 32
       v9 = ptradd v8, v7
       mstore v9, v6
@@ -334,7 +334,7 @@
       ret v0
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-      v6 = shl 5, v3
+      v6 = shl v3, 5
       v7 = ptradd v0, 32
       v8 = ptradd v7, v6
       mstore v8, v5
@@ -357,7 +357,7 @@
       v4 = ptrtoint ptr<memory> v0 to i256
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-      v6 = shl 5, v2
+      v6 = shl v2, 5
       v7 = ptradd v0, 32
       v8 = ptradd v7, v6
       mstore v8, v5
@@ -445,7 +445,7 @@
       ret v0
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-      v6 = shl 5, v3
+      v6 = shl v3, 5
       v7 = ptradd v0, 32
       v8 = ptradd v7, v6
       mstore v8, v5
@@ -483,7 +483,7 @@
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
       v8 = ptrtoint ptr<memory> v7 to i256
-      v9 = shl 5, v3
+      v9 = shl v3, 5
       v10 = ptradd v0, 32
       v11 = ptradd v10, v9
       mstore v11, v8
@@ -521,7 +521,7 @@
       v6 = ptradd v5, 32
       mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v7 = ptrtoint ptr<memory> v5 to i256
-      v8 = shl 5, v3
+      v8 = shl v3, 5
       v9 = ptradd v0, 32
       v10 = ptradd v9, v8
       mstore v10, v7
@@ -568,7 +568,7 @@
       v7 = inttoptr i256 v6 to ptr<memory>
       v8 = ptradd v7, 32
       mstore v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      v9 = shl 5, v3
+      v9 = shl v3, 5
       v10 = ptradd v0, 32
       v11 = ptradd v10, v9
       mstore v11, v6
@@ -592,11 +592,11 @@
     bb2:
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
-      v7 = shl 5, v3
+      v7 = shl v3, 5
       v8 = ptradd v0, 32
       v9 = ptradd v8, v7
       mstore v9, v6
-      v10 = shl 5, v3
+      v10 = shl v3, 5
       v11 = ptradd v0, 32
       v12 = ptradd v11, v10
       v13 = mload v12
@@ -623,7 +623,7 @@
     bb2:
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
-      v7 = shl 5, v3
+      v7 = shl v3, 5
       v8 = ptradd v0, 32
       v9 = ptradd v8, v7
       mstore v9, v6
@@ -758,7 +758,7 @@
       ret v0
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-      v6 = shl 5, v3
+      v6 = shl v3, 5
       v7 = ptradd v0, 32
       v8 = ptradd v7, v6
       mstore v8, v5
@@ -781,7 +781,7 @@
       v4 = ptrtoint ptr<memory> v0 to i256
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-      v6 = shl 5, v2
+      v6 = shl v2, 5
       v7 = ptradd v0, 32
       v8 = ptradd v7, v6
       mstore v8, v5
@@ -837,9 +837,9 @@
 +     v11 = sload v10 !metadata(storage=symbolic(v10))
 +     v12 = mod v7, 1
 +     v13 = mul v12, 160
-+     v14 = shr v13, v11
++     v14 = shr v11, v13
 +     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-+     v16 = shl 5, v7
++     v16 = shl v7, 5
 +     v17 = ptradd v5, v16
 +     v18 = ptradd v17, 32
 +     mstore v18, v15
@@ -887,9 +887,9 @@
 +     v13 = sload v12 !metadata(storage=symbolic(v12))
 +     v14 = mod v9, 1
 +     v15 = mul v14, 160
-+     v16 = shr v15, v13
++     v16 = shr v13, v15
 +     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-+     v18 = shl 5, v9
++     v18 = shl v9, 5
 +     v19 = ptradd v7, v18
 +     v20 = ptradd v19, 32
 +     mstore v20, v17
@@ -951,7 +951,7 @@
       ret v0
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-      v6 = shl 5, v3
+      v6 = shl v3, 5
       v7 = ptradd v0, 32
       v8 = ptradd v7, v6
       mstore v8, v5
@@ -1001,7 +1001,7 @@
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
       v8 = ptrtoint ptr<memory> v7 to i256
-      v9 = shl 5, v3
+      v9 = shl v3, 5
       v10 = ptradd v0, 32
       v11 = ptradd v10, v9
       mstore v11, v8
@@ -1051,7 +1051,7 @@
       v6 = ptradd v5, 32
       mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v7 = ptrtoint ptr<memory> v5 to i256
-      v8 = shl 5, v3
+      v8 = shl v3, 5
       v9 = ptradd v0, 32
       v10 = ptradd v9, v8
       mstore v10, v7
@@ -1121,7 +1121,7 @@
       v7 = inttoptr i256 v6 to ptr<memory>
       v8 = ptradd v7, 32
       mstore v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      v9 = shl 5, v3
+      v9 = shl v3, 5
       v10 = ptradd v0, 32
       v11 = ptradd v10, v9
       mstore v11, v6
@@ -1145,11 +1145,11 @@
     bb2:
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
-      v7 = shl 5, v3
+      v7 = shl v3, 5
       v8 = ptradd v0, 32
       v9 = ptradd v8, v7
       mstore v9, v6
-      v10 = shl 5, v3
+      v10 = shl v3, 5
       v11 = ptradd v0, 32
       v12 = ptradd v11, v10
       v13 = mload v12
@@ -1176,7 +1176,7 @@
     bb2:
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
-      v7 = shl 5, v3
+      v7 = shl v3, 5
       v8 = ptradd v0, 32
       v9 = ptradd v8, v7
       mstore v9, v6
@@ -1428,7 +1428,7 @@
 +     v24 = sub v23, 128
 +     returndata 128, v24
 +   bb9:
-+     v17 = shl 5, v15
++     v17 = shl v15, 5
 +     v18 = ptradd v5, v17
 +     v19 = mload v18
 +     v20 = mul v15, 32
@@ -1437,11 +1437,11 @@
 +     v22 = add v15, 1
 +     jump bb8
 +   bb6:
-+     v8 = shl 5, v6
++     v8 = shl v6, 5
 +     v9 = ptradd v0, v8
 +     v10 = mload v9
 +     v11 = and v10, 255
-+     v12 = shl 5, v6
++     v12 = shl v6, 5
 +     v13 = ptradd v5, v12
 +     mstore v13, v11
 +     v14 = add v6, 1
@@ -1465,7 +1465,7 @@
       ret v0
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-      v6 = shl 5, v3
+      v6 = shl v3, 5
       v7 = ptradd v0, 32
       v8 = ptradd v7, v6
       mstore v8, v5
@@ -1488,7 +1488,7 @@
       v4 = ptrtoint ptr<memory> v0 to i256
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-      v6 = shl 5, v2
+      v6 = shl v2, 5
       v7 = ptradd v0, 32
       v8 = ptradd v7, v6
       mstore v8, v5
@@ -1574,9 +1574,9 @@
       v11 = sload v10 !metadata(storage=symbolic(v10))
       v12 = mod v7, 1
       v13 = mul v12, 160
-      v14 = shr v13, v11
+      v14 = shr v11, v13
       v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-      v16 = shl 5, v7
+      v16 = shl v7, 5
       v17 = ptradd v5, v16
       v18 = ptradd v17, 32
       mstore v18, v15
@@ -1626,9 +1626,9 @@
       v13 = sload v12 !metadata(storage=symbolic(v12))
       v14 = mod v9, 1
       v15 = mul v14, 160
-      v16 = shr v15, v13
+      v16 = shr v13, v15
       v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-      v18 = shl 5, v9
+      v18 = shl v9, 5
       v19 = ptradd v7, v18
       v20 = ptradd v19, 32
       mstore v20, v17
@@ -1660,7 +1660,7 @@
 +     jumpi v3, bb2, bb3
 +   bb3:
 +     v4 = calldataload 4
-+     v5 = shr 128, v4
++     v5 = shr v4, 128
 +     v6 = eq v5, 0
 +     jumpi v6, bb4, bb2
 +   bb4:
@@ -1705,7 +1705,7 @@
 +   bb6:
 +     ret v10
 +   bb5:
-+     v13 = shl 5, v11
++     v13 = shl v11, 5
 +     v14 = ptradd arg0, v13
 +     v15 = ptradd v14, 32
 +     v16 = mload v15
@@ -1731,7 +1731,7 @@
 +     v29 = lt v28, v17
 +     jumpi v29, bb10, bb11
 +   bb11:
-+     v40 = shl 5, v11
++     v40 = shl v11, 5
 +     v41 = ptradd v10, v40
 +     v42 = ptradd v41, 32
 +     v43 = ptrtoint ptr<memory> v27 to i256
@@ -1739,13 +1739,13 @@
 +     v44 = add v11, 1
 +     jump bb4
 +   bb10:
-+     v30 = shl 5, v28
++     v30 = shl v28, 5
 +     v31 = inttoptr i256 v16 to ptr<memory>
 +     v32 = ptradd v31, v30
 +     v33 = ptradd v32, 32
 +     v34 = mload v33
 +     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffff
-+     v36 = shl 5, v28
++     v36 = shl v28, 5
 +     v37 = ptradd v27, v36
 +     v38 = ptradd v37, 32
 +     mstore v38, v35
@@ -1792,12 +1792,12 @@
 +   bb6:
 +     ret v10
 +   bb5:
-+     v13 = shl 5, v11
++     v13 = shl v11, 5
 +     v14 = ptradd arg0, v13
 +     v15 = ptradd v14, 32
 +     v16 = mload v15
 +     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-+     v18 = shl 5, v11
++     v18 = shl v11, 5
 +     v19 = ptradd v10, v18
 +     v20 = ptradd v19, 32
 +     mstore v20, v17

@@ -19,6 +19,8 @@ from .lean import term
 VALUE = r"(?:v\d+|arg\d+)"
 INSTRUCTION = re.compile(r"\s*(v\d+) = ([a-z]+)(?: (.*))?")
 OPERAND = re.compile(rf"(?:{VALUE}|0x[0-9a-fA-F]+|[0-9]+)")
+# MIR text prints shifts as `value, shift`; EVM terms take the shift first.
+TEXT_REVERSED = {"shl", "shr", "sar"}
 
 
 def tree_json(expr):
@@ -134,6 +136,8 @@ def mine(
                     definitions.clear()
                     skipped["unrecognized_operands"] += 1
                     continue
+                if opcode in TEXT_REVERSED:
+                    operands = operands[::-1]
                 definitions[value] = opcode, operands
                 variables, budget = {}, [max_ops]
 

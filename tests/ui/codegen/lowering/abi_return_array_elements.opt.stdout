@@ -6,7 +6,7 @@ fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
     v2 = icall @decode_calldata_type.8
     v6 = mload v2
     v13 = add v2, 32
-    v8 = shl 5, v6
+    v8 = shl v6, 5
     v15 = add v2, 64
     mcopy v15, v13, v8
     mstore v2, 32
@@ -148,16 +148,16 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     jumpi v10, bb3, bb4
   bb4:
     v11 = add v8, 1
-    v12 = shl 5, v11
+    v12 = shl v11, 5
     v35 = icall @alloc, v12
     mstore v35, v8
-    v14 = shl 5, v8
+    v14 = shl v8, 5
     v15 = sub v0, v3
-    v16 = shr 5, v15
+    v16 = shr v15, 5
     v17 = gt v8, v16
     jumpi v17, bb1, bb5
   bb5:
-    v38 = shl 5, v8
+    v38 = shl v8, 5
     v39 = add v3, v38
     jump bb6
   bb6:
@@ -170,7 +170,7 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     ret v35
   bb7:
     v22 = calldataload v36
-    v23 = shr 160, v22
+    v23 = shr v22, 160
     v24 = eq v23, 0
     jumpi v24, bb9, bb1
   bb9:
@@ -200,16 +200,16 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     jumpi v10, bb3, bb4
   bb4:
     v11 = add v8, 1
-    v12 = shl 5, v11
+    v12 = shl v11, 5
     v35 = icall @alloc, v12
     mstore v35, v8
-    v14 = shl 5, v8
+    v14 = shl v8, 5
     v15 = sub v0, v3
-    v16 = shr 5, v15
+    v16 = shr v15, 5
     v17 = gt v8, v16
     jumpi v17, bb1, bb5
   bb5:
-    v38 = shl 5, v8
+    v38 = shl v8, 5
     v39 = add v3, v38
     jump bb6
   bb6:
@@ -222,7 +222,7 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     ret v35
   bb7:
     v22 = calldataload v36
-    v23 = shr 8, v22
+    v23 = shr v22, 8
     v24 = eq v23, 0
     jumpi v24, bb9, bb1
   bb9:
@@ -243,8 +243,8 @@ fn @cleanup_return(arg0: i256) -> i256 [may_return_memory] {
     v2 = eq v1, 0
     jumpi v2, bb1, bb2
   bb2:
-    v3 = shl 5, v1
-    v5 = shr 5, v3
+    v3 = shl v1, 5
+    v5 = shr v3, 5
     v9 = ne v5, v1
     jumpi v9, bb1, bb3
   bb3:
@@ -256,7 +256,7 @@ fn @cleanup_return(arg0: i256) -> i256 [may_return_memory] {
     v35 = add v30, 32
     v38 = gt v0, 0x20000000000000000
     v39 = select v38, 0x20000000000000000, v0
-    v40 = shl 5, v39
+    v40 = shl v39, 5
     v41 = add arg0, v40
     v42 = add v41, 32
     jump bb4
@@ -317,7 +317,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     switch v7, default bb1, [0x29dcbdaa => bb3, 0x43a4968c => bb4, 0x4a6c046c => bb5, 0x74016a59 => bb6, 0x8c175a3d => bb7, 0x945bb2ba => bb8, 0xd621b19f => bb9]
   bb9:
     tail_call @unalignedArray

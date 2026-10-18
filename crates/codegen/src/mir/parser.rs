@@ -2205,7 +2205,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         }
                         operands.push(self.parse_value(builder)?);
                     }
-                    schema_typed(builder.func(), build(&operands))
+                    let mut kind = build(&operands);
+                    if kind.reverses_text_operands() {
+                        operands.reverse();
+                        kind = build(&operands);
+                    }
+                    schema_typed(builder.func(), kind)
                 }
                 None => {
                     return Err(self

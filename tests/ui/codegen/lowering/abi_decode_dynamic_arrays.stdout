@@ -26,12 +26,12 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     jumpi v16, bb4, bb5
   bb5:
     v17 = add v14, 1
-    v18 = shl 5, v17
+    v18 = shl v17, 5
     v50 = icall @alloc, v18
     mstore v50, v14
-    v20 = shl 5, v14
+    v20 = shl v14, 5
     v21 = sub v4, v9
-    v22 = shr 5, v21
+    v22 = shr v21, 5
     v23 = gt v14, v22
     jumpi v23, bb1, bb6
   bb6:
@@ -73,11 +73,11 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     jumpi v16, bb4, bb5
   bb5:
     v17 = add v14, 1
-    v18 = shl 5, v17
+    v18 = shl v17, 5
     v110 = icall @alloc, v18
     mstore v110, v14
     v21 = sub v4, v9
-    v22 = shr 5, v21
+    v22 = shr v21, 5
     v23 = gt v14, v22
     jumpi v23, bb1, bb6
   bb6:
@@ -97,7 +97,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     mstore v111, v14
     v117 = add v110, 32
     v120 = add v111, 32
-    v123 = shl 5, v14
+    v123 = shl v14, 5
     v124 = add v110, v123
     v125 = add v124, 32
     jump bb11
@@ -182,11 +182,11 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     jumpi v16, bb4, bb5
   bb5:
     v17 = add v14, 1
-    v18 = shl 5, v17
+    v18 = shl v17, 5
     v111 = icall @alloc, v18
     mstore v111, v14
     v21 = sub v4, v9
-    v22 = shr 5, v21
+    v22 = shr v21, 5
     v23 = gt v14, v22
     jumpi v23, bb1, bb6
   bb6:
@@ -204,7 +204,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v67 = mload v111
     mstore v64, v67
     v68 = add v64, 32
-    v69 = shl 5, v67
+    v69 = shl v67, 5
     v70 = add v68, v69
     v99 = add v111, 32
     jump bb13
@@ -259,7 +259,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
   bb12:
     v101 = add v112, 32
     mcopy v101, v30, v35
-    v49 = shl 5, v26
+    v49 = shl v26, 5
     v103 = add v111, v49
     v104 = add v103, 32
     mstore v104, v112
@@ -299,12 +299,12 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     jumpi v25, bb4, bb5
   bb5:
     v26 = add v23, 1
-    v27 = shl 5, v26
+    v27 = shl v26, 5
     v111 = icall @alloc, v27
     mstore v111, v23
-    v29 = shl 5, v23
+    v29 = shl v23, 5
     v30 = sub v10, v18
-    v31 = shr 5, v30
+    v31 = shr v30, 5
     v32 = gt v23, v31
     jumpi v32, bb1, bb6
   bb6:
@@ -340,7 +340,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     mstore v75, 96
     v78 = mload v111
     mstore v73, v78
-    v79 = shl 5, v78
+    v79 = shl v78, 5
     v80 = add v73, 32
     v82 = add v80, v79
     mcopy v80, v102, v79 !metadata(disjoint)
@@ -411,7 +411,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     switch v7, default bb1, [0x5a7641c8 => bb3, 0x6791505c => bb4, 0x68f4ce0b => bb5, 0xcfb203c5 => bb6]
   bb6:
     tail_call @bools

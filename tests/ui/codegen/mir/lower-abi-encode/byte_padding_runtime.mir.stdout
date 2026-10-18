@@ -142,7 +142,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v99 = ptradd v98, 32
     v100 = mload v99
     v101 = byte 0, v100
-    v102 = shl 248, v101
+    v102 = shl v101, 248
     v103 = lt v91, v78
     jumpi v103, bb31, bb32
   bb32:
@@ -156,7 +156,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v108 = ptradd v107, 32
     v109 = mload v108
     v110 = byte 0, v109
-    v111 = shl 248, v110
+    v111 = shl v110, 248
     jump bb33
   bb33:
     v112 = phi [bb31: v111], [bb32: 0]
@@ -183,7 +183,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v14 = checked_add uint256, v13, 11
     v15 = trunc i256 v14 to i8
     v16 = zext i8 v15 to i256
-    v17 = shl 248, v16
+    v17 = shl v16, 248
     v18 = mload v10
     v19 = lt v11, v18
     v20 = eq v19, false

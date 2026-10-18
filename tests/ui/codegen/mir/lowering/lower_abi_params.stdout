@@ -58,7 +58,7 @@
 +     mstore v27, v22
 +     v28 = mul v22, 32
 +     v29 = sub v6, v23
-+     v30 = shr 5, v29
++     v30 = shr v29, 5
 +     v31 = gt v22, v30
 +     jumpi v31, bb4, bb10
 +   bb10:
@@ -111,7 +111,7 @@
 +     jumpi v3, bb2, bb3
 +   bb3:
 +     v4 = calldataload 100
-+     v5 = shr 160, v4
++     v5 = shr v4, 160
 +     v6 = eq v5, 0
 +     jumpi v6, bb4, bb2
 +   bb4:
@@ -153,7 +153,7 @@
 +     jumpi v3, bb2, bb3
 +   bb3:
 +     v4 = calldataload 4
-+     v5 = shr 160, v4
++     v5 = shr v4, 160
 +     v6 = eq v5, 0
 +     jumpi v6, bb4, bb2
 +   bb4:
@@ -201,7 +201,7 @@
 +     jumpi v2, bb2, bb3
 +   bb3:
 +     v3 = calldataload 4
-+     v4 = shr 160, v3
++     v4 = shr v3, 160
 +     v5 = eq v4, 0
 +     jumpi v5, bb4, bb2
 +   bb4:
@@ -233,7 +233,7 @@
 +     jumpi v2, bb2, bb3
 +   bb3:
 +     v3 = calldataload 4
-+     v4 = shr 160, v3
++     v4 = shr v3, 160
 +     v5 = eq v4, 0
 +     jumpi v5, bb4, bb2
 +   bb4:

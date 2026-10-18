@@ -65,7 +65,7 @@ fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[], a
     icall require<custom_error [memory_array<memory_bytes>]>, false, 0xae7687df00000000000000000000000000000000000000000000000000000000, v0
     ret
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96

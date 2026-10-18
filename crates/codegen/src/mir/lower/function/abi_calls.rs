@@ -797,7 +797,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if is_external_function {
             // value = value >> 64
             let shift = self.builder.imm(64);
-            self.builder.shr(shift, value)
+            self.builder.shr(value, shift)
         } else {
             value
         }

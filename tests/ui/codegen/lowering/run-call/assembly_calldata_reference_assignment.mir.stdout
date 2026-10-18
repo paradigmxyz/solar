@@ -216,7 +216,7 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     v42 = extract_value slice<calldata>, v40, 1
     calldatacopy v38, v41, v42
     v43 = ptrtoint ptr<memory> v38 to i256
-    v44 = shl 5, v27
+    v44 = shl v27, 5
     v45 = ptradd v26, v44
     v46 = ptradd v45, 32
     mstore v46, v43
@@ -270,11 +270,11 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     v30 = ptrtoint ptr<calldata> v5 to i256
     v31 = add v30, v29
     v32 = calldataload v31
-    v33 = shr 8, v32
+    v33 = shr v32, 8
     v34 = eq v33, 0
     v35 = eq v34, false
     icall revert_if<empty>, v35
-    v36 = shl 5, v27
+    v36 = shl v27, 5
     v37 = ptradd v26, v36
     v38 = ptradd v37, 32
     mstore v38, v32
@@ -370,7 +370,7 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v65 = extract_value slice<calldata>, v62, 1
     calldatacopy v63, v64, v65
     v66 = ptrtoint ptr<memory> v60 to i256
-    v67 = shl 5, v27
+    v67 = shl v27, 5
     v68 = ptradd v26, v67
     v69 = ptradd v68, 32
     mstore v69, v66

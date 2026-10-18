@@ -111,7 +111,7 @@ fn @toShort(arg0: ptr<memory>) -> i256 [pure] {
     v5 = mload arg0
     v6 = sub 32, v5
     v7 = mul v6, 8
-    v8 = shl v7, v3
+    v8 = shl v3, v7
     v9 = ptrtoint ptr<memory> arg0 to i256
     v10 = mload arg0
     v11 = ptrtoint ptr<memory> arg0 to i256

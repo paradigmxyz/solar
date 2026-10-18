@@ -383,7 +383,7 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptradd v7, 32
     v9 = ptrtoint ptr<memory> v3 to i256
@@ -437,7 +437,7 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     v29 = insert_value struct5, v28, 1, v27
     ret v29
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     mstore v4, 96
     v5 = add v1, 1

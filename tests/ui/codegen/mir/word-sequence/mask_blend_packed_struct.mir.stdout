@@ -20,18 +20,18 @@ fn @assign(arg0: i160, arg1: i96) -> struct0 [selector=0x5af968c6, abi_params=[a
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = ptradd v0, 32
     v11 = mload v10
-    v12 = shl 160, 0xffffffffffffffffffffffff
+    v12 = shl 0xffffffffffffffffffffffff, 160
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = not v12
     v15 = and v13, v14
     v16 = and v11, 0xffffffffffffffffffffffff
-    v17 = shl 160, v16
+    v17 = shl v16, 160
     v18 = or v15, v17
     sstore 0, v18 !metadata(storage=slot(0))
     v19 = sload 0 !metadata(storage=slot(0))
     v20 = trunc i256 v19 to i160
     v21 = sload 0 !metadata(storage=slot(0))
-    v22 = shr 160, v21
+    v22 = shr v21, 160
     v23 = trunc i256 v22 to i96
     v24 = insert_value struct0, undef struct0, 0, v20
     v25 = insert_value struct0, v24, 1, v23

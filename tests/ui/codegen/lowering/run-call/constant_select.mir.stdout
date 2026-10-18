@@ -28,7 +28,7 @@ fn @word(arg0: slice<calldata>) -> i256 [selector=0xc22ee0b0, pure, abi_params=[
     v3 = lt v2, 32
     v4 = sub 32, v2
     v5 = mul 8, v4
-    v6 = shl v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v6 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v5
     v7 = select v3, v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v8 = and v1, v7
     ret v8
@@ -42,7 +42,7 @@ fn @prefix(arg0: slice<calldata>) -> i256 [selector=0x01cd9057, pure, abi_params
     v3 = lt v2, 4
     v4 = sub 4, v2
     v5 = mul 8, v4
-    v6 = shl v5, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v6 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v5
     v7 = select v3, v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v8 = and v1, v7
     ret v8

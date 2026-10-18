@@ -39,7 +39,7 @@ fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, 
     v24 = eq v23, 1
     v25 = sub 0, v23
     v26 = or 127, v25
-    v27 = shr 1, v22
+    v27 = shr v22, 1
     v28 = and v27, v26
     v29 = insert_value struct0, undef struct0, 0, v10
     v30 = insert_value struct0, v29, 1, v21

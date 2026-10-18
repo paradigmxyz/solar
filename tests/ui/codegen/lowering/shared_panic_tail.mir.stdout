@@ -23,7 +23,7 @@ fn @at(arg0: i256) -> i256 [selector=0xe0886f90, pure, abi_params=[uint256], abi
     v3 = lt arg0, 3
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = shl 5, arg0
+    v5 = shl arg0, 5
     v6 = ptradd v0, v5
     v7 = mload v6
     ret v7

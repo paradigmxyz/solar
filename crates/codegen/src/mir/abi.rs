@@ -440,9 +440,9 @@ impl AbiWordValidator {
                 if has_bitwise_shifting {
                     let shift = builder.imm(u64::from(bits));
                     let shifted = if matches!(self, Self::Unsigned(_)) {
-                        builder.shr(shift, word)
+                        builder.shr(word, shift)
                     } else {
-                        builder.shl(shift, word)
+                        builder.shl(word, shift)
                     };
                     builder.eq_zero(shifted)
                 } else {

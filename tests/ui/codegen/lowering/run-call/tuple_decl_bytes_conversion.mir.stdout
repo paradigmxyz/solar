@@ -11,7 +11,7 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = eq v7, false
@@ -25,11 +25,11 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     v31 = add v0, 2
     v32 = sub 31, v6
     v33 = mul v32, 8
-    v34 = shl v33, 255
+    v34 = shl 255, v33
     v35 = not v34
     v36 = and v31, v35
     v37 = byte 0, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v38 = shl v33, v37
+    v38 = shl v37, v33
     v39 = or v36, v38
     sstore 0, v39 !metadata(storage=slot(0))
     jump bb5
@@ -46,18 +46,18 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
-    v12 = shr 5, v6
+    v12 = shr v6, 5
     v13 = add v11, v12
     v14 = and v6, 31
     v15 = sub 31, v14
     v16 = mul v15, 8
-    v17 = shl v16, 255
+    v17 = shl 255, v16
     v18 = sload v13 !metadata(storage=symbolic(v13))
     v19 = not v17
     v20 = and v18, v19
-    v21 = shr 248, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v21 = shr 0x2100000000000000000000000000000000000000000000000000000000000000, 248
     v22 = and v21, 255
-    v23 = shl v16, v22
+    v23 = shl v22, v16
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
     jump bb5
@@ -68,7 +68,7 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     v42 = eq v41, 1
     v43 = sub 0, v41
     v44 = or 127, v43
-    v45 = shr 1, v40
+    v45 = shr v40, 1
     v46 = and v45, v44
     v47 = load_storage_bytes 0
     v48 = insert_value struct0, undef struct0, 0, v46

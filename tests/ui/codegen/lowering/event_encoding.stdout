@@ -43,9 +43,9 @@ fn @emitIndexedExternalFunction() [selector=0x208d2555, abi_params=[], abi_retur
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xd4b83992
-    v4 = shl 64, v3
+    v4 = shl v3, 64
     log 0, 0, 0xefb12970329680bd50d7b95a4e501f38356ac11483b41fd330311f90226d742b, v4
     ret
 }

@@ -35,7 +35,7 @@ contract SignedConstantOps {
     }
 
     // CHECK-LABEL: fn @shrParam{{[( ]}}
-    // CHECK: sar arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
+    // CHECK: sar 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8, arg0
     function shrParam(uint256 x) public pure returns (int256) {
         return int256(-8) >> x;
     }

@@ -61,7 +61,7 @@ fn @copy(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v15 = ptradd v14, 32
     v16 = mload v15
     v17 = byte 0, v16
-    v18 = shl 248, v17
+    v18 = shl v17, 248
     v19 = mload v7
     v20 = lt v8, v19
     v21 = eq v20, false
