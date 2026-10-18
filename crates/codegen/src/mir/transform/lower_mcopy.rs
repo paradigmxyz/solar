@@ -21,9 +21,11 @@
 //! output, clear of every frame.
 //!
 //! Copies marked `disjoint`, such as ABI encoding's copies of source data into
-//! its output, run forward. Otherwise pointer provenance picks the direction at
-//! compile time: backward when the destination starts above the source in the
-//! same base, forward when both complete ranges fit disjoint allocations.
+//! its output, run forward. Constant lengths of at most one word also copy
+//! forward because they read the source before their only store. Otherwise provenance
+//! picks the direction at compile time: backward when the destination starts
+//! above the source in the same base, forward when both complete ranges fit
+//! disjoint allocations.
 //! Allocation origins alone do not prove disjointness. Unknown relationships keep a
 //! runtime direction check. A masked partial-word merge ensures that the
 //! lowering changes exactly `len` bytes; a length that is provably a multiple
@@ -272,6 +274,9 @@ fn copy_direction(
     src: ValueId,
     len: ValueId,
 ) -> CopyDirection {
+    if func.value_u64(len).is_some_and(|len| len <= EvmMemoryLayout::WORD_SIZE) {
+        return CopyDirection::Forward;
+    }
     let size = alias.location_size(func, len);
     let Some(dest_location) = alias.bare_memory_location(func, dest, size) else {
         return CopyDirection::Dynamic;
