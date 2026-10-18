@@ -10,9 +10,13 @@ contract C {
     function f() external returns (uint256, uint256, uint256) {
         uint256[2] memory pair = [uint256(5), 6];
         uint256[2] memory other = [uint256(9), 9];
-        other;
         triples.push(pair);
-        return (triples[0][0], triples[0][1], triples[0][2]);
+        // A scratch write that may alias `other` keeps its stores from being forwarded or
+        // dropped as unread, so it still needs a static address.
+        assembly ("memory-safe") {
+            calldatacopy(0, 0, 4)
+        }
+        return (triples[0][0], triples[0][1], triples[0][2] + other[1] - 9);
     }
 }
 
