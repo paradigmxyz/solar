@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/msg_data.sol:MsgData ===
 @module MsgData
-fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice ptr<calldata> 0, v0
@@ -36,7 +36,7 @@ fn @copy() -> ptr<memory> [selector=0x60726abb, pure, abi_params=[], abi_returns
     ret v14
 }
 
-fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = coinbase
     v1 = zext i160 v0 to i256
@@ -71,7 +71,7 @@ fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns
     ret v29
 }
 
-fn @tail(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xb62868c3, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @tail(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xb62868c3, pure, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice ptr<calldata> 0, v0

@@ -17,14 +17,14 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @readCalldata(arg0: slice<calldata>) -> i256 [selector=0x067cbf41, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @readCalldata(arg0: slice<calldata>) -> i256 [selector=0x067cbf41, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot_bytes arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
-fn @readMemory(arg0: ptr<memory>) -> i256 [selector=0xfa397925, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @readMemory(arg0: ptr<memory>) -> i256 [selector=0xfa397925, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot_bytes arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -48,20 +48,20 @@ fn @readMemoryFmp(arg0: ptr<memory>) -> i1 [selector=0x8028da35, view, abi_param
     ret v5
 }
 
-fn @readMemoryPublic(arg0: ptr<memory>) -> i256 [selector=0x32851fa7, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @readMemoryPublic(arg0: ptr<memory>) -> i256 [selector=0x32851fa7, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot_bytes arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
-fn @callReadMemory(arg0: ptr<memory>) -> i256 [selector=0x68b0560d, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @callReadMemory(arg0: ptr<memory>) -> i256 [selector=0x68b0560d, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @readMemoryPublic, arg0
     ret v0
 }
 
-fn @readStorage() -> i256 [selector=0x31fadddf, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @readStorage() -> i256 [selector=0x31fadddf, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = load_storage_bytes 0
     v1 = mapping_slot_bytes v0, 1
@@ -69,7 +69,7 @@ fn @readStorage() -> i256 [selector=0x31fadddf, view, abi_params=[], abi_returns
     ret v2
 }
 
-fn @readLongLiteral() -> i256 [selector=0xcf0dbab7, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @readLongLiteral() -> i256 [selector=0xcf0dbab7, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 58
@@ -101,7 +101,7 @@ fn @register(arg0: ptr<memory>) -> i1 [selector=0xf2c298be, abi_params=[bytes], 
     ret v11
 }
 
-fn @overwriteShort() -> i256 [selector=0xa33ac7ad, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @overwriteShort() -> i256 [selector=0xa33ac7ad, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = mapping_slot_bytes v0, 1

@@ -118,7 +118,7 @@ fn @givesDirtyAddressArraysAgain() -> ptr<memory> [selector=0x0dead008, abi_retu
     ret v0
 }
 
-fn @givesZeroedTuple() -> ptr<memory> [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
+fn @givesZeroedTuple() -> ptr<memory> [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint128, address>]] {
   bb0:
     v0 = alloc checked 64
     v1 = ptrtoint ptr<memory> v0 to i256
@@ -237,7 +237,7 @@ fn @givesEscapingAddressArrays() -> ptr<memory> [selector=0x0dead00b, abi_return
     ret v0
 }
 
-fn @givesZeroedThenDirtyTuple() -> ptr<memory> [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+fn @givesZeroedThenDirtyTuple() -> ptr<memory> [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
   bb0:
     v0 = alloc checked 32
     v1 = ptrtoint ptr<memory> v0 to i256
@@ -246,7 +246,7 @@ fn @givesZeroedThenDirtyTuple() -> ptr<memory> [selector=0x0dead00c, abi_returns
     ret v0
 }
 
-fn @givesPartlyZeroedTuple() -> ptr<memory> [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, u8>]] {
+fn @givesPartlyZeroedTuple() -> ptr<memory> [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint8, uint8>]] {
   bb0:
     v0 = alloc checked 64
     v1 = ptrtoint ptr<memory> v0 to i256
@@ -254,7 +254,7 @@ fn @givesPartlyZeroedTuple() -> ptr<memory> [selector=0x0dead00d, abi_returns=[t
     ret v0
 }
 
-fn @givesConditionallyZeroedTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+fn @givesConditionallyZeroedTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
   bb0:
     v0 = alloc checked 32
     jumpi arg0, bb1, bb2
@@ -266,7 +266,7 @@ fn @givesConditionallyZeroedTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00e,
     ret v0
 }
 
-fn @givesConditionallyStoredTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+fn @givesConditionallyStoredTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
   bb0:
     v0 = alloc checked 32
     jumpi arg0, bb1, bb2
@@ -314,7 +314,7 @@ fn @conditionalFixedArray(arg0: i1) -> ptr<memory> {
     ret v0
 }
 
-fn @givesConditionalFixedArray(arg0: i1) -> ptr<memory> [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, u8>]] {
+fn @givesConditionalFixedArray(arg0: i1) -> ptr<memory> [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, uint8>]] {
   bb0:
     v0 = icall @conditionalFixedArray, arg0
     ret v0
@@ -378,7 +378,7 @@ fn @givesLateArrayLength() -> ptr<memory> [selector=0x0dead014, abi_returns=[mem
     ret v0
 }
 
-fn @givesOverlappingAllocationWrite() -> ptr<memory> [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+fn @givesOverlappingAllocationWrite() -> ptr<memory> [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
   bb0:
     v0 = alloc checked 32
     v1 = alloc checked 32
@@ -390,7 +390,7 @@ fn @givesOverlappingAllocationWrite() -> ptr<memory> [selector=0x0dead015, abi_r
 
 fn @canonicalStorageAddresses(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u160, arg0
+    v0 = load_storage_array uint160, arg0
     ret v0
 }
 
@@ -402,7 +402,7 @@ fn @givesStorageAddresses() -> ptr<memory> [selector=0x0dead018, abi_returns=[me
 
 fn @dirtyStorageAddresses(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u160, arg0
+    v0 = load_storage_array uint160, arg0
     v9001 = ptradd v0, 32
     v2 = ptrtoint ptr<memory> v9001 to i256
     mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -415,7 +415,7 @@ fn @givesDirtyStorageAddresses() -> ptr<memory> [selector=0x0dead019, abi_return
     ret v0
 }
 
-fn @nativeCleanTuple(arg0: i128) -> ptr<memory> [selector=0x0dead020, abi_params=[u128], abi_returns=[tuple<word>], abi_return_params=[tuple<u128>]] {
+fn @nativeCleanTuple(arg0: i128) -> ptr<memory> [selector=0x0dead020, abi_params=[uint128], abi_returns=[tuple<word>], abi_return_params=[tuple<uint128>]] {
   bb0:
     v0 = alloc checked 32
     v1 = zext i128 arg0 to i256

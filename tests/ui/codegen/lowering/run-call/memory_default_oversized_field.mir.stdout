@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_default_oversized_field.sol:C ===
 @module C
-fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     jump bb1
@@ -34,7 +34,7 @@ fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_return
     jump bb1
 }
 
-fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1

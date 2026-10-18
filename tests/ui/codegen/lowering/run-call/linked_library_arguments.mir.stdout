@@ -7,26 +7,26 @@
 @types
   struct0: {i256, i256}
 
-fn @test_value() -> i256 [selector=0x130d6dc5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_value() -> i256 [selector=0x130d6dc5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @add, 40, 2
     ret v0
 }
 
-fn @test_storage_view() -> i256 [selector=0x210fb3eb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_storage_view() -> i256 [selector=0x210fb3eb, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @get, 0
     ret v0
 }
 
-fn @test_storage_write() -> i256 [selector=0x66f2b6c3, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_storage_write() -> i256 [selector=0x66f2b6c3, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @bump, 0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -50,13 +50,13 @@ fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_retur
     ret v13
 }
 
-fn @test_calldata(arg0: slice<calldata>) -> i256 [selector=0x46370830, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_calldata(arg0: slice<calldata>) -> i256 [selector=0x46370830, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @first, arg0
     ret v0
 }
 
-fn @test_using() -> i256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_using() -> i256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -75,13 +75,13 @@ fn @test_using() -> i256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=
     v9 = icall @pick, v0
     v10 = extract_value struct0, v9, 0
     v11 = extract_value struct0, v9, 1
-    v12 = checked_add u256, v10, v11
+    v12 = checked_add uint256, v10, v11
     ret v12
 }
 
 fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = checked_add u256, arg0, arg1
+    v0 = checked_add uint256, arg0, arg1
     ret v0
 }
 
@@ -94,7 +94,7 @@ fn @get(arg0: i256) -> i256 [view] {
 fn @bump(arg0: i256) {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore arg0, v1 !metadata(storage=symbolic(arg0))
     ret
 }

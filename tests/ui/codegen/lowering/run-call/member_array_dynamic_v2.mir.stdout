@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/member_array_dynamic_v2.sol:C ===
 @module C
-fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x59862edc, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x59862edc, abi_params=[tuple<array<_, uint256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = alloc 32
@@ -53,7 +53,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x59862edc, abi_params=[tu
     ret v38
 }
 
-fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0x397cf2ca, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0x397cf2ca, abi_params=[tuple<array<_, uint256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas

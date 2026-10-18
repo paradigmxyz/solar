@@ -354,10 +354,7 @@ fn profitable(func: &Function, target: &Target, site: &Site, selects: &[Select])
 /// and the join label on every path, and the arm jump with its label on one
 /// of the two paths.
 fn transfer_cost(target: &Target) -> Cost {
-    let label = target.opcode(op::PUSH2);
-    let every_path = target.opcode(op::JUMPI).plus(label).plus(target.opcode(op::JUMPDEST));
-    let one_path = target.opcode(op::JUMP).plus(label).plus(target.opcode(op::JUMPDEST));
-    every_path.times(2).plus(one_path)
+    target.branch().times(2).plus(target.jump())
 }
 
 /// Cost of one instruction: its operation and the pushes that materialize

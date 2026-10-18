@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @trimLen(arg0: slice<calldata>) -> i256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @trimLen(arg0: slice<calldata>) -> i256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @trim, arg0
     v1 = extract_value slice<calldata>, v0, 1
@@ -34,7 +34,7 @@ fn @trim(arg0: slice<calldata>) -> slice<calldata> [pure] {
     ret v11
 }
 
-fn @repeatedSourceJoin(arg0: i1, arg1: i256, arg2: i256) -> struct0 [selector=0x406b1ab7, pure, abi_params=[bool, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @repeatedSourceJoin(arg0: i1, arg1: i256, arg2: i256) -> struct0 [selector=0x406b1ab7, pure, abi_params=[bool, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -48,7 +48,7 @@ fn @repeatedSourceJoin(arg0: i1, arg1: i256, arg2: i256) -> struct0 [selector=0x
     ret v2
 }
 
-fn @loopJoin(arg0: i256) -> i256 [selector=0x136d329b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @loopJoin(arg0: i256) -> i256 [selector=0x136d329b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -66,23 +66,23 @@ fn @loopJoin(arg0: i256) -> i256 [selector=0x136d329b, pure, abi_params=[u256], 
     v5 = eq v4, 0
     jumpi v5, bb7, bb8
   bb8:
-    v7 = checked_add u256, v2, 2
+    v7 = checked_add uint256, v2, 2
     jump bb9
   bb7:
-    v6 = checked_add u256, v2, 1
+    v6 = checked_add uint256, v2, 1
     jump bb9
   bb9:
     v8 = phi [bb7: v6], [bb8: v7]
-    v9 = checked_add u256, v1, v8
+    v9 = checked_add uint256, v1, v8
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = checked_add u256, v2, 1
+    v10 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @nestedLoops(arg0: i256, arg1: i256) -> i256 [selector=0xc538770a, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedLoops(arg0: i256, arg1: i256) -> i256 [selector=0xc538770a, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -113,21 +113,21 @@ fn @nestedLoops(arg0: i256, arg1: i256) -> i256 [selector=0xc538770a, pure, abi_
   bb6:
     jump bb3
   bb3:
-    v15 = checked_add u256, v8, 1
+    v15 = checked_add uint256, v8, 1
     jump bb1
   bb10:
-    v11 = checked_add u256, v8, v9
-    v12 = checked_add u256, v11, 1
-    v13 = checked_add u256, v7, v12
+    v11 = checked_add uint256, v8, v9
+    v12 = checked_add uint256, v11, 1
+    v13 = checked_add uint256, v7, v12
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v14 = checked_add u256, v9, 1
+    v14 = checked_add uint256, v9, 1
     jump bb7
 }
 
-fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -177,13 +177,13 @@ fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pu
     v17 = phi [bb6: v7], [bb7: v1]
     v18 = phi [bb6: v13], [bb7: v2]
     v19 = phi [bb6: v9], [bb7: v3]
-    v20 = checked_add u256, v19, 1
+    v20 = checked_add uint256, v19, 1
     jump bb1
   bb15:
     invalid
 }
 
-fn @emptyExitSelfLoop(arg0: i256) -> i256 [selector=0xe817f803, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptyExitSelfLoop(arg0: i256) -> i256 [selector=0xe817f803, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -205,7 +205,7 @@ fn @emptyExitSelfLoop(arg0: i256) -> i256 [selector=0xe817f803, pure, abi_params
     invalid
 }
 
-fn @repeatedLoopExit(arg0: i256, arg1: i256) -> struct0 [selector=0x6c126bdd, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @repeatedLoopExit(arg0: i256, arg1: i256) -> struct0 [selector=0x6c126bdd, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = shl 128, arg0
     sstore 0, v0 !metadata(storage=slot(0))

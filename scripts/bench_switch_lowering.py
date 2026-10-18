@@ -837,7 +837,6 @@ def start_anvil() -> tuple[subprocess.Popen[bytes], str]:
                 str(port),
                 "--hardfork",
                 ANVIL_HARDFORK,
-                "--steps-tracing",
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

@@ -46,7 +46,7 @@ fn @array_enum(arg0: i256) -> ptr<memory> {
 //~? ERROR: [fn6] [bb0, inst0] `load_storage_array` has incompatible scalar types; use an explicit cast
 fn @array_slot(arg0: ptr<memory>) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }
 

@@ -4,7 +4,7 @@
   ConstructorStopAlways_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways"
   ConstructorStopConditional_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopConditional"
 
-fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize ConstructorStopAlways_creation_code_0
@@ -26,7 +26,7 @@ fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[wo
     ret v10
 }
 
-fn @conditional(arg0: i1) -> i256 [selector=0x9077f189, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @conditional(arg0: i1) -> i256 [selector=0x9077f189, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = zext i1 arg0 to i256
     v1 = abi_encode [word<bool>], args v0
@@ -78,7 +78,7 @@ fn @conditionalContinues() -> i1 [selector=0x828f9845, abi_params=[], abi_return
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===
 @module ConstructorStopAlways
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -92,7 +92,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopConditional ===
 @module ConstructorStopConditional
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

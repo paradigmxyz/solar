@@ -29,7 +29,7 @@
 // CHECK-NEXT: + mstore [[INNER_ELEM]], [[WORD]]
 @module LowerAbiConstructorParams
 
-fn @constructor(arg0: ptr<memory>, arg1: i256) [abi_params=[array<2, array<2, u256>>, u256]] {
+fn @constructor(arg0: ptr<memory>, arg1: i256) [abi_params=[array<2, array<2, uint256>>, uint256]] {
   bb0:
     v4 = ptradd arg0, 32
     v0 = mload v4

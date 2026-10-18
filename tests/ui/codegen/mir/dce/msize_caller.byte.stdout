@@ -1,0 +1,16 @@
+- // === ROOT/tests/ui/codegen/mir/dce/msize_caller.mir (before byte-run-loads) ===
++ // === ROOT/tests/ui/codegen/mir/dce/msize_caller.mir (after byte-run-loads) ===
+  @module MsizeCaller
+  fn @touch() {
+    bb0:
+      v0 = mload 0x10000
+      ret
+  }
+  
+  fn @caller() -> i256 {
+    bb0:
+      icall @touch
+      v0 = msize
+      ret v0
+  }
+  

@@ -24,8 +24,7 @@
 //! - `inline-constant-leaves` specializes one constant-argument call to a shared pure leaf.
 //! - `inline-hot-leaves` (gas only) clones bounded acyclic scalar helpers called from inside loops.
 //!   Call-protocol savings are weighed over the loop's trip count, ten iterations when none is
-//!   computable, and callees shared by more than eight sites keep the call. Read-only loops become
-//!   eligible after loop-idiom lowering replaces them with a bounded shape.
+//!   computable, and callees shared by more than eight sites keep the call.
 //! - `inline-immutable-leaves` revisits argument-free immutable word helpers after range checks and
 //!   CFG cleanup make them straight-line leaves. It admits only immutable loads and pure
 //!   single-opcode computations, under the tiny-leaf limits, and assumes no runtime immutable
@@ -68,7 +67,7 @@ use crate::{
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
         ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, PtrLocation,
         Terminator, Value, ValueId,
-        analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
+        analysis::{CallGraphInfo, Liveness, LoopAnalyzer, direct_callees},
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
         pass::MirPass,
@@ -999,19 +998,6 @@ fn call_counts(module: &Module) -> FxHashMap<MirFunctionId, usize> {
     counts
 }
 
-/// The targets of every direct internal call and tail call in `func`.
-fn direct_callees(func: &Function) -> impl Iterator<Item = MirFunctionId> + '_ {
-    let calls = func.instructions().filter_map(|inst| match func.inst(inst).kind {
-        InstKind::ICall { function: Callee::Function(function), .. } => Some(function),
-        _ => None,
-    });
-    let tail_calls = func.blocks.iter().filter_map(|block| match block.terminator {
-        Some(Terminator::TailCall { function, .. }) => Some(function),
-        _ => None,
-    });
-    calls.chain(tail_calls)
-}
-
 /// Recognizes a complete constant bytes initializer without relaxing the
 /// general reference-return guard. Inlining preserves the allocation and every
 /// store at the call site; separate calls still produce separate objects.
@@ -1589,12 +1575,6 @@ fn estimate_inst_cost(
             op::SWAP1,
         ])
         .plus(seq(&[op::CALLDATALOAD, op::DUP1, op::MSTORE]).times(layout.types.len() as u32)),
-        InstKind::StorageToMemory { layout, .. } => seq(&[op::SLOAD, op::MSTORE])
-            .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX)),
-        InstKind::MemoryToStorage { layout, .. } | InstKind::ClearStorage { layout, .. } => {
-            seq(&[op::MLOAD, op::SSTORE])
-                .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX))
-        }
         // A pushed offset into the immutables area and the store.
         InstKind::StoreImmutable(..) => seq(&[op::PUSH2, op::MSTORE]),
         InstKind::DataCopy(..) => seq(&[op::CODECOPY]),

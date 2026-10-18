@@ -35,7 +35,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns=[word<u160>, word<bytes4>], abi_return_params=[address, bytes4]] {
+fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns=[word<uint160>, word<bytes4>], abi_return_params=[address, bytes4]] {
   bb0:
     v0 = alloc checked 64
     v1 = sload 0 !metadata(storage=slot(0))
@@ -63,7 +63,7 @@ fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns
     ret v19
 }
 
-fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word<u160>, word<bytes4>], abi_return_params=[address, bytes4]] {
+fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word<uint160>, word<bytes4>], abi_return_params=[address, bytes4]] {
   bb0:
     v0 = alloc checked 64
     v1 = sload 0 !metadata(storage=slot(0))

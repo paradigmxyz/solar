@@ -21,7 +21,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @getMinDelay() -> i256 [selector=0xf27a0c92, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getMinDelay() -> i256 [selector=0xf27a0c92, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
@@ -35,7 +35,7 @@ fn @isOperation(arg0: i256) -> i1 [selector=0x31d50750, view, abi_params=[bytes3
     ret v2
 }
 
-fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, uint256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = mul v0, 32
@@ -72,7 +72,7 @@ fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice
     v34 = zext i1 v33 to i256
     v35 = eq v34, 0
     icall panic_if<0x41>, v35
-    v36 = abi_encode [calldata_array<word<u160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
+    v36 = abi_encode [calldata_array<word<uint160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
     v37 = extract_value slice<memory>, v36, 0
     v38 = extract_value slice<memory>, v36, 1
     v39 = keccak256 v37, v38
@@ -90,7 +90,7 @@ fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice
     jump bb1
 }
 
-fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, uint256>, array<_, bytes>, bytes32, bytes32, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mapping_slot 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0
     v1 = caller
@@ -232,7 +232,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     v95 = inttoptr i256 v92 to ptr<calldata>
     v96 = make_calldata_slice v95, v89
     v97 = zext i160 v49 to i256
-    v98 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v97, v63, v96, v25, v27
+    v98 = abi_encode [word<uint160>, word, calldata_bytes, word, word], args v97, v63, v96, v25, v27
     v99 = extract_value slice<memory>, v98, 0
     v100 = extract_value slice<memory>, v98, 1
     log v99, v100, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v28, v29
@@ -240,7 +240,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
   bb17:
     jump bb14
   bb14:
-    v101 = checked_add u256, v29, 1
+    v101 = checked_add uint256, v29, 1
     jump bb12
   bb9:
     v17 = extract_value slice<calldata>, arg0, 1
@@ -251,7 +251,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
   bb2:
     v8 = caller
     v9 = zext i160 v8 to i256
-    icall require<custom_error [word<u160>, word]>, false, 0x161a64a00000000000000000000000000000000000000000000000000000000, v9, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    icall require<custom_error [word<uint160>, word]>, false, 0x161a64a00000000000000000000000000000000000000000000000000000000, v9, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
     invalid
 }
 
@@ -269,7 +269,7 @@ fn @_schedule(arg0: i256, arg1: i256) {
     jump bb6
   bb6:
     v3 = timestamp
-    v4 = checked_add u256, v3, arg1
+    v4 = checked_add uint256, v3, arg1
     v5 = mapping_slot arg0, 1
     sstore v5, v4 !metadata(storage=symbolic(v5))
     ret
@@ -283,7 +283,7 @@ fn @_schedule(arg0: i256, arg1: i256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/static_call_transient_args.sol:DeepCallArguments ===
 @module DeepCallArguments
-fn @wide(arg0: i256) -> i256 [selector=0x598b5337, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @wide(arg0: i256) -> i256 [selector=0x598b5337, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 0
     v1 = add arg0, 1

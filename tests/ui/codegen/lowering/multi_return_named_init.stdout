@@ -40,17 +40,17 @@ fn @readU64(arg0: slice<calldata>, arg1: i256) -> struct0 [pure] {
     v19 = trunc i256 v18 to i8
     v20 = zext i8 v19 to i64
     v21 = or v7, v20
-    v22 = checked_add u256, v3, 1
+    v22 = checked_add uint256, v3, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v23 = checked_add u256, v4, 1
+    v23 = checked_add uint256, v4, 1
     v24 = zext i64 v21 to i256
     jump bb1
 }
 
-fn @readTwice(arg0: slice<calldata>) -> struct1 [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<u64>, word<u64>], abi_return_params=[u64, u64]] {
+fn @readTwice(arg0: slice<calldata>) -> struct1 [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<uint64>, word<uint64>], abi_return_params=[uint64, uint64]] {
   bb0:
     v0 = icall @readU64, arg0, 0
     v1 = extract_value struct0, v0, 0

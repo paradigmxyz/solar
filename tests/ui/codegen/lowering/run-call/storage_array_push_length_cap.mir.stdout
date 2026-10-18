@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -42,7 +42,7 @@ fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, wo
     ret v25
 }
 
-fn @wrapOntoOwner() -> i256 [selector=0x428ae2e7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @wrapOntoOwner() -> i256 [selector=0x428ae2e7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 1, 0x4ef1d2ad89edf8c4d91132028e8195cdf30bb4b5053d4f8cd260341d4805f30a !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))
