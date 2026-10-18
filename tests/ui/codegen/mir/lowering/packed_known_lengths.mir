@@ -9,7 +9,8 @@
 // CHECK: + [[FIRST:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 33
 // CHECK-NOT: mload v3
 // CHECK: + [[SECOND:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 2
-// CHECK: + mcopy
+// CHECK: + mcopy {{.*}}!metadata(memory=heap, disjoint)
+// CHECK: + mcopy {{.*}}!metadata(memory=heap, disjoint)
 // CHECK: + ret
 fn @known() -> ptr<memory> {
   bb0:
@@ -30,6 +31,8 @@ fn @known() -> ptr<memory> {
 // CHECK-LABEL: fn @clobbered(
 // CHECK: + [[LENGTH:v[0-9]+]] = mload v0
 // CHECK: + {{v[0-9]+}} = make_memory_slice {{v[0-9]+}}, [[LENGTH]]
+// CHECK-NOT: disjoint
+// CHECK: + ret
 fn @clobbered(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -37,6 +40,20 @@ fn @clobbered(arg0: i256, arg1: i256) -> ptr<memory> {
     v1 = ptradd v0, 32
     mstore v1, 0x0100000000000000000000000000000000000000000000000000000000000000
     mstore arg0, arg1
+    v2 = abi_encode_packed (bytes v0, data hex"22")
+    ret v2
+}
+
+// CHECK-LABEL: fn @frame_eligible(
+// CHECK: + {{v[0-9]+}} = make_memory_slice {{v[0-9]+}}, 1
+// CHECK-NOT: disjoint
+// CHECK: + ret
+fn @frame_eligible() -> ptr<memory> {
+  bb0:
+    v0 = alloc 64
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 0x0100000000000000000000000000000000000000000000000000000000000000
     v2 = abi_encode_packed (bytes v0, data hex"22")
     ret v2
 }

@@ -35,16 +35,15 @@
 +     v18 = alloc v17 !metadata(preserves_fmp)
 +     mstore v18, v13
 +     v19 = ptradd v18, 32
-+     v20 = extract_value slice<memory>, v7, 0
-+     v21 = extract_value slice<memory>, v7, 1
-+     mcopy v19, v20, v21
++     v20 = ptradd v19, 0
++     v21 = extract_value slice<memory>, v7, 0
++     mcopy v20, v21, v8 !metadata(memory=heap, disjoint)
 +     v22 = add 0, v8
-+     v23 = ptradd v18, v22
-+     v24 = ptradd v23, 32
++     v23 = ptradd v18, 32
++     v24 = ptradd v23, v22
 +     v25 = extract_value slice<memory>, v11, 0
-+     v26 = extract_value slice<memory>, v11, 1
-+     mcopy v24, v25, v26
-+     v27 = add v22, v12
++     mcopy v24, v25, v12 !metadata(memory=heap, disjoint)
++     v26 = add v22, v12
 +     ret v18
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -85,6 +84,43 @@
 +     mstore v19, 0x2200000000000000000000000000000000000000000000000000000000000000
 +     v20 = add v17, 1
 +     ret v13
++   bb1:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @frame_eligible() -> ptr<memory> {
+    bb0:
+      v0 = alloc 64
+      mstore v0, 1
+      v1 = ptradd v0, 32
+      mstore v1, 0x100000000000000000000000000000000000000000000000000000000000000
+-     v2 = abi_encode_packed (bytes v0, data hex"22")
+-     ret v2
++     v3 = ptradd v0, 32
++     v4 = make_memory_slice v3, 1
++     v5 = extract_value slice<memory>, v4, 1
++     v6 = add 0, v5
++     v7 = add v6, 1
++     v8 = add v7, 63
++     v9 = lt v8, v7
++     jumpi v9, bb1, bb2
++   bb2:
++     v10 = not 31
++     v11 = and v8, v10
++     v12 = alloc v11 !metadata(preserves_fmp)
++     mstore v12, v7
++     v13 = ptradd v12, 32
++     v14 = extract_value slice<memory>, v4, 0
++     v15 = extract_value slice<memory>, v4, 1
++     mcopy v13, v14, v15
++     v16 = add 0, v5
++     v17 = ptradd v12, v16
++     v18 = ptradd v17, 32
++     mstore v18, 0x2200000000000000000000000000000000000000000000000000000000000000
++     v19 = add v16, 1
++     ret v12
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
