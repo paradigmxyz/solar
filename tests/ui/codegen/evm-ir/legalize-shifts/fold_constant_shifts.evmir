@@ -1,0 +1,24 @@
+//@ revisions: gas size
+//@[gas] compile-flags: --evm-version byzantium -Ogas -Zevm-ir-pipeline=legalize-shifts
+//@[size] compile-flags: --evm-version byzantium -Osize -Zevm-ir-pipeline=legalize-shifts
+// A literal shift folds into a pushed `2**shift` when the wider push is cheaper: always under
+// `-Ogas`, and under `-Osize` only while the factor fits in four bytes.
+@module module
+
+bb0:
+  push 7
+  push 31
+  shl
+  push 7
+  push 224
+  shr
+  push 7
+  push 300
+  shl
+  push 7
+  push 300
+  shr
+  push 7
+  calldatasize
+  shl
+  stop

@@ -115,9 +115,7 @@ bb19 [loop]:
   mul
   add
   swap 2
-  push 1
   push 2
-  exp
   swap 1
   div
   swap 1
@@ -250,9 +248,7 @@ bb29:
   dup 4
   calldatasize
   sub
-  push 5
-  push 2
-  exp
+  push 32
   swap 1
   div
   dup 4
@@ -275,9 +271,7 @@ bb29:
   iszero
   push bb36
   jumpi
-  push 5
-  push 2
-  exp
+  push 32
   mul
   add
   push 32
