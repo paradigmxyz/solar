@@ -20,6 +20,9 @@
 //! their reservation earlier can increase stack setup around external calls.
 //! Literal bytes with observable allocations can still fold into encoder stores;
 //! their original allocations and initialization remain for later observers.
+//! This is limited to gas-mode encodings before Cancun, excluding scratch results.
+//! NOTE: Duplicating preserved payloads can grow native-MCOPY and scratch encoders;
+//! keep their copies, and size-mode copies, until their full code shape is priced.
 //! Word-cleanup loops use a guarded do-while with a destination cursor and fixed
 //! source displacement, returning the final cursor instead of retaining a
 //! separate tail. The original count controls iteration even if addresses wrap;
@@ -114,6 +117,7 @@ impl MirPass for LowerAbiEncode {
             let helpers =
                 if constructors.contains(func_id) { &mut inline_helpers } else { &mut helpers };
             changed |= lower_function(
+                target,
                 func,
                 helpers,
                 revert_strings,
@@ -382,6 +386,7 @@ enum AbiValueSource {
 }
 
 fn lower_function(
+    target: Target,
     func: &mut Function,
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
@@ -394,6 +399,24 @@ fn lower_function(
         return false;
     }
     helpers.literal_objects = literal_objects_at_encodes(func);
+    let fold_preserved = target.optimization().is_gas() && !target.evm_version().has_mcopy();
+    helpers.literal_objects.retain(|&object| {
+        fold_preserved
+            || !matches!(func.value(object), Value::Inst(inst) if func.inst(*inst).metadata.preserves_fmp())
+    });
+    for inst in func.instructions() {
+        if let InstKind::AbiEncode { mode: AbiEncodeMode::Scratch, args, .. } =
+            &func.inst(inst).kind
+        {
+            for &object in args {
+                if let Value::Inst(inst) = func.value(object)
+                    && func.inst(*inst).metadata.preserves_fmp()
+                {
+                    helpers.literal_objects.remove(&object);
+                }
+            }
+        }
+    }
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();

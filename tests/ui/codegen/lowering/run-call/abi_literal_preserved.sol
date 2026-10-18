@@ -1,5 +1,8 @@
-//@ codegen-matrix: standard
-//@ compile-flags: --evm-version paris
+//@ codegen-matrix: standard native
+//@[mir] compile-flags: --evm-version paris
+//@[gas] compile-flags: --evm-version paris
+//@[size] compile-flags: --evm-version paris
+//@[native] compile-flags: -Ogas --evm-version cancun
 //@ run-call: probe => 0xb658c1ef50aec2efb3e26c5587e8ce1ae4d46226f3a28b97bac4fe573717b1f8
 //@ run-call: observed => true
 
