@@ -7,7 +7,7 @@
 
 use crate::mir::{
     BlockId, Function, Module, Terminator, ValueId,
-    analysis::may_observe_msize,
+    analysis::module_may_observe_msize,
     pass::{MirPass, run_function_pass},
     utils::replace_terminator,
 };
@@ -31,8 +31,9 @@ impl MirPass for Adce {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let observes_msize = module_may_observe_msize(module);
         run_function_pass(module, analyses, |func, _| {
-            AggressiveDeadCodeEliminator::new().run(func).total() != 0
+            AggressiveDeadCodeEliminator::new(observes_msize).run(func).total() != 0
         })
     }
 }
@@ -54,9 +55,11 @@ impl AdceStats {
 }
 
 /// Aggressive dead-code eliminator.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct AggressiveDeadCodeEliminator {
     stats: AdceStats,
+    /// Whether any function in the module reads `msize`, which keeps memory reads live.
+    observes_msize: bool,
 }
 
 #[derive(Debug)]
@@ -90,8 +93,8 @@ impl TargetSearch {
 
 impl AggressiveDeadCodeEliminator {
     /// Creates a new ADCE pass.
-    fn new() -> Self {
-        Self::default()
+    fn new(observes_msize: bool) -> Self {
+        Self { stats: AdceStats::default(), observes_msize }
     }
 
     /// Runs aggressive dead-code elimination once to a fixed point.
@@ -102,7 +105,7 @@ impl AggressiveDeadCodeEliminator {
         while func.blocks.iter().any(|block| {
             matches!(block.terminator, Some(Terminator::Branch { .. } | Terminator::Switch { .. }))
         }) {
-            let ctx = AdceContext::new(func);
+            let ctx = AdceContext::new(func, self.observes_msize);
             let rewrites = self.rewrite_dead_control(func, &ctx);
             if rewrites == 0 {
                 break;
@@ -110,7 +113,8 @@ impl AggressiveDeadCodeEliminator {
             self.stats.control_edges_removed += rewrites;
         }
 
-        let removed = super::dce::DeadCodeEliminator::new().run_to_fixpoint(func);
+        let removed =
+            super::dce::DeadCodeEliminator::new(self.observes_msize).run_to_fixpoint(func);
         self.stats.instructions_removed += removed;
         self.stats
     }
@@ -241,9 +245,9 @@ impl AggressiveDeadCodeEliminator {
 }
 
 impl AdceContext {
-    fn new(func: &Function) -> Self {
+    fn new(func: &Function, observes_msize: bool) -> Self {
         let value_uses = Self::value_uses(func);
-        Self { value_uses, observes_msize: may_observe_msize(func, None) }
+        Self { value_uses, observes_msize }
     }
 
     fn value_uses(func: &Function) -> IndexVec<ValueId, UseBlocks> {

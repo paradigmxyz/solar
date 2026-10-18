@@ -13,6 +13,7 @@
 //! remain intact. Entry targets and current fallthrough edges are excluded because their transfer
 //! may cost fewer bytes. The rewrite removes transfer gas independently of execution frequency and
 //! does not depend on debug metadata. It runs after sharing, which can create these tiny tails.
+//! The default pipeline cleans up stack identities exposed by the copied return.
 
 use super::{EvmPass, utils::is_split_point};
 use crate::{

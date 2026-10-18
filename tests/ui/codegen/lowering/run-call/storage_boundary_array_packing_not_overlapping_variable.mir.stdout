@@ -14,7 +14,7 @@ fn @getCanary() -> i256 [pure] {
     ret 2
 }
 
-fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @getCanary
     sstore v0, 99 !metadata(storage=symbolic(v0))
@@ -110,12 +110,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v101 = shr v100, v99
     v102 = trunc i256 v101 to i64
     v103 = zext i64 v102 to i256
-    v104 = checked_add u256, v79, v103
+    v104 = checked_add uint256, v79, v103
     jump bb18
   bb18:
     jump bb15
   bb15:
-    v105 = checked_add u256, v81, 1
+    v105 = checked_add uint256, v81, 1
     jump bb13
   bb8:
     v54 = div v52, 4

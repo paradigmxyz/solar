@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_nested_arrays.sol:MemoryNestedArrays ===
 @module MemoryNestedArrays
-fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -92,7 +92,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
   bb9:
     jump bb6
   bb6:
-    v48 = checked_add u256, v29, 1
+    v48 = checked_add uint256, v29, 1
     jump bb4
   bb16:
     v32 = alloc zeroed checked 160
@@ -118,7 +118,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
   bb18:
     jump bb15
   bb15:
-    v47 = checked_add u256, v30, 1
+    v47 = checked_add uint256, v30, 1
     jump bb13
   bb11:
     v15 = shl 5, v13
@@ -136,7 +136,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     jump bb1
 }
 
-fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -210,7 +210,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
   bb9:
     jump bb6
   bb6:
-    v48 = checked_add u256, v29, 1
+    v48 = checked_add uint256, v29, 1
     jump bb4
   bb16:
     v32 = alloc zeroed checked 160
@@ -236,7 +236,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
   bb18:
     jump bb15
   bb15:
-    v47 = checked_add u256, v30, 1
+    v47 = checked_add uint256, v30, 1
     jump bb13
   bb11:
     v15 = shl 5, v13

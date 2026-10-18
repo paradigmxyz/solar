@@ -8,7 +8,7 @@ error: [fn1] non-word type `slice<memory>` survives the `lowered` phase boundary
 
 error: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `lowered` phase boundary
 
-error: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `lowered` phase boundary
+error: [fn2] [bb0, inst0] memory zero instruction `memory_zero` survives the `lowered` phase boundary
 
 error: [fn3] [bb0, inst3] `mapping_slot` has incompatible scalar types; use an explicit cast
 

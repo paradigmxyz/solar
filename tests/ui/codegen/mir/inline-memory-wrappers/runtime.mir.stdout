@@ -74,6 +74,6 @@ fn @copy(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb6:
     jump bb3
   bb3:
-    v25 = checked_add u256, v8, 1
+    v25 = checked_add uint256, v8, 1
     jump bb1
 }

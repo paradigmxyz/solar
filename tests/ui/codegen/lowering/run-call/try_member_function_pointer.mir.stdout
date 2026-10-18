@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_member_function_pointer.sol:TryMemberFunctionPointer ===
 @module TryMemberFunctionPointer
-fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
     icall require<short_string>, v0, 4, 0x7a65726f00000000000000000000000000000000000000000000000000000000
-    v1 = checked_mul u256, arg0, 2
+    v1 = checked_mul uint256, arg0, 2
     ret v1
 }
 
-fn @seven() -> i256 [selector=0x78710d37, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seven() -> i256 [selector=0x78710d37, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 7
 }
@@ -27,7 +27,7 @@ fn @file() -> ptr<memory> [selector=0x8525855d, view, abi_params=[], abi_returns
     ret v1
 }
 
-fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32
     v1 = address
@@ -65,7 +65,7 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_r
     ret 0
 }
 
-fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas

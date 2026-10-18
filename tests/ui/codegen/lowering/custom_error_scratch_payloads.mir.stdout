@@ -6,29 +6,29 @@ fn @none() [selector=0xa877db9f, pure, abi_params=[], abi_returns=[], abi_return
     invalid
 }
 
-fn @one(arg0: i256) [selector=0xef56f928, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @one(arg0: i256) [selector=0xef56f928, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<custom_error [word]>, false, 0xb24d1aa00000000000000000000000000000000000000000000000000000000, arg0
     invalid
 }
 
-fn @three(arg0: i8, arg1: i256, arg2: i1) [selector=0x1f65ea94, pure, abi_params=[i8, bytes4, bool], abi_returns=[], abi_return_params=[]] {
+fn @three(arg0: i8, arg1: i256, arg2: i1) [selector=0x1f65ea94, pure, abi_params=[int8, bytes4, bool], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sext i8 arg0 to i256
     v1 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v2 = zext i1 arg2 to i256
-    icall require<custom_error [word<i8>, word<bytes4>, word<bool>]>, false, 0x599e757300000000000000000000000000000000000000000000000000000000, v0, v1, v2
+    icall require<custom_error [word<int8>, word<bytes4>, word<bool>]>, false, 0x599e757300000000000000000000000000000000000000000000000000000000, v0, v1, v2
     invalid
 }
 
-fn @four(arg0: i160) [selector=0xb00fe555, pure, abi_params=[u160], abi_returns=[], abi_return_params=[]] {
+fn @four(arg0: i160) [selector=0xb00fe555, pure, abi_params=[uint160], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = zext i160 arg0 to i256
-    icall require<custom_error [word, word, word, word<u160>]>, false, 0xbfd2e92100000000000000000000000000000000000000000000000000000000, 1, 2, 3, v0
+    icall require<custom_error [word, word, word, word<uint160>]>, false, 0xbfd2e92100000000000000000000000000000000000000000000000000000000, 1, 2, 3, v0
     invalid
 }
 
-fn @dynamic(arg0: i256) [selector=0x691a82eb, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @dynamic(arg0: i256) [selector=0x691a82eb, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 3
@@ -38,14 +38,14 @@ fn @dynamic(arg0: i256) [selector=0x691a82eb, pure, abi_params=[u256], abi_retur
     invalid
 }
 
-fn @required(arg0: i256) [selector=0x1b73f830, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @required(arg0: i256) [selector=0x1b73f830, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = eq arg0, 0
     icall require<custom_error [word]>, v0, 0xb24d1aa00000000000000000000000000000000000000000000000000000000, arg0
     ret
 }
 
-fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, 10
     jumpi v0, bb1, bb2
@@ -73,7 +73,7 @@ fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[u2
     icall panic_if<0x41>, v16
     v17 = alloc zeroed checked v10
     mstore v17, arg0
-    v18 = checked_sub u256, arg0, 1
+    v18 = checked_sub uint256, arg0, 1
     v19 = mload v17
     v20 = lt v18, v19
     v21 = eq v20, false
@@ -83,7 +83,7 @@ fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[u2
     v24 = ptradd v23, 32
     mstore v24, arg0
     v25 = mload v17
-    v26 = checked_sub u256, arg0, 1
+    v26 = checked_sub uint256, arg0, 1
     v27 = mload v17
     v28 = lt v26, v27
     v29 = eq v28, false
@@ -92,7 +92,7 @@ fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[u2
     v31 = ptradd v17, v30
     v32 = ptradd v31, 32
     v33 = mload v32
-    v34 = checked_add u256, v25, v33
+    v34 = checked_add uint256, v25, v33
     ret v34
   bb1:
     icall require<custom_error [word]>, false, 0xb24d1aa00000000000000000000000000000000000000000000000000000000, arg0

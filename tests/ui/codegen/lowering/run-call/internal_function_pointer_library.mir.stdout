@@ -4,7 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibrary ===
 @module InternalFunctionPointerLibrary
-fn @f(arg0: ptr<memory>) -> i256 [selector=0x7bc5bbbf, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: ptr<memory>) -> i256 [selector=0x7bc5bbbf, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @reduce, arg0, 2, 0
     ret v0
@@ -35,22 +35,22 @@ fn @reduce(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
     v11 = ptradd v0, v10
     v12 = ptradd v11, 32
     v13 = mload v12
-    v14 = icall @internal_dispatcher_p_u256_u256_r_u256, v1, v13, v2
+    v14 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, v1, v13, v2
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v15 = checked_add u256, v4, 1
+    v15 = checked_add uint256, v4, 1
     jump bb1
 }
 
 fn @sum(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = checked_add u256, arg0, arg1
+    v0 = checked_add uint256, arg0, arg1
     ret v0
 }
 
-fn @internal_dispatcher_p_u256_u256_r_u256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

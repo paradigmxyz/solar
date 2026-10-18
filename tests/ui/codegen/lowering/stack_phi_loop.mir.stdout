@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop ===
 @module StackPhiLoop
-fn @loopCarried(arg0: i256, arg1: i1) -> i256 [selector=0x71b76bb2, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @loopCarried(arg0: i256, arg1: i1) -> i256 [selector=0x71b76bb2, pure, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg1, bb1, bb2
   bb2:
@@ -25,18 +25,18 @@ fn @loopCarried(arg0: i256, arg1: i1) -> i256 [selector=0x71b76bb2, pure, abi_pa
   bb5:
     ret v6
   bb7:
-    v9 = checked_mul u256, v7, 3
-    v10 = checked_add u256, v9, v5
-    v11 = checked_add u256, v6, v10
+    v9 = checked_mul uint256, v7, 3
+    v10 = checked_add uint256, v9, v5
+    v11 = checked_add uint256, v6, v10
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v12 = checked_add u256, v7, 1
+    v12 = checked_add uint256, v7, 1
     jump bb4
 }
 
-fn @sequential(arg0: i256, arg1: i256) -> i256 [selector=0xfb08deb2, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sequential(arg0: i256, arg1: i256) -> i256 [selector=0xfb08deb2, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -65,27 +65,27 @@ fn @sequential(arg0: i256, arg1: i256) -> i256 [selector=0xfb08deb2, pure, abi_p
   bb8:
     ret v12
   bb10:
-    v16 = checked_mul u256, v14, 2
-    v17 = checked_add u256, v16, 3
-    v18 = checked_add u256, v12, v17
+    v16 = checked_mul uint256, v14, 2
+    v17 = checked_add uint256, v16, 3
+    v18 = checked_add uint256, v12, v17
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v19 = checked_add u256, v14, 1
+    v19 = checked_add uint256, v14, 1
     jump bb7
   bb4:
-    v6 = checked_add u256, v4, 1
-    v7 = checked_add u256, v3, v6
+    v6 = checked_add uint256, v4, 1
+    v7 = checked_add uint256, v3, v6
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v8 = checked_add u256, v4, 1
+    v8 = checked_add uint256, v4, 1
     jump bb1
 }
 
-fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -118,21 +118,21 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
   bb6:
     jump bb3
   bb3:
-    v17 = checked_add u256, v10, 1
+    v17 = checked_add uint256, v10, 1
     jump bb1
   bb10:
-    v13 = checked_add u256, v10, v11
-    v14 = checked_add u256, v13, 1
-    v15 = checked_add u256, v9, v14
+    v13 = checked_add uint256, v10, v11
+    v14 = checked_add uint256, v13, 1
+    v15 = checked_add uint256, v9, v14
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v16 = checked_add u256, v11, 1
+    v16 = checked_add uint256, v11, 1
     jump bb7
 }
 
-fn @storeAfterLoop(arg0: i256, arg1: i256, arg2: i256) [selector=0xd8c2ef0a, abi_params=[u256, u256, u256], abi_returns=[], abi_return_params=[]] {
+fn @storeAfterLoop(arg0: i256, arg1: i256, arg2: i256) [selector=0xd8c2ef0a, abi_params=[uint256, uint256, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     jump bb1
   bb1:
@@ -149,15 +149,15 @@ fn @storeAfterLoop(arg0: i256, arg1: i256, arg2: i256) [selector=0xd8c2ef0a, abi
     sstore 0, v3 !metadata(storage=slot(0))
     ret
   bb4:
-    v6 = checked_mul u256, v3, v1
-    v7 = checked_add u256, v6, v0
-    v8 = checked_div u256, v7, 2
-    v9 = checked_rem u256, v8, 0xf4240
-    v10 = checked_add u256, v9, 1
+    v6 = checked_mul uint256, v3, v1
+    v7 = checked_add uint256, v6, v0
+    v8 = checked_div uint256, v7, 2
+    v9 = checked_rem uint256, v8, 0xf4240
+    v10 = checked_add uint256, v9, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v11 = checked_add u256, v4, 1
+    v11 = checked_add uint256, v4, 1
     jump bb1
 }

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after none) ===
   @module Integers
   @immutables
-    signed: i64
+    signed: int64
   
   fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
     bb0:

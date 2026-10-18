@@ -1,0 +1,60 @@
+- // === ROOT/tests/ui/codegen/mir/integer-cleanup/immutable_masks.mir (before integer-cleanup) ===
++ // === ROOT/tests/ui/codegen/mir/integer-cleanup/immutable_masks.mir (after integer-cleanup) ===
+  @module ImmutableMasks
+  @immutables
+    account: uint160
+    signed: int64
+  
+  fn @runtime() -> i256 [selector=0x00000001] {
+    bb0:
+      v0: i256 = loadimmutable account
+-     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v1
++     ret v0
+  }
+  
+  fn @narrower() -> i256 [selector=0x00000002] {
+    bb0:
+      v0: i256 = loadimmutable account
+      v1 = and v0, 255
+      ret v1
+  }
+  
+  fn @signed_value() -> i256 [selector=0x00000003] {
+    bb0:
+      v0: i256 = loadimmutable signed
+      v1 = and v0, 0xffffffffffffffff
+      ret v1
+  }
+  
+  fn @runtime_shared() [selector=0x00000004] {
+    bb0:
+      tail_call @shared
+  }
+  
+  fn @constructor() [constructor] {
+    bb0:
+      v0 = icall @bridge
+      mstore 0, v0
+      stop
+  }
+  
+  fn @bridge() -> i256 {
+    bb0:
+      tail_call @shared
+  }
+  
+  fn @shared() -> i256 {
+    bb0:
+      v0: i256 = loadimmutable account
+      v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v1
+  }
+  
+  fn @unrooted() -> i256 {
+    bb0:
+      v0: i256 = loadimmutable account
+      v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v1
+  }
+  

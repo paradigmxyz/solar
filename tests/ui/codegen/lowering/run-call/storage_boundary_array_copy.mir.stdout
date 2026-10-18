@@ -11,7 +11,7 @@ fn @getY() -> i256 [pure] {
     ret 5
 }
 
-fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @getX
     v1 = icall @getY
@@ -98,12 +98,12 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     icall panic_if<0x32>, v63
     v64 = add v61, v50
     v65 = sload v64 !metadata(storage=symbolic(v64))
-    v66 = checked_add u256, v49, v65
+    v66 = checked_add uint256, v49, v65
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v67 = checked_add u256, v50, 1
+    v67 = checked_add uint256, v50, 1
     jump bb16
   bb11:
     v43 = add v31, v41

@@ -1,0 +1,64 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=word-sequence
+//@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence
+@module MaskBlend
+
+fn @variable_mask(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = not arg2
+    v1 = and arg0, arg2
+    v2 = and arg1, v0
+    v3 = or v1, v2
+    ret v3
+}
+
+fn @commuted_mask(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = not arg2
+    v1 = and arg2, arg0
+    v2 = and v0, arg1
+    v3 = or v2, v1
+    ret v3
+}
+
+fn @constant_mask(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = or v0, v1
+    ret v2
+}
+
+fn @constant_complement(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v1 = and arg1, 255
+    v2 = or v0, v1
+    ret v2
+}
+
+fn @narrow_mask(arg0: i8, arg1: i8) -> i8 {
+  bb0:
+    v0 = and arg0, i8 15
+    v1 = and arg1, i8 240
+    v2 = or v0, v1
+    ret v2
+}
+
+fn @noncomplementary_masks(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01
+    v2 = or v0, v1
+    ret v2
+}
+
+fn @shared_masked_value(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = not arg2
+    v1 = and arg0, arg2
+    v2 = and arg1, v0
+    v3 = or v1, v2
+    v4 = xor v3, v1
+    ret v4
+}

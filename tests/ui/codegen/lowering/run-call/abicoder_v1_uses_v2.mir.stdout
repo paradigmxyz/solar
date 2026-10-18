@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol:AbicoderV1UsesV2 ===
 @module AbicoderV1UsesV2
-fn @sum(arg0: slice<calldata>) -> i256 [selector=0x5601ffbe, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @sum(arg0: slice<calldata>) -> i256 [selector=0x5601ffbe, pure, abi_params=[tuple<uint256, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -10,7 +10,7 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x5601ffbe, pure, abi_params=[t
     v5 = ptrtoint ptr<calldata> v4 to i256
     v6 = add v5, 32
     v7 = calldataload v6
-    v8 = checked_add u256, v3, v7
+    v8 = checked_add uint256, v3, v7
     ret v8
 }
 

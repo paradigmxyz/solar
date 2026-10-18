@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_array_element_memory_storage.sol:NestedArrayElementMemoryStorage ===
 @module NestedArrayElementMemoryStorage
-fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, array<2, array<2, u8>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, array<2, array<2, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 0, 2
     v1 = eq v0, false
@@ -42,7 +42,7 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v90 = mul v88, 8
     v91 = shr v90, v89
     v92 = trunc i256 v91 to i8
-    v93 = checked_add u8, v79, v92
+    v93 = checked_add uint8, v79, v92
     v94 = lt 1, 2
     v95 = eq v94, false
     icall panic_if<0x32>, v95
@@ -58,7 +58,7 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v104 = mul v102, 8
     v105 = shr v104, v103
     v106 = trunc i256 v105 to i8
-    v107 = checked_add u8, v93, v106
+    v107 = checked_add uint8, v93, v106
     v108 = lt 1, 2
     v109 = eq v108, false
     icall panic_if<0x32>, v109
@@ -74,7 +74,7 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v118 = mul v116, 8
     v119 = shr v118, v117
     v120 = trunc i256 v119 to i8
-    v121 = checked_add u8, v107, v120
+    v121 = checked_add uint8, v107, v120
     v122 = zext i8 v121 to i256
     ret v122
   bb2:
@@ -178,7 +178,7 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     jump bb7
 }
 
-fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, array<2, u8>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, array<2, uint8>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 0, 2
     v1 = eq v0, false
@@ -231,7 +231,7 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v99 = mul v97, 8
     v100 = shr v99, v98
     v101 = trunc i256 v100 to i8
-    v102 = checked_add u8, v84, v101
+    v102 = checked_add uint8, v84, v101
     v103 = lt 0, 2
     v104 = eq v103, false
     icall panic_if<0x32>, v104
@@ -252,7 +252,7 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v117 = mul v115, 8
     v118 = shr v117, v116
     v119 = trunc i256 v118 to i8
-    v120 = checked_add u8, v102, v119
+    v120 = checked_add uint8, v102, v119
     v121 = lt 0, 2
     v122 = eq v121, false
     icall panic_if<0x32>, v122
@@ -273,7 +273,7 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v135 = mul v133, 8
     v136 = shr v135, v134
     v137 = trunc i256 v136 to i8
-    v138 = checked_add u8, v120, v137
+    v138 = checked_add uint8, v120, v137
     v139 = zext i8 v138 to i256
     ret v139
   bb2:

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Impl ===
 @module Impl
-fn @initialized() -> i256 [selector=0x158ef93e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @initialized() -> i256 [selector=0x158ef93e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -34,7 +34,7 @@ fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[], abi_return_param
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Proxy ===
 @module Proxy
-fn @initialized() -> i256 [selector=0x158ef93e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @initialized() -> i256 [selector=0x158ef93e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -55,7 +55,7 @@ fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
   Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Impl"
   Proxy_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Proxy"
 
-fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Impl_creation_code_0
@@ -73,7 +73,7 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = abi_encode [word<u160>], args v9
+    v10 = abi_encode [word<uint160>], args v9
     v11 = datasize Proxy_creation_code_1
     v12 = datasize Proxy_creation_code_1, 32
     v13 = datasize Proxy_creation_code_1, 63, aligned
@@ -107,7 +107,7 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     ret v29
 }
 
-fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Impl_creation_code_0

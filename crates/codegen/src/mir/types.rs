@@ -393,8 +393,8 @@ impl ValueLayout {
 impl fmt::Display for ValueLayout {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UInt(size) => write!(f, "u{}", size.bits()),
-            Self::Int(size) => write!(f, "i{}", size.bits()),
+            Self::UInt(size) => write!(f, "uint{}", size.bits()),
+            Self::Int(size) => write!(f, "int{}", size.bits()),
             Self::Bool => write!(f, "bool"),
             Self::Address => write!(f, "address"),
             Self::FixedBytes(size) => write!(f, "bytes{}", size.bytes()),

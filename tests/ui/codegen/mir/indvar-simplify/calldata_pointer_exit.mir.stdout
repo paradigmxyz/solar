@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/indvar-simplify/calldata_pointer_exit.sol:CalldataPointerExit ===
 @module CalldataPointerExit
-fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -31,16 +31,16 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[a
     v16 = ptrtoint ptr<calldata> v8 to i256
     v17 = add v16, v9
     v18 = calldataload v17
-    v19 = checked_add u256, v1, v18
+    v19 = checked_add uint256, v1, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v2, 1
+    v20 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @tail(arg0: slice<calldata>) -> i256 [selector=0xcfd6ca48, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @tail(arg0: slice<calldata>) -> i256 [selector=0xcfd6ca48, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -71,16 +71,16 @@ fn @tail(arg0: slice<calldata>) -> i256 [selector=0xcfd6ca48, pure, abi_params=[
     v16 = ptrtoint ptr<calldata> v8 to i256
     v17 = add v16, v9
     v18 = calldataload v17
-    v19 = checked_add u256, v1, v18
+    v19 = checked_add uint256, v1, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v2, 1
+    v20 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @scan(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x8090fa42, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @scan(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x8090fa42, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -103,16 +103,16 @@ fn @scan(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x8090fa42, pure, 
     v10 = ne v9, 0
     v11 = eq v10, false
     icall revert_if<empty>, v11
-    v12 = checked_add u256, v2, v9
+    v12 = checked_add uint256, v2, v9
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v13 = checked_add u256, v3, 1
+    v13 = checked_add uint256, v3, 1
     jump bb1
 }
 
-fn @scanFrom1(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xa64f2d9f, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @scanFrom1(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xa64f2d9f, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -135,16 +135,16 @@ fn @scanFrom1(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xa64f2d9f, p
     v10 = ne v9, 0
     v11 = eq v10, false
     icall revert_if<empty>, v11
-    v12 = checked_add u256, v2, v9
+    v12 = checked_add uint256, v2, v9
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v13 = checked_add u256, v3, 1
+    v13 = checked_add uint256, v3, 1
     jump bb1
 }
 
-fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     jump bb1
@@ -184,7 +184,7 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add u256, v4, 1
+    v22 = checked_add uint256, v4, 1
     jump bb1
   bb7:
     jump bb2
@@ -193,7 +193,7 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
     ret v23
 }
 
-fn @findFrom1(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xb412a3ed, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @findFrom1(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xb412a3ed, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     jump bb1
@@ -233,7 +233,7 @@ fn @findFrom1(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xb412a3ed, p
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add u256, v4, 1
+    v22 = checked_add uint256, v4, 1
     jump bb1
   bb7:
     jump bb2
@@ -242,7 +242,7 @@ fn @findFrom1(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xb412a3ed, p
     ret v23
 }
 
-fn @stopAt(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x828c8292, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @stopAt(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x828c8292, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -281,7 +281,7 @@ fn @stopAt(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x828c8292, pure
   bb6:
     jump bb3
   bb3:
-    v21 = checked_add u256, v3, 1
+    v21 = checked_add uint256, v3, 1
     jump bb1
   bb7:
     jump bb2
