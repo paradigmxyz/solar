@@ -2,9 +2,9 @@
 //!
 //! When a constant-size `alloc` executes at most once per call and its pointer
 //! never escapes the function, the allocation does not need a runtime
-//! free-memory-pointer bump. This module proves those properties for the EVM
-//! backend and retains a conservative MIR rewrite for the explicit
-//! `static-alloc` pass.
+//! free-memory-pointer bump. The `defer-alloc` pass proves those properties
+//! and marks each such allocation `deferred_alloc`, so the backend places it
+//! once the exact frame layout is known.
 //!
 //! Safety contract:
 //! - external entries only: their locals are absolute low-memory addresses;
@@ -20,60 +20,17 @@
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
-    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
-    PtrLocation, Terminator, Value, ValueId,
+    ArgIdx, BlockId, Callee, Function, FunctionId, InstId, InstKind, MirType, Module, PtrLocation,
+    Terminator, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
-use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-
-/// Pass that places provably local allocations statically.
-pub(crate) struct StaticAlloc;
-
-impl MirPass for StaticAlloc {
-    fn name(&self) -> &'static str {
-        "static-alloc"
-    }
-
-    fn run_pass(
-        &self,
-        _gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut ModuleAnalyses,
-    ) -> bool {
-        // Every entry's locals share the same low-memory region — only one
-        // entry runs per call — so the tallest entry's frame top is a shadow
-        // the others can grow into without moving the shared static-frame
-        // region or any spill base above it. Placements stay inside it.
-        let shadow = module
-            .functions
-            .iter()
-            .filter(|func| is_entry(func))
-            .map(|func| {
-                EvmMemoryLayout::HEAP_START
-                    + func.internal_frame_size.max(func.external_static_return_size)
-            })
-            .max()
-            .unwrap_or(EvmMemoryLayout::HEAP_START);
-
-        let mut changed = false;
-        let calls = CallGraphInfo::new(module);
-        let summaries = analyses.call_summaries(module);
-        for (func_id, func) in module.functions.iter_mut_enumerated() {
-            if !is_entry(func) {
-                continue;
-            }
-            changed |= run_on_entry(func_id, func, shadow, &calls, &summaries);
-        }
-        changed
-    }
-}
 
 /// Pass that defers eligible allocations until exact backend layout is known.
 pub(crate) struct DeferAlloc;
@@ -172,20 +129,6 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
         }
         _ => false,
     }
-}
-
-fn run_on_entry(
-    func_id: FunctionId,
-    func: &mut Function,
-    shadow: u64,
-    calls: &CallGraphInfo,
-    summaries: &MemoryCallSummaries,
-) -> bool {
-    let mut changed = false;
-    for cand in eligible_static_allocations(func_id, func, calls, summaries) {
-        changed |= apply_candidate(func, &cand, shadow);
-    }
-    changed
 }
 
 /// One constant-size allocation eligible for static placement.
@@ -462,30 +405,4 @@ fn call_use_is_safe(
                 && !(summary.may_observe_fmp() && summary.observes_param(index))
         })
         && args.contains(&operand)
-}
-
-/// Rewrites an eligible allocation using the conservative placement retained
-/// for the explicit `static-alloc` MIR pass.
-fn apply_candidate(func: &mut Function, cand: &StaticAllocCandidate, shadow: u64) -> bool {
-    // The region lives past the locals and the static return
-    // buffer. It must stay inside the tallest entry's shadow — growing past
-    // it pushes the shared static-frame region and can widen every helper
-    // and spill push behind it — and must not drag this entry's own spill
-    // base across the one-byte address boundary.
-    let base = EvmMemoryLayout::HEAP_START
-        + func.internal_frame_size.max(func.external_static_return_size);
-    if base + cand.size > shadow || (base < 0x100 && base + cand.size > 0x100) {
-        return false;
-    }
-    func.internal_frame_size = (base - EvmMemoryLayout::HEAP_START) + cand.size;
-    let replacement = func.alloc_value(Value::Immediate(Immediate::for_type(
-        func.value_ty(cand.ptr),
-        U256::from(base),
-    )));
-    let mut replacements = FxHashMap::default();
-    replacements.insert(cand.ptr, replacement);
-    func.replace_uses_canonicalized(&replacements);
-    let block = &mut func.blocks[cand.block];
-    block.instructions.retain(|&inst| inst != cand.alloc);
-    true
 }
