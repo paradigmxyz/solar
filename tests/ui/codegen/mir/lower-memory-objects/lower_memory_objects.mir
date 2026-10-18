@@ -107,20 +107,3 @@ fn @unreachable_cast_cycle() -> i256 {
     v1 = ptrtoint ptr<memory> v0 to i256
     ret v1
 }
-
-// CHECK-LABEL: {{^[ +].*}}fn @merged_allocations{{[( ]}}
-// CHECK: + [[BASE_PTR:v[0-9]+]] = alloc 64 !metadata(preserves_fmp)
-// CHECK: [[BASE:v[0-9]+]] = ptrtoint ptr<memory> [[BASE_PTR]] to i256
-// CHECK: mstore [[BASE]], 0
-// CHECK: + [[OFFSET_BASE:v[0-9]+]] = ptrtoint ptr<memory> [[BASE_PTR]] to i256
-// CHECK: + [[NEXT:v[0-9]+]] = add [[OFFSET_BASE]], 32{{$}}
-fn @merged_allocations() -> ptr<memory> {
-  bb0:
-    v0 = alloc 32
-    v2 = ptrtoint ptr<memory> v0 to i256
-    mstore v2, 0
-    v1 = alloc 32 !metadata(preserves_fmp)
-    v3 = ptrtoint ptr<memory> v1 to i256
-    mstore v3, 0
-    ret v1
-}

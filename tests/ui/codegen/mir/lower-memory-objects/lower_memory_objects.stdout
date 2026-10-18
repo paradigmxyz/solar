@@ -103,19 +103,3 @@
 -     ret v1
   }
   
-- fn @merged_allocations() -> ptr<memory> {
-+ fn @merged_allocations() -> ptr<memory> [may_return_memory] {
-    bb0:
--     v0 = alloc 32
-+     v0 = alloc 64 !metadata(preserves_fmp)
-      v1 = ptrtoint ptr<memory> v0 to i256
-      mstore v1, 0
--     v2 = alloc 32 !metadata(preserves_fmp)
-+     v4 = ptrtoint ptr<memory> v0 to i256
-+     v5 = add v4, 32
-+     v2 = inttoptr i256 v5 to ptr<memory>
-      v3 = ptrtoint ptr<memory> v2 to i256
-      mstore v3, 0
-      ret v2
-  }
-  

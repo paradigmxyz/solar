@@ -231,6 +231,7 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
         instruction.kind = InstKind::Add(base, offset);
         instruction.metadata.set_effect(None);
         instruction.metadata.set_memory_region(None);
+        instruction.metadata.set_preserves_fmp(false);
     }
     // member = alloc/add ...
     // word = ptrtoint member to i256
