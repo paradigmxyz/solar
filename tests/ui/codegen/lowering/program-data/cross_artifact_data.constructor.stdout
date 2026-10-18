@@ -58,12 +58,12 @@ bb0:
   mstore
   dup 5
   add
-  swap 1
-  swap 2
   swap 3
   swap 1
+  swap 2
   swap 4
   mcopy
+  dup 2
   swap 1
   sub
   push 31
@@ -72,16 +72,12 @@ bb0:
   push 31
   not
   and
-  push 64
-  mload
-  swap 1
-  dup 2
+  dup 3
   add
   push 64
   mstore
   push 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
   swap 2
-  swap 1
   log1
   push 232
   dup 1
