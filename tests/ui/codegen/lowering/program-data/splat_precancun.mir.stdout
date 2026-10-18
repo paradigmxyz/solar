@@ -31,7 +31,7 @@ fn @paddingIsZero() -> i256 [selector=0x06793283, pure, abi_params=[], abi_retur
     v4 = add v3, 32
     v5 = add v4, v2
     v6 = mload v5
-    v7 = shr 8, v6
+    v7 = shr v6, 8
     v8 = eq v7, 0
     v9 = zext i1 v8 to i256
     ret v9

@@ -34,7 +34,7 @@ fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
     v4 = add v0, 32
     v5 = add v4, v2
     v6 = mload v5
-    v7 = shr 8, v6
+    v7 = shr v6, 8
     v8 = eq v7, 0
     v9 = zext i1 v8 to i256
     mstore 128, v9
@@ -92,7 +92,7 @@ fn @entry() [entry] {
     jumpi v1, bb6, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb6, [0x6793283 => bb2, 0x9bd5a60 => bb3, 0xc6b2786 => bb4, 0x58653188 => bb5]
   bb5:
     tail_call @fullWordsHash
