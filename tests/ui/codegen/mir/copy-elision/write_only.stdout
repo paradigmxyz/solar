@@ -6,7 +6,7 @@
       v0 = alloc zeroed checked 64
       v1 = ptradd v0, 32
       v2 = ptrtoint ptr<memory> v1 to i256
-      calldatacopy v2, 4, 32
+-     calldatacopy v2, 4, 32
       ret arg0
   }
   
@@ -76,7 +76,7 @@
     bb2:
       v3 = shl 5, v1
       v4 = ptradd v0, v3
-      mstore v4, 7
+-     mstore v4, 7
       v5 = add v1, 1
       jump bb1
   }
@@ -109,6 +109,22 @@
       v3 = ptradd v0, v2
       mstore v3, 7
       ret 0
+  }
+  
+  fn @loop_allocation(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      v2 = alloc 64
+      mstore v2, 7
+      v3 = add v0, 1
+      jump bb1
   }
   
 - // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before dce) ===
@@ -117,9 +133,8 @@
   fn @unread(arg0: i256) -> i256 {
     bb0:
       v0 = alloc zeroed checked 64
-      v1 = ptradd v0, 32
-      v2 = ptrtoint ptr<memory> v1 to i256
-      calldatacopy v2, 4, 32
+-     v1 = ptradd v0, 32
+-     v2 = ptrtoint ptr<memory> v1 to i256
       ret arg0
   }
   
@@ -187,9 +202,8 @@
     bb3:
       ret 0
     bb2:
-      v3 = shl 5, v1
-      v4 = ptradd v0, v3
-      mstore v4, 7
+-     v3 = shl 5, v1
+-     v4 = ptradd v0, v3
       v5 = add v1, 1
       jump bb1
   }
@@ -222,5 +236,21 @@
       v3 = ptradd v0, v2
       mstore v3, 7
       ret 0
+  }
+  
+  fn @loop_allocation(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      v2 = alloc 64
+      mstore v2, 7
+      v3 = add v0, 1
+      jump bb1
   }
   

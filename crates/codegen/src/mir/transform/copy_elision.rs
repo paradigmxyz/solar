@@ -15,13 +15,19 @@
 //! allocation extent; writes outside it can affect other objects, even when this object is unread.
 //! Indexed element stores also qualify when their sole incoming edge proves an unsigned index
 //! bound whose final word fits the allocation. Other dynamic addresses remain conservative.
+//! An allocation that runs once reads the free-memory pointer before its object exists, so that
+//! read does not count; an allocation in a loop reads it again after the previous instance's
+//! writes and keeps them. Every other read of the pointer's slot still counts. Callers' later
+//! reads of the slot cannot see the removed writes: allocations start at or above the heap floor
+//! (see `heap-floor`), above the slot.
 //! Modules where any function reads `msize` are skipped: internal calls share memory, so a caller
 //! or callee could observe the lower memory expansion.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, Location, MemoryLocation, module_may_observe_msize,
+        Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation,
+        module_may_observe_msize,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
@@ -176,15 +182,18 @@ impl CopyElisionCx {
         alias: &AliasAnalysis,
         object: ValueId,
     ) -> bool {
-        let allocation = if let Value::Inst(inst) = func.value(object)
+        let (allocation, alloc_inst) = if let Value::Inst(inst) = func.value(object)
             && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
             && let Some(address) = alias.memory_address(func, object)
         {
             // The allocation's own extent is in bounds, including when its size is dynamic.
-            MemoryLocation::new(address, alias.location_size(func, size))
+            (MemoryLocation::new(address, alias.location_size(func, size)), *inst)
         } else {
             return true;
         };
+        // An allocation that runs once reads the free-memory pointer before its object exists.
+        // A loop allocation's next run may read a previous instance, so it keeps the read.
+        let own_fmp_read = allocation.address.base == MemoryBase::Allocation(alloc_inst);
         let reads_allocation = |access: Access| match access {
             Access::Any(AddressSpace::Memory) => true,
             Access::Location(Location::Memory(location)) => {
@@ -193,7 +202,13 @@ impl CopyElisionCx {
             _ => false,
         };
         func.instructions().any(|inst| {
-            alias.instruction_mod_ref(func, inst).reads().iter().copied().any(reads_allocation)
+            !(own_fmp_read && inst == alloc_inst)
+                && alias
+                    .instruction_mod_ref(func, inst)
+                    .reads()
+                    .iter()
+                    .copied()
+                    .any(reads_allocation)
         }) || func.blocks.iter().filter_map(|block| block.terminator.as_ref()).any(|terminator| {
             alias.terminator_mod_ref(func, terminator).reads().iter().copied().any(reads_allocation)
         })
