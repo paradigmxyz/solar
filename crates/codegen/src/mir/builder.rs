@@ -1865,6 +1865,19 @@ impl<'a> FunctionBuilder<'a> {
         self.set_terminator(Terminator::RevertReturndata);
     }
 
+    /// Reverts with the return data of a failed call unless `success`, then continues in a new
+    /// block.
+    pub(crate) fn revert_returndata_unless(&mut self, success: ValueId) {
+        // branch success, done, failed
+        // failed: revert_returndata
+        let failed = self.create_block();
+        let done = self.create_block();
+        self.branch(success, done, failed);
+        self.switch_to_block(failed);
+        self.revert_returndata();
+        self.switch_to_block(done);
+    }
+
     /// Sets a return-data terminator: `RETURN(offset, size)`.
     pub(crate) fn ret_data(&mut self, offset: ValueId, size: ValueId) {
         // offset = zext offset to i256, unless it is a ptr<memory>
