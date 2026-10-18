@@ -1943,16 +1943,6 @@ impl LowerAbiCx {
                 let word = builder.imm(32);
                 let len = Self::load_input_word(builder, base, constructor);
                 let data = builder.add_u64_offset(base, 32);
-                let checked_object = if constructor && !allow_alias {
-                    let object = builder.alloc_dynamic_word_array(
-                        len,
-                        crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                    );
-                    *current = builder.current_block();
-                    Some(object)
-                } else {
-                    None
-                };
                 if constructor && allow_alias {
                     // ABI word arrays have the same `[length][words...]`
                     // representation as a memory array. The source remains
@@ -1960,17 +1950,12 @@ impl LowerAbiCx {
                     // allocating and copying an equivalent object.
                     return base;
                 }
-                let bytes = Self::checked_mul(builder, len, word, current);
-                let (ptr, _) = if let Some(object) = checked_object {
-                    object
-                } else {
-                    let total = Self::checked_add(builder, bytes, word, current);
-                    let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
-                    let ptr = builder
-                        .alloc(total, crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED);
-                    builder.set_memory_len(ptr, len);
-                    (ptr, layout)
-                };
+                let (ptr, _) = builder.alloc_dynamic_word_array(
+                    len,
+                    crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
+                );
+                *current = builder.current_block();
+                let bytes = builder.mul(len, word);
                 Self::guard_input_dynamic_array(builder, len, data, input_end, current, 32);
                 let source = builder.make_slice(data, bytes, location);
                 builder.memory_copy_from_slice(ptr, source);
@@ -1991,34 +1976,18 @@ impl LowerAbiCx {
                 base
             }
             crate::mir::AbiParamType::DynamicArray(element) if arg_type == MirType::MEMPTR => {
-                let checked_decode = constructor && !allow_alias;
                 let len = Self::load_input_word(builder, base, constructor);
                 let data_base = builder.add_u64_offset(base, 32);
-                let checked_object = if checked_decode {
-                    let object = builder.alloc_dynamic_word_array(
-                        len,
-                        crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                    );
-                    *current = builder.current_block();
-                    Some(object)
-                } else {
-                    None
-                };
+                let (ptr, _) = builder.alloc_dynamic_word_array(
+                    len,
+                    crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
+                );
+                *current = builder.current_block();
                 let word = builder.imm(32);
-                let bytes = Self::checked_mul(builder, len, word, current);
+                let bytes = builder.mul(len, word);
 
                 let copy_validated =
                     !constructor && validate_array_elements && Self::is_scalar_or_enum(element);
-                let (ptr, _) = if let Some(object) = checked_object {
-                    object
-                } else {
-                    let total = Self::checked_add(builder, bytes, word, current);
-                    let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
-                    let ptr = builder
-                        .alloc(total, crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED);
-                    builder.set_memory_len(ptr, len);
-                    (ptr, layout)
-                };
                 Self::guard_input_dynamic_array(
                     builder,
                     len,
