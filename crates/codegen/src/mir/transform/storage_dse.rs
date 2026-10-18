@@ -56,8 +56,10 @@ impl MirPass for StorageDse {
             analyses,
             &selected,
             |func, analyses| {
-                let mut eliminator = StorageStoreEliminator::new();
-                eliminator.alias = Some(Rc::clone(analyses.alias()));
+                let mut eliminator = StorageStoreEliminator::new(
+                    Rc::clone(analyses.alias()),
+                    Rc::clone(analyses.cfg()),
+                );
                 let changed = eliminator.run_to_fixpoint(func) != 0;
                 if eliminator.annotated_aliases {
                     analyses.note_unreported_edit();
@@ -69,11 +71,12 @@ impl MirPass for StorageDse {
 }
 
 /// All-path dead storage-store elimination pass.
-#[derive(Debug, Default)]
 struct StorageStoreEliminator {
     /// Number of storage stores eliminated.
     eliminated_count: usize,
-    alias: Option<Rc<AliasAnalysis>>,
+    alias: Rc<AliasAnalysis>,
+    /// Storage DSE removes instructions only, so one CFG snapshot serves every round.
+    cfg: Rc<CfgInfo>,
     /// Whether storage-alias annotation changed metadata, which is not reported as a change.
     annotated_aliases: bool,
 }
@@ -91,19 +94,16 @@ impl RunState {
 
 impl StorageStoreEliminator {
     /// Creates a new storage-store eliminator.
-    fn new() -> Self {
-        Self::default()
+    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>) -> Self {
+        Self { eliminated_count: 0, alias, cfg, annotated_aliases: false }
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         self.annotated_aliases |=
             func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
-        if self.alias.is_none() {
-            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
-        }
 
-        let cfg = CfgInfo::new(func);
+        let cfg = Rc::clone(&self.cfg);
         let mut incoming = index_vec![FxHashSet::default(); func.blocks.len()];
         loop {
             let mut changed = false;
@@ -175,7 +175,7 @@ impl StorageStoreEliminator {
         later_writes: &mut FxHashSet<StorageAlias>,
         mut dead: Option<&mut DenseBitSet<InstId>>,
     ) {
-        let aa = self.alias.as_ref().expect("storage DSE alias snapshot is initialized");
+        let aa = &*self.alias;
         for &inst_id in func.blocks[block_id].instructions.iter().rev() {
             if aa.instruction_may_terminate(func, inst_id) {
                 later_writes.clear();
@@ -192,10 +192,6 @@ impl StorageStoreEliminator {
 
                     Self::remove_aliasing_set(aa, later_writes, alias);
                     later_writes.insert(alias);
-                }
-                InstKind::Load(slot, PtrLocation::Storage) => {
-                    let alias = aa.storage_alias(func, inst_id, *slot);
-                    Self::remove_aliasing_set(aa, later_writes, alias);
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref(func, inst_id);
@@ -223,7 +219,7 @@ impl StorageStoreEliminator {
         stored_values: &mut FxHashMap<StorageAlias, ValueId>,
         dead: &mut DenseBitSet<InstId>,
     ) {
-        let aa = self.alias.as_ref().expect("storage DSE alias snapshot is initialized");
+        let aa = &*self.alias;
         stored_values.clear();
         dead.clear();
 

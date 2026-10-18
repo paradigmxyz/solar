@@ -96,9 +96,9 @@
 //! whole in each internal caller that reads it as a pointer. See CODEGEN-010.
 
 use crate::mir::{
-    AbiType, ArgIdx, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionId,
-    Immediate, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module,
-    PtrLocation, RawMemoryAccess, RawMemorySize, Terminator, Value, ValueId,
+    AbiType, ArgIdx, BlockId, Callee, CheckedOp, EffectKind, Function, FunctionId, Immediate,
+    InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module, PtrLocation,
+    RawMemoryAccess, RawMemorySize, Terminator, Value, ValueId,
     analysis::{AddressInput, absolute_address_inputs},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -488,7 +488,7 @@ fn slot_bytes(start: u64, size: u64) -> SlotBytes {
 /// checks that revert with scratch data, and accesses to frames, storage slots, and memory that
 /// already exists never do; allocations, encodings, and the other builtins may.
 fn lowered_reads_pointer(kind: &InstKind) -> bool {
-    kind.op_def().effect != EffectKind::Pure
+    kind.effect_kind() != EffectKind::Pure
         && !matches!(
             kind,
             InstKind::FrameLoad { .. }
@@ -501,12 +501,6 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
                 | InstKind::StorageArrayDataSlot(..)
                 | InstKind::StorageArrayElementSlot { .. }
                 | InstKind::StoreImmutable(..)
-                | InstKind::ICall {
-                    function: Callee::Builtin(
-                        Builtin::Check { .. } | Builtin::CheckedAddMod | Builtin::CheckedMulMod
-                    ),
-                    ..
-                }
         )
 }
 

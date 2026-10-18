@@ -1622,57 +1622,16 @@ impl CommonSubexprEliminator {
 
     fn value_use_counts(func: &Function) -> FxHashMap<ValueId, usize> {
         let mut counts = FxHashMap::default();
+        let mut count = |value| *counts.entry(value).or_default() += 1;
         for inst_id in func.instructions() {
-            func.inst(inst_id).visit_operands(|value| {
-                *counts.entry(value).or_default() += 1;
-            });
+            func.inst(inst_id).visit_operands(&mut count);
         }
         for block in func.blocks.iter() {
             if let Some(term) = &block.terminator {
-                Self::count_terminator_uses(term, &mut counts);
+                term.visit_operands(&mut count);
             }
         }
         counts
-    }
-
-    fn count_terminator_uses(
-        term: &crate::mir::Terminator,
-        counts: &mut FxHashMap<ValueId, usize>,
-    ) {
-        use crate::mir::Terminator;
-
-        let mut count = |value| {
-            *counts.entry(value).or_default() += 1;
-        };
-
-        match term {
-            Terminator::Jump(_)
-            | Terminator::RevertReturndata
-            | Terminator::Stop
-            | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => count(*condition),
-            Terminator::Switch { value, cases, .. } => {
-                count(*value);
-                for (case, _) in cases {
-                    count(*case);
-                }
-            }
-            Terminator::Return { values } => {
-                for &value in values {
-                    count(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                count(*offset);
-                count(*size);
-            }
-            Terminator::SelfDestruct { recipient } => count(*recipient),
-            Terminator::TailCall { args, .. } => {
-                for &arg in args {
-                    count(arg);
-                }
-            }
-        }
     }
 
     fn apply_replacements_to_all_blocks(

@@ -142,10 +142,14 @@ impl MirPass for LoadPre {
     ) -> bool {
         let target = Target::new(gcx);
         run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
-            let mut eliminator = LoadRedundancyEliminator::new(target);
-            eliminator.storage_only = matches!(self, Self::Storage);
-            eliminator.alias = Some(Rc::clone(analyses.alias()));
-            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+            let mut eliminator = LoadRedundancyEliminator {
+                storage_only: matches!(self, Self::Storage),
+                liveness: OnceCell::new(),
+                cfg: Some(Rc::clone(analyses.cfg())),
+                stats: LoadPreStats::default(),
+                alias: Rc::clone(analyses.alias()),
+                target,
+            };
             eliminator.run(func).total() != 0
         })
     }
@@ -175,7 +179,7 @@ struct LoadRedundancyEliminator {
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
     stats: LoadPreStats,
-    alias: Option<Rc<AliasAnalysis>>,
+    alias: Rc<AliasAnalysis>,
     target: Target,
 }
 
@@ -490,24 +494,9 @@ struct LoadScan {
 }
 
 impl LoadRedundancyEliminator {
-    /// Creates a new load PRE pass pricing reads on `target`.
-    fn new(target: Target) -> Self {
-        Self {
-            cfg: None,
-            stats: LoadPreStats::default(),
-            alias: None,
-            target,
-            storage_only: false,
-            liveness: OnceCell::new(),
-        }
-    }
-
     /// Runs load PRE to a fixed point under the rewrite budget.
     fn run(&mut self, func: &mut Function) -> LoadPreStats {
         self.stats = LoadPreStats::default();
-        if self.alias.is_none() {
-            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
-        }
 
         let rewrite_limit = func.num_insts().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
@@ -534,7 +523,7 @@ impl LoadRedundancyEliminator {
             }
             if func.blocks.len() != blocks_before {
                 self.cfg = None;
-                self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+                self.alias = Rc::new(AliasAnalysis::new(func));
             } else {
                 self.alias().clear_cached_addresses();
             }
@@ -543,12 +532,12 @@ impl LoadRedundancyEliminator {
         self.stats
     }
 
-    /// Computes the key universe, the per-block gen/kill summaries, and the
-    /// availability fixpoint. Returns `None` if no read is trackable.
     fn alias(&self) -> &AliasAnalysis {
-        self.alias.as_ref().expect("load PRE alias snapshot is initialized")
+        &self.alias
     }
 
+    /// Computes the key universe, the per-block gen/kill summaries, and the
+    /// availability fixpoint. Returns `None` if no read is trackable.
     fn compute_analysis(&self, func: &Function) -> Option<Analysis> {
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let rpo = cfg.rpo();
@@ -1269,9 +1258,9 @@ impl LoadRedundancyEliminator {
             }
         };
 
-        for &(_, load_result) in &loads {
-            Self::replace_uses(func, load_result, replacement);
-        }
+        func.replace_uses(
+            &loads.iter().map(|&(_, load_result)| (load_result, replacement)).collect(),
+        );
         let mut load_insts = DenseBitSet::new_empty(func.num_insts());
         for &(inst_id, _) in &loads {
             load_insts.insert(inst_id);
@@ -1480,58 +1469,5 @@ impl LoadRedundancyEliminator {
                 .get(inst_id)
                 .is_some_and(|def_block| analysis.cfg.dominators().dominates(*def_block, block)),
         })
-    }
-
-    // ----- Rewriting -----
-
-    fn replace_uses(func: &mut Function, from: ValueId, to: ValueId) {
-        func.for_each_instruction_mut(|_, inst| {
-            inst.rewrite_operands(|value| {
-                if *value == from {
-                    *value = to;
-                }
-            });
-        });
-
-        for block in func.blocks.iter_mut() {
-            if let Some(term) = &mut block.terminator {
-                Self::replace_terminator_uses(term, from, to);
-            }
-        }
-    }
-
-    fn replace_terminator_uses(term: &mut Terminator, from: ValueId, to: ValueId) {
-        let replace = |value: &mut ValueId| {
-            if *value == from {
-                *value = to;
-            }
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case, _) in cases {
-                    replace(case);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::RevertReturndata => {}
-            Terminator::SelfDestruct { recipient } => replace(recipient),
-            Terminator::TailCall { args, .. } => {
-                for arg in args {
-                    replace(arg);
-                }
-            }
-        }
     }
 }
