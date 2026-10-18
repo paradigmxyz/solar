@@ -44,3 +44,48 @@ fn @unbounded_word() -> i256 {
   bb2:
     ret v1
 }
+
+// CHECK-LABEL: fn @calldata_size
+// CHECK: - jumpi v2, bb1, bb2
+// CHECK: + jump bb2
+fn @calldata_size() -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}
+
+// CHECK-LABEL: fn @code_size
+// CHECK: - jumpi v2, bb1, bb2
+// CHECK: + jump bb2
+fn @code_size() -> i256 {
+  bb0:
+    v0 = codesize
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}
+
+// CHECK-LABEL: fn @external_code_size
+// CHECK: - jumpi v2, bb1, bb2
+// CHECK: + jump bb2
+fn @external_code_size(arg0: i256) -> i256 {
+  bb0:
+    v0 = extcodesize arg0
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}
