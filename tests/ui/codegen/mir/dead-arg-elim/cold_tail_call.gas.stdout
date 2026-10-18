@@ -15,12 +15,14 @@
       tail_call @revert_stub
   }
   
-  fn @discarded(arg0: i1) -> i256 {
+- fn @discarded(arg0: i1) -> i256 {
++ fn @discarded(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
       mstore 0, 1
-      ret 7
+-     ret 7
++     ret
     bb1:
       tail_call @revert_stub
   }
@@ -33,7 +35,8 @@
       v3 = icall @checked, v0, v2
       v4 = add v3, 1
       mstore 0, v4
-      v5 = icall @discarded, v2
+-     v5 = icall @discarded, v2
++     icall @discarded, v2
       ret
   }
   

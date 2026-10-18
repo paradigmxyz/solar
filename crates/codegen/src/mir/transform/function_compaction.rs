@@ -5,10 +5,10 @@
 //! edges are rewritten. Before pruning, direct callers reuse an argument or constant when every
 //! explicit return in the callee returns that same value. Calls remain in place, including their
 //! effects and failure paths. Tail calls, mixed return values, and baked signature-frame addresses
-//! prevent forwarding. In `-Osize`, which also prunes the results forwarding leaves unread, a tail
-//! call to a function that never returns, such as a revert helper from `outline-reverts`, returns
-//! nothing; elsewhere the callee would keep returning its value and the caller would push the
-//! constant again. No recursive summary or control-flow fixed point is needed.
+//! prevent forwarding. In `-Osize`, a tail call to a function that never returns, such as a revert
+//! helper from `outline-reverts`, returns nothing. In `-Ogas` such forwarding grew measured code:
+//! once the callee's result is pruned, every caller pushes the constant where the result used to
+//! arrive on the stack. No recursive summary or control-flow fixed point is needed.
 //!
 //! Constants must reach a pure instruction or a non-return terminator. Direct stores and returns
 //! alone do not justify discarding the call result and pushing the same constant again.
@@ -44,10 +44,8 @@ type ArgDependents = IndexVec<FunctionId, IndexVec<ArgIdx, Vec<(FunctionId, ArgI
 /// dead argument can strand the call whose result kept another function's result live, so the two
 /// analyses are iterated to a joint fixed point.
 ///
-/// Result pruning removes a complete SSA result, including a struct, and runs only under `-Osize`.
+/// Result pruning removes a complete SSA result, including a struct.
 /// It leaves legacy multi-result signatures intact because their extra results use a shared buffer.
-/// Under other objectives argument liveness is already an internal fixed point, so a single pass
-/// suffices with no outer iteration.
 pub(crate) struct DeadArgElim;
 
 impl MirPass for DeadArgElim {
@@ -61,11 +59,7 @@ impl MirPass for DeadArgElim {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let size = gcx.sess.opts.optimization.is_size();
-        let forwarded = forward_returned_values(module, size);
-        if !size {
-            return prune_unused_args(module) != 0 || forwarded != 0;
-        }
+        let forwarded = forward_returned_values(module, gcx.sess.opts.optimization.is_size());
         let mut changed = forwarded != 0;
         // Pruning keeps every `ret` and tail call, so the returning set holds for the loop.
         let returning = module.returning_functions();
