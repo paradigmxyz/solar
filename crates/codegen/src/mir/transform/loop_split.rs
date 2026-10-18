@@ -75,8 +75,6 @@ struct Split {
     preheader: BlockId,
     /// The header's successor inside the loop.
     body: BlockId,
-    /// The header's successor outside the loop.
-    exit: BlockId,
     blocks: DenseBitSet<BlockId>,
     /// The header phi the loop counts on.
     counter: ValueId,
@@ -241,7 +239,6 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
         header: l.header,
         preheader,
         body: then_block,
-        exit: else_block,
         blocks: l.blocks.clone(),
         counter,
         bound,
@@ -251,68 +248,10 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
 
 fn apply(func: &mut Function, split: &Split) {
     let blocks: Vec<BlockId> = split.blocks.iter().collect();
-    let mut block_map = FxHashMap::default();
-    for &block in &blocks {
-        block_map.insert(block, func.alloc_block());
-    }
-    let main_header = block_map[&split.header];
-
-    // main_block: cloned instructions
-    let mut value_map = FxHashMap::default();
-    for &block in &blocks {
-        let originals = func.blocks[block].instructions.clone();
-        let mut instructions = Vec::with_capacity(originals.len());
-        for inst in originals {
-            let original = func.inst(inst);
-            let mut instruction = Instruction::new(original.kind.clone(), original.result_ty);
-            instruction.metadata.copy_debug_context(&original.metadata);
-            let cloned = if let Some(result) = func.inst_result_value(inst) {
-                let (cloned, cloned_result) = func.alloc_value_inst(instruction);
-                value_map.insert(result, cloned_result);
-                cloned
-            } else {
-                func.alloc_inst(instruction)
-            };
-            instructions.push(cloned);
-        }
-        func.blocks[block_map[&block]].instructions = instructions;
-    }
-    let mapped = |value: ValueId| value_map.get(&value).copied().unwrap_or(value);
-    for &block in &blocks {
-        let clone = block_map[&block];
-        for inst in func.blocks[clone].instructions.clone() {
-            let kind = &mut func.inst_mut(inst).kind;
-            if let InstKind::Phi(incoming) = kind {
-                for (from, _) in incoming.iter_mut() {
-                    if let Some(&clone_from) = block_map.get(from) {
-                        *from = clone_from;
-                    }
-                }
-            }
-            kind.visit_operands_mut(|value| *value = mapped(*value));
-        }
-    }
-
-    // main_block: cloned terminator, with the header's exit edge entering the
-    // original header
-    for &block in &blocks {
-        let clone = block_map[&block];
-        let (terminator, metadata) = {
-            let body = &func.blocks[block];
-            (
-                body.terminator.clone().expect("loop blocks are terminated"),
-                body.terminator_metadata.clone(),
-            )
-        };
-        let mut terminator = terminator;
-        terminator.visit_operands_mut(|value| *value = mapped(*value));
-        retarget(&mut terminator, |successor| match block_map.get(&successor) {
-            Some(&clone) => clone,
-            None if block == split.header => split.header,
-            None => successor,
-        });
-        func.blocks[clone].set_terminator(terminator, metadata);
-    }
+    let side_exits = side_exits(func, &blocks, &split.blocks, split.header);
+    let copy = clone_loop(func, &blocks);
+    let main_header = copy.blocks[&split.header];
+    let mapped = |value: ValueId| copy.value(value);
 
     // main_header: ahead = add counter', lookahead
     //              jumpi (lt ahead, bound), body', header
@@ -332,7 +271,7 @@ fn apply(func: &mut Function, split: &Split) {
     func.blocks[main_header].set_terminator(
         Terminator::Branch {
             condition,
-            then_block: block_map[&split.body],
+            then_block: copy.blocks[&split.body],
             else_block: split.header,
         },
         metadata,
@@ -345,7 +284,7 @@ fn apply(func: &mut Function, split: &Split) {
             for (from, value) in incoming.iter_mut() {
                 if *from == split.preheader {
                     *from = main_header;
-                    *value = value_map[&result];
+                    *value = copy.values[&result];
                 }
             }
         }
@@ -362,29 +301,119 @@ fn apply(func: &mut Function, split: &Split) {
     );
     func.blocks[split.preheader].set_terminator(terminator, metadata);
 
-    // exit: v = phi [block: x], ..., [block': x']
-    for &block in &blocks {
-        let successors = func.blocks[block].terminator.as_ref().expect("terminated").successors();
-        for successor in successors {
-            if split.blocks.contains(successor)
-                || (block == split.header && successor == split.exit)
-            {
-                continue;
-            }
-            for inst in func.blocks[successor].instructions.clone() {
-                if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
-                    let cloned: Vec<_> = incoming
-                        .iter()
-                        .filter(|&&(from, _)| from == block)
-                        .map(|&(_, value)| (block_map[&block], mapped(value)))
-                        .collect();
-                    incoming.extend(cloned);
+    add_exit_inputs(func, &side_exits, std::slice::from_ref(&copy));
+
+    rebuild_predecessors(func);
+}
+
+/// A copy of the loop: each original block's clone and each original value's clone.
+pub(super) struct LoopCopy {
+    pub(super) blocks: FxHashMap<BlockId, BlockId>,
+    pub(super) values: FxHashMap<ValueId, ValueId>,
+}
+
+impl LoopCopy {
+    pub(super) fn value(&self, value: ValueId) -> ValueId {
+        self.values.get(&value).copied().unwrap_or(value)
+    }
+}
+
+/// Clones every loop block with its instructions, keeping edges that leave the loop.
+pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
+    let mut copy = LoopCopy { blocks: FxHashMap::default(), values: FxHashMap::default() };
+    for &block in blocks {
+        copy.blocks.insert(block, func.alloc_block());
+    }
+    for &block in blocks {
+        let originals = func.blocks[block].instructions.clone();
+        let mut instructions = Vec::with_capacity(originals.len());
+        for inst in originals {
+            let original = func.inst(inst);
+            let mut instruction = Instruction::new(original.kind.clone(), original.result_ty);
+            instruction.metadata.copy_debug_context(&original.metadata);
+            let cloned = if let Some(result) = func.inst_result_value(inst) {
+                let (cloned, cloned_result) = func.alloc_value_inst(instruction);
+                copy.values.insert(result, cloned_result);
+                cloned
+            } else {
+                func.alloc_inst(instruction)
+            };
+            instructions.push(cloned);
+        }
+        func.blocks[copy.blocks[&block]].instructions = instructions;
+    }
+    for &block in blocks {
+        let clone = copy.blocks[&block];
+        for inst in func.blocks[clone].instructions.clone() {
+            let kind = &mut func.inst_mut(inst).kind;
+            if let InstKind::Phi(incoming) = kind {
+                for (from, _) in incoming.iter_mut() {
+                    if let Some(&clone_from) = copy.blocks.get(from) {
+                        *from = clone_from;
+                    }
                 }
+            }
+            kind.visit_operands_mut(|value| *value = copy.value(*value));
+        }
+        let (mut terminator, metadata) = {
+            let body = &func.blocks[block];
+            (
+                body.terminator.clone().expect("loop blocks are terminated"),
+                body.terminator_metadata.clone(),
+            )
+        };
+        terminator.visit_operands_mut(|value| *value = copy.value(*value));
+        retarget(&mut terminator, |successor| {
+            copy.blocks.get(&successor).copied().unwrap_or(successor)
+        });
+        func.blocks[clone].set_terminator(terminator, metadata);
+    }
+    copy
+}
+
+/// The edges that leave the loop from a block other than its header.
+pub(super) fn side_exits(
+    func: &Function,
+    blocks: &[BlockId],
+    loop_blocks: &DenseBitSet<BlockId>,
+    header: BlockId,
+) -> Vec<(BlockId, BlockId)> {
+    blocks
+        .iter()
+        .filter(|&&block| block != header)
+        .flat_map(|&block| {
+            let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
+            terminator
+                .successors()
+                .into_iter()
+                .filter(|&successor| !loop_blocks.contains(successor))
+                .map(move |successor| (block, successor))
+        })
+        .collect()
+}
+
+/// Gives the phis at the far end of each side exit an input from every copy of the exiting
+/// block.
+pub(super) fn add_exit_inputs(
+    func: &mut Function,
+    side_exits: &[(BlockId, BlockId)],
+    copies: &[LoopCopy],
+) {
+    // exit: v = phi [block: x], [block_1: x_1], ..., [block_n: x_n]
+    for &(block, successor) in side_exits {
+        for inst in func.blocks[successor].instructions.clone() {
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
+                let cloned: Vec<_> = incoming
+                    .iter()
+                    .filter(|&&(from, _)| from == block)
+                    .flat_map(|&(_, value)| {
+                        copies.iter().map(move |copy| (copy.blocks[&block], copy.value(value)))
+                    })
+                    .collect();
+                incoming.extend(cloned);
             }
         }
     }
-
-    rebuild_predecessors(func);
 }
 
 /// Replaces every successor of a terminator through `map`.
