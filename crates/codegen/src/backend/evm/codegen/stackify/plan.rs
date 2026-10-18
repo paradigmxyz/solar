@@ -582,6 +582,13 @@ impl<'a> Planner<'a> {
         Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
     }
 
+    /// Returns the repeated immediate that saves the most when kept on the stack, with the
+    /// nearest block outside loops that dominates its uses.
+    ///
+    /// Only one constant is retained. This is a profitability limit, not a stack limit: the plan
+    /// cannot see the later EVM IR pipeline, and keeping more constants traded small size savings
+    /// for large gas losses, such as P256 verification in size mode. Retaining more needs a
+    /// profitability check that accounts for EVM IR.
     pub(super) fn constant_to_retain(&self) -> Option<(BlockId, ValueId)> {
         let value = self
             .remat
