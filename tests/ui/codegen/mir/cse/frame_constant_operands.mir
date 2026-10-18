@@ -1,0 +1,39 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+@module FrameConstantOperands
+
+// Every `calldatasize` reads the same word, so the same bound computed from a
+// second read reuses the first one, while each read itself stays cheap to repeat.
+// CHECK-LABEL: {{^[ +].*}}fn @repeated_bound{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = calldatasize
+// CHECK: - {{v[0-9]+}} = sub {{v[0-9]+}}, arg0
+// CHECK: - {{v[0-9]+}} = slt
+fn @repeated_bound(arg0: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, arg0
+    v2 = slt v1, 32
+    jumpi v2, bb2, bb1
+  bb1:
+    v3 = calldatasize
+    v4 = sub v3, arg0
+    v5 = slt v4, 32
+    jumpi v5, bb2, bb3
+  bb3:
+    ret v4
+  bb2:
+    revert 0, 0
+}
+
+// A cast costs nothing, so widening a second `caller` read is not shared.
+// CHECK-LABEL: {{^[ +].*}}fn @casts_stay_apart{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @casts_stay_apart() -> i256 {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = caller
+    v3 = zext i160 v2 to i256
+    v4 = add v1, v3
+    ret v4
+}

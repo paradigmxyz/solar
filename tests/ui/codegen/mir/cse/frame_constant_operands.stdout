@@ -1,0 +1,32 @@
+- // === ROOT/tests/ui/codegen/mir/cse/frame_constant_operands.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/frame_constant_operands.mir (after cse) ===
+  @module FrameConstantOperands
+  fn @repeated_bound(arg0: i256) -> i256 {
+    bb0:
+      v0 = calldatasize
+      v1 = sub v0, arg0
+      v2 = slt v1, 32
+      jumpi v2, bb3, bb1
+    bb1:
+      v3 = calldatasize
+-     v4 = sub v3, arg0
+-     v5 = slt v4, 32
+-     jumpi v5, bb3, bb2
++     jumpi v2, bb3, bb2
+    bb2:
+-     ret v4
++     ret v1
+    bb3:
+      revert 0, 0
+  }
+  
+  fn @casts_stay_apart() -> i256 {
+    bb0:
+      v0 = caller
+      v1 = zext i160 v0 to i256
+      v2 = caller
+      v3 = zext i160 v2 to i256
+      v4 = add v1, v3
+      ret v4
+  }
+  

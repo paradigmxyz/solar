@@ -23,7 +23,10 @@
 //! ```
 //!
 //! The pass performs dominator-tree CSE with path-local invalidation for
-//! alias-sensitive memory/storage reads, then runs a local cleanup pass. Slot hashes
+//! alias-sensitive memory/storage reads, then runs a local cleanup pass. Cheap environment
+//! reads such as `calldatasize` and `caller` stay separate, since rereading costs less than a
+//! stack copy, but they key as one operand, so the bound checks and other non-cast
+//! expressions computed from different reads of the same word are shared. Slot hashes
 //! also write scratch memory; a repeated fixed-width hash can disappear only while
 //! its input and written ranges remain unchanged. Variable-width hashes can overwrite
 //! their source or the FMP itself, so they remain effectful until physical lowering. Check
@@ -310,6 +313,9 @@ enum CastKey {
 enum OperandKey {
     Value(ValueId),
     Immediate(Immediate),
+    /// A read that returns the same word throughout the call, such as `calldatasize` or
+    /// `caller`, keyed by its kind so that expressions over different reads match.
+    FrameConstant(u8),
 }
 
 type MemRangeKey = MemoryLocation;
@@ -1112,7 +1118,16 @@ impl CommonSubexprEliminator {
         // Helper to get canonical operands after in-block replacements.
         let operand = |v: ValueId| Self::operand_key(func, v, replacements);
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
-        let cast = |cast, v| Some(ExprKey::Cast(cast, operand(v), func.inst(inst_id).result_ty));
+        // A cast costs nothing, so sharing one over a frame constant would only trade a cheap
+        // reread for a stack copy: casts key each read separately.
+        let cast = |cast, v| {
+            let v = value(v);
+            let operand = match func.value(v) {
+                Value::Immediate(_) => operand(v),
+                _ => OperandKey::Value(v),
+            };
+            Some(ExprKey::Cast(cast, operand, func.inst(inst_id).result_ty))
+        };
 
         match kind {
             // A pure leaf call depends on its arguments alone, so no side effect invalidates it.
@@ -1585,6 +1600,9 @@ impl CommonSubexprEliminator {
         let value = mir_utils::resolve_replacement(value, replacements);
         match func.value(value) {
             Value::Immediate(imm) => OperandKey::Immediate(imm.clone()),
+            Value::Inst(inst) if let Some(key) = frame_constant_key(&func.inst(*inst).kind) => {
+                OperandKey::FrameConstant(key)
+            }
             _ => OperandKey::Value(value),
         }
     }
@@ -1599,6 +1617,9 @@ impl CommonSubexprEliminator {
             (OperandKey::Immediate(_), OperandKey::Value(_)) => Ordering::Less,
             (OperandKey::Value(_), OperandKey::Immediate(_)) => Ordering::Greater,
             (OperandKey::Value(a), OperandKey::Value(b)) => a.index().cmp(&b.index()),
+            (OperandKey::FrameConstant(a), OperandKey::FrameConstant(b)) => a.cmp(b),
+            (OperandKey::FrameConstant(_), _) => Ordering::Greater,
+            (_, OperandKey::FrameConstant(_)) => Ordering::Less,
         }
     }
 
@@ -1718,4 +1739,26 @@ fn pure_leaf_functions(
         }
     }
     pure
+}
+
+/// A key for an environment read whose word is fixed for the whole call frame.
+fn frame_constant_key(kind: &InstKind) -> Option<u8> {
+    Some(match kind {
+        InstKind::CalldataSize => 0,
+        InstKind::CodeSize => 1,
+        InstKind::Caller => 2,
+        InstKind::CallValue => 3,
+        InstKind::Origin => 4,
+        InstKind::Address => 5,
+        InstKind::ChainId => 6,
+        InstKind::Timestamp => 7,
+        InstKind::BlockNumber => 8,
+        InstKind::GasPrice => 9,
+        InstKind::Coinbase => 10,
+        InstKind::PrevRandao => 11,
+        InstKind::GasLimit => 12,
+        InstKind::BaseFee => 13,
+        InstKind::BlobBaseFee => 14,
+        _ => return None,
+    })
 }
