@@ -14,8 +14,8 @@
 //! capture allocates and copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AddressCallKind, AllocationSemantics, Builtin, Callee, FunctionBuilder, InstKind,
-    MemoryObjectKind, Module, PanicCode, PtrLocation, ValueId,
+    AddressCallKind, AllocationSemantics, BUILTIN_CATEGORY, Builtin, Callee, FunctionBuilder,
+    InstKind, Instruction, MemoryObjectKind, MirPhase, Module, PanicCode, PtrLocation, ValueId,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
 };
@@ -84,21 +84,17 @@ impl MirPass for LowerBuiltins {
             })
             .collect::<FxHashMap<_, _>>();
         run_function_pass(module, analyses, |func, _| {
-            if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
+            if !func.instructions().any(|id| is_builtin(func.inst(id))) {
                 return false;
             }
             let mut replacements = FxHashMap::default();
             for block in func.blocks.indices() {
-                if !func.blocks[block]
-                    .instructions
-                    .iter()
-                    .any(|&id| is_builtin(&func.inst(id).kind))
-                {
+                if !func.blocks[block].instructions.iter().any(|&id| is_builtin(func.inst(id))) {
                     continue;
                 }
                 let mut builder = FunctionBuilder::new(func);
                 expand_block(&mut builder, block, |builder, id| {
-                    if !is_builtin(&builder.func().inst(id).kind) {
+                    if !is_builtin(builder.func().inst(id)) {
                         return false;
                     }
                     let inst = builder.func().inst(id).clone();
@@ -256,35 +252,8 @@ impl MirPass for LowerBuiltins {
     }
 }
 
-fn is_builtin(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::ValidateStorageBytes(..)
-            | InstKind::StorageBytesLoad(..)
-            | InstKind::StorageArrayLoad { .. }
-            | InstKind::StorageBytesStore(..)
-            | InstKind::StorageBytesStoreLiteral { .. }
-            | InstKind::StorageClearWords(..)
-            | InstKind::ICall {
-                function: Callee::Builtin(
-                    Builtin::Erc7201 | Builtin::CheckedAddMod | Builtin::CheckedMulMod
-                ),
-                ..
-            }
-            | InstKind::AbiEncodePacked { .. }
-            | InstKind::ICall {
-                function: Callee::Builtin(
-                    Builtin::Sha256
-                        | Builtin::Ripemd160
-                        | Builtin::EcRecover
-                        | Builtin::Send
-                        | Builtin::Transfer
-                ),
-                ..
-            }
-            | InstKind::AddressCall { .. }
-            | InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
-    )
+fn is_builtin(inst: &Instruction) -> bool {
+    inst.kind.phase_violation(MirPhase::Lowered, &inst.metadata) == Some(BUILTIN_CATEGORY)
 }
 
 fn lower_address_call(
