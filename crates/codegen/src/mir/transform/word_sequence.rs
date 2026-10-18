@@ -27,8 +27,8 @@
 use crate::{
     backend::evm::{op, select},
     mir::{
-        EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Op, Value,
-        ValueId,
+        EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Op,
+        Terminator, Value, ValueId,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
@@ -422,15 +422,21 @@ fn collect_dead(
     });
 }
 
-/// Values whose only use is the condition of a branch.
+/// Values whose only use is the condition of a branch in their defining block, the shape
+/// the backend folds into `JUMPI`.
 fn branch_only_conditions(func: &Function) -> FxHashSet<ValueId> {
     let uses = super::egraph::use_counts(func);
     func.blocks
         .iter()
         .filter_map(|block| match block.terminator {
-            Some(crate::mir::Terminator::Branch { condition, .. }) => Some(condition),
+            Some(Terminator::Branch { condition, .. })
+                if uses[condition] == 1
+                    && let Value::Inst(def) = *func.value(condition)
+                    && block.instructions.contains(&def) =>
+            {
+                Some(condition)
+            }
             _ => None,
         })
-        .filter(|&condition| uses[condition] == 1)
         .collect()
 }

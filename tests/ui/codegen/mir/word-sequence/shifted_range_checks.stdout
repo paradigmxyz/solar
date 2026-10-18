@@ -23,3 +23,15 @@
       ret v0
   }
   
+  fn @other_block(arg0: i256) -> i256 {
+    bb0:
+      v0 = gt arg0, 0xffffffffffffffff
+      jump bb1
+    bb1:
+      jumpi v0, bb2, bb3
+    bb3:
+      ret arg0
+    bb2:
+      revert 0, 0
+  }
+  

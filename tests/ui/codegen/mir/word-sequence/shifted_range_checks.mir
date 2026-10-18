@@ -32,3 +32,20 @@ fn @also_value(arg0: i256) -> i1 {
   bb2:
     ret v0
 }
+
+// The backend folds a nonzero test into `JUMPI` only in the branching block, so
+// a test defined in another block keeps the comparison.
+// CHECK-LABEL: {{^[ +].*}}fn @other_block{{[( ]}}
+// CHECK-NOT: shr
+// CHECK: gt arg0, 0xffffffffffffffff
+fn @other_block(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffff
+    jump bb1
+  bb1:
+    jumpi v0, bb2, bb3
+  bb2:
+    revert 0, 0
+  bb3:
+    ret arg0
+}
