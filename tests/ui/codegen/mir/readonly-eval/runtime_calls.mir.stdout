@@ -108,7 +108,7 @@ fn @short(arg0: ptr<memory>) -> i256 [pure] {
     v7 = mload arg0
     v8 = sub 32, v7
     v9 = mul v8, 8
-    v10 = shl v9, v5
+    v10 = shl v5, v9
     v11 = ptrtoint ptr<memory> arg0 to i256
     v12 = add v11, 32
     v13 = mload v12

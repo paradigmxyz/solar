@@ -23,6 +23,8 @@
 //! that a nonzero test whose only use is a branch costs nothing: `JUMPI` reads the word.
 //! Pure, nontrapping operations without recipes stay in place without breaking
 //! the segment; they never earn deletion credit.
+//! Mask blends wait until storage forwarding and mask simplification have run,
+//! so early recipes do not hide overwritten packed fields from those passes.
 
 use crate::{
     backend::evm::{op, select},
@@ -43,7 +45,10 @@ mod isle;
 
 const MAX_CONE: usize = 16;
 
-pub(crate) struct WordSequence;
+pub(crate) enum WordSequence {
+    Early,
+    Late,
+}
 
 impl MirPass for WordSequence {
     fn name(&self) -> &'static str {
@@ -56,7 +61,9 @@ impl MirPass for WordSequence {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| run(func, Target::new(gcx)))
+        run_function_pass(module, analyses, |func, _| {
+            run(func, Target::new(gcx), matches!(self, Self::Late))
+        })
     }
 }
 
@@ -307,7 +314,7 @@ fn recipe_type(func: &Function, kind: &InstKind, scalar_ty: MirType) -> MirType 
     }
 }
 
-fn run(func: &mut Function, target: Target) -> bool {
+fn run(func: &mut Function, target: Target, late: bool) -> bool {
     let branch_only = branch_only_conditions(func);
     let mut uses = None;
     let mut changed = false;
@@ -335,7 +342,7 @@ fn run(func: &mut Function, target: Target) -> bool {
             let is_branch_only =
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
             let mut best = None;
-            for recipe in isle::alternatives(func, &seen, &op, target) {
+            for recipe in isle::alternatives(func, &seen, &op, target, late) {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {
                     // Nothing changed before the first count; this block is detached.

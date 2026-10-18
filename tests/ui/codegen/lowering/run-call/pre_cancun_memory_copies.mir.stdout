@@ -63,7 +63,7 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     v27 = ptradd v18, 96
     v28 = mload v27
     v29 = byte 0, v28
-    v30 = shl 248, v29
+    v30 = shl v29, 248
     v31 = eq v30, 0x100000000000000000000000000000000000000000000000000000000000000
     jump bb9
   bb9:
@@ -81,7 +81,7 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     v7 = checked_add uint256, v5, 1
     v8 = trunc i256 v7 to i8
     v9 = zext i8 v8 to i256
-    v10 = shl 248, v9
+    v10 = shl v9, 248
     v11 = mload v4
     v12 = lt v5, v11
     v13 = eq v12, false

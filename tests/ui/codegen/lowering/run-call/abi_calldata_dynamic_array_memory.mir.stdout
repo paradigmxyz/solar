@@ -84,7 +84,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     v61 = extract_value slice<calldata>, v58, 1
     calldatacopy v59, v60, v61
     v62 = ptrtoint ptr<memory> v56 to i256
-    v63 = shl 5, v23
+    v63 = shl v23, 5
     v64 = ptradd v22, v63
     v65 = ptradd v64, 32
     mstore v65, v62

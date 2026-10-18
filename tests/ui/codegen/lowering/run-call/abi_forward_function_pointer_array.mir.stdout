@@ -62,13 +62,13 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
     v28 = ptrtoint ptr<calldata> v3 to i256
     v29 = add v28, v27
     v30 = calldataload v29
-    v31 = shl 192, v30
+    v31 = shl v30, 192
     v32 = eq v31, 0
     v33 = eq v32, false
     icall revert_if<empty>, v33
-    v34 = shr 64, v30
-    v35 = shl 64, v34
-    v36 = shl 5, v25
+    v34 = shr v30, 64
+    v35 = shl v34, 64
+    v36 = shl v25, 5
     v37 = ptradd v24, v36
     v38 = ptradd v37, 32
     mstore v38, v35

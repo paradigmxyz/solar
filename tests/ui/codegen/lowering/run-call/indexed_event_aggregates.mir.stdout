@@ -104,7 +104,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v107 = insert_value struct0, v106, 1, v104
     ret v107
   bb11:
-    v76 = shl 5, v73
+    v76 = shl v73, 5
     v77 = ptradd v0, v76
     v78 = ptradd v77, 32
     v79 = mload v78
@@ -119,7 +119,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v96 = add v73, 1
     jump bb10
   bb14:
-    v84 = shl 5, v81
+    v84 = shl v81, 5
     v85 = inttoptr i256 v79 to ptr<memory>
     v86 = ptradd v85, v84
     v87 = ptradd v86, 32
@@ -135,7 +135,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v95 = add v81, 1
     jump bb13
   bb5:
-    v43 = shl 5, v40
+    v43 = shl v40, 5
     v44 = ptradd v0, v43
     v45 = ptradd v44, 32
     v46 = mload v45
@@ -153,7 +153,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v61 = add v40, 1
     jump bb4
   bb8:
-    v51 = shl 5, v48
+    v51 = shl v48, 5
     v52 = inttoptr i256 v46 to ptr<memory>
     v53 = ptradd v52, v51
     v54 = ptradd v53, 32
@@ -164,7 +164,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v58 = add v48, 1
     jump bb7
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -239,7 +239,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     mstore v77, 0x776f726c64000000000000000000000000000000000000000000000000000000
     ret v76
   bb8:
-    v50 = shl 5, v47
+    v50 = shl v47, 5
     v51 = ptradd v0, v50
     v52 = ptradd v51, 32
     v53 = mload v52
@@ -271,7 +271,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v72 = add v47, 1
     jump bb7
   bb5:
-    v23 = shl 5, v20
+    v23 = shl v20, 5
     v24 = ptradd v0, v23
     v25 = ptradd v24, 32
     v26 = mload v25
@@ -288,7 +288,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v35 = add v20, 1
     jump bb4
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96

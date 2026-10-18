@@ -8,7 +8,7 @@ fn @entry() [entry] {
     jumpi v1, bb6, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     v4 = calldataload 4
     v5 = calldataload 36
     v6 = calldataload 68

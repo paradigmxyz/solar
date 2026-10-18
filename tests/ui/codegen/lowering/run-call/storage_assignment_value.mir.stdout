@@ -31,7 +31,7 @@ fn @assignmentLength() -> i256 [selector=0xbe0b35b4, abi_params=[], abi_returns=
     v5 = eq v4, 1
     v6 = sub 0, v4
     v7 = or 127, v6
-    v8 = shr 1, v3
+    v8 = shr v3, 1
     v9 = and v8, v7
     ret v9
 }

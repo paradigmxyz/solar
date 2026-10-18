@@ -139,17 +139,17 @@ fn @finish() {
 
 fn @toggleBit(arg0: i256, arg1: i256) -> i1 {
   bb0:
-    v0 = shr 8, arg1
+    v0 = shr arg1, 8
     v1 = xor arg0, v0
     v2 = mapping_slot v1, 3
     v3 = sload v2 !metadata(storage=symbolic(v2))
     v4 = and arg1, 255
-    v5 = shl v4, 1
+    v5 = shl 1, v4
     v6 = xor v3, v5
     v7 = mapping_slot v1, 3
     sstore v7, v6 !metadata(storage=symbolic(v7))
     v8 = and arg1, 255
-    v9 = shr v8, v6
+    v9 = shr v6, v8
     v10 = and v9, 1
     v11 = eq v10, 1
     ret v11
@@ -178,7 +178,7 @@ fn @quietTwice(arg0: i256) -> i256 [selector=0xf4c54f25, abi_params=[uint256], a
     icall @toggleQuiet, arg0
     v0 = checked_add uint256, arg0, 1
     icall @toggleQuiet, v0
-    v1 = shr 8, arg0
+    v1 = shr arg0, 8
     v2 = mapping_slot v1, 3
     v3 = sload v2 !metadata(storage=symbolic(v2))
     ret v3

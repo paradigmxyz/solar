@@ -19,7 +19,7 @@
 +     v10 = alloc v9 !metadata(preserves_fmp)
 +     mstore v10, v5
 +     v11 = zext i16 arg0 to i256
-+     v12 = shl 216, v11
++     v12 = shl v11, 216
 +     v13 = or 0x1020000000000000000000000000000000000000000000000000000000000, v12
 +     v14 = ptradd v10, 32
 +     mstore v14, v13
@@ -41,10 +41,10 @@
 -     ret v0
 +     v1 = zext i16 arg0 to i256
 +     v2 = and v1, 0xffff
-+     v3 = shl 232, v2
++     v3 = shl v2, 232
 +     v4 = or 0xab00000000000000000000000000000000000000000000000000000000000000, v3
 +     v5 = and 0xcdef000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
-+     v6 = shr 24, v5
++     v6 = shr v5, 24
 +     v7 = or v4, v6
 +     mstore 0, v7 !metadata(memory=scratch)
 +     v8 = keccak256 0, 5 !metadata(memory=scratch)
@@ -58,7 +58,7 @@
 +     v1 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
 +     v2 = or 0, v1
 +     v3 = zext i160 arg1 to i256
-+     v4 = shl 88, v3
++     v4 = shl v3, 88
 +     v5 = or v2, v4
 +     mstore 0, v5 !metadata(memory=scratch)
 +     mstore 21, arg2 !metadata(memory=scratch)
@@ -155,7 +155,7 @@
 +   bb8:
 +     v33 = mul v31, 32
 +     v34 = add 0, v33
-+     v35 = shl 5, v31
++     v35 = shl v31, 5
 +     v36 = ptradd arg0, v35
 +     v37 = ptradd v36, 32
 +     v38 = mload v37
@@ -187,7 +187,7 @@
 +   bb2:
 +     v4 = mul v2, 64
 +     v5 = add 0, v4
-+     v6 = shl 5, v2
++     v6 = shl v2, 5
 +     v7 = ptradd arg0, v6
 +     v8 = mload v7
 +     v9 = add v5, 64
@@ -205,7 +205,7 @@
 +   bb7:
 +     v13 = mul v11, 32
 +     v14 = add v5, v13
-+     v15 = shl 5, v11
++     v15 = shl v11, 5
 +     v16 = inttoptr i256 v8 to ptr<memory>
 +     v17 = ptradd v16, v15
 +     v18 = mload v17
@@ -278,7 +278,7 @@
 +   bb10:
 +     v25 = mul v23, 32
 +     v26 = add 0, v25
-+     v27 = shl 5, v23
++     v27 = shl v23, 5
 +     v28 = ptradd arg1, v27
 +     v29 = ptradd v28, 32
 +     v30 = mload v29
@@ -341,7 +341,7 @@
 +   bb7:
 +     v27 = mul v25, 32
 +     v28 = add 1, v27
-+     v29 = shl 5, v25
++     v29 = shl v25, 5
 +     v30 = ptradd arg0, v29
 +     v31 = ptradd v30, 32
 +     v32 = mload v31

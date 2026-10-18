@@ -1,11 +1,11 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AddressCallKind, AllocationSemantics, BlockId, CalldataTail, FrameMode,
-    FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
-    InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType, PanicCode,
-    PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId, Terminator,
-    Value, ValueId,
+    AbiEncodeMode, AddressCallKind, AllocationFailure, AllocationSemantics, BlockId, CalldataTail,
+    FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType,
+    PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
+    Terminator, Value, ValueId,
 };
 use crate::{
     link::LibraryId,
@@ -906,9 +906,20 @@ impl<'a> FunctionBuilder<'a> {
         semantics: AllocationSemantics,
     ) -> (ValueId, MemoryObjectLayout) {
         let one = self.imm(1);
-        let words = self.checked_add(length, one);
-        let word_size = self.imm(32);
-        let size = self.checked_mul(words, word_size);
+        let word_size = self.imm(EvmMemoryLayout::WORD_SIZE);
+        let size = if semantics.failure == AllocationFailure::Checked {
+            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE - 1, 0x41
+            // size = (length + 1) * WORD_SIZE
+            let limit =
+                self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE - 1);
+            let invalid = self.gt(length, limit);
+            self.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
+            let words = self.add(length, one);
+            self.mul(words, word_size)
+        } else {
+            let words = self.checked_add(length, one);
+            self.checked_mul(words, word_size)
+        };
         let layout = MemoryObjectLayout::WORD_ARRAY;
         let object = self.alloc(size, semantics);
         self.set_memory_len(object, length);
@@ -1060,9 +1071,9 @@ impl<'a> FunctionBuilder<'a> {
         if let Some(index) = self.func.value_u64(index) {
             return self.imm(index.saturating_mul(EvmMemoryLayout::WORD_SIZE));
         }
-        // offset = shl 5, index
+        // offset = shl index, 5
         let shift = self.imm(u64::from(EvmMemoryLayout::WORD_SIZE.trailing_zeros()));
-        self.shl(shift, index)
+        self.shl(index, shift)
     }
 
     /// Returns the header bytes before a memory object's words: none for a fixed array or
@@ -1348,7 +1359,7 @@ impl<'a> FunctionBuilder<'a> {
         let long_mask = self.sub(zero, flag);
         let short_mask = self.imm(0x7f);
         let mask = self.or(short_mask, long_mask);
-        let half = self.shr(one, header);
+        let half = self.shr(header, one);
         let length = self.and(half, mask);
         (is_long, length)
     }
@@ -1364,7 +1375,7 @@ impl<'a> FunctionBuilder<'a> {
         let bits = self.imm(8);
         let shift = self.mul(unused_bytes, bits);
         let one = self.imm(1);
-        let high_bit = self.shl(shift, one);
+        let high_bit = self.shl(one, shift);
         let low_mask = self.sub(high_bit, one);
         let data_mask = self.not(low_mask);
         self.and(data, data_mask)
@@ -1385,7 +1396,7 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn long_storage_bytes_header(&mut self, length: ValueId) -> ValueId {
         // header = length << 1 | 1
         let one = self.imm(1);
-        let shifted = self.shl(one, length);
+        let shifted = self.shl(length, one);
         self.or(shifted, one)
     }
 
@@ -1933,5 +1944,23 @@ impl<'a> FunctionBuilder<'a> {
     /// Returns a mutable reference to the function.
     pub(crate) fn func_mut(&mut self) -> &mut Function {
         self.func
+    }
+
+    /// Emits `value << shift`.
+    pub(crate) fn shl(&mut self, value: ValueId, shift: ValueId) -> ValueId {
+        // result = shl value, shift
+        self.emit_inst(InstKind::Shl(shift, value), Some(MirType::I256))
+    }
+
+    /// Emits `value >> shift`.
+    pub(crate) fn shr(&mut self, value: ValueId, shift: ValueId) -> ValueId {
+        // result = shr value, shift
+        self.emit_inst(InstKind::Shr(shift, value), Some(MirType::I256))
+    }
+
+    /// Emits the arithmetic shift `value >> shift`.
+    pub(crate) fn sar(&mut self, value: ValueId, shift: ValueId) -> ValueId {
+        // result = sar value, shift
+        self.emit_inst(InstKind::Sar(shift, value), Some(MirType::I256))
     }
 }

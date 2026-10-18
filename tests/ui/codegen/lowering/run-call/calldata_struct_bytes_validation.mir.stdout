@@ -97,8 +97,8 @@ fn @encodeField(arg0: slice<calldata>) -> i256 [selector=0xbd1dd83b, pure, abi_p
     v27 = ptradd v23, 96
     v28 = mload v27
     v29 = byte 0, v28
-    v30 = shl 248, v29
-    v31 = shr 248, v30
+    v30 = shl v29, 248
+    v31 = shr v30, 248
     v32 = trunc i256 v31 to i8
     v33 = zext i8 v32 to i256
     ret v33
@@ -141,8 +141,8 @@ fn @encodePackedField(arg0: slice<calldata>) -> i256 [selector=0xed098724, pure,
     v27 = ptradd v23, 32
     v28 = mload v27
     v29 = byte 0, v28
-    v30 = shl 248, v29
-    v31 = shr 248, v30
+    v30 = shl v29, 248
+    v31 = shr v30, 248
     v32 = trunc i256 v31 to i8
     v33 = zext i8 v32 to i256
     ret v33
@@ -241,8 +241,8 @@ fn @indexField(arg0: slice<calldata>) -> i256 [selector=0xec2824a8, pure, abi_pa
     v27 = extract_value slice<calldata>, v22, 0
     v28 = calldataload v27
     v29 = byte 0, v28
-    v30 = shl 248, v29
-    v31 = shr 248, v30
+    v30 = shl v29, 248
+    v31 = shr v30, 248
     v32 = trunc i256 v31 to i8
     v33 = zext i8 v32 to i256
     ret v33
@@ -283,10 +283,10 @@ fn @fixedField(arg0: slice<calldata>) -> i256 [selector=0x4d20e66c, pure, abi_pa
     v26 = lt v25, 1
     v27 = sub 1, v25
     v28 = mul 8, v27
-    v29 = shl v28, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v29 = shl 0xff00000000000000000000000000000000000000000000000000000000000000, v28
     v30 = select v26, v29, 0xff00000000000000000000000000000000000000000000000000000000000000
     v31 = and v24, v30
-    v32 = shr 248, v31
+    v32 = shr v31, 248
     v33 = trunc i256 v32 to i8
     v34 = zext i8 v33 to i256
     ret v34
@@ -499,7 +499,7 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v56 = extract_value slice<calldata>, v47, 1
     calldatacopy v54, v55, v56
     v57 = ptrtoint ptr<memory> v53 to i256
-    v58 = shl 5, v23
+    v58 = shl v23, 5
     v59 = ptradd v22, v58
     v60 = ptradd v59, 32
     mstore v60, v57

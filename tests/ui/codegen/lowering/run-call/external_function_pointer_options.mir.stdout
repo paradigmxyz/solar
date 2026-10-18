@@ -37,11 +37,11 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xa4ba067e
     v4 = and v3, 0xffffffff
-    v5 = shl 224, v4
-    v6 = shr 32, v3
+    v5 = shl v4, 224
+    v6 = shr v3, 32
     v7 = gas
     v8 = icall @gasOpt
     v9 = icall @valueOpt
@@ -83,7 +83,7 @@ fn @functionValue() -> i256 {
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = address
     v3 = zext i160 v2 to i256
-    v4 = shl 32, v3
+    v4 = shl v3, 32
     v5 = or v4, 0x132e4f3c
     ret v5
 }
@@ -101,10 +101,10 @@ fn @optionMembers() -> i1 [selector=0x1b98d889, abi_params=[], abi_returns=[word
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xa4ba067e
     v4 = icall @gasOpt
-    v5 = shr 32, v3
+    v5 = shr v3, 32
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
     v7 = trunc i256 v6 to i160
     v8 = address
@@ -115,11 +115,11 @@ fn @optionMembers() -> i1 [selector=0x1b98d889, abi_params=[], abi_returns=[word
   bb1:
     v10 = address
     v11 = zext i160 v10 to i256
-    v12 = shl 32, v11
+    v12 = shl v11, 32
     v13 = or v12, 0xa4ba067e
     v14 = icall @gasOpt
     v15 = and v13, 0xffffffff
-    v16 = shl 224, v15
+    v16 = shl v15, 224
     v17 = eq v16, 0xa4ba067e00000000000000000000000000000000000000000000000000000000
     jump bb3
   bb3:
@@ -140,13 +140,13 @@ fn @directSelector() -> i1 [selector=0x2c3bf323, abi_params=[], abi_returns=[wor
   bb0:
     v0 = icall @receiver
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0x132e4f3c
     v4 = icall @valueOpt
     v5 = checked_add uint256, 1, v4
     v6 = icall @gasOpt
     v7 = and v3, 0xffffffff
-    v8 = shl 224, v7
+    v8 = shl v7, 224
     v9 = eq v8, 0x132e4f3c00000000000000000000000000000000000000000000000000000000
     jumpi v9, bb1, bb2
   bb2:
@@ -175,13 +175,13 @@ fn @pointerSelector(arg0: i1) -> i1 [selector=0x7700d7ca, abi_params=[bool], abi
   bb2:
     v4 = address
     v5 = zext i160 v4 to i256
-    v6 = shl 32, v5
+    v6 = shl v5, 32
     v7 = or v6, 0x132e4f3c
     jump bb3
   bb1:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xa4ba067e
     jump bb3
   bb3:
@@ -190,7 +190,7 @@ fn @pointerSelector(arg0: i1) -> i1 [selector=0x7700d7ca, abi_params=[bool], abi
     v10 = icall @valueOpt
     v11 = checked_add uint256, 1, v10
     v12 = and v8, 0xffffffff
-    v13 = shl 224, v12
+    v13 = shl v12, 224
     jumpi arg0, bb4, bb5
   bb5:
     jump bb6
@@ -227,7 +227,7 @@ fn @returnedSelector() -> i1 [selector=0x9be40e11, abi_params=[], abi_returns=[w
     v2 = icall @valueOpt
     v3 = checked_add uint256, 1, v2
     v4 = and v0, 0xffffffff
-    v5 = shl 224, v4
+    v5 = shl v4, 224
     v6 = eq v5, 0x132e4f3c00000000000000000000000000000000000000000000000000000000
     jumpi v6, bb1, bb2
   bb2:

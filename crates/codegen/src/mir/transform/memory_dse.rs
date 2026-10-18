@@ -2,9 +2,11 @@
 //!
 //! This pass removes full-word `mstore` instructions that are overwritten by a
 //! later full-word `mstore` to the same exact address within the same basic
-//! block, before any operation can observe memory or gas. It also forwards
-//! same-block `mload` instructions from the latest exact-address `mstore` when
-//! no intervening operation can mutate memory. Across a unique predecessor
+//! block, before any operation can observe memory or gas. It also removes small
+//! word-sized zero fills and calldata copies when every word is overwritten.
+//! Returndata copies remain because their source bounds check can revert.
+//! The pass forwards same-block `mload` instructions from the latest exact-address
+//! `mstore` when no intervening operation can mutate memory. Across a unique predecessor
 //! edge, equal constant stores can be removed only while no overlapping
 //! 32-byte write has invalidated the remembered word. Gas and memory-size
 //! observations act as barriers to memory elimination. Allocation-based keys require
@@ -13,6 +15,9 @@
 //! does once forwarding has replaced the reads of its used fields, loses those stores:
 //! static placement already keeps every other way to reach its words out of the
 //! function.
+//!
+//! A final `-Ogas` run after allocation lowering removes fills that only become explicit
+//! there, before memory-zero lowering turns them into copies or loops.
 
 use crate::mir::{
     BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, Module, PtrLocation,
@@ -863,12 +868,18 @@ impl MemoryStoreEliminator {
                 | InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
                 | InstKind::DataCopy(_, dest, size)
                 | InstKind::CodeCopy(dest, _, size) => {
-                    self.insert_or_clear_full_word_overwritten_range(
+                    if self.insert_or_clear_full_word_overwritten_range(
                         func,
                         &mut scratch.overwritten,
                         *dest,
                         *size,
-                    );
+                    ) && matches!(
+                        inst.kind,
+                        InstKind::MemoryZero(..) | InstKind::Copy(.., PtrLocation::Calldata)
+                    ) {
+                        scratch.dead.insert(inst_id);
+                        self.eliminated_count += 1;
+                    }
                 }
                 InstKind::ExtCodeCopy(_, dest, _, size) => {
                     self.insert_or_clear_full_word_overwritten_range(
@@ -1472,35 +1483,36 @@ impl MemoryStoreEliminator {
         overwritten: &mut FxHashSet<MemAddrKey>,
         dest: ValueId,
         size: ValueId,
-    ) -> bool {
-        let Some(size) = func.value_u64(size) else {
-            return false;
-        };
+    ) -> Option<bool> {
+        let size = func.value_u64(size)?;
         if size % 32 != 0 || size > 4096 {
-            return false;
+            return None;
         }
 
-        let Some(base) = self.mem_addr_key(func, dest, size) else {
-            return false;
-        };
+        let base = self.mem_addr_key(func, dest, size)?;
+        let mut fully_overwritten = size != 0;
         for offset in (0..size).step_by(32) {
-            let Some(key) = Self::offset_mem_addr_key(base, offset) else {
-                return false;
-            };
-            overwritten.insert(key);
+            let key = Self::offset_mem_addr_key(base, offset)?;
+            fully_overwritten &= !overwritten.insert(key);
         }
-        true
+        Some(fully_overwritten)
     }
 
+    /// Returns whether every word in a nonempty range was already overwritten.
     fn insert_or_clear_full_word_overwritten_range(
         &self,
         func: &Function,
         overwritten: &mut FxHashSet<MemAddrKey>,
         dest: ValueId,
         size: ValueId,
-    ) {
-        if !self.insert_full_word_overwritten_range(func, overwritten, dest, size) {
+    ) -> bool {
+        if let Some(fully_overwritten) =
+            self.insert_full_word_overwritten_range(func, overwritten, dest, size)
+        {
+            fully_overwritten
+        } else {
             overwritten.clear();
+            false
         }
     }
 

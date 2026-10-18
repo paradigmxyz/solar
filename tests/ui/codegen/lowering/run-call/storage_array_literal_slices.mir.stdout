@@ -169,7 +169,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
   bb22:
     jump bb6
   bb21:
-    v112 = shl 5, v110
+    v112 = shl v110, 5
     v113 = ptradd v101, v112
     v114 = ptradd v113, 32
     v115 = mload v114
@@ -185,7 +185,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v109 = add v105, 1
     jump bb17
   bb4:
-    v80 = shl 5, v76
+    v80 = shl v76, 5
     v81 = ptradd v0, v80
     v82 = mload v81
     v83 = mload v82
@@ -213,7 +213,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v119 = add v76, 1
     jump bb1
   bb13:
-    v93 = shl 5, v91
+    v93 = shl v91, 5
     v94 = inttoptr i256 v82 to ptr<memory>
     v95 = ptradd v94, v93
     v96 = ptradd v95, 32

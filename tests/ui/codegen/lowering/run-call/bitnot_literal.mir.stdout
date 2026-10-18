@@ -2,7 +2,7 @@
 @module BitNotLiteral
 fn @lowByte(arg0: i256) -> i8 [selector=0xc6ab1b41, pure, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
-    v0 = shr 8, arg0
+    v0 = shr arg0, 8
     v1 = and v0, 255
     v2 = trunc i256 v1 to i8
     ret v2

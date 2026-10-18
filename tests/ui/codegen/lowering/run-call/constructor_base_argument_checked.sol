@@ -65,7 +65,7 @@ contract CheckedBaseArgExp is CheckedBase {
 // CHECK-LABEL: @module CheckedBaseArgShift
 // CHECK: fn @constructor(arg0: i256)
 // CHECK-NEXT: bb0:
-// CHECK-NEXT: [[SHIFTED:v[0-9]+]] = shl 1, arg0
+// CHECK-NEXT: [[SHIFTED:v[0-9]+]] = shl arg0, 1
 // CHECK-NEXT: sstore 0, [[SHIFTED]]
 contract CheckedBaseArgShift is CheckedBase {
     constructor(uint256 v) CheckedBase(v << 1) {}

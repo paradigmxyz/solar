@@ -48,12 +48,12 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     icall panic_if<0x32>, v34
     v35 = mul 1, 2
     v36 = add v32, v35
-    v37 = shl 8, 255
+    v37 = shl 255, 8
     v38 = sload v36 !metadata(storage=symbolic(v36))
     v39 = not v37
     v40 = and v38, v39
     v41 = and 12, 255
-    v42 = shl 8, v41
+    v42 = shl v41, 8
     v43 = or v40, v42
     sstore v36, v43 !metadata(storage=symbolic(v36))
     v44 = sload 0 !metadata(storage=slot(0))
@@ -149,12 +149,12 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     icall panic_if<0x32>, v114
     v115 = mul 2, 2
     v116 = add v112, v115
-    v117 = shl 8, 255
+    v117 = shl 255, 8
     v118 = sload v116 !metadata(storage=symbolic(v116))
     v119 = not v117
     v120 = and v118, v119
     v121 = and 22, 255
-    v122 = shl 8, v121
+    v122 = shl v121, 8
     v123 = or v120, v122
     sstore v116, v123 !metadata(storage=symbolic(v116))
     v124 = sload 0 !metadata(storage=slot(0))
@@ -361,7 +361,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     jumpi v197, bb5, bb6
   bb6:
     v217 = ptrtoint ptr<memory> v195 to i256
-    v218 = shl 5, v190
+    v218 = shl v190, 5
     v219 = ptradd v189, v218
     v220 = ptradd v219, 32
     mstore v220, v217
@@ -376,7 +376,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v203 = zext i8 v202 to i256
     mstore v200, v203
     v204 = sload v199 !metadata(storage=symbolic(v199))
-    v205 = shr 8, v204
+    v205 = shr v204, 8
     v206 = trunc i256 v205 to i8
     v207 = zext i8 v206 to i256
     v208 = ptradd v200, 32
@@ -387,7 +387,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v212 = ptradd v200, 64
     mstore v212, v211
     v213 = ptrtoint ptr<memory> v200 to i256
-    v214 = shl 5, v196
+    v214 = shl v196, 5
     v215 = ptradd v195, v214
     mstore v215, v213
     v216 = add v196, 1

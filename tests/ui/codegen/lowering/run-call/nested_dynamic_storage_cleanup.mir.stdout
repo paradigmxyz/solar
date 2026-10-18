@@ -123,7 +123,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v109 = insert_value struct0, v108, 1, v107
     ret v109
   bb13:
-    v78 = shl 5, v76
+    v78 = shl v76, 5
     v79 = ptradd v40, v78
     v80 = ptradd v79, 32
     v81 = mload v80, ptr<memory>
@@ -152,7 +152,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v101 = add v76, 1
     jump bb12
   bb21:
-    v94 = shl 5, v92
+    v94 = shl v92, 5
     v95 = ptradd v81, v94
     v96 = ptradd v95, 32
     v97 = mload v96
@@ -187,7 +187,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v74 = add v70, 1
     jump bb9
   bb2:
-    v43 = shl 5, v41
+    v43 = shl v41, 5
     v44 = ptradd v40, v43
     v45 = ptradd v44, 32
     mstore v45, 96

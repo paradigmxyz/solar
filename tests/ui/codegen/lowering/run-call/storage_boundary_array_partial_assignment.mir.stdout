@@ -68,7 +68,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb6
   bb4:
-    v12 = shl 5, v8
+    v12 = shl v8, 5
     v13 = ptradd v1, v12
     v14 = mload v13
     sstore v10, v14 !metadata(storage=symbolic(v10))

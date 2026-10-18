@@ -62,8 +62,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v42 = ptradd v38, 33
     v43 = mload v42
     v44 = byte 0, v43
-    v45 = shl 248, v44
-    v46 = shr 248, v45
+    v45 = shl v44, 248
+    v46 = shr v45, 248
     v47 = trunc i256 v46 to i8
     v48 = zext i8 v47 to i256
     v49 = checked_add uint256, v33, v48
@@ -80,8 +80,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v58 = ptradd v54, 71
     v59 = mload v58
     v60 = byte 0, v59
-    v61 = shl 248, v60
-    v62 = shr 248, v61
+    v61 = shl v60, 248
+    v62 = shr v61, 248
     v63 = trunc i256 v62 to i8
     v64 = zext i8 v63 to i256
     v65 = checked_add uint256, v49, v64

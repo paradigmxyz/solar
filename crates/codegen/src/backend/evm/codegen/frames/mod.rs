@@ -1604,13 +1604,13 @@ mod tests {
         // divided = (add / 32) * 32
         // mixed_alignment = (add >> 5) * 32
         let shift = builder.imm(5);
-        let quotient = builder.shr(shift, add);
-        let shifted_alignment = builder.shl(shift, quotient);
+        let quotient = builder.shr(add, shift);
+        let shifted_alignment = builder.shl(quotient, shift);
         let mixed_alignment = builder.mul(word, quotient);
         let quotient = builder.div(add, word);
         let divided_alignment = builder.mul(quotient, word);
         let commuted_divided = builder.mul(word, quotient);
-        let mixed_shift = builder.shl(shift, quotient);
+        let mixed_shift = builder.shl(quotient, shift);
         // opaque_alignment = (opaque / 32) * 32
         // mismatched = (add / 32) * 16
         let opaque_quotient = builder.div(opaque, word);

@@ -49,7 +49,7 @@ fn @signedExtend() -> i256 [selector=0xae58e3e0, pure, abi_params=[], abi_return
 
 fn @firstShiftedByte(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = shl 96, arg0
+    v0 = shl arg0, 96
     v1 = byte 0, v0
     ret v1
 }
@@ -86,7 +86,7 @@ fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_
     v6 = zext i160 v5 to i256
     v7 = ptradd v1, 32
     mstore v7, v6
-    v8 = shl 160, 1
+    v8 = shl 1, 160
     v9 = sub v8, 1
     v10 = ptrtoint ptr<memory> v1 to i256
     v11 = add v10, 32

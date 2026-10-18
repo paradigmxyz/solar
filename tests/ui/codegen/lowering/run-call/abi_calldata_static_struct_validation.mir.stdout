@@ -24,14 +24,14 @@ fn @encodeStruct() -> ptr<memory> [selector=0x01e941a3, pure, abi_params=[], abi
     v0 = icall @makeStruct
     v1 = extract_value slice<calldata>, v0, 0
     v2 = calldataload v1
-    v3 = shr 8, v2
+    v3 = shr v2, 8
     v4 = eq v3, 0
     v5 = eq v4, false
     icall revert_if<empty>, v5
     v6 = ptrtoint ptr<calldata> v1 to i256
     v7 = add v6, 32
     v8 = calldataload v7
-    v9 = shr 8, v8
+    v9 = shr v8, 8
     v10 = eq v9, 0
     v11 = eq v10, false
     icall revert_if<empty>, v11

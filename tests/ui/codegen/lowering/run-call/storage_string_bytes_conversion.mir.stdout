@@ -17,7 +17,7 @@ fn @readLength() -> i256 [selector=0x3d19002a, view, abi_params=[], abi_returns=
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     ret v6
 }
@@ -36,7 +36,7 @@ fn @pushThroughConversion() -> ptr<memory> [selector=0x10f946b0, abi_params=[], 
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = eq v7, false
@@ -50,11 +50,11 @@ fn @pushThroughConversion() -> ptr<memory> [selector=0x10f946b0, abi_params=[], 
     v31 = add v0, 2
     v32 = sub 31, v6
     v33 = mul v32, 8
-    v34 = shl v33, 255
+    v34 = shl 255, v33
     v35 = not v34
     v36 = and v31, v35
     v37 = byte 0, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v38 = shl v33, v37
+    v38 = shl v37, v33
     v39 = or v36, v38
     sstore 0, v39 !metadata(storage=slot(0))
     jump bb5
@@ -71,18 +71,18 @@ fn @pushThroughConversion() -> ptr<memory> [selector=0x10f946b0, abi_params=[], 
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
-    v12 = shr 5, v6
+    v12 = shr v6, 5
     v13 = add v11, v12
     v14 = and v6, 31
     v15 = sub 31, v14
     v16 = mul v15, 8
-    v17 = shl v16, 255
+    v17 = shl 255, v16
     v18 = sload v13 !metadata(storage=symbolic(v13))
     v19 = not v17
     v20 = and v18, v19
-    v21 = shr 248, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v21 = shr 0x2100000000000000000000000000000000000000000000000000000000000000, 248
     v22 = and v21, 255
-    v23 = shl v16, v22
+    v23 = shl v22, v16
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
     jump bb5
@@ -99,7 +99,7 @@ fn @pushAssignThroughConversion() -> ptr<memory> [selector=0x2975c49f, abi_param
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 1
     v8 = gt v7, 0x10000000000000000
@@ -112,7 +112,7 @@ fn @pushAssignThroughConversion() -> ptr<memory> [selector=0x2975c49f, abi_param
   bb4:
     v21 = sub 32, v7
     v22 = mul v21, 8
-    v23 = shl v22, 1
+    v23 = shl 1, v22
     v24 = sub v23, 1
     v25 = not v24
     v26 = and v0, v25
@@ -125,16 +125,16 @@ fn @pushAssignThroughConversion() -> ptr<memory> [selector=0x2975c49f, abi_param
     v17 = not 255
     v18 = and v0, v17
     sstore v16, v18 !metadata(storage=symbolic(v16))
-    v19 = shl 1, v7
+    v19 = shl v7, 1
     v20 = or v19, 1
     sstore 0, v20 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v10 = shl 1, v7
+    v10 = shl v7, 1
     v11 = or v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
     v12 = storage_array_data_slot 0
-    v13 = shr 5, v6
+    v13 = shr v6, 5
     v14 = add v12, v13
     jump bb5
   bb5:
@@ -142,13 +142,13 @@ fn @pushAssignThroughConversion() -> ptr<memory> [selector=0x2975c49f, abi_param
     v30 = and v6, 31
     v31 = sub 31, v30
     v32 = mul v31, 8
-    v33 = shl v32, 255
+    v33 = shl 255, v32
     v34 = sload v29 !metadata(storage=symbolic(v29))
     v35 = not v33
     v36 = and v34, v35
-    v37 = shr 248, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v37 = shr 0x2100000000000000000000000000000000000000000000000000000000000000, 248
     v38 = and v37, 255
-    v39 = shl v32, v38
+    v39 = shl v38, v32
     v40 = or v36, v39
     sstore v29, v40 !metadata(storage=symbolic(v29))
     v41 = load_storage_bytes 0
@@ -163,7 +163,7 @@ fn @popThroughConversion() -> ptr<memory> [selector=0x14044da4, abi_params=[], a
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = eq v6, 0
     icall panic_if<0x31>, v7
@@ -175,18 +175,18 @@ fn @popThroughConversion() -> ptr<memory> [selector=0x14044da4, abi_params=[], a
     jumpi v20, bb2, bb3
   bb3:
     v29 = storage_array_data_slot 0
-    v30 = shr 5, v19
+    v30 = shr v19, 5
     v31 = add v29, v30
     v32 = and v19, 31
     v33 = sub 31, v32
     v34 = mul v33, 8
-    v35 = shl v34, 255
+    v35 = shl 255, v34
     v36 = sload v31 !metadata(storage=symbolic(v31))
     v37 = not v35
     v38 = and v36, v37
-    v39 = shr 248, 0
+    v39 = shr 0, 248
     v40 = and v39, 255
-    v41 = shl v34, v40
+    v41 = shl v40, v34
     v42 = or v38, v41
     sstore v31, v42 !metadata(storage=symbolic(v31))
     v43 = sub v0, 2
@@ -195,7 +195,7 @@ fn @popThroughConversion() -> ptr<memory> [selector=0x14044da4, abi_params=[], a
   bb2:
     v21 = sub 32, v19
     v22 = mul v21, 8
-    v23 = shl v22, 1
+    v23 = shl 1, v22
     v24 = sub v23, 1
     v25 = not v24
     v26 = and v0, v25
@@ -208,7 +208,7 @@ fn @popThroughConversion() -> ptr<memory> [selector=0x14044da4, abi_params=[], a
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = sub 32, 31
     v12 = mul v11, 8
-    v13 = shl v12, 1
+    v13 = shl 1, v12
     v14 = sub v13, 1
     v15 = not v14
     v16 = and v10, v15
@@ -234,7 +234,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v4 = eq v3, 1
     v5 = sub 0, v3
     v6 = or 127, v5
-    v7 = shr 1, v2
+    v7 = shr v2, 1
     v8 = and v7, v6
     v9 = lt v8, 32
     jumpi v9, bb3, bb4
@@ -247,7 +247,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v52 = eq v51, 1
     v53 = sub 0, v51
     v54 = or 127, v53
-    v55 = shr 1, v50
+    v55 = shr v50, 1
     v56 = and v55, v54
     v57 = eq v56, 0
     icall panic_if<0x31>, v57
@@ -259,18 +259,18 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     jumpi v70, bb12, bb13
   bb13:
     v79 = storage_array_data_slot 0
-    v80 = shr 5, v69
+    v80 = shr v69, 5
     v81 = add v79, v80
     v82 = and v69, 31
     v83 = sub 31, v82
     v84 = mul v83, 8
-    v85 = shl v84, 255
+    v85 = shl 255, v84
     v86 = sload v81 !metadata(storage=symbolic(v81))
     v87 = not v85
     v88 = and v86, v87
-    v89 = shr 248, 0
+    v89 = shr 0, 248
     v90 = and v89, 255
-    v91 = shl v84, v90
+    v91 = shl v90, v84
     v92 = or v88, v91
     sstore v81, v92 !metadata(storage=symbolic(v81))
     v93 = sub v50, 2
@@ -279,7 +279,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
   bb12:
     v71 = sub 32, v69
     v72 = mul v71, 8
-    v73 = shl v72, 1
+    v73 = shl 1, v72
     v74 = sub v73, 1
     v75 = not v74
     v76 = and v50, v75
@@ -292,7 +292,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v60 = sload v59 !metadata(storage=symbolic(v59))
     v61 = sub 32, 31
     v62 = mul v61, 8
-    v63 = shl v62, 1
+    v63 = shl 1, v62
     v64 = sub v63, 1
     v65 = not v64
     v66 = and v60, v65
@@ -314,7 +314,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v12 = eq v11, 1
     v13 = sub 0, v11
     v14 = or 127, v13
-    v15 = shr 1, v10
+    v15 = shr v10, 1
     v16 = and v15, v14
     v17 = lt v16, 0x10000000000000000
     v18 = eq v17, false
@@ -328,11 +328,11 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v41 = add v10, 2
     v42 = sub 31, v16
     v43 = mul v42, 8
-    v44 = shl v43, 255
+    v44 = shl 255, v43
     v45 = not v44
     v46 = and v41, v45
     v47 = byte 0, 0x4100000000000000000000000000000000000000000000000000000000000000
-    v48 = shl v43, v47
+    v48 = shl v47, v43
     v49 = or v46, v48
     sstore 0, v49 !metadata(storage=slot(0))
     jump bb10
@@ -349,18 +349,18 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v20 = add v10, 2
     sstore 0, v20 !metadata(storage=slot(0))
     v21 = storage_array_data_slot 0
-    v22 = shr 5, v16
+    v22 = shr v16, 5
     v23 = add v21, v22
     v24 = and v16, 31
     v25 = sub 31, v24
     v26 = mul v25, 8
-    v27 = shl v26, 255
+    v27 = shl 255, v26
     v28 = sload v23 !metadata(storage=symbolic(v23))
     v29 = not v27
     v30 = and v28, v29
-    v31 = shr 248, 0x4100000000000000000000000000000000000000000000000000000000000000
+    v31 = shr 0x4100000000000000000000000000000000000000000000000000000000000000, 248
     v32 = and v31, 255
-    v33 = shl v26, v32
+    v33 = shl v32, v26
     v34 = or v30, v33
     sstore v23, v34 !metadata(storage=symbolic(v23))
     jump bb10

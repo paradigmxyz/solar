@@ -45,7 +45,7 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
     v25 = add v24, 1
     v26 = and v19, 31
     v27 = sub 32, v26
-    v28 = shl 3, v27
+    v28 = shl v27, 3
     v29 = ptrtoint ptr<memory> v4 to i256
     v30 = add v29, 32
     v31 = mload v30
@@ -88,7 +88,7 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
   bb34:
     v88 = mload v78
     v89 = xor v88, v87
-    v90 = shr v86, v89
+    v90 = shr v89, v86
     v91 = eq v90, 0
     v92 = zext i1 v91 to i256
     v93 = ne v92, 0
@@ -142,7 +142,7 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
   bb20:
     v59 = mload v48
     v60 = xor v59, v57
-    v61 = shr v56, v60
+    v61 = shr v60, v56
     v62 = eq v61, 0
     v63 = zext i1 v62 to i256
     v64 = ne v63, 0

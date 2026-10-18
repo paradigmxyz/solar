@@ -79,7 +79,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
     v18 = mload v17
-    v19 = shr 224, v18
+    v19 = shr v18, 224
     v20 = eq v19, 0x8c379a0
     jumpi v20, bb4, bb5
   bb5:
@@ -126,7 +126,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v47 = extract_value slice<memory>, v45, 1
     v48 = extract_value slice<memory>, v45, 0
     v49 = mload v48
-    v50 = shr 224, v49
+    v50 = shr v49, 224
     v51 = eq v50, 0x8c379a0
     jumpi v51, bb12, bb13
   bb13:
@@ -183,7 +183,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v83 = extract_value slice<memory>, v81, 1
     v84 = extract_value slice<memory>, v81, 0
     v85 = mload v84
-    v86 = shr 224, v85
+    v86 = shr v85, 224
     v87 = eq v86, 0x4e487b71
     v88 = lt v83, 36
     v89 = eq v88, false
@@ -299,11 +299,11 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v144 = sload 0 !metadata(storage=slot(0))
     v145 = trunc i256 v144 to i160
     v146 = zext i160 v145 to i256
-    v147 = shl 32, v146
+    v147 = shl v146, 32
     v148 = or v147, 0xb3de648b
     v149 = and v148, 0xffffffff
-    v150 = shl 224, v149
-    v151 = shr 32, v148
+    v150 = shl v149, 224
+    v151 = shr v148, 32
     v152 = gas
     v153 = abi_encode [word], selector v150, args 6
     v154 = extract_value slice<memory>, v153, 0

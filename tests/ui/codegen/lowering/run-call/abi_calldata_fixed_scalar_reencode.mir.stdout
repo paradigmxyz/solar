@@ -67,7 +67,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0x94e17704, pure, abi_para
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
     v11 = calldataload v10
-    v12 = shr 8, v11
+    v12 = shr v11, 8
     v13 = eq v12, 0
     v14 = eq v13, false
     icall revert_if<empty>, v14
@@ -120,7 +120,7 @@ fn @i(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x18e849a4, vi
     v21 = ptrtoint ptr<calldata> v17 to i256
     v22 = add v21, v20
     v23 = calldataload v22
-    v24 = shr 8, v23
+    v24 = shr v23, 8
     v25 = eq v24, 0
     v26 = eq v25, false
     icall revert_if<empty>, v26

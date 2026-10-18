@@ -225,7 +225,7 @@ fn @arithmetic() -> struct3 [selector=0x980a67fd, pure, abi_params=[], abi_retur
     v1 = checked_mul uint8, i8 1, i8 1
     v2 = checked_div uint8, i8 1, i8 1
     v3 = checked_rem uint8, i8 1, i8 2
-    v4 = shl i8 0, i8 1
+    v4 = shl i8 1, i8 0
     v5 = shr i8 1, i8 1
     v6 = insert_value struct3, undef struct3, 0, v0
     v7 = insert_value struct3, v6, 1, v1

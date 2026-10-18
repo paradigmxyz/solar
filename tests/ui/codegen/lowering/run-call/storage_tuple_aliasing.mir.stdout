@@ -142,7 +142,7 @@ fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns
     v9 = lt v8, 1
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = shl 5, v8
+    v11 = shl v8, 5
     v12 = ptradd v4, v11
     mstore v12, 1
     v13 = alloc checked 32
@@ -380,7 +380,7 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
     v80 = insert_value struct0, v79, 3, v76
     ret v80
   bb21:
-    v56 = shl 5, v54
+    v56 = shl v54, 5
     v57 = ptradd v45, v56
     v58 = ptradd v57, 32
     v59 = mload v58
@@ -396,7 +396,7 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
     v53 = add v49, 1
     jump bb17
   bb13:
-    v38 = shl 5, v36
+    v38 = shl v36, 5
     v39 = ptradd v27, v38
     v40 = ptradd v39, 32
     v41 = mload v40

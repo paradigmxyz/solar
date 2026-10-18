@@ -26,7 +26,7 @@ fn @setFlag() [selector=0x62548c7b, abi_params=[], abi_returns=[], abi_return_pa
 fn @callState() -> i1 [selector=0xb67d6f95, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = shr 8, v0
+    v1 = shr v0, 8
     v2 = trunc i256 v1 to i64
     v3 = zext i64 v2 to i256
     icall @internal_dispatcher_p_none_r_none, v3
@@ -110,12 +110,12 @@ fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = shl 8, 0xffffffffffffffff
+    v0 = shl 0xffffffffffffffff, 8
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = not v0
     v3 = and v1, v2
     v4 = and 2, 0xffffffffffffffff
-    v5 = shl 8, v4
+    v5 = shl v4, 8
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
     ret

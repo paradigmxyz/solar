@@ -153,7 +153,7 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
     v41 = ptradd v40, 32
     v42 = mload v41
     v43 = byte 0, v42
-    v44 = shl 248, v43
+    v44 = shl v43, 248
     v45 = ne v44, 0xff00000000000000000000000000000000000000000000000000000000000000
     jumpi v45, bb7, bb8
   bb8:
@@ -179,7 +179,7 @@ fn @firstByteInt8(arg0: i8, arg1: i8) -> i256 [selector=0xdf400c36, pure, abi_pa
     v4 = ptradd v0, 32
     v5 = mload v4
     v6 = byte 0, v5
-    v7 = shl 248, v6
+    v7 = shl v6, 248
     ret v7
 }
 
@@ -193,7 +193,7 @@ fn @firstByteInt16(arg0: i8, arg1: i16) -> i256 [selector=0x3ed4619b, pure, abi_
     v4 = ptradd v0, 32
     v5 = mload v4
     v6 = byte 0, v5
-    v7 = shl 248, v6
+    v7 = shl v6, 248
     ret v7
 }
 
@@ -207,7 +207,7 @@ fn @firstByteInt32(arg0: i8, arg1: i32) -> i256 [selector=0x538ea5fe, pure, abi_
     v4 = ptradd v0, 32
     v5 = mload v4
     v6 = byte 0, v5
-    v7 = shl 248, v6
+    v7 = shl v6, 248
     ret v7
 }
 
@@ -221,7 +221,7 @@ fn @firstByteSigned16() -> i256 [selector=0x951569ca, pure, abi_params=[], abi_r
     v4 = ptradd v0, 32
     v5 = mload v4
     v6 = byte 0, v5
-    v7 = shl 248, v6
+    v7 = shl v6, 248
     ret v7
 }
 

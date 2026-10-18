@@ -116,21 +116,21 @@ fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], 
     v25 = or v23, v24
     sstore v20, v25 !metadata(storage=offset(v14, 1))
     v26 = add v14, 1
-    v27 = shl 160, 0xffffff
+    v27 = shl 0xffffff, 160
     v28 = sload v26 !metadata(storage=offset(v14, 1))
     v29 = not v27
     v30 = and v28, v29
     v31 = and 0xfffffe, 0xffffff
-    v32 = shl 160, v31
+    v32 = shl v31, 160
     v33 = or v30, v32
     sstore v26, v33 !metadata(storage=offset(v14, 1))
     v34 = add v14, 1
-    v35 = shl 184, 0xffffff
+    v35 = shl 0xffffff, 184
     v36 = sload v34 !metadata(storage=offset(v14, 1))
     v37 = not v35
     v38 = and v36, v37
     v39 = and 4, 0xffffff
-    v40 = shl 184, v39
+    v40 = shl v39, 184
     v41 = or v38, v40
     sstore v34, v41 !metadata(storage=offset(v14, 1))
     v42 = add v14, 2
@@ -174,13 +174,13 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     mstore v9, v8
     v10 = add v0, 1
     v11 = sload v10 !metadata(storage=offset(v0, 1))
-    v12 = shr 160, v11
+    v12 = shr v11, 160
     v13 = signextend 2, v12
     v14 = ptradd v1, 64
     mstore v14, v13
     v15 = add v0, 1
     v16 = sload v15 !metadata(storage=offset(v0, 1))
-    v17 = shr 184, v16
+    v17 = shr v16, 184
     v18 = signextend 2, v17
     v19 = ptradd v1, 96
     mstore v19, v18
@@ -325,7 +325,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     icall revert_if<tuple_data_too_short>, v103
     v104 = add 0, 0
     v105 = mload v104
-    v106 = shr 160, v105
+    v106 = shr v105, 160
     v107 = eq v106, 0
     v108 = eq v107, false
     icall revert_if<empty>, v108
@@ -364,7 +364,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v130 = ptrtoint ptr<memory> v121 to i256
     v131 = add v130, 32
     v132 = mload v131
-    v133 = shr 128, v132
+    v133 = shr v132, 128
     v134 = eq v133, 0
     v135 = eq v134, false
     icall revert_if<empty>, v135

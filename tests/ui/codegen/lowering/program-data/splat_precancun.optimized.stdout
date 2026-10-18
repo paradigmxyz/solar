@@ -1,0 +1,302 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/splat_precancun.sol:C ===
+@module C
+@phase lowered
+@data
+  literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
+
+fn @data() -> i256 [may_return_memory, pure] {
+  bb0:
+    v8 = mload 64 !metadata(memory=scratch)
+    v9 = add v8, 224
+    mstore 64, v9
+    mstore v8, 161
+    v4 = add v8, 192
+    mstore v4, 0
+    v6 = add v8, 32
+    datacopy literal_0, v6, 161
+    ret v8
+}
+
+fn @hash() [selector=0x09bd5a60, abi_wrapper, pure] {
+  bb0:
+    v0 = icall @data
+    v2 = mload v0
+    v7 = add v0, 32
+    v3 = keccak256 v7, v2
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
+  bb0:
+    v0 = icall @data
+    v2 = mload v0
+    v4 = add v0, 32
+    v5 = add v4, v2
+    v6 = mload v5
+    v7 = shr v6, 8
+    v8 = eq v7, 0
+    v9 = zext i1 v8 to i256
+    mstore 128, v9
+    returndata 128, 32
+}
+
+fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
+  bb0:
+    v13 = mload 64 !metadata(memory=scratch)
+    v14 = add v13, 96
+    mstore 64, v14
+    mstore v13, 33
+    v9 = add v13, 32
+    mstore v9, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v11 = add v13, 64
+    mstore v11, 0x100000000000000000000000000000000000000000000000000000000000000
+    v5 = keccak256 v9, 33
+    mstore 128, v5
+    returndata 128, 32
+}
+
+fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
+  bb0:
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, 128
+    mstore 64, v25
+    mstore v24, 96
+    v11 = add v24, 32
+    mstore v11, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v13 = add v24, 64
+    mstore v13, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v15 = add v24, 96
+    jump bb2
+  bb2:
+    v18 = phi [bb0: 0], [bb3: v23]
+    v19 = lt v18, 32
+    jumpi v19, bb3, bb1
+  bb1:
+    v7 = keccak256 v11, 96
+    mstore 128, v7
+    returndata 128, 32
+  bb3:
+    v20 = add v11, v18
+    v21 = mload v20
+    v22 = add v15, v18
+    mstore v22, v21
+    v23 = add v18, 32
+    jump bb2
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x6793283 => bb2, 0x9bd5a60 => bb3, 0xc6b2786 => bb4, 0x58653188 => bb5]
+  bb5:
+    tail_call @fullWordsHash
+  bb4:
+    tail_call @shortHash
+  bb3:
+    tail_call @hash
+  bb2:
+    tail_call @paddingIsZero
+  bb6:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/lowering/program-data/splat_precancun.sol:C (runtime) ===
+@module C_runtime
+@data
+  literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
+
+bb0:
+  callvalue
+  push bb6
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x6793283
+  eq
+  push bb9
+  jumpi
+  dup 1
+  push 0x9bd5a60
+  eq
+  push bb7
+  jumpi
+  dup 1
+  push 0xc6b2786
+  eq
+  push bb11
+  jumpi
+  dup 1
+  push 0x58653188
+  eq
+  push bb12
+  jumpi
+  jump bb6
+bb6 [cold]:
+  push 0
+  dup 1
+  revert
+bb7:
+  push 160
+  push 64
+  mstore
+  push bb8
+  jump bb16
+bb16:
+  push 64
+  mload
+  push 224
+  dup 2
+  add
+  push 64
+  mstore
+  push 161
+  dup 2
+  mstore
+  push 0
+  push 192
+  dup 3
+  add
+  mstore
+  push 161
+  push 32
+  dup 3
+  add
+  push_data literal_0
+  swap 1
+  codecopy
+  swap 1
+  jump
+bb8 [continuation]:
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  jump bb18
+bb18 [loop]:
+  keccak256
+  jump bb17
+bb17 [loop]:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb9:
+  push 160
+  push 64
+  mstore
+  push bb10
+  jump bb16
+bb10 [continuation]:
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  add
+  mload
+  push 8
+  shr
+  iszero
+  jump bb17
+bb11:
+  push 96
+  push 160
+  dup 1
+  push 64
+  mstore
+  add
+  push 64
+  mstore
+  push bb20
+  push 160
+  push 33
+  jump bb19
+bb19:
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push bb23
+  jump bb22
+bb22:
+  push 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+  swap 1
+  jump
+bb12:
+  push 128
+  push 160
+  dup 1
+  push 64
+  mstore
+  add
+  push 64
+  mstore
+  push bb21
+  push 160
+  push 96
+  jump bb19
+bb15 [loop]:
+  dup 1
+  dup 4
+  add
+  mload
+  dup 2
+  dup 4
+  add
+  mstore
+  push 32
+  add
+  jump bb13
+bb13 [loop]:
+  push 32
+  dup 2
+  lt
+  push bb15
+  jumpi
+  pop
+  pop
+  push 96
+  swap 1
+  jump bb18
+bb20 [continuation]:
+  swap 1
+  push 64
+  add
+  push 1
+  push 248
+  shl
+  swap 1
+  mstore
+  push 33
+  swap 1
+  jump bb18
+bb21 [continuation]:
+  push bb24
+  jump bb22
+bb23 [continuation]:
+  dup 2
+  mstore
+  swap 1
+  swap 2
+  jump
+bb24 [continuation]:
+  push 64
+  dup 4
+  add
+  mstore
+  swap 1
+  push 96
+  add
+  push 0
+  jump bb13

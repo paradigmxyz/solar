@@ -284,7 +284,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v211 = eq v210, 1
     v212 = sub 0, v210
     v213 = or 127, v212
-    v214 = shr 1, v209
+    v214 = shr v209, 1
     v215 = and v214, v213
     v216 = eq v215, 3
     jumpi v216, bb33, bb34
@@ -303,7 +303,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v224 = eq v223, 1
     v225 = sub 0, v223
     v226 = or 127, v225
-    v227 = shr 1, v222
+    v227 = shr v222, 1
     v228 = and v227, v226
     v229 = lt 1, v228
     v230 = eq v229, false
@@ -313,7 +313,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb38
   bb36:
     v231 = storage_array_data_slot v221
-    v232 = shr 5, 1
+    v232 = shr 1, 5
     v233 = add v231, v232
     jump bb38
   bb38:
@@ -322,8 +322,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v236 = sub 31, v235
     v237 = sload v234 !metadata(storage=symbolic(v234))
     v238 = mul v236, 8
-    v239 = shr v238, v237
-    v240 = shl 248, v239
+    v239 = shr v237, v238
+    v240 = shl v239, 248
     v241 = eq v240, 0xbb00000000000000000000000000000000000000000000000000000000000000
     jump bb35
   bb35:
@@ -339,12 +339,12 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v249 = mod v243, 10
     v250 = mul v249, 3
     v251 = mul v250, 8
-    v252 = shl v251, 0xffffff
+    v252 = shl 0xffffff, v251
     v253 = sload v248 !metadata(storage=symbolic(v248))
     v254 = not v252
     v255 = and v253, v254
     v256 = and 7, 0xffffff
-    v257 = shl v251, v256
+    v257 = shl v256, v251
     v258 = or v255, v257
     sstore v248, v258 !metadata(storage=symbolic(v248))
     sstore 8, v245 !metadata(storage=slot(8))
@@ -358,12 +358,12 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v265 = mod v259, 10
     v266 = mul v265, 3
     v267 = mul v266, 8
-    v268 = shl v267, 0xffffff
+    v268 = shl 0xffffff, v267
     v269 = sload v264 !metadata(storage=symbolic(v264))
     v270 = not v268
     v271 = and v269, v270
     v272 = and 8, 0xffffff
-    v273 = shl v267, v272
+    v273 = shl v272, v267
     v274 = or v271, v273
     sstore v264, v274 !metadata(storage=symbolic(v264))
     sstore 8, v261 !metadata(storage=slot(8))
@@ -531,7 +531,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v406 = eq v405, 1
     v407 = sub 0, v405
     v408 = or 127, v407
-    v409 = shr 1, v404
+    v409 = shr v404, 1
     v410 = and v409, v408
     v411 = eq v410, 0
     icall require<short_string>, v411, 12, 0x62797465732064656c6574650000000000000000000000000000000000000000
@@ -546,7 +546,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v419 = mul v418, 3
     v420 = sload v417 !metadata(storage=symbolic(v417))
     v421 = mul v419, 8
-    v422 = shr v421, v420
+    v422 = shr v420, v421
     v423 = trunc i256 v422 to i24
     v424 = eq v423, i24 0
     jumpi v424, bb68, bb69
@@ -564,7 +564,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v432 = mul v431, 3
     v433 = sload v430 !metadata(storage=symbolic(v430))
     v434 = mul v432, 8
-    v435 = shr v434, v433
+    v435 = shr v433, v434
     v436 = trunc i256 v435 to i24
     v437 = eq v436, i24 0
     jump bb70
@@ -639,7 +639,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v326 = eq v325, 1
     v327 = sub 0, v325
     v328 = or 127, v327
-    v329 = shr 1, v324
+    v329 = shr v324, 1
     v330 = and v329, v328
     v331 = add v330, 31
     v332 = div v331, 32
@@ -678,7 +678,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v307 = add v301, 1
     jump bb39
   bb28:
-    v167 = shl 5, v165
+    v167 = shl v165, 5
     v168 = ptradd v143, v167
     v169 = ptradd v168, 32
     v170 = mload v169
@@ -701,7 +701,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     sstore v109, 0 !metadata(storage=symbolic(v109))
     jump bb18
   bb16:
-    v111 = shl 5, v107
+    v111 = shl v107, 5
     v112 = ptradd v99, v111
     v113 = mload v112
     sstore v109, v113 !metadata(storage=symbolic(v109))
@@ -720,7 +720,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jumpi v35, bb5, bb6
   bb6:
     v41 = ptrtoint ptr<memory> v33 to i256
-    v42 = shl 5, v29
+    v42 = shl v29, 5
     v43 = ptradd v28, v42
     mstore v43, v41
     v44 = add v29, 1
@@ -728,7 +728,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb5:
     v36 = add v32, v34
     v37 = sload v36 !metadata(storage=symbolic(v36))
-    v38 = shl 5, v34
+    v38 = shl v34, 5
     v39 = ptradd v33, v38
     mstore v39, v37
     v40 = add v34, 1

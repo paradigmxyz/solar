@@ -198,7 +198,7 @@ fn @functionPointer() -> struct5 [selector=0xbd108928, view, abi_params=[], abi_
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0x1a88bc66
     v4 = icall @get.13
     v5 = extract_value struct1, v4, 0
@@ -208,14 +208,14 @@ fn @functionPointer() -> struct5 [selector=0xbd108928, view, abi_params=[], abi_
     v9 = and v3, v8
     v10 = or v9, v7
     v11 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = shl 32, v11
+    v12 = shl v11, 32
     v13 = and v10, 0xffffffff
     v14 = or v12, v13
-    v15 = shr 32, v14
+    v15 = shr v14, 32
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
     v17 = trunc i256 v16 to i160
     v18 = and v14, 0xffffffff
-    v19 = shl 224, v18
+    v19 = shl v18, 224
     v20 = insert_value struct5, undef struct5, 0, v17
     v21 = insert_value struct5, v20, 1, v19
     ret v21

@@ -87,8 +87,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v71 = ptradd v2, 66
     v72 = mload v71
     v73 = byte 0, v72
-    v74 = shl 248, v73
-    v75 = shr 248, v74
+    v74 = shl v73, 248
+    v75 = shr v74, 248
     v76 = trunc i256 v75 to i8
     v77 = mload v8
     v78 = lt 3, v77
@@ -131,8 +131,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v109 = ptradd v105, 37
     v110 = mload v109
     v111 = byte 0, v110
-    v112 = shl 248, v111
-    v113 = shr 248, v112
+    v112 = shl v111, 248
+    v113 = shr v112, 248
     v114 = trunc i256 v113 to i8
     v115 = zext i8 v114 to i256
     v116 = checked_add uint256, v98, v115
@@ -145,7 +145,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     mstore v28, v30
     v31 = ptradd v28, 32
     mstore v31, 96
-    v32 = shl 5, v26
+    v32 = shl v26, 5
     v33 = ptradd v25, v32
     v34 = ptradd v33, 32
     v35 = ptrtoint ptr<memory> v28 to i256
@@ -155,7 +155,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
   bb2:
     v11 = alloc 64 !metadata(preserves_fmp)
     memory_zero v11, 64
-    v12 = shl 5, v9
+    v12 = shl v9, 5
     v13 = ptradd v8, v12
     v14 = ptradd v13, 32
     v15 = ptrtoint ptr<memory> v11 to i256

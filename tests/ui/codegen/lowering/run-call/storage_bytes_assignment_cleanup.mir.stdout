@@ -24,7 +24,7 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word<
     v12 = eq v11, 1
     v13 = sub 0, v11
     v14 = or 127, v13
-    v15 = shr 1, v10
+    v15 = shr v10, 1
     v16 = and v15, v14
     v17 = insert_value struct0, undef struct0, 0, v5
     v18 = insert_value struct0, v17, 1, v9
@@ -53,7 +53,7 @@ fn @cleanupShort() -> struct0 [selector=0x14d48529, abi_params=[], abi_returns=[
     v12 = eq v11, 1
     v13 = sub 0, v11
     v14 = or 127, v13
-    v15 = shr 1, v10
+    v15 = shr v10, 1
     v16 = and v15, v14
     v17 = insert_value struct0, undef struct0, 0, v5
     v18 = insert_value struct0, v17, 1, v9

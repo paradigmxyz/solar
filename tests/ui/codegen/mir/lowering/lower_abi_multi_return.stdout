@@ -73,7 +73,7 @@
 +     jumpi v1, bb2, bb3
 +   bb3:
 +     v2 = calldataload 4
-+     v3 = shr 160, v2
++     v3 = shr v2, 160
 +     v4 = eq v3, 0
 +     jumpi v4, bb4, bb2
 +   bb4:

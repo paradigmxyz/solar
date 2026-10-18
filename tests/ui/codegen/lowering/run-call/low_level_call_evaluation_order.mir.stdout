@@ -81,7 +81,7 @@ fn @write() [selector=0xbcb4ab0e, abi_params=[], abi_returns=[], abi_return_para
 
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = shl 224, 0xdeadbeef
+    v0 = shl 0xdeadbeef, 224
     mstore 0, v0 !metadata(memory=scratch)
     revert 0, 4
 }

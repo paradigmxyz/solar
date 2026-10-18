@@ -36,7 +36,7 @@
 +     jumpi v5, bb1, bb2
 +   bb2:
 +     v6 = calldataload 0
-+     v7 = shr 224, v6
++     v7 = shr v6, 224
 +     switch v7, default bb1, [1 => bb3, 2 => bb4]
 +   bb4:
 +     tail_call @b
@@ -84,7 +84,7 @@
       jumpi v5, bb1, bb2
     bb2:
       v6 = calldataload 0
-      v7 = shr 224, v6
+      v7 = shr v6, 224
       switch v7, default bb1, [1 => bb3, 2 => bb4]
     bb4:
       tail_call @b

@@ -191,14 +191,14 @@ fn @xorEqual(arg0: i256) -> i1 [selector=0x3ef9590f, pure, abi_params=[uint256],
 
 fn @highBit(arg0: i256) -> i1 [selector=0x73944b56, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = shr 255, arg0
+    v0 = shr arg0, 255
     v1 = ne v0, 0
     ret v1
 }
 
 fn @zeroSign(arg0: i256) -> i1 [selector=0x7e7e1169, pure, abi_params=[int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = sar 255, arg0
+    v0 = sar arg0, 255
     v1 = eq v0, 0
     ret v1
 }
@@ -413,8 +413,8 @@ fn @associateScale(arg0: i256, arg1: i256) -> i256 [selector=0xb62d0002, pure, a
 
 fn @oppositeShifts(arg0: i256) -> i256 [selector=0xbd176740, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = shl 8, arg0
-    v1 = shr 16, v0
+    v0 = shl arg0, 8
+    v1 = shr v0, 16
     v2 = and v1, 255
     ret v2
 }
@@ -453,7 +453,7 @@ fn @unsignedProduct(arg0: i128) -> i256 [selector=0xfb8ce99a, pure, abi_params=[
 fn @signDiscard(arg0: i256) -> i256 [selector=0xb3802cbe, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = signextend 0, arg0
-    v1 = shl 248, v0
+    v1 = shl v0, 248
     ret v1
 }
 
@@ -569,7 +569,7 @@ fn @comparisonFlags(arg0: i256, arg1: i256) -> i256 [selector=0xa85d7e79, pure, 
     v4 = gt arg0, arg1
     v5 = zext i1 v4 to i256
     v6 = xor v5, v3
-    v7 = shl 1, v6
+    v7 = shl v6, 1
     v8 = eq arg1, arg0
     v9 = zext i1 v8 to i256
     v10 = gt arg0, arg1
@@ -583,7 +583,7 @@ fn @comparisonFlags(arg0: i256, arg1: i256) -> i256 [selector=0xa85d7e79, pure, 
     v18 = slt arg0, arg1
     v19 = zext i1 v18 to i256
     v20 = and v19, v17
-    v21 = shl 2, v20
+    v21 = shl v20, 2
     v22 = or v13, v21
     v23 = eq arg1, arg0
     v24 = zext i1 v23 to i256
@@ -592,14 +592,14 @@ fn @comparisonFlags(arg0: i256, arg1: i256) -> i256 [selector=0xa85d7e79, pure, 
     v27 = sgt arg0, arg1
     v28 = zext i1 v27 to i256
     v29 = or v28, v26
-    v30 = shl 3, v29
+    v30 = shl v29, 3
     v31 = or v22, v30
     v32 = lt arg1, arg0
     v33 = zext i1 v32 to i256
     v34 = lt arg0, arg1
     v35 = zext i1 v34 to i256
     v36 = or v35, v33
-    v37 = shl 4, v36
+    v37 = shl v36, 4
     v38 = or v31, v37
     ret v38
 }
@@ -609,11 +609,11 @@ fn @booleanZeroFlags(arg0: i256, arg1: i256) -> i256 [selector=0x0d2b8dbf, pure,
     v0 = xor arg0, arg1
     v1 = eq v0, 0
     v2 = zext i1 v1 to i256
-    v3 = shl 2, v2
+    v3 = shl v2, 2
     v4 = or arg0, arg1
     v5 = eq v4, 0
     v6 = zext i1 v5 to i256
-    v7 = shl 1, v6
+    v7 = shl v6, 1
     v8 = and arg0, arg1
     v9 = eq v8, 0
     v10 = zext i1 v9 to i256
@@ -687,9 +687,9 @@ fn @comparisonComplements(arg0: i256, arg1: i256) -> i256 [selector=0xeb889202, 
     v4 = eq v3, 0
     v5 = zext i1 v4 to i256
     v6 = xor v1, v5
-    v7 = shl 2, v6
+    v7 = shl v6, 2
     v8 = or v1, v5
-    v9 = shl 1, v8
+    v9 = shl v8, 1
     v10 = and v1, v5
     v11 = or v10, v9
     v12 = or v11, v7

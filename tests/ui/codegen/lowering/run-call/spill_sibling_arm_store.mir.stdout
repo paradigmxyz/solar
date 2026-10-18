@@ -63,7 +63,7 @@ fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[int128], abi_retur
     jump bb3
   bb3:
     v15 = sload 0 !metadata(storage=slot(0))
-    v16 = shr 128, v15
+    v16 = shr v15, 128
     v17 = signextend 15, v16
     v18 = trunc i256 v17 to i128
     v19 = ne v18, i128 0
@@ -72,7 +72,7 @@ fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[int128], abi_retur
     jump bb6
   bb4:
     v20 = sload 0 !metadata(storage=slot(0))
-    v21 = shr 128, v20
+    v21 = shr v20, 128
     v22 = signextend 15, v21
     v23 = trunc i256 v22 to i128
     icall @_settleOrTake, v7, v23

@@ -139,7 +139,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     icall revert_if<tuple_data_too_short>, v32
     v33 = add 0, 0
     v34 = mload v33
-    v35 = shr 8, v34
+    v35 = shr v34, 8
     v36 = eq v35, 0
     v37 = eq v36, false
     icall revert_if<empty>, v37

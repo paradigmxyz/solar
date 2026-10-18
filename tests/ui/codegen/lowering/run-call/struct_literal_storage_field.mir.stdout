@@ -12,13 +12,13 @@ fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], 
     v6 = mod v0, 8
     v7 = mul v6, 4
     v8 = mul v7, 8
-    v9 = shl v8, 0xffffffff
+    v9 = shl 0xffffffff, v8
     v10 = sload v5 !metadata(storage=symbolic(v5))
     v11 = not v9
     v12 = and v10, v11
-    v13 = shr 224, 0x3938b4c800000000000000000000000000000000000000000000000000000000
+    v13 = shr 0x3938b4c800000000000000000000000000000000000000000000000000000000, 224
     v14 = and v13, 0xffffffff
-    v15 = shl v8, v14
+    v15 = shl v14, v8
     v16 = or v12, v15
     sstore v5, v16 !metadata(storage=symbolic(v5))
     sstore 0, v2 !metadata(storage=slot(0))
@@ -32,13 +32,13 @@ fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], 
     v23 = mod v17, 8
     v24 = mul v23, 4
     v25 = mul v24, 8
-    v26 = shl v25, 0xffffffff
+    v26 = shl 0xffffffff, v25
     v27 = sload v22 !metadata(storage=symbolic(v22))
     v28 = not v26
     v29 = and v27, v28
-    v30 = shr 224, 0x3442156e00000000000000000000000000000000000000000000000000000000
+    v30 = shr 0x3442156e00000000000000000000000000000000000000000000000000000000, 224
     v31 = and v30, 0xffffffff
-    v32 = shl v25, v31
+    v32 = shl v31, v25
     v33 = or v29, v32
     sstore v22, v33 !metadata(storage=symbolic(v22))
     sstore 0, v19 !metadata(storage=slot(0))
@@ -88,12 +88,12 @@ fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     v3 = and 7, 0xffffffffffffffff
     v4 = or v2, v3
     sstore 4, v4 !metadata(storage=slot(4))
-    v5 = shl 64, 0xffffffffffffffff
+    v5 = shl 0xffffffffffffffff, 64
     v6 = sload 4 !metadata(storage=slot(4))
     v7 = not v5
     v8 = and v6, v7
     v9 = and 9, 0xffffffffffffffff
-    v10 = shl 64, v9
+    v10 = shl v9, 64
     v11 = or v8, v10
     sstore 4, v11 !metadata(storage=slot(4))
     v12 = alloc 64
@@ -103,7 +103,7 @@ fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     v16 = zext i64 v15 to i256
     mstore v13, v16
     v17 = sload 4 !metadata(storage=slot(4))
-    v18 = shr 64, v17
+    v18 = shr v17, 64
     v19 = trunc i256 v18 to i64
     v20 = zext i64 v19 to i256
     v21 = ptradd v13, 32
@@ -217,7 +217,7 @@ fn @fixedField() -> i256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word]
   bb2:
     v13 = add 1, v11
     v14 = sload v13 !metadata(storage=offset(v11, 1))
-    v15 = shl 5, v11
+    v15 = shl v11, 5
     v16 = ptradd v10, v15
     mstore v16, v14
     v17 = add v11, 1

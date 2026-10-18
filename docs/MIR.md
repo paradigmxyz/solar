@@ -32,10 +32,10 @@ lowering emits it only for addresses inside the object, so alias analysis
 places an access at a runtime offset at or after `p`, and assembly's raw
 arithmetic uses `add` on words instead. A fixed array or struct has no length
 word, so field or element `i` is the word at `ptradd v0, 32 * i`, and at
-`ptradd v0, shl 5, i` for a runtime index. A dynamic memory object (`bytes`,
+`ptradd v0, shl i, 5` for a runtime index. A dynamic memory object (`bytes`,
 `string`, `T[] memory`) is a `ptr<memory>` to its length word, which assembly can
 read and rewrite: `mload v0` reads the length, the payload starts at `ptradd v0, 32`, and
-element `i` of a word array is the word 32 bytes past `ptradd v0, shl 5, i`.
+element `i` of a word array is the word 32 bytes past `ptradd v0, shl i, 5`.
 Where a slice value is needed, `make_memory_slice` pairs the payload pointer
 with the length; `extract_value` projects its pointer (field 0) and length
 (field 1) as it projects struct fields, and calldata and returndata slices work

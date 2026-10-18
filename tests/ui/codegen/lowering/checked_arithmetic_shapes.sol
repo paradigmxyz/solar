@@ -157,7 +157,7 @@ contract CheckedArithmeticShapes {
     }
 
     // CHECK-LABEL: fn @leftU8(arg0: i8, arg1: i8) -> i8
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg0, arg1
     // CHECK-NEXT: ret [[SHIFTED]]
     function leftU8(uint8 value, uint8 bits) external pure returns (uint8) {
         return value << bits;
@@ -165,14 +165,14 @@ contract CheckedArithmeticShapes {
 
     // CHECK-LABEL: fn @leftU16(arg0: i16, arg1: i8) -> i16
     // CHECK: [[BITS:v[0-9]+]] = zext i8 arg1 to i16
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[BITS]], arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg0, [[BITS]]
     // CHECK-NEXT: ret [[SHIFTED]]
     function leftU16(uint16 value, uint8 bits) external pure returns (uint16) {
         return value << bits;
     }
 
     // CHECK-LABEL: fn @leftI8(arg0: i8, arg1: i8) -> i8
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg0, arg1
     // CHECK-NEXT: ret [[SHIFTED]]
     function leftI8(int8 value, uint8 bits) external pure returns (int8) {
         return value << bits;
@@ -180,7 +180,7 @@ contract CheckedArithmeticShapes {
 
     // CHECK-LABEL: fn @leftI16(arg0: i16, arg1: i8) -> i16
     // CHECK: [[BITS:v[0-9]+]] = zext i8 arg1 to i16
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[BITS]], arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg0, [[BITS]]
     // CHECK-NEXT: ret [[SHIFTED]]
     function leftI16(int16 value, uint8 bits) external pure returns (int16) {
         return value << bits;
@@ -188,21 +188,21 @@ contract CheckedArithmeticShapes {
 
     // Full-width and right shifts already have native EVM word semantics.
     // CHECK-LABEL: fn @leftU256{{[( ]}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg0, arg1
     // CHECK-NEXT: ret [[SHIFTED]]
     function leftU256(uint256 value, uint256 bits) external pure returns (uint256) {
         return value << bits;
     }
 
     // CHECK-LABEL: fn @rightU8(arg0: i8, arg1: i8) -> i8
-    // CHECK: [[SHIFTED:v[0-9]+]] = shr arg1, arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shr arg0, arg1
     // CHECK-NEXT: ret [[SHIFTED]]
     function rightU8(uint8 value, uint8 bits) external pure returns (uint8) {
         return value >> bits;
     }
 
     // CHECK-LABEL: fn @rightI8(arg0: i8, arg1: i8) -> i8
-    // CHECK: [[SHIFTED:v[0-9]+]] = sar arg1, arg0
+    // CHECK: [[SHIFTED:v[0-9]+]] = sar arg0, arg1
     // CHECK-NEXT: ret [[SHIFTED]]
     function rightI8(int8 value, uint8 bits) external pure returns (int8) {
         return value >> bits;
