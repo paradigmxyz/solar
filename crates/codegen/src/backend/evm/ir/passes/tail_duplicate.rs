@@ -12,6 +12,7 @@
 //! remain with loop layout. Block order and existing label identities stay intact; assembly omits
 //! labels whose last reference disappears. Debug origins remain on the copied operations and never
 //! affect eligibility.
+//! Opcodes awaiting fork legalization stay shared because their expansion is not priced here.
 //! Copies start beyond the one-byte address range, using an instruction-only lower bound on the
 //! prefix size, so they cannot widen the labels and indexed tables packed by block layout.
 
@@ -92,7 +93,9 @@ impl EvmPass for TailDuplicate {
                         target.push(inst.concrete_immediate()?).bytes
                     } else if let Some(stack) = inst.as_stack_op() {
                         target.stack_op(stack)?.bytes
-                    } else if op::is_unaffected_by_preceding_push(inst.opcode) {
+                    } else if op::is_unaffected_by_preceding_push(inst.opcode)
+                        && op::is_available(inst.opcode, target.evm_version())
+                    {
                         target.opcode(inst.opcode).bytes
                     } else {
                         return None;
