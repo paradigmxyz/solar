@@ -156,3 +156,58 @@ fn @freeMemoryStarted() -> i256 [pure] {
     v4 = zext i1 v3 to i256
     ret v4
 }
+
+// === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:Allocating ===
+@module Allocating
+fn @digest() -> i256 [selector=0x52a82b65, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc zeroed checked 128
+    mstore v0, 3
+    v1 = alloc zeroed checked 64
+    mstore v1, 1
+    v2 = mload v1
+    v3 = lt 0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v1, 32
+    mstore v5, 5
+    v6 = mload v0
+    v7 = lt 2, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v0, 96
+    mstore v9, 42
+    v10 = abi_encode [memory_array<word>], scratch, args v0
+    v11 = extract_value slice<memory>, v10, 0
+    v12 = extract_value slice<memory>, v10, 1
+    v13 = keccak256 v11, v12
+    sstore 0, v13 !metadata(storage=slot(0))
+    ret
+}
+
+fn @matches() -> i1 [selector=0x55590d58, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = eq v0, 0xfe6e3819d29bc8bbc969033ee307460d468312dd6c89dad00153205fe9cb9eb2
+    ret v1
+}
+
+// === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:WithArgument ===
+@module WithArgument
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    ret
+}
