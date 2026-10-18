@@ -379,9 +379,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             Step::Filler => self.asm.emit_push(U256::ZERO),
             Step::Begin(inst) => {
                 if self.capture_debug_info {
-                    let metadata = &func.inst(inst).metadata;
-                    self.asm.set_source_spans(metadata.source_spans());
-                    self.asm.set_modifier_depth(metadata.modifier_depth());
+                    if let Some(inst) = inst {
+                        let metadata = &func.inst(inst).metadata;
+                        self.asm.set_source_spans(metadata.source_spans());
+                        self.asm.set_modifier_depth(metadata.modifier_depth());
+                    } else {
+                        // NOTE: A retained constant has no single source consumer.
+                        self.asm.set_source_span(None);
+                        self.asm.set_modifier_depth(0);
+                    }
                 }
             }
             Step::Op(opcode) => self.asm.emit_op(opcode),

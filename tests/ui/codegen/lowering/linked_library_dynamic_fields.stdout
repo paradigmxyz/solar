@@ -415,22 +415,23 @@ bb8:
   push 32
   dup 2
   add
-  swap 2
   push 0
   not
   push 192
   shr
+  swap 3
+  dup 4
   lt
   calldatasize
-  dup 4
+  dup 3
   gt
   or
   swap 1
-  swap 3
+  swap 4
   or
-  swap 2
+  swap 1
   calldataload
-  dup 2
+  dup 4
   calldatasize
   sub
   push 5
@@ -438,43 +439,40 @@ bb8:
   dup 2
   gt
   swap 1
-  swap 3
+  swap 2
   or
   push 68
   calldataload
   push 4
   dup 2
   add
+  swap 1
   push 32
-  dup 2
+  dup 3
   add
-  swap 2
-  push 0
-  not
-  push 192
-  shr
+  swap 5
   lt
   calldatasize
-  dup 4
+  dup 6
   gt
   or
   swap 1
   calldataload
   swap 1
-  dup 3
+  dup 5
   calldatasize
   sub
   dup 3
   gt
   or
   swap 1
-  swap 3
+  swap 2
   or
-  dup 5
+  dup 3
   push 5
   shl
   swap 1
-  dup 5
+  dup 6
   calldatasize
   sub
   dup 3
@@ -492,19 +490,19 @@ bb8:
   add
   push 64
   mstore
-  swap 5
-  dup 6
+  swap 3
+  dup 4
   mstore
   push 32
-  dup 6
+  dup 4
   add
   swap 1
   swap 2
-  swap 4
+  swap 5
   swap 1
   calldatacopy
   push 63
-  dup 2
+  dup 4
   add
   push 31
   not
@@ -516,15 +514,17 @@ bb8:
   add
   push 64
   mstore
-  dup 2
+  dup 4
   dup 2
   mstore
   push 32
   dup 2
   add
+  swap 4
+  swap 2
   swap 3
   swap 1
-  swap 3
+  swap 4
   calldatacopy
   push 64
   mload
@@ -540,14 +540,14 @@ bb8:
   push 32
   dup 2
   add
-  swap 3
-  dup 4
+  swap 2
+  dup 3
   mstore
   push 64
   dup 2
   add
-  swap 2
-  dup 3
+  swap 3
+  dup 4
   mstore
   push 96
   dup 2
@@ -579,16 +579,16 @@ bb8:
   mstore
   swap 4
   mload
-  swap 6
-  mload
   swap 5
+  mload
+  swap 6
   mload
   swap 3
   mload
   push 128
   dup 6
   add
-  swap 7
+  swap 6
   dup 6
   mstore
   push 128
@@ -596,28 +596,28 @@ bb8:
   dup 7
   add
   mstore
-  dup 6
+  dup 7
   mload
   dup 1
-  dup 9
+  dup 8
   mstore
   push 5
   shl
-  swap 7
-  push 32
-  add
   swap 6
   push 32
   add
-  dup 8
-  dup 8
-  add
-  swap 8
-  swap 2
   swap 7
+  push 32
+  add
+  dup 7
+  dup 9
+  add
+  swap 7
+  swap 2
+  swap 8
   mcopy
   dup 4
-  dup 7
+  dup 6
   sub
   push 64
   dup 6
@@ -632,27 +632,27 @@ bb8:
   not
   and
   push 32
-  dup 9
+  dup 8
   add
   push 0
   dup 3
-  dup 11
+  dup 10
   add
   mstore
   dup 3
   swap 1
-  swap 9
+  swap 8
   mstore
-  dup 8
+  dup 7
   add
   swap 4
   push 32
   add
   swap 1
   swap 2
-  swap 7
+  swap 6
   mcopy
-  swap 3
+  swap 4
   push 0
   not
   push 96
@@ -663,9 +663,6 @@ bb8:
   push 96
   add
   mstore
-  swap 2
-  swap 1
-  swap 2
   sub
   push 4
   add
