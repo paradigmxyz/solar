@@ -34,7 +34,7 @@ fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_ret
     v5 = ptradd v1, 64
     v6 = mload v5
     v7 = byte 0, v6
-    v8 = shl 248, v7
+    v8 = shl v7, 248
     v9 = and v8, 0x100000000000000000000000000000000000000000000000000000000000000
     v10 = and v9, 0xff00000000000000000000000000000000000000000000000000000000000000
     v11 = eq v10, 0x100000000000000000000000000000000000000000000000000000000000000
@@ -85,7 +85,7 @@ fn @check(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
     v13 = ptrtoint ptr<memory> v0 to i256
     v14 = mload v0
     v15 = add v14, 13
-    v16 = shr 152, 0x226368616c6c656e6765223a2200000000000000000000000000000000000000
+    v16 = shr 0x226368616c6c656e6765223a2200000000000000000000000000000000000000, 152
     v17 = ptrtoint ptr<memory> v0 to i256
     mstore v0, v16
     v18 = add v15, v9
@@ -110,13 +110,13 @@ fn @check(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
     v37 = lt v36, v5
     v38 = zext i1 v37 to i256
     v39 = or v12, v9
-    v40 = shr 128, v39
+    v40 = shr v39, 128
     v41 = lt v40, v38
     v42 = zext i1 v41 to i256
-    v43 = shr 88, 0x2274797065223a22776562617574686e2e676574220000000000000000000000
+    v43 = shr 0x2274797065223a22776562617574686e2e676574220000000000000000000000, 88
     v44 = add v6, v12
     v45 = mload v44
-    v46 = shr 88, v45
+    v46 = shr v45, 88
     v47 = eq v46, v43
     v48 = zext i1 v47 to i256
     v49 = and v48, v42
@@ -130,7 +130,7 @@ fn @check(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
     v56 = zext i1 v55 to i256
     v57 = eq v56, 0
     v58 = zext i1 v57 to i256
-    v59 = shl 2, v58
+    v59 = shl v58, 2
     v60 = or 1, v59
     v61 = ptrtoint ptr<memory> arg1 to i256
     v62 = mload arg1

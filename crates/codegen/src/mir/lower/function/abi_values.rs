@@ -76,7 +76,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if lit.kind.is_number())
         {
             let shift = self.builder.imm(224);
-            return Some(self.builder.shl(shift, value));
+            return Some(self.builder.shl(value, shift));
         }
         Some(value)
     }
@@ -121,8 +121,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let hash = self.builder.keccak256_bytes(signature);
         let shift = self.builder.imm(224);
-        let selector = self.builder.shr(shift, hash);
-        Some(self.builder.shl(shift, selector))
+        let selector = self.builder.shr(hash, shift);
+        Some(self.builder.shl(selector, shift))
     }
 
     fn literal_signature_selector(signature: &hir::Expr<'_>) -> Option<U256> {
@@ -153,7 +153,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mask = self.builder.imm(u32::MAX);
             let selector = self.builder.and(function_value, mask);
             let shift = self.builder.imm(224);
-            self.builder.shl(shift, selector)
+            self.builder.shl(selector, shift)
         };
         let parameter_types = function_ty.parameters;
         let exprs = match tuple.peel_parens().kind {
@@ -282,16 +282,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // fields = extract_value result, 0; ...
         let value = self.builder.abi_decode(layout, data, result_ty);
         Some(self.unpack_return_value(value))
-    }
-
-    pub(super) fn revert_external_call(&mut self, success: ValueId) {
-        // if !success { revert(0, returndatasize()) }
-        let revert = self.builder.create_block();
-        let continue_block = self.builder.create_block();
-        self.builder.branch(success, continue_block, revert);
-        self.builder.switch_to_block(revert);
-        self.builder.revert_returndata();
-        self.builder.switch_to_block(continue_block);
     }
 
     pub(super) fn materialize_memory_slice(&mut self, slice: ValueId) -> ValueId {

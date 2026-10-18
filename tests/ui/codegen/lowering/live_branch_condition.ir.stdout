@@ -138,9 +138,6 @@ bb0:
   sub
   push bb3
   jumpi
-  push 192
-  push 64
-  mstore
   push 68
   calldatasize
   lt
@@ -154,12 +151,6 @@ bb0:
   jumpi
   push 36
   calldataload
-  push 64
-  mload
-  push 64
-  add
-  push 64
-  mstore
   push 4
   calldataload
   push 3

@@ -1,37 +1,37 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/integer_conversions.sol:IntegerConversions ===
 @module IntegerConversions
-fn @int8ToUint256(arg0: i8) -> i256 [selector=0x73b01ffc, pure, abi_params=[i8], abi_returns=[word], abi_return_params=[u256]] {
+fn @int8ToUint256(arg0: i8) -> i256 [selector=0x73b01ffc, pure, abi_params=[int8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = zext i8 arg0 to i256
     ret v0
 }
 
-fn @int24ToUint256(arg0: i24) -> i256 [selector=0x68379ee3, pure, abi_params=[i24], abi_returns=[word], abi_return_params=[u256]] {
+fn @int24ToUint256(arg0: i24) -> i256 [selector=0x68379ee3, pure, abi_params=[int24], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = zext i24 arg0 to i256
     ret v0
 }
 
-fn @uint8ToInt256(arg0: i8) -> i256 [selector=0xc3594536, pure, abi_params=[u8], abi_returns=[word], abi_return_params=[i256]] {
+fn @uint8ToInt256(arg0: i8) -> i256 [selector=0xc3594536, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sext i8 arg0 to i256
     ret v0
 }
 
-fn @uint24ToInt256(arg0: i24) -> i256 [selector=0x380aceed, pure, abi_params=[u24], abi_returns=[word], abi_return_params=[i256]] {
+fn @uint24ToInt256(arg0: i24) -> i256 [selector=0x380aceed, pure, abi_params=[uint24], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sext i24 arg0 to i256
     ret v0
 }
 
-fn @narrowInt24(arg0: i24) -> i256 [selector=0xd256d0b1, pure, abi_params=[i24], abi_returns=[word], abi_return_params=[i256]] {
+fn @narrowInt24(arg0: i24) -> i256 [selector=0xd256d0b1, pure, abi_params=[int24], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = trunc i24 arg0 to i8
     v1 = sext i8 v0 to i256
     ret v1
 }
 
-fn @directXor(arg0: i8, arg1: i24) -> i256 [selector=0x7fa5e04f, pure, abi_params=[i8, u24], abi_returns=[word], abi_return_params=[u256]] {
+fn @directXor(arg0: i8, arg1: i24) -> i256 [selector=0x7fa5e04f, pure, abi_params=[int8, uint24], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = zext i24 arg1 to i256
     v1 = zext i8 arg0 to i256
@@ -39,13 +39,13 @@ fn @directXor(arg0: i8, arg1: i24) -> i256 [selector=0x7fa5e04f, pure, abi_param
     ret v2
 }
 
-fn @isUint8Max(arg0: i8) -> i1 [selector=0x9244ef1d, pure, abi_params=[i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @isUint8Max(arg0: i8) -> i1 [selector=0x9244ef1d, pure, abi_params=[int8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, i8 255
     ret v0
 }
 
-fn @fullWidth(arg0: i256) -> i256 [selector=0x6f5032e7, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fullWidth(arg0: i256) -> i256 [selector=0x6f5032e7, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret arg0
 }

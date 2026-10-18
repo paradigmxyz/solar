@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_dynamic_static.sol:AbiCalldataStaticDynamicStatic ===
 @module AbiCalldataStaticDynamicStatic
-fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x15cfcc01, pure, abi_params=[array<1, array<_, array<1, u8>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x15cfcc01, pure, abi_params=[array<1, array<_, array<1, uint8>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice ptr<calldata> 0, v0
@@ -28,7 +28,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x15cfcc01, pure, abi_para
     ret v14
 }
 
-fn @f2(arg0: slice<calldata>) -> ptr<memory> [selector=0xdc0ee233, pure, abi_params=[array<2, array<_, array<2, u256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f2(arg0: slice<calldata>) -> ptr<memory> [selector=0xdc0ee233, pure, abi_params=[array<2, array<_, array<2, uint256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice ptr<calldata> 0, v0
@@ -85,7 +85,7 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     mstore v18, 42
     v21 = address
     v22 = gas
-    v23 = abi_encode [array<1, memory_array<array<1, word<u8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
+    v23 = abi_encode [array<1, memory_array<array<1, word<uint8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
     v24 = extract_value slice<memory>, v23, 0
     v25 = extract_value slice<memory>, v23, 1
     v26 = zext i160 v21 to i256
@@ -100,7 +100,7 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
   bb2:
     v4 = alloc 32 !metadata(preserves_fmp)
     memory_zero v4, 32
-    v5 = shl 5, v2
+    v5 = shl v2, 5
     v6 = ptradd v1, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v4 to i256
@@ -210,7 +210,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
   bb5:
     v14 = alloc 64 !metadata(preserves_fmp)
     memory_zero v14, 64
-    v15 = shl 5, v12
+    v15 = shl v12, 5
     v16 = ptradd v11, v15
     v17 = ptradd v16, 32
     v18 = ptrtoint ptr<memory> v14 to i256
@@ -220,7 +220,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
   bb2:
     v4 = alloc 64 !metadata(preserves_fmp)
     memory_zero v4, 64
-    v5 = shl 5, v2
+    v5 = shl v2, 5
     v6 = ptradd v1, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v4 to i256

@@ -8,7 +8,7 @@ fn @entry() [entry] {
     jumpi v1, bb7, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     v4 = calldataload 4
     v5 = calldataload 36
     switch v3, default bb7, [0x188b85b4 => bb2, 0x1d1d15d4 => bb3, 0x252fc58f => bb4, 0x55680991 => bb5, 0x8129c875 => bb6]

@@ -366,9 +366,9 @@ pub(crate) enum AbiWordValidator {
 impl fmt::Display for AbiWordValidator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unsigned(bits) => write!(f, "u{bits}"),
+            Self::Unsigned(bits) => write!(f, "uint{bits}"),
             Self::LeftAligned(bits) => write!(f, "bytes{}", bits / 8),
-            Self::SignExtend(byte_index) => write!(f, "i{}", (byte_index + 1) * 8),
+            Self::SignExtend(byte_index) => write!(f, "int{}", (byte_index + 1) * 8),
             Self::Bool => write!(f, "bool"),
             Self::EnumRange(variants) => write!(f, "enum {variants}"),
         }
@@ -440,9 +440,9 @@ impl AbiWordValidator {
                 if has_bitwise_shifting {
                     let shift = builder.imm(u64::from(bits));
                     let shifted = if matches!(self, Self::Unsigned(_)) {
-                        builder.shr(shift, word)
+                        builder.shr(word, shift)
                     } else {
-                        builder.shl(shift, word)
+                        builder.shl(word, shift)
                     };
                     builder.eq_zero(shifted)
                 } else {

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/scan_exit_constants.sol:ScanExitConstants ===
 @module ScanExitConstants
-fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt arg0, 0x400
     v1 = eq v0, false
@@ -59,7 +59,7 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add u256, v12, 1
+    v22 = checked_add uint256, v12, 1
     jump bb1
 }
 

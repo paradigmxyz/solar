@@ -1,0 +1,40 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ filecheck:
+// CHECK-LABEL: "A": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "B": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE]]"
+// CHECK: "ethdebug": {
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME]]"
+// CHECK: "ethdebug": {
+// CHECK-LABEL: "C": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE]]"
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME]]"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "abstract contract Base { uint256 constant P = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff; function f(uint256 x, uint256 y) external pure returns (uint256) { return addmod(mulmod(x, y, P), mulmod(x, x, P), P); } } contract A is Base {} contract B is Base {} contract C is Base {}"
+    }
+  },
+  "settings": {
+    "metadata": { "appendCBOR": false, "bytecodeHash": "none" },
+    "optimizer": { "enabled": true, "runs": 200 },
+    "outputSelection": {
+      "A.sol": {
+        "A": ["evm.bytecode.object", "evm.bytecode.sourceMap", "evm.deployedBytecode.object", "evm.deployedBytecode.sourceMap"],
+        "B": ["evm.bytecode.object", "evm.bytecode.ethdebug", "evm.deployedBytecode.object", "evm.deployedBytecode.ethdebug"],
+        "C": ["evm.bytecode.object", "evm.deployedBytecode.object"]
+      }
+    }
+  }
+}

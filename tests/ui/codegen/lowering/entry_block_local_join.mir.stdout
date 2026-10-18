@@ -1,21 +1,21 @@
 // === ROOT/tests/ui/codegen/lowering/entry_block_local_join.sol:EntryBlockLocalJoin ===
 @module EntryBlockLocalJoin
-fn @a(arg0: i256) [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @a(arg0: i256) [selector=0xf0fdf834, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @c(arg0: i256) [selector=0x4f8dd50d, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @c(arg0: i256) [selector=0x4f8dd50d, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @b() -> i256 [selector=0x4df7e3d0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @b() -> i256 [selector=0x4df7e3d0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0
 }
 
-fn @d() -> i256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @d() -> i256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldatasize
     switch v0, default bb4, [4 => bb2, 5 => bb3]

@@ -43,6 +43,16 @@ pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSu
     })
 }
 
+/// Returns whether any function in `module` reads `msize`. Internal calls share memory, so such a
+/// read observes the expansion of every memory access that runs before it, in callers and
+/// siblings as well as callees.
+pub(crate) fn module_may_observe_msize(module: &Module) -> bool {
+    module
+        .functions
+        .iter()
+        .any(|func| func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize)))
+}
+
 /// A bounded set of storage slots, or an unknown access to the whole space.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct SlotFootprint {

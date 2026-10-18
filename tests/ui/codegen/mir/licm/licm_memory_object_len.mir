@@ -18,7 +18,7 @@ fn @hoist_len_over_element_stores(arg0: ptr<memory>) {
     v2 = lt v0, v1
     jumpi v2, bb2, bb3
   bb2:
-    v109 = shl 5, v0
+    v109 = shl v0, 5
     v9001 = ptradd arg0, 32
     v9002 = ptradd v9001, v109
     mstore v9002, v0

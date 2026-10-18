@@ -48,7 +48,7 @@
   
   fn @decode_leaf(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
     bb0:
-      v0 = abi_decode [u256], arg0
+      v0 = abi_decode [uint256], arg0
       v1 = add v0, arg1
       ret v1
   }

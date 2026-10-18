@@ -131,7 +131,7 @@ fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: DataDest, data: &[u
     }
 }
 
-/// Expands a repeated word with logarithmically many `MCOPY` operations.
+/// Expands a repeated word with logarithmically many memory copies.
 fn copy_splat_to_memory(
     gcx: Gcx<'_>,
     builder: &mut FunctionBuilder<'_>,
@@ -140,9 +140,20 @@ fn copy_splat_to_memory(
     clear_tail: bool,
 ) -> bool {
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
-    if !gcx.sess.opts.optimization.is_size()
-        || !gcx.sess.opts.evm_version.has_mcopy()
-        || !is_repeated_word(data)
+    // Partial copies need a masked merge before Cancun; retain the ordinary data lowering.
+    if !(gcx.sess.opts.optimization.is_size()
+        && is_repeated_word(data)
+        && (gcx.sess.opts.evm_version.has_mcopy() || data.len().is_multiple_of(word_size)))
+    {
+        return false;
+    }
+    let word = U256::from_be_bytes(padded_data_word(&data[..word_size]));
+    if !gcx.sess.opts.evm_version.has_mcopy()
+        && !Target::new(gcx).legacy_splat_is_profitable(
+            word,
+            data.len(),
+            data_copy_is_profitable_for(gcx, data, clear_tail),
+        )
     {
         return false;
     }
@@ -152,7 +163,7 @@ fn copy_splat_to_memory(
         let zero = builder.imm(0);
         dest.store(builder, tail_offset as u64, zero);
     }
-    let value = builder.imm(U256::from_be_bytes(padded_data_word(&data[..word_size])));
+    let value = builder.imm(word);
     dest.store(builder, 0, value);
     let start = dest.at(builder, 0);
     let mut filled = word_size;

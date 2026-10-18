@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -19,7 +19,7 @@ fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, 
     v8 = storage_array_data_slot 0
     v9 = add v8, v5
     sstore 0, v7 !metadata(storage=slot(0))
-    v10 = checked_add u256, 0, 1
+    v10 = checked_add uint256, 0, 1
     v11 = sload 0 !metadata(storage=slot(0))
     v12 = lt 0, v11
     v13 = eq v12, false
@@ -39,7 +39,7 @@ fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, 
     v24 = eq v23, 1
     v25 = sub 0, v23
     v26 = or 127, v25
-    v27 = shr 1, v22
+    v27 = shr v22, 1
     v28 = and v27, v26
     v29 = insert_value struct0, undef struct0, 0, v10
     v30 = insert_value struct0, v29, 1, v21

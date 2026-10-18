@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @recurse(arg0: i256) -> i256 [selector=0xb2041d21, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recurse(arg0: i256) -> i256 [selector=0xb2041d21, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @a, arg0
     ret v0
@@ -14,7 +14,7 @@ fn @a(arg0: i256) -> i256 {
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:
-    v1 = checked_sub u256, arg0, 1
+    v1 = checked_sub uint256, arg0, 1
     v2 = icall @b, v1
     jump bb3
   bb1:
@@ -29,7 +29,7 @@ fn @b(arg0: i256) -> i256 {
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:
-    v1 = checked_sub u256, arg0, 1
+    v1 = checked_sub uint256, arg0, 1
     v2 = icall @a, v1
     jump bb3
   bb1:
@@ -39,7 +39,7 @@ fn @b(arg0: i256) -> i256 {
     ret v3
 }
 
-fn @multi(arg0: i256) -> struct0 [selector=0x645444bd, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @multi(arg0: i256) -> struct0 [selector=0x645444bd, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @pair, arg0
     v1 = extract_value struct0, v0, 0
@@ -51,13 +51,13 @@ fn @multi(arg0: i256) -> struct0 [selector=0x645444bd, pure, abi_params=[u256], 
 
 fn @pair(arg0: i256) -> struct0 [pure] {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     v1 = insert_value struct0, undef struct0, 0, arg0
     v2 = insert_value struct0, v1, 1, v0
     ret v2
 }
 
-fn @callVoid(arg0: i256) [selector=0xf42b07b1, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @callVoid(arg0: i256) [selector=0xf42b07b1, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @branchingVoid, arg0
     ret
@@ -70,14 +70,14 @@ fn @branchingVoid(arg0: i256) [pure] {
   bb2:
     jump bb3
   bb1:
-    v1 = checked_sub u256, arg0, 1
+    v1 = checked_sub uint256, arg0, 1
     icall @branchingVoid, v1
     jump bb3
   bb3:
     ret
 }
 
-fn @callEntry(arg0: i256) -> i256 [selector=0x7a7de4a9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @callEntry(arg0: i256) -> i256 [selector=0x7a7de4a9, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @entry, arg0
     ret v0
@@ -95,14 +95,14 @@ fn @entry(arg0: i256) -> i256 [pure] {
   bb5:
     jump bb2
   bb2:
-    v6 = checked_add u256, v1, 1
+    v6 = checked_add uint256, v1, 1
     ret v6
   bb4:
-    v4 = checked_add u256, v1, 1
+    v4 = checked_add uint256, v1, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v5 = checked_add u256, v2, 1
+    v5 = checked_add uint256, v2, 1
     jump bb1
 }

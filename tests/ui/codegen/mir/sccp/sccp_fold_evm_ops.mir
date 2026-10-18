@@ -100,7 +100,7 @@ fn @sgt_negative() -> i1 {
 // CHECK: + ret true
 fn @sar_saturates_negative() -> i1 {
   bb0:
-    v0 = sar 256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v0 = sar 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 256
     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v1
 }
@@ -109,7 +109,7 @@ fn @sar_saturates_negative() -> i1 {
 // CHECK: + ret 0
 fn @sar_saturates_positive() -> i256 {
   bb0:
-    v0 = sar 300, 7
+    v0 = sar 7, 300
     ret v0
 }
 
@@ -118,7 +118,7 @@ fn @sar_saturates_positive() -> i256 {
 // CHECK: + ret true
 fn @sar_fills_sign_bits() -> i1 {
   bb0:
-    v0 = sar 1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9
+    v0 = sar 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 1
     v1 = eq v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc
     ret v1
 }

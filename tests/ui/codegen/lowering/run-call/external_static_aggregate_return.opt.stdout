@@ -69,7 +69,7 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
   bb8:
     returndata 128, 96
   bb7:
-    v14 = shl 5, v12
+    v14 = shl v12, 5
     v27 = add v30, v14
     v16 = mload v27
     v18 = add v14, 128
@@ -312,13 +312,10 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
   bb4:
     v32 = alloc 64 !metadata(deferred_alloc)
     v33 = mload v59
-    mstore v32, v33
-    v35 = add v60, 96
-    v36 = mload v35
-    v54 = add v32, 32
-    mstore v54, v36
     v39 = add v60, 128
     v40 = mload v39
+    v35 = add v60, 96
+    v36 = mload v35
     v23 = add v33, v36
     v24 = lt v23, v33
     v25 = add v23, v40
@@ -396,7 +393,7 @@ fn @entry() [entry] {
     jumpi v1, bb11, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb11, [0x62dc8436 => bb2, 0x9510f212 => bb3, 0xad0cb941 => bb4, 0xc3f9a16c => bb5, 0xc41518f3 => bb6, 0xc6630f71 => bb7, 0xcc20ef0a => bb8, 0xe3b21a7a => bb9, 0xf4d7be11 => bb10]
   bb10:
     tail_call @makePair

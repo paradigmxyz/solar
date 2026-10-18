@@ -20,7 +20,7 @@
 +     jump bb1
 +   bb1:
 +     v0 = calldataload 0
-+     v1 = shr 224, v0
++     v1 = shr v0, 224
 +     switch v1, default bb4, [1 => bb2, 2 => bb3]
 +   bb3:
 +     v2 = loadimmutable library_deploy_address

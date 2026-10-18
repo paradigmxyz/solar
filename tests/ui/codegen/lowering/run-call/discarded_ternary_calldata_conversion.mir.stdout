@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/discarded_ternary_calldata_conversion.sol:DiscardedTernaryCalldataConversion ===
 @module DiscardedTernaryCalldataConversion
-fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_params=[bool, array<_, array<_, u256>>], abi_returns=[], abi_return_params=[]] {
+fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_params=[bool, array<_, array<_, uint256>>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc zeroed checked 32
     mstore v0, 0
@@ -98,14 +98,14 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     v68 = extract_value slice<calldata>, v65, 1
     calldatacopy v66, v67, v68
     v69 = ptrtoint ptr<memory> v63 to i256
-    v70 = shl 5, v30
+    v70 = shl v30, 5
     v71 = ptradd v29, v70
     v72 = ptradd v71, 32
     mstore v72, v69
     v73 = add v30, 1
     jump bb7
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -161,7 +161,7 @@ fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool]
     v29 = address_call v27, v23, gas v28
     ret v29
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
