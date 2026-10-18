@@ -56,7 +56,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &pre::Pre,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
-    &word_sequence::WordSequence,
+    &word_sequence::WordSequence::Late,
     &byte_run::ByteRunLoads,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
@@ -200,7 +200,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &sccp::Sccp,
     &pure_eval::PureEval,
     &egraph::Egraph,
-    &word_sequence::WordSequence,
+    &word_sequence::WordSequence::Early,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
@@ -257,7 +257,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(loop_split::LoopSplit),
     &sccp::Sccp,
     &egraph::Egraph,
-    &word_sequence::WordSequence,
+    &word_sequence::WordSequence::Early,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
@@ -297,7 +297,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &egraph::Egraph,
-    &word_sequence::WordSequence,
+    &word_sequence::WordSequence::Late,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
     // Check elimination and CFG cleanup expose straight-line immutable helpers.
@@ -361,7 +361,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // once more before the physical shape is fixed. The stack-aware cost keeps
     // rewrites from reaching for values the scheduler would have to keep alive.
     &egraph::Egraph,
-    &word_sequence::WordSequence,
+    &word_sequence::WordSequence::Late,
     // Packing consecutive bytes out of one buffer reads each byte with its own
     // word read. The simplification above canonicalizes each read to one byte
     // extraction; fuse the run into the one read it is a field of, before the
