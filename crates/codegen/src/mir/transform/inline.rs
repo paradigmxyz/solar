@@ -51,6 +51,8 @@
 //! loop-idiom lowering when their bounded MIR shape replaces the original scalar loop.
 //! A phi-free helper with one return may also call a nonreturning failure helper.
 //! Such calls stay on their original paths: caller values never survive them.
+//! Every mode treats a tail call to such a helper, which `outline-reverts` leaves on
+//! failure paths, like a `revert`; any other tail call keeps its callee shared.
 //! Keep more complex call-containing helpers shared rather than duplicating their
 //! diamonds under the scalar leaf cost estimate.
 //! Other writes and shared phi helpers remain excluded. This is a bounded profitability
@@ -670,17 +672,12 @@ impl MirInliner {
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
                     // Remove this call site and count the calls cloned into its caller.
-                    // The original callee remains until function DCE runs, and a callee
-                    // with a tail call is never inlined.
+                    // The original callee remains until function DCE runs.
                     if let Some(count) = call_counts.get_mut(&site.callee) {
                         *count = count.saturating_sub(1);
                     }
-                    for inst in callee.instructions() {
-                        if let InstKind::ICall { function: Callee::Function(function), .. } =
-                            callee.inst(inst).kind
-                        {
-                            *call_counts.entry(function).or_default() += 1;
-                        }
+                    for function in direct_callees(&callee) {
+                        *call_counts.entry(function).or_default() += 1;
                     }
                     if let Some(calls) = &mut artifact_calls {
                         calls.inline(caller_id, site.callee, &callee);
@@ -731,19 +728,8 @@ impl MirInliner {
 
     fn call_counts(&self, module: &Module) -> FxHashMap<MirFunctionId, usize> {
         let mut counts = FxHashMap::default();
-        for func in module.functions.iter() {
-            for inst_id in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    func.inst(inst_id).kind
-                {
-                    *counts.entry(function).or_default() += 1;
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                    *counts.entry(*function).or_default() += 1;
-                }
-            }
+        for function in module.functions.iter().flat_map(direct_callees) {
+            *counts.entry(function).or_default() += 1;
         }
         counts
     }
@@ -1077,17 +1063,8 @@ impl ArtifactCallCounts {
         }
         let mut result = Self { creation, runtime, counts: FxHashMap::default() };
         for (caller, func) in module.functions.iter_enumerated() {
-            for inst in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    func.inst(inst).kind
-                {
-                    result.add(caller, function);
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = block.terminator {
-                    result.add(caller, function);
-                }
+            for function in direct_callees(func) {
+                result.add(caller, function);
             }
         }
         result
@@ -1104,14 +1081,23 @@ impl ArtifactCallCounts {
             counts[0] -= usize::from(self.creation.contains(caller));
             counts[1] -= usize::from(self.runtime.contains(caller));
         }
-        for inst in callee.instructions() {
-            if let InstKind::ICall { function: Callee::Function(function), .. } =
-                callee.inst(inst).kind
-            {
-                self.add(caller, function);
-            }
+        for function in direct_callees(callee) {
+            self.add(caller, function);
         }
     }
+}
+
+/// The targets of every direct internal call and tail call in `func`.
+fn direct_callees(func: &Function) -> impl Iterator<Item = MirFunctionId> + '_ {
+    let calls = func.instructions().filter_map(|inst| match func.inst(inst).kind {
+        InstKind::ICall { function: Callee::Function(function), .. } => Some(function),
+        _ => None,
+    });
+    let tail_calls = func.blocks.iter().filter_map(|block| match block.terminator {
+        Some(Terminator::TailCall { function, .. }) => Some(function),
+        _ => None,
+    });
+    calls.chain(tail_calls)
 }
 
 /// Recognizes a complete constant bytes initializer without relaxing the
@@ -1168,7 +1154,11 @@ fn is_terminal_call(module: &Module, kind: &InstKind) -> bool {
     let InstKind::ICall { function: Callee::Function(callee), .. } = kind else {
         return false;
     };
-    let callee = module.function(*callee);
+    never_returns(module.function(*callee))
+}
+
+/// Whether every path through `callee` ends the message, as a shared revert helper does.
+fn never_returns(callee: &Function) -> bool {
     !callee.blocks.is_empty()
         && callee.blocks.iter().all(|block| {
             matches!(
@@ -1302,6 +1292,15 @@ fn summarize_function(
                     estimate_terminator_cost(target, term).bytes as usize;
             }
             Some(term @ Terminator::RevertReturndata) => {
+                summary.estimated_code_size +=
+                    estimate_terminator_cost(target, term).bytes as usize;
+            }
+            // `outline-reverts` turns failure paths into tail calls to shared revert helpers.
+            // Such a jump ends the message wherever it is cloned, but a tail call to a function
+            // that returns would return from the caller instead.
+            Some(term @ Terminator::TailCall { function, .. })
+                if never_returns(module.function(*function)) =>
+            {
                 summary.estimated_code_size +=
                     estimate_terminator_cost(target, term).bytes as usize;
             }
