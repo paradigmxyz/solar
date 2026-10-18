@@ -45,13 +45,9 @@ impl MirPass for Dce {
 
 /// Dead Code Elimination pass.
 ///
-/// Removes instructions that:
-/// 1. Have a result that is never used
-/// 2. Have no side effects
-/// 3. Are in unreachable blocks
-/// 4. Are instructions after a terminator (unreachable code)
-///
-/// Side-effect instructions (SSTORE, MSTORE, CALL, LOG, etc.) are always kept.
+/// Empties unreachable blocks and removes instructions whose results are unused and whose
+/// execution `Instruction::must_execute` does not require, together with internal calls whose
+/// summaries allow discarding them.
 #[derive(Debug, Default)]
 pub(crate) struct DeadCodeEliminator {
     call_summaries: Option<Arc<MemoryCallSummaries>>,

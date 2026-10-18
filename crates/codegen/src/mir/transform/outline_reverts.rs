@@ -15,8 +15,8 @@
 //! argless `tail_call` to it — a bare jump in the backend.
 
 use crate::mir::{
-    Function, FunctionBuilder, FunctionId, InstKind, Module, PtrLocation, Terminator, Value,
-    pass::MirPass,
+    BlockId, Function, FunctionBuilder, FunctionId, InstKind, Module, PtrLocation, Terminator,
+    Value, pass::MirPass,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -37,61 +37,45 @@ impl MirPass for OutlineReverts {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        OutlineRevertsCx::default().run(module)
+        outline_reverts(module)
     }
-}
-
-/// Statistics from revert-block outlining.
-#[derive(Clone, Debug, Default)]
-struct OutlineRevertsStats {
-    /// Number of blocks rewritten into tail calls.
-    outlined: usize,
-}
-
-#[derive(Debug, Default)]
-struct OutlineRevertsCx {
-    stats: OutlineRevertsStats,
 }
 
 /// A constant revert block: `mstore(offset, value)*` then `revert(offset, size)`.
 type RevertShape = (SmallVec<[(U256, U256); 2]>, U256, U256);
 
-impl OutlineRevertsCx {
-    fn run(&mut self, module: &mut Module) -> bool {
-        // Collect every constant revert block, keyed by shape.
-        let mut shapes: FxHashMap<RevertShape, Vec<(usize, usize)>> = FxHashMap::default();
-        for (func_idx, func) in module.functions.iter().enumerate() {
-            for block_idx in 0..func.blocks.len() {
-                if let Some(shape) = constant_revert_shape(func, block_idx)
-                    && estimated_inline_size(&shape) >= MIN_OUTLINED_SIZE
-                {
-                    shapes.entry(shape).or_default().push((func_idx, block_idx));
-                }
+fn outline_reverts(module: &mut Module) -> bool {
+    // Collect every constant revert block, keyed by shape.
+    let mut shapes = FxHashMap::<RevertShape, Vec<(FunctionId, BlockId)>>::default();
+    for (func_id, func) in module.functions.iter_enumerated() {
+        for block_id in func.blocks.indices() {
+            if let Some(shape) = constant_revert_shape(func, block_id)
+                && estimated_inline_size(&shape) >= MIN_OUTLINED_SIZE
+            {
+                shapes.entry(shape).or_default().push((func_id, block_id));
             }
         }
-
-        let mut worth_outlining: Vec<(RevertShape, Vec<(usize, usize)>)> =
-            shapes.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
-        if worth_outlining.is_empty() {
-            return false;
-        }
-        // Deterministic helper numbering and output.
-        worth_outlining.sort_by(|a, b| a.1.cmp(&b.1));
-
-        for (shape, sites) in worth_outlining {
-            let helper = create_revert(module, &shape);
-            for (func_idx, block_idx) in sites {
-                let func = &mut module.functions[crate::mir::FunctionId::from_usize(func_idx)];
-                let block = &mut func.blocks[crate::mir::BlockId::from_usize(block_idx)];
-                block.instructions.clear();
-                block.terminator =
-                    Some(Terminator::TailCall { function: helper, args: Default::default() });
-                self.stats.outlined += 1;
-            }
-        }
-
-        self.stats.outlined != 0
     }
+
+    let mut worth_outlining: Vec<_> =
+        shapes.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
+    if worth_outlining.is_empty() {
+        return false;
+    }
+    // Deterministic helper numbering and output.
+    worth_outlining.sort_by(|a, b| a.1.cmp(&b.1));
+
+    for (shape, sites) in worth_outlining {
+        let helper = create_revert(module, &shape);
+        for (func_id, block_id) in sites {
+            // mstore(imm, imm)*; revert(imm, imm) => tail_call @revert_stub
+            let block = &mut module.functions[func_id].blocks[block_id];
+            block.instructions.clear();
+            block.terminator =
+                Some(Terminator::TailCall { function: helper, args: Default::default() });
+        }
+    }
+    true
 }
 
 fn create_revert(module: &mut Module, (stores, offset, size): &RevertShape) -> FunctionId {
@@ -115,8 +99,8 @@ const MIN_OUTLINED_SIZE: usize = 12;
 
 /// Returns the block's shape when every instruction is a fully-constant
 /// `mstore` and the terminator is a fully-constant `revert`.
-fn constant_revert_shape(func: &Function, block_idx: usize) -> Option<RevertShape> {
-    let block = &func.blocks[crate::mir::BlockId::from_usize(block_idx)];
+fn constant_revert_shape(func: &Function, block: BlockId) -> Option<RevertShape> {
+    let block = &func.blocks[block];
     let Some(Terminator::Revert { offset, size }) = block.terminator else {
         return None;
     };
