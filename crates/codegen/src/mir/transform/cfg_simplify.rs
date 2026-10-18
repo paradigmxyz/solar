@@ -307,20 +307,8 @@ impl CfgSimplifier {
         let mut insts = Vec::with_capacity(block.instructions.len());
         for &inst_id in &block.instructions {
             let inst = func.inst(inst_id);
-            match &inst.kind {
-                InstKind::Phi(_)
-                | InstKind::Alloc { .. }
-                | InstKind::AbiEncode { .. }
-                | InstKind::AbiDecode { .. }
-                | InstKind::StorageToMemory { .. }
-                | InstKind::MemoryToStorage { .. }
-                | InstKind::ClearStorage { .. }
-                | InstKind::FrameLoad { .. }
-                | InstKind::FrameStore { .. }
-                | InstKind::StoreImmutable(_, _)
-                | InstKind::LoadImmutable(_)
-                | InstKind::StorageArrayElementSlot { .. } => return None,
-                _ => {}
+            if matches!(inst.kind, InstKind::Phi(_)) {
+                return None;
             }
             let mut metadata = inst.metadata.clone();
             metadata.set_hir_expr(None);
