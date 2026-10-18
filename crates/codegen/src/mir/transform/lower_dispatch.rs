@@ -38,12 +38,11 @@
 //! When at least two selector wrappers all start with the same ABI head-size
 //! check and there is no `receive` or `fallback`, which accept other calldata
 //! shapes, this pass hoists that check into `entry` and removes the dead
-//! wrapper guards. In
-//! non-debug mode the hoisted calldata check, the callvalue check, and selector
-//! misses share one empty-revert block. Debug revert strings retain distinct
-//! paths so each rejection keeps its diagnostic payload.
+//! wrapper guards. In non-debug mode the hoisted calldata check, the callvalue
+//! check, and selector misses share one empty-revert block. Debug revert
+//! strings retain distinct paths so each rejection keeps its diagnostic
+//! payload.
 //!
-//! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
 //! The backend only consumes the final `lowered` module.
 
 use crate::mir::{

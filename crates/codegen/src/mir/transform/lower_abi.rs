@@ -7,7 +7,8 @@
 //! For each external entry `f(x0: T0, .., xn: Tn)`, it:
 //!
 //! 1. copies the original into a fresh internal function `f.body` with its parameter list preserved
-//!    when there are internal callers, and
+//!    when there are internal callers; in gas mode, a function with three or more dynamic
+//!    parameters also keeps a copy of the body inline in its wrapper, and
 //! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries. Scalar
 //!    arguments remain lazy ABI head words (up to `MAX_LAZY_ARG_WORDS`), calldata aggregates become
 //!    `slice<calldata>` values over their validated encoding until `lower-slices` projects their

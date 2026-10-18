@@ -25,16 +25,18 @@
 //!
 //! Element loops. Full-word memory arrays and calldata word arrays copy as one
 //! block. Memory words that need cleanup use a guarded do-while over a
-//! destination cursor with a fixed source displacement; allocations of at most
-//! one element keep a counted loop, whose rotation would add an entry guard
-//! and an exit phi. Byte tails zero their last padded word before writing the
-//! length header, which needs no branch even for an empty tail; size mode
-//! keeps the guarded store, because those tails share better under machine
-//! outlining.
+//! destination cursor with a fixed source displacement. The original count
+//! controls iteration even if addresses wrap, and loads, cleanup checks, and
+//! stores keep their order. Allocations of at most one element keep a counted
+//! loop, whose rotation would add an entry guard and an exit phi. Byte tails
+//! zero their last padded word before writing the length header, which needs
+//! no branch even for an empty tail; size mode keeps the guarded store,
+//! because those tails share better under machine outlining.
 //!
-//! In-place returns. A terminal external return of a fresh full-word array or
-//! byte string encodes over the object itself: the payload moves forward one
-//! word to make room for the tuple offset and the length word is reused, so no
+//! In-place returns. Under the gas and size objectives, a terminal external
+//! return of a fresh full-word array or byte string that is not a literal
+//! object encodes over the object itself: the payload moves forward one word
+//! to make room for the tuple offset and the length word is reused, so no
 //! second allocation is made. A module-wide plan selects those sites before
 //! helpers are counted.
 //!
