@@ -37,11 +37,11 @@ use crate::mir::{
     pass::{MirPass, run_function_pass},
     utils::split_edge,
 };
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
-use smallvec::SmallVec;
 
 /// Function pass for pure expression PRE.
 pub(crate) struct Pre;
