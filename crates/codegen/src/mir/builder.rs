@@ -1,11 +1,11 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AddressCallKind, AllocationSemantics, BlockId, CalldataTail, FrameMode,
-    FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
-    InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType, PanicCode,
-    PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId, Terminator,
-    Value, ValueId,
+    AbiEncodeMode, AddressCallKind, AllocationFailure, AllocationSemantics, BlockId, CalldataTail,
+    FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType,
+    PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
+    Terminator, Value, ValueId,
 };
 use crate::{
     link::LibraryId,
@@ -906,9 +906,20 @@ impl<'a> FunctionBuilder<'a> {
         semantics: AllocationSemantics,
     ) -> (ValueId, MemoryObjectLayout) {
         let one = self.imm(1);
-        let words = self.checked_add(length, one);
-        let word_size = self.imm(32);
-        let size = self.checked_mul(words, word_size);
+        let word_size = self.imm(EvmMemoryLayout::WORD_SIZE);
+        let size = if semantics.failure == AllocationFailure::Checked {
+            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE - 1, 0x41
+            // size = (length + 1) * WORD_SIZE
+            let limit =
+                self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE - 1);
+            let invalid = self.gt(length, limit);
+            self.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
+            let words = self.add(length, one);
+            self.mul(words, word_size)
+        } else {
+            let words = self.checked_add(length, one);
+            self.checked_mul(words, word_size)
+        };
         let layout = MemoryObjectLayout::WORD_ARRAY;
         let object = self.alloc(size, semantics);
         self.set_memory_len(object, length);
