@@ -89,7 +89,6 @@ fn has_memory_writes(func: &Function) -> bool {
                 | InstKind::DataCopy(_, _, _)
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ExtCodeCopy(..)
-                | InstKind::StorageToMemory { .. }
                 | InstKind::AbiEncode { .. }
                 | InstKind::AbiDecode { .. }
         )

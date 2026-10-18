@@ -86,25 +86,16 @@ bb1:
   push bb3
   jumpi
   calldataload
-  dup 1
-  push 5
-  shl
-  dup 1
-  push 5
-  shr
-  dup 3
-  eq
-  iszero
-  push 32
-  dup 3
-  add
-  swap 1
-  dup 3
-  dup 3
-  lt
-  or
+  push 0x7fffffffffffffe
+  dup 2
+  gt
   push bb21
   jumpi
+  push 1
+  dup 2
+  add
+  push 5
+  shl
   push bb8
   jump bb23
 bb23:
@@ -129,10 +120,13 @@ bb23:
   mstore
   jump
 bb8 [continuation]:
-  swap 2
-  dup 1
-  dup 4
+  dup 2
+  dup 2
   mstore
+  dup 2
+  push 5
+  shl
+  swap 2
   dup 4
   calldatasize
   sub
@@ -142,12 +136,11 @@ bb8 [continuation]:
   push bb3
   jumpi
   push 32
-  dup 3
+  dup 2
   add
-  swap 1
-  swap 2
   swap 3
   swap 1
+  swap 3
   calldatacopy
   push 32
   dup 3
@@ -331,11 +324,6 @@ bb15 [loop]:
   push bb20
   jumpi
   swap 1
-  push 0
-  not
-  push 96
-  shr
-  and
   push 0
   mstore
   push 4

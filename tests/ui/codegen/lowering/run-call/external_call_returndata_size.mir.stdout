@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:LongReturn ===
 @module LongReturn
-fn @f() -> ptr<memory> [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<20, word>], abi_return_params=[array<20, u256>]] {
+fn @f() -> ptr<memory> [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<20, word>], abi_return_params=[array<20, uint256>]] {
   bb0:
     v0 = alloc 640 !metadata(preserves_fmp)
     memory_zero v0, 640
@@ -18,7 +18,7 @@ fn @f() -> ptr<memory> [selector=0x26121ff0, pure, abi_params=[], abi_returns=[a
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ShortReturn ===
 @module ShortReturn
-fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 42
 }
@@ -33,7 +33,7 @@ fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], a
   LongReturn_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:LongReturn"
   ShortReturn_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ShortReturn"
 
-fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize LongReturn_creation_code_0
@@ -73,7 +73,7 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
     ret v23
 }
 
-fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize LongReturn_creation_code_0
@@ -91,12 +91,12 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0x26121ff0
     v12 = mload 64 !metadata(memory=scratch)
     v13 = and v11, 0xffffffff
-    v14 = shl 224, v13
-    v15 = shr 32, v11
+    v14 = shl v13, 224
+    v15 = shr v11, 32
     v16 = gas
     v17 = abi_encode [], selector v14
     v18 = extract_value slice<memory>, v17, 0
@@ -118,7 +118,7 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     ret v28
 }
 
-fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize LongReturn_creation_code_0
@@ -167,7 +167,7 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
     ret v32
 }
 
-fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize LongReturn_creation_code_0
@@ -185,12 +185,12 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0x26121ff0
     v12 = mload 64 !metadata(memory=scratch)
     v13 = and v11, 0xffffffff
-    v14 = shl 224, v13
-    v15 = shr 32, v11
+    v14 = shl v13, 224
+    v15 = shr v11, 32
     v16 = gas
     v17 = abi_encode [], selector v14
     v18 = extract_value slice<memory>, v17, 0
@@ -217,7 +217,7 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
     ret v33
 }
 
-fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize ShortReturn_creation_code_1
@@ -262,7 +262,7 @@ fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[w
     ret v28
 }
 
-fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize ShortReturn_creation_code_1
@@ -280,11 +280,11 @@ fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0x26121ff0
     v12 = and v11, 0xffffffff
-    v13 = shl 224, v12
-    v14 = shr 32, v11
+    v13 = shl v12, 224
+    v14 = shr v11, 32
     v15 = gas
     v16 = abi_encode [], selector v13
     v17 = extract_value slice<memory>, v16, 0
@@ -365,11 +365,11 @@ fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0x26121ff0
     v12 = and v11, 0xffffffff
-    v13 = shl 224, v12
-    v14 = shr 32, v11
+    v13 = shl v12, 224
+    v14 = shr v11, 32
     v15 = gas
     v16 = abi_encode [], selector v13
     v17 = extract_value slice<memory>, v16, 0

@@ -6,6 +6,12 @@
 //! static-allocation placeholders remain for final backend layout. Raw loads and stores discard
 //! allocation-only effect and placement metadata: the emitted stores, initialization, and panic
 //! branches carry those effects. Source metadata stays on the original instruction.
+//!
+//! A checked allocation bumps the pointer only after testing the new end against overflow and
+//! the allocation limit, panicking otherwise. When a module has two or more, one `alloc(size)`
+//! helper owns the pointer load, check, panic, and update, and each site calls it and keeps its
+//! own zeroing; a single checked allocation splits its block around the inline check instead.
+//!
 //! A preserving allocation that reserves bytes an encoder already wrote through an
 //! earlier pointer read in the same block reuses that read instead of loading the
 //! pointer again, as long as only writes addressed from the read word come between.

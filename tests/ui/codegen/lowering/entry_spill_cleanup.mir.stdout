@@ -58,7 +58,7 @@ fn @toHexStringNoPrefix(arg0: ptr<memory>) -> ptr<memory> [selector=0x449f3447, 
     v24 = add v11, 1
     mstore8 v24, v23
     v25 = mload v20
-    v26 = shr 4, v25
+    v26 = shr v25, 4
     v27 = and v26, 15
     v28 = mload v27
     mstore8 v11, v28

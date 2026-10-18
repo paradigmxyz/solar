@@ -69,7 +69,7 @@ fn load_scalar(
     let index_in_slot = builder.mod_(index, per_slot);
     let bits = builder.imm(bytes * 8);
     let shift = builder.mul(index_in_slot, bits);
-    let shifted = builder.shr(shift, word);
+    let shifted = builder.shr(word, shift);
     let mask = builder.imm((U256::from(1) << (bytes * 8)) - U256::from(1));
     let value = builder.and(shifted, mask);
     match element {
@@ -81,7 +81,7 @@ fn load_scalar(
         ValueLayout::FixedBytes(_) => {
             // value = value << (32 - bytes) * 8
             let shift = builder.imm((32 - bytes) * 8);
-            builder.shl(shift, value)
+            builder.shl(value, shift)
         }
         _ => value,
     }

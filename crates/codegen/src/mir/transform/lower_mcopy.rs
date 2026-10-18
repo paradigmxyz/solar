@@ -21,14 +21,17 @@
 //! output, clear of every frame.
 //!
 //! Copies marked `disjoint`, such as ABI encoding's copies of source data into
-//! its output, run forward. Otherwise pointer provenance picks the direction at
-//! compile time: backward when the destination starts above the source in the
-//! same base, forward when both complete ranges fit disjoint allocations.
+//! its output, run forward. Constant lengths of at most one word also copy
+//! forward because they read the source before their only store. Otherwise provenance
+//! picks the direction at compile time: backward when the destination starts
+//! above the source in the same base, forward when both complete ranges fit
+//! disjoint allocations.
 //! Allocation origins alone do not prove disjointness. Unknown relationships keep a
 //! runtime direction check. A masked partial-word merge ensures that the
 //! lowering changes exactly `len` bytes; a length that is provably a multiple
 //! of 32, such as a word array's `len << 5`, copies whole words and needs no
-//! merge.
+//! merge. A constant one-byte tail uses `MSTORE8` instead of reading and masking
+//! the destination word.
 //!
 //! The pass runs before `lower-alloc`, while allocations are still symbolic
 //! and provenance can tell them apart.
@@ -272,6 +275,9 @@ fn copy_direction(
     src: ValueId,
     len: ValueId,
 ) -> CopyDirection {
+    if func.value_u64(len).is_some_and(|len| len <= EvmMemoryLayout::WORD_SIZE) {
+        return CopyDirection::Forward;
+    }
     let size = alias.location_size(func, len);
     let Some(dest_location) = alias.bare_memory_location(func, dest, size) else {
         return CopyDirection::Dynamic;
@@ -539,7 +545,7 @@ fn emit_dynamic_copy(builder: &mut FunctionBuilder<'_>, copy: WordCopy, continua
     emit_reverse_copy(builder, copy, continuation);
 }
 
-/// Emits an exact masked copy of the final partial word.
+/// Emits an exact copy of the final partial word.
 fn emit_partial_copy(
     builder: &mut FunctionBuilder<'_>,
     dest: ValueId,
@@ -548,6 +554,24 @@ fn emit_partial_copy(
     partial_offset: ValueId,
     continuation: BlockId,
 ) {
+    if builder
+        .func()
+        .value_u256(len)
+        .is_some_and(|len| len.as_limbs()[0] % EvmMemoryLayout::WORD_SIZE == 1)
+    {
+        // word = mload(src + partial_offset)
+        // mstore8(dest + partial_offset, byte(0, word))
+        // jump continuation
+        let src_tail_ptr = builder.add(src, partial_offset);
+        let word = builder.load(src_tail_ptr, PtrLocation::Memory);
+        let zero = builder.imm(0);
+        let byte = builder.byte(zero, word);
+        let dest_tail_ptr = builder.add(dest, partial_offset);
+        builder.store8(dest_tail_ptr, byte);
+        builder.jump(continuation);
+        return;
+    }
+
     // partial = len & 31
     // shift = (32 - (len & 31)) << 3
     // source_top = (mload(src + partial_offset) >> shift) << shift
@@ -559,15 +583,15 @@ fn emit_partial_copy(
     let partial = builder.and(len, thirty_one);
     let gap = builder.sub(word_size, partial);
     let three = builder.imm(3);
-    let shift = builder.shl(three, gap);
+    let shift = builder.shl(gap, three);
     let src_tail_ptr = builder.add(src, partial_offset);
     let src_word = builder.load(src_tail_ptr, PtrLocation::Memory);
-    let src_shifted = builder.shr(shift, src_word);
-    let src_top = builder.shl(shift, src_shifted);
+    let src_shifted = builder.shr(src_word, shift);
+    let src_top = builder.shl(src_shifted, shift);
     let dest_tail_ptr = builder.add(dest, partial_offset);
     let dest_word = builder.load(dest_tail_ptr, PtrLocation::Memory);
     let one = builder.imm(1);
-    let low_bound = builder.shl(shift, one);
+    let low_bound = builder.shl(one, shift);
     let low_mask = builder.sub(low_bound, one);
     let dest_low = builder.and(dest_word, low_mask);
     let merged = builder.or(src_top, dest_low);

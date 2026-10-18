@@ -22,7 +22,7 @@ fn @read(arg0: slice<calldata>) -> i256 [pure] {
     v5 = ptradd v4, 2
     v6 = calldataload v5
     v7 = byte 0, v6
-    v8 = shl 248, v7
+    v8 = shl v7, 248
     ret v8
 }
 
@@ -35,7 +35,7 @@ fn @invoke(arg0: slice<calldata>) -> i256 [selector=0xa6514259, abi_params=[byte
     ret v3
 }
 
-fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = not 31
     v1 = and 97, v0
@@ -64,11 +64,11 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>], abi
     icall revert_if<tuple_data_too_short>, v16
     v17 = add 0, 0
     v18 = mload v17
-    v19 = shl 8, v18
+    v19 = shl v18, 8
     v20 = eq v19, 0
     v21 = eq v20, false
     icall revert_if<empty>, v21
-    v22 = shr 248, v18
+    v22 = shr v18, 248
     v23 = trunc i256 v22 to i8
     ret v23
 }

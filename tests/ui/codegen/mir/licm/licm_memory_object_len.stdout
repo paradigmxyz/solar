@@ -14,7 +14,7 @@
     bb3:
       stop
     bb2:
-      v3 = shl 5, v0
+      v3 = shl v0, 5
 -     v4 = ptradd arg0, 32
       v5 = ptradd v4, v3
       mstore v5, v0

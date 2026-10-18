@@ -4,7 +4,7 @@
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256}
 
-fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice ptr<calldata> 0, v0
@@ -18,7 +18,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v8 = sub v3, 4
     v9 = ptradd v2, 4
     v10 = make_calldata_slice v9, v8
-    v11 = abi_decode [u256, u256], v10
+    v11 = abi_decode [uint256, uint256], v10
     v12 = extract_value struct1, v11, 0
     v13 = extract_value struct1, v11, 1
     v14 = calldatasize
@@ -33,7 +33,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v22 = sub 36, 4
     v23 = ptradd v16, 4
     v24 = make_calldata_slice v23, v22
-    v25 = abi_decode [u256], v24
+    v25 = abi_decode [uint256], v24
     v26 = calldatasize
     v27 = make_calldata_slice ptr<calldata> 0, v26
     v28 = extract_value slice<calldata>, v27, 0
@@ -46,7 +46,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v34 = sub 68, 36
     v35 = ptradd v28, 36
     v36 = make_calldata_slice v35, v34
-    v37 = abi_decode [u256], v36
+    v37 = abi_decode [uint256], v36
     v38 = insert_value struct0, undef struct0, 0, v12
     v39 = insert_value struct0, v38, 1, v13
     v40 = insert_value struct0, v39, 2, v25

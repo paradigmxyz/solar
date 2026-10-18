@@ -3,12 +3,12 @@
 @types
   struct0: {i256, i128, i256, i256}
 
-fn @accept(arg0: i160, arg1: i256) -> i1 [selector=0xcd67571c, pure, abi_params=[address, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @accept(arg0: i160, arg1: i256) -> i1 [selector=0xcd67571c, pure, abi_params=[address, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     ret true
 }
 
-fn @prepare(arg0: i160, arg1: i160, arg2: i24, arg3: i160) -> i160 [selector=0xe2351092, abi_params=[address, address, u24, u160], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @prepare(arg0: i160, arg1: i160, arg2: i24, arg3: i160) -> i160 [selector=0xe2351092, abi_params=[address, address, uint24, uint160], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffffffffffffffffffffffffffff
@@ -21,7 +21,7 @@ fn @prepare(arg0: i160, arg1: i160, arg2: i24, arg3: i160) -> i160 [selector=0xe
     ret v6
 }
 
-fn @consume(arg0: slice<calldata>) -> struct0 [selector=0x353abfa4, view, abi_params=[tuple<address, address, i24, i24, u256, u256>], abi_returns=[word, word<u128>, word, word], abi_return_params=[u256, u128, u256, u256]] {
+fn @consume(arg0: slice<calldata>) -> struct0 [selector=0x353abfa4, view, abi_params=[tuple<address, address, int24, int24, uint256, uint256>], abi_returns=[word, word<uint128>, word, word], abi_return_params=[uint256, uint128, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -30,7 +30,7 @@ fn @consume(arg0: slice<calldata>) -> struct0 [selector=0x353abfa4, view, abi_pa
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = trunc i256 v4 to i160
     v6 = zext i160 v5 to i256
-    v7 = checked_add u256, v3, v6
+    v7 = checked_add uint256, v3, v6
     v8 = insert_value struct0, undef struct0, 0, v7
     v9 = insert_value struct0, v8, 1, i128 0
     v10 = insert_value struct0, v9, 2, 0
@@ -73,7 +73,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
@@ -116,21 +116,21 @@ fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], 
     v25 = or v23, v24
     sstore v20, v25 !metadata(storage=offset(v14, 1))
     v26 = add v14, 1
-    v27 = shl 160, 0xffffff
+    v27 = shl 0xffffff, 160
     v28 = sload v26 !metadata(storage=offset(v14, 1))
     v29 = not v27
     v30 = and v28, v29
     v31 = and 0xfffffe, 0xffffff
-    v32 = shl 160, v31
+    v32 = shl v31, 160
     v33 = or v30, v32
     sstore v26, v33 !metadata(storage=offset(v14, 1))
     v34 = add v14, 1
-    v35 = shl 184, 0xffffff
+    v35 = shl 0xffffff, 184
     v36 = sload v34 !metadata(storage=offset(v14, 1))
     v37 = not v35
     v38 = and v36, v37
     v39 = and 4, 0xffffff
-    v40 = shl 184, v39
+    v40 = shl v39, 184
     v41 = or v38, v40
     sstore v34, v41 !metadata(storage=offset(v14, 1))
     v42 = add v14, 2
@@ -174,13 +174,13 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     mstore v9, v8
     v10 = add v0, 1
     v11 = sload v10 !metadata(storage=offset(v0, 1))
-    v12 = shr 160, v11
+    v12 = shr v11, 160
     v13 = signextend 2, v12
     v14 = ptradd v1, 64
     mstore v14, v13
     v15 = add v0, 1
     v16 = sload v15 !metadata(storage=offset(v0, 1))
-    v17 = shr 184, v16
+    v17 = shr v16, 184
     v18 = signextend 2, v17
     v19 = ptradd v1, 96
     mstore v19, v18
@@ -211,7 +211,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v30 = sload 0 !metadata(storage=slot(0))
     v31 = trunc i256 v30 to i160
     v32 = zext i160 v31 to i256
-    v33 = abi_encode [word<u160>, word], selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v33 = abi_encode [word<uint160>, word], selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v34 = extract_value slice<memory>, v33, 0
     v35 = extract_value slice<memory>, v33, 1
     v36 = zext i160 v27 to i256
@@ -232,7 +232,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v45 = sload 0 !metadata(storage=slot(0))
     v46 = trunc i256 v45 to i160
     v47 = zext i160 v46 to i256
-    v48 = abi_encode [word<u160>, word], selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v48 = abi_encode [word<uint160>, word], selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v49 = extract_value slice<memory>, v48, 0
     v50 = extract_value slice<memory>, v48, 1
     v51 = zext i160 v28 to i256
@@ -268,11 +268,11 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v73 = ptradd v1, 96
     v74 = mload v73
     v75 = trunc i256 v74 to i24
-    v76 = checked_sub i24, i24 0, v75
+    v76 = checked_sub int24, i24 0, v75
     v77 = ptradd v1, 64
     v78 = mload v77
     v79 = trunc i256 v78 to i24
-    v80 = checked_sub i24, i24 0, v79
+    v80 = checked_sub int24, i24 0, v79
     jump bb16
   bb14:
     v67 = ptradd v1, 64
@@ -311,7 +311,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v94 = zext i160 v27 to i256
     v95 = zext i160 v28 to i256
     v96 = zext i160 v66 to i256
-    v97 = abi_encode [word<u160>, word<u160>, word<u24>, word<u160>], selector 0xe235109200000000000000000000000000000000000000000000000000000000, args v94, v95, 0x2710, v96
+    v97 = abi_encode [word<uint160>, word<uint160>, word<uint24>, word<uint160>], selector 0xe235109200000000000000000000000000000000000000000000000000000000, args v94, v95, 0x2710, v96
     v98 = extract_value slice<memory>, v97, 0
     v99 = extract_value slice<memory>, v97, 1
     v100 = zext i160 v60 to i256
@@ -325,7 +325,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     icall revert_if<tuple_data_too_short>, v103
     v104 = add 0, 0
     v105 = mload v104
-    v106 = shr 160, v105
+    v106 = shr v105, 160
     v107 = eq v106, 0
     v108 = eq v107, false
     icall revert_if<empty>, v108
@@ -346,7 +346,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     mstore v118, v87
     v119 = ptradd v110, 160
     mstore v119, v92
-    v120 = abi_encode [tuple<word<u160>, word<u160>, word<i24>, word<i24>, word, word>], selector 0x353abfa400000000000000000000000000000000000000000000000000000000, args v110
+    v120 = abi_encode [tuple<word<uint160>, word<uint160>, word<int24>, word<int24>, word, word>], selector 0x353abfa400000000000000000000000000000000000000000000000000000000, args v110
     v121 = extract_value slice<memory>, v120, 0
     v122 = extract_value slice<memory>, v120, 1
     v123 = zext i160 v60 to i256
@@ -364,7 +364,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v130 = ptrtoint ptr<memory> v121 to i256
     v131 = add v130, 32
     v132 = mload v131
-    v133 = shr 128, v132
+    v133 = shr v132, 128
     v134 = eq v133, 0
     v135 = eq v134, false
     icall revert_if<empty>, v135

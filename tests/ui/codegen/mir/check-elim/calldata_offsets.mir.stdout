@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/calldata_offsets.sol:CalldataOffsets ===
 @module CalldataOffsets
-fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -31,16 +31,16 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[a
     v16 = ptrtoint ptr<calldata> v8 to i256
     v17 = add v16, v9
     v18 = calldataload v17
-    v19 = checked_add u256, v1, v18
+    v19 = checked_add uint256, v1, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v2, 1
+    v20 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @pick(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x9d6a1cd3, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @pick(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x9d6a1cd3, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt arg1, v0

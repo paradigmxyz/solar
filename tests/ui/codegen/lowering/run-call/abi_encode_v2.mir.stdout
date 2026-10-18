@@ -34,7 +34,7 @@ fn @f3() -> ptr<memory> [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v7 = ptradd v2, 32
     v8 = mload v7
     v9 = byte 0, v8
-    v10 = shl 248, v9
+    v10 = shl v9, 248
     v11 = eq v10, 0x6400000000000000000000000000000000000000000000000000000000000000
     v12 = eq v11, false
     icall revert_if<empty>, v12
@@ -52,7 +52,7 @@ fn @f3() -> ptr<memory> [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v21 = ptradd v2, 32
     v22 = mload v21
     v23 = byte 0, v22
-    v24 = shl 248, v23
+    v24 = shl v23, 248
     v25 = eq v24, 0x6500000000000000000000000000000000000000000000000000000000000000
     v26 = eq v25, false
     icall revert_if<empty>, v26
@@ -101,7 +101,7 @@ fn @f4() -> ptr<memory> [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v25 = ptradd v20, 32
     v26 = mload v25
     v27 = byte 0, v26
-    v28 = shl 248, v27
+    v28 = shl v27, 248
     v29 = eq v28, 0x6400000000000000000000000000000000000000000000000000000000000000
     v30 = eq v29, false
     icall revert_if<empty>, v30
@@ -119,7 +119,7 @@ fn @f4() -> ptr<memory> [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v39 = ptradd v20, 32
     v40 = mload v39
     v41 = byte 0, v40
-    v42 = shl 248, v41
+    v42 = shl v41, 248
     v43 = eq v42, 0x6500000000000000000000000000000000000000000000000000000000000000
     v44 = eq v43, false
     icall revert_if<empty>, v44
@@ -157,6 +157,6 @@ fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }
