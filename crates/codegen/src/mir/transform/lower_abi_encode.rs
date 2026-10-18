@@ -142,6 +142,7 @@ impl MirPass for LowerAbiEncode {
         // expansion.
         let summaries =
             (!module_may_observe_msize(module)).then(|| analyses.call_summaries(module));
+        let returning = module.returning_functions();
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
             // writes there before reserving its output, so an outlined call would overwrite it.
@@ -155,7 +156,7 @@ impl MirPass for LowerAbiEncode {
                 revert_strings,
                 &fresh_object_returns,
                 &destructive_returns[func_id],
-                summaries.as_ref(),
+                summaries.as_ref().filter(|_| !returning.contains(func_id)),
             );
         }
         CallGraphInfo::assert_runtime_helpers(
@@ -1793,20 +1794,21 @@ fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> 
 /// a `bytes memory` parameter copies it once from calldata; encoding the copy then copies it
 /// again.
 ///
+/// Only the straight-line copy that lowering emits qualifies, in one block and in this order:
+/// `obj = alloc size` with `size` at least `len + 32`, `mstore obj, len`, and
+/// `calldatacopy (ptradd obj, 32), slice.ptr, len`, then the encodings.
+///
 /// NOTE: Internal calls share memory, so a caller could read the copy through a saved
-/// free-memory pointer. Only functions that never return to an internal caller qualify, and the
-/// caller must skip modules that read `msize`.
+/// free-memory pointer. The caller must pass only functions that never return to an internal
+/// caller, directly or through tail calls, and skip modules that read `msize`.
 fn calldata_copy_objects(
     func: &Function,
     summaries: &Arc<MemoryCallSummaries>,
 ) -> FxHashMap<ValueId, (ValueId, [InstId; 2])> {
-    if func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::Return { .. }))) {
-        return FxHashMap::default();
-    }
     #[derive(Default)]
     struct Uses {
+        length: Option<(ValueId, InstId, BlockId, usize)>,
         fill: Option<(ValueId, BlockId, usize)>,
-        lengths: Vec<(ValueId, InstId)>,
         encodes: Vec<(BlockId, usize)>,
         escapes: bool,
     }
@@ -1832,16 +1834,14 @@ fn calldata_copy_objects(
             }
             for object in objects {
                 let entry = uses.entry(object).or_default();
-                if let Some((base, length)) = func.memory_length_store(inst)
-                    && base == object
-                {
-                    entry.lengths.push((length, inst));
-                    continue;
-                }
                 match func.inst(inst).kind {
+                    InstKind::Store(address, length, PtrLocation::Memory)
+                        if address == object && entry.length.is_none() =>
+                    {
+                        entry.length = Some((length, inst, block, position));
+                    }
                     InstKind::Copy(destination, data, len, PtrLocation::Calldata)
-                        if func.object_address(destination)
-                            == Some((object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE))
+                        if is_payload_address(func, destination, object)
                             && entry.fill.is_none()
                             && let Some(slice) =
                                 super::lower_abi::calldata_slice_copy(func, data, len) =>
@@ -1872,22 +1872,30 @@ fn calldata_copy_objects(
     let mut copies = uses
         .into_iter()
         .filter_map(|(object, uses)| {
+            let (length, length_store, block, length_position) = uses.length?;
             let (slice, fill_block, fill_position) = uses.fill?;
-            let [(length, length_store)] = uses.lengths[..] else { return None };
+            let Value::Inst(alloc) = *func.value(object) else { return None };
+            let InstKind::Alloc { size, .. } = func.inst(alloc).kind else { return None };
+            let alloc_position =
+                func.blocks[block].instructions.iter().position(|&inst| inst == alloc)?;
             let fill = func.blocks[fill_block].instructions[fill_position];
-            let Value::Inst(length) = func.value(length) else { return None };
-            let Value::Inst(alloc) = func.value(object) else { return None };
-            // The copy fills the object in its allocating block, before any encoding there reads
-            // it, and nothing else writes, measures, or passes it on.
+            let is_length = |value| {
+                let Value::Inst(inst) = *func.value(value) else { return false };
+                func.inst(inst).kind.slice_projection() == Some((slice, MirType::SLICE_LEN_FIELD))
+            };
+            // The allocation, length store, fill, and every encoding run in this order in one
+            // block, the object holds the header and bytes, and nothing else writes, measures,
+            // or passes it on.
             (!uses.escapes
                 && !uses.encodes.is_empty()
-                && func.inst(*length).kind.slice_projection()
-                    == Some((slice, MirType::SLICE_LEN_FIELD))
-                && func.blocks[fill_block].instructions.contains(alloc)
-                && uses
-                    .encodes
-                    .iter()
-                    .all(|&(block, position)| block != fill_block || position > fill_position))
+                && is_length(length)
+                && is_bytes_size(func, size, is_length)
+                && fill_block == block
+                && alloc_position < length_position
+                && length_position < fill_position
+                && uses.encodes.iter().all(|&(encode_block, position)| {
+                    encode_block == block && position > fill_position
+                }))
             .then_some((object, (slice, [length_store, fill])))
         })
         .collect::<Vec<_>>();
@@ -1934,7 +1942,7 @@ fn calldata_copy_objects(
             !args.iter().zip(&layout.types).all(|(&arg, ty)| match ty {
                 AbiType::Word(_) | AbiType::Function => true,
                 AbiType::Bytes(location) | AbiType::DynamicArray { location, .. }
-                    if *location != PtrLocation::Memory =>
+                    if effective_slice_location(func, arg, *location) != PtrLocation::Memory =>
                 {
                     true
                 }
@@ -1966,6 +1974,36 @@ fn calldata_copy_objects(
         })
     });
     copies.into_iter().collect()
+}
+
+/// Returns whether `address` is `ptradd object, 32`, the payload of a bytes object.
+fn is_payload_address(func: &Function, address: ValueId, object: ValueId) -> bool {
+    let Value::Inst(inst) = *func.value(address) else { return false };
+    matches!(func.inst(inst).kind, InstKind::PtrAdd(base, offset)
+        if base == object
+            && func.value_u64(offset) == Some(EvmMemoryLayout::DYNAMIC_HEADER_SIZE))
+}
+
+/// Returns whether `size` is `len + 32` or that rounded up to whole words, `(len + 63) & ~31`,
+/// where `is_length` accepts `len`.
+fn is_bytes_size(func: &Function, size: ValueId, is_length: impl Fn(ValueId) -> bool) -> bool {
+    let kind = |value| match *func.value(value) {
+        Value::Inst(inst) => Some(&func.inst(inst).kind),
+        _ => None,
+    };
+    let length_plus = |value, delta| {
+        matches!(kind(value), Some(&InstKind::Add(lhs, rhs))
+            if (is_length(lhs) && func.value_u64(rhs) == Some(delta))
+                || (is_length(rhs) && func.value_u64(lhs) == Some(delta)))
+    };
+    let word_mask = !U256::from(EvmMemoryLayout::WORD_SIZE - 1);
+    let header = EvmMemoryLayout::DYNAMIC_HEADER_SIZE;
+    length_plus(size, header)
+        || matches!(kind(size), Some(&InstKind::And(lhs, rhs))
+            if (func.value_u256(rhs) == Some(word_mask)
+                && length_plus(lhs, header + EvmMemoryLayout::WORD_SIZE - 1))
+                || (func.value_u256(lhs) == Some(word_mask)
+                    && length_plus(rhs, header + EvmMemoryLayout::WORD_SIZE - 1)))
 }
 
 /// The encoding output `terminator` returns or reverts with whole.

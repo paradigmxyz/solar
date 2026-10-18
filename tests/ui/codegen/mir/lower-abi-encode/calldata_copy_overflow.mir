@@ -1,0 +1,29 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@ filecheck:
+@module CalldataCopyOverflow
+
+// The fill runs past the 32-byte allocation into the next one, which a later
+// load reads. The copy keeps its length and bytes.
+// CHECK-LABEL: (after lower-abi-encode)
+// CHECK: fn @overflow
+// CHECK: {{^ }}[[OBJ:v[0-9]+]] = alloc zeroed checked 32
+// CHECK: {{^ }}mstore [[OBJ]],
+// CHECK: {{^ }}calldatacopy
+fn @overflow(arg0: slice<calldata>) {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v2 = alloc zeroed checked 32
+    v9 = alloc zeroed checked 32
+    mstore v2, v0
+    v11 = ptrtoint ptr<memory> v2 to i256
+    v12 = add v11, 32
+    v3 = inttoptr i256 v12 to ptr<memory>
+    v4 = extract_value slice<calldata>, arg0, 0
+    calldatacopy v3, v4, v0
+    v6 = abi_encode [memory_bytes], scratch, args v2
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    v20 = mload v9
+    sstore 0, v20
+    returndata v7, v8
+}

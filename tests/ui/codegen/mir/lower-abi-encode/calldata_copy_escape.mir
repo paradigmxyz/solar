@@ -7,10 +7,10 @@
 // its length and bytes.
 // CHECK-LABEL: (after lower-abi-encode)
 // CHECK: fn @escape
-// CHECK: [[OBJ:v[0-9]+]] = alloc
-// CHECK-NEXT: mstore [[OBJ]],
-// CHECK: calldatacopy
-// CHECK: ret [[OBJ]]
+// CHECK: {{^ }}[[OBJ:v[0-9]+]] = alloc
+// CHECK-NEXT: {{^ }}mstore [[OBJ]],
+// CHECK: {{^ }}calldatacopy
+// CHECK: {{^ }}ret [[OBJ]]
 fn @escape(arg0: slice<calldata>) -> ptr<memory> {
   bb0:
     jump bb2
