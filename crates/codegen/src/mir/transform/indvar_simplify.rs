@@ -8,11 +8,9 @@
 //! ptr = phi [preheader: base + init * stride + constant], [latch: ptr + step * stride]
 //! ```
 //!
-//! The initial implementation is deliberately narrow. It requires canonical
-//! loops with a dedicated preheader, a single latch, and a single additive
-//! induction-variable update. That gives later loop optimizations a real
-//! ScalarEvolution-backed transform without guessing from ad hoc instruction
-//! patterns.
+//! It requires canonical loops with a dedicated preheader and a single latch,
+//! and counters with a single additive update, and takes the address
+//! expressions from scalar evolution rather than from instruction patterns.
 //!
 //! The address may scale the induction variable negatively (a pointer walking
 //! down from the end of an array) and may add scaled loop invariants, such as

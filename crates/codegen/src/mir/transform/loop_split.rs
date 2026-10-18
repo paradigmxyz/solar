@@ -29,8 +29,9 @@
 //! definition when the cloned loop bypasses the original loop.
 //!
 //! Profitability: gas mode only, since the loop's code is duplicated; the
-//! loop is bounded in instructions and must hold a guard to fold. Runs
-//! before the second check-elimination round of the optimized phase.
+//! loop is bounded in instructions and must hold a guard to fold. Runs in
+//! the lowering pipeline once checked arithmetic has expanded, before the
+//! check elimination that folds the guards.
 
 use crate::{
     mir::{
