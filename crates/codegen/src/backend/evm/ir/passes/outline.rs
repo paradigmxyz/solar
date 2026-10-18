@@ -92,24 +92,19 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
         | (pushes && outline_repeated_pushes(gcx, module, &mut state))
 }
 
-/// Byte length of the widest push, `PUSH32` and its immediate.
-const MAX_PUSH_LEN: usize = 33;
-
 /// Returns whether any repeated push could repay its call and return gas in gas mode.
 ///
-/// A share of `n` pushes of at most [`MAX_PUSH_LEN`] bytes saves fewer than
-/// `n * (MAX_PUSH_LEN - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
+/// A share of `n` pushes, each at most a `PUSH32` and its immediate, saves fewer than
+/// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
 fn may_share_pushes(gcx: Gcx<'_>) -> bool {
     if !gcx.sess.opts.optimization.is_gas() {
         return true;
     }
     let target = Target::new(gcx);
     let (site_bytes, _, transfer_gas) = push_share_costs(target);
-    sharing_improves_lifetime(
-        MAX_PUSH_LEN.saturating_sub(site_bytes),
-        1,
-        transfer_gas,
-        target.expected_executions(),
+    target.deposit_repays_gas(
+        u64::from(target.opcode(op::PUSH32).bytes).saturating_sub(site_bytes as u64),
+        u64::from(transfer_gas),
     )
 }
 
@@ -129,12 +124,8 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     let transfer_size = transfer_size(target);
     let transfer_gas = transfer_gas(target);
     let profitable = |size: usize| {
-        sharing_improves_lifetime(
-            size.saturating_sub(transfer_size),
-            1,
-            transfer_gas,
-            target.expected_executions(),
-        )
+        target
+            .deposit_repays_gas(size.saturating_sub(transfer_size) as u64, u64::from(transfer_gas))
     };
     let mut metrics = Vec::new();
     let mut prefixes = FxHashSet::default();
@@ -367,12 +358,9 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             let transfer_gas = transfer_gas(target)
                 + target.opcode_gas(op::SWAP1)
                     * u32::from(first.outputs.saturating_add(first.inputs));
-            if !sharing_improves_lifetime(
-                saved_bytes,
-                free.len(),
-                transfer_gas,
-                target.expected_executions(),
-            ) {
+            if !target
+                .deposit_repays_gas(saved_bytes as u64, free.len() as u64 * u64::from(transfer_gas))
+            {
                 if matches!(run.get(..3), Some([value, address, store])
                     if value.is_encoded_push() && address.is_encoded_push()
                         && matches!(store.opcode, op::MSTORE | op::MSTORE8))
@@ -439,17 +427,6 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     apply_outline_edits(module, edits, &mut labels);
     debug_assert!(labels.next().is_none());
     true
-}
-
-/// Whether deposited bytes repay a repeated dynamic transfer over a deployment.
-const fn sharing_improves_lifetime(
-    saved_bytes: usize,
-    occurrences: usize,
-    transfer_gas: u32,
-    expected_executions: u64,
-) -> bool {
-    saved_bytes as u128 * Target::CODE_DEPOSIT_GAS_PER_BYTE as u128
-        > occurrences as u128 * transfer_gas as u128 * expected_executions as u128
 }
 
 fn max_machine_run_length(repeated_instructions: usize) -> usize {
@@ -784,11 +761,9 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             (occurrences.len() >= 2
                 && inline >= outlined + MIN_SAVING
                 && (!gcx.sess.opts.optimization.is_gas()
-                    || sharing_improves_lifetime(
-                        saved_bytes,
-                        occurrences.len(),
-                        transfer_gas,
-                        target.expected_executions(),
+                    || target.deposit_repays_gas(
+                        saved_bytes as u64,
+                        occurrences.len() as u64 * u64::from(transfer_gas),
                     )))
             .then_some((value, push_size))
         })
@@ -804,11 +779,9 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         occurrences.len() >= 2
             && inline >= outlined + MIN_SAVING
             && (!gcx.sess.opts.optimization.is_gas()
-                || sharing_improves_lifetime(
-                    saved_bytes,
-                    occurrences.len(),
-                    transfer_gas,
-                    target.expected_executions(),
+                || target.deposit_repays_gas(
+                    saved_bytes as u64,
+                    occurrences.len() as u64 * u64::from(transfer_gas),
                 ))
     });
     if values.is_empty() {

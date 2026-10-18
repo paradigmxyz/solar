@@ -58,9 +58,6 @@ impl EvmPass for InlineReturns {
             let tail = &module.blocks[callee];
             let Some(term) = &tail.terminator else { continue };
             let TerminatorKind::Op(opcode) = term.kind else { continue };
-            if !op::is_terminal(opcode) {
-                continue;
-            }
             let size = tail.instructions.iter().try_fold(target.opcode(opcode).bytes, |n, inst| {
                 let bytes = if inst.is_encoded_push() {
                     target.push(inst.concrete_immediate()?).bytes

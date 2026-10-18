@@ -683,6 +683,13 @@ impl Target {
         self.lifetime_gas(a).cmp(&self.lifetime_gas(b)).then_with(|| self.cmp(a, b))
     }
 
+    /// Whether depositing `bytes` fewer bytes outweighs spending `gas` more gas
+    /// on each expected execution.
+    pub(crate) fn deposit_repays_gas(self, bytes: u64, gas: u64) -> bool {
+        u128::from(bytes) * u128::from(Self::CODE_DEPOSIT_GAS_PER_BYTE)
+            > u128::from(gas) * u128::from(self.expected_executions)
+    }
+
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
     pub(crate) fn improves(self, gas_saving: i128, byte_saving: i128) -> bool {
@@ -953,6 +960,17 @@ mod tests {
         assert!(!target(Target::LOOP_COPY_MIN_RUNS - 1).copies_loops());
         assert!(target(Target::LOOP_COPY_MIN_RUNS).copies_loops());
         assert!(target(u64::from(u32::MAX)).copies_loops());
+    }
+
+    #[test]
+    fn deposit_repays_gas_over_expected_executions() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        // 10 bytes deposit 2,000 gas; 9 gas on 200 executions is 1,800.
+        assert!(target.deposit_repays_gas(10, 9));
+        assert!(!target.deposit_repays_gas(10, 10));
+        assert!(!target.deposit_repays_gas(0, 0));
+        let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 10_000);
+        assert!(!hot.deposit_repays_gas(10, 1));
     }
 
     #[test]
