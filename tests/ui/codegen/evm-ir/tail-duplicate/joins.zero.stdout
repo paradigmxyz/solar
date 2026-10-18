@@ -100,4 +100,13 @@
     gas
     pop
     jump bb6
+  bb25 [loop]:
+    jump bb27
+  bb26:
+    stop
+  bb27 [loop]:
+    dup 1
+    push 0
+    gt
+    jumpi bb25, bb6
   
