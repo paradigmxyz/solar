@@ -57,6 +57,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence,
+    &byte_run::ByteRunLoads,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &load_pre::LoadPre::All,
