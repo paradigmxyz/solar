@@ -6,6 +6,8 @@
 //! emits array loops and overflow checks, repairing successor phi labels when it splits blocks.
 //! Revert outlining can then share builtin failure payloads. Precompile calls
 //! retain their returndata and memory observations even when their scalar result is unused.
+//! As in solc, a failed precompile call forwards its return data, and the 32-byte result lands in
+//! scratch memory instead of an allocation.
 //! Payable sends and transfers expand to stipend-limited calls; transfers branch to a semantic
 //! returndata revert on failure, leaving payload expansion to revert lowering. Low-level address
 //! calls expose their bytes input only here and retain explicit gas/value options. Return-data
@@ -353,18 +355,21 @@ fn lower_hash(
     input: ValueId,
     ripemd: bool,
 ) -> ValueId {
+    // NOTE: A successful call always writes the whole digest, so it can land in scratch memory.
     // input_ptr = add (ptrtoint input), 32
     // input_len = mload input
-    // output = bytes(32)
-    // precompile_call(sha256 ? 2 : 3, input, output)
-    // result = mload(output.data)
+    // success = precompile_call(sha256 ? 2 : 3, input_ptr, input_len, 0, 32)
+    // branch success, done, failed
+    // failed: revert_returndata
+    // done: result = load(0)
     let input_ptr = builder.memory_data(input);
     let input_len = builder.memory_len(input);
-    let output_ptr = alloc_output(builder);
     let address = builder.imm(if ripemd { 3 } else { 2 });
+    let zero = builder.imm(0);
     let output_size = builder.imm(32);
-    precompile_call(builder, evm, address, input_ptr, input_len, output_ptr, output_size);
-    let value = builder.load(output_ptr, PtrLocation::Memory);
+    let success = precompile_call(builder, evm, address, input_ptr, input_len, zero, output_size);
+    revert_unless(builder, success);
+    let value = builder.load(zero, PtrLocation::Memory);
     if ripemd {
         // result = result << 96
         let scale = builder.imm(1_u128 << 96);
@@ -407,24 +412,8 @@ fn lower_ecrecover(
     let input_size = builder.imm(128);
     let output_size = builder.imm(32);
     let success = precompile_call(builder, evm, address, input, input_size, zero, output_size);
-    let done = builder.create_block();
-    let failed = builder.create_block();
-    builder.branch(success, done, failed);
-    builder.switch_to_block(failed);
-    builder.revert_returndata();
-    builder.switch_to_block(done);
+    revert_unless(builder, success);
     builder.load(zero, PtrLocation::Memory)
-}
-
-fn alloc_output(builder: &mut FunctionBuilder<'_>) -> ValueId {
-    // output = alloc bytes(64), zeroed
-    // mstore output, 32
-    // pointer = add (ptrtoint output), 32
-    let size = builder.imm(64);
-    let output = builder.alloc(size, AllocationSemantics::SOLIDITY_ZEROED);
-    let length = builder.imm(32);
-    builder.set_memory_len(output, length);
-    builder.memory_data(output)
 }
 
 fn precompile_call(
@@ -445,6 +434,18 @@ fn precompile_call(
         let zero = builder.imm(0);
         builder.call(gas, address, zero, input, input_size, output, output_size)
     }
+}
+
+/// Forwards the return data of a failed call, as solc does for precompile calls.
+fn revert_unless(builder: &mut FunctionBuilder<'_>, success: ValueId) {
+    // branch success, done, failed
+    // failed: revert_returndata
+    let done = builder.create_block();
+    let failed = builder.create_block();
+    builder.branch(success, done, failed);
+    builder.switch_to_block(failed);
+    builder.revert_returndata();
+    builder.switch_to_block(done);
 }
 
 fn lower_erc7201(builder: &mut FunctionBuilder<'_>, input: ValueId) -> ValueId {
