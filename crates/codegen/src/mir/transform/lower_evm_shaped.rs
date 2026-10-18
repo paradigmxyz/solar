@@ -224,9 +224,17 @@ fn erase_pointer_types(func: &mut Function) {
     let mut replacements = FxHashMap::default();
     let mut casts = FxHashSet::default();
     for inst in func.instructions().collect::<Vec<_>>() {
+        let narrow_operand = match func.inst(inst).kind {
+            InstKind::IntToPtr(operand) => func.value_ty(operand) != Some(MirType::I256),
+            _ => false,
+        };
         let instruction = func.inst_mut(inst);
         instruction.result_ty = instruction.result_ty.map(word);
         match instruction.kind {
+            // pointer = inttoptr narrow to ptr<location> -> zext narrow to i256
+            InstKind::IntToPtr(operand) if narrow_operand => {
+                instruction.kind = InstKind::Zext(operand);
+            }
             // word = ptrtoint pointer to i256 -> pointer
             // pointer = inttoptr word to ptr<location> -> word
             InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) => {
