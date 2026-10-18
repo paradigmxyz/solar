@@ -25,7 +25,6 @@ pub(crate) mod jump_threading;
 pub(crate) mod load_pre;
 pub(crate) mod loop_canonicalize;
 pub(crate) mod loop_exit_remat;
-pub(crate) mod loop_idioms;
 pub(crate) mod loop_opt;
 pub(crate) mod loop_split;
 pub(crate) mod loop_unroll;
