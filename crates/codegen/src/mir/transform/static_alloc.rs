@@ -134,7 +134,6 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 /// One constant-size allocation eligible for static placement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct StaticAllocCandidate {
-    block: BlockId,
     alloc: InstId,
     ptr: ValueId,
     size: u64,
@@ -202,7 +201,7 @@ fn eligible_static_allocations(
                 continue;
             }
             let ptr = func.inst_result_value(alloc).expect("allocation must produce a value");
-            candidates.push(StaticAllocCandidate { block, alloc, ptr, size });
+            candidates.push(StaticAllocCandidate { alloc, ptr, size });
         }
     }
     if candidates.is_empty() {

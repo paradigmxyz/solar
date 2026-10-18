@@ -94,7 +94,6 @@ fn @measures(arg0: i256) -> i256 {
     ret v2
 }
 
-
 // Comparing the pointer with its own derivations never involves the heap, so
 // a callee iterating over the object keeps the placement even though it reads
 // the free-memory pointer for scratch.

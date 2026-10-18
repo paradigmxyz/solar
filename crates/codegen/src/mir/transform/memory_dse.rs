@@ -485,7 +485,7 @@ impl MemoryStoreEliminator {
         // while touching each block only when one of its successors actually
         // moved. Postorder puts successors before predecessors, which is the
         // direction information flows here.
-        let cfg = Rc::clone(&self.cfg);
+        let cfg = &*self.cfg;
         let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
         let mut worklist = cfg.rpo().iter().rev().copied().collect::<VecDeque<_>>();
         self.eliminated_count += mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
@@ -671,7 +671,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let cfg = Rc::clone(&self.cfg);
+        let cfg = &*self.cfg;
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -1606,8 +1606,8 @@ impl MemoryStoreEliminator {
         if allocations.is_empty() || self.alias().may_observe_msize(func) {
             return;
         }
-        let cfg = Rc::clone(&self.cfg);
-        let gas = GasObservations::new(func, &cfg, self.alias());
+        let cfg = &*self.cfg;
+        let gas = GasObservations::new(func, cfg, self.alias());
         if func.instructions().any(|inst| gas.observes(inst)) {
             return;
         }

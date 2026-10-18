@@ -48,19 +48,24 @@ impl MirPass for StorageDse {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let mut selected = DenseBitSet::new_empty(module.functions.len());
-        let mut reverting = DenseBitSet::new_empty(module.functions.len());
-        let summaries = analyses.call_summaries(module);
         for (id, func) in module.functions.iter_enumerated() {
             if func.instructions().any(|inst| {
                 matches!(func.inst(inst).kind, InstKind::Store(.., PtrLocation::Storage))
             }) {
                 selected.insert(id);
             }
+        }
+        if selected.is_empty() {
+            return false;
+        }
+        let mut reverting = DenseBitSet::new_empty(module.functions.len());
+        let summaries = analyses.call_summaries(module);
+        for (id, func) in module.functions.iter_enumerated() {
             // A callee that can halt successfully, itself or through its own calls, commits
             // storage even when it never returns.
             if !func.blocks.is_empty()
-                && !returning_blocks(func).contains(BlockId::ENTRY)
                 && summaries.get(id).is_some_and(|summary| !summary.may_terminate())
+                && !returning_blocks(func).contains(BlockId::ENTRY)
             {
                 reverting.insert(id);
             }
@@ -124,12 +129,12 @@ impl<'a> StorageStoreEliminator<'a> {
         self.annotated_aliases |=
             func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
 
-        let cfg = Rc::clone(&self.cfg);
+        let cfg = &*self.cfg;
         let mut incoming = index_vec![Overwritten::none(); func.blocks.len()];
         loop {
             let mut changed = false;
             for &block in cfg.rpo().iter().rev() {
-                let mut facts = self.successor_facts(func, &cfg, &incoming, block);
+                let mut facts = self.successor_facts(func, &incoming, block);
                 self.transfer_reverse(func, block, &mut facts, None);
                 if incoming[block] != facts {
                     incoming[block] = facts;
@@ -142,7 +147,7 @@ impl<'a> StorageStoreEliminator<'a> {
         }
         state.dead.clear();
         for &block in cfg.rpo() {
-            let mut facts = self.successor_facts(func, &cfg, &incoming, block);
+            let mut facts = self.successor_facts(func, &incoming, block);
             self.transfer_reverse(func, block, &mut facts, Some(&mut state.dead));
         }
         self.eliminated_count += state.dead.count();
@@ -174,7 +179,6 @@ impl<'a> StorageStoreEliminator<'a> {
     fn successor_facts(
         &self,
         func: &Function,
-        cfg: &CfgInfo,
         incoming: &IndexVec<BlockId, Overwritten>,
         block: BlockId,
     ) -> Overwritten {
@@ -182,7 +186,7 @@ impl<'a> StorageStoreEliminator<'a> {
         if !terminator.has_successors() {
             return self.exit_facts(func, terminator);
         }
-        let mut successors = cfg.successors(block).iter();
+        let mut successors = self.cfg.successors(block).iter();
         let Some(&first) = successors.next() else { return Overwritten::none() };
         let mut facts = incoming[first].clone();
         for &successor in successors {
@@ -194,11 +198,9 @@ impl<'a> StorageStoreEliminator<'a> {
     /// The slots an exit discards before its terminator: every slot when it reverts, none
     /// when it can commit storage.
     fn exit_facts(&self, func: &Function, terminator: &Terminator) -> Overwritten {
-        let reverts = match *terminator {
-            Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid => true,
-            Terminator::TailCall { function, .. } => self.reverting.contains(function),
-            _ => false,
-        };
+        let reverts = terminator.reverts()
+            || matches!(*terminator, Terminator::TailCall { function, .. }
+                if self.reverting.contains(function));
         if !reverts {
             return Overwritten::none();
         }

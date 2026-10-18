@@ -568,9 +568,14 @@ impl FrameSlotPromoter {
                 if mode != FrameMode::Internal =>
             {
                 AliasAnalysis::frame_location(func, offset, mode, kind).is_none_or(|location| {
-                    let LocationSize::Const(size) = location.size else { return true };
-                    let base = location.address.offset;
-                    base < slot_addr.saturating_add(32) && slot_addr < base.saturating_add(size)
+                    aa.memory_alias(
+                        location,
+                        MemoryLocation::new(
+                            MemoryAddress::absolute(slot_addr),
+                            LocationSize::Const(32),
+                        ),
+                    )
+                    .may_alias()
                 })
             }
             InstKind::Load(addr, PtrLocation::Memory)

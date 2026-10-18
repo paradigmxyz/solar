@@ -298,10 +298,7 @@ impl StorageScalarPromoter {
     /// Returns true if the exit block ends by rolling back all storage writes
     /// of the frame, which makes skipping the promoted-value flush sound.
     fn exit_rolls_back(&self, func: &Function, exit: BlockId) -> bool {
-        matches!(
-            func.blocks[exit].terminator,
-            Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
-        )
+        func.blocks[exit].terminator.as_ref().is_some_and(Terminator::reverts)
     }
 
     /// A rollback exit must not contain calls (a callee could observe the
