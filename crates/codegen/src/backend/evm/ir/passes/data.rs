@@ -38,9 +38,6 @@ use solar_sema::Gcx;
 /// Bounds quadratic arbitrary-substring pooling; exact interning remains unbounded.
 const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
 
-/// Bounds rewrites whose local cost does not model lost global code sharing.
-const MAX_SHARED_DATA_COPY_SITES: usize = 4;
-
 /// Bounds the unconditional jumps followed from a block to find where its data addresses are used.
 const MAX_DATA_JUMP_HOPS: usize = 4;
 
@@ -190,9 +187,6 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
     for (data, rewrites) in groups {
-        if rewrites.len() > MAX_SHARED_DATA_COPY_SITES {
-            continue;
-        }
         let placement = pool.placement(&data);
         let additional_bytes = placement_additional_bytes(&placement, data.len());
         let mut improvement = rewrite_improvement(gcx, data.len(), &rewrites, additional_bytes);
@@ -286,10 +280,7 @@ fn find_run(
 }
 
 /// Returns the word count and exclusive end of a consecutive literal `MSTORE` run.
-fn literal_store_words(
-    instructions: &[Instruction],
-    start: usize,
-) -> Option<(usize, usize)> {
+fn literal_store_words(instructions: &[Instruction], start: usize) -> Option<(usize, usize)> {
     let [value, dup, store, ..] = instructions.get(start..)? else { return None };
     value.concrete_immediate()?;
     if dup.as_stack_op() != Some(op::StackOp::Dup(2)) || store.as_evm_opcode() != Some(op::MSTORE) {
@@ -547,10 +538,7 @@ fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, R
             && let Some((data, rewrite)) = find_run(gcx, block_id, instructions, index)
         {
             next_run_start = rewrite.end;
-            let rewrites = groups.entry(data).or_default();
-            if rewrites.len() <= MAX_SHARED_DATA_COPY_SITES {
-                rewrites.push(rewrite);
-            }
+            groups.entry(data).or_default().push(rewrite);
         }
     });
     (references, groups)
