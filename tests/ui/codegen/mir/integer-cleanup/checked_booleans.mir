@@ -1,0 +1,32 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=integer-cleanup
+//@ filecheck:
+@module CheckedBooleans
+
+// A decoded boolean is checked to be 0 or 1 before use, so widening its
+// nonzero test back to a word returns the word itself.
+// CHECK-LABEL: fn @checked
+// CHECK: - mstore 128, {{v[0-9]+}}
+// CHECK: + mstore 128, arg0
+fn @checked(arg0: i256) {
+  bb0:
+    v0 = lt arg0, 2
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = ne arg0, 0
+    v2 = zext i1 v1 to i256
+    mstore 128, v2
+    returndata 128, 32
+  bb2:
+    revert 0, 0
+}
+
+// Without the check the word may be any value and keeps its normalization.
+// CHECK-LABEL: fn @unchecked
+// CHECK-NOT: {{^[-+]}}
+fn @unchecked(arg0: i256) {
+  bb0:
+    v1 = ne arg0, 0
+    v2 = zext i1 v1 to i256
+    mstore 128, v2
+    returndata 128, 32
+}
