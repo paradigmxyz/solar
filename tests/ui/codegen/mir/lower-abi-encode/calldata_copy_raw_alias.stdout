@@ -1,0 +1,59 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_copy_raw_alias.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_copy_raw_alias.mir (after lower-abi-encode) ===
+  @module CalldataCopyRawAlias
+  fn @raw(arg0: slice<calldata>, arg1: i256) {
+    bb0:
+      v0 = extract_value slice<calldata>, arg0, 1
+      v1 = add v0, 32
+      v2 = alloc v1
+      mstore v2, v0
+      v3 = ptradd v2, 32
+      v4 = extract_value slice<calldata>, arg0, 0
+      calldatacopy v3, v4, v0
+      v5 = inttoptr i256 arg1 to ptr<memory>
+-     v6 = abi_encode [memory_bytes, memory_bytes], scratch, args v2, v5
+-     v7 = extract_value slice<memory>, v6, 0
+-     v8 = extract_value slice<memory>, v6, 1
+-     returndata v7, v8
++     v9 = fmp
++     v10 = ptrtoint ptr<memory> v9 to i256
++     v11 = add v10, 64
++     v12 = ptrtoint ptr<memory> v9 to i256
++     v13 = sub v11, v12
++     mstore v9, v13
++     v14 = mload v2
++     v15 = not 31
++     v16 = add v14, 31
++     v17 = and v16, v15
++     v18 = add v11, 32
++     v19 = add v11, v17
++     mstore v19, 0
++     mstore v11, v14
++     v20 = ptradd v2, 32
++     v21 = add v18, v17
++     mcopy v18, v20, v14 !metadata(memory=heap, disjoint)
++     v22 = ptrtoint ptr<memory> v9 to i256
++     v23 = add v22, 32
++     v24 = ptrtoint ptr<memory> v9 to i256
++     v25 = sub v21, v24
++     mstore v23, v25
++     v26 = mload v5
++     v27 = not 31
++     v28 = add v26, 31
++     v29 = and v28, v27
++     v30 = add v21, 32
++     v31 = add v21, v29
++     mstore v31, 0
++     mstore v21, v26
++     v32 = ptradd v5, 32
++     v33 = add v30, v29
++     mcopy v30, v32, v26 !metadata(memory=heap, disjoint)
++     v34 = ptrtoint ptr<memory> v9 to i256
++     v35 = sub v33, v34
++     v36 = add v35, 0
++     v37 = make_memory_slice v9, v36
++     v7 = extract_value slice<memory>, v37, 0
++     v8 = extract_value slice<memory>, v37, 1
++     returndata v9, v36
+  }
+  
