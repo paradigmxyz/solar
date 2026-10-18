@@ -8,13 +8,36 @@
 // CHECK: alloc {{v[0-9]+}} !metadata(preserves_fmp)
 fn @mixed(arg0: i16, arg1: ptr<memory>) -> ptr<memory> {
   bb0:
-    v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
+    v0 = abi_encode_packed (data hex"000102", uint16 arg0, bytes arg1)
     ret v0
 }
 
+// Fixed bytes share a word with their neighbours: their low bytes are masked and the word is
+// shifted down to its offset.
+// CHECK-LABEL: fn @hash(
+// CHECK: [[FIXED:v[0-9]+]] = and 0xcdef000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
+// CHECK: [[SHIFTED:v[0-9]+]] = shr 24, [[FIXED]]
+// CHECK: [[WORD:v[0-9]+]] = or {{v[0-9]+}}, [[SHIFTED]]
+// CHECK-NEXT: mstore 0, [[WORD]]
+// CHECK-NOT: mstore
+// CHECK: keccak256 0, 5
 fn @hash(arg0: i16) -> i256 {
   bb0:
-    v0 = keccak256_packed (data hex"ab", i16 arg0, bytes2 0xcdef000000000000000000000000000000000000000000000000000000000000)
+    v0 = keccak256_packed (data hex"ab", int16 arg0, bytes2 0xcdef000000000000000000000000000000000000000000000000000000000000)
+    ret v0
+}
+
+// CHECK-LABEL: fn @create2_salt(
+// CHECK: [[PREFIX:v[0-9]+]] = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+// CHECK-NEXT: [[WORD:v[0-9]+]] = or 0, [[PREFIX]]
+// CHECK: [[ADDRESS:v[0-9]+]] = shl 88, {{v[0-9]+}}
+// CHECK-NEXT: [[WORD2:v[0-9]+]] = or [[WORD]], [[ADDRESS]]
+// CHECK-NEXT: mstore 0, [[WORD2]]
+// CHECK-NEXT: mstore 21, arg2
+// CHECK: keccak256 0, 53
+fn @create2_salt(arg0: i256, arg1: i160, arg2: i256) -> i256 {
+  bb0:
+    v0 = keccak256_packed (bytes1 arg0, address arg1, bytes32 arg2)
     ret v0
 }
 
@@ -22,7 +45,7 @@ fn @hash(arg0: i16) -> i256 {
 // CHECK: alloc {{v[0-9]+}} !metadata(preserves_fmp)
 fn @arrays(arg0: ptr<memory>, arg1: slice<calldata>) -> ptr<memory> {
   bb0:
-    v0 = abi_encode_packed (array<word<i16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)
+    v0 = abi_encode_packed (array<word<int16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)
     ret v0
 }
 
@@ -65,6 +88,6 @@ fn @edge(arg0: i1, arg1: ptr<memory>, arg2: ptr<memory>) -> ptr<memory> {
 // CHECK-NEXT: {{.*}}mload [[ELEMENT_32]]
 fn @prefixed_array(arg0: ptr<memory>) -> ptr<memory> {
   bb0:
-    v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)
+    v0 = abi_encode_packed (data hex"ab", array<word<uint8>> memoryarray<1> arg0)
     ret v0
 }

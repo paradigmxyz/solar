@@ -9,7 +9,7 @@ fn @callData() -> ptr<memory> [selector=0x4e417a98, view, abi_params=[], abi_ret
     ret v0
 }
 
-fn @target() -> i160 [selector=0xd4b83992, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @target() -> i160 [selector=0xd4b83992, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = trunc i256 v0 to i160

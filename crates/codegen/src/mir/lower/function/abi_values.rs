@@ -284,16 +284,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.unpack_return_value(value))
     }
 
-    pub(super) fn revert_external_call(&mut self, success: ValueId) {
-        // if !success { revert(0, returndatasize()) }
-        let revert = self.builder.create_block();
-        let continue_block = self.builder.create_block();
-        self.builder.branch(success, continue_block, revert);
-        self.builder.switch_to_block(revert);
-        self.builder.revert_returndata();
-        self.builder.switch_to_block(continue_block);
-    }
-
     pub(super) fn materialize_memory_slice(&mut self, slice: ValueId) -> ValueId {
         // object = bytes(slice.len)
         // copy(slice, object.data)

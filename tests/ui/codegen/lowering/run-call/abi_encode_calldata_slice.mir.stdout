@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_calldata_slice.sol:AbiEncodeCalldataSlice ===
 @module AbiEncodeCalldataSlice
-fn @encPackedBytes(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xe3b899da, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encPackedBytes(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xe3b899da, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -16,7 +16,7 @@ fn @encPackedBytes(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
     ret v9
 }
 
-fn @encPackedBytesReference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x31b229fc, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encPackedBytesReference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x31b229fc, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -32,7 +32,7 @@ fn @encPackedBytesReference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> pt
     ret v9
 }
 
-fn @encBytes(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x676eb8e5, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encBytes(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x676eb8e5, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -48,7 +48,7 @@ fn @encBytes(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [sele
     ret v9
 }
 
-fn @encBytesReference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x94ba4b13, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encBytesReference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x94ba4b13, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -64,7 +64,7 @@ fn @encBytesReference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memo
     ret v9
 }
 
-fn @encUint256(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x5f29ad1d, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encUint256(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x5f29ad1d, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -88,7 +88,7 @@ fn @encUint256(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [se
     ret v16
 }
 
-fn @encUint256Reference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xea73d5ef, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encUint256Reference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xea73d5ef, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -112,7 +112,7 @@ fn @encUint256Reference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<me
     ret v16
 }
 
-fn @encPackedUint256(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x0d7d5d61, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encPackedUint256(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x0d7d5d61, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -136,7 +136,7 @@ fn @encPackedUint256(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memor
     ret v16
 }
 
-fn @encPackedUint256Reference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xf98ab314, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encPackedUint256Reference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xf98ab314, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -160,7 +160,7 @@ fn @encPackedUint256Reference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> 
     ret v16
 }
 
-fn @encPackedUint8(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x7ae711bd, pure, abi_params=[array<_, u8>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encPackedUint8(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x7ae711bd, pure, abi_params=[array<_, uint8>, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
@@ -214,7 +214,7 @@ fn @encPackedUint8(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
     v40 = lt v39, v16
     jumpi v40, bb2, bb3
   bb3:
-    v52 = abi_encode_packed (array<word<u8>> memoryarray<1> v38)
+    v52 = abi_encode_packed (array<word<uint8>> memoryarray<1> v38)
     ret v52
   bb2:
     v41 = mul v39, 32
@@ -278,7 +278,7 @@ fn @compare(arg0: ptr<memory>, arg1: ptr<memory>) [pure] {
   bb6:
     jump bb3
   bb3:
-    v27 = checked_add u256, v6, 1
+    v27 = checked_add uint256, v6, 1
     jump bb1
 }
 
@@ -337,7 +337,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
   bb6:
     jump bb3
   bb3:
-    v65 = checked_add u256, v23, 1
+    v65 = checked_add uint256, v23, 1
     jump bb1
   bb10:
     v28 = address
@@ -398,7 +398,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
   bb12:
     jump bb9
   bb9:
-    v64 = checked_add u256, v24, 1
+    v64 = checked_add uint256, v24, 1
     jump bb7
 }
 
@@ -452,7 +452,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
   bb6:
     jump bb3
   bb3:
-    v60 = checked_add u256, v18, 1
+    v60 = checked_add uint256, v18, 1
     jump bb1
   bb10:
     v23 = address
@@ -513,6 +513,6 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
   bb12:
     jump bb9
   bb9:
-    v59 = checked_add u256, v19, 1
+    v59 = checked_add uint256, v19, 1
     jump bb7
 }

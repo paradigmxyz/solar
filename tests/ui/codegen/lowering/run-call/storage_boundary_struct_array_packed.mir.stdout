@@ -19,7 +19,7 @@ fn @getCanary() -> i256 [pure] {
     ret 5
 }
 
-fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     v0 = icall @getCanary
     sstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v0))
@@ -135,7 +135,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v216 = sload v215 !metadata(storage=symbolic(v215))
     v217 = shr 64, v216
     v218 = trunc i256 v217 to i64
-    v219 = checked_add u64, v208, v218
+    v219 = checked_add uint64, v208, v218
     v220 = lt 0, 1
     v221 = eq v220, false
     icall panic_if<0x32>, v221
@@ -148,7 +148,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v227 = sload v226 !metadata(storage=symbolic(v226))
     v228 = shr 128, v227
     v229 = trunc i256 v228 to i64
-    v230 = checked_add u64, v219, v229
+    v230 = checked_add uint64, v219, v229
     v231 = lt 0, 1
     v232 = eq v231, false
     icall panic_if<0x32>, v232
@@ -161,14 +161,14 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v238 = sload v237 !metadata(storage=symbolic(v237))
     v239 = shr 192, v238
     v240 = trunc i256 v239 to i64
-    v241 = checked_add u64, v230, v240
+    v241 = checked_add uint64, v230, v240
     v242 = zext i64 v241 to i256
-    v243 = checked_add u256, v192, v242
+    v243 = checked_add uint256, v192, v242
     jump bb24
   bb24:
     jump bb21
   bb21:
-    v244 = checked_add u256, v195, 1
+    v244 = checked_add uint256, v195, 1
     jump bb19
   bb17:
     v190 = add v187, v188
@@ -304,20 +304,20 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb7
   bb4:
     v8 = alloc 128
-    v9 = checked_mul u256, v4, 4
-    v10 = checked_add u256, 1, v9
+    v9 = checked_mul uint256, v4, 4
+    v10 = checked_add uint256, 1, v9
     v11 = trunc i256 v10 to i64
     v12 = zext i64 v11 to i256
-    v13 = checked_mul u256, v4, 4
-    v14 = checked_add u256, 2, v13
+    v13 = checked_mul uint256, v4, 4
+    v14 = checked_add uint256, 2, v13
     v15 = trunc i256 v14 to i64
     v16 = zext i64 v15 to i256
-    v17 = checked_mul u256, v4, 4
-    v18 = checked_add u256, 3, v17
+    v17 = checked_mul uint256, v4, 4
+    v18 = checked_add uint256, 3, v17
     v19 = trunc i256 v18 to i64
     v20 = zext i64 v19 to i256
-    v21 = checked_mul u256, v4, 4
-    v22 = checked_add u256, 4, v21
+    v21 = checked_mul uint256, v4, 4
+    v22 = checked_add uint256, 4, v21
     v23 = trunc i256 v22 to i64
     v24 = zext i64 v23 to i256
     mstore v8, v12
@@ -377,6 +377,6 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb6:
     jump bb3
   bb3:
-    v68 = checked_add u256, v4, 1
+    v68 = checked_add uint256, v4, 1
     jump bb1
 }

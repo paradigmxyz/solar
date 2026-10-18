@@ -1,16 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_function_pointer_validation.sol:AbiFunctionPointerValidation ===
 @module AbiFunctionPointerValidation
-fn @f(arg0: ptr<memory>) -> i256 [selector=0x9f4a608d, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: ptr<memory>) -> i256 [selector=0x9f4a608d, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
-fn @g(arg0: slice<calldata>) -> i256 [selector=0x5cf6281d, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @g(arg0: slice<calldata>) -> i256 [selector=0x5cf6281d, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
 }
 
-fn @h(arg0: slice<calldata>) -> i256 [selector=0x4fc262ac, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @h(arg0: slice<calldata>) -> i256 [selector=0x4fc262ac, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -24,7 +24,7 @@ fn @h(arg0: slice<calldata>) -> i256 [selector=0x4fc262ac, pure, abi_params=[tup
     ret 3
 }
 
-fn @throughInternal(arg0: slice<calldata>) -> i256 [selector=0x53b1d360, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @throughInternal(arg0: slice<calldata>) -> i256 [selector=0x53b1d360, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @checkField, arg0
     ret 4

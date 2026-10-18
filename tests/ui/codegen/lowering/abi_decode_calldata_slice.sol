@@ -8,7 +8,7 @@ contract AbiDecodeCalldataSlice {
     // CHECK: [[TAIL:v[0-9]+]] = make_calldata_slice {{v[0-9]+}}, {{v[0-9]+}}
     // The slice decodes in place, with no copy into memory first.
     // CHECK-NOT: calldatacopy
-    // CHECK: abi_decode [u256], [[TAIL]]
+    // CHECK: abi_decode [uint256], [[TAIL]]
     function decode(bytes calldata data) external pure returns (uint256) {
         return abi.decode(data[4:], (uint256));
     }

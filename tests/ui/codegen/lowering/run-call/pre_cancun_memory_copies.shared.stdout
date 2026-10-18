@@ -517,7 +517,8 @@ fn @alloc(arg0: i256) -> i256 {
     v0 = mload 64 !metadata(memory=scratch)
     v2 = add v0, arg0
     v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
+    v7 = shr 64, v2
+    v4 = ne v7, 0
     v5 = or v3, v4
     jumpi v5, bb1, bb2
   bb2:
@@ -525,6 +526,6 @@ fn @alloc(arg0: i256) -> i256 {
     ret v0
   bb1:
     mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71
     revert 28, 36
 }

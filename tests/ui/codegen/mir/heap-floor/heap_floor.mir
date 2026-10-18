@@ -384,7 +384,7 @@ fn @branch_loads() -> i256 [selector=0x1234567d] {
 // CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
 // CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
 // CHECK-NEXT: [[FACTOR:v[0-9]+]] = shl 255, 1
-// CHECK-NEXT: [[SCALED:v[0-9]+]] = checked_mul u256, [[WORD]], [[FACTOR]]
+// CHECK-NEXT: [[SCALED:v[0-9]+]] = checked_mul uint256, [[WORD]], [[FACTOR]]
 // CHECK-NEXT: - mstore [[SCALED]], 1
 // CHECK-NEXT: + [[COPY:v[0-9]+]] = mul [[CLAMPED]], [[FACTOR]]
 // CHECK-NEXT: + mstore [[COPY]], 1
@@ -394,7 +394,7 @@ fn @checked_scale() -> i256 [selector=0x1234567e] {
     mstore 64, v0
     v1 = mload 64
     v2 = shl 255, 1
-    v3 = checked_mul u256, v1, v2
+    v3 = checked_mul uint256, v1, v2
     mstore v3, 1
     ret v1
 }
@@ -408,7 +408,7 @@ fn @distance() -> i256 [selector=0x1234567f] {
     v0 = calldataload 4
     mstore 64, v0
     v1 = mload 64
-    v2 = checked_sub u256, 64, v1
+    v2 = checked_sub uint256, 64, v1
     mstore v2, 1
     ret v1
 }
@@ -738,7 +738,7 @@ fn @hash_packed_scratch() -> i256 [selector=0x12345690] {
     mstore 64, v1
     v2 = mload 64
     mstore 64, v0
-    v3 = keccak256_packed (u256 v2)
+    v3 = keccak256_packed (uint256 v2)
     ret v3
 }
 

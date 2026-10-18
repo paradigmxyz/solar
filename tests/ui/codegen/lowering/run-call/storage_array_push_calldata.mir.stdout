@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_calldata.sol:StorageArrayPushCalldata ===
 @module StorageArrayPushCalldata
-fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[array<_, u120>], abi_returns=[word<u120>], abi_return_params=[u120]] {
+fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[array<_, uint120>], abi_returns=[word<uint120>], abi_return_params=[uint120]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -153,7 +153,7 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     jump bb1
 }
 
-fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[tuple<u16, u16, array<3, u16>, array<_, u16>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[tuple<uint16, uint16, array<3, uint16>, array<_, uint16>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = alloc 128
@@ -331,7 +331,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v197 = sload v196 !metadata(storage=symbolic(v196))
     v198 = trunc i256 v197 to i16
     v199 = zext i16 v198 to i256
-    v200 = checked_mul u256, v199, 0x3e8
+    v200 = checked_mul uint256, v199, 0x3e8
     v201 = sload 1 !metadata(storage=slot(1))
     v202 = lt 0, v201
     v203 = eq v202, false
@@ -343,8 +343,8 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v208 = shr 16, v207
     v209 = trunc i256 v208 to i16
     v210 = zext i16 v209 to i256
-    v211 = checked_mul u256, v210, 100
-    v212 = checked_add u256, v200, v211
+    v211 = checked_mul uint256, v210, 100
+    v212 = checked_add uint256, v200, v211
     v213 = sload 1 !metadata(storage=slot(1))
     v214 = lt 0, v213
     v215 = eq v214, false
@@ -365,8 +365,8 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v228 = shr v227, v226
     v229 = trunc i256 v228 to i16
     v230 = zext i16 v229 to i256
-    v231 = checked_mul u256, v230, 10
-    v232 = checked_add u256, v212, v231
+    v231 = checked_mul uint256, v230, 10
+    v232 = checked_add uint256, v212, v231
     v233 = sload 1 !metadata(storage=slot(1))
     v234 = lt 0, v233
     v235 = eq v234, false
@@ -389,7 +389,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v250 = shr v249, v248
     v251 = trunc i256 v250 to i16
     v252 = zext i16 v251 to i256
-    v253 = checked_add u256, v232, v252
+    v253 = checked_add uint256, v232, v252
     ret v253
   bb19:
     v162 = shl 5, v160
