@@ -31,8 +31,8 @@
 //! hold are inserted-this-run and excluded by rule 1.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata, MirType,
-    Module, Terminator, Value, ValueId,
+    BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata,
+    MirType, Module, Terminator, Value, ValueId,
     analysis::{CfgInfo, DominatorTree},
     pass::{MirPass, run_function_pass},
     utils::split_edge,
@@ -41,7 +41,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
-use std::cmp::Ordering;
+use smallvec::SmallVec;
 
 /// Function pass for pure expression PRE.
 pub(crate) struct Pre;
@@ -87,36 +87,17 @@ struct PartialRedundancyEliminator {
     stats: PreStats,
 }
 
+/// An expression with immediate operands replaced by placeholders, the
+/// immediates in operand order, and the result type, which casts take from the
+/// instruction rather than from their operands.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-enum ExprKey {
-    Add(OperandKey, OperandKey),
-    Sub(OperandKey, OperandKey),
-    Mul(OperandKey, OperandKey),
-    Div(OperandKey, OperandKey),
-    SDiv(OperandKey, OperandKey),
-    Mod(OperandKey, OperandKey),
-    SMod(OperandKey, OperandKey),
-    Exp(OperandKey, OperandKey),
-    AddMod(OperandKey, OperandKey, OperandKey),
-    MulMod(OperandKey, OperandKey, OperandKey),
-    And(OperandKey, OperandKey),
-    Or(OperandKey, OperandKey),
-    Xor(OperandKey, OperandKey),
-    Not(OperandKey),
-    Clz(OperandKey),
-    Shl(OperandKey, OperandKey),
-    Shr(OperandKey, OperandKey),
-    Sar(OperandKey, OperandKey),
-    Byte(OperandKey, OperandKey),
-    Lt(OperandKey, OperandKey),
-    SLt(OperandKey, OperandKey),
-    Eq(OperandKey, OperandKey),
-    Ne(OperandKey, OperandKey),
-    Select(OperandKey, OperandKey, OperandKey),
-    SignExtend(OperandKey, OperandKey),
+struct ExprKey {
+    kind: InstKind,
+    immediates: SmallVec<[Immediate; 2]>,
+    ty: MirType,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum OperandKey {
     Value(ValueId),
     Immediate(Immediate),
@@ -147,9 +128,7 @@ impl PartialRedundancyEliminator {
             block.predecessors.len() >= 2
                 && block.instructions.iter().any(|&inst| {
                     let instruction = func.inst(inst);
-                    Self::is_pre_expression(&instruction.kind)
-                        && instruction.result_ty.is_some()
-                        && func.inst_result_value(inst).is_some()
+                    Self::is_pre_expression(instruction) && func.inst_result_value(inst).is_some()
                 })
         });
         if !has_candidate {
@@ -227,7 +206,7 @@ impl PartialRedundancyEliminator {
                     continue;
                 }
                 let instruction = func.inst(inst);
-                if !Self::is_pre_expression(&instruction.kind) {
+                if !Self::is_pre_expression(instruction) {
                     continue;
                 }
                 let Some(result_ty) = instruction.result_ty else {
@@ -308,7 +287,7 @@ impl PartialRedundancyEliminator {
             if !Self::operands_available_at_end(func, &translated, pred, inst_blocks, dominators) {
                 return None;
             }
-            let key = Self::make_expr_key(func, &translated)?;
+            let key = Self::make_expr_key(func, &translated, result_ty)?;
             if let Some(value) = Self::available_value_at_end(func, dominators, pred, &key) {
                 available += 1;
                 incoming.push((pred, value));
@@ -347,7 +326,7 @@ impl PartialRedundancyEliminator {
         let PreCandidate { target, inst, result, result_ty, metadata, mut incoming, insertions } =
             candidate;
 
-        if let Some(key) = Self::make_expr_key(func, &func.inst(inst).kind) {
+        if let Some(key) = Self::make_expr_key(func, &func.inst(inst).kind, result_ty) {
             eliminated_keys.insert((key, target));
         }
 
@@ -499,131 +478,43 @@ impl PartialRedundancyEliminator {
     fn available_value_in_block(func: &Function, block: BlockId, key: &ExprKey) -> Option<ValueId> {
         func.blocks[block].instructions.iter().rev().find_map(|&inst| {
             let instruction = func.inst(inst);
-            if !Self::is_pre_expression(&instruction.kind) {
+            if !Self::is_pre_expression(instruction) {
                 return None;
             }
-            let candidate_key = Self::make_expr_key(func, &instruction.kind)?;
+            let candidate_key =
+                Self::make_expr_key(func, &instruction.kind, instruction.result_ty?)?;
             (candidate_key == *key).then(|| func.inst_result_value(inst)).flatten()
         })
     }
 
-    fn is_pre_expression(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::Add(_, _)
-                | InstKind::Sub(_, _)
-                | InstKind::Mul(_, _)
-                | InstKind::Div(_, _)
-                | InstKind::SDiv(_, _)
-                | InstKind::Mod(_, _)
-                | InstKind::SMod(_, _)
-                | InstKind::Exp(_, _)
-                | InstKind::AddMod(_, _, _)
-                | InstKind::MulMod(_, _, _)
-                | InstKind::And(_, _)
-                | InstKind::Or(_, _)
-                | InstKind::Xor(_, _)
-                | InstKind::Not(_)
-                | InstKind::Clz(_)
-                | InstKind::Shl(_, _)
-                | InstKind::Shr(_, _)
-                | InstKind::Sar(_, _)
-                | InstKind::Byte(_, _)
-                | InstKind::Lt(_, _)
-                | InstKind::Gt(_, _)
-                | InstKind::SLt(_, _)
-                | InstKind::SGt(_, _)
-                | InstKind::Eq(_, _)
-                | InstKind::Ne(..)
-                | InstKind::Select(_, _, _)
-                | InstKind::SignExtend(_, _)
-        )
+    /// Returns whether `instruction` computes a word from its operands alone,
+    /// so it can move to any point where its operands are available.
+    fn is_pre_expression(instruction: &Instruction) -> bool {
+        let kind = &instruction.kind;
+        !matches!(kind, InstKind::Phi(_))
+            && kind.effect_kind() == EffectKind::Pure
+            && !kind.has_side_effects()
+            && kind.any_operand(|_| true)
+            && instruction.result_ty.is_some_and(MirType::is_word)
     }
 
-    fn make_expr_key(func: &Function, kind: &InstKind) -> Option<ExprKey> {
-        let operand = |value| Self::operand_key(func, value);
-        match kind {
-            InstKind::Add(a, b) => {
-                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
-                Some(ExprKey::Add(a, b))
-            }
-            InstKind::Mul(a, b) => {
-                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
-                Some(ExprKey::Mul(a, b))
-            }
-            InstKind::And(a, b) => {
-                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
-                Some(ExprKey::And(a, b))
-            }
-            InstKind::Or(a, b) => {
-                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
-                Some(ExprKey::Or(a, b))
-            }
-            InstKind::Xor(a, b) => {
-                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
-                Some(ExprKey::Xor(a, b))
-            }
-            InstKind::Eq(a, b) => {
-                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
-                Some(ExprKey::Eq(a, b))
-            }
-            InstKind::Ne(a, b) => {
-                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
-                Some(ExprKey::Ne(a, b))
-            }
-            InstKind::AddMod(a, b, n) => {
-                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
-                Some(ExprKey::AddMod(a, b, operand(*n)))
-            }
-            InstKind::MulMod(a, b, n) => {
-                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
-                Some(ExprKey::MulMod(a, b, operand(*n)))
-            }
-            InstKind::Sub(a, b) => Some(ExprKey::Sub(operand(*a), operand(*b))),
-            InstKind::Div(a, b) => Some(ExprKey::Div(operand(*a), operand(*b))),
-            InstKind::SDiv(a, b) => Some(ExprKey::SDiv(operand(*a), operand(*b))),
-            InstKind::Mod(a, b) => Some(ExprKey::Mod(operand(*a), operand(*b))),
-            InstKind::SMod(a, b) => Some(ExprKey::SMod(operand(*a), operand(*b))),
-            InstKind::Exp(a, b) => Some(ExprKey::Exp(operand(*a), operand(*b))),
-            InstKind::Not(a) => Some(ExprKey::Not(operand(*a))),
-            InstKind::Clz(a) => Some(ExprKey::Clz(operand(*a))),
-            InstKind::Shl(a, b) => Some(ExprKey::Shl(operand(*a), operand(*b))),
-            InstKind::Shr(a, b) => Some(ExprKey::Shr(operand(*a), operand(*b))),
-            InstKind::Sar(a, b) => Some(ExprKey::Sar(operand(*a), operand(*b))),
-            InstKind::Byte(a, b) => Some(ExprKey::Byte(operand(*a), operand(*b))),
-            InstKind::Lt(a, b) => Some(ExprKey::Lt(operand(*a), operand(*b))),
-            InstKind::Gt(a, b) => Some(ExprKey::Lt(operand(*b), operand(*a))),
-            InstKind::SLt(a, b) => Some(ExprKey::SLt(operand(*a), operand(*b))),
-            InstKind::SGt(a, b) => Some(ExprKey::SLt(operand(*b), operand(*a))),
-            InstKind::Select(a, b, c) => {
-                Some(ExprKey::Select(operand(*a), operand(*b), operand(*c)))
-            }
-            InstKind::SignExtend(a, b) => Some(ExprKey::SignExtend(operand(*a), operand(*b))),
-            _ => None,
-        }
-    }
-
-    fn operand_key(func: &Function, value: ValueId) -> OperandKey {
-        match func.value(value) {
+    fn make_expr_key(func: &Function, kind: &InstKind, ty: MirType) -> Option<ExprKey> {
+        let operand = |value| match func.value(value) {
             Value::Immediate(imm) => OperandKey::Immediate(imm.clone()),
             _ => OperandKey::Value(value),
-        }
-    }
-
-    fn ordered_pair(a: OperandKey, b: OperandKey) -> (OperandKey, OperandKey) {
-        if Self::compare_operand_key(&a, &b) == Ordering::Greater { (b, a) } else { (a, b) }
-    }
-
-    fn compare_operand_key(a: &OperandKey, b: &OperandKey) -> Ordering {
-        match (a, b) {
-            (OperandKey::Value(a), OperandKey::Value(b)) => a.index().cmp(&b.index()),
-            (OperandKey::Value(_), OperandKey::Immediate(_)) => Ordering::Less,
-            (OperandKey::Immediate(_), OperandKey::Value(_)) => Ordering::Greater,
-            (OperandKey::Immediate(a), OperandKey::Immediate(b)) => Self::compare_immediate(a, b),
-        }
-    }
-
-    fn compare_immediate(a: &Immediate, b: &Immediate) -> Ordering {
-        a.cmp(b)
+        };
+        let mut kind = match *kind {
+            InstKind::Gt(a, b) => InstKind::Lt(b, a),
+            InstKind::SGt(a, b) => InstKind::SLt(b, a),
+            _ => kind.op().canonicalize_commutative_by_key(operand).into_kind()?,
+        };
+        let mut immediates = SmallVec::new();
+        kind.visit_operands_mut(|value| {
+            if let Value::Immediate(imm) = func.value(*value) {
+                immediates.push(imm.clone());
+                *value = ValueId::MAX;
+            }
+        });
+        Some(ExprKey { kind, immediates, ty })
     }
 }
