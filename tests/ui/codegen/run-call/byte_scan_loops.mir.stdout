@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/loop-idioms/runtime.sol:Test ===
+// === ROOT/tests/ui/codegen/run-call/byte_scan_loops.sol:Test ===
 @module Test
 fn @ascii(arg0: ptr<memory>) -> i1 [selector=0x6f11c5d5, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:

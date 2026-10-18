@@ -62,3 +62,43 @@ fn @copy_disjoint(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     mcopy arg0, arg1, arg2 !metadata(disjoint)
     ret arg0
 }
+
+// PRE-LABEL: {{^[ +].*}}fn @copy_byte{{[( ]}}
+// PRE-NOT: {{^\+.*}} = lt arg1, arg0
+// PRE-NOT: {{^\+.*}} = sub {{v[0-9]+}}, 32
+// PRE: {{^[ +].*}}ret arg0
+fn @copy_byte(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mcopy arg0, arg1, 1
+    ret arg0
+}
+
+// PRE-LABEL: {{^[ +].*}}fn @copy_partial{{[( ]}}
+// PRE-NOT: {{^\+.*}} = lt arg1, arg0
+// PRE-NOT: {{^\+.*}} = sub {{v[0-9]+}}, 32
+// PRE: {{^[ +].*}}ret arg0
+fn @copy_partial(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mcopy arg0, arg1, 31
+    ret arg0
+}
+
+// PRE-LABEL: {{^[ +].*}}fn @copy_word{{[( ]}}
+// PRE-NOT: {{^\+.*}} = lt arg1, arg0
+// PRE-NOT: {{^\+.*}} = sub {{v[0-9]+}}, 32
+// PRE: {{^[ +].*}}ret arg0
+fn @copy_word(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mcopy arg0, arg1, 32
+    ret arg0
+}
+
+// PRE-LABEL: {{^[ +].*}}fn @copy_word_and_byte{{[( ]}}
+// PRE: + {{v[0-9]+}} = lt arg1, arg0
+// PRE: + {{v[0-9]+}} = sub {{v[0-9]+}}, 32
+// PRE: {{^[ +].*}}ret arg0
+fn @copy_word_and_byte(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mcopy arg0, arg1, 33
+    ret arg0
+}

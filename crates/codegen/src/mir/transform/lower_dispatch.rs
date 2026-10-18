@@ -3,12 +3,20 @@
 //! Semantic MIR initially leaves selector routing implicit. This conversion pass
 //! creates an ordinary MIR function named `entry` while the module stays semantic.
 //!
-//! The synthesized `entry` function loads the 4-byte selector through a
-//! semantic calldata slice and switches on it to one argument-free `tail_call`
-//! per external wrapper, defaulting to a `revert`. It is meant
-//! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
-//! argument-free self-decoding wrappers this switch routes to; that is why it
-//! only routes selector-bearing functions that take no MIR arguments.
+//! The synthesized `entry` function reads the selector from the first calldata
+//! word (`shr 224`, or a division by `2**224` before Constantinople) and
+//! switches on it to one argument-free `tail_call` per external wrapper. It is
+//! meant to run after [`super::lower_abi::LowerAbi`], which turns external
+//! functions into the argument-free self-decoding wrappers this switch routes
+//! to; that is why it only routes selector-bearing functions that take no MIR
+//! arguments. Empty calldata goes to `receive` when there is one, and a selector
+//! miss goes to `fallback` or reverts. Calldata shorter than four bytes is
+//! zero-padded by `calldataload`, so it is sent to the default target first
+//! only when some selector ends in a zero byte and could match it.
+//!
+//! When every external entry rejects Ether, `entry` checks `callvalue` once;
+//! otherwise `lower-abi` has already put the check into each rejecting
+//! wrapper, and the two passes share that predicate.
 //!
 //! It checks that ABI entries are explicit before creating routes, and reports an error
 //! if no valid entry can be formed. The final conversion verifies the complete lowered
@@ -27,13 +35,14 @@
 //! carries solc's "Non-view function of library called without DELEGATECALL"
 //! message.
 //!
-//! When every selector wrapper starts with the same ABI head-size check, this
-//! pass hoists that check into `entry` and removes the dead wrapper guards. In
-//! non-debug mode the hoisted calldata check, the callvalue check, and selector
-//! misses share one empty-revert block. Debug revert strings retain distinct
-//! paths so each rejection keeps its diagnostic payload.
+//! When at least two selector wrappers all start with the same ABI head-size
+//! check and there is no `receive` or `fallback`, which accept other calldata
+//! shapes, this pass hoists that check into `entry` and removes the dead
+//! wrapper guards. In non-debug mode the hoisted calldata check, the callvalue
+//! check, and selector misses share one empty-revert block. Debug revert
+//! strings retain distinct paths so each rejection keeps its diagnostic
+//! payload.
 //!
-//! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
 //! The backend only consumes the final `lowered` module.
 
 use crate::mir::{

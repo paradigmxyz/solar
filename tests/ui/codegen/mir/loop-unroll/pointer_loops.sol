@@ -68,7 +68,8 @@ contract PointerLoops {
     // Words step by 32, so the parity of the remaining count is bit 5 of the distance. The
     // end adds the length shifted by five to the start, so that bit is the length's lowest.
     // CHECK-LABEL: fn @sumWords()
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[LENGTH:v[0-9]+]], 5
+    // CHECK: [[LENGTH:v[0-9]+]] = calldataload {{v[0-9]+}}
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[LENGTH]], 5
     // CHECK: calldatacopy
     // CHECK: = add {{v[0-9]+}}, [[SHIFTED]]
     // CHECK-NEXT: [[BIT:v[0-9]+]] = and [[LENGTH]], 1

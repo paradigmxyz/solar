@@ -23,86 +23,83 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
 
 fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb0:
-    v37 = calldatasize
-    v39 = calldataload 4
-    v40 = add v39, 4
-    v41 = add v40, 32
-    v42 = gt v39, 0xffffffffffffffff
-    v43 = gt v41, v37
-    v44 = or v42, v43
-    jumpi v44, bb6, bb7
+    v35 = calldatasize
+    v37 = calldataload 4
+    v38 = add v37, 4
+    v39 = add v38, 32
+    v40 = gt v37, 0xffffffffffffffff
+    v41 = gt v39, v35
+    v42 = or v40, v41
+    jumpi v42, bb6, bb7
   bb7:
-    v46 = calldataload v40
-    v48 = shl v46, 5
-    v50 = shr v48, 5
-    v54 = ne v50, v46
-    v55 = add v48, 32
-    v56 = lt v55, v48
-    v104 = or v54, v56
-    jumpi v104, bb8, bb9
+    v44 = calldataload v38
+    v46 = gt v44, 0x7fffffffffffffe
+    jumpi v46, bb8, bb9
   bb9:
-    v91 = icall @alloc, v55
-    mstore v91, v46
-    v58 = sub v37, v41
-    v59 = shr v58, 5
-    v60 = gt v46, v59
-    jumpi v60, bb6, bb10
+    v47 = add v44, 1
+    v48 = shl 5, v47
+    v84 = icall @alloc, v48
+    mstore v84, v44
+    v51 = sub v35, v39
+    v52 = shr 5, v51
+    v53 = gt v44, v52
+    jumpi v53, bb6, bb10
   bb10:
-    v100 = add v91, 32
+    v93 = add v84, 32
     jump bb11
   bb11:
-    v61 = phi [bb10: v46], [bb12: v70]
-    v62 = phi [bb10: v41], [bb12: v71]
-    v63 = phi [bb10: 0], [bb12: v72]
-    v101 = phi [bb10: v100], [bb12: v102]
-    v64 = gt v61, 0
-    jumpi v64, bb12, bb13
+    v54 = phi [bb10: v44], [bb12: v63]
+    v55 = phi [bb10: v39], [bb12: v64]
+    v56 = phi [bb10: 0], [bb12: v65]
+    v94 = phi [bb10: v93], [bb12: v95]
+    v57 = gt v54, 0
+    jumpi v57, bb12, bb13
   bb13:
-    v29 = mload v91
+    v29 = mload v84
+    v85 = add v84, 32
+    v88 = gt v29, 0x20000000000000000
+    v89 = select v88, 0x20000000000000000, v29
+    v90 = shl 5, v89
+    v91 = add v84, v90
     v92 = add v91, 32
-    v95 = gt v29, 0x20000000000000000
-    v96 = select v95, 0x20000000000000000, v29
-    v97 = shl v96, 5
-    v98 = add v91, v97
-    v99 = add v98, 32
     jump bb1
   bb1:
     v1 = phi [bb13: 0], [bb5: v33]
-    v93 = phi [bb13: v92], [bb5: v94]
-    v4 = ne v93, v99
+    v86 = phi [bb13: v85], [bb5: v87]
+    v4 = ne v86, v92
     jumpi v4, bb3, bb2
   bb2:
     mstore 128, v1
     returndata 128, 32
   bb3:
-    v85 = mload v93
-    v86 = mload v85
-    v13 = mload v86
-    v79 = add v85, 32
-    v87 = mload v79
-    v81 = add v87, 32
-    v88 = mload v81
-    v25 = mload v88
+    v78 = mload v86
+    v79 = mload v78
+    v13 = mload v79
+    v72 = add v78, 32
+    v80 = mload v72
+    v74 = add v80, 32
+    v81 = mload v74
+    v25 = mload v81
     v31 = add v13, v25
     v32 = lt v31, v13
     v33 = add v1, v31
     v34 = lt v33, v1
-    v103 = or v32, v34
-    jumpi v103, bb4, bb5
+    v96 = or v32, v34
+    jumpi v96, bb4, bb5
   bb5:
-    v94 = add v93, 32
+    v87 = add v86, 32
     jump bb1
   bb4:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb12:
-    v65 = icall @decode_calldata_type.3, v62, v41
-    mstore v101, v65
-    v70 = sub v61, 1
-    v71 = add v62, 32
-    v72 = add v63, 1
-    v102 = add v101, 32
+    v58 = icall @decode_calldata_type.3, v55, v39
+    mstore v94, v58
+    v63 = sub v54, 1
+    v64 = add v55, 32
+    v65 = add v56, 1
+    v95 = add v94, 32
     jump bb11
   bb8:
     mstore 32, 65 !metadata(memory=scratch)
@@ -204,7 +201,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr v6, 224
+    v7 = shr 224, v6
     switch v7, default bb1, [0x54d20d9 => bb3, 0x7a5de1e9 => bb4]
   bb4:
     tail_call @pair
