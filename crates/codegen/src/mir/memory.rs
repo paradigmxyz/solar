@@ -10,6 +10,8 @@ pub(crate) struct EvmMemoryLayout;
 impl EvmMemoryLayout {
     /// EVM word size in bytes.
     pub(crate) const WORD_SIZE: u64 = 32;
+    /// Scratch word for short-lived call outputs, such as precompile results.
+    pub(crate) const SCRATCH_SLOT: u64 = 0;
     /// Scratch word used to publish ephemeral multi-return buffers.
     pub(crate) const MULTI_RETURN_BUFFER_PTR_SLOT: u64 = 0x20;
     /// Scratch word containing the free-memory pointer.

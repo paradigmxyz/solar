@@ -374,18 +374,6 @@ impl ModRef {
     }
 }
 
-fn add_storage_range(effects: &mut ModRef, base: StorageAlias, slots: u64, write: bool) {
-    for offset in 0..slots {
-        let offset = alloy_primitives::U256::from_limbs([offset, 0, 0, 0]);
-        let access = Access::Location(Location::Storage(base.offset_by(offset)));
-        if write {
-            effects.write(access);
-        } else {
-            effects.read(access);
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct AllocationProvenance {
     dynamic: bool,
@@ -916,11 +904,9 @@ impl AliasAnalysis {
             InstKind::Store(address, _, PtrLocation::Memory)
             | InstKind::Store8(address, _)
             | InstKind::MemoryZero(address, _) => operand != *address,
-            InstKind::Copy(dest, source, _, PtrLocation::Memory)
-            | InstKind::StorageToMemory { memory: dest, storage: source, .. } => {
+            InstKind::Copy(dest, source, _, PtrLocation::Memory) => {
                 operand != *dest && operand != *source
             }
-            InstKind::MemoryToStorage { memory, .. } => operand != *memory,
             InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
             | InstKind::DataCopy(_, dest, _)
             | InstKind::CodeCopy(dest, _, _)
@@ -1195,38 +1181,6 @@ impl AliasAnalysis {
                 }
                 effects.write_any(AddressSpace::Memory);
             }
-            InstKind::StorageToMemory { .. } => {
-                let InstKind::StorageToMemory { storage, memory, layout } = kind else {
-                    unreachable!()
-                };
-                let base =
-                    self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
-                add_storage_range(&mut effects, base, layout.storage_slots(), false);
-                write_memory(&mut effects, *memory, SizeOperand::Const(layout.memory_words() * 32));
-                if layout.has_nested_layout() {
-                    effects.write_any(AddressSpace::Memory);
-                    let fmp = Access::Location(Location::Memory(Self::fmp_location()));
-                    effects.read(fmp);
-                    effects.write(fmp);
-                }
-            }
-            InstKind::MemoryToStorage { .. } => {
-                let InstKind::MemoryToStorage { memory, storage, layout } = kind else {
-                    unreachable!()
-                };
-                if layout.has_nested_layout() {
-                    effects.read_any(AddressSpace::Memory);
-                } else {
-                    read_memory(
-                        &mut effects,
-                        *memory,
-                        SizeOperand::Const(layout.memory_words() * 32),
-                    );
-                }
-                let base =
-                    self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
-                add_storage_range(&mut effects, base, layout.storage_slots(), true);
-            }
             InstKind::StorageBytesStore(_, object) => {
                 effects.read_any(AddressSpace::Storage);
                 effects.write_any(AddressSpace::Storage);
@@ -1237,12 +1191,6 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Storage);
             }
             InstKind::StorageClearWords(..) => effects.write_any(AddressSpace::Storage),
-            InstKind::ClearStorage { .. } => {
-                let InstKind::ClearStorage { storage, layout } = kind else { unreachable!() };
-                let base =
-                    self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
-                add_storage_range(&mut effects, base, layout.storage_slots(), true);
-            }
             InstKind::Copy(dest, source, size, PtrLocation::Memory) => {
                 read_memory(&mut effects, source, SizeOperand::Value(size));
                 write_memory(&mut effects, dest, SizeOperand::Value(size));
