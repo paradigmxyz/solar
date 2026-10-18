@@ -445,6 +445,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.validate_calldata_bytes_slice(value);
                     self.builder.memory_copy_from_slice(object, value);
                     Some(object)
+                } else if self.is_decoded_external_argument(value) {
+                    // ABI decoding already checked the range, and a length within
+                    // calldata cannot overflow its padded allocation size.
+                    // object = bytes(data.len) !unchecked size
+                    // copy(data, object.data)
+                    let length = self.builder.slice_len(value);
+                    let object = self
+                        .builder
+                        .alloc_bounded_bytes_object(length, AllocationSemantics::INTERNAL);
+                    self.builder.memory_copy_from_slice(object, value);
+                    Some(object)
                 } else {
                     self.validate_calldata_bytes_slice(value);
                     Some(self.materialize_memory_slice(value))
@@ -808,6 +819,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn validate_calldata_bytes_slice(&mut self, slice: ValueId) {
+        // ABI decoding already checked an external argument's range.
+        if self.is_decoded_external_argument(slice) {
+            return;
+        }
         // calldata_tail_data(pointer, length, 1)
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);

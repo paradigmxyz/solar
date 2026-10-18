@@ -9,55 +9,33 @@
 
 fn @storageTuple(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selector=0xccc7dfb8, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
-    v0 = extract_value slice<calldata>, arg1, 0
-    v1 = extract_value slice<calldata>, arg1, 1
-    v2 = calldatasize
-    v3 = gt v1, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v3
-    v4 = sub v2, v1
-    v5 = ptrtoint ptr<calldata> v0 to i256
-    v6 = sgt v5, v4
-    icall revert_if<calldata_tail_too_short>, v6
+    v0 = extract_value slice<calldata>, arg1, 1
+    v1 = add v0, 63
+    v2 = not 31
+    v3 = and v1, v2
+    v4 = alloc v3
+    mstore v4, v0
+    v5 = ptradd v4, 32
+    v6 = extract_value slice<calldata>, arg1, 0
     v7 = extract_value slice<calldata>, arg1, 1
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    icall panic_if<0x41>, v9
+    calldatacopy v5, v6, v7
+    icall @store_storage_bytes, 1, v4
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = add v8, 63
     v10 = not 31
-    v11 = and v8, v10
+    v11 = and v9, v10
     v12 = alloc v11
-    mstore v12, v7
+    mstore v12, v8
     v13 = ptradd v12, 32
-    v14 = extract_value slice<calldata>, arg1, 0
-    v15 = extract_value slice<calldata>, arg1, 1
+    v14 = extract_value slice<calldata>, arg0, 0
+    v15 = extract_value slice<calldata>, arg0, 1
     calldatacopy v13, v14, v15
-    icall @store_storage_bytes, 1, v12
-    v16 = extract_value slice<calldata>, arg0, 0
-    v17 = extract_value slice<calldata>, arg0, 1
-    v18 = calldatasize
-    v19 = gt v17, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v19
-    v20 = sub v18, v17
-    v21 = ptrtoint ptr<calldata> v16 to i256
-    v22 = sgt v21, v20
-    icall revert_if<calldata_tail_too_short>, v22
-    v23 = extract_value slice<calldata>, arg0, 1
-    v24 = add v23, 63
-    v25 = lt v24, v23
-    icall panic_if<0x41>, v25
-    v26 = not 31
-    v27 = and v24, v26
-    v28 = alloc v27
-    mstore v28, v23
-    v29 = ptradd v28, 32
-    v30 = extract_value slice<calldata>, arg0, 0
-    v31 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v29, v30, v31
-    icall @store_storage_bytes, 0, v28
-    v32 = icall @load_storage_bytes, 0
-    v33 = icall @load_storage_bytes, 1
-    v34 = insert_value struct0, undef struct0, 0, v32
-    v35 = insert_value struct0, v34, 1, v33
-    ret v35
+    icall @store_storage_bytes, 0, v12
+    v16 = icall @load_storage_bytes, 0
+    v17 = icall @load_storage_bytes, 1
+    v18 = insert_value struct0, undef struct0, 0, v16
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
 }
 
 fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
