@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:D ===
 @module D
 @library
-fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_mul u256, 2, arg0
+    v0 = checked_mul uint256, 2, arg0
     ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:DiscardedFunctionReferences ===
 @module DiscardedFunctionReferences
-fn @receiverEffect() -> i256 [selector=0xc5280f8d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @receiverEffect() -> i256 [selector=0xc5280f8d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
     v1 = sload 0 !metadata(storage=slot(0))
@@ -19,7 +19,7 @@ fn @receiverEffect() -> i256 [selector=0xc5280f8d, abi_params=[], abi_returns=[w
 fn @next() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     ret v1
 }
@@ -49,31 +49,31 @@ fn @checkedReceiver() [selector=0x2496b1c7, pure, abi_params=[], abi_returns=[],
     ret
 }
 
-fn @builtinReferences() -> i256 [selector=0x96f217d0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @builtinReferences() -> i256 [selector=0x96f217d0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 7
 }
 
-fn @freeReceiverEffect() -> i256 [selector=0xe6b85063, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @freeReceiverEffect() -> i256 [selector=0xe6b85063, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
     v1 = sload 0 !metadata(storage=slot(0))
     ret v1
 }
 
-fn @tupleReceiverEffect() -> i256 [selector=0x838a913a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @tupleReceiverEffect() -> i256 [selector=0x838a913a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = checked_add u256, v1, 3
+    v2 = checked_add uint256, v1, 3
     ret v2
 }
 
-fn @tupleAssignmentEffect() -> i256 [selector=0x2e89541f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @tupleAssignmentEffect() -> i256 [selector=0x2e89541f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = checked_add u256, v1, 3
+    v2 = checked_add uint256, v1, 3
     ret v2
 }
 
@@ -83,13 +83,13 @@ fn @freeReceiverRevert() [selector=0xe1675ff9, pure, abi_params=[], abi_returns=
     ret
 }
 
-fn @tupleReceiverRevert() -> i256 [selector=0x48efbf0f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @tupleReceiverRevert() -> i256 [selector=0x48efbf0f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @fail
     ret 3
 }
 
-fn @nestedReceiverEffect(arg0: i1) -> i256 [selector=0xa644188c, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedReceiverEffect(arg0: i1) -> i256 [selector=0xa644188c, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:

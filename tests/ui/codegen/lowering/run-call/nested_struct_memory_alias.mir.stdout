@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_struct_memory_alias.sol:NestedStructMemoryAlias ===
 @module NestedStructMemoryAlias
-fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -193,7 +193,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v155 = ptradd v151, 64
     v156 = mload v155
     v157 = trunc i256 v156 to i8
-    v158 = checked_add u8, v140, v157
+    v158 = checked_add uint8, v140, v157
     v159 = zext i8 v158 to i256
     ret v159
   bb5:

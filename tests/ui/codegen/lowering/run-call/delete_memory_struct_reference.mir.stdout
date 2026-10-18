@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     mstore v0, 96
@@ -37,7 +37,7 @@ fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word,
     ret v20
 }
 
-fn @fixedArray() -> struct0 [selector=0x391e2457, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @fixedArray() -> struct0 [selector=0x391e2457, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/user_defined_storage_conversion.sol:UserDefinedStorageConversion ===
 @module UserDefinedStorageConversion
-fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_params=[tuple<uint8, uint16, bytes2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
@@ -83,13 +83,13 @@ fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_param
     v65 = sload 0 !metadata(storage=slot(0))
     v66 = trunc i256 v65 to i8
     v67 = zext i8 v66 to i256
-    v68 = checked_mul u256, v67, 0x3e8
+    v68 = checked_mul uint256, v67, 0x3e8
     v69 = sload 0 !metadata(storage=slot(0))
     v70 = shr 8, v69
     v71 = trunc i256 v70 to i16
     v72 = zext i16 v71 to i256
-    v73 = checked_mul u256, v72, 100
-    v74 = checked_add u256, v68, v73
+    v73 = checked_mul uint256, v72, 100
+    v74 = checked_add uint256, v68, v73
     v75 = sload 0 !metadata(storage=slot(0))
     v76 = shr 24, v75
     v77 = shl 240, v76
@@ -97,16 +97,16 @@ fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_param
     v79 = shr 248, v78
     v80 = trunc i256 v79 to i8
     v81 = zext i8 v80 to i256
-    v82 = checked_add u256, v74, v81
+    v82 = checked_add uint256, v74, v81
     v83 = sload 0 !metadata(storage=slot(0))
     v84 = shr 40, v83
     v85 = trunc i256 v84 to i8
     v86 = zext i8 v85 to i256
-    v87 = checked_add u256, v82, v86
+    v87 = checked_add uint256, v82, v86
     ret v87
 }
 
-fn @storeMemory(arg0: ptr<memory>) -> i256 [selector=0xdb1ba0ba, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @storeMemory(arg0: ptr<memory>) -> i256 [selector=0xdb1ba0ba, abi_params=[tuple<uint8, uint16, bytes2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -149,13 +149,13 @@ fn @storeMemory(arg0: ptr<memory>) -> i256 [selector=0xdb1ba0ba, abi_params=[tup
     v34 = sload 0 !metadata(storage=slot(0))
     v35 = trunc i256 v34 to i8
     v36 = zext i8 v35 to i256
-    v37 = checked_mul u256, v36, 0x3e8
+    v37 = checked_mul uint256, v36, 0x3e8
     v38 = sload 0 !metadata(storage=slot(0))
     v39 = shr 8, v38
     v40 = trunc i256 v39 to i16
     v41 = zext i16 v40 to i256
-    v42 = checked_mul u256, v41, 100
-    v43 = checked_add u256, v37, v42
+    v42 = checked_mul uint256, v41, 100
+    v43 = checked_add uint256, v37, v42
     v44 = sload 0 !metadata(storage=slot(0))
     v45 = shr 24, v44
     v46 = shl 240, v45
@@ -163,16 +163,16 @@ fn @storeMemory(arg0: ptr<memory>) -> i256 [selector=0xdb1ba0ba, abi_params=[tup
     v48 = shr 248, v47
     v49 = trunc i256 v48 to i8
     v50 = zext i8 v49 to i256
-    v51 = checked_add u256, v43, v50
+    v51 = checked_add uint256, v43, v50
     v52 = sload 0 !metadata(storage=slot(0))
     v53 = shr 40, v52
     v54 = trunc i256 v53 to i8
     v55 = zext i8 v54 to i256
-    v56 = checked_add u256, v51, v55
+    v56 = checked_add uint256, v51, v55
     ret v56
 }
 
-fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[array<_, u16>], abi_returns=[word], abi_return_params=[u256]] {
+fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[array<_, uint16>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -313,7 +313,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     jump bb1
 }
 
-fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[array<_, bytes2>], abi_returns=[word], abi_return_params=[u256]] {
+fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[array<_, bytes2>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0

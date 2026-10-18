@@ -168,15 +168,6 @@
 (decl abidecode (Value Unit) Value)
 (extractor (abidecode data layout) (inst (Op.AbiDecode data layout)))
 
-(decl storagetomemory (Value Value Unit) Value)
-(extractor (storagetomemory storage memory layout) (inst (Op.StorageToMemory storage memory layout)))
-
-(decl memorytostorage (Value Value Unit) Value)
-(extractor (memorytostorage memory storage layout) (inst (Op.MemoryToStorage memory storage layout)))
-
-(decl clearstorage (Value Unit) Value)
-(extractor (clearstorage storage layout) (inst (Op.ClearStorage storage layout)))
-
 (decl copy (Value Value Value PtrLocation) Value)
 (extractor (copy dest src len location) (inst (Op.Copy dest src len location)))
 

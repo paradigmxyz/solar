@@ -332,11 +332,6 @@ bb15 [loop]:
   jumpi
   swap 1
   push 0
-  not
-  push 96
-  shr
-  and
-  push 0
   mstore
   push 4
   calldataload

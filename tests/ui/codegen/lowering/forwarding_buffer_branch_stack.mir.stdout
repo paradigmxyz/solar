@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/forwarding_buffer_branch_stack.sol:F ===
 @module F
-fn @g(arg0: i24, arg1: i256, arg2: i144) -> i1 [selector=0xafabfe29, abi_params=[u24, u256, i144], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @g(arg0: i24, arg1: i256, arg2: i144) -> i1 [selector=0xafabfe29, abi_params=[uint24, uint256, int144], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     ret false
 }
@@ -11,7 +11,7 @@ fn @g(arg0: i24, arg1: i256, arg2: i144) -> i1 [selector=0xafabfe29, abi_params=
   F_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/forwarding_buffer_branch_stack.sol:F"
 
 @immutables
-  sI: u24
+  sI: uint24
 
 fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
@@ -39,7 +39,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v15 = loadimmutable sI
     v16 = sext i144 0 to i256
     v17 = zext i24 v15 to i256
-    v18 = abi_encode [word<u24>, word, word<i144>], selector 0xafabfe2900000000000000000000000000000000000000000000000000000000, args v17, 0, v16
+    v18 = abi_encode [word<uint24>, word, word<int144>], selector 0xafabfe2900000000000000000000000000000000000000000000000000000000, args v17, 0, v16
     v19 = extract_value slice<memory>, v18, 0
     v20 = extract_value slice<memory>, v18, 1
     v21 = zext i160 v12 to i256
@@ -71,7 +71,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v39 = mul v37, 8
     v40 = shr v39, v38
     v41 = trunc i256 v40 to i104
-    v42 = checked_add u256, v4, 1
+    v42 = checked_add uint256, v4, 1
     v43 = sload 4 !metadata(storage=slot(4))
     v44 = lt v42, v43
     v45 = eq v44, false
@@ -177,7 +177,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v122 = trunc i256 v121 to i144
     v123 = sext i144 v122 to i256
     v124 = zext i24 v103 to i256
-    v125 = abi_encode [word<u24>, word, word<i144>], selector 0xafabfe2900000000000000000000000000000000000000000000000000000000, args v124, v109, v123
+    v125 = abi_encode [word<uint24>, word, word<int144>], selector 0xafabfe2900000000000000000000000000000000000000000000000000000000, args v124, v109, v123
     v126 = extract_value slice<memory>, v125, 0
     v127 = extract_value slice<memory>, v125, 1
     v128 = zext i160 v94 to i256
@@ -223,7 +223,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v158 = mul v156, 8
     v159 = shr v158, v157
     v160 = trunc i256 v159 to i104
-    v161 = checked_add u256, v4, 1
+    v161 = checked_add uint256, v4, 1
     v162 = sload 4 !metadata(storage=slot(4))
     v163 = lt v161, v162
     v164 = eq v163, false

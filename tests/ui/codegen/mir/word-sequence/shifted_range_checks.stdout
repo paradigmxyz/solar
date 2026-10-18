@@ -1,0 +1,37 @@
+- // === ROOT/tests/ui/codegen/mir/word-sequence/shifted_range_checks.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/shifted_range_checks.mir (after word-sequence) ===
+  @module ShiftedRangeChecks
+  fn @branch_only(arg0: i256) -> i256 {
+    bb0:
+-     v0 = gt arg0, 0xffffffffffffffff
++     v1 = shr 64, arg0
++     v0 = ne v1, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret arg0
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @also_value(arg0: i256) -> i1 {
+    bb0:
+      v0 = gt arg0, 0xffffffff
+      jumpi v0, bb1, bb2
+    bb2:
+      ret v0
+    bb1:
+      ret v0
+  }
+  
+  fn @other_block(arg0: i256) -> i256 {
+    bb0:
+      v0 = gt arg0, 0xffffffffffffffff
+      jump bb1
+    bb1:
+      jumpi v0, bb2, bb3
+    bb3:
+      ret arg0
+    bb2:
+      revert 0, 0
+  }
+  

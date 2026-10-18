@@ -73,11 +73,11 @@ fn @constructor() [constructor] {
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v0, 1
+    v20 = checked_add uint256, v0, 1
     jump bb1
 }
 
-fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc checked 288
     jump bb1
@@ -133,12 +133,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v79 = shr 192, v78
     v80 = trunc i256 v79 to i64
     v81 = zext i64 v80 to i256
-    v82 = checked_add u256, v64, v81
+    v82 = checked_add uint256, v64, v81
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v83 = checked_add u256, v66, 1
+    v83 = checked_add uint256, v66, 1
     jump bb16
   bb13:
     v48 = lt v46, 9
@@ -155,12 +155,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v58 = shr 192, v57
     v59 = trunc i256 v58 to i64
     v60 = zext i64 v59 to i256
-    v61 = checked_add u256, v44, v60
+    v61 = checked_add uint256, v44, v60
     jump bb15
   bb15:
     jump bb12
   bb12:
-    v62 = checked_add u256, v46, 1
+    v62 = checked_add uint256, v46, 1
     jump bb10
   bb5:
     v17 = div v15, 1

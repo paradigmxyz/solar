@@ -3,7 +3,7 @@
 @types
   struct0: {i16, i16, i16}
 
-fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16>, word<u16>, word<u16>], abi_return_params=[u16, u16, u16]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uint16>, word<uint16>, word<uint16>], abi_return_params=[uint16, uint16, uint16]] {
   bb0:
     jump bb1
   bb1:
@@ -31,7 +31,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     jump bb8
   bb8:
     v49 = sload 0 !metadata(storage=slot(0))
-    v50 = checked_sub u256, v49, 1
+    v50 = checked_sub uint256, v49, 1
     v51 = sload 0 !metadata(storage=slot(0))
     v52 = lt v50, v51
     v53 = eq v52, false
@@ -60,7 +60,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     jump bb14
   bb14:
     v88 = sload 0 !metadata(storage=slot(0))
-    v89 = checked_sub u256, v88, 1
+    v89 = checked_sub uint256, v88, 1
     v90 = sload 0 !metadata(storage=slot(0))
     v91 = lt v89, v90
     v92 = eq v91, false
@@ -90,7 +90,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     jump bb20
   bb20:
     v128 = sload 0 !metadata(storage=slot(0))
-    v129 = checked_sub u256, v128, 1
+    v129 = checked_sub uint256, v128, 1
     v130 = sload 0 !metadata(storage=slot(0))
     v131 = lt v129, v130
     v132 = eq v131, false
@@ -148,7 +148,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb30:
     jump bb27
   bb27:
-    v168 = checked_add u256, v149, 1
+    v168 = checked_add uint256, v149, 1
     jump bb25
   bb22:
     v111 = sload 0 !metadata(storage=slot(0))
@@ -174,7 +174,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb24:
     jump bb21
   bb21:
-    v127 = checked_add u256, v108, 1
+    v127 = checked_add uint256, v108, 1
     jump bb19
   bb16:
     v71 = sload 0 !metadata(storage=slot(0))
@@ -200,7 +200,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb18:
     jump bb15
   bb15:
-    v87 = checked_add u256, v68, 1
+    v87 = checked_add uint256, v68, 1
     jump bb13
   bb10:
     v32 = sload 0 !metadata(storage=slot(0))
@@ -226,7 +226,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb12:
     jump bb9
   bb9:
-    v48 = checked_add u256, v29, 1
+    v48 = checked_add uint256, v29, 1
     jump bb7
   bb4:
     v6 = trunc i256 v3 to i16
@@ -254,6 +254,6 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb6:
     jump bb3
   bb3:
-    v24 = checked_add u256, v3, 1
+    v24 = checked_add uint256, v3, 1
     jump bb1
 }

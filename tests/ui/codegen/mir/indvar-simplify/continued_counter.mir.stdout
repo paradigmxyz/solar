@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/indvar-simplify/continued_counter.sol:ContinuedCounter ===
 @module ContinuedCounter
-fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = alloc zeroed checked 224
     mstore v0, 6
@@ -45,7 +45,7 @@ fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns
   bb18:
     jump bb15
   bb15:
-    v30 = checked_add u256, v22, 1
+    v30 = checked_add uint256, v22, 1
     jump bb13
   bb10:
     v14 = mload v11
@@ -60,7 +60,7 @@ fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns
   bb12:
     jump bb9
   bb9:
-    v20 = checked_add u256, v12, 1
+    v20 = checked_add uint256, v12, 1
     jump bb7
   bb4:
     v4 = mload v1
@@ -75,11 +75,11 @@ fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns
   bb6:
     jump bb3
   bb3:
-    v10 = checked_add u256, v2, 1
+    v10 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u256, address], abi_returns=[word], abi_return_params=[u256]] {
+fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[uint256, address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     jump bb1
@@ -123,7 +123,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
   bb12:
     jump bb9
   bb9:
-    v92 = checked_add u256, v32, 1
+    v92 = checked_add uint256, v32, 1
     jump bb7
   bb13:
     jump bb16
@@ -184,7 +184,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
   bb23:
     ret v101
   bb25:
-    v107 = checked_mul u256, v101, 10
+    v107 = checked_mul uint256, v101, 10
     v108 = lt v104, 5
     v109 = eq v108, false
     icall panic_if<0x32>, v109
@@ -192,15 +192,15 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v111 = add v105, v110
     v112 = add v111, 1
     v113 = sload v112 !metadata(storage=offset(v111, 1))
-    v114 = checked_add u256, v107, v113
+    v114 = checked_add uint256, v107, v113
     jump bb27
   bb27:
     jump bb24
   bb24:
-    v115 = checked_add u256, v104, 1
+    v115 = checked_add uint256, v104, 1
     jump bb22
   bb19:
-    v50 = checked_add u256, v47, 1
+    v50 = checked_add uint256, v47, 1
     v51 = lt v50, 5
     v52 = eq v51, false
     icall panic_if<0x32>, v52
@@ -236,13 +236,13 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
   bb21:
     jump bb18
   bb18:
-    v76 = checked_add u256, v47, 1
+    v76 = checked_add uint256, v47, 1
     jump bb16
   bb4:
     v7 = alloc 64
-    v8 = checked_add u160, v4, i160 1
+    v8 = checked_add uint160, v4, i160 1
     v9 = zext i160 v8 to i256
-    v10 = checked_add u160, v4, i160 1
+    v10 = checked_add uint160, v4, i160 1
     v11 = zext i160 v10 to i256
     mstore v7, v9
     v12 = ptradd v7, 32
@@ -268,6 +268,6 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
   bb6:
     jump bb3
   bb3:
-    v27 = checked_add u160, v4, i160 1
+    v27 = checked_add uint160, v4, i160 1
     jump bb1
 }

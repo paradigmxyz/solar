@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/ecrecover_failure.sol:EcrecoverFailure ===
 @module EcrecoverFailure
-fn @recover() -> i160 [selector=0xce746024, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @recover() -> i160 [selector=0xce746024, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = icall ecrecover<>, 1, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     v1 = trunc i256 v0 to i160
     ret v1
 }
 
-fn @recoverInvalidDirtyScratch() -> i160 [selector=0x5721fb2d, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @recoverInvalidDirtyScratch() -> i160 [selector=0x5721fb2d, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = not 0
     mstore 0, v0 !metadata(memory=scratch)
@@ -16,7 +16,7 @@ fn @recoverInvalidDirtyScratch() -> i160 [selector=0x5721fb2d, pure, abi_params=
     ret v2
 }
 
-fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -60,7 +60,7 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
   bb11:
     jump bb12
   bb10:
-    v19 = checked_add u256, v0, 1
+    v19 = checked_add uint256, v0, 1
     jump bb12
   bb12:
     v20 = phi [bb10: v19], [bb11: v0]
@@ -71,6 +71,6 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add u256, v1, 11
+    v22 = checked_add uint256, v1, 11
     jump bb1
 }

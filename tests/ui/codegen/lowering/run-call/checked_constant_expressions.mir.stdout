@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/checked_constant_expressions.sol:CheckedConstants ===
 @module CheckedConstants
-fn @underflow() -> i256 [selector=0xdc75bec7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @underflow() -> i256 [selector=0xdc75bec7, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_sub u256, 100, 150
+    v0 = checked_sub uint256, 100, 150
     ret v0
 }
 

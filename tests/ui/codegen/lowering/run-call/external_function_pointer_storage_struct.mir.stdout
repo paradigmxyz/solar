@@ -3,12 +3,12 @@
 @types
   struct0: {i256, i256}
 
-fn @firstTarget() -> i256 [selector=0xf5db9820, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @firstTarget() -> i256 [selector=0xf5db9820, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
-fn @secondTarget() -> i256 [selector=0x9e3b9dc1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @secondTarget() -> i256 [selector=0x9e3b9dc1, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
 }
@@ -94,7 +94,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = lt 0, 2
     v1 = eq v0, false

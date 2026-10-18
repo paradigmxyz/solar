@@ -1,0 +1,51 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=word-sequence
+//@ filecheck:
+@module ShiftedRangeChecks
+
+// A branch reads a nonzero test for free, so `x > 2^k - 1` becomes the shorter
+// `x >> k` test when the branch is its only use.
+// CHECK-LABEL: {{^[ +].*}}fn @branch_only{{[( ]}}
+// CHECK: - {{v[0-9]+}} = gt arg0, 0xffffffffffffffff
+// CHECK: + [[HIGH:v[0-9]+]] = shr 64, arg0
+// CHECK: + {{v[0-9]+}} = ne [[HIGH]], 0
+fn @branch_only(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffff
+    jumpi v0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret arg0
+}
+
+// A comparison whose result is also a value keeps the comparison, which costs
+// less than shifting and then normalizing the word to a boolean.
+// CHECK-LABEL: {{^[ +].*}}fn @also_value{{[( ]}}
+// CHECK-NOT: shr
+// CHECK: gt arg0, 0xffffffff
+fn @also_value(arg0: i256) -> i1 {
+  bb0:
+    v0 = gt arg0, 0xffffffff
+    jumpi v0, bb1, bb2
+  bb1:
+    ret v0
+  bb2:
+    ret v0
+}
+
+// The backend folds a nonzero test into `JUMPI` only in the branching block, so
+// a test defined in another block keeps the comparison.
+// CHECK-LABEL: {{^[ +].*}}fn @other_block{{[( ]}}
+// CHECK-NOT: shr
+// CHECK: gt arg0, 0xffffffffffffffff
+fn @other_block(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffff
+    jump bb1
+  bb1:
+    jumpi v0, bb2, bb3
+  bb2:
+    revert 0, 0
+  bb3:
+    ret arg0
+}

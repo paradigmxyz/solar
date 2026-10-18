@@ -12,7 +12,7 @@ fn @dirtyScratch() [pure] {
     ret
 }
 
-fn @defaultReturn() -> ptr<memory> [selector=0x099c80fd, pure, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>], abi_return_params=[tuple<tuple<u256, bytes, array<_, u256>>, array<_, tuple<u256, bytes, array<_, u256>>>, array<2, bytes>, bytes>]] {
+fn @defaultReturn() -> ptr<memory> [selector=0x099c80fd, pure, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>], abi_return_params=[tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>]] {
   bb0:
     icall @dirtyScratch
     v0 = alloc 128 !metadata(preserves_fmp)
@@ -48,7 +48,7 @@ fn @defaultReturn() -> ptr<memory> [selector=0x099c80fd, pure, abi_params=[], ab
     jump bb1
 }
 
-fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>, array<2, tuple<word, memory_bytes, memory_array<word>>>, memory_array<tuple<array<2, array<2, word>>>>], abi_return_params=[tuple<tuple<u256, bytes, array<_, u256>>, array<_, tuple<u256, bytes, array<_, u256>>>, array<2, bytes>, bytes>, array<2, tuple<u256, bytes, array<_, u256>>>, array<_, tuple<array<2, array<2, u256>>>>]] {
+fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>, array<2, tuple<word, memory_bytes, memory_array<word>>>, memory_array<tuple<array<2, array<2, word>>>>], abi_return_params=[tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>, array<2, tuple<uint256, bytes, array<_, uint256>>>, array<_, tuple<array<2, array<2, uint256>>>>]] {
   bb0:
     icall @dirtyScratch
     v0 = alloc 128 !metadata(preserves_fmp)
@@ -192,7 +192,7 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     jump bb1
 }
 
-fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_returns=[memory_array<memory_array<word>>, memory_array<memory_bytes>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, word], abi_return_params=[array<_, array<_, u256>>, array<_, bytes>, array<_, tuple<u256, bytes, array<_, u256>>>, u256]] {
+fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_returns=[memory_array<memory_array<word>>, memory_array<memory_bytes>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, word], abi_return_params=[array<_, array<_, uint256>>, array<_, bytes>, array<_, tuple<uint256, bytes, array<_, uint256>>>, uint256]] {
   bb0:
     icall @dirtyScratch
     v0 = alloc zeroed checked 96
@@ -274,7 +274,7 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     v63 = ptradd v7, 64
     v64 = mload v63, ptr<memory>
     v65 = mload v64
-    v66 = checked_add u256, v59, v65
+    v66 = checked_add uint256, v59, v65
     v67 = mload v14
     v68 = lt 0, v67
     v69 = eq v68, false
@@ -284,8 +284,8 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     v72 = ptradd v71, 64
     v73 = mload v72, ptr<memory>
     v74 = mload v73
-    v75 = checked_add u256, v66, v74
-    v76 = checked_add u256, v75, 1
+    v75 = checked_add uint256, v66, v74
+    v76 = checked_add uint256, v75, 1
     v77 = insert_value struct1, undef struct1, 0, v0
     v78 = insert_value struct1, v77, 1, v7
     v79 = insert_value struct1, v78, 2, v14
@@ -321,7 +321,7 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     jump bb1
 }
 
-fn @decodeDefaults() -> ptr<memory> [selector=0x977b799b, pure, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>], abi_return_params=[tuple<tuple<u256, bytes, array<_, u256>>, array<_, tuple<u256, bytes, array<_, u256>>>, array<2, bytes>, bytes>]] {
+fn @decodeDefaults() -> ptr<memory> [selector=0x977b799b, pure, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>], abi_return_params=[tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>]] {
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
     memory_zero v0, 128
@@ -373,7 +373,7 @@ fn @decodeDefaults() -> ptr<memory> [selector=0x977b799b, pure, abi_params=[], a
     mstore v28, v29
     v30 = ptradd v16, 96
     mstore v30, 96
-    v31 = abi_decode [tuple<tuple<u256, bytes, array<_, u256>>, array<_, tuple<u256, bytes, array<_, u256>>>, array<2, bytes>, bytes>], v15
+    v31 = abi_decode [tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>], v15
     ret v31
   bb5:
     v25 = shl 5, v23
@@ -389,7 +389,7 @@ fn @decodeDefaults() -> ptr<memory> [selector=0x977b799b, pure, abi_params=[], a
     jump bb1
 }
 
-fn @deleteElement() -> ptr<memory> [selector=0xfd57e9f9, pure, abi_params=[], abi_returns=[memory_array<tuple<word, memory_bytes, memory_array<word>>>], abi_return_params=[array<_, tuple<u256, bytes, array<_, u256>>>]] {
+fn @deleteElement() -> ptr<memory> [selector=0xfd57e9f9, pure, abi_params=[], abi_returns=[memory_array<tuple<word, memory_bytes, memory_array<word>>>], abi_return_params=[array<_, tuple<uint256, bytes, array<_, uint256>>>]] {
   bb0:
     icall @dirtyScratch
     v0 = alloc zeroed checked 64
@@ -460,7 +460,7 @@ fn @deleteElement() -> ptr<memory> [selector=0xfd57e9f9, pure, abi_params=[], ab
     jump bb1
 }
 
-fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pure, abi_params=[array<_, tuple<u256, bytes, array<_, u256>>>], abi_returns=[memory_array<tuple<word, memory_bytes, memory_array<word>>>], abi_return_params=[array<_, tuple<u256, bytes, array<_, u256>>>]] {
+fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pure, abi_params=[array<_, tuple<uint256, bytes, array<_, uint256>>>], abi_returns=[memory_array<tuple<word, memory_bytes, memory_array<word>>>], abi_return_params=[array<_, tuple<uint256, bytes, array<_, uint256>>>]] {
   bb0:
     icall @dirtyScratch
     v0 = extract_value slice<calldata>, arg0, 1
@@ -614,7 +614,7 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     jump bb1
 }
 
-fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, memory_array<memory_array<word>>, memory_array<memory_bytes>], abi_return_params=[tuple<tuple<u256, bytes, array<_, u256>>, array<_, tuple<u256, bytes, array<_, u256>>>, array<2, bytes>, bytes>, array<_, tuple<u256, bytes, array<_, u256>>>, array<_, array<_, u256>>, array<_, bytes>]] {
+fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, memory_array<memory_array<word>>, memory_array<memory_bytes>], abi_return_params=[tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<_, array<_, uint256>>, array<_, bytes>]] {
   bb0:
     v0 = add 0, 3
     v1 = sload v0 !metadata(storage=slot(3))
@@ -822,7 +822,7 @@ fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_return
     jump bb1
 }
 
-fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=[memory_array<tuple<word, memory_bytes, memory_array<word>>>, memory_array<memory_array<word>>, memory_array<memory_bytes>], abi_return_params=[array<_, tuple<u256, bytes, array<_, u256>>>, array<_, array<_, u256>>, array<_, bytes>]] {
+fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=[memory_array<tuple<word, memory_bytes, memory_array<word>>>, memory_array<memory_array<word>>, memory_array<memory_bytes>], abi_return_params=[array<_, tuple<uint256, bytes, array<_, uint256>>>, array<_, array<_, uint256>>, array<_, bytes>]] {
   bb0:
     icall @dirtyScratch
     v0 = alloc zeroed checked 96
@@ -1204,7 +1204,7 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }
 

@@ -195,22 +195,21 @@ bb29:
   push 32
   dup 2
   add
-  push 0
-  not
-  push 192
+  swap 2
+  push 64
   shr
-  swap 3
-  dup 4
-  lt
+  iszero
+  iszero
   calldatasize
-  dup 3
+  dup 4
   gt
   or
   swap 1
-  swap 4
+  swap 3
   or
   push bb8
   jumpi
+  swap 1
   calldataload
   dup 1
   push 5
@@ -236,44 +235,47 @@ bb29:
   swap 1
   dup 2
   add
-  swap 4
-  dup 5
-  gt
-  dup 5
-  dup 3
-  gt
+  dup 2
+  dup 2
+  lt
+  dup 2
+  push 64
+  shr
+  iszero
+  iszero
   or
   push bb36
   jumpi
-  swap 3
   push 64
   mstore
+  dup 3
   dup 2
-  dup 4
   mstore
   dup 4
   calldatasize
   sub
   push 5
   shr
-  dup 3
+  dup 4
   gt
   push bb8
   jumpi
-  dup 3
+  dup 1
   push 32
   add
   push 36
   calldataload
+  swap 3
+  swap 2
   swap 5
   swap 1
   calldatacopy
-  dup 3
+  swap 1
+  dup 2
   lt
   iszero
   push bb35
   jumpi
-  swap 1
   push 5
   shl
   add

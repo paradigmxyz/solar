@@ -33,13 +33,13 @@ fn @ascii(arg0: ptr<memory>) -> i1 [selector=0x6f11c5d5, pure, abi_params=[bytes
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v2, 1
+    v14 = checked_add uint256, v2, 1
     jump bb1
   bb7:
     ret false
 }
 
-fn @zeroBytes(arg0: ptr<memory>) -> i256 [selector=0xea4c6f7d, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @zeroBytes(arg0: ptr<memory>) -> i256 [selector=0xea4c6f7d, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -68,7 +68,7 @@ fn @zeroBytes(arg0: ptr<memory>) -> i256 [selector=0xea4c6f7d, pure, abi_params=
   bb8:
     jump bb9
   bb7:
-    v14 = checked_add u256, v1, 1
+    v14 = checked_add uint256, v1, 1
     jump bb9
   bb9:
     v15 = phi [bb7: v14], [bb8: v1]
@@ -76,11 +76,11 @@ fn @zeroBytes(arg0: ptr<memory>) -> i256 [selector=0xea4c6f7d, pure, abi_params=
   bb6:
     jump bb3
   bb3:
-    v16 = checked_add u256, v2, 1
+    v16 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @zeroCalldata(arg0: slice<calldata>) -> i256 [selector=0x3ee7e7b0, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @zeroCalldata(arg0: slice<calldata>) -> i256 [selector=0x3ee7e7b0, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -111,7 +111,7 @@ fn @zeroCalldata(arg0: slice<calldata>) -> i256 [selector=0x3ee7e7b0, pure, abi_
   bb8:
     jump bb9
   bb7:
-    v16 = checked_add u256, v1, 1
+    v16 = checked_add uint256, v1, 1
     jump bb9
   bb9:
     v17 = phi [bb7: v16], [bb8: v1]
@@ -119,6 +119,6 @@ fn @zeroCalldata(arg0: slice<calldata>) -> i256 [selector=0x3ee7e7b0, pure, abi_
   bb6:
     jump bb3
   bb3:
-    v18 = checked_add u256, v2, 1
+    v18 = checked_add uint256, v2, 1
     jump bb1
 }
