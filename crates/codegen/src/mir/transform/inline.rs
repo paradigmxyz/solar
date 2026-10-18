@@ -33,6 +33,9 @@
 //! - `inline-memory-wrappers` (gas only) clones frameless wrappers of one returning call followed
 //!   by at most five physical address, load and store operations, in order, without moving accesses
 //!   across the call or assuming alias freedom.
+//! - `inline-storage-readers` (gas only) exposes shared constant-slot reads to caller CSE. Only
+//!   callees without storage writes or gas observations qualify, and the call block must itself
+//!   read one of the callee's slots. Ordinary size and call-protocol profitability limits apply.
 //! - `specialize-function-pointers` turns calls through constant internal function pointers into
 //!   direct calls.
 //!
@@ -67,8 +70,8 @@ use crate::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
         ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, PtrLocation,
-        Terminator, Value, ValueId,
-        analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
+        StorageAlias, Terminator, Value, ValueId,
+        analysis::{AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries},
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
         pass::MirPass,
@@ -80,6 +83,7 @@ use smallvec::SmallVec;
 use solar_ast::StateMutability;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
+use std::sync::Arc;
 
 /// Module pass for metadata-backed MIR inlining.
 pub(crate) struct Inline;
@@ -207,6 +211,33 @@ impl MirPass for InlineHotLeaves {
     }
 }
 
+/// Exposes repeated constant-slot storage reads across internal calls.
+pub(crate) struct InlineStorageReaders;
+
+impl MirPass for InlineStorageReaders {
+    fn name(&self) -> &'static str {
+        "inline-storage-readers"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        if !gcx.sess.opts.optimization.is_gas() {
+            return false;
+        }
+        MirInliner {
+            storage_readers: Some(analyses.call_summaries(module)),
+            ..MirInliner::default()
+        }
+        .run(gcx, module)
+        .inlined
+            != 0
+    }
+}
+
 /// Module pass for consuming a single-use helper without duplicating its body.
 pub(crate) enum InlineSingleUse {
     /// May introduce frame staging before memory lowering.
@@ -324,6 +355,8 @@ struct MirInliner {
     immutable_leaves_only: bool,
     /// Restricts late expansion to small post-call memory wrappers.
     memory_wrappers_only: bool,
+    /// Restricts expansion to callees sharing constant storage reads with the call block.
+    storage_readers: Option<Arc<MemoryCallSummaries>>,
     /// Whether multi-value returns may stage through semantic frame slots. Once
     /// frame slots are lowered to physical memory, a late run must leave such
     /// callees alone: the staging instructions would survive the phase boundary.
@@ -369,6 +402,7 @@ impl Default for MirInliner {
             ),
             immutable_leaves_only: false,
             memory_wrappers_only: false,
+            storage_readers: None,
             frame_staging_allowed: true,
             objects_lowered: false,
             mode: InlineMode::Normal,
@@ -543,6 +577,8 @@ impl MirInliner {
                     || (self.immutable_leaves_only
                         && !is_immutable_word_leaf(module.function(site.callee)))
                     || (self.memory_wrappers_only && !memory_wrappers.contains_key(&site.callee))
+                    || (self.storage_readers.is_some()
+                        && !self.shares_storage_read(module, caller_id, site))
                     || (self.mode == InlineMode::SingleUse
                         && module.function(site.callee).attributes.no_inline)
                     || !self.is_inlineable(
@@ -900,6 +936,26 @@ impl MirInliner {
             .saturating_mul(u128::from(self.target.expected_executions()))
             .saturating_mul(u128::from(loop_executions));
         execution_savings > added_deposit_cost
+    }
+
+    fn shares_storage_read(&self, module: &Module, caller: MirFunctionId, site: CallSite) -> bool {
+        let Some(summary) = self.storage_readers.as_ref().and_then(|s| s.get(site.callee)) else {
+            return false;
+        };
+        if summary.writes(AddressSpace::Storage)
+            || summary.may_observe_gas()
+            || module.function(site.callee).attributes.no_inline
+        {
+            return false;
+        }
+        let Some(slots) = summary.storage_slots(AddressSpace::Storage, false) else {
+            return false;
+        };
+        let caller = module.function(caller);
+        caller.blocks[site.block].instructions.iter().any(|&inst| {
+            matches!(caller.inst(inst).kind, InstKind::Load(slot, PtrLocation::Storage)
+                if matches!(caller.storage_alias(inst, slot), StorageAlias::Slot(slot) if slots.contains(&slot)))
+        })
     }
 }
 
