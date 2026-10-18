@@ -738,14 +738,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_value_layout_from_ident(&mut self, id: Symbol) -> PResult<'sess, super::ValueLayout> {
         let id_str = id.as_str();
-        // uint8..uint256, int8..int256, bytes1..bytes32 — split into prefix + number.
-        let int_size = |rest: &str| {
-            rest.parse::<u16>()
-                .ok()
-                .and_then(TypeSize::try_new_int_bits)
-                .filter(|size| size.bits_raw() != 0)
-                .ok_or_else(|| self.parser.error(format!("invalid integer type `{id}`")))
-        };
+        // bytes1..bytes32 — split into prefix + number.
         let ty = if let Some(rest) = id_str.strip_prefix("struct") {
             let index = rest
                 .parse::<usize>()
@@ -753,10 +746,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .filter(|&index| index < self.struct_types.len())
                 .ok_or_else(|| self.parser.error(format!("unknown struct type `{id}`")))?;
             super::ValueLayout::Struct(StructId::from_usize(index))
-        } else if let Some(rest) = id_str.strip_prefix("uint") {
-            super::ValueLayout::UInt(int_size(rest)?)
-        } else if let Some(rest) = id_str.strip_prefix("int") {
-            super::ValueLayout::Int(int_size(rest)?)
         } else if let Some(rest) = id_str.strip_prefix("bytes") {
             let n: u8 = rest
                 .parse()
@@ -768,6 +757,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             match id {
                 kw::Bool => super::ValueLayout::Bool,
                 kw::Address => super::ValueLayout::Address,
+                s if s >= kw::UInt8 && s <= kw::UInt256 => super::ValueLayout::UInt(
+                    TypeSize::new_int_bits(((s.as_u32() - kw::UInt8.as_u32() + 1) * 8) as u16),
+                ),
+                s if s >= kw::Int8 && s <= kw::Int256 => super::ValueLayout::Int(
+                    TypeSize::new_int_bits(((s.as_u32() - kw::Int8.as_u32() + 1) * 8) as u16),
+                ),
                 sym::memorybytes => super::ValueLayout::MemoryObject(MemoryObjectKind::Bytes),
                 sym::memoryarray => {
                     super::ValueLayout::MemoryObject(MemoryObjectKind::DynamicArray)

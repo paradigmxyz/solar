@@ -1,6 +1,6 @@
 //! Contract-level lowering and function discovery.
 
-use super::{function, storage::StorageLayout, types::TypeLowerer};
+use super::{function, storage::StorageLayout};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet, FxIndexSet},
@@ -129,14 +129,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
                 continue;
             }
             let Some(name) = variable.name else { continue };
-            let mir_id = module.add_immutable(
-                name,
-                TypeLowerer::immutable_layout(
-                    gcx.type_of_item(id.into()),
-                    state.raw_scalars.contains(&id),
-                ),
-                Some(id),
-            );
+            let mir_id = module.add_immutable(name, state.immutable_layout(gcx, id), Some(id));
             immutable_ids.insert(id, mir_id);
         }
     }

@@ -553,6 +553,23 @@ impl LoweringState {
             ty
         }
     }
+
+    /// Returns an immutable's source layout, or a full word for a `bool` or `address` that
+    /// can carry raw bits between inline assembly blocks.
+    pub(in crate::mir::lower) fn immutable_layout(
+        &self,
+        gcx: Gcx<'_>,
+        id: VariableId,
+    ) -> crate::mir::ValueLayout {
+        match types::TypeLowerer::value_layout(gcx.type_of_item(id.into())) {
+            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
+                if self.raw_scalars.contains(&id) =>
+            {
+                crate::mir::ValueLayout::uint256()
+            }
+            layout => layout,
+        }
+    }
 }
 
 impl FunctionLowerer<'_, '_> {

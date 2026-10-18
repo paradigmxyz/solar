@@ -71,15 +71,6 @@ impl<'gcx> TypeLowerer<'gcx> {
         }
     }
 
-    /// Returns an immutable's source layout, or a full word for a `bool` or `address` that
-    /// can carry raw bits between inline assembly blocks.
-    pub(super) fn immutable_layout(ty: Ty<'_>, raw: bool) -> ValueLayout {
-        match Self::value_layout(ty) {
-            ValueLayout::Bool | ValueLayout::Address if raw => ValueLayout::uint256(),
-            layout => layout,
-        }
-    }
-
     /// Builds the ABI input shape for a function parameter.
     pub(super) fn abi_param_type(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
         self.seen_structs.clear();
