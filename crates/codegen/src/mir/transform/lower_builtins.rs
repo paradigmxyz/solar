@@ -109,14 +109,8 @@ impl MirPass for LowerBuiltins {
                                 unreachable!("validated builtin arguments")
                             };
                             // success = send(address, amount)
-                            // if !success { revert_returndata }
                             let success = lower_send(builder, address, amount);
-                            let revert = builder.create_block();
-                            let continuation = builder.create_block();
-                            builder.branch(success, continuation, revert);
-                            builder.switch_to_block(revert);
-                            builder.revert_returndata();
-                            builder.switch_to_block(continuation);
+                            revert_unless(builder, success);
                             return true;
                         }
                         InstKind::ValidateStorageBytes(header) => {
