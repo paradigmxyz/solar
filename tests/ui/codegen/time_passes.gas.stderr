@@ -92,6 +92,7 @@ time: <TIME>	MIR TimePasses readonly-eval changed=false
 time: <TIME>	MIR TimePasses lower-immutables changed=false
 time: <TIME>	MIR TimePasses lower-mcopy changed=false
 time: <TIME>	MIR TimePasses lower-alloc changed=false
+time: <TIME>	MIR TimePasses memory-dse changed=false
 time: <TIME>	MIR TimePasses lower-memory-zero changed=false
 time: <TIME>	MIR TimePasses lower-integers changed=false
 time: <TIME>	MIR TimePasses call-cleanup changed=false

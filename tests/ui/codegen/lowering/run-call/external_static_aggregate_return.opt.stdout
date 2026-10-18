@@ -312,13 +312,10 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
   bb4:
     v32 = alloc 64 !metadata(deferred_alloc)
     v33 = mload v59
-    mstore v32, v33
-    v35 = add v60, 96
-    v36 = mload v35
-    v54 = add v32, 32
-    mstore v54, v36
     v39 = add v60, 128
     v40 = mload v39
+    v35 = add v60, 96
+    v36 = mload v35
     v23 = add v33, v36
     v24 = lt v23, v33
     v25 = add v23, v40
