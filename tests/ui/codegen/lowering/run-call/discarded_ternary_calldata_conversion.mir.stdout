@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/discarded_ternary_calldata_conversion.sol:DiscardedTernaryCalldataConversion ===
 @module DiscardedTernaryCalldataConversion
-fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_params=[bool, array<_, array<_, u256>>], abi_returns=[], abi_return_params=[]] {
+fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_params=[bool, array<_, array<_, uint256>>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc zeroed checked 32
     mstore v0, 0

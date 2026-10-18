@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_nested_element_memory.sol:CalldataNestedElementMemory ===
 @module CalldataNestedElementMemory
-fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=[array<_, array<_, array<_, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 1, v0
@@ -94,7 +94,7 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v120 = ptradd v116, 64
     v121 = mload v120
     v122 = trunc i256 v121 to i8
-    v123 = checked_add u8, v111, v122
+    v123 = checked_add uint8, v111, v122
     v124 = mload v49
     v125 = lt 1, v124
     v126 = eq v125, false
@@ -108,7 +108,7 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v132 = ptradd v128, 32
     v133 = mload v132
     v134 = trunc i256 v133 to i8
-    v135 = checked_add u8, v123, v134
+    v135 = checked_add uint8, v123, v134
     v136 = zext i8 v135 to i256
     ret v136
   bb2:
@@ -180,7 +180,7 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     jump bb4
 }
 
-fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=[array<_, array<2, array<_, u8>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=[array<_, array<2, array<_, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 1, v0
@@ -240,7 +240,7 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     v91 = ptradd v87, 64
     v92 = mload v91
     v93 = trunc i256 v92 to i8
-    v94 = checked_add u8, v84, v93
+    v94 = checked_add uint8, v84, v93
     v95 = lt 1, 2
     v96 = eq v95, false
     icall panic_if<0x32>, v96
@@ -253,7 +253,7 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     v102 = ptradd v98, 32
     v103 = mload v102
     v104 = trunc i256 v103 to i8
-    v105 = checked_add u8, v94, v104
+    v105 = checked_add uint8, v94, v104
     v106 = zext i8 v105 to i256
     ret v106
   bb2:
@@ -324,7 +324,7 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     jump bb4
 }
 
-fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=[array<2, array<_, array<2, u8>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=[array<2, array<_, array<2, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 0, v0
@@ -415,7 +415,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v96 = ptradd v93, 32
     v97 = mload v96
     v98 = trunc i256 v97 to i8
-    v99 = checked_add u8, v88, v98
+    v99 = checked_add uint8, v88, v98
     v100 = mload v49
     v101 = lt 1, v100
     v102 = eq v101, false
@@ -427,7 +427,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     icall panic_if<0x32>, v106
     v107 = mload v104
     v108 = trunc i256 v107 to i8
-    v109 = checked_add u8, v99, v108
+    v109 = checked_add uint8, v99, v108
     v110 = mload v49
     v111 = lt 1, v110
     v112 = eq v111, false
@@ -440,7 +440,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v117 = ptradd v114, 32
     v118 = mload v117
     v119 = trunc i256 v118 to i8
-    v120 = checked_add u8, v109, v119
+    v120 = checked_add uint8, v109, v119
     v121 = zext i8 v120 to i256
     ret v121
   bb2:

@@ -8,9 +8,9 @@ fn @parseSel(arg0: ptr<memory>) -> i256 [pure] {
     ret v2
 }
 
-fn @selectorCompare() -> i256 [selector=0x3c3fb316, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @selectorCompare() -> i256 [selector=0x3c3fb316, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode [word, word<u160>], object, selector 0xdc98354e00000000000000000000000000000000000000000000000000000000, args 7, 0xbeef
+    v0 = abi_encode [word, word<uint160>], object, selector 0xdc98354e00000000000000000000000000000000000000000000000000000000, args 7, 0xbeef
     v1 = and 0xdc98354e00000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v2 = abi_encode [word<bytes4>], object, args v1
     v3 = icall @parseSel, v0
@@ -22,14 +22,14 @@ fn @selectorCompare() -> i256 [selector=0x3c3fb316, pure, abi_params=[], abi_ret
     ret 1
 }
 
-fn @narrowMask() -> i256 [selector=0x14c62240, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @narrowMask() -> i256 [selector=0x14c62240, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq i32 0xffffffff, i32 0xffffffff
     icall require<short_string>, v0, 4, 0x6d61736b00000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
-fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall require<short_string>, true, 6, 0x7472757468790000000000000000000000000000000000000000000000000000
     v0 = ne 7, 0
@@ -38,7 +38,7 @@ fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[w
     ret 1
 }
 
-fn @signedExtend() -> i256 [selector=0xae58e3e0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @signedExtend() -> i256 [selector=0xae58e3e0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq i24 0x800000, i24 0x800000
     icall require<short_string>, v0, 7, 0x7369676e65787400000000000000000000000000000000000000000000000000
@@ -54,7 +54,7 @@ fn @firstShiftedByte(arg0: i256) -> i256 [pure] {
     ret v1
 }
 
-fn @rawScratchReuse() -> i256 [selector=0xbc90d10b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @rawScratchReuse() -> i256 [selector=0xbc90d10b, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @firstShiftedByte, 0xa9036907dccae6a1e0033479b12e837e5cf5a02f
     v1 = eq v0, 169
@@ -62,7 +62,7 @@ fn @rawScratchReuse() -> i256 [selector=0xbc90d10b, pure, abi_params=[], abi_ret
     ret 1
 }
 
-fn @internalAssemblyRead() -> i256 [selector=0x282e3bb7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @internalAssemblyRead() -> i256 [selector=0x282e3bb7, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @readRaw, 257
     ret v0
@@ -73,7 +73,7 @@ fn @readRaw(arg0: i256) -> i256 [pure] {
     ret arg0
 }
 
-fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 0
     v1 = alloc zeroed checked 64

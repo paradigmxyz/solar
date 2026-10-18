@@ -279,11 +279,6 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                             // slice -> ptrtoint (extract_value slice, 0), extract_value slice, 1
                             let pointer = builder.slice_ptr(value);
                             vec![builder.cast(pointer, MirType::I256), builder.slice_len(value)]
-                        } else if layouts.types[ty].fields[index as usize] == MirType::I256
-                            && matches!(builder.func().value_ty(value), Some(MirType::MEMPTR))
-                        {
-                            // raw field = ptrtoint object to i256
-                            vec![builder.cast_word(value)]
                         } else {
                             components(value, &aggregates)
                         };

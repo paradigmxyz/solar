@@ -19,7 +19,7 @@ fn @forward(arg0: slice<calldata>, arg1: i160) [selector=0x2fc1914a, abi_params=
     ret
 }
 
-fn @forwardStructs(arg0: slice<calldata>, arg1: i160) [selector=0x87c604a5, abi_params=[array<_, tuple<u256, bytes>>, address], abi_returns=[], abi_return_params=[]] {
+fn @forwardStructs(arg0: slice<calldata>, arg1: i160) [selector=0x87c604a5, abi_params=[array<_, tuple<uint256, bytes>>, address], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
     v1 = extract_value slice<calldata>, arg0, 1

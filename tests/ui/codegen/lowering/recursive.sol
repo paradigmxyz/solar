@@ -9,9 +9,9 @@
 // `fib(10)==55`.
 contract Recursive {
     // CHECK-LABEL: fn @fact(
-    // CHECK: [[NEXT:v[0-9]+]] = checked_sub {{[ui][0-9]+}}, arg0, 1
+    // CHECK: [[NEXT:v[0-9]+]] = checked_sub {{u?int[0-9]+}}, arg0, 1
     // CHECK: [[RECURSED:v[0-9]+]] = icall @fact, [[NEXT]]
-    // CHECK: checked_mul {{[ui][0-9]+}}, arg0, [[RECURSED]]
+    // CHECK: checked_mul {{u?int[0-9]+}}, arg0, [[RECURSED]]
     function fact(uint256 n) public pure returns (uint256) {
         if (n <= 1) return 1;
         return n * fact(n - 1);

@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_scalar_validation.sol:AbiCalldataScalarValidation ===
 @module AbiCalldataScalarValidation
-fn @encode(arg0: slice<calldata>) -> i256 [selector=0x1597ee44, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @encode(arg0: slice<calldata>) -> i256 [selector=0x1597ee44, pure, abi_params=[array<_, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode [calldata_array<word<u8>>], object, args arg0
+    v0 = abi_encode [calldata_array<word<uint8>>], object, args arg0
     v1 = mload v0
     ret v1
 }
 
-fn @read(arg0: slice<calldata>) -> i256 [selector=0xfbb1e83c, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @read(arg0: slice<calldata>) -> i256 [selector=0xfbb1e83c, pure, abi_params=[array<_, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 0, v0

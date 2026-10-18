@@ -9,28 +9,28 @@
   struct5: {i1, i256, i256}
   struct6: {i1, i256, ptr<memory>, ptr<memory>}
 
-fn @singleSliceLength(arg0: slice<calldata>) -> i256 [selector=0xee1d4083, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @singleSliceLength(arg0: slice<calldata>) -> i256 [selector=0xee1d4083, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @_identity, arg0
     v1 = extract_value slice<calldata>, v0, 1
     ret v1
 }
 
-fn @pointerSliceLength(arg0: slice<calldata>) -> i256 [selector=0xc1a12f27, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @pointerSliceLength(arg0: slice<calldata>) -> i256 [selector=0xc1a12f27, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @internal_dispatcher_p_slice_calldata_r_slice_calldata, 8, arg0
     v1 = extract_value slice<calldata>, v0, 1
     ret v1
 }
 
-fn @arraySliceLength(arg0: slice<calldata>) -> i256 [selector=0x676805be, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @arraySliceLength(arg0: slice<calldata>) -> i256 [selector=0x676805be, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @_identityArray, arg0
     v1 = extract_value slice<calldata>, v0, 1
     ret v1
 }
 
-fn @delegate(arg0: slice<calldata>) -> struct0 [selector=0x0ccfac9e, pure, abi_params=[bytes], abi_returns=[word<u160>, memory_bytes], abi_return_params=[address, bytes]] {
+fn @delegate(arg0: slice<calldata>) -> struct0 [selector=0x0ccfac9e, pure, abi_params=[bytes], abi_returns=[word<uint160>, memory_bytes], abi_return_params=[address, bytes]] {
   bb0:
     v0 = icall @_delegate, arg0
     v1 = extract_value struct1, v0, 0
@@ -61,7 +61,7 @@ fn @delegate(arg0: slice<calldata>) -> struct0 [selector=0x0ccfac9e, pure, abi_p
     ret v20
 }
 
-fn @single(arg0: slice<calldata>) -> struct2 [selector=0xd61d3fe8, pure, abi_params=[bytes], abi_returns=[word<u160>, word, memory_bytes], abi_return_params=[address, u256, bytes]] {
+fn @single(arg0: slice<calldata>) -> struct2 [selector=0xd61d3fe8, pure, abi_params=[bytes], abi_returns=[word<uint160>, word, memory_bytes], abi_return_params=[address, uint256, bytes]] {
   bb0:
     v0 = icall @_single, arg0
     v1 = extract_value struct3, v0, 0
@@ -94,7 +94,7 @@ fn @single(arg0: slice<calldata>) -> struct2 [selector=0xd61d3fe8, pure, abi_par
     ret v22
 }
 
-fn @nested(arg0: slice<calldata>) -> struct2 [selector=0xb26b18a9, pure, abi_params=[bytes], abi_returns=[word<u160>, word, memory_bytes], abi_return_params=[address, u256, bytes]] {
+fn @nested(arg0: slice<calldata>) -> struct2 [selector=0xb26b18a9, pure, abi_params=[bytes], abi_returns=[word<uint160>, word, memory_bytes], abi_return_params=[address, uint256, bytes]] {
   bb0:
     v0 = icall @_nested, arg0
     v1 = extract_value struct3, v0, 0
@@ -152,7 +152,7 @@ fn @_identityArray(arg0: slice<calldata>) -> slice<calldata> [pure] {
     ret arg0
 }
 
-fn @nestedSlices(arg0: slice<calldata>) -> struct4 [selector=0xb12341a6, pure, abi_params=[bytes], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
+fn @nestedSlices(arg0: slice<calldata>) -> struct4 [selector=0xb12341a6, pure, abi_params=[bytes], abi_returns=[word, word<uint160>], abi_return_params=[uint256, address]] {
   bb0:
     v0 = icall @_parseSlices, arg0
     v1 = extract_value struct4, v0, 0

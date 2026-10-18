@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_storage_array_conversion.sol:StorageStorageArrayConversion ===
 @module StorageStorageArrayConversion
-fn @dynamic() -> i256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamic() -> i256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -135,7 +135,7 @@ fn @dynamic() -> i256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word], a
     v108 = storage_array_data_slot 1
     v109 = add v108, 4
     v110 = sload v109 !metadata(storage=offset(v108, 4))
-    v111 = checked_add u256, v104, v110
+    v111 = checked_add uint256, v104, v110
     ret v111
   bb7:
     v97 = shl 5, v95
@@ -155,7 +155,7 @@ fn @dynamic() -> i256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word], a
     jump bb3
 }
 
-fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 0, 3
     v1 = eq v0, false
@@ -370,7 +370,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     v256 = mul v254, 8
     v257 = shr v256, v255
     v258 = trunc i256 v257 to i120
-    v259 = checked_add u120, i120 3, v258
+    v259 = checked_add uint120, i120 3, v258
     v260 = zext i120 v259 to i256
     ret v260
   bb8:
@@ -505,7 +505,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     jump bb4
 }
 
-fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 8, 9
     v1 = eq v0, false
@@ -547,7 +547,7 @@ fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[w
     v31 = storage_array_data_slot 11
     v32 = add v31, 8
     v33 = sload v32 !metadata(storage=offset(v31, 8))
-    v34 = checked_add u256, v27, v33
+    v34 = checked_add uint256, v27, v33
     ret v34
   bb10:
     v21 = shl 5, v19
@@ -576,6 +576,6 @@ fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[w
 
 fn @load_storage_packed_array_8_0(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u64, arg0
+    v0 = load_storage_array uint64, arg0
     ret v0
 }

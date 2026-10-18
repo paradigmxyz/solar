@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_static_dynamic.sol:AbiCalldataDynamicStaticDynamic ===
 @module AbiCalldataDynamicStaticDynamic
-fn @readNarrow(arg0: slice<calldata>) -> i256 [selector=0x49c9edea, pure, abi_params=[array<_, array<1, array<_, u8>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @readNarrow(arg0: slice<calldata>) -> i256 [selector=0x49c9edea, pure, abi_params=[array<_, array<1, array<_, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 1
@@ -59,7 +59,7 @@ fn @readNarrow(arg0: slice<calldata>) -> i256 [selector=0x49c9edea, pure, abi_pa
     v46 = inttoptr i256 v43 to ptr<calldata>
     v47 = make_calldata_slice v46, v39
     v48 = extract_value slice<calldata>, v47, 1
-    v49 = checked_add u256, v0, v48
+    v49 = checked_add uint256, v0, v48
     v50 = extract_value slice<calldata>, arg0, 1
     v51 = lt 0, v50
     v52 = eq v51, false
@@ -129,11 +129,11 @@ fn @readNarrow(arg0: slice<calldata>) -> i256 [selector=0x49c9edea, pure, abi_pa
     icall revert_if<empty>, v106
     v107 = trunc i256 v103 to i8
     v108 = zext i8 v107 to i256
-    v109 = checked_add u256, v49, v108
+    v109 = checked_add uint256, v49, v108
     ret v109
 }
 
-fn @readWide(arg0: slice<calldata>) -> i256 [selector=0xb44a60df, pure, abi_params=[array<_, array<2, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @readWide(arg0: slice<calldata>) -> i256 [selector=0xb44a60df, pure, abi_params=[array<_, array<2, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 1
@@ -192,7 +192,7 @@ fn @readWide(arg0: slice<calldata>) -> i256 [selector=0xb44a60df, pure, abi_para
     v46 = inttoptr i256 v43 to ptr<calldata>
     v47 = make_calldata_slice v46, v39
     v48 = extract_value slice<calldata>, v47, 1
-    v49 = checked_add u256, v0, v48
+    v49 = checked_add uint256, v0, v48
     v50 = extract_value slice<calldata>, arg0, 1
     v51 = lt 0, v50
     v52 = eq v51, false
@@ -256,7 +256,7 @@ fn @readWide(arg0: slice<calldata>) -> i256 [selector=0xb44a60df, pure, abi_para
     v101 = ptrtoint ptr<calldata> v100 to i256
     v102 = add v101, 0
     v103 = calldataload v102
-    v104 = checked_add u256, v49, v103
+    v104 = checked_add uint256, v49, v103
     v105 = extract_value slice<calldata>, arg0, 1
     v106 = lt 0, v105
     v107 = eq v106, false
@@ -320,6 +320,6 @@ fn @readWide(arg0: slice<calldata>) -> i256 [selector=0xb44a60df, pure, abi_para
     v156 = ptrtoint ptr<calldata> v155 to i256
     v157 = add v156, 0
     v158 = calldataload v157
-    v159 = checked_add u256, v104, v158
+    v159 = checked_add uint256, v104, v158
     ret v159
 }

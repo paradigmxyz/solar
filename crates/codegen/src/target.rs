@@ -702,6 +702,19 @@ impl Target {
     pub(crate) fn branch(self) -> Cost {
         self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
     }
+
+    /// Whether one shared copy of a terminal block, entered by a jump from each of `sites`,
+    /// takes fewer bytes than a copy at every site. When optimizing for size, a copy no larger
+    /// than a jump to and from a shared body stays with the backend, whose terminal-block sharing
+    /// and outlining handle it in its final layout; sharing it earlier grew the measured code.
+    pub(crate) fn shares_terminal_copy(self, copy: Cost, sites: u32) -> bool {
+        let jump = self.label_push() + self.opcode(op::JUMP);
+        if matches!(self.optimization, OptimizationMode::Size) && copy.bytes <= jump.times(2).bytes
+        {
+            return false;
+        }
+        (jump.times(sites) + copy + self.opcode(op::JUMPDEST)).bytes < copy.times(sites).bytes
+    }
 }
 
 #[cfg(test)]
@@ -979,5 +992,21 @@ mod tests {
             function.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::Jump(then_block));
             assert_eq!(target.block_code_estimate(&function, BlockId::ENTRY), target.jump());
         }
+    }
+
+    #[test]
+    fn terminal_copy_sharing() {
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        // `mstore 0, 1; revert 0, 32`: four 4-byte jumps and one landing beat four copies.
+        let small = Cost::new(0, 8);
+        assert!(gas.shares_terminal_copy(small, 4));
+        assert!(!size.shares_terminal_copy(small, 4));
+        // A 9-byte copy shared by three sites: 12 + 9 + 1 bytes against 27.
+        let medium = Cost::new(0, 9);
+        assert!(gas.shares_terminal_copy(medium, 3));
+        assert!(size.shares_terminal_copy(medium, 3));
+        // One site never pays for a jump.
+        assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
     }
 }

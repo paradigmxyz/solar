@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_array_memory_storage.sol:NestedArrayMemoryStorage ===
 @module NestedArrayMemoryStorage
-fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -146,7 +146,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v132 = storage_array_data_slot v128
     v133 = add v132, 1
     v134 = sload v133 !metadata(storage=offset(v132, 1))
-    v135 = checked_add u256, v123, v134
+    v135 = checked_add uint256, v123, v134
     v136 = sload 0 !metadata(storage=slot(0))
     v137 = lt 1, v136
     v138 = eq v137, false
@@ -160,7 +160,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v144 = storage_array_data_slot v140
     v145 = add v144, 3
     v146 = sload v145 !metadata(storage=offset(v144, 3))
-    v147 = checked_add u256, v135, v146
+    v147 = checked_add uint256, v135, v146
     ret v147
   bb13:
     v89 = shl 5, v87
@@ -235,7 +235,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     jump bb1
 }
 
-fn @test1() -> i256 [selector=0x6b59084d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test1() -> i256 [selector=0x6b59084d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -310,7 +310,7 @@ fn @test1() -> i256 [selector=0x6b59084d, abi_params=[], abi_returns=[word], abi
     icall panic_if<0x32>, v72
     v73 = add v70, 1
     v74 = sload v73 !metadata(storage=offset(v70, 1))
-    v75 = checked_add u256, v64, v74
+    v75 = checked_add uint256, v64, v74
     ret v75
   bb13:
     v39 = shl 5, v37
@@ -373,7 +373,7 @@ fn @test1() -> i256 [selector=0x6b59084d, abi_params=[], abi_returns=[word], abi
     jump bb1
 }
 
-fn @test2() -> i256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test2() -> i256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
@@ -435,7 +435,7 @@ fn @test2() -> i256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi
     icall panic_if<0x32>, v66
     v67 = add v64, 1
     v68 = sload v67 !metadata(storage=offset(v63, 3))
-    v69 = checked_add u256, v60, v68
+    v69 = checked_add uint256, v60, v68
     v70 = lt 0, 3
     v71 = eq v70, false
     icall panic_if<0x32>, v71
@@ -446,7 +446,7 @@ fn @test2() -> i256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi
     icall panic_if<0x32>, v75
     v76 = add v73, 1
     v77 = sload v76 !metadata(storage=offset(v72, 3))
-    v78 = checked_add u256, v69, v77
+    v78 = checked_add uint256, v69, v77
     ret v78
   bb5:
     v28 = mul v26, 2
@@ -521,7 +521,7 @@ fn @test2() -> i256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi
     jump bb1
 }
 
-fn @test3() -> i256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test3() -> i256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     jump bb1
@@ -630,7 +630,7 @@ fn @test3() -> i256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word], abi
     v100 = storage_array_data_slot v96
     v101 = add v100, 0
     v102 = sload v101 !metadata(storage=symbolic(v100))
-    v103 = checked_add u256, v91, v102
+    v103 = checked_add uint256, v91, v102
     v104 = sload 0 !metadata(storage=slot(0))
     v105 = lt 2, v104
     v106 = eq v105, false
@@ -644,7 +644,7 @@ fn @test3() -> i256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word], abi
     v112 = storage_array_data_slot v108
     v113 = add v112, 1
     v114 = sload v113 !metadata(storage=offset(v112, 1))
-    v115 = checked_add u256, v103, v114
+    v115 = checked_add uint256, v103, v114
     ret v115
   bb13:
     v60 = shl 5, v58

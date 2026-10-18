@@ -18,7 +18,7 @@ pub(crate) enum Builtin {
         is_zero: bool,
         failure: super::RevertKind,
     },
-    /// SHA-256 of a bytes object, including precompile output allocation and returndata effects.
+    /// SHA-256 of a bytes object, read from scratch memory; a failed precompile call reverts.
     Sha256,
     /// Left-aligned RIPEMD-160 of a bytes object, with the same effects as `sha256`.
     Ripemd160,
