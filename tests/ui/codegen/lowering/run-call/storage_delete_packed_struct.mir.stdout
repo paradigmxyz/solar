@@ -5,7 +5,7 @@
   struct1: {i8, i16, i8}
   struct2: {i256, i8, i256, i256}
 
-fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8, u8, u16, u8]] {
+fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[word<uint8>, word<uint16>, word<uint8>, word<uint8>, word<uint16>, word<uint8>], abi_return_params=[uint8, uint16, uint8, uint8, uint16, uint8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -145,7 +145,7 @@ fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[wo
     ret v114
 }
 
-fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8, u8, u16, u8]] {
+fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns=[word<uint8>, word<uint16>, word<uint8>, word<uint8>, word<uint16>, word<uint8>], abi_return_params=[uint8, uint16, uint8, uint8, uint16, uint8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -292,7 +292,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     ret v121
 }
 
-fn @clearMapping() -> struct1 [selector=0xf644c4b0, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8]] {
+fn @clearMapping() -> struct1 [selector=0xf644c4b0, abi_params=[], abi_returns=[word<uint8>, word<uint16>, word<uint8>], abi_return_params=[uint8, uint16, uint8]] {
   bb0:
     v0 = mapping_slot 1, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -336,7 +336,7 @@ fn @clearMapping() -> struct1 [selector=0xf644c4b0, abi_params=[], abi_returns=[
     ret v34
 }
 
-fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8]] {
+fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<uint8>, word<uint16>, word<uint8>], abi_return_params=[uint8, uint16, uint8]] {
   bb0:
     v0 = alloc 96
     mstore v0, 4
@@ -416,7 +416,7 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     ret v62
 }
 
-fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 0
     sstore 2, v0 !metadata(storage=slot(2))
@@ -425,7 +425,7 @@ fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[w
     ret v1
 }
 
-fn @clearStructWithMapping() -> struct2 [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word<u8>, word, word], abi_return_params=[u256, u8, u256, u256]] {
+fn @clearStructWithMapping() -> struct2 [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word<uint8>, word, word], abi_return_params=[uint256, uint8, uint256, uint256]] {
   bb0:
     v0 = add 3, 1
     sstore 3, 1 !metadata(storage=slot(3))

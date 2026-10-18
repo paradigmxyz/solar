@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_rebind.sol:CalldataSliceRebind ===
 @module CalldataSliceRebind
-fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i160) [selector=0xb8467e08, abi_params=[bytes, u256, address], abi_returns=[], abi_return_params=[]] {
+fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i160) [selector=0xb8467e08, abi_params=[bytes, uint256, address], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1

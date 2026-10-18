@@ -1,5 +1,8 @@
-//@compile-flags: -Zmir-pipeline=outline-reverts
-//@filecheck:
+//@ revisions: gas size
+//@[gas] compile-flags: -Zmir-pipeline=outline-reverts -Ogas
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
+//@[size] compile-flags: -Zmir-pipeline=outline-reverts -Osize
+//@[size] filecheck: --check-prefixes=CHECK,SIZE
 // Two functions carry the same constant panic block; it is outlined into one
 // shared no-return helper and each site becomes an argless `tail_call` — a
 // bare jump in the backend. The distinct panic in `@third` stays inline: a
@@ -56,6 +59,66 @@ fn @third(arg0: i256) {
     returndata 128, 32
 }
 
+// An 8-byte shape at four sites pays for its helper under the target model:
+// four 4-byte jumps plus one landed copy take 25 bytes against 32 inline. When
+// optimizing for size, a shape no larger than a jump to and from the helper
+// stays inline for the backend's terminal sharing.
+// CHECK-LABEL: {{^[ +].*}}fn @small_a{{[( ]}}
+// SIZE-NOT: tail_call
+// GAS: + tail_call @[[SMALL:revert_stub[.0-9]*]]
+fn @small_a(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 0, 1
+    revert 0, 32
+  bb2:
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @small_b{{[( ]}}
+// SIZE-NOT: tail_call
+// GAS: + tail_call @[[SMALL]]
+fn @small_b(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 0, 1
+    revert 0, 32
+  bb2:
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @small_c{{[( ]}}
+// SIZE-NOT: tail_call
+// GAS: + tail_call @[[SMALL]]
+fn @small_c(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 0, 1
+    revert 0, 32
+  bb2:
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @small_d{{[( ]}}
+// SIZE-NOT: tail_call
+// GAS: + tail_call @[[SMALL]]
+fn @small_d(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 0, 1
+    revert 0, 32
+  bb2:
+    stop
+}
+
 // CHECK-LABEL: + fn @revert_stub{{.*}}
 // CHECK: + mstore 4, 17
-// CHECK: {{^ +}}revert 0, 36
+// CHECK: {{^[ +].*}}revert 0, 36
+
+// GAS: + fn @[[SMALL]]()
+// GAS: + mstore 0, 1
+// GAS: {{^[ +].*}}revert 0, 32

@@ -180,7 +180,7 @@
 //! shape, and before the final CFG cleanup and dead-code elimination remove the
 //! cloned tests the copies no longer read.
 
-use super::loop_split::retarget;
+use super::loop_split::{LoopCopy, add_exit_inputs, clone_loop, retarget, side_exits};
 use crate::{
     backend::evm::op,
     mir::{
@@ -323,10 +323,6 @@ struct Full {
 
 /// The most iterations a loop may run to be unrolled completely, whatever its pricing.
 const MAX_COMPLETE_TRIPS: u64 = 16;
-
-/// The most bytes the copies of a completely unrolled loop's body may take, whatever its
-/// pricing, so that a contract near the code size limit cannot grow past it.
-const MAX_COMPLETE_BYTES: u32 = 256;
 
 fn unroll_function(
     func: &mut Function,
@@ -761,6 +757,10 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
         Some(&InstKind::PtrToInt(pointer, _)) => pointer,
         _ => word,
     };
+    // The copies step and test the counter as a word.
+    if func.value_ty(word) != Some(MirType::I256) {
+        return None;
+    }
     let Value::Inst(phi) = func.value(counter) else { return None };
     if !func.blocks[l.header].instructions.contains(phi) {
         return None;
@@ -929,6 +929,10 @@ fn plan_reverse(func: &Function, l: &Loop) -> Option<Reverse> {
         InstKind::Lt(counter, bound) | InstKind::Gt(bound, counter) => (counter, bound),
         _ => return None,
     };
+    // The reversed counter starts at the word `0 - n`.
+    if func.value_ty(counter) != Some(MirType::I256) {
+        return None;
+    }
     let Value::Inst(phi) = *func.value(counter) else { return None };
     if !func.blocks[l.header].instructions.contains(&phi) {
         return None;
@@ -1072,7 +1076,7 @@ fn plan_full(
         .filter(|&block| block != l.header)
         .map(|block| target.block_code_estimate(func, block))
         .sum();
-    if body.times(trips).bytes > MAX_COMPLETE_BYTES {
+    if body.times(trips).bytes > Target::MAX_LOOP_COPY_BYTES {
         return None;
     }
     let header = target.block_code_estimate(func, l.header);
@@ -1089,69 +1093,18 @@ fn plan_full(
         })
 }
 
-/// A copy of the loop: each original block's clone and each original value's clone.
-struct Copy {
-    blocks: FxHashMap<BlockId, BlockId>,
-    values: FxHashMap<ValueId, ValueId>,
-}
-
-impl Copy {
-    fn value(&self, value: ValueId) -> ValueId {
-        self.values.get(&value).copied().unwrap_or(value)
-    }
-}
-
-/// Clones every loop block with its instructions, keeping edges that leave the loop.
-fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> Copy {
-    let mut copy = Copy { blocks: FxHashMap::default(), values: FxHashMap::default() };
-    for &block in blocks {
-        copy.blocks.insert(block, func.alloc_block());
-    }
-    for &block in blocks {
-        let originals = func.blocks[block].instructions.clone();
-        let mut instructions = Vec::with_capacity(originals.len());
-        for inst in originals {
-            let original = func.inst(inst);
-            let mut instruction = Instruction::new(original.kind.clone(), original.result_ty);
-            instruction.metadata.copy_debug_context(&original.metadata);
-            let cloned = if let Some(result) = func.inst_result_value(inst) {
-                let (cloned, cloned_result) = func.alloc_value_inst(instruction);
-                copy.values.insert(result, cloned_result);
-                cloned
-            } else {
-                func.alloc_inst(instruction)
-            };
-            instructions.push(cloned);
-        }
-        func.blocks[copy.blocks[&block]].instructions = instructions;
-    }
-    for &block in blocks {
-        let clone = copy.blocks[&block];
-        for inst in func.blocks[clone].instructions.clone() {
-            let kind = &mut func.inst_mut(inst).kind;
-            if let InstKind::Phi(incoming) = kind {
-                for (from, _) in incoming.iter_mut() {
-                    if let Some(&clone_from) = copy.blocks.get(from) {
-                        *from = clone_from;
-                    }
-                }
-            }
-            kind.visit_operands_mut(|value| *value = copy.value(*value));
-        }
-        let (mut terminator, metadata) = {
-            let body = &func.blocks[block];
-            (
-                body.terminator.clone().expect("loop blocks are terminated"),
-                body.terminator_metadata.clone(),
-            )
-        };
-        terminator.visit_operands_mut(|value| *value = copy.value(*value));
-        retarget(&mut terminator, |successor| {
-            copy.blocks.get(&successor).copied().unwrap_or(successor)
-        });
-        func.blocks[clone].set_terminator(terminator, metadata);
-    }
-    copy
+/// Each header phi with the value it takes from `latch`.
+fn header_phis(func: &Function, header: BlockId, latch: BlockId) -> Vec<(ValueId, ValueId)> {
+    func.blocks[header]
+        .instructions
+        .iter()
+        .filter_map(|&inst| {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
+            let latch_value =
+                incoming.iter().find_map(|&(from, value)| (from == latch).then_some(value))?;
+            Some((func.inst_result_value(inst)?, latch_value))
+        })
+        .collect()
 }
 
 /// Appends a compiler-generated instruction to a block and returns its result.
@@ -1299,30 +1252,9 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     add_exit_phis(func, &unroll.exit_phis);
     let blocks: Vec<BlockId> = unroll.blocks.iter().collect();
     // Edges that leave the loop from its body, before any terminator changes.
-    let side_exits: Vec<_> = blocks
-        .iter()
-        .filter(|&&block| block != unroll.header)
-        .flat_map(|&block| {
-            let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
-            terminator
-                .successors()
-                .into_iter()
-                .filter(|&successor| !unroll.blocks.contains(successor))
-                .map(move |successor| (block, successor))
-        })
-        .collect();
-    let copies: Vec<Copy> = (0..unroll.factor).map(|_| clone_loop(func, &blocks)).collect();
-    let header_phis: Vec<_> = func.blocks[unroll.header]
-        .instructions
-        .iter()
-        .filter_map(|&inst| {
-            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
-            let latch_value = incoming
-                .iter()
-                .find_map(|&(from, value)| (from == unroll.latch).then_some(value))?;
-            Some((func.inst_result_value(inst)?, latch_value))
-        })
-        .collect();
+    let side_exits = side_exits(func, &blocks, &unroll.blocks, unroll.header);
+    let copies: Vec<LoopCopy> = (0..unroll.factor).map(|_| clone_loop(func, &blocks)).collect();
+    let header_phis = header_phis(func, unroll.header, unroll.latch);
     let first = &copies[0];
     let first_latch = first.blocks[&unroll.latch];
     let last = &copies[copies.len() - 1];
@@ -1508,21 +1440,7 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     );
     func.blocks[unroll.preheader].set_terminator(terminator, metadata);
 
-    // exit: v = phi [block: x], ..., [block': x'], [block'': x'']
-    for (block, successor) in side_exits {
-        for inst in func.blocks[successor].instructions.clone() {
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
-                let cloned: Vec<_> = incoming
-                    .iter()
-                    .filter(|&&(from, _)| from == block)
-                    .flat_map(|&(_, value)| {
-                        copies.iter().map(move |copy| (copy.blocks[&block], copy.value(value)))
-                    })
-                    .collect();
-                incoming.extend(cloned);
-            }
-        }
-    }
+    add_exit_inputs(func, &side_exits, &copies);
 
     // A copied header's phi can map to another copied header's phi when the latch passes one
     // header phi to another, as a swap does (`a = phi [latch: b]`, `b = phi [latch: a]`): with
@@ -1542,29 +1460,9 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
 fn peel(func: &mut Function, peel: &Peel) {
     let blocks: Vec<BlockId> = peel.blocks.iter().collect();
     // Edges that leave the loop from its body, before any terminator changes.
-    let side_exits: Vec<_> = blocks
-        .iter()
-        .filter(|&&block| block != peel.header)
-        .flat_map(|&block| {
-            let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
-            terminator
-                .successors()
-                .into_iter()
-                .filter(|&successor| !peel.blocks.contains(successor))
-                .map(move |successor| (block, successor))
-        })
-        .collect();
+    let side_exits = side_exits(func, &blocks, &peel.blocks, peel.header);
     let copy = clone_loop(func, &blocks);
-    let header_phis: Vec<_> = func.blocks[peel.header]
-        .instructions
-        .iter()
-        .filter_map(|&inst| {
-            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
-            let latch_value =
-                incoming.iter().find_map(|&(from, value)| (from == peel.latch).then_some(value))?;
-            Some((func.inst_result_value(inst)?, latch_value))
-        })
-        .collect();
+    let header_phis = header_phis(func, peel.header, peel.latch);
     let first_header = copy.blocks[&peel.header];
     let first_latch = copy.blocks[&peel.latch];
 
@@ -1611,19 +1509,7 @@ fn peel(func: &mut Function, peel: &Peel) {
         });
     }
 
-    // exit: v = phi [block: x], [block': x']
-    for (block, successor) in side_exits {
-        for inst in func.blocks[successor].instructions.clone() {
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
-                let cloned: Vec<_> = incoming
-                    .iter()
-                    .filter(|&&(from, _)| from == block)
-                    .map(|&(_, value)| (copy.blocks[&block], copy.value(value)))
-                    .collect();
-                incoming.extend(cloned);
-            }
-        }
-    }
+    add_exit_inputs(func, &side_exits, std::slice::from_ref(&copy));
 
     // The loop runs only after the copy's tests held, and they test the same words.
     // block: jumpi condition, keep, abort => jump keep
@@ -1638,29 +1524,9 @@ fn peel(func: &mut Function, peel: &Peel) {
 fn unroll_fully(func: &mut Function, full: &Full) {
     let blocks: Vec<BlockId> = full.blocks.iter().collect();
     // Edges that leave the loop from its body, before any terminator changes.
-    let side_exits: Vec<_> = blocks
-        .iter()
-        .filter(|&&block| block != full.header)
-        .flat_map(|&block| {
-            let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
-            terminator
-                .successors()
-                .into_iter()
-                .filter(|&successor| !full.blocks.contains(successor))
-                .map(move |successor| (block, successor))
-        })
-        .collect();
-    let header_phis: Vec<_> = func.blocks[full.header]
-        .instructions
-        .iter()
-        .filter_map(|&inst| {
-            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
-            let latch_value =
-                incoming.iter().find_map(|&(from, value)| (from == full.latch).then_some(value))?;
-            Some((func.inst_result_value(inst)?, latch_value))
-        })
-        .collect();
-    let copies: Vec<Copy> = (0..full.trips).map(|_| clone_loop(func, &blocks)).collect();
+    let side_exits = side_exits(func, &blocks, &full.blocks, full.header);
+    let header_phis = header_phis(func, full.header, full.latch);
+    let copies: Vec<LoopCopy> = (0..full.trips).map(|_| clone_loop(func, &blocks)).collect();
 
     // preheader: ... jump header_1
     redirect(func, full.preheader, full.header, copies[0].blocks[&full.header]);
@@ -1703,24 +1569,7 @@ fn unroll_fully(func: &mut Function, full: &Full) {
     let (_, metadata) = func.blocks[full.header].take_terminator();
     func.blocks[full.header].set_terminator(Terminator::Jump(full.exit), metadata);
 
-    // exit: v = phi [block: x], [block_1: x_1], ..., [block_n: x_n]
-    for (block, successor) in side_exits {
-        for inst in func.blocks[successor].instructions.clone() {
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
-                let cloned: Vec<_> = copies
-                    .iter()
-                    .flat_map(|copy| {
-                        incoming
-                            .iter()
-                            .filter(|&&(from, _)| from == block)
-                            .map(|&(_, value)| (copy.blocks[&block], copy.value(value)))
-                            .collect::<Vec<_>>()
-                    })
-                    .collect();
-                incoming.extend(cloned);
-            }
-        }
-    }
+    add_exit_inputs(func, &side_exits, &copies);
     rebuild_predecessors(func);
 }
 

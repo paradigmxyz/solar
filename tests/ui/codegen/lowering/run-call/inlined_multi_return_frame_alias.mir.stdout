@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @run() -> i256 [selector=0xc0406226, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @outer
     ret v0

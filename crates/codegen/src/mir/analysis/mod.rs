@@ -14,7 +14,8 @@ pub(crate) use alias::{
 
 mod memory_summary;
 pub(crate) use memory_summary::{
-    LocalSummaryCache, MemoryCallSummaries, may_observe_msize, returning_blocks,
+    LocalSummaryCache, MemoryCallSummaries, may_observe_msize, module_may_observe_msize,
+    returning_blocks,
 };
 
 mod memory_restoration;
@@ -26,7 +27,7 @@ mod gas;
 pub(crate) use gas::GasObservations;
 
 mod call_graph;
-pub(crate) use call_graph::CallGraphInfo;
+pub(crate) use call_graph::{CallGraphInfo, direct_callees};
 
 mod cold;
 pub(crate) use cold::{aborts, cold_functions};

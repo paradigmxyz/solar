@@ -25,7 +25,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32
     mstore v0, 0
@@ -198,7 +198,7 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     jump bb3
 }
 
-fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1
@@ -437,11 +437,11 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v3, 1
+    v14 = checked_add uint256, v3, 1
     jump bb1
 }
 
-fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1
@@ -625,6 +625,6 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
   bb6:
     jump bb3
   bb3:
-    v12 = checked_add u256, v2, 1
+    v12 = checked_add uint256, v2, 1
     jump bb1
 }

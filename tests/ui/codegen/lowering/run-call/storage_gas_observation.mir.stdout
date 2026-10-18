@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_gas_observation.sol:StorageGasObservation ===
 @module StorageGasObservation
-fn @overwrittenStore() -> i256 [selector=0x92d23338, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @overwrittenStore() -> i256 [selector=0x92d23338, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
     sstore 0, 1 !metadata(storage=slot(0))
     v1 = gas
-    v2 = checked_sub u256, v0, v1
+    v2 = checked_sub uint256, v0, v1
     v3 = gt v2, 0x2710
     jumpi v3, bb1, bb2
   bb2:
@@ -19,13 +19,13 @@ fn @overwrittenStore() -> i256 [selector=0x92d23338, abi_params=[], abi_returns=
     ret v4
 }
 
-fn @forwardedLoad() -> i256 [selector=0x7cfab297, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @forwardedLoad() -> i256 [selector=0x7cfab297, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 7 !metadata(storage=slot(0))
     v0 = gas
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gas
-    v3 = checked_sub u256, v0, v2
+    v3 = checked_sub uint256, v0, v2
     v4 = gt v3, 50
     v5 = eq v4, false
     jumpi v5, bb1, bb2

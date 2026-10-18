@@ -2,7 +2,7 @@
 @module PublicBody
 @phase lowered
 @immutables
-  _start: u256
+  _start: uint256
 
 fn @constructor(arg0: i256) [abi_wrapper, constructor] {
   bb0:

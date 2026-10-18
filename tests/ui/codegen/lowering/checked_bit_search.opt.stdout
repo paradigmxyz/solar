@@ -42,8 +42,8 @@ fn @ffs.2() [selector=0x2297890a, abi_wrapper, pure] {
     jumpi v1, bb2, bb1
   bb1:
     v2 = not arg0
-    v8 = add v2, 1
-    v4 = and arg0, v8
+    v3 = add v2, 1
+    v4 = and arg0, v3
     v5 = icall @fls.3, v4
     jump bb2
   bb2:

@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i128, i256, i128, i256, i128, i256, i128, i256, i256}
 
-fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word, word<u128>, word, word<u128>, word, word<u128>, word, word<u128>, word, word], abi_return_params=[u256, u128, u256, u128, u256, u128, u256, u128, u256, u256]] {
+fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word, word<uint128>, word, word<uint128>, word, word<uint128>, word, word<uint128>, word, word], abi_return_params=[uint256, uint128, uint256, uint128, uint256, uint128, uint256, uint128, uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffffffffffffffffffff

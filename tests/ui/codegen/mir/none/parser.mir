@@ -7,7 +7,7 @@
   child_1: creation_code "child.sol:Child"
 
 @immutables
-  fn: u8
+  fn: uint8
 
 // CHECK-LABEL: @call
 // CHECK: {{^ +}}[[SUCCESS:v[0-9]+]] = call 100, arg0, arg1, 0, 0, 0, 0

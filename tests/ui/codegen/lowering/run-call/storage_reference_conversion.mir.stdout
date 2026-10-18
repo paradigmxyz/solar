@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -29,7 +29,7 @@ fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     ret v15
 }
 
-fn @element() -> i256 [selector=0x2884fd00, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @element() -> i256 [selector=0x2884fd00, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -55,7 +55,7 @@ fn @element() -> i256 [selector=0x2884fd00, abi_params=[], abi_returns=[word], a
     ret v15
 }
 
-fn @length() -> i256 [selector=0x1f7b6d32, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @length() -> i256 [selector=0x1f7b6d32, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -77,7 +77,7 @@ fn @length() -> i256 [selector=0x1f7b6d32, abi_params=[], abi_returns=[word], ab
     ret v10
 }
 
-fn @bindAndPush() -> struct0 [selector=0xb2c841b8, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @bindAndPush() -> struct0 [selector=0xb2c841b8, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -108,7 +108,7 @@ fn @bindAndPush() -> struct0 [selector=0xb2c841b8, abi_params=[], abi_returns=[w
     ret v18
 }
 
-fn @fixedSize() -> i256 [selector=0x736172d3, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedSize() -> i256 [selector=0x736172d3, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 1, 3
     v1 = eq v0, false
@@ -123,7 +123,7 @@ fn @fixedSize() -> i256 [selector=0x736172d3, abi_params=[], abi_returns=[word],
     ret v6
 }
 
-fn @mappingValue() -> i256 [selector=0xcca39d9b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @mappingValue() -> i256 [selector=0xcca39d9b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot 1, 6
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -145,7 +145,7 @@ fn @mappingValue() -> i256 [selector=0xcca39d9b, abi_params=[], abi_returns=[wor
     ret v12
 }
 
-fn @structMember() -> i256 [selector=0x9f2d7231, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @structMember() -> i256 [selector=0x9f2d7231, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 7 !metadata(storage=slot(7))
     v1 = gt v0, 0xffffffffffffffff
@@ -165,7 +165,7 @@ fn @structMember() -> i256 [selector=0x9f2d7231, abi_params=[], abi_returns=[wor
     ret v10
 }
 
-fn @deleteElement() -> i256 [selector=0xfd57e9f9, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @deleteElement() -> i256 [selector=0xfd57e9f9, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -192,7 +192,7 @@ fn @deleteElement() -> i256 [selector=0xfd57e9f9, abi_params=[], abi_returns=[wo
     ret v15
 }
 
-fn @ternary(arg0: i1) -> i256 [selector=0xee58c378, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @ternary(arg0: i1) -> i256 [selector=0xee58c378, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -213,7 +213,7 @@ fn @ternary(arg0: i1) -> i256 [selector=0xee58c378, abi_params=[bool], abi_retur
     ret v6
 }
 
-fn @memoryCopy() -> i256 [selector=0x2dbaeee9, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryCopy() -> i256 [selector=0x2dbaeee9, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -240,7 +240,7 @@ fn @memoryCopy() -> i256 [selector=0x2dbaeee9, abi_params=[], abi_returns=[word]
     ret v15
 }
 
-fn @returnArray() -> ptr<memory> [selector=0x3cac14c8, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @returnArray() -> ptr<memory> [selector=0x3cac14c8, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -262,7 +262,7 @@ fn @returnArray() -> ptr<memory> [selector=0x3cac14c8, abi_params=[], abi_return
     ret v10
 }
 
-fn @localReference() -> i256 [selector=0x13904d8a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @localReference() -> i256 [selector=0x13904d8a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -282,7 +282,7 @@ fn @localReference() -> i256 [selector=0x13904d8a, abi_params=[], abi_returns=[w
     ret v10
 }
 
-fn @stringLength() -> i256 [selector=0x56ff6f1c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @stringLength() -> i256 [selector=0x56ff6f1c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     store_storage_bytes_literal 8, hex"68656c6c6f"
     v0 = sload 8 !metadata(storage=slot(8))
@@ -340,7 +340,7 @@ fn @stringWrite() -> i1 [selector=0xbe9c4022, abi_params=[], abi_returns=[word<b
     ret v28
 }
 
-fn @stringPush() -> i256 [selector=0x2c6d0933, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @stringPush() -> i256 [selector=0x2c6d0933, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     store_storage_bytes_literal 8, hex"68656c6c6f"
     v0 = sload 8 !metadata(storage=slot(8))
@@ -749,7 +749,7 @@ fn @fixedBytesValue() -> i256 [selector=0x2875668d, abi_params=[], abi_returns=[
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }
 

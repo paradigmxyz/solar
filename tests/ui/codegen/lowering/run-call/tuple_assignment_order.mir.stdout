@@ -4,16 +4,16 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
-fn @shadowInitializer(arg0: i256, arg1: i256) -> struct0 [selector=0x3c961c96, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shadowInitializer(arg0: i256, arg1: i256) -> struct0 [selector=0x3c961c96, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
-    v0 = checked_add u256, arg1, 1
-    v1 = checked_add u256, arg0, 2
+    v0 = checked_add uint256, arg1, 1
+    v1 = checked_add uint256, arg0, 2
     v2 = insert_value struct0, undef struct0, 0, v0
     v3 = insert_value struct0, v2, 1, v1
     ret v3
 }
 
-fn @shadowCallInitializer(arg0: i256, arg1: i256) -> struct0 [selector=0xc65ccea1, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shadowCallInitializer(arg0: i256, arg1: i256) -> struct0 [selector=0xc65ccea1, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @pair, arg1, arg0
     v1 = extract_value struct0, v0, 0
@@ -30,14 +30,14 @@ fn @pair(arg0: i256, arg1: i256) -> struct0 [pure] {
     ret v1
 }
 
-fn @swap() -> struct0 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @swap() -> struct0 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 2
     v1 = insert_value struct0, v0, 1, 1
     ret v1
 }
 
-fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     memory_zero v0, 96
@@ -80,7 +80,7 @@ fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[],
     ret v25
 }
 
-fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @setCursor, 1
     v1 = icall @setCursor, 2
@@ -95,7 +95,7 @@ fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_re
     ret v6
 }
 
-fn @repeatedCallTarget() -> i256 [selector=0xbf139358, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @repeatedCallTarget() -> i256 [selector=0xbf139358, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @threeValues
     v1 = extract_value struct1, v0, 0
@@ -104,7 +104,7 @@ fn @repeatedCallTarget() -> i256 [selector=0xbf139358, pure, abi_params=[], abi_
     ret v1
 }
 
-fn @sideEffectfulTargets() -> struct1 [selector=0x1a1f53e1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @sideEffectfulTargets() -> struct1 [selector=0x1a1f53e1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -275,7 +275,7 @@ fn @nextIndex() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = checked_add u256, v1, 1
+    v2 = checked_add uint256, v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
     ret v0
 }

@@ -21,7 +21,7 @@ fn @mix(arg0: i256) -> i256 [pure] {
     ret v1
 }
 
-fn @loopTuple(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2a5696fb, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @loopTuple(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2a5696fb, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2
@@ -92,7 +92,7 @@ fn @loopTuple(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2a5696fb, 
     jump bb4
 }
 
-fn @loopTupleInline(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb4233682, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @loopTupleInline(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb4233682, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2

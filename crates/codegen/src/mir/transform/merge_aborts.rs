@@ -186,13 +186,7 @@ fn test(
         Some(inner) if copies => (inner, else_block, then_block),
         _ => (condition, then_block, else_block),
     };
-    let shared = |block: BlockId| {
-        aborts(func, block, cold)
-            && !func.blocks[block]
-                .instructions
-                .iter()
-                .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
-    };
+    let shared = |block: BlockId| aborts(func, block, cold) && !func.block_has_phi(block);
     let (abort, next, aborts_when_true) = match (shared(then_block), shared(else_block)) {
         (true, false) => (then_block, else_block, true),
         (false, true) => (else_block, then_block, false),
@@ -268,7 +262,7 @@ fn same_abort(func: &Function, a: BlockId, b: BlockId, cold: &DenseBitSet<Functi
 fn speculatable(kind: &InstKind, target: Target) -> bool {
     !kind.has_side_effects()
         && !target.op_has_variable_gas(&kind.op())
-        && match kind.op_def().effect {
+        && match kind.effect_kind() {
             EffectKind::Pure => !matches!(kind, InstKind::Phi(_)),
             EffectKind::EnvironmentRead => true,
             _ => false,
@@ -337,7 +331,7 @@ fn mergeable(
     } else {
         target.opcode(op::OR)
     };
-    let saved = target.opcode(op::PUSH2) + target.opcode(op::JUMPI);
+    let saved = target.label_push() + target.opcode(op::JUMPI);
     target
         .improves(
             i128::from(saved.gas) - i128::from(added.gas),

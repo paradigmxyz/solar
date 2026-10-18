@@ -157,6 +157,6 @@ fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }
