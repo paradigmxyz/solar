@@ -353,7 +353,8 @@ opcodes! {
     0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits() => gas(base) => available(legacy);
     0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy) => input_bits(160);
     0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => gas(extcode) => available(legacy) => input_bits(160);
-    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits() => gas(base) => available(since Byzantium);
+    // Return data comes from gas-bounded EVM memory or precompile output, so its length fits in 64 bits.
+    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits() => gas(base) => available(since Byzantium) => result_bits(64);
     0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Byzantium);
     0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => gas(extcodehash) => available(since Constantinople) => input_bits(160);
     0x40 => BLOCKHASH => blockhash => stack_io(1, 1) => traits() => gas(blockhash) => available(legacy);

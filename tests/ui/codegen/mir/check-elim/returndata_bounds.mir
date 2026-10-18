@@ -1,0 +1,46 @@
+//@ compile-flags: -Zmir-pipeline=check-elim
+//@ filecheck:
+@module ReturndataBounds
+
+// CHECK-LABEL: fn @padded
+// CHECK: - jumpi v2, bb1, bb2
+// CHECK: + jump bb2
+fn @padded() -> i256 {
+  bb0:
+    v0 = returndatasize
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}
+
+// CHECK-LABEL: fn @unbounded_offset
+// CHECK: jumpi v2, bb1, bb2
+fn @unbounded_offset(arg0: i256) -> i256 {
+  bb0:
+    v0 = returndatasize
+    v1 = add v0, arg0
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}
+
+// CHECK-LABEL: fn @unbounded_word
+// CHECK: jumpi v2, bb1, bb2
+fn @unbounded_word() -> i256 {
+  bb0:
+    v0 = calldataload 0
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}
