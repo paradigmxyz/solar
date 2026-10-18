@@ -80,8 +80,8 @@
 //! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
-    BlockId, Callee, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
-    MirType, Module, PtrLocation, StorageAlias, Value, ValueId,
+    BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -315,7 +315,7 @@ enum OperandKey {
     Immediate(Immediate),
     /// A read that returns the same word throughout the call, such as `calldatasize` or
     /// `caller`, keyed by its kind so that expressions over different reads match.
-    FrameConstant(u8),
+    FrameConstant(&'static str),
 }
 
 type MemRangeKey = MemoryLocation;
@@ -1589,7 +1589,7 @@ impl CommonSubexprEliminator {
                             Self::offset_value(func, b, replacements, depth + 1)?;
                         Some((base, existing.wrapping_add(offset)))
                     } else {
-                        Some((OperandKey::Value(value), U256::ZERO))
+                        Some((Self::operand_key(func, value, replacements), U256::ZERO))
                     }
                 }
                 InstKind::Sub(a, b) => {
@@ -1597,7 +1597,7 @@ impl CommonSubexprEliminator {
                     let (base, existing) = Self::offset_value(func, a, replacements, depth + 1)?;
                     Some((base, existing.wrapping_sub(offset)))
                 }
-                _ => Some((OperandKey::Value(value), U256::ZERO)),
+                _ => Some((Self::operand_key(func, value, replacements), U256::ZERO)),
             },
         }
     }
@@ -1751,24 +1751,12 @@ fn pure_leaf_functions(
     pure
 }
 
-/// A key for an environment read whose word is fixed for the whole call frame.
-fn frame_constant_key(kind: &InstKind) -> Option<u8> {
-    Some(match kind {
-        InstKind::CalldataSize => 0,
-        InstKind::CodeSize => 1,
-        InstKind::Caller => 2,
-        InstKind::CallValue => 3,
-        InstKind::Origin => 4,
-        InstKind::Address => 5,
-        InstKind::ChainId => 6,
-        InstKind::Timestamp => 7,
-        InstKind::BlockNumber => 8,
-        InstKind::GasPrice => 9,
-        InstKind::Coinbase => 10,
-        InstKind::PrevRandao => 11,
-        InstKind::GasLimit => 12,
-        InstKind::BaseFee => 13,
-        InstKind::BlobBaseFee => 14,
-        _ => return None,
-    })
+/// A key for an environment read whose word is fixed for the whole call frame: a nullary
+/// environment read the schema marks rematerializable, keyed by its mnemonic.
+fn frame_constant_key(kind: &InstKind) -> Option<&'static str> {
+    let definition = kind.op_def();
+    (definition.effect == EffectKind::EnvironmentRead
+        && definition.traits.contains(OpTraits::REMATERIALIZABLE)
+        && !kind.any_operand(|_| true))
+    .then_some(definition.mnemonic)
 }
