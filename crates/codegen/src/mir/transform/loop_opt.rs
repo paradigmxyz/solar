@@ -52,7 +52,7 @@ use crate::mir::{
     Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
-        Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ScalarEvolution,
+        Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
     },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
@@ -1047,18 +1047,20 @@ impl LoopOptimizer {
             MemoryAddress::absolute(0),
             LocationSize::Const(crate::mir::memory::EvmMemoryLayout::FMP_SLOT),
         ));
-        func.instructions().filter(|&inst| inst != candidate).all(|inst| {
-            let effects = aa.instruction_mod_ref(func, inst);
+        let private = |effects: ModRef| {
             !effects.observes_gas()
                 && !effects.observes_memory_size()
                 && !effects.may_read(aa, scratch)
                 && !effects.may_write(aa, scratch)
-        }) && func.blocks.iter().all(|block| {
-            !matches!(
-                block.terminator,
-                Some(Terminator::ReturnData { .. } | Terminator::Revert { .. })
-            )
-        })
+        };
+        func.instructions()
+            .filter(|&inst| inst != candidate)
+            .all(|inst| private(aa.instruction_mod_ref(func, inst)))
+            && func
+                .blocks
+                .iter()
+                .filter_map(|block| block.terminator.as_ref())
+                .all(|terminator| private(aa.terminator_mod_ref(func, terminator)))
     }
 }
 
