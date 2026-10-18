@@ -127,6 +127,15 @@
       jump bb1
   }
   
+  fn @returndata_trap() -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = ptradd v0, 32
+      v2 = ptrtoint ptr<memory> v1 to i256
+      returndatacopy v2, 0, 32
+      ret 7
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after dce) ===
   @module CopyElision
@@ -252,5 +261,14 @@
       mstore v2, 7
       v3 = add v0, 1
       jump bb1
+  }
+  
+  fn @returndata_trap() -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = ptradd v0, 32
+      v2 = ptrtoint ptr<memory> v1 to i256
+      returndatacopy v2, 0, 32
+      ret 7
   }
   

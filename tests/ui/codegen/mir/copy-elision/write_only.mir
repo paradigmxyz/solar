@@ -167,3 +167,15 @@ fn @loop_allocation(arg0: i256) -> i256 {
     ret 0
 }
 
+// `returndatacopy` past the end of the return data reverts, so it stays even
+// though nothing reads the object.
+// CHECK-LABEL: {{^[ +].*}}fn @returndata_trap{{[( ]}}
+// CHECK: {{^ .*}}returndatacopy
+fn @returndata_trap() -> i256 {
+  bb0:
+    v0 = alloc 64
+    v9001 = ptradd v0, 32
+    v1 = ptrtoint ptr<memory> v9001 to i256
+    returndatacopy v1, 0, 32
+    ret 7
+}

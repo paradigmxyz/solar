@@ -11,7 +11,8 @@
 //! Ordinary dead-store elimination keeps such copies because they write
 //! memory; proving the destination allocation is unread lets them go. The pass
 //! is conservative: any read of the allocation (`mload`, `keccak256`, a copy
-//! that reads it, or an escape into a call/return) keeps every write. Writes must fit a known
+//! that reads it, or an escape into a call/return) keeps every write, and a write that can fail
+//! on its own, such as `returndatacopy`, always stays. Writes must fit a known
 //! allocation extent; writes outside it can affect other objects, even when this object is unread.
 //! Indexed element stores also qualify when their sole incoming edge proves an unsigned index
 //! bound whose final word fits the allocation. Other dynamic addresses remain conservative.
@@ -372,6 +373,9 @@ impl CopyElisionCx {
             return None;
         }
 
+        // A write that can fail on its own, such as `returndatacopy` past the end of the return
+        // data, stays even though its destination is unread.
+        writes.retain(|&inst_id| !func.inst(inst_id).kind.effects().control.any());
         (!writes.is_empty()).then_some(writes)
     }
 }
