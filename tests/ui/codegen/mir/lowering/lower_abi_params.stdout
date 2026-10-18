@@ -49,40 +49,33 @@
 +   bb7:
 +     v22 = calldataload v16
 +     v23 = add v16, 32
-+     v24 = mul v22, 32
-+     v25 = eq 32, 0
-+     v26 = div v24, 32
-+     v27 = eq v26, v22
-+     v28 = or v25, v27
-+     v29 = zext i1 v28 to i256
-+     v30 = eq v29, 0
-+     jumpi v30, bb8, bb9
++     v24 = gt v22, 0x7fffffffffffffe
++     jumpi v24, bb8, bb9
 +   bb9:
-+     v31 = add v24, 32
-+     v32 = lt v31, v24
-+     jumpi v32, bb8, bb10
++     v25 = add v22, 1
++     v26 = mul v25, 32
++     v27 = alloc checked v26
++     mstore v27, v22
++     v28 = mul v22, 32
++     v29 = sub v6, v23
++     v30 = shr 5, v29
++     v31 = gt v22, v30
++     jumpi v31, bb4, bb10
 +   bb10:
-+     v33 = alloc checked v31
-+     mstore v33, v22
-+     v34 = sub v6, v23
-+     v35 = shr 5, v34
-+     v36 = gt v22, v35
-+     jumpi v36, bb4, bb11
-+   bb11:
-+     v37 = inttoptr i256 v23 to ptr<calldata>
-+     v38 = make_calldata_slice v37, v24
-+     v39 = ptradd v33, 32
-+     v40 = extract_value slice<calldata>, v38, 0
-+     v41 = extract_value slice<calldata>, v38, 1
-+     calldatacopy v39, v40, v41
-+     v42 = ptrtoint ptr<memory> v33 to i256
-+     mstore v14, v42
-+     v43 = add v9, 32
-+     v44 = calldataload v43
-+     v45 = ptradd v14, 32
-+     mstore v45, v44
-+     v46 = ptradd v14, 64
-+     mstore v46, v9
++     v32 = inttoptr i256 v23 to ptr<calldata>
++     v33 = make_calldata_slice v32, v28
++     v34 = ptradd v27, 32
++     v35 = extract_value slice<calldata>, v33, 0
++     v36 = extract_value slice<calldata>, v33, 1
++     calldatacopy v34, v35, v36
++     v37 = ptrtoint ptr<memory> v27 to i256
++     mstore v14, v37
++     v38 = add v9, 32
++     v39 = calldataload v38
++     v40 = ptradd v14, 32
++     mstore v40, v39
++     v41 = ptradd v14, 64
++     mstore v41, v9
 +     jump bb1
 +   bb1:
 +     v0 = mload v14
@@ -94,9 +87,9 @@
       v5 = add v2, v4
 -     ret v5
 +     mstore 128, v5
-+     v47 = add 128, 32
-+     v48 = sub v47, 128
-+     returndata 128, v48
++     v42 = add 128, 32
++     v43 = sub v42, 128
++     returndata 128, v43
 +   bb8:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
