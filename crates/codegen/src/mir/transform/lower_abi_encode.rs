@@ -83,10 +83,10 @@ impl MirPass for LowerAbiEncode {
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = Target::new(gcx);
         let (fresh_object_returns, mut destructive_returns) =
-            plan_destructive_terminal_returns(target, module);
-        let mut helpers = synthesize_array_helpers(target, module, revert_strings);
+            plan_destructive_terminal_returns(&target, module);
+        let mut helpers = synthesize_array_helpers(&target, module, revert_strings);
         synthesize_tuple_helpers(
-            target,
+            &target,
             module,
             &mut helpers,
             revert_strings,
@@ -117,7 +117,7 @@ impl MirPass for LowerAbiEncode {
             let helpers =
                 if constructors.contains(func_id) { &mut inline_helpers } else { &mut helpers };
             changed |= lower_function(
-                target,
+                &target,
                 func,
                 helpers,
                 revert_strings,
@@ -187,7 +187,7 @@ struct EncodeHelpers {
 /// the expanded copies: under the size objective the sites call one body, under the gas
 /// objective each keeps its own.
 fn synthesize_tuple_helpers(
-    target: Target,
+    target: &Target,
     module: &mut Module,
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
@@ -256,7 +256,7 @@ fn synthesize_tuple_helpers(
 /// element-wise loop at least two sites would otherwise expand inline. Inner layouts are built
 /// first so an outer helper's element encoding calls the inner helper.
 fn synthesize_array_helpers(
-    target: Target,
+    target: &Target,
     module: &mut Module,
     revert_strings: RevertStrings,
 ) -> EncodeHelpers {
@@ -386,7 +386,7 @@ enum AbiValueSource {
 }
 
 fn lower_function(
-    target: Target,
+    target: &Target,
     func: &mut Function,
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
@@ -486,7 +486,7 @@ fn lower_function(
 /// Selects destructive terminal encodings before module-wide helper sharing is
 /// costed. Unoptimized lowering retains the direct semantic expansion.
 fn plan_destructive_terminal_returns(
-    target: Target,
+    target: &Target,
     module: &Module,
 ) -> (DenseBitSet<FunctionId>, IndexVec<FunctionId, FxHashSet<InstId>>) {
     let mut fresh = DenseBitSet::new_empty(module.functions.len());

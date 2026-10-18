@@ -617,7 +617,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let recomputable = if pinned.is_empty() {
             FxHashMap::default()
         } else {
-            plan::recomputable(func, &cfg, info.internal.contains(func_id), Target::new(self.gcx))
+            plan::recomputable(func, &cfg, info.internal.contains(func_id), &Target::new(self.gcx))
         };
         Analysis { liveness, cfg, loops, saved, pinned, recomputable }
     }
@@ -676,7 +676,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     info,
                     func_id,
                     analysis,
-                    target,
+                    &target,
                     &spilled,
                     ret_spilled,
                     restarts >= single_spills,

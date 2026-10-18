@@ -389,15 +389,15 @@ impl Target {
         Self { evm_version, optimization, expected_executions }
     }
 
-    pub(crate) fn evm_version(self) -> EvmVersion {
+    pub(crate) fn evm_version(&self) -> EvmVersion {
         self.evm_version
     }
 
-    pub(crate) fn optimization(self) -> OptimizationMode {
+    pub(crate) fn optimization(&self) -> OptimizationMode {
         self.optimization
     }
 
-    pub(crate) fn expected_executions(self) -> u64 {
+    pub(crate) fn expected_executions(&self) -> u64 {
         self.expected_executions
     }
 
@@ -408,30 +408,30 @@ impl Target {
     }
 
     /// Whether the build expects enough executions to copy loop bodies for runtime gas.
-    pub(crate) fn copies_loops(self) -> bool {
+    pub(crate) fn copies_loops(&self) -> bool {
         self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
     }
 
     /// Static gas of one opcode; unknown opcodes are free.
-    pub(crate) fn opcode_gas(self, opcode: u8) -> u32 {
+    pub(crate) fn opcode_gas(&self, opcode: u8) -> u32 {
         self.opcode_gas_at(opcode, Warmth::Cold)
     }
 
     /// Static gas of one opcode touching an account or slot of the given
     /// warmth; unknown opcodes are free.
-    pub(crate) fn opcode_gas_at(self, opcode: u8, warmth: Warmth) -> u32 {
+    pub(crate) fn opcode_gas_at(&self, opcode: u8, warmth: Warmth) -> u32 {
         op::definition(opcode).map_or(0, |def| def.gas.gas_at(self.evm_version, warmth))
     }
 
     /// Cost of one opcode with its immediate, before dynamic components.
-    pub(crate) fn opcode(self, opcode: u8) -> Cost {
+    pub(crate) fn opcode(&self, opcode: u8) -> Cost {
         Cost::new(self.opcode_gas(opcode), opcode_bytes(opcode))
     }
 
     /// Cost of an opcode whose arguments are known in EVM pop order.
     /// Includes operand-dependent work such as the exponent bytes of `EXP`;
     /// memory expansion and state-dependent access prices remain excluded.
-    pub(crate) fn opcode_with_immediates(self, opcode: u8, arguments: &[Option<U256>]) -> Cost {
+    pub(crate) fn opcode_with_immediates(&self, opcode: u8, arguments: &[Option<U256>]) -> Cost {
         let mut cost = self.opcode(opcode);
         if let Some(definition) = op::definition(opcode) {
             cost.gas = cost.gas.saturating_add(
@@ -445,25 +445,25 @@ impl Target {
     }
 
     /// Cost of one `DUP`.
-    pub(crate) fn dup(self) -> Cost {
+    pub(crate) fn dup(&self) -> Cost {
         self.opcode(op::DUP1)
     }
 
     /// Cost of one logical stack operation after target lowering, or `None` when the target
     /// cannot lower it. An `EXCHANGE` before Amsterdam costs its three swaps.
-    pub(crate) fn stack_op(self, stack_op: op::StackOp) -> Option<Cost> {
+    pub(crate) fn stack_op(&self, stack_op: op::StackOp) -> Option<Cost> {
         let metrics = stack_op.metrics(self.evm_version)?;
         Some(Cost::new(metrics.static_gas as u32, metrics.assembled_len as u32))
     }
 
     /// Cost of pushing a block label, which resolves to a two-byte push in all but the largest
     /// contracts.
-    pub(crate) fn label_push(self) -> Cost {
+    pub(crate) fn label_push(&self) -> Cost {
         self.opcode(op::PUSH2)
     }
 
     /// Cost of pushing `value` through its cheapest materialization.
-    pub(crate) fn push(self, value: U256) -> Cost {
+    pub(crate) fn push(&self, value: U256) -> Cost {
         let (bytes, gas) = compact_pushes::immediate_materialization_cost(self.evm_version, value);
         Cost::new(gas as u32, bytes as u32)
     }
@@ -471,14 +471,14 @@ impl Target {
     /// Expected cost of one MIR operation: its opcode, or a very-low instruction
     /// for operations the backend expands by hand, plus its dynamic work sized
     /// from the immediate operands `immediate` resolves, or one unit otherwise.
-    pub(crate) fn op(self, op: &Op, immediate: impl Fn(ValueId) -> Option<U256>) -> Cost {
+    pub(crate) fn op(&self, op: &Op, immediate: impl Fn(ValueId) -> Option<U256>) -> Cost {
         self.op_at(op, immediate, Warmth::Cold)
     }
 
     /// Cost of one operation whose account or storage access has the given
     /// warmth, with dynamic work sized from immediate operands.
     pub(crate) fn op_at(
-        self,
+        &self,
         op: &Op,
         immediate: impl Fn(ValueId) -> Option<U256>,
         warmth: Warmth,
@@ -547,7 +547,7 @@ impl Target {
     }
 
     /// Whether an opcode-lowered MIR operation's gas depends on operands or access warmth.
-    pub(crate) fn op_has_variable_gas(self, op: &Op) -> bool {
+    pub(crate) fn op_has_variable_gas(&self, op: &Op) -> bool {
         select::opcode_lowering(op)
             .and_then(|lowering| op::definition(lowering.opcode()))
             .is_some_and(|definition| {
@@ -574,7 +574,7 @@ impl Target {
     }
 
     /// Cost of the generic Select emitter, excluding initial operand placement.
-    pub(crate) fn select(self, normalize_condition: bool) -> Cost {
+    pub(crate) fn select(&self, normalize_condition: bool) -> Cost {
         // dup3; swap1; sub; mul; add.
         let sequence = [op::DUP3, op::SWAP1, op::SUB, op::MUL, op::ADD]
             .into_iter()
@@ -584,13 +584,13 @@ impl Target {
     }
 
     /// Gas of copying one more word with a copy opcode.
-    pub(crate) fn copy_word_gas(self) -> u32 {
+    pub(crate) fn copy_word_gas(&self) -> u32 {
         GasTier::Copy.dynamic_gas(self.evm_version)
     }
 
     /// Gas of one program-data copy of `size` bytes: three pushes, the copy,
     /// and its words.
-    pub(crate) fn data_copy_gas(self, size: usize) -> u32 {
+    pub(crate) fn data_copy_gas(&self, size: usize) -> u32 {
         let words = u32::try_from(size.div_ceil(32)).unwrap_or(u32::MAX);
         GasTier::VeryLow.gas(self.evm_version) * 3
             + self.opcode_gas(op::CODECOPY)
@@ -601,7 +601,7 @@ impl Target {
     /// return label, the jump, the landing, and the frame protocol moving
     /// `args` arguments in and `returns` results out, whose gas grows with
     /// the callee's frame of `frame_words` words.
-    pub(crate) fn icall(self, args: usize, returns: usize, frame_words: u64) -> Cost {
+    pub(crate) fn icall(&self, args: usize, returns: usize, frame_words: u64) -> Cost {
         let moved = (args + returns) as u32;
         let protocol = 90 + moved * 24 + u32::try_from(frame_words).unwrap_or(u32::MAX) * 6;
         Cost::new(protocol, 18 + moved * 5)
@@ -609,7 +609,7 @@ impl Target {
 
     /// Cost of one internal return: the jump back through the pushed label
     /// and the protocol handing `returns` results past `params` parameters.
-    pub(crate) fn internal_return(self, params: usize, returns: usize) -> Cost {
+    pub(crate) fn internal_return(&self, params: usize, returns: usize) -> Cost {
         let moved = (params + returns) as u32;
         Cost::new(24 + moved * 8, 8 + moved * 4)
     }
@@ -617,12 +617,12 @@ impl Target {
     /// Estimated code of a function body: every operation with the pushes
     /// of its immediates, and a pushed label with a jump and a landing per
     /// edge. Sizes the shape of a helper before deciding to share it.
-    pub(crate) fn code_estimate(self, func: &Function) -> Cost {
+    pub(crate) fn code_estimate(&self, func: &Function) -> Cost {
         func.blocks.indices().map(|block| self.block_code_estimate(func, block)).sum()
     }
 
     /// Estimated code of one block, priced as in [`Self::code_estimate`].
-    pub(crate) fn block_code_estimate(self, func: &Function, block: BlockId) -> Cost {
+    pub(crate) fn block_code_estimate(&self, func: &Function, block: BlockId) -> Cost {
         let block = &func.blocks[block];
         let mut cost = Cost::ZERO;
         for &inst in &block.instructions {
@@ -654,7 +654,7 @@ impl Target {
 
     /// Deployment-lifetime gas of `cost`: expected executions of its runtime
     /// gas plus the deposit of its bytes.
-    pub(crate) fn lifetime_gas(self, cost: Cost) -> u128 {
+    pub(crate) fn lifetime_gas(&self, cost: Cost) -> u128 {
         u128::from(cost.gas) * u128::from(self.expected_executions)
             + u128::from(cost.bytes) * u128::from(Self::CODE_DEPOSIT_GAS_PER_BYTE)
     }
@@ -662,7 +662,7 @@ impl Target {
     /// The objective order of a cost: the dimension optimized first, then
     /// the other one. Gas leads when optimizing for gas, bytes when
     /// optimizing for size.
-    pub(crate) fn objective_key(self, cost: Cost) -> [u32; 2] {
+    pub(crate) fn objective_key(&self, cost: Cost) -> [u32; 2] {
         match self.optimization {
             OptimizationMode::Size => [cost.bytes, cost.gas],
             _ => [cost.gas, cost.bytes],
@@ -670,13 +670,13 @@ impl Target {
     }
 
     /// Ranks two costs under the objective.
-    pub(crate) fn cmp(self, a: Cost, b: Cost) -> Ordering {
+    pub(crate) fn cmp(&self, a: Cost, b: Cost) -> Ordering {
         self.objective_key(a).cmp(&self.objective_key(b))
     }
 
     /// Ranks two costs over the deployment lifetime when optimizing for gas, and
     /// under the objective otherwise.
-    pub(crate) fn cmp_lifetime(self, a: Cost, b: Cost) -> Ordering {
+    pub(crate) fn cmp_lifetime(&self, a: Cost, b: Cost) -> Ordering {
         if !self.optimization.is_gas() {
             return self.cmp(a, b);
         }
@@ -685,7 +685,7 @@ impl Target {
 
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
-    pub(crate) fn improves(self, gas_saving: i128, byte_saving: i128) -> bool {
+    pub(crate) fn improves(&self, gas_saving: i128, byte_saving: i128) -> bool {
         if self.optimization.is_gas() {
             gas_saving > 0 && byte_saving >= 0
         } else {
@@ -694,12 +694,12 @@ impl Target {
     }
 
     /// Cost of a jump to a block, including the pushed label and the target's landing.
-    pub(crate) fn jump(self) -> Cost {
+    pub(crate) fn jump(&self) -> Cost {
         self.label_push() + self.opcode(op::JUMP) + self.opcode(op::JUMPDEST)
     }
 
     /// Cost of a conditional edge, including the pushed label and the target's landing.
-    pub(crate) fn branch(self) -> Cost {
+    pub(crate) fn branch(&self) -> Cost {
         self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
     }
 }

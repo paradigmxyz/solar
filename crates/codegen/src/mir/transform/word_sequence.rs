@@ -55,7 +55,7 @@ impl MirPass for WordSequence {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| run(func, Target::new(gcx)))
+        run_function_pass(module, analyses, |func, _| run(func, &Target::new(gcx)))
     }
 }
 
@@ -72,7 +72,7 @@ struct Recipe {
     temporaries: FxHashMap<ValueId, Temporary>,
 }
 
-fn legal(op: &Op, target: Target) -> bool {
+fn legal(op: &Op, target: &Target) -> bool {
     if matches!(op, Op::Select { .. } | Op::Zext { .. } | Op::Sext { .. } | Op::Trunc { .. }) {
         return true;
     }
@@ -92,7 +92,7 @@ fn legal(op: &Op, target: Target) -> bool {
     }) && op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
 }
 
-fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
+fn removable(func: &Function, inst: &Instruction, target: &Target) -> bool {
     // Selects and legal operations are pure, so other instructions need no view.
     if inst.kind.effect_kind() != EffectKind::Pure
         || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
@@ -113,7 +113,7 @@ fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
 fn operation_cost(
     func: &Function,
     op: &Op,
-    target: Target,
+    target: &Target,
     constants: &FxHashMap<ValueId, Temporary>,
 ) -> Cost {
     let immediate = |value| match constants.get(&value) {
@@ -166,7 +166,7 @@ impl Recipe {
     fn cost_and_leaves(
         &self,
         func: &Function,
-        target: Target,
+        target: &Target,
     ) -> Option<(Cost, FxHashSet<ValueId>)> {
         let mut nodes = Vec::new();
         let mut leaves = FxHashSet::default();
@@ -276,7 +276,7 @@ fn recipe_type(func: &Function, kind: &InstKind, scalar_ty: MirType) -> MirType 
     }
 }
 
-fn run(func: &mut Function, target: Target) -> bool {
+fn run(func: &mut Function, target: &Target) -> bool {
     let mut uses = None;
     let mut changed = false;
     for block in func.blocks.indices().collect::<Vec<_>>() {
@@ -369,7 +369,7 @@ fn collect_dead(
     uses: &IndexVec<ValueId, u32>,
     seen: &FxHashSet<InstId>,
     leaves: &FxHashSet<ValueId>,
-    target: Target,
+    target: &Target,
     dead: &mut FxHashSet<InstId>,
 ) {
     let _ = node.map_values(|value| {

@@ -174,7 +174,7 @@ impl EvmPass for StackReschedule {
                 && !block.metadata.hotness.is_cold();
             let budget = if hot_loop { LOOP_BUDGET } else { BLOCK_BUDGET };
             changed |=
-                reschedule_block(&mut block.instructions, target, budget, &halts, &mut scratch);
+                reschedule_block(&mut block.instructions, &target, budget, &halts, &mut scratch);
         }
         changed
     }
@@ -282,7 +282,7 @@ impl State {
 
 fn reschedule_block(
     instructions: &mut Vec<Instruction>,
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
@@ -521,7 +521,7 @@ fn constant(inst: &Instruction) -> Option<Constant> {
 }
 
 /// Price of a push as assembly encodes it: the narrowest `PUSH` of its value.
-fn push_cost(inst: &Instruction, target: Target) -> Cost {
+fn push_cost(inst: &Instruction, target: &Target) -> Cost {
     match inst.concrete_immediate() {
         Some(value) if value.is_zero() && target.evm_version().has_push0() => {
             target.opcode(op::PUSH0)
@@ -532,7 +532,7 @@ fn push_cost(inst: &Instruction, target: Target) -> Cost {
 }
 
 /// Price of an instruction a run holds.
-fn instruction_cost(inst: &Instruction, target: Target) -> Cost {
+fn instruction_cost(inst: &Instruction, target: &Target) -> Cost {
     if let Some(stack_op) = inst.as_stack_op() {
         target.opcode(stack_op.single_byte_evm_opcode().expect("runs hold one-byte stack ops"))
     } else if inst.is_encoded_push() {
@@ -555,7 +555,7 @@ fn apply(stack: &mut SmallVec<[Word; 24]>, stack_op: StackOp) {
 }
 
 /// Orders costs under the objective as one number: gas first, then bytes.
-fn scalar(cost: Cost, target: Target) -> u64 {
+fn scalar(cost: Cost, target: &Target) -> u64 {
     let [first, second] = target.objective_key(cost);
     (u64::from(first) << 32) | u64::from(second)
 }
@@ -563,7 +563,7 @@ fn scalar(cost: Cost, target: Target) -> u64 {
 /// Executes a run symbolically.
 fn summarize(
     run: &[Instruction],
-    target: Target,
+    target: &Target,
     max_operations: usize,
     halts: &DenseBitSet<BlockId>,
 ) -> Option<Run> {
@@ -677,7 +677,7 @@ impl Words {
 
 /// Searches for the cheapest schedule of a run's operations that leaves its stack, when one
 /// beats the run's own stack operations.
-fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> Option<Vec<Move>> {
+fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> Option<Vec<Move>> {
     let operation_count = run.operations.len();
     let words = Words { entry: run.entry, operations: operation_count };
     let word_count = run.entry + operation_count + run.pushes.len();
@@ -1240,7 +1240,7 @@ fn is_operation(inst: &Instruction) -> bool {
 /// The cheapest schedule the search finds for a run, if it beats the run's own.
 fn schedule(
     run: &[Instruction],
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
@@ -1275,7 +1275,7 @@ fn schedule(
 /// schedule costs no more gas, as nothing of the original ran after the access.
 fn split_schedule(
     window: &[Instruction],
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
@@ -1326,7 +1326,7 @@ fn split_schedule(
 fn extend_scheduled(
     rebuilt: &mut Vec<Instruction>,
     run: &[Instruction],
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
@@ -1344,7 +1344,7 @@ fn extend_scheduled(
 }
 
 /// The price of a sequence's stack operations and pushes, which is all a schedule changes.
-fn price(instructions: &[Instruction], target: Target) -> u64 {
+fn price(instructions: &[Instruction], target: &Target) -> u64 {
     let cost = instructions
         .iter()
         .filter(|inst| !is_operation(inst))
@@ -1366,7 +1366,7 @@ fn observes_gas(inst: &Instruction) -> bool {
 fn spends_no_more_before_observations(
     original: &[Instruction],
     schedule: &[Instruction],
-    target: Target,
+    target: &Target,
 ) -> bool {
     let spent_before = |instructions: &[Instruction]| {
         let mut spent = 0u64;

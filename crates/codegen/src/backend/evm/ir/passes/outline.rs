@@ -104,7 +104,7 @@ fn may_share_pushes(gcx: Gcx<'_>) -> bool {
         return true;
     }
     let target = Target::new(gcx);
-    let (site_bytes, _, transfer_gas) = push_share_costs(target);
+    let (site_bytes, _, transfer_gas) = push_share_costs(&target);
     sharing_improves_lifetime(
         MAX_PUSH_LEN.saturating_sub(site_bytes),
         1,
@@ -126,8 +126,8 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
         return true;
     }
     let target = Target::new(gcx);
-    let transfer_size = transfer_size(target);
-    let transfer_gas = transfer_gas(target);
+    let transfer_size = transfer_size(&target);
+    let transfer_gas = transfer_gas(&target);
     let profitable = |size: usize| {
         sharing_improves_lifetime(
             size.saturating_sub(transfer_size),
@@ -190,21 +190,21 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
 /// push2 body
 /// jump
 /// jumpdest
-fn transfer_size(target: Target) -> usize {
+fn transfer_size(target: &Target) -> usize {
     (target.opcode(op::PUSH2).bytes * 2
         + target.opcode(op::JUMP).bytes
         + target.opcode(op::JUMPDEST).bytes) as usize
 }
 
 /// Returns the gas of one call and return, excluding the shared body's rotations.
-fn transfer_gas(target: Target) -> u32 {
+fn transfer_gas(target: &Target) -> u32 {
     target.opcode_gas(op::PUSH2) * 2
         + target.opcode_gas(op::JUMP) * 2
         + target.opcode_gas(op::JUMPDEST) * 2
 }
 
 /// Returns the per-site bytes, shared body bytes, and transfer gas of a push share.
-fn push_share_costs(target: Target) -> (usize, usize, u32) {
+fn push_share_costs(target: &Target) -> (usize, usize, u32) {
     // The shared body around the push:
     // jumpdest
     // swap1
@@ -234,7 +234,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     }
     let max_run_length = max_machine_run_length(repeated_instructions);
     let target = Target::new(gcx);
-    let transfer_size = transfer_size(target);
+    let transfer_size = transfer_size(&target);
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
     let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[Site; 2]>>::default();
@@ -364,7 +364,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         // not make the calls cold, even when every site is outside a loop.
         if gcx.sess.opts.optimization.is_gas() {
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
-            let transfer_gas = transfer_gas(target)
+            let transfer_gas = transfer_gas(&target)
                 + target.opcode_gas(op::SWAP1)
                     * u32::from(first.outputs.saturating_add(first.inputs));
             if !sharing_improves_lifetime(
@@ -768,7 +768,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     }
 
     let target = Target::new(gcx);
-    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(target);
+    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()

@@ -131,7 +131,7 @@ pub(super) struct Planner<'a> {
     func_id: FunctionId,
     func: &'a Function,
     liveness: &'a Liveness,
-    target: Target,
+    target: &'a Target,
     spilled: &'a DenseBitSet<ValueId>,
     hints: &'a FxHashMap<BlockId, Layout>,
     /// Whether the function is entered with a return address.
@@ -198,7 +198,7 @@ impl<'a> Planner<'a> {
         info: &'a ModuleInfo,
         func_id: FunctionId,
         analysis: &'a Analysis,
-        target: Target,
+        target: &'a Target,
         spilled: &'a DenseBitSet<ValueId>,
         ret_spilled: bool,
         batch_spills: bool,
@@ -2788,7 +2788,7 @@ pub(super) fn recomputable(
     func: &Function,
     cfg: &CfgInfo,
     internal: bool,
-    target: Target,
+    target: &Target,
 ) -> FxHashMap<ValueId, (Cost, u32)> {
     let mut values = FxHashMap::default();
     // Operands are defined before their users in reverse postorder; phis never qualify.
@@ -2832,7 +2832,7 @@ pub(super) fn recomputable(
 }
 
 /// The cost of pushing a value that is materialized at its use.
-fn materialize_cost(func: &Function, target: Target, value: ValueId) -> Cost {
+fn materialize_cost(func: &Function, target: &Target, value: ValueId) -> Cost {
     match func.value(value) {
         Value::Immediate(imm) => target.push(imm.as_u256().unwrap_or_default()),
         Value::Undef(_) => target.push(U256::ZERO),

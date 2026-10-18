@@ -584,7 +584,7 @@ impl MirInliner {
                         loop_costs = block_loop_costs(module.function(caller_id));
                     }
                     let new_summary = summarize_function(
-                        self.target,
+                        &self.target,
                         module,
                         module.function(caller_id),
                         self.peak_analysis(),
@@ -618,7 +618,7 @@ impl MirInliner {
                 (
                     id,
                     summarize_function(
-                        self.target,
+                        &self.target,
                         module,
                         func,
                         self.peak_analysis(),
@@ -852,8 +852,8 @@ impl MirInliner {
             && site.loop_depth == 0
             && summary.has_state_effect
             && summary.estimated_code_size
-                > estimated_icall_code_size(self.target, site)
-                    + estimated_internal_return_code_size(self.target, summary, site)
+                > estimated_icall_code_size(&self.target, site)
+                    + estimated_internal_return_code_size(&self.target, summary, site)
         {
             return false;
         }
@@ -876,11 +876,11 @@ impl MirInliner {
         const CODE_DEPOSIT_GAS_PER_BYTE: u128 = Target::CODE_DEPOSIT_GAS_PER_BYTE as u128;
 
         let inlined_bytes = summary.estimated_code_size;
-        let mut removed_bytes = estimated_icall_code_size(self.target, site);
+        let mut removed_bytes = estimated_icall_code_size(&self.target, site);
         if single_call {
             removed_bytes = removed_bytes.saturating_add(
                 summary.estimated_code_size
-                    + estimated_internal_return_code_size(self.target, summary, site),
+                    + estimated_internal_return_code_size(&self.target, summary, site),
             );
         }
         if inlined_bytes <= removed_bytes {
@@ -896,7 +896,7 @@ impl MirInliner {
         } else {
             site.loop_executions
         };
-        let execution_savings = u128::from(estimated_icall_savings(self.target, site, summary))
+        let execution_savings = u128::from(estimated_icall_savings(&self.target, site, summary))
             .saturating_mul(u128::from(self.target.expected_executions()))
             .saturating_mul(u128::from(loop_executions));
         execution_savings > added_deposit_cost
@@ -1091,7 +1091,7 @@ fn never_returns(callee: &Function) -> bool {
 }
 
 fn summarize_function(
-    target: Target,
+    target: &Target,
     module: &Module,
     func: &Function,
     peak: PeakAnalysis,
@@ -1535,7 +1535,7 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
 /// An operation that lowers to one opcode is priced by the target directly; immediates are
 /// left out throughout, as they are for those.
 fn estimate_inst_cost(
-    target: Target,
+    target: &Target,
     module: &Module,
     func: &Function,
     kind: &InstKind,
@@ -1730,7 +1730,7 @@ fn estimate_inst_cost(
 }
 
 /// Estimated code of a terminator, as the opcode sequence it emits priced by the target.
-fn estimate_terminator_cost(target: Target, term: &Terminator) -> Cost {
+fn estimate_terminator_cost(target: &Target, term: &Terminator) -> Cost {
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
     match term {
@@ -1755,7 +1755,7 @@ fn estimate_terminator_cost(target: Target, term: &Terminator) -> Cost {
     }
 }
 
-fn estimated_icall_savings(target: Target, site: CallSite, summary: MirInlineSummary) -> u64 {
+fn estimated_icall_savings(target: &Target, site: CallSite, summary: MirInlineSummary) -> u64 {
     let frame_words = (summary.internal_frame_size / EvmMemoryLayout::WORD_SIZE)
         + (EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE)
         + (site.args_len + site.returns) as u64;
@@ -1765,12 +1765,12 @@ fn estimated_icall_savings(target: Target, site: CallSite, summary: MirInlineSum
     u64::from(protocol + return_protocol) * loop_multiplier
 }
 
-fn estimated_icall_code_size(target: Target, site: CallSite) -> usize {
+fn estimated_icall_code_size(target: &Target, site: CallSite) -> usize {
     target.icall(site.args_len, site.returns, 0).bytes as usize
 }
 
 fn estimated_internal_return_code_size(
-    target: Target,
+    target: &Target,
     summary: MirInlineSummary,
     site: CallSite,
 ) -> usize {

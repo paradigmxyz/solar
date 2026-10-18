@@ -142,7 +142,7 @@ impl MirPass for LoadPre {
     ) -> bool {
         let target = Target::new(gcx);
         run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
-            let mut eliminator = LoadRedundancyEliminator::new(target);
+            let mut eliminator = LoadRedundancyEliminator::new(&target);
             eliminator.storage_only = matches!(self, Self::Storage);
             eliminator.alias = Some(Rc::clone(analyses.alias()));
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
@@ -169,14 +169,14 @@ impl LoadPreStats {
 
 /// Dataflow-based redundancy eliminator for memory-dependent reads.
 #[derive(Debug)]
-struct LoadRedundancyEliminator {
+struct LoadRedundancyEliminator<'a> {
     storage_only: bool,
     liveness: OnceCell<Liveness>,
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
     stats: LoadPreStats,
     alias: Option<Rc<AliasAnalysis>>,
-    target: Target,
+    target: &'a Target,
 }
 
 /// A normalized key for a state-dependent read.
@@ -229,8 +229,8 @@ struct Candidate {
 /// path, while a compensating load only executes on the paths where the value
 /// was unavailable.
 #[derive(Clone, Copy, Debug)]
-struct LoadPreCostModel {
-    target: Target,
+struct LoadPreCostModel<'a> {
+    target: &'a Target,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -258,7 +258,7 @@ struct LoadPreCostInput<'a> {
     needs_phi: bool,
 }
 
-impl LoadPreCostModel {
+impl LoadPreCostModel<'_> {
     const MEMORY_READ: i64 = GasTier::VeryLow.fixed_gas() as i64;
     const TRANSIENT_READ: i64 = GasTier::Transient.fixed_gas() as i64;
     const KECCAK_BASE: i64 = GasTier::Keccak.fixed_gas() as i64;
@@ -489,9 +489,9 @@ struct LoadScan {
     taken: KeySet,
 }
 
-impl LoadRedundancyEliminator {
+impl<'a> LoadRedundancyEliminator<'a> {
     /// Creates a new load PRE pass pricing reads on `target`.
-    fn new(target: Target) -> Self {
+    fn new(target: &'a Target) -> Self {
         Self {
             cfg: None,
             stats: LoadPreStats::default(),
