@@ -88,7 +88,7 @@ fn @erc7201Reference(arg0: ptr<memory>) -> i256 [pure] {
     v1 = mload arg0
     v2 = keccak256 v0, v1
     v3 = checked_sub uint256, v2, 1
-    v4 = shl 0, v3
+    v4 = shl v3, 0
     v5 = abi_encode_packed (bytes32 v4)
     v6 = ptradd v5, 32
     v7 = mload v5

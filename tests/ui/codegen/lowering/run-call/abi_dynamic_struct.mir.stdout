@@ -11,7 +11,7 @@ fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, 
     v1 = ptrtoint ptr<calldata> v0 to i256
     v2 = add v1, 32
     v3 = calldataload v2
-    v4 = shr 8, v3
+    v4 = shr v3, 8
     v5 = eq v4, 0
     v6 = eq v5, false
     icall revert_if<empty>, v6
@@ -270,7 +270,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptradd v7, 32
     v9 = ptrtoint ptr<memory> v3 to i256
@@ -441,7 +441,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptrtoint ptr<memory> v3 to i256
     mstore v7, v8
@@ -525,7 +525,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptradd v7, 32
     v9 = ptrtoint ptr<memory> v3 to i256
@@ -590,14 +590,14 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v45 = insert_value struct1, v44, 3, v41
     ret v45
   bb5:
-    v10 = shl 5, v8
+    v10 = shl v8, 5
     v11 = ptradd v7, v10
     v12 = ptradd v11, 32
     mstore v12, 96
     v13 = add v8, 1
     jump bb4
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -628,7 +628,7 @@ fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, a
     v15 = insert_value struct2, v14, 1, v13
     ret v15
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -664,7 +664,7 @@ fn @zeroNestedDynamicAggregateAfterScratch() -> i256 [selector=0x84af5c73, pure,
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptradd v7, 32
     v9 = ptrtoint ptr<memory> v3 to i256

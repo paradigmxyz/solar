@@ -184,7 +184,7 @@ fn @materialize(arg0: slice<calldata>) -> i256 [selector=0xaff36081, pure, abi_p
     v64 = extract_value slice<calldata>, v61, 1
     calldatacopy v62, v63, v64
     v65 = ptrtoint ptr<memory> v59 to i256
-    v66 = shl 5, v26
+    v66 = shl v26, 5
     v67 = ptradd v25, v66
     mstore v67, v65
     v68 = add v26, 1
@@ -278,7 +278,7 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x51efa653, pure, abi_param
     v64 = extract_value slice<calldata>, v61, 1
     calldatacopy v62, v63, v64
     v65 = ptrtoint ptr<memory> v59 to i256
-    v66 = shl 5, v26
+    v66 = shl v26, 5
     v67 = ptradd v25, v66
     mstore v67, v65
     v68 = add v26, 1

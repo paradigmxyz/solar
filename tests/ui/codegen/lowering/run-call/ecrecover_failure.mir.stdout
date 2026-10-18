@@ -50,7 +50,7 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
     icall revert_if<tuple_data_too_short>, v11
     v12 = add 0, 0
     v13 = mload v12
-    v14 = shr 160, v13
+    v14 = shr v13, 160
     v15 = eq v14, 0
     v16 = eq v15, false
     icall revert_if<empty>, v16

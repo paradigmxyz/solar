@@ -20,9 +20,9 @@ fn @file() -> ptr<memory> [selector=0x8525855d, view, abi_params=[], abi_returns
     v1 = alloc 32
     v2 = address
     v3 = zext i160 v2 to i256
-    v4 = shl 32, v3
+    v4 = shl v3, 32
     v5 = or v4, 0x78710d37
-    v6 = shl 64, v5
+    v6 = shl v5, 64
     mstore v1, v6
     ret v1
 }
@@ -32,15 +32,15 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[uint256], ab
     v0 = alloc 32
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0xeee97206
-    v5 = shl 64, v4
+    v5 = shl v4, 64
     mstore v0, v5
     v6 = mload v0
-    v7 = shr 64, v6
+    v7 = shr v6, 64
     v8 = and v7, 0xffffffff
-    v9 = shl 224, v8
-    v10 = shr 32, v7
+    v9 = shl v8, 224
+    v10 = shr v7, 32
     v11 = gas
     v12 = abi_encode [word], selector v9, args arg0
     v13 = extract_value slice<memory>, v12, 0
@@ -85,10 +85,10 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v10 = make_memory_slice v5, 32
     v11 = abi_decode [tuple<function>], v10
     v12 = mload v11
-    v13 = shr 64, v12
+    v13 = shr v12, 64
     v14 = and v13, 0xffffffff
-    v15 = shl 224, v14
-    v16 = shr 32, v13
+    v15 = shl v14, 224
+    v16 = shr v13, 32
     v17 = gas
     v18 = abi_encode [], selector v15
     v19 = extract_value slice<memory>, v18, 0

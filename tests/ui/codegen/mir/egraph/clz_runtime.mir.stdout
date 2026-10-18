@@ -45,9 +45,9 @@ fn @simplify(arg0: i256) -> struct1 [selector=0xb009c6b8, pure, abi_params=[uint
     v7 = eq v6, 256
     v8 = zext i1 v7 to i256
     v9 = clz arg0
-    v10 = shr 8, v9
+    v10 = shr v9, 8
     v11 = clz arg0
-    v12 = shr 9, v11
+    v12 = shr v11, 9
     v13 = clz arg0
     v14 = and v13, 511
     v15 = clz arg0

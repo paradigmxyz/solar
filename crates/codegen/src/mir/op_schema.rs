@@ -1468,7 +1468,10 @@ define_mir_ops! {
     #[builder(clz)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 1]))]
     Clz(a: ValueId),
-    /// Left shift: `a << b`
+    /// Left shift: `value << shift`.
+    ///
+    /// Shift operands are stored in EVM stack order, `shift` first, so selection and rewrite rules
+    /// match the opcodes directly. The builder, printer, and parser use `value, shift`.
     #[mir_op(
         mnemonic = "shl",
         result = Integer,
@@ -1478,10 +1481,9 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
-    #[builder(shl)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     Shl(shift: ValueId, value: ValueId),
-    /// Logical right shift: `a >> b`
+    /// Logical right shift: `value >> shift`, with shift operands stored like [`Self::Shl`].
     #[mir_op(
         mnemonic = "shr",
         result = Integer,
@@ -1491,10 +1493,10 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
-    #[builder(shr)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     Shr(shift: ValueId, value: ValueId),
-    /// Arithmetic right shift: `a >> b` (signed)
+    /// Arithmetic right shift: `value >> shift` (signed), with shift operands stored like
+    /// [`Self::Shl`].
     #[mir_op(
         mnemonic = "sar",
         result = Integer,
@@ -1504,7 +1506,6 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
-    #[builder(sar)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     Sar(shift: ValueId, value: ValueId),
     /// Extract a byte: `byte(i, x)`

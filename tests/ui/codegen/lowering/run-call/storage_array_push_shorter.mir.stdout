@@ -75,7 +75,7 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
     sstore v12, 0 !metadata(storage=symbolic(v12))
     jump bb6
   bb4:
-    v14 = shl 5, v10
+    v14 = shl v10, 5
     v15 = ptradd v0, v14
     v16 = mload v15
     sstore v12, v16 !metadata(storage=symbolic(v12))
@@ -153,7 +153,7 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb6
   bb4:
-    v12 = shl 5, v8
+    v12 = shl v8, 5
     v13 = ptradd v0, v12
     v14 = mload v13
     sstore v10, v14 !metadata(storage=symbolic(v10))
@@ -231,7 +231,7 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb6
   bb4:
-    v12 = shl 5, v8
+    v12 = shl v8, 5
     v13 = ptradd v0, v12
     v14 = mload v13
     sstore v10, v14 !metadata(storage=symbolic(v10))

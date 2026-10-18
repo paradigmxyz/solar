@@ -82,7 +82,7 @@ fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice
     v13 = ptrtoint ptr<calldata> v9 to i256
     v14 = add v13, v12
     v15 = calldataload v14
-    v16 = shr 160, v15
+    v16 = shr v15, 160
     v17 = eq v16, 0
     v18 = eq v17, false
     icall revert_if<empty>, v18
@@ -171,7 +171,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     v43 = ptrtoint ptr<calldata> v35 to i256
     v44 = add v43, v36
     v45 = calldataload v44
-    v46 = shr 160, v45
+    v46 = shr v45, 160
     v47 = eq v46, 0
     v48 = eq v47, false
     icall revert_if<empty>, v48

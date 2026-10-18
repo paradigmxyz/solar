@@ -27,18 +27,18 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     v16 = mod 0x10000000000000000, 32
     v17 = mul v16, 1
     v18 = mul v17, 8
-    v19 = shl v18, 255
+    v19 = shl 255, v18
     v20 = sload v15 !metadata(storage=offset(v14, 0x100000000000000000000000000000000000000010000000000000000))
     v21 = not v19
     v22 = and v20, v21
     v23 = and 13, 255
-    v24 = shl v18, v23
+    v24 = shl v23, v18
     v25 = or v22, v24
     sstore v15, v25 !metadata(storage=offset(v14, 0x100000000000000000000000000000000000000010000000000000000))
     sstore 0x100000000000000000000000000000000000000010800000000000001, 17 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000001))
-    v26 = shl 160, 1
+    v26 = shl 1, 160
     v27 = sub v26, 1
-    v28 = shl 160, 1
+    v28 = shl 1, 160
     v29 = add v28, 1
     v30 = mul 0xffffffffffffffff, v29
     v31 = add v30, v27
@@ -108,7 +108,7 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     v63 = mul v62, 1
     v64 = sload v61 !metadata(storage=offset(v60, 0x100000000000000000000000000000000000000010000000000000000))
     v65 = mul v63, 8
-    v66 = shr v65, v64
+    v66 = shr v64, v65
     v67 = trunc i256 v66 to i8
     v68 = eq v67, i8 13
     jump bb15

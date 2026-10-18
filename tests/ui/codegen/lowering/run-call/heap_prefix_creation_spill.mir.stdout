@@ -78,7 +78,7 @@ fn @_cloneDeterministic(arg0: i256, arg1: ptr<memory>, arg2: i256) -> i256 {
     v18 = ptrtoint ptr<memory> arg1 to i256
     v19 = sub v18, 13
     mstore v19, arg0
-    v20 = shl 72, v16
+    v20 = shl v16, 72
     v21 = or v20, 0x593da1005b363d3d373d3d3d3d610000806062363936013d73
     v22 = ptrtoint ptr<memory> arg1 to i256
     v23 = sub v22, 33
@@ -87,7 +87,7 @@ fn @_cloneDeterministic(arg0: i256, arg1: ptr<memory>, arg2: i256) -> i256 {
     v25 = sub v24, 58
     mstore v25, 0x9e4ac34f21c619cefc926c8bd93b54bf5a39c7ab2127a895af1cc0691d7e3dff
     v26 = add v16, 98
-    v27 = shl 120, v26
+    v27 = shl v26, 120
     v28 = or v27, 0xfd6100003d81600a3d39f336602c57343d527f
     v29 = lt v16, 0xff9e
     v30 = zext i1 v29 to i256
@@ -95,7 +95,7 @@ fn @_cloneDeterministic(arg0: i256, arg1: ptr<memory>, arg2: i256) -> i256 {
     v32 = ptrtoint ptr<memory> arg1 to i256
     v33 = sub v32, v31
     mstore v33, v28
-    v34 = shl 240, v16
+    v34 = shl v16, 240
     mstore v14, v34
     v35 = add v16, 108
     v36: i256 = create2 0, v0, v35, arg2

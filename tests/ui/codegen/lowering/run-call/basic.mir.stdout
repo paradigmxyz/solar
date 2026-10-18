@@ -165,7 +165,7 @@ fn @fill(arg0: i256) -> ptr<memory> [selector=0x3fda5389, pure, abi_params=[uint
     ret v5
   bb4:
     v8 = add v6, 7
-    v9 = shl 5, v6
+    v9 = shl v6, 5
     v10 = ptrtoint ptr<memory> v5 to i256
     v11 = add v10, v9
     mstore v11, v8

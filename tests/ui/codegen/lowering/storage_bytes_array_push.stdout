@@ -29,7 +29,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v97 = add v102, 32
     calldatacopy v97, v76, v81
     v0 = sload 0 !metadata(storage=slot(0))
-    v65 = shr 64, v0
+    v65 = shr v0, 64
     v1 = ne v65, 0
     jumpi v1, bb2, bb3
   bb3:
@@ -41,7 +41,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v7 = eq v6, 1
     v8 = sub 0, v6
     v9 = or v8, 127
-    v10 = shr 1, v5
+    v10 = shr v5, 1
     v11 = and v10, v9
     v12 = lt v11, 32
     v13 = eq v7, v12
@@ -49,12 +49,12 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb5:
     v15 = mload v102
     v18 = add v11, 31
-    v19 = shr 5, v18
+    v19 = shr v18, 5
     v20 = add v15, 31
     v21 = lt v20, v15
     jumpi v21, bb2, bb6
   bb6:
-    v22 = shr 5, v20
+    v22 = shr v20, 5
     v23 = lt v15, 32
     v67 = eq v23, false
     v68 = zext i1 v67 to i256
@@ -73,7 +73,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     sstore v4, v39 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     mstore 0, v4 !metadata(memory=scratch)
     v95 = keccak256 0, 32 !metadata(memory=scratch)
-    v41 = shr 5, v15
+    v41 = shr v15, 5
     jump bb11
   bb11:
     v42 = phi [bb10: 0], [bb12: v50]
@@ -84,18 +84,18 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v52 = eq v51, 0
     jumpi v52, bb1, bb14
   bb14:
-    v53 = shl 5, v41
+    v53 = shl v41, 5
     v56 = add v97, v53
     v57 = mload v56
     v58 = sub 32, v51
-    v59 = shl 3, v58
-    v62 = shl v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v59 = shl v58, 3
+    v62 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v59
     v63 = and v57, v62
     v64 = add v95, v41
     sstore v64, v63 !metadata(storage=symbolic(v64))
     jump bb1
   bb12:
-    v44 = shl 5, v42
+    v44 = shl v42, 5
     v47 = add v97, v44
     v48 = mload v47
     v49 = add v95, v42
@@ -105,8 +105,8 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb9:
     v29 = mload v97
     v30 = sub 32, v15
-    v31 = shl 3, v30
-    v34 = shl v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v31 = shl v30, 3
+    v34 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v31
     v35 = and v29, v34
     v36 = add v15, v15
     v37 = or v35, v36
@@ -142,14 +142,14 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
     v22 = eq v21, 1
     v23 = sub 0, v21
     v24 = or v23, 127
-    v25 = shr 1, v5
+    v25 = shr v5, 1
     v26 = and v25, v24
     v27 = lt v26, 32
     v28 = eq v22, v27
     jumpi v28, bb7, bb8
   bb8:
     v12 = add v26, 31
-    v13 = shr 5, v12
+    v13 = shr v12, 5
     jumpi v22, bb1, bb2
   bb1:
     mstore 0, v4 !metadata(memory=scratch)
@@ -213,7 +213,7 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
 fn @pushEmpty() [selector=0x19d30117, abi_wrapper] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
-    v5 = shr 64, v0
+    v5 = shr v0, 64
     v1 = ne v5, 0
     jumpi v1, bb1, bb2
   bb2:
@@ -232,14 +232,14 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     v3 = eq v2, 1
     v4 = sub 0, v2
     v5 = or v4, 127
-    v6 = shr 1, v1
+    v6 = shr v1, 1
     v7 = and v6, v5
     v8 = lt v7, 32
     v9 = eq v3, v8
     jumpi v9, bb1, bb2
   bb2:
     v10 = add v7, 31
-    v11 = shr 5, v10
+    v11 = shr v10, 5
     v12 = add v7, 63
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v35 = icall @alloc, v15
@@ -256,7 +256,7 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     v36 = add v35, 32
     v41 = gt v11, 0x20000000000000000
     v42 = select v41, 0x20000000000000000, v11
-    v43 = shl 5, v42
+    v43 = shl v42, 5
     v44 = add v35, v43
     v45 = add v44, 32
     jump bb6
@@ -318,7 +318,7 @@ fn @entry() [entry] {
     jumpi v1, bb6, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb6, [0x19d30117 => bb2, 0x5d7696c3 => bb3, 0x8f236983 => bb4, 0xe6e6accc => bb5]
   bb5:
     tail_call @pushStr

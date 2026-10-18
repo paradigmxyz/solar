@@ -40,7 +40,7 @@ fn @pairs(arg0: ptr<memory>) -> i256 [selector=0x054d20d9, pure, abi_params=[arr
     v6 = lt v2, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = shl 5, v2
+    v8 = shl v2, 5
     v9 = ptradd v0, v8
     v10 = ptradd v9, 32
     v11 = mload v10, ptr<memory>
@@ -50,7 +50,7 @@ fn @pairs(arg0: ptr<memory>) -> i256 [selector=0x054d20d9, pure, abi_params=[arr
     v15 = lt v2, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = shl 5, v2
+    v17 = shl v2, 5
     v18 = ptradd v0, v17
     v19 = ptradd v18, 32
     v20 = mload v19, ptr<memory>

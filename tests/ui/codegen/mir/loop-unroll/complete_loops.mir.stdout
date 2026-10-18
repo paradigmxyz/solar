@@ -25,7 +25,7 @@ fn @u32(arg0: slice<calldata>, arg1: i256) -> struct0 [pure] {
     ret v27
   bb4:
     v6 = trunc i256 v2 to i32
-    v7 = shl i32 8, v6
+    v7 = shl v6, i32 8
     v8 = extract_value slice<calldata>, v0, 1
     v9 = lt v3, v8
     v10 = eq v9, false
@@ -36,8 +36,8 @@ fn @u32(arg0: slice<calldata>, arg1: i256) -> struct0 [pure] {
     v14 = add v13, v3
     v15 = calldataload v14
     v16 = byte 0, v15
-    v17 = shl 248, v16
-    v18 = shr 248, v17
+    v17 = shl v16, 248
+    v18 = shr v17, 248
     v19 = trunc i256 v18 to i8
     v20 = zext i8 v19 to i32
     v21 = or v7, v20
@@ -71,7 +71,7 @@ fn @u16(arg0: slice<calldata>, arg1: i256) -> struct1 [pure] {
     ret v27
   bb4:
     v6 = trunc i256 v2 to i16
-    v7 = shl i16 8, v6
+    v7 = shl v6, i16 8
     v8 = extract_value slice<calldata>, v0, 1
     v9 = lt v3, v8
     v10 = eq v9, false
@@ -82,8 +82,8 @@ fn @u16(arg0: slice<calldata>, arg1: i256) -> struct1 [pure] {
     v14 = add v13, v3
     v15 = calldataload v14
     v16 = byte 0, v15
-    v17 = shl 248, v16
-    v18 = shr 248, v17
+    v17 = shl v16, 248
+    v18 = shr v17, 248
     v19 = trunc i256 v18 to i8
     v20 = zext i8 v19 to i16
     v21 = or v7, v20

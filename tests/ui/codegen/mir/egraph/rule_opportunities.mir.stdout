@@ -67,7 +67,7 @@ fn @toggleFlags(arg0: i256) -> i256 [selector=0x25ac3f2f, pure, abi_params=[uint
 
 fn @page(arg0: i256, arg1: i256) -> i256 [selector=0xebb9e69c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = shl arg1, 1
+    v0 = shl 1, arg1
     v1 = div arg0, v0
     ret v1
 }
@@ -147,20 +147,20 @@ fn @superset(arg0: i256, arg1: i256) -> i1 [selector=0x593fca78, pure, abi_param
 fn @shiftComplement(arg0: i256, arg1: i256) -> i256 [selector=0xf9567805, pure, abi_params=[int256, uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = not arg0
-    v1 = sar arg1, v0
+    v1 = sar v0, arg1
     ret v1
 }
 
 fn @signedNegative(arg0: i256) -> i1 [selector=0x9338d1e7, pure, abi_params=[int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = sar 12, arg0
+    v0 = sar arg0, 12
     v1 = slt v0, 0
     ret v1
 }
 
 fn @highSign(arg0: i256) -> i256 [selector=0x6d444306, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = sar 300, arg0
+    v0 = sar arg0, 300
     ret v0
 }
 
@@ -174,21 +174,21 @@ fn @signMask(arg0: i256) -> i256 [selector=0xa9e59b2f, pure, abi_params=[uint256
 fn @highByte(arg0: i256) -> i256 [selector=0xda715bfd, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = signextend 0, arg0
-    v1 = shr 248, v0
+    v1 = shr v0, 248
     ret v1
 }
 
 fn @realign(arg0: i256) -> i256 [selector=0x31820070, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = shl 8, arg0
-    v1 = shr 8, v0
+    v0 = shl arg0, 8
+    v1 = shr v0, 8
     ret v1
 }
 
 fn @clearLow(arg0: i256) -> i256 [selector=0xb70e19d9, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = shr 8, arg0
-    v1 = shl 8, v0
+    v0 = shr arg0, 8
+    v1 = shl v0, 8
     ret v1
 }
 
@@ -210,20 +210,20 @@ fn @booleanMask(arg0: i256, arg1: i256) -> i1 [selector=0xeaaf4de2, pure, abi_pa
 fn @complementSar(arg0: i256, arg1: i256) -> i256 [selector=0x2bf9b092, pure, abi_params=[int256, uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = not arg0
-    v1 = sar arg1, v0
+    v1 = sar v0, arg1
     v2 = not v1
     ret v2
 }
 
 fn @sarOnes(arg0: i256) -> i256 [selector=0xa65bff8d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = sar arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v0 = sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
     ret v0
 }
 
 fn @signedMinQuotient(arg0: i256) -> i256 [selector=0xd828c064, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = shl 255, 1
+    v0 = shl 1, 255
     v1 = sdiv arg0, v0
     ret v1
 }
@@ -237,7 +237,7 @@ fn @fixedComplement(arg0: i256) -> i1 [selector=0xd4c9e305, pure, abi_params=[ui
 
 fn @shiftedOrder(arg0: i256, arg1: i256) -> i1 [selector=0x8b0f8fc8, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = shr arg1, arg0
+    v0 = shr arg0, arg1
     v1 = gt v0, arg0
     ret v1
 }
@@ -275,24 +275,24 @@ fn @negatedParity(arg0: i256) -> i256 [selector=0xcd982929, pure, abi_params=[ui
 
 fn @signFromBit(arg0: i256) -> i256 [selector=0x0ea5e797, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = shr 255, arg0
+    v0 = shr arg0, 255
     v1 = sub 0, v0
     ret v1
 }
 
 fn @shiftedDistance(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x7b3b8d06, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = shl arg2, arg0
-    v1 = shl arg2, arg1
+    v0 = shl arg0, arg2
+    v1 = shl arg1, arg2
     v2 = sub v0, v1
     ret v2
 }
 
 fn @extractMasked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe932a70a, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = shl arg2, arg0
+    v0 = shl arg0, arg2
     v1 = and v0, arg1
-    v2 = shr arg2, v1
+    v2 = shr v1, arg2
     ret v2
 }
 
@@ -348,7 +348,7 @@ fn @alternatingSign(arg0: i256) -> i256 [selector=0x85436958, pure, abi_params=[
 
 fn @signedTopByte(arg0: i256) -> i256 [selector=0x22097a71, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = shr 248, arg0
+    v0 = shr arg0, 248
     v1 = signextend 0, v0
     ret v1
 }

@@ -1945,7 +1945,7 @@ impl<'a> CheckEliminator<'a> {
         if let Some(truth) = self.eval_muldiv_roundtrip(func, b, a, depth) {
             return Some(truth);
         }
-        // Its doubling form `eq (shr 1, (add x, x)), x` holds iff `x + x` did not wrap.
+        // Its doubling form `eq (shr (add x, x), 1), x` holds iff `x + x` did not wrap.
         for (shifted, expected) in [(a, b), (b, a)] {
             if let Some(&InstKind::Shr(count, sum)) = inst_kind(func, shifted)
                 && const_of(func, count) == Some(U256::from(1))
@@ -1955,7 +1955,7 @@ impl<'a> CheckEliminator<'a> {
                 return Some(true);
             }
         }
-        // A product by `2^k` tests `eq (shr k, (shl k, x)), x`, which holds iff the left
+        // A product by `2^k` tests `eq (shr (shl x, k), k), x`, which holds iff the left
         // shift kept every bit of `x` within its width, as a calldata element offset `i * 32`
         // does for `i < length` once decoding bounded the length.
         for (shifted, expected) in [(a, b), (b, a)] {

@@ -161,7 +161,7 @@ impl PackedEncoder<'_, '_> {
                         *value
                     } else {
                         let shift = self.builder.imm((32 - *length) * 8);
-                        self.builder.shl(shift, *value)
+                        self.builder.shl(*value, shift)
                     };
                     self.builder.memory_store_word(output, offset, value);
                     let length = self.builder.imm(*length);
@@ -243,7 +243,7 @@ impl PackedEncoder<'_, '_> {
                         *value
                     } else {
                         let shift = self.builder.imm((32 - *length) * 8);
-                        self.builder.shl(shift, *value)
+                        self.builder.shl(*value, shift)
                     };
                     let dest = self.packed_scratch_offset(cursor.or(base), offset);
                     self.builder.store(dest, value);
@@ -464,7 +464,7 @@ impl PackedEncoder<'_, '_> {
                     term
                 } else {
                     let right = self.builder.imm(right);
-                    self.builder.shr(right, term)
+                    self.builder.shr(term, right)
                 };
                 value = self.builder.or(value, term);
                 continue;
@@ -480,7 +480,7 @@ impl PackedEncoder<'_, '_> {
                 term
             } else {
                 let shift = self.builder.imm(shift);
-                self.builder.shl(shift, term)
+                self.builder.shl(term, shift)
             };
             value = self.builder.or(value, term);
         }

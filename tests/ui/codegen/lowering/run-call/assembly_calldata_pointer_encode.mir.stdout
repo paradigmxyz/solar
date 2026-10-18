@@ -116,7 +116,7 @@ fn @structFirst() -> i8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[
     v2 = ptrtoint ptr<calldata> v1 to i256
     v3 = add v2, 0
     v4 = calldataload v3
-    v5 = shr 8, v4
+    v5 = shr v4, 8
     v6 = eq v5, 0
     v7 = eq v6, false
     icall revert_if<empty>, v7

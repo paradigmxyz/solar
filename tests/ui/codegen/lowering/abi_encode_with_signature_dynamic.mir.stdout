@@ -27,8 +27,8 @@ fn @encodeRuntime(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xc69a
     v0 = ptradd arg0, 32
     v1 = mload arg0
     v2 = keccak256 v0, v1
-    v3 = shr 224, v2
-    v4 = shl 224, v3
+    v3 = shr v2, 224
+    v4 = shl v3, 224
     v5 = abi_encode [word], object, selector v4, args arg1
     ret v5
 }

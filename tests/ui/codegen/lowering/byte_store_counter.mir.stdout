@@ -48,16 +48,16 @@ fn @encodeImpl(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v16 = ptradd v15, 32
     v17 = mload v16
     v18 = byte 0, v17
-    v19 = shl 248, v18
-    v20 = shr 248, v19
+    v19 = shl v18, 248
+    v20 = shr v19, 248
     v21 = trunc i256 v20 to i8
     v22 = zext i8 v21 to i256
-    v23 = shr 4, v22
+    v23 = shr v22, 4
     v24 = lt v23, 16
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = byte v23, 0x3031323334353637383961626364656600000000000000000000000000000000
-    v27 = shl 248, v26
+    v27 = shl v26, 248
     v28 = checked_mul uint256, 2, v9
     v29 = mload v8
     v30 = lt v28, v29
@@ -72,7 +72,7 @@ fn @encodeImpl(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v37 = eq v36, false
     icall panic_if<0x32>, v37
     v38 = byte v35, 0x3031323334353637383961626364656600000000000000000000000000000000
-    v39 = shl 248, v38
+    v39 = shl v38, 248
     v40 = checked_mul uint256, 2, v9
     v41 = checked_add uint256, v40, 1
     v42 = mload v8
@@ -129,7 +129,7 @@ fn @scanImpl(arg0: ptr<memory>) -> i1 [pure] {
     v9 = ptradd v8, 32
     v10 = mload v9
     v11 = byte 0, v10
-    v12 = shl 248, v11
+    v12 = shl v11, 248
     v13 = gt v12, 0x7f00000000000000000000000000000000000000000000000000000000000000
     jumpi v13, bb7, bb8
   bb8:
@@ -169,7 +169,7 @@ fn @firstHigh(arg0: ptr<memory>) -> i256 [selector=0xec31a730, pure, abi_params=
     v9 = ptradd v8, 32
     v10 = mload v9
     v11 = byte 0, v10
-    v12 = shl 248, v11
+    v12 = shl v11, 248
     v13 = gt v12, 0x7f00000000000000000000000000000000000000000000000000000000000000
     jumpi v13, bb7, bb8
   bb8:
@@ -218,7 +218,7 @@ fn @checkedScan(arg0: i256) -> i1 [selector=0xf2609747, pure, abi_params=[uint25
     v17 = ptradd v16, 32
     v18 = mload v17
     v19 = byte 0, v18
-    v20 = shl 248, v19
+    v20 = shl v19, 248
     v21 = gt v20, 0x7f00000000000000000000000000000000000000000000000000000000000000
     jumpi v21, bb7, bb8
   bb8:

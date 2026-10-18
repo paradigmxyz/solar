@@ -13,12 +13,12 @@ fn @addTwo(arg0: i256) -> i256 [selector=0xcae57913, pure, abi_params=[uint256],
 
 fn @store(arg0: i256) [selector=0xf018a0a7, abi_params=[function], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = shl 64, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v0 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, 64
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = not v0
     v3 = and v1, v2
     v4 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = shl 64, v4
+    v5 = shl v4, 64
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
     ret
@@ -27,8 +27,8 @@ fn @store(arg0: i256) [selector=0xf018a0a7, abi_params=[function], abi_returns=[
 fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffff
-    v1 = shl 224, v0
-    v2 = shr 32, arg0
+    v1 = shl v0, 224
+    v2 = shr arg0, 32
     v3 = gas
     v4 = abi_encode [word], selector v1, args 7
     v5 = extract_value slice<memory>, v4, 0
@@ -72,7 +72,7 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     revert_returndata
   bb2:
     v16 = zext i160 v14 to i256
-    v17 = shl 32, v16
+    v17 = shl v16, 32
     v18 = or v17, 0xcae57913
     v19 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v18
     v20 = extract_value slice<memory>, v19, 0
@@ -91,7 +91,7 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     v28 = trunc i256 v27 to i64
     v29 = zext i64 v28 to i256
     v30 = sload 0 !metadata(storage=slot(0))
-    v31 = shr 64, v30
+    v31 = shr v30, 64
     v32 = trunc i256 v31 to i192
     v33 = zext i192 v32 to i256
     v34 = icall @internal_dispatcher_p_function_r_uint256, v29, v33

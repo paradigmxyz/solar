@@ -19,7 +19,7 @@ fn @decode(arg0: ptr<memory>) -> struct0 [selector=0xe5c5e9a3, abi_params=[bytes
     v8 = ptradd v3, 32
     v9 = mload v8
     v10 = byte 0, v9
-    v11 = shl 248, v10
+    v11 = shl v10, 248
     v12 = insert_value struct0, undef struct0, 0, v2
     v13 = insert_value struct0, v12, 1, v4
     v14 = insert_value struct0, v13, 2, v11

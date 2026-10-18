@@ -34,7 +34,7 @@ fn @code(arg0: i160) -> ptr<memory> [selector=0x5b90b752, view, abi_params=[addr
 fn @addressFromBytes20(arg0: i256) -> i160 [selector=0x247e14fa, pure, abi_params=[bytes20], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v1 = shr 96, v0
+    v1 = shr v0, 96
     v2 = trunc i256 v1 to i160
     ret v2
 }

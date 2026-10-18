@@ -24,13 +24,13 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v21 = lt v20, v1
     jumpi v21, bb7, bb8
   bb8:
-    v40 = shr 2, v1
+    v40 = shr v1, 2
     v41 = and v1, 3
     v42 = eq v41, 0
     jumpi v42, bb10, bb9
   bb9:
     v43 = mul v41, 64
-    v44 = shl v43, 1
+    v44 = shl 1, v43
     v45 = sub v44, 1
     v46 = storage_array_data_slot 0
     v47 = add v46, v40
@@ -49,12 +49,12 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v56 = mod 9, 4
     v57 = mul v56, 8
     v58 = mul v57, 8
-    v59 = shl v58, 0xffffffffffffffff
+    v59 = shl 0xffffffffffffffff, v58
     v60 = sload v55 !metadata(storage=symbolic(v55))
     v61 = not v59
     v62 = and v60, v61
     v63 = and 2, 0xffffffffffffffff
-    v64 = shl v58, v63
+    v64 = shl v63, v58
     v65 = or v62, v64
     sstore v55, v65 !metadata(storage=symbolic(v55))
     v66 = icall @load_storage_packed_array_8_0, 0
@@ -79,13 +79,13 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v88 = lt v87, v68
     jumpi v88, bb17, bb18
   bb18:
-    v107 = shr 2, v68
+    v107 = shr v68, 2
     v108 = and v68, 3
     v109 = eq v108, 0
     jumpi v109, bb20, bb19
   bb19:
     v110 = mul v108, 64
-    v111 = shl v110, 1
+    v111 = shl 1, v110
     v112 = sub v111, 1
     v113 = storage_array_data_slot 1
     v114 = add v113, v107
@@ -105,13 +105,13 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v124 = mul v123, 8
     v125 = sload v122 !metadata(storage=symbolic(v122))
     v126 = mul v124, 8
-    v127 = shr v126, v125
+    v127 = shr v125, v126
     v128 = trunc i256 v127 to i64
     v129 = zext i64 v128 to i256
     v130 = icall @internal_dispatcher_p_none_r_uint256, v129
     ret v130
   bb17:
-    v89 = shl 5, v87
+    v89 = shl v87, 5
     v90 = ptradd v66, v89
     v91 = ptradd v90, 32
     v92 = mload v91
@@ -121,12 +121,12 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v96 = mod v87, 4
     v97 = mul v96, 8
     v98 = mul v97, 8
-    v99 = shl v98, 0xffffffffffffffff
+    v99 = shl 0xffffffffffffffff, v98
     v100 = sload v95 !metadata(storage=symbolic(v95))
     v101 = not v99
     v102 = and v100, v101
     v103 = and v92, 0xffffffffffffffff
-    v104 = shl v98, v103
+    v104 = shl v103, v98
     v105 = or v102, v104
     sstore v95, v105 !metadata(storage=symbolic(v95))
     v106 = add v87, 1
@@ -138,18 +138,18 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v76 = mod v71, 4
     v77 = mul v76, 8
     v78 = mul v77, 8
-    v79 = shl v78, 0xffffffffffffffff
+    v79 = shl 0xffffffffffffffff, v78
     v80 = sload v75 !metadata(storage=symbolic(v75))
     v81 = not v79
     v82 = and v80, v81
     v83 = and 0, 0xffffffffffffffff
-    v84 = shl v78, v83
+    v84 = shl v83, v78
     v85 = or v82, v84
     sstore v75, v85 !metadata(storage=symbolic(v75))
     v86 = add v71, 1
     jump bb13
   bb7:
-    v22 = shl 5, v20
+    v22 = shl v20, 5
     v23 = ptradd v0, v22
     v24 = ptradd v23, 32
     v25 = mload v24
@@ -159,12 +159,12 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v29 = mod v20, 4
     v30 = mul v29, 8
     v31 = mul v30, 8
-    v32 = shl v31, 0xffffffffffffffff
+    v32 = shl 0xffffffffffffffff, v31
     v33 = sload v28 !metadata(storage=symbolic(v28))
     v34 = not v32
     v35 = and v33, v34
     v36 = and v25, 0xffffffffffffffff
-    v37 = shl v31, v36
+    v37 = shl v36, v31
     v38 = or v35, v37
     sstore v28, v38 !metadata(storage=symbolic(v28))
     v39 = add v20, 1
@@ -176,12 +176,12 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v9 = mod v4, 4
     v10 = mul v9, 8
     v11 = mul v10, 8
-    v12 = shl v11, 0xffffffffffffffff
+    v12 = shl 0xffffffffffffffff, v11
     v13 = sload v8 !metadata(storage=symbolic(v8))
     v14 = not v12
     v15 = and v13, v14
     v16 = and 0, 0xffffffffffffffff
-    v17 = shl v11, v16
+    v17 = shl v16, v11
     v18 = or v15, v17
     sstore v8, v18 !metadata(storage=symbolic(v8))
     v19 = add v4, 1

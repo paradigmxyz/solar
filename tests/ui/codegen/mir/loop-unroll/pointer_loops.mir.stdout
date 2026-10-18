@@ -43,7 +43,7 @@ fn @toHex(arg0: ptr<memory>) -> ptr<memory> [selector=0xc5bec6fc, pure, abi_para
     v24 = add v11, 1
     mstore8 v24, v23
     v25 = mload v20
-    v26 = shr 4, v25
+    v26 = shr v25, 4
     v27 = and v26, 15
     v28 = mload v27
     mstore8 v11, v28
@@ -60,7 +60,7 @@ fn @sumWords(arg0: ptr<memory>) -> i256 [selector=0x5a761098, pure, abi_params=[
     v1 = add v0, 32
     v2 = ptrtoint ptr<memory> arg0 to i256
     v3 = mload arg0
-    v4 = shl 5, v3
+    v4 = shl v3, 5
     v5 = add v1, v4
     jump bb1
   bb1:

@@ -81,7 +81,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, abi_params=[array<
     v140 = checked_add uint256, v128, v139
     ret v140
   bb13:
-    v95 = shl 5, v93
+    v95 = shl v93, 5
     v96 = ptradd v22, v95
     v97 = ptradd v96, 32
     v98 = mload v97, ptr<memory>
@@ -111,7 +111,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, abi_params=[array<
     v120 = add v93, 1
     jump bb12
   bb21:
-    v112 = shl 5, v110
+    v112 = shl v110, 5
     v113 = inttoptr i256 v101 to ptr<memory>
     v114 = ptradd v113, v112
     v115 = ptradd v114, 32
@@ -208,7 +208,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, abi_params=[array<
     v73 = ptrtoint ptr<memory> v67 to i256
     mstore v40, v73
     v74 = ptrtoint ptr<memory> v40 to i256
-    v75 = shl 5, v23
+    v75 = shl v23, 5
     v76 = ptradd v22, v75
     v77 = ptradd v76, 32
     mstore v77, v74

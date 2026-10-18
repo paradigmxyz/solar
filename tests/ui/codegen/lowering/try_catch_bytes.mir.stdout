@@ -67,7 +67,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
     v18 = mload v17
-    v19 = shr 224, v18
+    v19 = shr v18, 224
     jumpi true, bb4, bb5
   bb5:
     revert v15, v16
@@ -104,7 +104,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
     v18 = mload v17
-    v19 = shr 224, v18
+    v19 = shr v18, 224
     jumpi true, bb4, bb5
   bb5:
     revert v15, v16

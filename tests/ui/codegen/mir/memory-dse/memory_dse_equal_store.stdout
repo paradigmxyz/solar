@@ -9,11 +9,11 @@
       ret v0
   }
   
-  fn @keep_equal_store_after_copy(arg0: i256, arg1: i256) -> i256 {
+  fn @remove_copy_and_equal_store(arg0: i256, arg1: i256) -> i256 {
     bb0:
--     mstore 128, arg0
-      calldatacopy 128, arg1, 32
       mstore 128, arg0
+-     calldatacopy 128, arg1, 32
+-     mstore 128, arg0
 -     v0 = mload 128
 -     ret v0
 +     ret arg0
@@ -47,5 +47,17 @@
     bb3:
       v0 = mload 128
       ret v0
+  }
+  
+  fn @keep_equal_store_after_observed_copy(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     mstore 128, arg0
+      calldatacopy 128, arg1, 32
+      v0 = keccak256 128, 32
+      mstore 128, arg0
+-     v1 = mload 128
+-     v2 = xor v0, v1
++     v2 = xor v0, arg0
+      ret v2
   }
   

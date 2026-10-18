@@ -391,7 +391,10 @@ fn display_inst_kind<'a>(
         func: &Function,
     ) -> fmt::Result {
         write!(f, "{}", kind.mnemonic())?;
-        let operands = kind.operands();
+        let mut operands = kind.operands();
+        if kind.reverses_text_operands() {
+            operands.reverse();
+        }
         if !operands.is_empty() {
             write!(
                 f,

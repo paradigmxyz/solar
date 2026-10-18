@@ -235,7 +235,7 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v14 = extract_value slice<memory>, v12, 1
     v15 = extract_value slice<memory>, v12, 0
     v16 = mload v15
-    v17 = shr 224, v16
+    v17 = shr v16, 224
     jumpi true, bb4, bb5
   bb5:
     revert v13, v14
@@ -341,7 +341,7 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v15 = extract_value slice<memory>, v13, 1
     v16 = extract_value slice<memory>, v13, 0
     v17 = mload v16
-    v18 = shr 224, v17
+    v18 = shr v17, 224
     jumpi true, bb4, bb5
   bb5:
     revert v14, v15

@@ -26,13 +26,13 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
     v4 = mod 6, 3
     v5 = mul v4, 9
     v6 = mul v5, 8
-    v7 = shl v6, 0xffffffffffffffffff
+    v7 = shl 0xffffffffffffffffff, v6
     v8 = sload v3 !metadata(storage=symbolic(v2))
     v9 = not v7
     v10 = and v8, v9
-    v11 = shr 184, 0x60000000000000000000000000000000000000000000000
+    v11 = shr 0x60000000000000000000000000000000000000000000000, 184
     v12 = and v11, 0xffffffffffffffffff
-    v13 = shl v6, v12
+    v13 = shl v12, v6
     v14 = or v10, v13
     sstore v3, v14 !metadata(storage=symbolic(v2))
     sstore 3, 11 !metadata(storage=slot(3))
@@ -44,13 +44,13 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
     v19 = mod 2, 1
     v20 = mul v19, 17
     v21 = mul v20, 8
-    v22 = shl v21, 0xffffffffffffffffffffffffffffffffff
+    v22 = shl 0xffffffffffffffffffffffffffffffffff, v21
     v23 = sload v18 !metadata(storage=offset(v17, 4))
     v24 = not v22
     v25 = and v23, v24
-    v26 = shr 120, 0x3000000000000000000000000000000
+    v26 = shr 0x3000000000000000000000000000000, 120
     v27 = and v26, 0xffffffffffffffffffffffffffffffffff
-    v28 = shl v21, v27
+    v28 = shl v27, v21
     v29 = or v25, v28
     sstore v18, v29 !metadata(storage=offset(v17, 4))
     sstore 7, 12 !metadata(storage=slot(7))
@@ -62,12 +62,12 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
     v34 = mod 2, 2
     v35 = mul v34, 16
     v36 = mul v35, 8
-    v37 = shl v36, 0xffffffffffffffffffffffffffffffff
+    v37 = shl 0xffffffffffffffffffffffffffffffff, v36
     v38 = sload v33 !metadata(storage=offset(v32, 8))
     v39 = not v37
     v40 = and v38, v39
     v41 = and 3, 0xffffffffffffffffffffffffffffffff
-    v42 = shl v36, v41
+    v42 = shl v41, v36
     v43 = or v40, v42
     sstore v33, v43 !metadata(storage=offset(v32, 8))
     sstore 10, 13 !metadata(storage=slot(10))
@@ -80,8 +80,8 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
     v49 = mul v48, 9
     v50 = sload v47 !metadata(storage=symbolic(v46))
     v51 = mul v49, 8
-    v52 = shr v51, v50
-    v53 = shl 184, v52
+    v52 = shr v50, v51
+    v53 = shl v52, 184
     v54 = sload 3 !metadata(storage=slot(3))
     v55 = lt 2, 3
     v56 = eq v55, false
@@ -92,8 +92,8 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
     v60 = mul v59, 17
     v61 = sload v58 !metadata(storage=offset(v57, 4))
     v62 = mul v60, 8
-    v63 = shr v62, v61
-    v64 = shl 120, v63
+    v63 = shr v61, v62
+    v64 = shl v63, 120
     v65 = sload 7 !metadata(storage=slot(7))
     v66 = lt 2, 3
     v67 = eq v66, false
@@ -104,7 +104,7 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
     v71 = mul v70, 16
     v72 = sload v69 !metadata(storage=offset(v68, 8))
     v73 = mul v71, 8
-    v74 = shr v73, v72
+    v74 = shr v72, v73
     v75 = trunc i256 v74 to i128
     v76 = sload 10 !metadata(storage=slot(10))
     v77 = insert_value struct1, undef struct1, 0, v53
@@ -163,9 +163,9 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v59 = mul v58, 9
     v60 = sload v57 !metadata(storage=symbolic(v56))
     v61 = mul v59, 8
-    v62 = shr v61, v60
-    v63 = shl 184, v62
-    v64 = shr 184, v63
+    v62 = shr v60, v61
+    v63 = shl v62, 184
+    v64 = shr v63, 184
     v65 = trunc i256 v64 to i72
     v66 = lt 1, 10
     v67 = eq v66, false
@@ -173,7 +173,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v68 = add 11, 1
     v69 = sload v68 !metadata(storage=slot(12))
     v70 = and v69, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    v71 = shr 184, v70
+    v71 = shr v70, 184
     v72 = trunc i256 v71 to i72
     v73 = lt 6, 10
     v74 = eq v73, false
@@ -181,7 +181,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v75 = add 11, 6
     v76 = sload v75 !metadata(storage=slot(17))
     v77 = and v76, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    v78 = shr 184, v77
+    v78 = shr v77, 184
     v79 = trunc i256 v78 to i72
     v80 = lt 9, 10
     v81 = eq v80, false
@@ -201,7 +201,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     sstore v48, 0 !metadata(storage=offset(v46, 11))
     jump bb15
   bb13:
-    v50 = shl 5, v46
+    v50 = shl v46, 5
     v51 = ptradd v31, v50
     v52 = mload v51
     sstore v48, v52 !metadata(storage=offset(v46, 11))
@@ -216,9 +216,9 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v37 = mul v36, 9
     v38 = sload v35 !metadata(storage=symbolic(v34))
     v39 = mul v37, 8
-    v40 = shr v39, v38
-    v41 = shl 184, v40
-    v42 = shl 5, v32
+    v40 = shr v38, v39
+    v41 = shl v40, 184
+    v42 = shl v32, 5
     v43 = ptradd v31, v42
     mstore v43, v41
     v44 = add v32, 1
@@ -226,7 +226,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
   bb4:
     v6 = trunc i256 v4 to i72
     v7 = zext i72 v6 to i256
-    v8 = shl 184, v7
+    v8 = shl v7, 184
     v9 = lt v4, 7
     v10 = eq v9, false
     icall panic_if<0x32>, v10
@@ -235,13 +235,13 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v13 = mod v4, 3
     v14 = mul v13, 9
     v15 = mul v14, 8
-    v16 = shl v15, 0xffffffffffffffffff
+    v16 = shl 0xffffffffffffffffff, v15
     v17 = sload v12 !metadata(storage=symbolic(v11))
     v18 = not v16
     v19 = and v17, v18
-    v20 = shr 184, v8
+    v20 = shr v8, 184
     v21 = and v20, 0xffffffffffffffffff
-    v22 = shl v15, v21
+    v22 = shl v21, v15
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v11))
     jump bb6

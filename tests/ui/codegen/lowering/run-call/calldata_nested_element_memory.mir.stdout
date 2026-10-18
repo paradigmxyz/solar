@@ -158,7 +158,7 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     jumpi v85, bb5, bb6
   bb6:
     v96 = ptrtoint ptr<memory> v83 to i256
-    v97 = shl 5, v50
+    v97 = shl v50, 5
     v98 = ptradd v49, v97
     v99 = ptradd v98, 32
     mstore v99, v96
@@ -168,11 +168,11 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v86 = mul v84, 32
     v87 = add v71, v86
     v88 = calldataload v87
-    v89 = shr 8, v88
+    v89 = shr v88, 8
     v90 = eq v89, 0
     v91 = eq v90, false
     icall revert_if<empty>, v91
-    v92 = shl 5, v84
+    v92 = shl v84, 5
     v93 = ptradd v83, v92
     v94 = ptradd v93, 32
     mstore v94, v88
@@ -303,7 +303,7 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     jumpi v61, bb5, bb6
   bb6:
     v72 = ptrtoint ptr<memory> v59 to i256
-    v73 = shl 5, v26
+    v73 = shl v26, 5
     v74 = ptradd v25, v73
     mstore v74, v72
     v75 = add v26, 1
@@ -312,11 +312,11 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     v62 = mul v60, 32
     v63 = add v47, v62
     v64 = calldataload v63
-    v65 = shr 8, v64
+    v65 = shr v64, 8
     v66 = eq v65, 0
     v67 = eq v66, false
     icall revert_if<empty>, v67
-    v68 = shl 5, v60
+    v68 = shl v60, 5
     v69 = ptradd v59, v68
     v70 = ptradd v69, 32
     mstore v70, v64
@@ -467,7 +467,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v74 = extract_value slice<calldata>, v72, 1
     calldatacopy v61, v73, v74
     v75 = ptrtoint ptr<memory> v61 to i256
-    v76 = shl 5, v50
+    v76 = shl v50, 5
     v77 = ptradd v49, v76
     v78 = ptradd v77, 32
     mstore v78, v75
@@ -477,7 +477,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v64 = mul v62, 32
     v65 = add v60, v64
     v66 = calldataload v65
-    v67 = shr 8, v66
+    v67 = shr v66, 8
     v68 = eq v67, 0
     v69 = eq v68, false
     icall revert_if<empty>, v69

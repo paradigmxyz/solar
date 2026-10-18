@@ -12,7 +12,7 @@
 // CHECK: + jump bb4
 fn @fits(arg0: i256) -> i256 {
   bb0:
-    v0 = shr 32, arg0
+    v0 = shr arg0, 32
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
   bb1:
@@ -28,7 +28,7 @@ fn @fits(arg0: i256) -> i256 {
 
 fn @overflows(arg0: i256) -> i256 {
   bb0:
-    v0 = shr 32, arg0
+    v0 = shr arg0, 32
     v1 = ne v0, 0
     jumpi v1, bb2, bb1
   bb1:

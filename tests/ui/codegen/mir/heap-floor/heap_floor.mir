@@ -383,7 +383,7 @@ fn @branch_loads() -> i256 [selector=0x1234567d] {
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
 // CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
 // CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
-// CHECK-NEXT: [[FACTOR:v[0-9]+]] = shl 255, 1
+// CHECK-NEXT: [[FACTOR:v[0-9]+]] = shl 1, 255
 // CHECK-NEXT: [[SCALED:v[0-9]+]] = checked_mul uint256, [[WORD]], [[FACTOR]]
 // CHECK-NEXT: - mstore [[SCALED]], 1
 // CHECK-NEXT: + [[COPY:v[0-9]+]] = mul [[CLAMPED]], [[FACTOR]]
@@ -393,7 +393,7 @@ fn @checked_scale() -> i256 [selector=0x1234567e] {
     v0 = calldataload 4
     mstore 64, v0
     v1 = mload 64
-    v2 = shl 255, 1
+    v2 = shl 1, 255
     v3 = checked_mul uint256, v1, v2
     mstore v3, 1
     ret v1
@@ -683,7 +683,7 @@ fn @byte_at_computed_index() -> i256 [selector=0x1234568d] {
 // So can an element at a computed index.
 // CHECK-LABEL: {{^[ +].*}}fn @element_at_computed_index{{[( ]}}
 // CHECK: mstore 64, {{v[0-9]+}}
-// CHECK: [[OFF1:v[0-9]+]] = shl 5, {{v[0-9]+}}
+// CHECK: [[OFF1:v[0-9]+]] = shl {{v[0-9]+}}, 5
 // CHECK-NEXT: [[DATA:v[0-9]+]] = ptradd {{v[0-9]+}}, 32
 // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[DATA]], [[OFF1]]
 // CHECK-NEXT: mload [[ELEM]]
@@ -696,7 +696,7 @@ fn @element_at_computed_index() -> i256 [selector=0x1234568e] {
     v1 = calldataload 4
     v2 = calldataload 36
     mstore 64, v2
-    v105 = shl 5, v1
+    v105 = shl v1, 5
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v105
     v3 = mload v9002

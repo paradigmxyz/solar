@@ -13,9 +13,9 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     mstore v1, 96
     v2 = address
     v3 = zext i160 v2 to i256
-    v4 = shl 32, v3
+    v4 = shl v3, 32
     v5 = or v4, 0xd4b83992
-    v6 = shl 64, v5
+    v6 = shl v5, 64
     mstore v0, v6
     v7 = alloc 64 !metadata(preserves_fmp)
     mstore v7, 1

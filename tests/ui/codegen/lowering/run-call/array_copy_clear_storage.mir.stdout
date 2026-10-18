@@ -92,7 +92,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v63 = sload v62 !metadata(storage=offset(v61, 3))
     ret v63
   bb7:
-    v35 = shl 5, v33
+    v35 = shl v33, 5
     v36 = ptradd v20, v35
     v37 = ptradd v36, 32
     v38 = mload v37

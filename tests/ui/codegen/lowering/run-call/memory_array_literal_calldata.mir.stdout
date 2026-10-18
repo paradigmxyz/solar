@@ -37,7 +37,7 @@ fn @collect(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [select
     mstore v25, v24
     ret v6
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     mstore v4, 96
     v5 = add v1, 1
