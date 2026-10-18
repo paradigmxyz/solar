@@ -874,43 +874,22 @@ pub(crate) const fn is_pure(op: u8) -> bool {
 
 /// Returns whether inserting a push immediately before this opcode preserves its behavior.
 ///
-/// This includes opcodes that expand memory or warm an account or storage slot because the push
-/// does not affect those changes. Position and gas observations are excluded.
+/// This holds for operations that produce one word without writing state, halting, or observing
+/// the gas left or the code position. It includes opcodes that expand memory or warm an account or
+/// storage slot because the push does not affect those changes.
 #[must_use]
 pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
-    is_pure(op)
-        || matches!(
-            op,
-            KECCAK256
-                | ADDRESS
-                | BALANCE
-                | ORIGIN
-                | CALLER
-                | CALLVALUE
-                | CALLDATALOAD
-                | CALLDATASIZE
-                | CODESIZE
-                | GASPRICE
-                | EXTCODESIZE
-                | RETURNDATASIZE
-                | EXTCODEHASH
-                | BLOCKHASH
-                | COINBASE
-                | TIMESTAMP
-                | NUMBER
-                | PREVRANDAO
-                | GASLIMIT
-                | CHAINID
-                | SELFBALANCE
-                | BASEFEE
-                | BLOBHASH
-                | BLOBBASEFEE
-                | MLOAD
-                | SLOAD
-                | MSIZE
-                | TLOAD
-                | PUSH0
-        )
+    match definition(op) {
+        Some(definition) => {
+            matches!(definition.stack_io, Some((_, 1)))
+                && !definition.writes_memory()
+                && !definition.writes_storage()
+                && !definition.is_terminal()
+                && !definition.observes_gas()
+                && !matches!(op, PC | PUSH1..=PUSH32)
+        }
+        None => false,
+    }
 }
 
 /// Returns whether an opcode may write to memory, invalidating cached memory reads.

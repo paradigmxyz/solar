@@ -1,0 +1,11 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/slotnum.evmir (before reorder-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/slotnum.evmir (after reorder-pushes) ===
+  @module ReorderSlotnum
+  bb0:
+-   slotnum
+    push 10
+-   swap 1
++   slotnum
+    sub
+    stop
+  
