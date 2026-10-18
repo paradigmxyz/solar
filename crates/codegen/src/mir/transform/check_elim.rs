@@ -103,7 +103,7 @@
 //! words keep their declared width. Narrow SSA loads extend back to their original
 //! types; existing word-carrier loads already satisfy the integer layout contract.
 //! This exposes facts hidden behind getter calls during the ordinary earlier check passes.
-
+//!
 //! The `late-check-elim` adapter revisits conditions unified by CSE after memory
 //! lowering. Gas mode only removes redundant failure edges from blocks on a CFG
 //! cycle: repeated checks repay their removal each iteration, while other changes can disrupt

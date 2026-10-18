@@ -84,7 +84,7 @@ use crate::{
         Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
         analysis::{
             AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer,
-            ScalarEvolution,
+            ScalarEvolution, integers::unsigned_bounds,
         },
         pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
         utils as mir_utils,
@@ -1343,11 +1343,7 @@ impl IndVarSimplifier {
     }
 
     fn value_i128(&self, func: &Function, value: ValueId) -> Option<i128> {
-        let value = match func.value(value) {
-            Value::Immediate(imm) => imm.as_u256()?,
-            _ => return None,
-        };
-        if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
+        i128::try_from(func.value_u256(value)?).ok()
     }
 
     fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
@@ -1397,8 +1393,7 @@ impl IndVarSimplifier {
     }
 }
 
-/// How deep [`bounded_on_entry`] follows a branch condition's operands and a bound's
-/// definition.
+/// How deep [`bounded_on_entry`] follows a branch condition's operands.
 const MAX_FACT_DEPTH: usize = 8;
 
 /// Whether every path into `block` takes a branch edge that keeps `value` at most a word
@@ -1445,7 +1440,7 @@ fn implies_at_most(
         | (&InstKind::Gt(x, a), true)
             if a == value =>
         {
-            upper_bound(func, x, depth).is_some_and(|bound| bound <= limit)
+            unsigned_bounds(func, x).1 <= limit
         }
         // A zero `or` has zero operands, and a nonzero `and` nonzero ones.
         (&InstKind::Or(a, b), false) | (&InstKind::And(a, b), true) => {
@@ -1455,39 +1450,6 @@ fn implies_at_most(
         (&InstKind::Ne(a, b), _) if is_zero(b) => implies(a, nonzero),
         (&InstKind::Zext(source), _) => implies(source, nonzero),
         _ => false,
-    }
-}
-
-/// The largest value a word can take by its definition: literals, comparisons, masks, right
-/// shifts, and quotients by a literal.
-fn upper_bound(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
-    if let Some(constant) = func.value_u256(value) {
-        return Some(constant);
-    }
-    let depth = depth.checked_sub(1)?;
-    let Value::Inst(inst_id) = *func.value(value) else { return None };
-    match func.inst(inst_id).kind {
-        InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::Eq(..)
-        | InstKind::Ne(..) => Some(U256::from(1)),
-        InstKind::Zext(source) => upper_bound(func, source, depth),
-        InstKind::And(a, b) => match (upper_bound(func, a, depth), upper_bound(func, b, depth)) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (bound, None) | (None, bound) => bound,
-        },
-        InstKind::Shr(shift, source) => {
-            let shift = usize::try_from(func.value_u256(shift)?).ok()?;
-            let source = upper_bound(func, source, depth).unwrap_or(U256::MAX);
-            Some(source.checked_shr(shift).unwrap_or(U256::ZERO))
-        }
-        InstKind::Div(_, divisor) => {
-            let divisor = func.value_u256(divisor)?;
-            Some(U256::MAX.checked_div(divisor).unwrap_or(U256::ZERO))
-        }
-        _ => None,
     }
 }
 
