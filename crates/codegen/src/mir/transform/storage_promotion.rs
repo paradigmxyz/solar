@@ -913,8 +913,8 @@ impl StorageScalarPromoter {
     //   call-free loops promoted here, and the inliner's return staging buffers, read right after
     //   the inlined return. Neither is live across a call to `f.body`, and promoted loops get no
     //   code inlined later because they had no calls to inline.
-    // - No inliner after this pass takes a callee with a frame: all check `internal_frame_size`
-    //   or need a single block, which a promoted loop never is. So the address never moves into a
+    // - No inliner after this pass takes a callee with a frame: all check `internal_frame_size` or
+    //   need a single block, which a promoted loop never is. So the address never moves into a
     //   caller whose frame rebasing, which rewrites only `internal_frame_addr`, would miss it.
     fn allocate_temp_addr(&self, func: &mut Function) -> ValueId {
         let frame_offset = func.internal_frame_size.max(func.external_static_return_size);
