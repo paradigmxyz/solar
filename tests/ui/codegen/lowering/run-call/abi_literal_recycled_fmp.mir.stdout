@@ -1,0 +1,53 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_literal_recycled_fmp.sol:C ===
+@module C
+fn @echo(arg0: ptr<memory>) -> i256 [selector=0x624fbfdc, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ptradd arg0, 32
+    v1 = mload v0
+    v2 = mload arg0
+    v3 = lt v2, 2
+    v4 = sub 2, v2
+    v5 = mul 8, v4
+    v6 = shl v5, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v7 = select v3, v6, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v8 = and v1, v7
+    v9 = shr 240, v8
+    v10 = trunc i256 v9 to i16
+    v11 = zext i16 v10 to i256
+    ret v11
+}
+
+fn @probe() -> i256 [selector=0xb74af5a9, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 32
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mstore 64, v3 !metadata(memory=scratch)
+    v4 = alloc 64 !metadata(preserves_fmp)
+    mstore v4, 2
+    v5 = ptradd v4, 32
+    mstore v5, 0x1111000000000000000000000000000000000000000000000000000000000000
+    v6 = shl 240, 0xabcd
+    v7 = ptrtoint ptr<memory> v2 to i256
+    v8 = add v7, 32
+    mstore v8, v6
+    v9 = address
+    v10 = gas
+    v11 = abi_encode [memory_bytes], selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v4
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = zext i160 v9 to i256
+    v15 = staticcall v10, v14, v12, v13, 0, 32
+    jumpi v15, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
+}

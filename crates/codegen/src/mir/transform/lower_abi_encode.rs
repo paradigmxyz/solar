@@ -1559,7 +1559,7 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
         available.clear();
         for &inst in &block.instructions {
             let kind = &func.inst(inst).kind;
-            if literal_opaque_instruction(func, kind) {
+            if literal_opaque_instruction(func, kind, &available) {
                 available.clear();
             }
             if matches!(kind, InstKind::Alloc { .. })
@@ -1584,10 +1584,16 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
     objects
 }
 
-fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
+fn literal_opaque_instruction(
+    func: &Function,
+    kind: &InstKind,
+    available: &FxHashSet<ValueId>,
+) -> bool {
     match kind {
         InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => false,
-        InstKind::Store(address, _, PtrLocation::Memory) => !literal_word_in_bounds(func, *address),
+        InstKind::Store(address, _, PtrLocation::Memory) => {
+            !literal_word_in_bounds(func, *address, available)
+        }
         InstKind::MSize => true,
         _ => matches!(
             kind.effect_kind(),
@@ -1601,11 +1607,18 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
     }
 }
 
-/// A store to a different object is disjoint only inside its fresh allocation. An
-/// unknown or wrapping offset can overwrite a preceding object.
-fn literal_word_in_bounds(func: &Function, address: ValueId) -> bool {
+/// A store is disjoint only within an allocation made since the last opaque access.
+/// Older allocations may alias new ones after a free-memory-pointer reset.
+fn literal_word_in_bounds(
+    func: &Function,
+    address: ValueId,
+    available: &FxHashSet<ValueId>,
+) -> bool {
     let Some((object, base)) = func.object_address(address) else { return false };
-    base.checked_add(32).is_some_and(|end| func.alloc_size(object).is_some_and(|size| end <= size))
+    available.contains(&object)
+        && base
+            .checked_add(32)
+            .is_some_and(|end| func.alloc_size(object).is_some_and(|size| end <= size))
 }
 
 /// Instructions other than its allocation that use a literal object or an address into it.
