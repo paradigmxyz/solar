@@ -36,3 +36,36 @@
       returndata 128, 32
   }
   
+  fn @checked_live_test(arg0: i256) {
+    bb0:
+      v0 = lt arg0, 2
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      v1 = ne arg0, 0
+-     v2 = zext i1 v1 to i256
+-     mstore 128, v2
++     mstore 128, arg0
+      jumpi v1, bb3, bb4
+    bb4:
+      returndata 128, 32
+    bb3:
+      v3 = select v1, 5, 7
+      mstore 160, v3
+      returndata 128, 64
+  }
+  
+  fn @checked_narrow(arg0: i160) {
+    bb0:
+      v0 = lt arg0, i160 2
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      v1 = ne arg0, i160 0
+      v2 = zext i1 v1 to i256
+      mstore 128, v2
+      returndata 128, 32
+  }
+  

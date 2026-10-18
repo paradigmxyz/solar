@@ -49,3 +49,49 @@ fn @unchecked(arg0: i256) {
     mstore 128, v2
     returndata 128, 32
 }
+
+// The nonzero test also feeds a branch and a select, so only its widened word
+// changes and the test stays.
+// CHECK-LABEL: fn @checked_live_test
+// CHECK: - mstore 128, {{v[0-9]+}}
+// CHECK: + mstore 128, arg0
+// CHECK: jumpi [[TEST:v[0-9]+]], bb3, bb4
+// CHECK: select [[TEST]], 5, 7
+fn @checked_live_test(arg0: i256) {
+  bb0:
+    v0 = lt arg0, 2
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = ne arg0, 0
+    v2 = zext i1 v1 to i256
+    mstore 128, v2
+    jumpi v1, bb3, bb4
+  bb2:
+    revert 0, 0
+  bb3:
+    v3 = select v1, 5, 7
+    mstore 160, v3
+    returndata 128, 64
+  bb4:
+    returndata 128, 32
+}
+
+// A narrow word bounded below 2 still keeps the widening, since the `i256`
+// result cannot stand in for its `i160` source.
+// CHECK-LABEL: fn @checked_narrow
+// CHECK-NOT: {{^[-+]}}
+// CHECK: ne arg0, i160 0
+// CHECK-NEXT: zext i1
+// CHECK-NOT: {{^[-+]}}
+fn @checked_narrow(arg0: i160) {
+  bb0:
+    v0 = lt arg0, i160 2
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = ne arg0, i160 0
+    v2 = zext i1 v1 to i256
+    mstore 128, v2
+    returndata 128, 32
+  bb2:
+    revert 0, 0
+}
