@@ -1,0 +1,38 @@
+- // === ROOT/tests/ui/codegen/mir/check-elim/checked_operations.mir (before check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/check-elim/checked_operations.mir (after check-elim) ===
+  @module CheckedOperations
+  fn @proven(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, arg1
+      jumpi v0, bb1, bb4
+    bb1:
+-     v1 = checked_add uint256, arg0, 1
+-     v2 = checked_sub uint256, arg1, arg0
++     v1 = add arg0, 1
++     v2 = sub arg1, arg0
+      v3 = lt arg2, 100
+      jumpi v3, bb2, bb4
+    bb2:
+-     v4 = checked_mul uint256, arg2, arg2
++     v4 = mul arg2, arg2
+      v5 = gt arg2, 0
+      jumpi v5, bb3, bb4
+    bb4:
+      ret 0
+    bb3:
+-     v6 = checked_div uint256, v1, arg2
++     v6 = div v1, arg2
+      v7 = add v6, v4
+      v8 = add v7, v2
+      ret v8
+  }
+  
+  fn @unproven(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = checked_add uint256, arg0, 1
+      v1 = checked_sub uint256, arg1, arg0
+      v2 = checked_div uint256, v0, arg1
+      v3 = add v1, v2
+      ret v3
+  }
+  

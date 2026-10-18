@@ -15,7 +15,7 @@
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
-    mir::{BlockId, Function, Op, Terminator, Value, ValueId},
+    mir::{BlockId, Function, Op, Terminator, Value, ValueId, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -361,6 +361,9 @@ impl Target {
     /// a build still values its code size, and the copies grow a contract built
     /// around one loop by half or more.
     pub(crate) const LOOP_COPY_MIN_RUNS: u64 = 10_000;
+    /// The most bytes the copies of a completely unrolled loop's body may take, whatever its
+    /// pricing, so that a contract near the code size limit cannot grow past it.
+    pub(crate) const MAX_LOOP_COPY_BYTES: u32 = 256;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
@@ -612,6 +615,27 @@ impl Target {
     pub(crate) fn internal_return(&self, params: usize, returns: usize) -> Cost {
         let moved = (params + returns) as u32;
         Cost::new(24 + moved * 8, 8 + moved * 4)
+    }
+
+    /// Prices sharing one helper with `body_bytes` of body, `params` parameters, and `returns`
+    /// results among `sites` call sites against expanding the body at every site, as
+    /// `(shared, expanded)`. The body runs in both shapes, so sharing adds the call protocol's
+    /// gas at every site and its bytes once per site plus one copy of the body and return.
+    pub(crate) fn helper_sharing(
+        &self,
+        body_bytes: u32,
+        params: usize,
+        returns: usize,
+        sites: u32,
+    ) -> (Cost, Cost) {
+        let frame_words = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE
+            + (params + returns) as u64;
+        let call = self.icall(params, returns, frame_words);
+        let ret = self.internal_return(params, returns);
+        let shared = Cost::new(call.gas + ret.gas, call.bytes)
+            .times(sites)
+            .plus(Cost::new(0, body_bytes.saturating_add(ret.bytes)));
+        (shared, Cost::new(0, body_bytes).times(sites))
     }
 
     /// Estimated code of a function body: every operation with the pushes
@@ -966,6 +990,18 @@ mod tests {
         assert!(!target(Target::LOOP_COPY_MIN_RUNS - 1).copies_loops());
         assert!(target(Target::LOOP_COPY_MIN_RUNS).copies_loops());
         assert!(target(u64::from(u32::MAX)).copies_loops());
+    }
+
+    #[test]
+    fn helper_sharing_prices_the_call_protocol_per_site() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        let (shared, expanded) = target.helper_sharing(100, 2, 1, 3);
+        // Three sites each pay a call with a 5-word frame and a return; one body and return.
+        assert_eq!(shared, Cost::new(3 * ((90 + 3 * 24 + 5 * 6) + (24 + 3 * 8)), 3 * 33 + 120));
+        assert_eq!(expanded, Cost::new(0, 300));
+        assert!(target.cmp(shared, expanded).is_lt());
+        let (shared, expanded) = target.helper_sharing(40, 2, 1, 2);
+        assert!(target.cmp(shared, expanded).is_gt());
     }
 
     #[test]

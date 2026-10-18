@@ -101,7 +101,6 @@ time: <TIME>	MIR TimePasses word-sequence changed=false
 time: <TIME>	MIR TimePasses byte-run-loads changed=false
 time: <TIME>	MIR TimePasses licm changed=false
 time: <TIME>	MIR TimePasses indvar-simplify changed=false
-time: <TIME>	MIR TimePasses loop-idioms changed=false
 time: <TIME>	MIR TimePasses loop-unroll changed=false
 time: <TIME>	MIR TimePasses check-elim changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false
