@@ -8,7 +8,8 @@
 //! fill one contiguous range, since a copy would overwrite any gap. The copy takes the window's
 //! place and rebuilds the stack the window left: it pops consumed inputs or pushes the constants
 //! and address words the window produced. Among starts that write the same bytes to the same end,
-//! the cheapest wins. The pass prices each run with the `Target` cost model and groups equal
+//! the cheapest wins. Zero runs copy from past the end of calldata and need no data; other runs
+//! copy from the data pool. The pass prices each run with the `Target` cost model and groups equal
 //! byte strings so every site of a group shares one entry, accepting a group when its total saving
 //! improves the objective; under `-Ogas` that means less runtime gas and no more bytes, since
 //! static sites have no execution frequency to repay code growth. Rejected groups can still ride
@@ -121,8 +122,8 @@ struct Rewrite {
 
 struct PreparedRewrite {
     rewrite: Rewrite,
-    /// The copied program data.
-    data: DataRef,
+    /// The copied program data, or `None` for a zero fill from past the end of calldata.
+    data: Option<DataRef>,
 }
 
 struct PoolEntry {
@@ -219,6 +220,16 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
     for (data, rewrites) in groups {
+        if data.iter().all(|&byte| byte == 0) {
+            // Zero fills need no data, so each site stands alone.
+            prepared.extend(
+                rewrites
+                    .into_iter()
+                    .filter(|rewrite| is_profitable(gcx, rewrite_improvement([rewrite], 0)))
+                    .map(|rewrite| PreparedRewrite { rewrite, data: None }),
+            );
+            continue;
+        }
         let placement = pool.placement(&data);
         let additional_bytes = placement_additional_bytes(&placement, data.len());
         let mut improvement = rewrite_improvement(&rewrites, additional_bytes);
@@ -260,15 +271,20 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
             metadata.absorb_debug_info(&inst.metadata);
         }
         // push size
-        // push data
+        // push data | calldatasize
         // <tail>
-        let mut replacement =
-            [Instruction::push_value(U256::from(rewrite.size)), Instruction::push_data(data)]
-                .into_iter()
-                .chain(rewrite.tail)
-                .map(|inst| inst.with_source_debug(&metadata))
-                .collect::<Vec<_>>();
-        let copy = replacement.iter().rposition(|inst| inst.opcode == op::CODECOPY).unwrap();
+        let mut replacement = [
+            Instruction::push_value(U256::from(rewrite.size)),
+            data.map_or_else(|| Instruction::opcode(op::CALLDATASIZE), Instruction::push_data),
+        ]
+        .into_iter()
+        .chain(rewrite.tail)
+        .map(|inst| inst.with_source_debug(&metadata))
+        .collect::<Vec<_>>();
+        let copy = replacement
+            .iter()
+            .rposition(|inst| matches!(inst.opcode, op::CODECOPY | op::CALLDATACOPY))
+            .unwrap();
         replacement[copy].metadata.absorb_debug_info(&metadata);
         instructions.splice(rewrite.start..rewrite.end, replacement);
     }
@@ -276,7 +292,8 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
 }
 
 fn prepare_rewrites(prepared: &mut Vec<PreparedRewrite>, rewrites: Vec<Rewrite>, data: DataRef) {
-    prepared.extend(rewrites.into_iter().map(|rewrite| PreparedRewrite { rewrite, data }));
+    prepared
+        .extend(rewrites.into_iter().map(|rewrite| PreparedRewrite { rewrite, data: Some(data) }));
 }
 
 /// Finds the literal-store run that starts at `start`. A later start that writes the same bytes
@@ -466,10 +483,11 @@ fn scan_run(target: Target, instructions: &[Instruction], start: usize) -> Optio
     if inputs + extras.len() + 4 > usize::from(u8::MAX) {
         return None;
     }
+    let zero = data.iter().all(|&byte| byte == 0);
     let destination = RunWord { slot: base.flatten(), offset: U256::from(low) };
-    let tail = copy_tail(destination, inputs, kept, &extras);
-    // Reserve PUSH3 for the unresolved data address.
-    let source = target.opcode(op::PUSH3);
+    let tail = copy_tail(destination, zero, inputs, kept, &extras);
+    // Reserve PUSH3 for an unresolved data address.
+    let source = if zero { target.opcode(op::CALLDATASIZE) } else { target.opcode(op::PUSH3) };
     let words = u32::try_from(data.len().div_ceil(WORD_BYTES)).ok()?;
     let mut new = target.push(U256::from(data.len()))
         + source
@@ -498,6 +516,7 @@ fn insert_range(ranges: &mut Vec<(u64, u64)>, (mut low, mut high): (u64, u64)) {
 /// rebuilt stack, where the run consumed the inputs above `kept` and pushed `extras`.
 fn copy_tail(
     destination: RunWord,
+    zero: bool,
     inputs: usize,
     kept: usize,
     extras: &[RunWord],
@@ -513,8 +532,8 @@ fn copy_tail(
         }
         RunWord { slot: None, offset } => tail.push(Instruction::push_value(offset)),
     }
-    // codecopy
-    tail.push(Instruction::opcode(op::CODECOPY));
+    // codecopy | calldatacopy
+    tail.push(Instruction::opcode(if zero { op::CALLDATACOPY } else { op::CODECOPY }));
     // pop
     tail.extend((kept..inputs).map(|_| Instruction::stack_op(op::StackOp::Pop)));
     for (index, extra) in extras.iter().enumerate() {

@@ -2,33 +2,34 @@
 //@ filecheck:
 @module reuse
 @data
-  zero_words_0: hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  words_0: hex"00000000000000000000000000000000000000000000000000000000000000110000000000000000000000000000000000000000000000000000000000000011"
 
-// Reusing existing data makes this compact-zero store run profitable.
-// CHECK: zero_words_0: hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+// Reusing existing data makes this store run profitable; on its own it
+// would add 64 data bytes to save a few code bytes.
+// CHECK: words_0: hex"00000000000000000000000000000000000000000000000000000000000000110000000000000000000000000000000000000000000000000000000000000011"
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 64
-// CHECK-NEXT: {{^[ +].*}}push_data zero_words_0
+// CHECK-NEXT: {{^[ +].*}}push_data words_0
 // CHECK-NEXT: {{^[ +].*}}push 0
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK: {{^[ +].*}}push 64
-// CHECK-NEXT: {{^[ +].*}}push_data zero_words_0
+// CHECK-NEXT: {{^[ +].*}}push_data words_0
 // CHECK-NEXT: {{^[ +].*}}dup 3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK-NOT: {{^[ +].*}}mstore
 bb0:
   push 64
-  push_data zero_words_0
+  push_data words_0
   push 0
   codecopy
   push 128
-  push 0
+  push 0x11
   dup 2
   mstore
   push 32
   dup 2
   add
-  push 0
+  push 0x11
   swap 1
   mstore
   stop
