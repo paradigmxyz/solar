@@ -178,20 +178,11 @@
 +     v9 = lt v2, 1
 +     jumpi v9, bb6, bb1
 +   bb6:
-+     v10 = and 1, 31
-+     v11 = sub 32, v10
-+     v12 = shl 3, v11
-+     v13 = add arg1, v2
-+     v14 = mload v13
-+     v15 = shr v12, v14
-+     v16 = shl v12, v15
-+     v17 = add arg0, v2
-+     v18 = mload v17
-+     v19 = shl v12, 1
-+     v20 = sub v19, 1
-+     v21 = and v18, v20
-+     v22 = or v16, v21
-+     mstore v17, v22
++     v10 = add arg1, v2
++     v11 = mload v10
++     v12 = byte 0, v11
++     v13 = add arg0, v2
++     mstore8 v13, v12
 +     jump bb1
 +   bb4:
 +     v5 = add arg1, v3
@@ -289,20 +280,11 @@
 +     v10 = lt v2, 33
 +     jumpi v10, bb8, bb1
 +   bb8:
-+     v11 = and 33, 31
-+     v12 = sub 32, v11
-+     v13 = shl 3, v12
-+     v14 = add arg1, v2
-+     v15 = mload v14
-+     v16 = shr v13, v15
-+     v17 = shl v13, v16
-+     v18 = add arg0, v2
-+     v19 = mload v18
-+     v20 = shl v13, 1
-+     v21 = sub v20, 1
-+     v22 = and v19, v21
-+     v23 = or v17, v22
-+     mstore v18, v23
++     v11 = add arg1, v2
++     v12 = mload v11
++     v13 = byte 0, v12
++     v14 = add arg0, v2
++     mstore8 v14, v13
 +     jump bb1
 +   bb6:
 +     v6 = add arg1, v4
@@ -312,36 +294,27 @@
 +     v9 = add v4, 32
 +     jump bb5
 +   bb4:
-+     v24 = lt v2, 33
-+     jumpi v24, bb12, bb11
++     v15 = lt v2, 33
++     jumpi v15, bb12, bb11
 +   bb11:
 +     jump bb9
 +   bb12:
-+     v25 = and 33, 31
-+     v26 = sub 32, v25
-+     v27 = shl 3, v26
-+     v28 = add arg1, v2
-+     v29 = mload v28
-+     v30 = shr v27, v29
-+     v31 = shl v27, v30
-+     v32 = add arg0, v2
-+     v33 = mload v32
-+     v34 = shl v27, 1
-+     v35 = sub v34, 1
-+     v36 = and v33, v35
-+     v37 = or v31, v36
-+     mstore v32, v37
++     v16 = add arg1, v2
++     v17 = mload v16
++     v18 = byte 0, v17
++     v19 = add arg0, v2
++     mstore8 v19, v18
 +     jump bb9
 +   bb9:
-+     v38 = phi [bb11: v2], [bb12: v2], [bb10: v40]
-+     v39 = eq v38, 0
-+     jumpi v39, bb1, bb10
++     v20 = phi [bb11: v2], [bb12: v2], [bb10: v22]
++     v21 = eq v20, 0
++     jumpi v21, bb1, bb10
 +   bb10:
-+     v40 = sub v38, 32
-+     v41 = add arg1, v40
-+     v42 = mload v41
-+     v43 = add arg0, v40
-+     mstore v43, v42
++     v22 = sub v20, 32
++     v23 = add arg1, v22
++     v24 = mload v23
++     v25 = add arg0, v22
++     mstore v25, v24
 +     jump bb9
 +   bb1:
       ret arg0
