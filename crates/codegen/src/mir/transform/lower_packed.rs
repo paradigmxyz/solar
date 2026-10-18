@@ -11,7 +11,8 @@
 //! Known local byte lengths stay constant through expansion without duplicating their payloads.
 //! Recovery requires a same-block allocation and header store, and rejects unknown memory writes.
 //! When all parts have bounded lengths and byte sources retain heap allocations, their copies
-//! into the fresh output are disjoint. Unknown lengths and frame-eligible sources keep alias checks.
+//! into the fresh output are disjoint. Unknown lengths and frame-eligible sources keep alias
+//! checks.
 
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder,
