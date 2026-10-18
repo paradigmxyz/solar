@@ -38,7 +38,10 @@
 use super::{
     EvmPass,
     compact_pushes::selected_len,
-    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point},
+    utils::{
+        FreshLabels, MachineInstKey, instruction_size_lower_bound, is_position_independent,
+        is_split_point,
+    },
 };
 use crate::{
     backend::evm::{
@@ -908,6 +911,8 @@ fn split_outline_site(
     module.blocks[block].terminator = Some(terminator);
 }
 
+/// The words an instruction reads, pops, and pushes, when it may run in a shared body: a push, a
+/// stack operation, or a position-independent operation.
 fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
     if inst.is_encoded_push() {
         return Some((0, 0, 1));
@@ -919,26 +924,9 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
         let outputs = u16::try_from(growth.max(0)).ok()?;
         return Some((required, inputs, outputs));
     }
-    Some(match inst.opcode {
-        op::CALLDATASIZE | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => (0, 0, 1),
-        op::ISZERO | op::NOT | op::CALLDATALOAD | op::MLOAD => (1, 1, 1),
-        op::ADD
-        | op::SUB
-        | op::MUL
-        | op::AND
-        | op::OR
-        | op::XOR
-        | op::SHL
-        | op::SHR
-        | op::LT
-        | op::GT
-        | op::SLT
-        | op::SGT
-        | op::EQ
-        | op::DIV => (2, 2, 1),
-        op::MSTORE => (2, 2, 0),
-        _ => return None,
-    })
+    let definition = inst.definition().filter(|definition| is_position_independent(definition))?;
+    let (inputs, outputs) = definition.stack_io?;
+    Some((u16::from(inputs), u16::from(inputs), u16::from(outputs)))
 }
 
 fn lower_bound(gcx: Gcx<'_>, instructions: &[Instruction]) -> usize {
