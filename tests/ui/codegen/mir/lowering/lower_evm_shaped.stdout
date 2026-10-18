@@ -232,3 +232,11 @@
 +     tail_call @scalar_fail, arg0
   }
   
+- fn @narrow_pointer(arg0: i1) -> ptr<memory> {
++ fn @narrow_pointer(arg0: i1) -> i256 {
+    bb0:
+-     v0 = inttoptr i1 arg0 to ptr<memory>
++     v0 = zext i1 arg0 to i256
+      ret v0
+  }
+  
