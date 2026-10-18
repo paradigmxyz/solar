@@ -64,15 +64,18 @@
 +     tail_call @tail_forward, 4
   }
   
-  fn @same_argument(arg0: i1, arg1: i256) -> i256 {
+- fn @same_argument(arg0: i1, arg1: i256) -> i256 {
++ fn @same_argument(arg0: i1, arg1: i256) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
       sstore 1, arg1
-      ret arg1
+-     ret arg1
++     ret
     bb1:
       sstore 0, arg1
-      ret arg1
+-     ret arg1
++     ret
   }
   
   fn @different_arguments(arg0: i1, arg1: i256, arg2: i256) -> i256 {
@@ -95,16 +98,20 @@
   
   fn @forwarded_calls(arg0: i1, arg1: i256) -> i256 [selector=0x01020307] {
     bb0:
-      v0 = icall @same_argument, arg0, arg1
+-     v0 = icall @same_argument, arg0, arg1
 -     v1 = icall @same_argument, arg0, v0
 -     v2 = icall @different_arguments, arg0, v0, 11
-+     v1 = icall @same_argument, arg0, arg1
-+     v2 = icall @different_arguments, arg0, arg1, 11
-      v3 = icall @tail_result, arg0, arg1
+-     v3 = icall @tail_result, arg0, arg1
 -     v4 = add v1, v2
-+     v4 = add arg1, v2
-      v5 = add v4, v3
-      ret v5
+-     v5 = add v4, v3
+-     ret v5
++     icall @same_argument, arg0, arg1
++     icall @same_argument, arg0, arg1
++     v0 = icall @different_arguments, arg0, arg1, 11
++     v1 = icall @tail_result, arg0, arg1
++     v2 = add arg1, v0
++     v3 = add v2, v1
++     ret v3
   }
   
   fn @constant(arg0: i1, arg1: i1, arg2: i256) -> i256 {
