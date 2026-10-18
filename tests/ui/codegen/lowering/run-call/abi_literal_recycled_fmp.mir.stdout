@@ -8,10 +8,10 @@ fn @echo(arg0: ptr<memory>) -> i256 [selector=0x624fbfdc, pure, abi_params=[byte
     v3 = lt v2, 2
     v4 = sub 2, v2
     v5 = mul 8, v4
-    v6 = shl v5, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v6 = shl 0xffff000000000000000000000000000000000000000000000000000000000000, v5
     v7 = select v3, v6, 0xffff000000000000000000000000000000000000000000000000000000000000
     v8 = and v1, v7
-    v9 = shr 240, v8
+    v9 = shr v8, 240
     v10 = trunc i256 v9 to i16
     v11 = zext i16 v10 to i256
     ret v11
@@ -29,7 +29,7 @@ fn @probe() -> i256 [selector=0xb74af5a9, view, abi_params=[], abi_returns=[word
     mstore v4, 2
     v5 = ptradd v4, 32
     mstore v5, 0x1111000000000000000000000000000000000000000000000000000000000000
-    v6 = shl 240, 0xabcd
+    v6 = shl 0xabcd, 240
     v7 = ptrtoint ptr<memory> v2 to i256
     v8 = add v7, 32
     mstore v8, v6
