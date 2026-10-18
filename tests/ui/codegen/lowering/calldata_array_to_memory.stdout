@@ -253,28 +253,29 @@ bb19:
   push 32
   dup 2
   add
-  swap 2
   push 0
   not
   push 192
   shr
+  swap 3
+  dup 4
   lt
   calldatasize
-  dup 4
+  dup 3
   gt
   or
   swap 1
-  swap 3
+  swap 4
   or
-  swap 2
+  swap 1
   calldataload
-  swap 2
-  dup 2
+  swap 1
+  dup 4
   calldatasize
   sub
   push 5
   shr
-  dup 4
+  dup 3
   gt
   or
   push 68
@@ -282,37 +283,34 @@ bb19:
   push 4
   dup 2
   add
+  swap 1
   push 32
-  dup 2
+  dup 3
   add
-  swap 2
-  push 0
-  not
-  push 192
-  shr
+  swap 5
   lt
   calldatasize
-  dup 4
+  dup 6
   gt
   or
   swap 1
   calldataload
   swap 1
-  dup 3
+  dup 5
   calldatasize
   sub
   dup 3
   gt
   or
   swap 1
-  swap 3
+  swap 2
   or
   push bb6
   jumpi
-  dup 4
+  dup 2
   push 5
   shl
-  dup 4
+  dup 5
   calldatasize
   sub
   dup 2
@@ -329,19 +327,19 @@ bb19:
   add
   push 64
   mstore
-  swap 5
-  dup 6
+  swap 3
+  dup 4
   mstore
   push 32
-  dup 6
+  dup 4
   add
   swap 1
   swap 2
-  swap 4
+  swap 5
   swap 1
   calldatacopy
   push 63
-  dup 2
+  dup 4
   add
   push 31
   not
@@ -353,17 +351,18 @@ bb19:
   add
   push 64
   mstore
-  dup 2
+  dup 4
   dup 2
   mstore
   push 32
   dup 2
   add
+  swap 4
+  swap 2
   swap 3
   swap 1
-  swap 3
+  swap 4
   calldatacopy
-  swap 1
   mload
   dup 1
   push 0x1999999999999999999999999999999999999999999999999999999999999999

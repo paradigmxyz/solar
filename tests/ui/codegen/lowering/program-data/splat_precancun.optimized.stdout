@@ -227,11 +227,10 @@ bb19:
   push 32
   dup 2
   add
-  push bb23
-  jump bb22
-bb22:
   push 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
   swap 1
+  swap 2
+  swap 3
   jump
 bb12:
   push 128
@@ -270,6 +269,8 @@ bb13 [loop]:
   swap 1
   jump bb18
 bb20 [continuation]:
+  dup 2
+  mstore
   swap 1
   push 64
   add
@@ -282,15 +283,9 @@ bb20 [continuation]:
   swap 1
   jump bb18
 bb21 [continuation]:
-  push bb24
-  jump bb22
-bb23 [continuation]:
-  dup 2
+  dup 1
+  dup 3
   mstore
-  swap 1
-  swap 2
-  jump
-bb24 [continuation]:
   push 64
   dup 4
   add
