@@ -35,6 +35,25 @@
       ret v3
   }
   
+  fn @after_deferred(arg0: i256) -> i256 {
+    bb0:
+-     v0 = fmp
++     v7 = mload 64 !metadata(memory=scratch)
++     v0 = inttoptr i256 v7 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, arg0
+      v2 = alloc 32 !metadata(deferred_alloc)
+-     v3 = alloc 64 !metadata(preserves_fmp)
++     v8 = mload 64 !metadata(memory=scratch)
++     v3 = inttoptr i256 v8 to ptr<memory> !metadata(memory=scratch)
++     v9 = add v8, 64
++     mstore 64, v9 !metadata(memory=scratch)
+      v4 = ptrtoint ptr<memory> v3 to i256
+      v5 = ptrtoint ptr<memory> v2 to i256
+      v6 = add v4, v5
+      ret v6
+  }
+  
   fn @plain(arg0: i256) -> i256 {
     bb0:
 -     v0 = fmp

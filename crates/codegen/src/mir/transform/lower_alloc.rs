@@ -210,11 +210,11 @@ fn lower_function(func: &mut Function) -> bool {
                     rewrite_as_fmp_store(&mut builder, inst, ptr);
                     builder.func_mut().blocks[block].instructions.push(inst);
                 }
+                // The backend may still place a deferred allocation with a runtime bump.
+                InstKind::Alloc { .. } if builder.func().inst(inst).metadata.deferred_alloc() => {
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                }
                 InstKind::Alloc { size, semantics } => {
-                    if builder.func().inst(inst).metadata.deferred_alloc() {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    }
                     debug_assert_eq!(semantics.failure, AllocationFailure::Infallible);
                     changed = true;
                     let ptr = builder
@@ -233,7 +233,7 @@ fn lower_function(func: &mut Function) -> bool {
                 }
             }
             if moves_fmp {
-                peek = FmpPeek::default();
+                peek.clear();
             }
         }
     }
@@ -263,6 +263,11 @@ impl FmpPeek {
         self.word = Some(word);
         self.derived.clear();
         self.derived.extend([word, result]);
+    }
+
+    fn clear(&mut self) {
+        self.word = None;
+        self.derived.clear();
     }
 
     /// The read word, if `inst` reserves the bytes written since the read.
@@ -295,7 +300,7 @@ impl FmpPeek {
             _ => false,
         };
         if !keeps {
-            *self = Self::default();
+            self.clear();
             return;
         }
         let from_peek = match *kind {
