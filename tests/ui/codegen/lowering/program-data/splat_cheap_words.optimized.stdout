@@ -1,0 +1,38 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/splat_cheap_words.sol:C ===
+@module C
+@phase lowered
+fn @f() [selector=0x26121ff0, abi_wrapper, pure] {
+  bb0:
+    v22 = mload 64 !metadata(memory=scratch)
+    v23 = add v22, 192
+    mstore 64, v23
+    mstore v22, 160
+    v12 = add v22, 32
+    mstore v12, 1
+    v14 = add v22, 64
+    mstore v14, 1
+    v16 = add v22, 96
+    mstore v16, 1
+    v18 = add v22, 128
+    mstore v18, 1
+    v20 = add v22, 160
+    mstore v20, 1
+    v8 = keccak256 v12, 160
+    mstore 128, v8
+    returndata 128, 32
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x26121ff0 => bb2]
+  bb2:
+    tail_call @f
+  bb3:
+    revert 0, 0
+}
