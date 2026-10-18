@@ -272,9 +272,30 @@ fn @keep_before_reading_tail_call(arg0: i1) {
     stop
 }
 
+// A callee that ends in a revert can still halt successfully through a call,
+// which commits the store.
+// CHECK-LABEL: fn @keep_before_tail_call_that_may_stop
+// CHECK: + sstore 0, 42
+fn @keep_before_tail_call_that_may_stop() {
+  bb0:
+    sstore 0, 42
+    tail_call @stop_then_revert
+}
+
 fn @fail() {
   bb0:
     revert 0, 0
+}
+
+fn @stop_then_revert() {
+  bb0:
+    icall @stop_now
+    revert 0, 0
+}
+
+fn @stop_now() {
+  bb0:
+    stop
 }
 
 fn @fail_with_slot() {

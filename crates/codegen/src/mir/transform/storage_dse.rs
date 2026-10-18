@@ -49,13 +49,19 @@ impl MirPass for StorageDse {
     ) -> bool {
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         let mut reverting = DenseBitSet::new_empty(module.functions.len());
+        let summaries = analyses.call_summaries(module);
         for (id, func) in module.functions.iter_enumerated() {
             if func.instructions().any(|inst| {
                 matches!(func.inst(inst).kind, InstKind::Store(.., PtrLocation::Storage))
             }) {
                 selected.insert(id);
             }
-            if !func.blocks.is_empty() && !returning_blocks(func).contains(BlockId::ENTRY) {
+            // A callee that can halt successfully, itself or through its own calls, commits
+            // storage even when it never returns.
+            if !func.blocks.is_empty()
+                && !returning_blocks(func).contains(BlockId::ENTRY)
+                && summaries.get(id).is_some_and(|summary| !summary.may_terminate())
+            {
                 reverting.insert(id);
             }
         }

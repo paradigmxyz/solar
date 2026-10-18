@@ -232,9 +232,27 @@
       tail_call @fail_with_slot
   }
   
+  fn @keep_before_tail_call_that_may_stop() {
+    bb0:
+-     sstore 0, 42
++     sstore 0, 42 !metadata(storage=slot(0))
+      tail_call @stop_then_revert
+  }
+  
   fn @fail() {
     bb0:
       revert 0, 0
+  }
+  
+  fn @stop_then_revert() {
+    bb0:
+      icall @stop_now
+      revert 0, 0
+  }
+  
+  fn @stop_now() {
+    bb0:
+      stop
   }
   
   fn @fail_with_slot() {
