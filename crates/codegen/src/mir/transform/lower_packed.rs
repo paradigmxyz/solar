@@ -8,11 +8,13 @@
 //! lengths and offsets add without overflow checks; the size rounding still checks. Array loops use
 //! plain element-offset arithmetic: their index is below the length whose total extent was checked.
 //! Bytes results retain their FMP bump at the encoding point even when their size becomes constant.
+//! Known local byte lengths stay constant through expansion without duplicating their payloads.
+//! Recovery requires a same-block allocation and header store, and rejects unknown memory writes.
 
 use crate::mir::{
-    AbiType, AbiWordValidator, AllocationSemantics, FunctionBuilder, MemoryObjectLayout,
-    PackedArraySource, PackedPart, PanicCode, PtrLocation, Value, ValueId, ValueLayout,
-    memory::EvmMemoryLayout, packed_element_bytes,
+    AbiType, AbiWordValidator, AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder,
+    InstKind, MemoryObjectLayout, PackedArraySource, PackedPart, PanicCode, PtrLocation, Value,
+    ValueId, ValueLayout, memory::EvmMemoryLayout, packed_element_bytes,
 };
 use alloy_primitives::{Bytes, U256};
 
@@ -66,7 +68,16 @@ impl PackedEncoder<'_, '_> {
                     )
                 }
                 PackedPart::Bytes(value) => {
-                    let source = self.builder.memory_view(value);
+                    let source = if let Some(length) =
+                        known_byte_length(self.builder.func(), value, self.builder.current_block())
+                    {
+                        // source = make_memory_slice (memory_data value), length
+                        let length = self.builder.imm(length);
+                        let data = self.builder.memory_data(value);
+                        self.builder.make_slice(data, length, PtrLocation::Memory)
+                    } else {
+                        self.builder.memory_view(value)
+                    };
                     let length = self.builder.slice_len(source);
                     (PackedPiece::Dynamic { source, length }, length)
                 }
@@ -484,4 +495,49 @@ impl PackedEncoder<'_, '_> {
         self.builder.memory_store_word(output, offset, value);
         Some((consumed, length))
     }
+}
+
+fn known_byte_length(func: &Function, object: ValueId, block: BlockId) -> Option<u64> {
+    let size = func.alloc_size(object)?;
+    let Value::Inst(allocation) = func.value(object) else { return None };
+    let instructions = &func.blocks[block].instructions;
+    let start = instructions.iter().position(|inst| inst == allocation)?;
+    let mut length = None;
+    for &inst in &instructions[start + 1..] {
+        let (address, bytes, value) = match func.inst(inst).kind {
+            InstKind::Store(address, value, PtrLocation::Memory) => (address, 32, Some(value)),
+            InstKind::DataCopy(_, address, size) => (address, func.value_u64(size)?, None),
+            InstKind::Alloc { .. } => continue,
+            _ => {
+                if matches!(
+                    func.inst(inst).kind.effect_kind(),
+                    EffectKind::MemoryWrite
+                        | EffectKind::ICall
+                        | EffectKind::ExternalCall
+                        | EffectKind::Create
+                ) {
+                    return None;
+                }
+                continue;
+            }
+        };
+        let (base, offset) = func.object_address(address)?;
+        if offset.checked_add(bytes)? > func.alloc_size(base)? {
+            return None;
+        }
+        if base == object {
+            if offset == 0 && bytes == 32 {
+                length = value.and_then(|value| func.value_u64(value));
+            } else if offset < 32 && bytes != 0 {
+                return None;
+            }
+        } else {
+            let Value::Inst(other) = func.value(base) else { return None };
+            if !instructions[start + 1..].contains(other) {
+                return None;
+            }
+        }
+    }
+    let length = length?;
+    (length.checked_add(32)? <= size).then_some(length)
 }
