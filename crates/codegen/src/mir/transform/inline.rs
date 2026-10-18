@@ -483,10 +483,8 @@ struct MirInlineSummary {
     has_returning_icall: bool,
     has_phi: bool,
     phi_stack_peak: Option<usize>,
-    has_external_call: bool,
-    has_storage_write: bool,
-    has_immutable_write: bool,
-    has_log: bool,
+    /// Writes storage, transient storage, or an immutable, calls or creates an account, or logs.
+    has_state_effect: bool,
     has_control_flow: bool,
     is_check_wrapper: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
@@ -944,10 +942,7 @@ impl MirInliner {
         // code-growth check below.
         if !single_call
             && site.loop_depth == 0
-            && (summary.has_storage_write
-                || summary.has_immutable_write
-                || summary.has_external_call
-                || summary.has_log)
+            && summary.has_state_effect
             && summary.estimated_code_size
                 > estimated_icall_code_size(self.target, site)
                     + estimated_internal_return_code_size(self.target, summary, site)
@@ -1261,25 +1256,18 @@ fn summarize_function(
                 }
                 InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => {
                     summary.has_control_flow = true;
-                    summary.has_external_call = true;
                 }
-                InstKind::AddressCall { .. }
-                | InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. }
-                | InstKind::Call { .. }
-                | InstKind::CallCode { .. }
-                | InstKind::StaticCall { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::Create(..)
-                | InstKind::Create2(..) => {
-                    summary.has_external_call = true;
-                }
-                InstKind::Store(.., PtrLocation::Storage | PtrLocation::Transient) => {
-                    summary.has_storage_write = true;
-                }
-                InstKind::StoreImmutable(..) => summary.has_immutable_write = true,
-                InstKind::Log { .. } => summary.has_log = true,
                 _ => {}
             }
+            summary.has_state_effect |= matches!(
+                kind.effect_kind(),
+                EffectKind::StorageWrite
+                    | EffectKind::TransientWrite
+                    | EffectKind::ImmutableWrite
+                    | EffectKind::ExternalCall
+                    | EffectKind::Create
+                    | EffectKind::Log
+            );
         }
         match block.terminator.as_ref() {
             Some(term @ Terminator::Return { .. }) => {
