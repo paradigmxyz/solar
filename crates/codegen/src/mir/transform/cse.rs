@@ -55,9 +55,9 @@
 //! Every intervening memory write invalidates these entries. Calls never sink or
 //! inherit a cached result across blocks; no read-footprint disjointness is assumed.
 //! Calls to pure leaf functions are the exception: a `pure` single-result leaf that
-//! touches no storage, writes no memory a caller sees, observes neither gas nor
-//! `msize`, and reads memory only on paths that revert depends on its arguments
-//! alone, so its result is reused like pure arithmetic, across dominating blocks
+//! touches no storage, writes no memory a caller sees, observes neither gas,
+//! `msize`, nor return data, and reads memory only on paths that revert depends
+//! on its arguments alone, so its result is reused like pure arithmetic, across dominating blocks
 //! and after any write. Such calls still never sink, which would move their revert.
 //! After a `gas` read, state-dependent expressions remain explicit so a later
 //! `gas` read observes their dynamically priced execution. A forward CFG may-observe
@@ -1721,11 +1721,12 @@ impl CommonSubexprEliminator {
 
 /// Pure leaf functions whose calls CSE may reuse: a call's result depends on its arguments alone.
 ///
-/// `pure` keeps environment, state, and gas reads out of the source, inline assembly included. The
-/// memory summary proves that the function never touches storage or transient storage, writes no
-/// memory a caller sees, and never observes gas or `msize`, and no block that can still return
-/// reads memory: a revert path may read the error data it staged, but whether a call returns, and
-/// what, then depends on its arguments alone. A repeated call with the same arguments returns the
+/// `pure` keeps environment, state, and gas reads out of the source, inline assembly included,
+/// except for the return data, which the function must not read. The memory summary proves that
+/// the function never touches storage or transient storage, writes no memory a caller sees, and
+/// never observes gas or `msize`, and no block that can still return reads memory: a revert path
+/// may read the error data it staged, but whether a call returns, and what, then depends on its
+/// arguments alone. A repeated call with the same arguments returns the
 /// same word, and when it would revert the dominating call already reverted. A leaf calls no other
 /// function, and one result keeps the reuse a plain value substitution.
 fn pure_leaf_functions(
@@ -1747,6 +1748,14 @@ fn pure_leaf_functions(
             || summary.writes(AddressSpace::Memory)
             || summary.may_observe_gas()
             || summary.may_observe_msize()
+            // `pure` assembly may read the return data, which an external call between two
+            // calls replaces.
+            || func.instructions().any(|inst| {
+                matches!(
+                    func.inst(inst).kind,
+                    InstKind::ReturnDataSize | InstKind::Copy(.., PtrLocation::Returndata)
+                )
+            })
         {
             continue;
         }

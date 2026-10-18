@@ -23,6 +23,13 @@ fn @read_word(arg0: i256) -> i256 [pure] {
     ret v0
 }
 
+fn @returned_size(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = returndatasize
+    v1 = add v0, arg0
+    ret v1
+}
+
 fn @stored(arg0: i256) -> i256 [view] {
   bb0:
     v0 = sload arg0
@@ -69,20 +76,27 @@ fn @dominated(arg0: i256, arg1: i1) -> i256 {
 }
 
 // A pure function reading memory on its returning path can see a write between
-// the calls, and a view function can see storage change.
+// the calls, one reading the return data can see an external call replace it,
+// and a view function can see storage change.
 // CHECK-LABEL: {{^[ +].*}}fn @not_pure_leaves{{[( ]}}
 // CHECK-COUNT-2: {{^[ +].*}} = icall @read_word, arg0
+// CHECK-COUNT-2: {{^[ +].*}} = icall @returned_size, arg0
 // CHECK-COUNT-2: {{^[ +].*}} = icall @stored, arg0
 fn @not_pure_leaves(arg0: i256) -> i256 {
   bb0:
     v0 = icall @read_word, arg0
     mstore arg0, 7
     v1 = icall @read_word, arg0
+    v7 = icall @returned_size, arg0
+    v8 = staticcall 100, arg0, 0, 0, 0, 0
+    v9 = icall @returned_size, arg0
     v2 = icall @stored, arg0
     sstore arg0, 7
     v3 = icall @stored, arg0
     v4 = add v0, v1
     v5 = add v2, v3
     v6 = add v4, v5
-    ret v6
+    v10 = add v7, v9
+    v11 = add v6, v10
+    ret v11
 }
