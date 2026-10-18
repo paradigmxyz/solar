@@ -2,8 +2,10 @@
 //!
 //! This pass recognizes complete canonical loop shapes after semantic memory
 //! objects have been lowered to physical addresses. It currently replaces a
-//! read-only byte-by-byte 7-bit ASCII predicate with a 32-byte reduction and an
-//! exact memory or calldata zero-byte counter with a per-lane word reduction.
+//! read-only byte-by-byte 7-bit ASCII predicate with a 32-byte reduction, an
+//! exact memory or calldata zero-byte counter with a per-lane word reduction,
+//! and a loop that copies one byte per iteration between disjoint memory ranges
+//! with one `mcopy`, on EVM versions that have it.
 //! The matchers require complete canonical loop shapes, standard byte-address
 //! calculations, exact bounds and exits, and no additional effects or uses.
 //! The length bound may be read in the header or hoisted into the preheader,
@@ -16,9 +18,10 @@
 //! the rounded allocation padding; the transform shifts or forces those bytes
 //! to nonzero before reducing them, so uninitialized padding cannot affect the
 //! result. The original byte loop remains unreachable and later CFG cleanup
-//! removes it. This pass runs after memory-object lowering and before stack
-//! scheduling. It is enabled only for gas optimization because the word setup
-//! grows code.
+//! removes it. The copy requires the two ranges to be disjoint, since `mcopy`
+//! moves as if through a buffer while the loop copies upwards. This pass runs
+//! after memory-object lowering and `lower-mcopy`, and before stack scheduling.
+//! It is enabled only for gas optimization because the word setup grows code.
 
 use crate::mir::{
     BlockId, Function, FunctionBuilder, InstId, InstKind, Module, PtrLocation, Terminator, Value,
@@ -38,9 +41,11 @@ impl MirPass for LoopIdioms {
         "loop-idioms"
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        // `lower-mcopy` has already run, so a copy loop becomes `mcopy` only where it exists.
+        let has_mcopy = gcx.sess.opts.evm_version.has_mcopy();
         run_function_pass_with_alias(module, analyses, |func, analyses| {
-            run_function(func, analyses.alias())
+            run_function(func, analyses.alias(), has_mcopy)
         })
     }
 }
@@ -196,7 +201,7 @@ fn emit_return(builder: &mut FunctionBuilder<'_>, exit: ReturnShape, value: Valu
     }
 }
 
-fn run_function(func: &mut Function, alias: &AliasAnalysis) -> bool {
+fn run_function(func: &mut Function, alias: &AliasAnalysis, has_mcopy: bool) -> bool {
     let mut changed = false;
     loop {
         if let Some(candidate) =
@@ -211,8 +216,9 @@ fn run_function(func: &mut Function, alias: &AliasAnalysis) -> bool {
             func.blocks.indices().find_map(|header| match_calldata_zero_count_loop(func, header))
         {
             rewrite_zero_count_loop(func, candidate);
-        } else if let Some(candidate) =
-            func.blocks.indices().find_map(|header| match_copy_loop(func, alias, header))
+        } else if has_mcopy
+            && let Some(candidate) =
+                func.blocks.indices().find_map(|header| match_copy_loop(func, alias, header))
         {
             rewrite_copy_loop(func, candidate);
         } else {

@@ -1,5 +1,8 @@
-//@ compile-flags: -Ogas -Zmir-pipeline=loop-idioms
-//@ filecheck:
+//@ revisions: cancun shanghai
+//@[cancun] compile-flags: -Ogas --evm-version cancun -Zmir-pipeline=loop-idioms
+//@[cancun] filecheck:
+//@[shanghai] compile-flags: -Ogas --evm-version shanghai -Zmir-pipeline=loop-idioms
+//@[shanghai] filecheck: --check-prefix=PRE
 @module ByteCopyLoop
 
 // A raw address argument may overlap the fresh destination. Preserve the
@@ -105,9 +108,14 @@ fn @overlap_caller() -> i256 {
 }
 
 // Distinct concrete allocations still prove these four-byte ranges disjoint.
+// Before Cancun there is no `mcopy`, and `lower-mcopy` has already run.
 // CHECK-LABEL: fn @copy_allocations
 // CHECK: + mcopy
 // CHECK: - mstore8
+// PRE-LABEL: fn @copy_allocations
+// PRE-NOT: mcopy
+// PRE: mstore8
+// PRE-LABEL: fn @copy_over_allocation_end
 fn @copy_allocations() -> i256 {
   bb0:
     v12 = alloc 64
