@@ -45,6 +45,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
+use std::mem;
 
 /// Function pass for pure expression PRE.
 pub(crate) struct Pre;
@@ -483,7 +484,16 @@ impl PartialRedundancyEliminator {
     fn available_value_in_block(func: &Function, block: BlockId, key: &ExprKey) -> Option<ValueId> {
         func.blocks[block].instructions.iter().rev().find_map(|&inst| {
             let instruction = func.inst(inst);
-            if !Self::is_pre_expression(instruction) {
+            let same_op = match (&instruction.kind, &key.kind) {
+                (InstKind::Gt(..), InstKind::Lt(..)) | (InstKind::SGt(..), InstKind::SLt(..)) => {
+                    true
+                }
+                (kind, key_kind) => mem::discriminant(kind) == mem::discriminant(key_kind),
+            };
+            if !same_op
+                || instruction.result_ty != Some(key.ty)
+                || !Self::is_pre_expression(instruction)
+            {
                 return None;
             }
             let candidate_key =
@@ -506,7 +516,7 @@ impl PartialRedundancyEliminator {
         let kind = &instruction.kind;
         !matches!(kind, InstKind::Phi(_))
             && kind.effect_kind() == EffectKind::Pure
-            && !kind.has_side_effects()
+            && kind.effects().can_speculate()
             && kind.any_operand(|_| true)
             && instruction.result_ty.is_some_and(MirType::is_word)
     }
