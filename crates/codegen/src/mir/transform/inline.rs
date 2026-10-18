@@ -460,7 +460,8 @@ impl MirInliner {
         let mut stats = MirInlineStats::default();
         self.target = Target::new(gcx);
 
-        let mut call_counts = call_counts(module);
+        let call_graph = CallGraphInfo::new(module);
+        let mut call_counts = call_counts(module, &call_graph);
         // Keep the initial candidate set stable as inlining removes call sites.
         let memory_wrappers = if self.memory_wrappers_only {
             module
@@ -481,7 +482,6 @@ impl MirInliner {
 
         let mut summaries = self.summarize_module(module);
 
-        let call_graph = CallGraphInfo::new(module);
         let mut artifact_calls = (self.mode == InlineMode::TinyLeaves
             && summaries.values().any(|summary| summary.is_small_literal_return))
         .then(|| ArtifactCallCounts::new(module, &call_graph));
@@ -989,11 +989,20 @@ impl ArtifactCallCounts {
     }
 }
 
-/// The number of direct internal calls and tail calls to each function.
-fn call_counts(module: &Module) -> FxHashMap<MirFunctionId, usize> {
+/// The number of direct internal calls and tail calls to each function from reachable functions.
+///
+/// An earlier inliner run can leave a wrapper that no one calls anymore until function DCE.
+/// Its calls must not hide that the callee now has a single caller.
+fn call_counts(module: &Module, call_graph: &CallGraphInfo) -> FxHashMap<MirFunctionId, usize> {
+    let reachable = call_graph.reachable_from_entries();
     let mut counts = FxHashMap::default();
-    for function in module.functions.iter().flat_map(direct_callees) {
-        *counts.entry(function).or_default() += 1;
+    for (id, func) in module.functions.iter_enumerated() {
+        if !reachable.is_empty() && !reachable.contains(id) {
+            continue;
+        }
+        for function in direct_callees(func) {
+            *counts.entry(function).or_default() += 1;
+        }
     }
     counts
 }
@@ -1449,7 +1458,16 @@ fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
         return true;
     }
 
-    let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
+    // Widening an argument emits no code, as `EnumerableSet` wrappers do with their values.
+    let Some((call, casts)) = func.blocks[BlockId::ENTRY].instructions.split_last() else {
+        return false;
+    };
+    if !casts.iter().all(|&inst| {
+        matches!(func.inst(inst).kind, InstKind::Zext(value)
+            if matches!(func.value(value), Value::Arg(_)))
+    }) {
+        return false;
+    }
     let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*call).kind else {
         return false;
     };
