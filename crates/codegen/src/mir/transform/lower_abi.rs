@@ -1798,29 +1798,12 @@ impl LowerAbiCx {
                 let word = builder.imm(32);
                 let len = Self::load_input_word(builder, base, constructor);
                 let data = builder.add_u64_offset(base, 32);
-                let checked_object = if constructor {
-                    let object = builder.alloc_dynamic_word_array(
-                        len,
-                        crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                    );
-                    *current = builder.current_block();
-                    Some(object)
-                } else {
-                    None
-                };
-                builder.switch_to_block(*current);
-                let bytes = builder.checked_mul(len, word);
-                let (ptr, _) = if let Some(object) = checked_object {
-                    object
-                } else {
-                    let total = builder.checked_add(bytes, word);
-                    let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
-                    let ptr = builder
-                        .alloc(total, crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED);
-                    builder.set_memory_len(ptr, len);
-                    (ptr, layout)
-                };
+                let (ptr, _) = builder.alloc_dynamic_word_array(
+                    len,
+                    crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
+                );
                 *current = builder.current_block();
+                let bytes = builder.mul(len, word);
                 Self::guard_input_dynamic_array(builder, len, data, input_end, current, 32);
                 let source = builder.make_slice(data, bytes, location);
                 builder.memory_copy_from_slice(ptr, source);
@@ -1829,33 +1812,16 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(element) if arg_type == MirType::MEMPTR => {
                 let len = Self::load_input_word(builder, base, constructor);
                 let data_base = builder.add_u64_offset(base, 32);
-                let checked_object = if constructor {
-                    let object = builder.alloc_dynamic_word_array(
-                        len,
-                        crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                    );
-                    *current = builder.current_block();
-                    Some(object)
-                } else {
-                    None
-                };
+                let (ptr, _) = builder.alloc_dynamic_word_array(
+                    len,
+                    crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
+                );
+                *current = builder.current_block();
                 let word = builder.imm(32);
-                builder.switch_to_block(*current);
-                let bytes = builder.checked_mul(len, word);
+                let bytes = builder.mul(len, word);
 
                 let copy_validated =
                     !constructor && validate_array_elements && Self::is_scalar_or_enum(element);
-                let (ptr, _) = if let Some(object) = checked_object {
-                    object
-                } else {
-                    let total = builder.checked_add(bytes, word);
-                    let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
-                    let ptr = builder
-                        .alloc(total, crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED);
-                    builder.set_memory_len(ptr, len);
-                    (ptr, layout)
-                };
-                *current = builder.current_block();
                 Self::guard_input_dynamic_array(
                     builder,
                     len,
