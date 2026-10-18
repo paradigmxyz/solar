@@ -436,21 +436,23 @@ impl FrameSlotPromoter {
     ) -> bool {
         match *kind {
             InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => false,
-            // A logical frame slot in the same internal frame.
-            InstKind::FrameLoad { offset, mode: FrameMode::Internal, kind }
-            | InstKind::FrameStore { offset, mode: FrameMode::Internal, kind, .. } => {
-                AliasAnalysis::frame_location(func, offset, FrameMode::Internal, kind).is_none_or(
-                    |location| {
-                        aa.memory_alias(
-                            location,
-                            MemoryLocation::new(
-                                MemoryAddress::internal_frame(slot_offset),
-                                LocationSize::Const(32),
-                            ),
-                        )
-                        .may_alias()
-                    },
-                )
+            // A logical frame slot in the same internal frame. A stored slot address escapes.
+            InstKind::FrameLoad { offset, mode: FrameMode::Internal, kind: slot_kind }
+            | InstKind::FrameStore { offset, mode: FrameMode::Internal, kind: slot_kind, .. } => {
+                let escapes = matches!(*kind, InstKind::FrameStore { value, .. }
+                    if Self::internal_frame_offset(func, aa, value) == Some(slot_offset));
+                escapes
+                    || AliasAnalysis::frame_location(func, offset, FrameMode::Internal, slot_kind)
+                        .is_none_or(|location| {
+                            aa.memory_alias(
+                                location,
+                                MemoryLocation::new(
+                                    MemoryAddress::internal_frame(slot_offset),
+                                    LocationSize::Const(32),
+                                ),
+                            )
+                            .may_alias()
+                        })
             }
             InstKind::Load(addr, PtrLocation::Memory) => {
                 !Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)

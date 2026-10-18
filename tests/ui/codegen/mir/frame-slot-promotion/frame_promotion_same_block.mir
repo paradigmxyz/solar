@@ -37,3 +37,22 @@ fn @frame_store_overlap() -> i256 {
     v2 = mload v1
     ret v2
 }
+
+// Storing the slot's address into a logical frame slot lets the address escape:
+// a later load through the reloaded pointer reads the slot, so it stays in memory.
+// CHECK-LABEL: {{^[ +].*}}fn @frame_pointer_escape{{[( ]}}
+// CHECK: {{^ .*}}mstore [[ADDR:v[0-9]+]], 7
+// CHECK: {{^ .*}}mload
+// CHECK: {{^ .*}}mload [[ADDR]]
+fn @frame_pointer_escape() -> i256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, 7
+    frame_store internal_frame, word, 64, v1
+    v2 = frame_load internal_frame, word, 64
+    v3 = mload v2
+    v4 = mload v1
+    v5 = add v3, v4
+    ret v5
+}
