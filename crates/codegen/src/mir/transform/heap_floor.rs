@@ -1343,7 +1343,7 @@ impl<'a> PointerUses<'a> {
         slot_bytes(start, size.unwrap_or(u64::MAX)) & !written != 0
     }
 
-    /// Returns whether an operation that reads or writes memory objects may read a byte of the slot
+    /// Returns whether an operation with effects may read a byte of the slot
     /// that still holds the stored word, through an object or a memory slice it takes. Its extent
     /// is unknown, so any object `may_read_slot` cannot place above the slot may; a store into an
     /// object counts too, as the bytes it writes are unknown. An address at an index the program
@@ -1354,7 +1354,8 @@ impl<'a> PointerUses<'a> {
         kind: &InstKind,
         written: SlotBytes,
     ) -> bool {
-        if !matches!(kind.op_def().effect, EffectKind::MemoryRead | EffectKind::MemoryWrite) {
+        // Calls, builtins, and opaque operations may read their objects as well.
+        if kind.effect_kind() == EffectKind::Pure {
             return false;
         }
         let func = &self.module.functions[func_id];
