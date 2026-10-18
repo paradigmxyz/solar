@@ -6,14 +6,17 @@
 //! static-allocation placeholders remain for final backend layout. Raw loads and stores discard
 //! allocation-only effect and placement metadata: the emitted stores, initialization, and panic
 //! branches carry those effects. Source metadata stays on the original instruction.
+//! A preserving allocation that reserves bytes an encoder already wrote through an
+//! earlier pointer read in the same block reuses that read instead of loading the
+//! pointer again, as long as only writes addressed from the read word come between.
 
 use crate::mir::{
-    AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, Function,
-    FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode, PtrLocation,
-    ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
+    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
+    PtrLocation, ValueId, memory::EvmMemoryLayout, pass::MirPass,
     transform::utils::redirect_successor_predecessors,
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
@@ -167,23 +170,51 @@ fn lower_function(func: &mut Function) -> bool {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
+        let mut peek = FmpPeek::default();
         for inst in instructions {
+            // Allocations and pointer updates move the pointer past any earlier read.
+            let moves_fmp = matches!(
+                builder.func().inst(inst).kind,
+                InstKind::Alloc { .. } | InstKind::SetFmp(_)
+            );
             match builder.func().inst(inst).kind {
                 InstKind::Fmp => {
                     changed = true;
                     rewrite_as_fmp_load(&mut builder, inst);
                     builder.func_mut().blocks[block].instructions.push(inst);
+                    peek.start(builder.func(), inst);
+                }
+                InstKind::Alloc { size, semantics }
+                    if let Some(word) = peek.reserved_word(builder.func(), inst) =>
+                {
+                    debug_assert_eq!(semantics.failure, AllocationFailure::Infallible);
+                    changed = true;
+                    let ptr = builder
+                        .func()
+                        .inst_result_value(inst)
+                        .expect("allocation must produce a value");
+                    // ptr = inttoptr word
+                    // mstore 64, word + size
+                    let instruction = builder.func_mut().inst_mut(inst);
+                    instruction.kind = InstKind::IntToPtr(word);
+                    instruction.metadata.set_effect(None);
+                    instruction.metadata.set_preserves_fmp(false);
+                    instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                    let next = builder.add(word, size);
+                    store_fmp(&mut builder, next);
+                    initialize(&mut builder, ptr, size, semantics.initialization);
                 }
                 InstKind::SetFmp(ptr) => {
                     changed = true;
                     rewrite_as_fmp_store(&mut builder, inst, ptr);
                     builder.func_mut().blocks[block].instructions.push(inst);
                 }
+                // The backend may still place a deferred allocation with a runtime bump.
+                InstKind::Alloc { .. } if builder.func().inst(inst).metadata.deferred_alloc() => {
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                }
                 InstKind::Alloc { size, semantics } => {
-                    if builder.func().inst(inst).metadata.deferred_alloc() {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    }
                     debug_assert_eq!(semantics.failure, AllocationFailure::Infallible);
                     changed = true;
                     let ptr = builder
@@ -197,12 +228,92 @@ fn lower_function(func: &mut Function) -> bool {
                     initialize(&mut builder, ptr, size, semantics.initialization);
                 }
                 _ => {
+                    peek.observe(builder.func(), inst);
                     builder.func_mut().blocks[block].instructions.push(inst);
                 }
+            }
+            if moves_fmp {
+                peek.clear();
             }
         }
     }
     changed
+}
+
+/// The latest free-memory-pointer read in a block, while it is still the pointer.
+///
+/// Encoders read the pointer, write the encoding at and above it, and then reserve
+/// those bytes with an `alloc !preserves_fmp` that must return the same address.
+/// Lowering that reservation reuses the read word instead of loading slot 64 again,
+/// as solc's `allocate_unbounded` does. Any call, allocation, pointer update, or
+/// memory write not addressed from the read word ends the peek.
+#[derive(Default)]
+struct FmpPeek {
+    word: Option<ValueId>,
+    derived: FxHashSet<ValueId>,
+}
+
+impl FmpPeek {
+    fn start(&mut self, func: &Function, inst: InstId) {
+        let result = func.inst_result_value(inst).expect("`fmp` must produce a value");
+        let word = match func.inst(inst).kind {
+            InstKind::IntToPtr(word) => word,
+            _ => result,
+        };
+        self.word = Some(word);
+        self.derived.clear();
+        self.derived.extend([word, result]);
+    }
+
+    fn clear(&mut self) {
+        self.word = None;
+        self.derived.clear();
+    }
+
+    /// The read word, if `inst` reserves the bytes written since the read.
+    fn reserved_word(&self, func: &Function, inst: InstId) -> Option<ValueId> {
+        let instruction = func.inst(inst);
+        (instruction.metadata.preserves_fmp()
+            && !instruction.metadata.deferred_alloc()
+            && instruction.result_ty.is_some_and(MirType::is_pointer))
+        .then_some(self.word?)
+    }
+
+    fn observe(&mut self, func: &Function, inst: InstId) {
+        if self.word.is_none() {
+            return;
+        }
+        let kind = &func.inst(inst).kind;
+        let keeps = match kind.effect_kind() {
+            EffectKind::Pure
+            | EffectKind::MemoryRead
+            | EffectKind::StorageRead
+            | EffectKind::TransientRead
+            | EffectKind::EnvironmentRead => true,
+            EffectKind::MemoryWrite => match *kind {
+                InstKind::Store(ptr, _, PtrLocation::Memory)
+                | InstKind::Store8(ptr, _)
+                | InstKind::MemoryZero(ptr, _)
+                | InstKind::Copy(ptr, ..) => self.derived.contains(&ptr),
+                _ => false,
+            },
+            _ => false,
+        };
+        if !keeps {
+            self.clear();
+            return;
+        }
+        let from_peek = match *kind {
+            InstKind::Add(a, b) => self.derived.contains(&a) || self.derived.contains(&b),
+            InstKind::PtrAdd(ptr, _) | InstKind::PtrToInt(ptr, _) | InstKind::IntToPtr(ptr) => {
+                self.derived.contains(&ptr)
+            }
+            _ => false,
+        };
+        if from_peek && let Some(result) = func.inst_result_value(inst) {
+            self.derived.insert(result);
+        }
+    }
 }
 
 fn lower_checked_alloc(
