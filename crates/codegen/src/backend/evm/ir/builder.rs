@@ -16,7 +16,7 @@ use crate::{
     mir::{ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
-use solar_data_structures::index::index_vec;
+use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
 use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
@@ -608,6 +608,43 @@ impl<'gcx> Assembler<'gcx> {
             let mut terminator = ir::Terminator::new(ir::TerminatorKind::IndexedJump(targets));
             terminator.metadata = metadata;
             module.blocks[block].terminator = Some(terminator);
+        }
+
+        // MIR shares data between creation and runtime. Select this artifact's data before
+        // its layout becomes observable; later packing must preserve CODESIZE-sensitive data.
+        let mut used = DenseBitSet::new_empty(module.data.len());
+        for (id, data) in module.data.iter_enumerated() {
+            if data.emit_in_runtime {
+                used.insert(id);
+            }
+        }
+        for block in &module.blocks {
+            for inst in &block.instructions {
+                match inst.value {
+                    Some(ir::PushValue::Data(data)) => {
+                        used.insert(data.id);
+                    }
+                    Some(ir::PushValue::DataSize(size)) => {
+                        used.insert(size.data);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut remap = index_vec![None; module.data.len()];
+        for (id, data) in std::mem::take(&mut module.data).into_iter_enumerated() {
+            if used.contains(id) {
+                remap[id] = Some(module.data.push(data));
+            }
+        }
+        for block in &mut module.blocks {
+            for inst in &mut block.instructions {
+                match &mut inst.value {
+                    Some(ir::PushValue::Data(data)) => data.id = remap[data.id].unwrap(),
+                    Some(ir::PushValue::DataSize(size)) => size.data = remap[size.data].unwrap(),
+                    _ => {}
+                }
+            }
         }
     }
 }
