@@ -1,14 +1,28 @@
 //! Materialize and pack program data.
 //!
 //! `pack-existing-data` interns equal data objects and pools contained byte strings without
-//! changing code. `pack-data` also finds literal memory-store runs that can become `CODECOPY`,
-//! scores the instruction and data-pool cost in the selected optimization mode, then interns the
-//! accepted bytes. Both passes leave a module alone when `CODESIZE` can observe the changed data
-//! layout, or when a data address may reach anything but a `CODECOPY` that stays inside its
-//! entry. The scan tracks each block's stack and follows addresses through a few unconditional
-//! jumps, since shared tails can move a copy into another block. Pooling uses bounded substring
-//! search to avoid quadratic compile time on large data sets. Library relocations must match
-//! within a shared range; literal stores never share relocatable bytes.
+//! changing code. `pack-data` also replaces runs of constant memory stores with one copy each. A
+//! run is found by symbolically executing pushes, stack operations, constant expressions (folded
+//! with the MIR evaluator), and constant `MSTORE` and `MSTORE8`s to one base: a stack word plus
+//! constant offsets, or absolute addresses. Stores may come in any order and overlap, but must
+//! fill one contiguous range, since a copy would overwrite any gap. The copy takes the window's
+//! place and rebuilds the stack the window left: it pops consumed inputs or pushes the constants
+//! and address words the window produced. Among starts that write the same bytes to the same end,
+//! the cheapest wins. The pass prices each run with the `Target` cost model and groups equal
+//! byte strings so every site of a group shares one entry, accepting a group when its total saving
+//! improves the objective; under `-Ogas` that means less runtime gas and no more bytes, since
+//! static sites have no execution frequency to repay code growth. Rejected groups can still ride
+//! along as substrings of an accepted entry.
+//!
+//! Both passes leave a module alone when `CODESIZE` can observe the changed data layout, or when
+//! a data address may reach anything but a `CODECOPY` that stays inside its entry. The scan tracks
+//! each block's stack and follows addresses through a few unconditional jumps, since shared tails
+//! can move a copy into another block. Pooling uses bounded substring search to avoid quadratic
+//! compile time on large data sets. Library relocations must match within a shared range; literal
+//! stores never share relocatable bytes.
+//!
+//! Runs end at the first other instruction, so a computed word between literal stores splits
+//! them, and runs do not cross block boundaries; `cfg-simplify` merges straight-line chains first.
 //!
 //! Deferred contract bytecode stays opaque in the pipeline: each deferred entry keeps its own
 //! storage, and a `push_data_size` counts as a reference that bounds a copy of its entry's exact
@@ -16,18 +30,18 @@
 //! `pack-existing-data` once more so linked bytecode can share storage, such as runtime code
 //! inside the creation code that contains it.
 
-use super::{EvmPass, utils::instruction_size_lower_bound};
+use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
-        data_copy_cost, data_copy_gas,
         ir::{
             BlockId, Data, DataId, DataRef, DataSize, Instruction, Metadata, Module, PushValue,
-            Terminator, TerminatorKind, immediate_materialization_cost,
+            Terminator, TerminatorKind,
         },
         op::{self, WORD_BYTES},
     },
     link::LibraryRelocation,
-    target::{GasTier, Target},
+    mir::utils::eval,
+    target::{Cost, Target},
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
@@ -37,6 +51,9 @@ use solar_sema::Gcx;
 
 /// Bounds quadratic arbitrary-substring pooling; exact interning remains unbounded.
 const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
+
+/// Bounds the instructions one literal-store run may span, keeping each scan start linear.
+const MAX_RUN_INSTRUCTIONS: usize = 256;
 
 /// Bounds the unconditional jumps followed from a block to find where its data addresses are used.
 const MAX_DATA_JUMP_HOPS: usize = 4;
@@ -86,20 +103,26 @@ impl EvmPass for PackData {
     }
 }
 
+/// A literal-store run that one copy can replace.
 struct Rewrite {
     block: BlockId,
     start: usize,
     end: usize,
-    old_size: usize,
-    old_gas: usize,
+    /// Byte length of the copy.
+    size: usize,
+    /// Cost of the replaced instructions.
+    old: Cost,
+    /// Cost of the replacement, without the bytes it may add to the data pool.
+    new: Cost,
+    /// The replacement after its size and source pushes: the destination, the copy, and the
+    /// stack the replaced instructions left.
+    tail: Vec<Instruction>,
 }
 
 struct PreparedRewrite {
-    block: BlockId,
-    start: usize,
-    end: usize,
+    rewrite: Rewrite,
+    /// The copied program data.
     data: DataRef,
-    size: usize,
 }
 
 struct PoolEntry {
@@ -129,6 +152,15 @@ impl Improvement {
     fn add(&mut self, other: Self) {
         self.runtime_gas += other.runtime_gas;
         self.bytes += other.bytes;
+    }
+
+    /// The objective order of a saving: gas first when optimizing for gas, bytes first otherwise.
+    fn objective_key(self, target: Target) -> [i128; 2] {
+        if target.optimization().is_gas() {
+            [self.runtime_gas, self.bytes]
+        } else {
+            [self.bytes, self.runtime_gas]
+        }
     }
 }
 
@@ -189,7 +221,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     for (data, rewrites) in groups {
         let placement = pool.placement(&data);
         let additional_bytes = placement_additional_bytes(&placement, data.len());
-        let mut improvement = rewrite_improvement(gcx, data.len(), &rewrites, additional_bytes);
+        let mut improvement = rewrite_improvement(&rewrites, additional_bytes);
         let mut absorbed = Vec::new();
         for (index, (contained, contained_rewrites)) in
             rejected.iter().take(MAX_DATA_SUBSTRING_ENTRIES).enumerate()
@@ -197,8 +229,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
             let Some(offset) = memmem::find(&data, contained) else {
                 continue;
             };
-            let contained_improvement =
-                rewrite_improvement(gcx, contained.len(), contained_rewrites, 0);
+            let contained_improvement = rewrite_improvement(contained_rewrites, 0);
             if is_profitable(gcx, contained_improvement) {
                 improvement.add(contained_improvement);
                 absorbed.push((index, offset));
@@ -209,23 +240,18 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
             continue;
         }
 
-        let size = data.len();
         let data_ref = pool.intern(module, data, placement);
-        prepare_rewrites(&mut prepared, rewrites, data_ref, size);
+        prepare_rewrites(&mut prepared, rewrites, data_ref);
         for (index, offset) in absorbed.into_iter().rev() {
-            let (contained, rewrites) = rejected.swap_remove(index);
+            let (_, rewrites) = rejected.swap_remove(index);
             let offset =
                 data_ref.offset.checked_add(data_offset(offset)).expect("data offset overflow");
-            prepare_rewrites(
-                &mut prepared,
-                rewrites,
-                DataRef::new(data_ref.id, offset),
-                contained.len(),
-            );
+            prepare_rewrites(&mut prepared, rewrites, DataRef::new(data_ref.id, offset));
         }
     }
-    prepared.sort_unstable_by_key(|rewrite| (rewrite.block, rewrite.start));
-    for rewrite in prepared.iter().rev() {
+    prepared.sort_unstable_by_key(|prepared| (prepared.rewrite.block, prepared.rewrite.start));
+    let changed = !prepared.is_empty();
+    for PreparedRewrite { rewrite, data } in prepared.into_iter().rev() {
         let instructions = &mut module.blocks[rewrite.block].instructions;
         // The copy carries every origin of the stores it replaces; their function events land
         // on the copy itself, the last replacement.
@@ -235,110 +261,301 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
         }
         // push size
         // push data
-        // dup 3
-        // codecopy
-        let mut replacement = [
-            Instruction::push_value(U256::from(rewrite.size)),
-            Instruction::push_data(rewrite.data),
-            Instruction::opcode(op::DUP3),
-            Instruction::opcode(op::CODECOPY),
-        ]
-        .map(|inst| inst.with_source_debug(&metadata));
-        replacement[3].metadata.absorb_debug_info(&metadata);
+        // <tail>
+        let mut replacement =
+            [Instruction::push_value(U256::from(rewrite.size)), Instruction::push_data(data)]
+                .into_iter()
+                .chain(rewrite.tail)
+                .map(|inst| inst.with_source_debug(&metadata))
+                .collect::<Vec<_>>();
+        let copy = replacement.iter().rposition(|inst| inst.opcode == op::CODECOPY).unwrap();
+        replacement[copy].metadata.absorb_debug_info(&metadata);
         instructions.splice(rewrite.start..rewrite.end, replacement);
     }
-    !prepared.is_empty()
+    changed
 }
 
-fn prepare_rewrites(
-    prepared: &mut Vec<PreparedRewrite>,
-    rewrites: Vec<Rewrite>,
-    data: DataRef,
-    size: usize,
-) {
-    prepared.extend(rewrites.into_iter().map(|rewrite| PreparedRewrite {
-        block: rewrite.block,
-        start: rewrite.start,
-        end: rewrite.end,
-        data,
-        size,
-    }));
+fn prepare_rewrites(prepared: &mut Vec<PreparedRewrite>, rewrites: Vec<Rewrite>, data: DataRef) {
+    prepared.extend(rewrites.into_iter().map(|rewrite| PreparedRewrite { rewrite, data }));
 }
 
+/// Finds the literal-store run that starts at `start`. A later start that writes the same bytes
+/// and ends at the same place wins when it saves at least as much: leading instructions that the
+/// copy would only rebuild add nothing.
 fn find_run(
-    gcx: Gcx<'_>,
+    target: Target,
     block: BlockId,
     instructions: &[Instruction],
     start: usize,
 ) -> Option<(Bytes, Rewrite)> {
-    let (words, end) = literal_store_words(instructions, start)?;
-    let data = literal_store_bytes(instructions, start, end, words);
-    let instructions = &instructions[start..end];
-    let old_size = instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum();
-    let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
-    Some((data, Rewrite { block, start, end, old_size, old_gas }))
+    let mut best = scan_run(target, instructions, start)?;
+    for later in start + 1..best.first_store {
+        if let Some(run) = scan_run(target, instructions, later)
+            && run.end == best.end
+            && run.data == best.data
+            && run.saving().objective_key(target) >= best.saving().objective_key(target)
+        {
+            best = run;
+        }
+    }
+    let Run { start, end, data, old, new, tail, .. } = best;
+    let rewrite = Rewrite { block, start, end, size: data.len(), old, new, tail };
+    Some((data, rewrite))
 }
 
-/// Returns the word count and exclusive end of a consecutive literal `MSTORE` run.
-fn literal_store_words(instructions: &[Instruction], start: usize) -> Option<(usize, usize)> {
-    let [value, dup, store, ..] = instructions.get(start..)? else { return None };
-    value.concrete_immediate()?;
-    if dup.as_stack_op() != Some(op::StackOp::Dup(2)) || store.as_evm_opcode() != Some(op::MSTORE) {
+/// A word on the symbolic stack of a literal-store run: input slot `slot` of the run, counted
+/// from the top of the stack the run starts with, plus `offset`, or the constant `offset`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct RunWord {
+    slot: Option<usize>,
+    offset: U256,
+}
+
+impl RunWord {
+    const fn constant(value: U256) -> Self {
+        Self { slot: None, offset: value }
+    }
+
+    const fn input(slot: usize) -> Self {
+        Self { slot: Some(slot), offset: U256::ZERO }
+    }
+}
+
+/// Stores of constants to one base address that a single copy can replace.
+struct Run {
+    start: usize,
+    first_store: usize,
+    end: usize,
+    data: Bytes,
+    old: Cost,
+    new: Cost,
+    tail: Vec<Instruction>,
+}
+
+impl Run {
+    fn saving(&self) -> Improvement {
+        Improvement {
+            runtime_gas: i128::from(self.old.gas) - i128::from(self.new.gas),
+            bytes: i128::from(self.old.bytes) - i128::from(self.new.bytes),
+        }
+    }
+}
+
+/// The state of a run scan after a store.
+struct RunEnd {
+    end: usize,
+    old: Cost,
+    stores: usize,
+    range: (u64, u64),
+    inputs: usize,
+    kept: usize,
+    extras: Vec<RunWord>,
+}
+
+/// Symbolically runs the pushes, stack operations, constant expressions, and constant `MSTORE`
+/// and `MSTORE8`s from `start`, and returns the longest prefix whose stores fill one contiguous
+/// range and whose final stack a copy can rebuild.
+fn scan_run(target: Target, instructions: &[Instruction], start: usize) -> Option<Run> {
+    if !is_split_point(instructions, start) {
         return None;
     }
-
-    let mut end = start + 3;
-    let mut words = 1usize;
-    while let Some(window) = instructions.get(end..end + 6) {
-        let [offset, dup, add, value, swap, store] = window else { unreachable!() };
-        if offset.concrete_immediate() != Some(U256::from(words * WORD_BYTES))
-            || dup.as_stack_op() != Some(op::StackOp::Dup(2))
-            || add.as_evm_opcode() != Some(op::ADD)
-            || swap.as_stack_op() != Some(op::StackOp::Swap(1))
-            || store.as_evm_opcode() != Some(op::MSTORE)
-        {
+    let mut stack = Vec::<RunWord>::new();
+    let mut inputs = 0;
+    let mut old = Cost::ZERO;
+    let mut base = None;
+    let mut first_store = None;
+    let mut stores = Vec::<(u64, U256, bool)>::new();
+    let mut ranges = Vec::<(u64, u64)>::new();
+    let mut best = None;
+    let ensure = |stack: &mut Vec<RunWord>, inputs: &mut usize, depth: usize| {
+        while stack.len() < depth {
+            stack.insert(0, RunWord::input(*inputs));
+            *inputs += 1;
+        }
+    };
+    for (index, inst) in instructions.iter().enumerate().skip(start).take(MAX_RUN_INSTRUCTIONS) {
+        if let Some(value) = inst.concrete_immediate() {
+            stack.push(RunWord::constant(value));
+            old += target.push(value);
+            continue;
+        }
+        if inst.is_encoded_push() {
             break;
         }
-        if value.concrete_immediate().is_none() {
-            break;
+        if let Some(stack_op) = inst.as_stack_op() {
+            let Some(cost) = target.stack_op(stack_op) else { break };
+            ensure(&mut stack, &mut inputs, stack_op.required_depth());
+            let top = stack.len() - 1;
+            match stack_op {
+                op::StackOp::Dup(depth) => stack.push(stack[top + 1 - usize::from(depth)]),
+                op::StackOp::Swap(depth) => stack.swap(top, top - usize::from(depth)),
+                op::StackOp::Exchange(first, second) => {
+                    stack.swap(top - usize::from(first), top - usize::from(second))
+                }
+                op::StackOp::Pop => {
+                    stack.pop();
+                }
+            }
+            old += cost;
+            continue;
         }
-        words += 1;
-        end += 6;
+        let opcode = inst.opcode;
+        if matches!(opcode, op::MSTORE | op::MSTORE8) {
+            ensure(&mut stack, &mut inputs, 2);
+            let address = stack.pop().unwrap();
+            let value = stack.pop().unwrap();
+            let width = if opcode == op::MSTORE { WORD_BYTES as u64 } else { 1 };
+            let Ok(offset) = u64::try_from(address.offset) else { break };
+            if value.slot.is_some()
+                || *base.get_or_insert(address.slot) != address.slot
+                || offset.checked_add(width).is_none()
+            {
+                break;
+            }
+            first_store.get_or_insert(index);
+            stores.push((offset, value.offset, opcode == op::MSTORE));
+            insert_range(&mut ranges, (offset, offset + width));
+            old += target.opcode(opcode);
+            let end = index + 1;
+            let kept = stack
+                .iter()
+                .zip((0..inputs).rev())
+                .take_while(|&(&word, slot)| word == RunWord::input(slot))
+                .count();
+            if let [range] = ranges[..]
+                && is_split_point(instructions, end)
+                && (kept == inputs || kept == stack.len())
+            {
+                let extras = stack[kept..].to_vec();
+                best = Some(RunEnd { end, old, stores: stores.len(), range, inputs, kept, extras });
+            }
+            continue;
+        }
+        let Some((input_count, 1)) = op::stack_io(opcode) else { break };
+        let input_count = usize::from(input_count);
+        ensure(&mut stack, &mut inputs, input_count);
+        let operands = stack.split_off(stack.len() - input_count);
+        let arguments = operands.iter().rev().map(|word| word.offset).collect::<Vec<_>>();
+        let result = match operands[..] {
+            [a, b] if opcode == op::ADD && a.slot.xor(b.slot).is_some() => {
+                RunWord { slot: a.slot.or(b.slot), offset: a.offset.wrapping_add(b.offset) }
+            }
+            _ if operands.iter().all(|word| word.slot.is_none()) => {
+                let Some(value) = eval::eval_opcode(opcode, &arguments) else { break };
+                RunWord::constant(value)
+            }
+            _ => break,
+        };
+        let arguments = arguments.into_iter().map(Some).collect::<Vec<_>>();
+        old += target.opcode_with_immediates(opcode, &arguments);
+        stack.push(result);
     }
-    Some((words, end))
+
+    let RunEnd { end, old, stores: store_count, range: (low, high), inputs, kept, extras } = best?;
+    let mut data = vec![0; (high - low) as usize];
+    for &(offset, value, word) in &stores[..store_count] {
+        let at = (offset - low) as usize;
+        if word {
+            data[at..at + WORD_BYTES].copy_from_slice(&value.to_be_bytes::<WORD_BYTES>());
+        } else {
+            data[at] = value.byte(0);
+        }
+    }
+    // The deepest replacement `DUP` reaches the base below the size and source pushes, or an input
+    // below every rebuilt word.
+    if inputs + extras.len() + 4 > usize::from(u8::MAX) {
+        return None;
+    }
+    let destination = RunWord { slot: base.flatten(), offset: U256::from(low) };
+    let tail = copy_tail(destination, inputs, kept, &extras);
+    // Reserve PUSH3 for the unresolved data address.
+    let source = target.opcode(op::PUSH3);
+    let words = u32::try_from(data.len().div_ceil(WORD_BYTES)).ok()?;
+    let mut new = target.push(U256::from(data.len()))
+        + source
+        + Cost::new(target.copy_word_gas().saturating_mul(words), 0);
+    for inst in &tail {
+        new += instruction_cost(target, inst)?;
+    }
+    Some(Run { start, first_store: first_store?, end, data: data.into(), old, new, tail })
 }
 
-/// Returns the bytes of the `words` literal `MSTORE`s from `start` to `end`.
-fn literal_store_bytes(
-    instructions: &[Instruction],
-    start: usize,
-    end: usize,
-    words: usize,
-) -> Bytes {
-    let first = instructions[start].concrete_immediate().unwrap();
-    let mut data = Vec::with_capacity(words * WORD_BYTES);
-    data.extend_from_slice(&first.to_be_bytes::<WORD_BYTES>());
-    for window in instructions[start + 3..end].as_chunks::<6>().0 {
-        data.extend_from_slice(
-            &window[3].concrete_immediate().unwrap().to_be_bytes::<WORD_BYTES>(),
-        );
-    }
-    data.into()
+/// Adds `range` to the sorted disjoint `ranges`, merging touching ranges.
+fn insert_range(ranges: &mut Vec<(u64, u64)>, (mut low, mut high): (u64, u64)) {
+    ranges.retain(|&(start, end)| {
+        let touches = start <= high && low <= end;
+        if touches {
+            low = low.min(start);
+            high = high.max(end);
+        }
+        !touches
+    });
+    let index = ranges.partition_point(|&(start, _)| start < low);
+    ranges.insert(index, (low, high));
 }
 
-fn rewrite_improvement(
-    gcx: Gcx<'_>,
-    size: usize,
-    rewrites: &[Rewrite],
+/// The instructions after a copy's size and source pushes: its destination, the copy, and the
+/// rebuilt stack, where the run consumed the inputs above `kept` and pushed `extras`.
+fn copy_tail(
+    destination: RunWord,
+    inputs: usize,
+    kept: usize,
+    extras: &[RunWord],
+) -> Vec<Instruction> {
+    let dup = |depth: usize| Instruction::stack_op(op::StackOp::Dup(depth as u8));
+    let mut tail = Vec::new();
+    // dup base | push offset; dup base; add | push address
+    match destination {
+        RunWord { slot: Some(slot), offset } if offset.is_zero() => tail.push(dup(slot + 3)),
+        RunWord { slot: Some(slot), offset } => {
+            tail.extend([Instruction::push_value(offset), dup(slot + 4)]);
+            tail.push(Instruction::opcode(op::ADD));
+        }
+        RunWord { slot: None, offset } => tail.push(Instruction::push_value(offset)),
+    }
+    // codecopy
+    tail.push(Instruction::opcode(op::CODECOPY));
+    // pop
+    tail.extend((kept..inputs).map(|_| Instruction::stack_op(op::StackOp::Pop)));
+    for (index, extra) in extras.iter().enumerate() {
+        // push value | dup input [push offset; add]
+        match extra.slot {
+            None => tail.push(Instruction::push_value(extra.offset)),
+            Some(slot) => {
+                tail.push(dup(slot + 1 + index));
+                if !extra.offset.is_zero() {
+                    tail.extend([
+                        Instruction::push_value(extra.offset),
+                        Instruction::opcode(op::ADD),
+                    ]);
+                }
+            }
+        }
+    }
+    tail
+}
+
+/// The cost of an instruction in a copy replacement, or `None` when the target lacks it.
+fn instruction_cost(target: Target, inst: &Instruction) -> Option<Cost> {
+    if let Some(value) = inst.concrete_immediate() {
+        return Some(target.push(value));
+    }
+    match inst.as_stack_op() {
+        Some(stack_op) => target.stack_op(stack_op),
+        None => Some(target.opcode(inst.opcode)),
+    }
+}
+
+fn rewrite_improvement<'a>(
+    rewrites: impl IntoIterator<Item = &'a Rewrite>,
     additional_bytes: isize,
 ) -> Improvement {
-    let old_bytes = rewrites.iter().map(|rewrite| rewrite.old_size).sum::<usize>() as i128;
-    let new_bytes = (data_copy_size(gcx, size) * rewrites.len()) as i128 + additional_bytes as i128;
-    let old_gas = rewrites.iter().map(|rewrite| rewrite.old_gas).sum::<usize>() as i128;
-    let new_gas = (data_copy_gas(gcx.sess.opts.evm_version, size) * rewrites.len()) as i128;
-    let bytes = old_bytes - new_bytes;
-    let runtime_gas = old_gas - new_gas;
-    Improvement { runtime_gas, bytes }
+    let mut improvement = Improvement { runtime_gas: 0, bytes: -(additional_bytes as i128) };
+    for rewrite in rewrites {
+        improvement.runtime_gas += i128::from(rewrite.old.gas) - i128::from(rewrite.new.gas);
+        improvement.bytes += i128::from(rewrite.old.bytes) - i128::from(rewrite.new.bytes);
+    }
+    improvement
 }
 
 fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
@@ -528,6 +745,7 @@ pub(crate) fn data_layout_is_observable(module: &Module) -> bool {
 }
 
 fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
+    let target = Target::new(gcx);
     let mut groups = RewriteGroups::default();
     let mut next_run_start = 0;
     let references = scan_data_references(module, |block_id, index, instructions| {
@@ -535,7 +753,7 @@ fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, R
             next_run_start = 0;
         }
         if index >= next_run_start
-            && let Some((data, rewrite)) = find_run(gcx, block_id, instructions, index)
+            && let Some((data, rewrite)) = find_run(target, block_id, instructions, index)
         {
             next_run_start = rewrite.end;
             groups.entry(data).or_default().push(rewrite);
@@ -720,14 +938,4 @@ impl<'n> NeedleFinder<'n> {
 
 fn data_offset(offset: usize) -> u32 {
     u32::try_from(offset).expect("data offset exceeds `u32`")
-}
-
-fn data_copy_size(gcx: Gcx<'_>, size: usize) -> usize {
-    data_copy_cost(gcx.sess.opts.evm_version, size).0
-}
-
-fn static_gas(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    inst.concrete_immediate().map_or(GasTier::VeryLow.fixed_gas() as usize, |value| {
-        immediate_materialization_cost(gcx.sess.opts.evm_version, value).1
-    })
 }
