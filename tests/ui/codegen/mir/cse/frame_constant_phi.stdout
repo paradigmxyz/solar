@@ -1,0 +1,39 @@
+- // === ROOT/tests/ui/codegen/mir/cse/frame_constant_phi.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/frame_constant_phi.mir (after cse) ===
+  @module FrameConstantPhi
+  fn @backedge_first(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      v0 = calldatasize
+-     v1 = xor v0, arg0
+      jump bb1
+    bb1:
+-     v2 = phi [bb2: v4], [bb0: v1]
++     v5 = xor v0, arg0
+      v3 = calldatasize
+      jumpi arg1, bb2, bb3
+    bb3:
+-     ret v2
++     ret v5
+    bb2:
+-     v4 = xor v3, arg0
+      jump bb1
+  }
+  
+  fn @entry_first(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      v0 = calldatasize
+-     v1 = xor v0, arg0
+      jump bb1
+    bb1:
+-     v2 = phi [bb0: v1], [bb2: v4]
++     v5 = xor v0, arg0
+      v3 = calldatasize
+      jumpi arg1, bb2, bb3
+    bb3:
+-     ret v2
++     ret v5
+    bb2:
+-     v4 = xor v3, arg0
+      jump bb1
+  }
+  

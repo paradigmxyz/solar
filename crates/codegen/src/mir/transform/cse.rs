@@ -656,15 +656,7 @@ impl CommonSubexprEliminator {
         for &(_, value) in incoming {
             let Value::Inst(inst_id) = func.value(value) else { return None };
             let source_inst = func.inst(*inst_id);
-            if source_inst.kind.has_side_effects()
-                || !Self::operands_dominate_block(
-                    func,
-                    &source_inst.kind,
-                    block_id,
-                    ctx.inst_blocks.get_or_init(|| func.inst_block_table()),
-                    ctx.dominators,
-                )
-            {
+            if source_inst.kind.has_side_effects() {
                 return None;
             }
 
@@ -676,7 +668,19 @@ impl CommonSubexprEliminator {
                 return None;
             }
             expected_key = Some(key);
-            candidate_kind.get_or_insert_with(|| source_inst.kind.clone());
+            // Equal keys may still name different operands, such as two reads of one frame
+            // constant, so clone an incoming expression whose operands exist after the phis.
+            if candidate_kind.is_none()
+                && Self::operands_available_after_phis(
+                    func,
+                    &source_inst.kind,
+                    block_id,
+                    ctx.inst_blocks.get_or_init(|| func.inst_block_table()),
+                    ctx.dominators,
+                )
+            {
+                candidate_kind = Some(source_inst.kind.clone());
+            }
             incoming_insts.push((value, *inst_id));
         }
 
@@ -1480,7 +1484,9 @@ impl CommonSubexprEliminator {
         )
     }
 
-    fn operands_dominate_block(
+    /// Whether every operand of `kind` is defined before the first non-phi instruction of
+    /// `block_id`: a phi of the block or a value from a strictly dominating block.
+    fn operands_available_after_phis(
         func: &Function,
         kind: &InstKind,
         block_id: BlockId,
@@ -1488,11 +1494,11 @@ impl CommonSubexprEliminator {
         dominators: &DominatorTree,
     ) -> bool {
         kind.operands().into_iter().all(|value| {
-            Self::value_dominates_block(func, value, block_id, inst_blocks, dominators)
+            Self::value_available_after_phis(func, value, block_id, inst_blocks, dominators)
         })
     }
 
-    fn value_dominates_block(
+    fn value_available_after_phis(
         func: &Function,
         value: ValueId,
         block_id: BlockId,
@@ -1501,11 +1507,15 @@ impl CommonSubexprEliminator {
     ) -> bool {
         match func.value(value) {
             Value::Immediate(_) | Value::Arg(_) | Value::Undef(_) | Value::Error(_) => true,
-            Value::Inst(inst_id) => inst_blocks
-                .get(*inst_id)
-                .copied()
-                .flatten()
-                .is_some_and(|def_block| dominators.dominates(def_block, block_id)),
+            Value::Inst(inst_id) => {
+                inst_blocks.get(*inst_id).copied().flatten().is_some_and(|def_block| {
+                    if def_block == block_id {
+                        matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
+                    } else {
+                        dominators.dominates(def_block, block_id)
+                    }
+                })
+            }
         }
     }
 
