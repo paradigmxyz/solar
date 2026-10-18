@@ -55,7 +55,7 @@ use crate::{
         analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
         transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
     },
-    target::{Cost, Target},
+    target::Target,
 };
 
 use alloy_primitives::U256;
@@ -235,18 +235,9 @@ fn synthesize_tuple_helpers(
             builder.set_return_type(result_ty);
             builder.ret([encoded]);
         }
-        let params = function.params.len();
         let body = target.code_estimate(&function);
         let sites = u32::try_from(sites).unwrap_or(u32::MAX);
-        // The encoding runs at every site in both shapes; the call protocol is the price of
-        // sharing it, the copies of the body the price of expanding it.
-        let frame_words = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE
-            + params as u64
-            + 1;
-        let call = target.icall(params, 1, frame_words);
-        let ret = target.internal_return(params, 1);
-        let with_helper = Cost::new(0, body.bytes).plus(ret).plus(call.times(sites));
-        let expanded = Cost::new(0, body.bytes.saturating_mul(sites));
+        let (with_helper, expanded) = target.helper_sharing(body, function.params.len(), 1, sites);
         if target.cmp(with_helper, expanded).is_lt() {
             shared.push((key, function));
         }
