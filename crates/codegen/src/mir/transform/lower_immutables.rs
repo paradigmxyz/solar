@@ -11,13 +11,12 @@
 //! code stays semantic and fails the lowered-phase check rather than writing memory there.
 
 use crate::mir::{
-    Callee, EffectKind, FunctionBuilder, FunctionId, InstKind, MemoryRegion, Module, PtrLocation,
-    Terminator,
+    EffectKind, FunctionBuilder, FunctionId, InstKind, MemoryRegion, Module, PtrLocation,
+    analysis::CallGraphInfo,
     immutable::{immutable_staging_addr, immutable_staging_base},
     pass::MirPass,
 };
 use solar_data_structures::bit_set::DenseBitSet;
-use std::collections::VecDeque;
 
 /// Lowers immutable assignments to memory stores in the deployment staging area.
 pub(crate) struct LowerImmutables;
@@ -71,37 +70,17 @@ impl MirPass for LowerImmutables {
 }
 
 fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {
-    let mut reachable = DenseBitSet::new_empty(module.functions.len());
-    let mut worklist = VecDeque::new();
-    if let Some(entry) = module.dispatch_entry() {
-        reachable.insert(entry);
-        worklist.push_back(entry);
-    }
-    for (func_id, func) in module.functions.iter_enumerated() {
-        if (func.selector.is_some() || func.attributes.is_fallback || func.attributes.is_receive)
-            && reachable.insert(func_id)
-        {
-            worklist.push_back(func_id);
-        }
-    }
-
-    while let Some(func_id) = worklist.pop_front() {
-        let func = module.function(func_id);
-        for inst_id in func.instructions() {
-            if let InstKind::ICall { function: Callee::Function(function), .. } =
-                func.inst(inst_id).kind
-                && reachable.insert(function)
-            {
-                worklist.push_back(function);
-            }
-        }
-        for block in &func.blocks {
-            if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                && reachable.insert(*function)
-            {
-                worklist.push_back(*function);
-            }
-        }
+    let roots = module
+        .dispatch_entry()
+        .into_iter()
+        .chain(module.functions.iter_enumerated().filter_map(|(id, func)| {
+            (func.selector.is_some() || func.attributes.is_fallback || func.attributes.is_receive)
+                .then_some(id)
+        }))
+        .collect::<Vec<_>>();
+    let mut reachable = CallGraphInfo::new(module).reachable_callees_from(roots.iter().copied());
+    for root in roots {
+        reachable.insert(root);
     }
     reachable
 }
