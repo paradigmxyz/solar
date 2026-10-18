@@ -33,6 +33,7 @@
 //! facts in instruction order: a passing check refines all later execution, and a proven passing
 //! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
 //! check on one conditional path cannot justify removing a check on another.
+//! Opcode result widths also bound environment values, including returndata lengths.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -123,6 +124,7 @@
 
 use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
+    backend::evm::op,
     mir::{
         BlockId, Builtin, Callee, EffectKind, Function, FunctionBuilder, FunctionId,
         ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator, TypeSize,
@@ -1679,7 +1681,9 @@ impl<'a> CheckEliminator<'a> {
                         .union(self.range_of(func, else_value, depth)),
                 }
             }
-            _ => Range::FULL,
+            _ => kind.evm_opcode().and_then(op::definition).map_or(Range::FULL, |def| {
+                Range::new(U256::ZERO, integer_mask(u32::from(def.result_bits)))
+            }),
         };
         // Both bounds are sound, so their intersection is too. An empty
         // intersection means this point is dynamically unreachable; keep the
