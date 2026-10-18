@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @blend(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x0716d338, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @blend(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x0716d338, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not arg2
     v1 = and arg1, v0
@@ -12,7 +12,7 @@ fn @blend(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x0716d338, pure
     ret v3
 }
 
-fn @constantMask(arg0: i256, arg1: i256) -> struct0 [selector=0xfb23df01, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @constantMask(arg0: i256, arg1: i256) -> struct0 [selector=0xfb23df01, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = and arg0, 255
     v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -25,7 +25,7 @@ fn @constantMask(arg0: i256, arg1: i256) -> struct0 [selector=0xfb23df01, pure, 
     ret v7
 }
 
-fn @narrowMask(arg0: i8, arg1: i8) -> i8 [selector=0x7875516a, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @narrowMask(arg0: i8, arg1: i8) -> i8 [selector=0x7875516a, pure, abi_params=[uint8, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = and arg0, i8 15
     v1 = and arg1, i8 240

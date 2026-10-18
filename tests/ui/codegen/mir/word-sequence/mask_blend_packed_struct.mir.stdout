@@ -3,7 +3,7 @@
 @types
   struct0: {i160, i96}
 
-fn @assign(arg0: i160, arg1: i96) -> struct0 [selector=0x5af968c6, abi_params=[address, u96], abi_returns=[word<u160>, word<u96>], abi_return_params=[address, u96]] {
+fn @assign(arg0: i160, arg1: i96) -> struct0 [selector=0x5af968c6, abi_params=[address, uint96], abi_returns=[word<uint160>, word<uint96>], abi_return_params=[address, uint96]] {
   bb0:
     v0 = alloc 64
     v1 = zext i160 arg0 to i256
