@@ -6,7 +6,7 @@
 //! requires dependence and profitability proofs; a memory read may expand EVM memory.
 
 use super::{EffectKind, InstKind};
-use crate::mir::{Builtin, Callee, PtrLocation};
+use crate::mir::{AddressCallKind, Builtin, Callee, PtrLocation};
 
 /// Control behavior that must survive even when an operation's result is unused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -83,6 +83,34 @@ impl InstKind {
                     ..
                 }
                 | Self::AddressCall { gas: None, .. }
+        )
+    }
+
+    /// Whether this operation reads account state, a balance or deployed code, which
+    /// [`may_change_account_state`](Self::may_change_account_state) operations can change.
+    pub(crate) const fn reads_account_state(&self) -> bool {
+        matches!(
+            self,
+            Self::ExtCodeSize(_) | Self::ExtCodeHash(_) | Self::Balance(_) | Self::SelfBalance
+        )
+    }
+
+    /// Whether this operation can move value or deploy or destroy code. Static calls cannot:
+    /// the static context forbids value transfers, `CREATE`, and `SELFDESTRUCT`.
+    pub(crate) const fn may_change_account_state(&self) -> bool {
+        matches!(
+            self.effect_kind(),
+            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+        ) && !matches!(
+            self,
+            Self::StaticCall { .. }
+                | Self::AddressCall { kind: AddressCallKind::Static, .. }
+                | Self::ICall {
+                    function: Callee::Builtin(
+                        Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover
+                    ),
+                    ..
+                }
         )
     }
 

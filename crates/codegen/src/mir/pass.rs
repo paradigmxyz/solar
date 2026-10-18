@@ -64,7 +64,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &load_pre::LoadPre::Storage,
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
-    &loop_idioms::LoopIdioms,
     &loop_split::LoopSplit,
     &loop_unroll::LoopUnroll,
     &merge_aborts::MergeAborts,
@@ -377,9 +376,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // plus invariants; carry it as a pointer stepped on the latch instead of
     // rebuilding it from the index every iteration.
     &GasOnly::new(indvar_simplify::IndVarSimplify),
-    // Collapse canonical read-only byte scans after bounds cleanup and word
-    // simplification expose their final physical shape.
-    &GasOnly::new(loop_idioms::LoopIdioms),
     // Counted loops test their bound once per two iterations once their
     // physical shape is final; the cleanup below drops the unread clones.
     &GasOnly::new(loop_unroll::LoopUnroll),

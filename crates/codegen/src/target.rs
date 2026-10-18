@@ -361,6 +361,9 @@ impl Target {
     /// a build still values its code size, and the copies grow a contract built
     /// around one loop by half or more.
     pub(crate) const LOOP_COPY_MIN_RUNS: u64 = 10_000;
+    /// The most bytes the copies of a completely unrolled loop's body may take, whatever its
+    /// pricing, so that a contract near the code size limit cannot grow past it.
+    pub(crate) const MAX_LOOP_COPY_BYTES: u32 = 256;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
