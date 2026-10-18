@@ -2,18 +2,37 @@
 //@ filecheck:
 @module InlineUnreachableCaller
 
-// An earlier pass already bypassed `@wrapper`, which stays until function DCE. Its stale call
-// must not stop the leaf from inlining into its only reachable caller.
-// CHECK-LABEL: fn @entry
-// CHECK: - {{.*}}icall @leaf
-// CHECK: + {{v[0-9]+}} = sload
-fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
+// An earlier pass already bypassed the `@dead*` wrappers, which stay until function DCE. Their
+// stale calls must not stop the leaf from inlining into its only reachable caller, and inlining
+// into them must not spend the reachable call count.
+fn @dead0(arg0: i256) -> i256 {
   bb0:
     v0 = icall @leaf, arg0
     ret v0
 }
 
-fn @wrapper(arg0: i256) -> i256 {
+fn @dead1(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @leaf, arg0
+    ret v0
+}
+
+fn @dead2(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @leaf, arg0
+    ret v0
+}
+
+fn @dead3(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @leaf, arg0
+    ret v0
+}
+
+// CHECK-LABEL: fn @entry
+// CHECK: - {{.*}}icall @leaf
+// CHECK: + {{v[0-9]+}} = sload
+fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
   bb0:
     v0 = icall @leaf, arg0
     ret v0

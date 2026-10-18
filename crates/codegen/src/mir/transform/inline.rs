@@ -488,7 +488,14 @@ impl MirInliner {
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
-        let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
+        // Inline only into the callers that `call_counts` covers, so the count updates below stay
+        // in that domain.
+        let reachable = call_graph.reachable_from_entries();
+        let mut caller_ids = module
+            .functions
+            .indices()
+            .filter(|&id| reachable.is_empty() || reachable.contains(id))
+            .collect::<Vec<_>>();
         caller_ids.sort_by_key(|caller| {
             summaries.get(caller).is_some_and(|summary| summary.is_function_pointer_dispatcher)
         });
