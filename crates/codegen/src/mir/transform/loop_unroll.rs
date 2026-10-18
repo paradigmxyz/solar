@@ -324,10 +324,6 @@ struct Full {
 /// The most iterations a loop may run to be unrolled completely, whatever its pricing.
 const MAX_COMPLETE_TRIPS: u64 = 16;
 
-/// The most bytes the copies of a completely unrolled loop's body may take, whatever its
-/// pricing, so that a contract near the code size limit cannot grow past it.
-const MAX_COMPLETE_BYTES: u32 = 256;
-
 fn unroll_function(
     func: &mut Function,
     cold: &DenseBitSet<FunctionId>,
@@ -1080,7 +1076,7 @@ fn plan_full(
         .filter(|&block| block != l.header)
         .map(|block| target.block_code_estimate(func, block))
         .sum();
-    if body.times(trips).bytes > MAX_COMPLETE_BYTES {
+    if body.times(trips).bytes > Target::MAX_LOOP_COPY_BYTES {
         return None;
     }
     let header = target.block_code_estimate(func, l.header);
