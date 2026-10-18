@@ -31,7 +31,10 @@
 //! when their width and sign semantics preserve the bounded values. Semantic checks use the same
 //! facts in instruction order: a passing check refines all later execution, and a proven passing
 //! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
-//! check on one conditional path cannot justify removing a check on another.
+//! check on one conditional path cannot justify removing a check on another. Semantic unsigned
+//! `checked_binary` operations become plain ones the same way: a sum or product the operand
+//! ranges keep within the type, a difference whose operands are ordered, and a quotient or
+//! remainder by a divisor above zero.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -120,9 +123,9 @@
 use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
-        BlockId, Builtin, Callee, EffectKind, Function, FunctionBuilder, FunctionId,
-        ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator, TypeSize,
-        Value, ValueId, ValueLayout,
+        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
+        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
+        TypeSize, Value, ValueId, ValueLayout,
         analysis::{
             CallGraphInfo, CfgInfo, aborts, cold_functions,
             integers::{integer_bits, integer_mask, integer_max},
@@ -571,6 +574,8 @@ struct CheckEliminator<'a> {
     cfg: Option<Rc<CfgInfo>>,
     collect_masks: bool,
     redundant_masks: Vec<(InstId, ValueId)>,
+    /// Semantic checked operations proven not to fail, with the plain operation each becomes.
+    unfailing: Vec<(InstId, InstKind)>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -634,7 +639,7 @@ impl<'a> CheckEliminator<'a> {
                 matches!(
                     func.inst(inst).kind,
                     InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
-                )
+                ) || checked_operands(&func.inst(inst).kind).is_some()
             })
         }) {
             return 0;
@@ -702,8 +707,13 @@ impl<'a> CheckEliminator<'a> {
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() && checks.is_empty() && reductions.is_empty() {
+        let unfailing = std::mem::take(&mut self.unfailing);
+        if folds.is_empty() && checks.is_empty() && reductions.is_empty() && unfailing.is_empty() {
             return removed;
+        }
+        // checked_op a, b that cannot fail -> op a, b
+        for (id, kind) in &unfailing {
+            func.inst_mut(*id).replace_kind(kind.clone());
         }
         // branch proven_condition, keep, discard => jump keep
         for &(block, keep) in &folds {
@@ -725,6 +735,7 @@ impl<'a> CheckEliminator<'a> {
         self.stats.branches_folded = folds.len();
         self.stats.checks_removed = checks.count();
         self.stats.conditions_reduced = reductions.len();
+        self.stats.checks_removed += unfailing.len();
         removed
             + self.stats.branches_folded
             + self.stats.checks_removed
@@ -754,6 +765,7 @@ impl<'a> CheckEliminator<'a> {
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut reductions = Vec::new();
+        self.unfailing.clear();
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
         while let Some(item) = stack.pop() {
@@ -818,6 +830,12 @@ impl<'a> CheckEliminator<'a> {
                             }
                             self.assume(func, condition, passing, MAX_DEPTH);
                         }
+                        if !self.collect_masks
+                            && selected.is_none()
+                            && let Some(kind) = self.unfailing_kind(func, &func.inst(id).kind)
+                        {
+                            self.unfailing.push((id, kind));
+                        }
                     }
 
                     if !self.collect_masks
@@ -877,6 +895,29 @@ impl<'a> CheckEliminator<'a> {
         } else {
             None
         }
+    }
+
+    /// The plain operation a semantic unsigned checked operation becomes when the current scope
+    /// proves it cannot fail: a sum or product within its type, a difference that does not
+    /// underflow, or a quotient or remainder by a nonzero divisor.
+    fn unfailing_kind(&mut self, func: &Function, kind: &InstKind) -> Option<InstKind> {
+        let (op, bits, lhs, rhs) = checked_operands(kind)?;
+        let max = integer_mask(u32::from(bits));
+        let (ra, rb) = (self.range_of(func, lhs, MAX_DEPTH), self.range_of(func, rhs, MAX_DEPTH));
+        let unfailing = match op {
+            CheckedOp::Add => ra.hi.checked_add(rb.hi).is_some_and(|hi| hi <= max),
+            CheckedOp::Mul => ra.hi.checked_mul(rb.hi).is_some_and(|hi| hi <= max),
+            CheckedOp::Sub => self.eval_lt(func, lhs, rhs, MAX_DEPTH) == Some(false),
+            CheckedOp::Div | CheckedOp::Rem => rb.lo > U256::ZERO,
+            _ => false,
+        };
+        unfailing.then(|| match op {
+            CheckedOp::Add => InstKind::Add(lhs, rhs),
+            CheckedOp::Mul => InstKind::Mul(lhs, rhs),
+            CheckedOp::Sub => InstKind::Sub(lhs, rhs),
+            CheckedOp::Div => InstKind::Div(lhs, rhs),
+            _ => InstKind::Mod(lhs, rhs),
+        })
     }
 
     /// Decides in the current scope whether a monotone phi's update cannot
@@ -1990,10 +2031,12 @@ fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
         .collect::<Vec<_>>();
     for &block in cfg.rpo() {
         for &inst in &func.blocks[block].instructions {
-            if let InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), args } =
-                &func.inst(inst).kind
+            let kind = &func.inst(inst).kind;
+            if let InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), args } = kind
             {
                 pending.push(args[0]);
+            } else if let Some((_, _, lhs, rhs)) = checked_operands(kind) {
+                pending.extend([lhs, rhs]);
             }
         }
     }
@@ -2381,4 +2424,16 @@ fn values_equal(func: &Function, a: ValueId, b: ValueId) -> bool {
         (Some(a), Some(b)) => a == b,
         _ => false,
     }
+}
+
+/// The operation, width, and operands of a semantic unsigned checked operation that
+/// `check-elim` can prove does not fail.
+fn checked_operands(kind: &InstKind) -> Option<(CheckedOp, u16, ValueId, ValueId)> {
+    let InstKind::CheckedBinary { op, arithmetic: ArithmeticKind::Unsigned(bits), lhs, rhs } =
+        *kind
+    else {
+        return None;
+    };
+    matches!(op, CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul | CheckedOp::Div | CheckedOp::Rem)
+        .then_some((op, bits, lhs, rhs))
 }
