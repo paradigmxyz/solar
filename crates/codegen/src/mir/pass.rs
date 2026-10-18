@@ -64,6 +64,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
     &loop_idioms::LoopIdioms,
+    &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
     &loop_unroll::LoopUnroll,
     &merge_aborts::MergeAborts,
@@ -215,6 +216,10 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &element_cleanup::ElementCleanup,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
+    // Evaluate recurrences before gas-bounded reasoning removes checks that
+    // become reachable if a loop is replaced by a constant-time formula.
+    &GasOnly::new(dce::Dce),
+    &GasOnly::new(loop_reduce::LoopReduce),
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,

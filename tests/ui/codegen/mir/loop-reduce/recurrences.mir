@@ -1,0 +1,92 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=loop-reduce
+//@ filecheck:
+@module Recurrences
+
+// CHECK-LABEL: {{^[ +].*}}fn @sum{{[( ]}}
+// CHECK: + [[HALF:v[0-9]+]] = shr 1, arg2
+// CHECK: + [[PREV:v[0-9]+]] = sub arg2, 1
+// CHECK: + [[ODD:v[0-9]+]] = or [[PREV]], 1
+// CHECK: + [[TRI:v[0-9]+]] = mul [[HALF]], [[ODD]]
+// CHECK: + {{v[0-9]+}} = mul [[TRI]], 7
+// CHECK: ret
+fn @sum(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: arg1], [bb2: v5]
+    v2 = phi [bb0: 0], [bb2: v6]
+    v3 = lt v2, arg2
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v0, v1
+    v5 = add v1, 7
+    v6 = add v2, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @narrow{{[( ]}}
+// CHECK-NOT: {{^\+}}
+// CHECK: ret
+fn @narrow(arg0: i8, arg1: i8, arg2: i256) -> i8 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: arg1], [bb2: v5]
+    v2 = phi [bb0: 0], [bb2: v6]
+    v3 = lt v2, arg2
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v0, v1
+    v5 = add v1, i8 7
+    v6 = add v2, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @effects{{[( ]}}
+// CHECK-NOT: {{^\+}}
+// CHECK: ret
+fn @effects(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: arg1], [bb2: v5]
+    v2 = phi [bb0: 0], [bb2: v6]
+    v3 = lt v2, arg2
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v0, v1
+    v5 = add v1, 7
+    sstore v2, v4
+    v6 = add v2, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @coupled{{[( ]}}
+// CHECK-NOT: {{^\+}}
+// CHECK: ret
+fn @coupled(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: arg1], [bb2: v5]
+    v2 = phi [bb0: 0], [bb2: v6]
+    v3 = lt v2, arg2
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v0, v1
+    v5 = sub v1, v0
+    v6 = add v2, 1
+    jump bb1
+  bb3:
+    ret v0
+}
