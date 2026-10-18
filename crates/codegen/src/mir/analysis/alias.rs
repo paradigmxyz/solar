@@ -1444,7 +1444,7 @@ impl AliasAnalysis {
 
     /// Returns the physical memory range occupied by a logical frame slot.
     #[must_use]
-    fn frame_location(
+    pub(crate) fn frame_location(
         func: &Function,
         offset: u64,
         mode: FrameMode,

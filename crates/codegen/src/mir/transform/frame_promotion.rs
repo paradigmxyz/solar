@@ -13,8 +13,8 @@
 //! - preserve SSA values across control flow with explicit phi insertion
 
 use crate::mir::{
-    BlockId, Callee, Function, InstId, InstKind, Instruction, MirType, Module, PtrLocation,
-    Terminator, ValueId,
+    BlockId, Callee, FrameMode, Function, InstId, InstKind, Instruction, MirType, Module,
+    PtrLocation, Terminator, ValueId,
     analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
@@ -436,6 +436,22 @@ impl FrameSlotPromoter {
     ) -> bool {
         match *kind {
             InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => false,
+            // A logical frame slot in the same internal frame.
+            InstKind::FrameLoad { offset, mode: FrameMode::Internal, kind }
+            | InstKind::FrameStore { offset, mode: FrameMode::Internal, kind, .. } => {
+                AliasAnalysis::frame_location(func, offset, FrameMode::Internal, kind).is_none_or(
+                    |location| {
+                        aa.memory_alias(
+                            location,
+                            MemoryLocation::new(
+                                MemoryAddress::internal_frame(slot_offset),
+                                LocationSize::Const(32),
+                            ),
+                        )
+                        .may_alias()
+                    },
+                )
+            }
             InstKind::Load(addr, PtrLocation::Memory) => {
                 !Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
                     && Self::internal_frame_range_may_overlap(func, aa, addr, Some(32), slot_offset)
@@ -544,6 +560,17 @@ impl FrameSlotPromoter {
         slot_addr: u64,
     ) -> bool {
         match *kind {
+            // A logical frame slot at an absolute address in the local region.
+            InstKind::FrameLoad { offset, mode, kind }
+            | InstKind::FrameStore { offset, mode, kind, .. }
+                if mode != FrameMode::Internal =>
+            {
+                AliasAnalysis::frame_location(func, offset, mode, kind).is_none_or(|location| {
+                    let LocationSize::Const(size) = location.size else { return true };
+                    let base = location.address.offset;
+                    base < slot_addr.saturating_add(32) && slot_addr < base.saturating_add(size)
+                })
+            }
             InstKind::Load(addr, PtrLocation::Memory)
             | InstKind::Store(addr, _, PtrLocation::Memory) => {
                 !Self::is_exact_external_slot_access(func, aa, addr, slot_addr)
