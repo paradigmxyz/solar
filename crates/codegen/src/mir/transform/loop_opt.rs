@@ -479,19 +479,26 @@ impl LoopOptimizer {
             }
             // The free memory pointer moves with every allocation.
             InstKind::Fmp => return false,
-            // Environment reads that calls or creates can change: balances move with value
-            // transfers, code size/hash change on deploy/selfdestruct, and every external
-            // call rewrites the return-data buffer.
-            InstKind::Balance(_)
-            | InstKind::SelfBalance
-            | InstKind::ExtCodeSize(_)
-            | InstKind::ExtCodeHash(_)
-            | InstKind::ReturnDataSize => {
-                // Also require guaranteed execution: speculating a cold
-                // BALANCE/EXTCODESIZE/EXTCODEHASH into the preheader of a
-                // zero-trip loop wastes 2600 gas.
+            // Every call or create rewrites the return-data buffer. Also require guaranteed
+            // execution here and below: a zero-trip loop must not pay for a speculated read,
+            // and a cold account read costs as much as a storage read.
+            InstKind::ReturnDataSize => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
-                    && !self.loop_contains_call_or_create(func, ctx.loop_data);
+                    && !self.loop_contains(func, ctx.loop_data, |kind| {
+                        matches!(
+                            kind.effect_kind(),
+                            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+                        )
+                    });
+            }
+            // Balances move with value transfers, and code changes on deploy and selfdestruct.
+            _ if inst.kind.reads_account_state() => {
+                return self.hoist_execution_guaranteed(func, inst_id, ctx)
+                    && !self.loop_contains(
+                        func,
+                        ctx.loop_data,
+                        InstKind::may_change_account_state,
+                    );
             }
             _ => {}
         }
@@ -584,14 +591,17 @@ impl LoopOptimizer {
         self.alias().may_observe_msize(func)
     }
 
-    fn loop_contains_call_or_create(&self, func: &Function, loop_data: &Loop) -> bool {
+    fn loop_contains(
+        &self,
+        func: &Function,
+        loop_data: &Loop,
+        predicate: impl Fn(&InstKind) -> bool,
+    ) -> bool {
         loop_data.blocks.iter().any(|block_id| {
-            func.blocks[block_id].instructions.iter().any(|&inst_id| {
-                matches!(
-                    func.inst(inst_id).kind.effect_kind(),
-                    EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
-                )
-            })
+            func.blocks[block_id]
+                .instructions
+                .iter()
+                .any(|&inst_id| predicate(&func.inst(inst_id).kind))
         })
     }
 

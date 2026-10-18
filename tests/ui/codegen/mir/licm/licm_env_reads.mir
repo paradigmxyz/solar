@@ -61,6 +61,25 @@ fn @hoist_balance_without_calls() -> i256 {
     ret v2
 }
 
+// A static call cannot transfer value, deploy, or self-destruct, so the balance stays put.
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_balance_with_staticcall{{[( ]}}
+// CHECK: + [[BALANCE:v[0-9]+]] = balance 0xbeef
+// CHECK: - [[BALANCE]] = balance 0xbeef
+fn @hoist_balance_with_staticcall() -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v0 = balance 0xbeef
+    v1 = mul v0, 3
+    v2 = staticcall 1000, 0xbeef, 0, 0, 0, 0
+    jump bb1
+  bb3:
+    ret v3
+}
+
 // The created contract's constructor can run arbitrary code.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_extcodesize_with_create{{[( ]}}
 // CHECK: {{^[ +].*}}extcodesize
