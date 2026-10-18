@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_aggregate_allocation.sol:MemoryAggregateAllocation ===
 @module MemoryAggregateAllocation
-fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
     v1 = and 98, v0
@@ -102,7 +102,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v84 = ptradd v81, 32
     v85 = mload v84
     v86 = zext i8 v76 to i256
-    v87 = checked_add u256, v86, v85
+    v87 = checked_add uint256, v86, v85
     v88 = mload v25
     v89 = lt 2, v88
     v90 = eq v89, false
@@ -115,7 +115,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     icall panic_if<0x32>, v95
     v96 = ptradd v93, 32
     v97 = mload v96
-    v98 = checked_add u256, v87, v97
+    v98 = checked_add uint256, v87, v97
     v99 = mload v25
     v100 = lt 2, v99
     v101 = eq v100, false
@@ -135,7 +135,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v113 = shr 248, v112
     v114 = trunc i256 v113 to i8
     v115 = zext i8 v114 to i256
-    v116 = checked_add u256, v98, v115
+    v116 = checked_add uint256, v98, v115
     ret v116
   bb5:
     v28 = alloc 64 !metadata(preserves_fmp)

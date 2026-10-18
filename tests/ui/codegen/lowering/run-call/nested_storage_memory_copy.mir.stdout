@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_storage_memory_copy.sol:NestedStorageMemoryCopy ===
 @module NestedStorageMemoryCopy
-fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -223,7 +223,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v209 = ptradd v206, 96
     v210 = mload v209
     v211 = trunc i256 v210 to i72
-    v212 = checked_add u72, v201, v211
+    v212 = checked_add uint72, v201, v211
     v213 = mload v167
     v214 = lt 1, v213
     v215 = eq v214, false
@@ -236,7 +236,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v220 = ptradd v217, 32
     v221 = mload v220
     v222 = trunc i256 v221 to i72
-    v223 = checked_add u72, v212, v222
+    v223 = checked_add uint72, v212, v222
     v224 = mload v167
     v225 = lt 1, v224
     v226 = eq v225, false
@@ -249,7 +249,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v231 = ptradd v228, 128
     v232 = mload v231
     v233 = trunc i256 v232 to i72
-    v234 = checked_add u72, v223, v233
+    v234 = checked_add uint72, v223, v233
     v235 = mload v167
     v236 = lt 2, v235
     v237 = eq v236, false
@@ -261,7 +261,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     icall panic_if<0x32>, v241
     v242 = mload v239
     v243 = trunc i256 v242 to i72
-    v244 = checked_add u72, v234, v243
+    v244 = checked_add uint72, v234, v243
     v245 = mload v167
     v246 = lt 3, v245
     v247 = eq v246, false
@@ -274,7 +274,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v252 = ptradd v249, 64
     v253 = mload v252
     v254 = trunc i256 v253 to i72
-    v255 = checked_add u72, v244, v254
+    v255 = checked_add uint72, v244, v254
     v256 = mload v167
     v257 = lt 3, v256
     v258 = eq v257, false
@@ -287,7 +287,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v263 = ptradd v260, 96
     v264 = mload v263
     v265 = trunc i256 v264 to i72
-    v266 = checked_add u72, v255, v265
+    v266 = checked_add uint72, v255, v265
     v267 = zext i72 v266 to i256
     ret v267
   bb8:
@@ -336,6 +336,6 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
   bb6:
     jump bb3
   bb3:
-    v9 = checked_add u256, v1, 1
+    v9 = checked_add uint256, v1, 1
     jump bb1
 }

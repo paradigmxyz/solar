@@ -42,16 +42,16 @@ fn @fetch(arg0: i256) -> i256 [view] {
 fn @bump() {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 7
+    v1 = checked_add uint256, v0, 7
     sstore 1, v1 !metadata(storage=slot(1))
     ret
 }
 
-fn @run(arg0: i256, arg1: i1) -> i256 [selector=0x0a3395f5, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i256, arg1: i1) -> i256 [selector=0x0a3395f5, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @fetch, arg0
     icall @bump
-    v1 = checked_add u256, arg0, 1
+    v1 = checked_add uint256, arg0, 1
     v2 = icall @fetch, v1
     v3 = mapping_slot arg0, 0
     v4 = add v3, 1
@@ -67,16 +67,16 @@ fn @run(arg0: i256, arg1: i1) -> i256 [selector=0x0a3395f5, abi_params=[u256, bo
     v8 = phi [bb1: arg1], [bb2: false]
     jumpi v8, bb4, bb5
   bb5:
-    v10 = checked_mul u256, v0, 2
-    v11 = checked_add u256, v10, v2
-    v12 = checked_add u256, v11, 5
+    v10 = checked_mul uint256, v0, 2
+    v11 = checked_add uint256, v10, v2
+    v12 = checked_add uint256, v11, 5
     jump bb6
   bb4:
-    v9 = checked_add u256, v0, v2
+    v9 = checked_add uint256, v0, v2
     jump bb6
   bb6:
     v13 = phi [bb4: v9], [bb5: v12]
     v14 = sload 1 !metadata(storage=slot(1))
-    v15 = checked_add u256, v13, v14
+    v15 = checked_add uint256, v13, v14
     ret v15
 }

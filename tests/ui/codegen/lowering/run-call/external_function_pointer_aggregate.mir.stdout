@@ -3,7 +3,7 @@
 @types
   struct0: {i256, ptr<memory>}
 
-fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 2
@@ -14,7 +14,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
     ret v3
 }
 
-fn @combine(arg0: ptr<memory>, arg1: ptr<memory>) -> struct0 [selector=0x3488ea15, pure, abi_params=[array<_, u256>, bytes], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @combine(arg0: ptr<memory>, arg1: ptr<memory>) -> struct0 [selector=0x3488ea15, pure, abi_params=[array<_, uint256>, bytes], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = mload arg0
     v1 = lt 0, v0
@@ -28,7 +28,7 @@ fn @combine(arg0: ptr<memory>, arg1: ptr<memory>) -> struct0 [selector=0x3488ea1
     icall panic_if<0x32>, v7
     v8 = ptradd arg0, 64
     v9 = mload v8
-    v10 = checked_add u256, v4, v9
+    v10 = checked_add uint256, v4, v9
     v11 = insert_value struct0, undef struct0, 0, v10
     v12 = insert_value struct0, v11, 1, arg1
     ret v12
@@ -69,7 +69,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
@@ -89,7 +89,7 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:
     v13 = icall returndata_bytes<>
-    v14 = abi_decode [u256, bytes], v13
+    v14 = abi_decode [uint256, bytes], v13
     v15 = extract_value struct0, v14, 0
     v16 = extract_value struct0, v14, 1
     v17 = insert_value struct0, undef struct0, 0, v15
@@ -97,7 +97,7 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     ret v18
 }
 
-fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
@@ -135,7 +135,7 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     revert_returndata
   bb2:
     v24 = icall returndata_bytes<>
-    v25 = abi_decode [u256, bytes], v24
+    v25 = abi_decode [uint256, bytes], v24
     v26 = extract_value struct0, v25, 0
     v27 = extract_value struct0, v25, 1
     v28 = insert_value struct0, undef struct0, 0, v26
@@ -143,13 +143,13 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     ret v29
 }
 
-fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     ret v0
 }
 
-fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[function, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[function, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -171,7 +171,7 @@ fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[fun
     ret v11
 }
 
-fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -184,7 +184,7 @@ fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[]
     v8 = icall returndata_bytes<>
     v9 = eq v7, false
     icall revert_if<empty>, v9
-    v10 = abi_decode [u256], v8
+    v10 = abi_decode [uint256], v8
     ret v10
 }
 
@@ -197,7 +197,7 @@ fn @pointer() -> i256 [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[fu
     ret v3
 }
 
-fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -232,7 +232,7 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     ret v20
 }
 
-fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     mstore v0, 0
@@ -264,7 +264,7 @@ fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_re
     ret v19
 }
 
-fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -338,7 +338,7 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     icall revert_if<tuple_data_too_short>, v52
     v53 = add 0, 0
     v54 = mload v53
-    v55 = checked_add u256, v36, v54
+    v55 = checked_add uint256, v36, v54
     ret v55
 }
 

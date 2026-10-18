@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder ===
 @module Recorder
-fn @last() -> i256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @last() -> i256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -11,13 +11,13 @@ fn @sync(arg0: i160) [selector=0xa5841194, abi_params=[address], abi_returns=[],
     ret
 }
 
-fn @transfer(arg0: i160, arg1: i256) -> i1 [selector=0xa9059cbb, abi_params=[address, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @transfer(arg0: i160, arg1: i256) -> i1 [selector=0xa9059cbb, abi_params=[address, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     sstore 0, arg1 !metadata(storage=slot(0))
     ret true
 }
 
-fn @take(arg0: i160, arg1: i160, arg2: i256) [selector=0x0b0d9c09, abi_params=[address, address, u256], abi_returns=[], abi_return_params=[]] {
+fn @take(arg0: i160, arg1: i160, arg2: i256) [selector=0x0b0d9c09, abi_params=[address, address, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg2 !metadata(storage=slot(0))
     ret
@@ -37,7 +37,7 @@ fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[], abi_r
 @data
   Recorder_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder"
 
-fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[int128], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffffffffffffffffffff
@@ -104,7 +104,7 @@ fn @_settleOrTake(arg0: i160, arg1: i128) {
     jumpi v0, bb1, bb2
   bb2:
     v5 = sext i128 arg1 to i256
-    v6 = checked_sub i256, 0, v5
+    v6 = checked_sub int256, 0, v5
     v7 = eq arg0, i160 0
     jumpi v7, bb4, bb5
   bb5:
@@ -152,7 +152,7 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
   bb3:
     v0 = gas
     v1 = zext i160 arg0 to i256
-    v2 = abi_encode [word<u160>], selector 0xa584119400000000000000000000000000000000000000000000000000000000, args v1
+    v2 = abi_encode [word<uint160>], selector 0xa584119400000000000000000000000000000000000000000000000000000000, args v1
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 arg1 to i256
@@ -173,7 +173,7 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
   bb8:
     v12 = gas
     v13 = zext i160 arg1 to i256
-    v14 = abi_encode [word<u160>, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v13, arg3
+    v14 = abi_encode [word<uint160>, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v13, arg3
     v15 = extract_value slice<memory>, v14, 0
     v16 = extract_value slice<memory>, v14, 1
     v17 = zext i160 arg0 to i256
@@ -220,7 +220,7 @@ fn @take(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     v0 = gas
     v1 = zext i160 arg0 to i256
     v2 = zext i160 arg2 to i256
-    v3 = abi_encode [word<u160>, word<u160>, word], selector 0xb0d9c0900000000000000000000000000000000000000000000000000000000, args v1, v2, arg3
+    v3 = abi_encode [word<uint160>, word<uint160>, word], selector 0xb0d9c0900000000000000000000000000000000000000000000000000000000, args v1, v2, arg3
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 arg1 to i256

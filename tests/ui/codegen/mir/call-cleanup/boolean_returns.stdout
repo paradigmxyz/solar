@@ -103,6 +103,22 @@
       tail_call @raw_clean, arg0
   }
   
+  fn @revert_stub() {
+    bb0:
+      revert 0, 0
+  }
+  
+  fn @raw_guarded(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb2:
+      v0 = lt arg0, 5
+      v1 = zext i1 v0 to i256
+      ret v1
+    bb1:
+      tail_call @revert_stub
+  }
+  
   fn @raw_clean_roundtrip(arg0: i256) -> i256 {
     bb0:
       v0 = icall @raw_clean, arg0
@@ -134,6 +150,15 @@
       v1 = ne v0, 0
       v2 = zext i1 v1 to i256
       ret v2
+  }
+  
+  fn @raw_guarded_roundtrip(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      v0 = icall @raw_guarded, arg0, arg1
+      v1 = ne v0, 0
+-     v2 = zext i1 v1 to i256
+-     ret v2
++     ret v0
   }
   
   fn @compare_clean_words(arg0: i256) -> i1 {
@@ -331,6 +356,22 @@
       tail_call @raw_clean, arg0
   }
   
+  fn @revert_stub() {
+    bb0:
+      revert 0, 0
+  }
+  
+  fn @raw_guarded(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb2:
+      v0 = lt arg0, 5
+      v1 = zext i1 v0 to i256
+      ret v1
+    bb1:
+      tail_call @revert_stub
+  }
+  
   fn @raw_clean_roundtrip(arg0: i256) -> i256 {
     bb0:
       v0 = icall @raw_clean, arg0
@@ -360,6 +401,13 @@
       v1 = ne v0, 0
       v2 = zext i1 v1 to i256
       ret v2
+  }
+  
+  fn @raw_guarded_roundtrip(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      v0 = icall @raw_guarded, arg0, arg1
+-     v1 = ne v0, 0
+      ret v0
   }
   
   fn @compare_clean_words(arg0: i256) -> i1 {

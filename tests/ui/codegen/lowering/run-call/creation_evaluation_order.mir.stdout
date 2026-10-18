@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrderChild ===
 @module CreationEvaluationOrderChild
-fn @constructor(arg0: i256) [constructor, payable, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, payable, abi_params=[uint256]] {
   bb0:
     ret
 }
@@ -13,8 +13,8 @@ fn @constructor(arg0: i256) [constructor, payable, abi_params=[u256]] {
 fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 2
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 2
     sstore 0, v2 !metadata(storage=slot(0))
     ret 0
 }
@@ -22,8 +22,8 @@ fn @valueOpt() -> i256 {
 fn @saltOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 3
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 3
     sstore 0, v2 !metadata(storage=slot(0))
     ret 0
 }
@@ -31,13 +31,13 @@ fn @saltOpt() -> i256 {
 fn @arg() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 4
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 4
     sstore 0, v2 !metadata(storage=slot(0))
     ret 1
 }
 
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @valueOpt
     v1 = icall @saltOpt

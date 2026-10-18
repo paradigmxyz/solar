@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/shared_array_encoder_create.sol:Child ===
 @module Child
-fn @xs(arg0: i256) -> i160 [selector=0x6ee65772, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @xs(arg0: i256) -> i160 [selector=0x6ee65772, view, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt arg0, v0
@@ -80,7 +80,7 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, address>]]
     jump bb3
 }
 
-fn @get(arg0: i256) -> i160 [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @get(arg0: i256) -> i160 [selector=0x9507d39a, view, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt arg0, v0
@@ -98,7 +98,7 @@ fn @get(arg0: i256) -> i160 [selector=0x9507d39a, view, abi_params=[u256], abi_r
     ret v11
 }
 
-fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -130,7 +130,7 @@ fn @mk(arg0: i160, arg1: i160) -> i160 {
     v9 = zext i160 arg1 to i256
     v10 = ptradd v0, 64
     mstore v10, v9
-    v11 = abi_encode [memory_array<word<u160>>], args v0
+    v11 = abi_encode [memory_array<word<uint160>>], args v0
     v12 = extract_value slice<memory>, v11, 1
     v13 = datasize Child_creation_code_0
     v14 = add v13, v12
@@ -181,7 +181,7 @@ fn @mk3(arg0: i160, arg1: i160, arg2: i160) -> i160 {
     v14 = zext i160 arg2 to i256
     v15 = ptradd v0, 96
     mstore v15, v14
-    v16 = abi_encode [memory_array<word<u160>>], args v0
+    v16 = abi_encode [memory_array<word<uint160>>], args v0
     v17 = extract_value slice<memory>, v16, 1
     v18 = datasize Child_creation_code_0
     v19 = add v18, v17
@@ -207,7 +207,7 @@ fn @mk3(arg0: i160, arg1: i160, arg2: i160) -> i160 {
     ret v29
 }
 
-fn @second() -> i160 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @second() -> i160 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = icall @mk, i160 1, i160 2
     v1 = icall @mk, i160 3, i160 4
@@ -253,7 +253,7 @@ fn @second() -> i160 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u160
     ret v28
 }
 
-fn @both() -> struct0 [selector=0x35f2e0a7, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @both() -> struct0 [selector=0x35f2e0a7, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @mk, i160 1, i160 2
     v1 = icall @mk3, i160 3, i160 4, i160 5
@@ -304,7 +304,7 @@ fn @both() -> struct0 [selector=0x35f2e0a7, abi_params=[], abi_returns=[word, wo
     ret v33
 }
 
-fn @lengths() -> struct0 [selector=0xdab1fa12, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @lengths() -> struct0 [selector=0xdab1fa12, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @mk, i160 1, i160 2
     v1 = icall @mk3, i160 3, i160 4, i160 5

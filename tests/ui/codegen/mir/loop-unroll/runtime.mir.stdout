@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/runtime.sol:LoopUnroll ===
 @module LoopUnroll
-fn @sum(arg0: i256) -> i256 [selector=0x188b85b4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sum(arg0: i256) -> i256 [selector=0x188b85b4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -14,18 +14,18 @@ fn @sum(arg0: i256) -> i256 [selector=0x188b85b4, pure, abi_params=[u256], abi_r
   bb2:
     ret v1
   bb4:
-    v4 = checked_mul u256, v2, 3
-    v5 = checked_add u256, v4, 1
-    v6 = checked_add u256, v1, v5
+    v4 = checked_mul uint256, v2, 3
+    v5 = checked_add uint256, v4, 1
+    v6 = checked_add uint256, v1, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v2, 1
+    v7 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @stepped(arg0: i256) -> i256 [selector=0x8129c875, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @stepped(arg0: i256) -> i256 [selector=0x8129c875, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -45,11 +45,11 @@ fn @stepped(arg0: i256) -> i256 [selector=0x8129c875, pure, abi_params=[u256], a
   bb6:
     jump bb3
   bb3:
-    v6 = checked_add u256, v2, 3
+    v6 = checked_add uint256, v2, 3
     jump bb1
 }
 
-fn @guarded(arg0: i256, arg1: i256) -> i256 [selector=0x252fc58f, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @guarded(arg0: i256, arg1: i256) -> i256 [selector=0x252fc58f, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -64,16 +64,16 @@ fn @guarded(arg0: i256, arg1: i256) -> i256 [selector=0x252fc58f, pure, abi_para
   bb2:
     ret v2
   bb4:
-    v5 = checked_add u256, v2, v1
+    v5 = checked_add uint256, v2, v1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v6 = checked_add u256, v3, 1
+    v6 = checked_add uint256, v3, 1
     jump bb1
 }
 
-fn @squares(arg0: i256) -> i256 [selector=0x1d1d15d4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @squares(arg0: i256) -> i256 [selector=0x1d1d15d4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -88,17 +88,17 @@ fn @squares(arg0: i256) -> i256 [selector=0x1d1d15d4, pure, abi_params=[u256], a
   bb2:
     ret v1
   bb4:
-    v5 = checked_mul u256, v2, v2
-    v6 = checked_add u256, v1, v5
+    v5 = checked_mul uint256, v2, v2
+    v6 = checked_add uint256, v1, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v2, 1
+    v7 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @range(arg0: i256, arg1: i256) -> i256 [selector=0x55680991, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @range(arg0: i256, arg1: i256) -> i256 [selector=0x55680991, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -119,6 +119,6 @@ fn @range(arg0: i256, arg1: i256) -> i256 [selector=0x55680991, pure, abi_params
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v3, 1
+    v7 = checked_add uint256, v3, 1
     jump bb1
 }

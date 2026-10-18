@@ -9,7 +9,7 @@ fn @_getPool(arg0: i256) -> i256 [view] {
     ret v0
 }
 
-fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))

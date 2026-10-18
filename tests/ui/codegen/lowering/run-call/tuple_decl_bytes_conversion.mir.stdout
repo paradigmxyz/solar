@@ -3,7 +3,7 @@
 @types
   struct0: {i256, ptr<memory>}
 
-fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0

@@ -9,7 +9,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -104,7 +104,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     ret v63
 }
 
-fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0

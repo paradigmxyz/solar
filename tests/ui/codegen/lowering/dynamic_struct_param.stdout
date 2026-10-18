@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/dynamic_struct_param.sol:DynamicStructParam ===
 @module DynamicStructParam
-fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[u256]] {
+fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, uint8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -27,7 +27,7 @@ fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, 
     revert 28, 36
 }
 
-fn @flat(arg0: slice<calldata>) -> i256 [selector=0x73a9ddca, pure, abi_params=[tuple<u256, address>], abi_returns=[word], abi_return_params=[u256]] {
+fn @flat(arg0: slice<calldata>) -> i256 [selector=0x73a9ddca, pure, abi_params=[tuple<uint256, address>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -36,7 +36,7 @@ fn @flat(arg0: slice<calldata>) -> i256 [selector=0x73a9ddca, pure, abi_params=[
     ret v3
 }
 
-fn @words(arg0: slice<calldata>) -> i256 [selector=0x6d5f7443, pure, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @words(arg0: slice<calldata>) -> i256 [selector=0x6d5f7443, pure, abi_params=[tuple<array<_, uint256>, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -82,7 +82,7 @@ fn @words(arg0: slice<calldata>) -> i256 [selector=0x6d5f7443, pure, abi_params=
     revert 28, 36
 }
 
-fn @signedWords(arg0: slice<calldata>) -> i256 [selector=0x69491962, pure, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @signedWords(arg0: slice<calldata>) -> i256 [selector=0x69491962, pure, abi_params=[tuple<array<_, int256>, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -128,7 +128,7 @@ fn @signedWords(arg0: slice<calldata>) -> i256 [selector=0x69491962, pure, abi_p
     revert 28, 36
 }
 
-fn @nestedWords(arg0: slice<calldata>) -> i256 [selector=0x0b0be15f, pure, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedWords(arg0: slice<calldata>) -> i256 [selector=0x0b0be15f, pure, abi_params=[tuple<array<_, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256

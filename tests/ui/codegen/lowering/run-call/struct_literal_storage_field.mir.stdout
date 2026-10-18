@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/struct_literal_storage_field.sol:C ===
 @module C
-fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -80,7 +80,7 @@ fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], 
     ret 1
 }
 
-fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 4 !metadata(storage=slot(4))
     v1 = not 0xffffffffffffffff
@@ -146,7 +146,7 @@ fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     ret 1
 }
 
-fn @fixedField() -> i256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedField() -> i256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 0, 3
     v1 = eq v0, false

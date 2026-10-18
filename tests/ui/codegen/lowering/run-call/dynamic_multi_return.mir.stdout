@@ -6,7 +6,7 @@
   struct2: {ptr<memory>, ptr<memory>}
   struct3: {ptr<memory>, i256, ptr<memory>}
 
-fn @strAndNum() -> struct0 [selector=0x713d228b, pure, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
+fn @strAndNum() -> struct0 [selector=0x713d228b, pure, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 5
@@ -17,7 +17,7 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, pure, abi_params=[], abi_return
     ret v3
 }
 
-fn @numAndStr() -> struct1 [selector=0xed19722c, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @numAndStr() -> struct1 [selector=0xed19722c, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 5
@@ -43,7 +43,7 @@ fn @twoStrings() -> struct2 [selector=0x477be19f, pure, abi_params=[], abi_retur
     ret v5
 }
 
-fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, u256>, u256, bytes]] {
+fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, uint256>, uint256, bytes]] {
   bb0:
     v0 = alloc zeroed checked 128
     mstore v0, 3
@@ -76,7 +76,7 @@ fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[m
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Callee"
 
-fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
@@ -104,7 +104,7 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
     revert_returndata
   bb4:
     v15 = icall returndata_bytes<>
-    v16 = abi_decode [bytes, u256], v15
+    v16 = abi_decode [bytes, uint256], v15
     v17 = extract_value struct1, v16, 0
     v18 = extract_value struct1, v16, 1
     v19 = insert_value struct1, undef struct1, 0, v17
@@ -117,7 +117,7 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
     ret v25
 }
 
-fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
@@ -145,7 +145,7 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
     revert_returndata
   bb4:
     v15 = icall returndata_bytes<>
-    v16 = abi_decode [u256, bytes], v15
+    v16 = abi_decode [uint256, bytes], v15
     v17 = extract_value struct2, v16, 0
     v18 = extract_value struct2, v16, 1
     v19 = insert_value struct2, undef struct2, 0, v17
@@ -158,7 +158,7 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
     ret v25
 }
 
-fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
@@ -200,7 +200,7 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
     ret v26
 }
 
-fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
@@ -228,7 +228,7 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     revert_returndata
   bb4:
     v15 = icall returndata_bytes<>
-    v16 = abi_decode [array<_, u256>, u256, bytes], v15
+    v16 = abi_decode [array<_, uint256>, uint256, bytes], v15
     v17 = extract_value struct5, v16, 0
     v18 = extract_value struct5, v16, 1
     v19 = extract_value struct5, v16, 2
@@ -245,8 +245,8 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     icall panic_if<0x32>, v29
     v30 = ptradd v23, 32
     v31 = mload v30
-    v32 = checked_sub u256, v24, 7
-    v33 = checked_add u256, v31, v32
+    v32 = checked_sub uint256, v24, 7
+    v33 = checked_add uint256, v31, v32
     v34 = mload v25
     v35 = insert_value struct4, undef struct4, 0, v26
     v36 = insert_value struct4, v35, 1, v33

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_dynamic_calldata_to_storage.sol:StorageNestedDynamicCalldataToStorage ===
 @module StorageNestedDynamicCalldataToStorage
-fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[], abi_return_params=[]] {
+fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array<_, array<_, uint8>>>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 1, v0
@@ -343,7 +343,7 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
     jump bb4
 }
 
-fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, array<_, u8>>], abi_returns=[], abi_return_params=[]] {
+fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, array<_, uint8>>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2

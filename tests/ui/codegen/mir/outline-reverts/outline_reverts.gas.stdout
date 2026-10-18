@@ -13,7 +13,7 @@
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
 -     revert 0, 36
-+     tail_call @revert_stub
++     tail_call @revert_stub.7
   }
   
   fn @second(arg0: i256) {
@@ -28,7 +28,7 @@
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
 -     revert 0, 36
-+     tail_call @revert_stub
++     tail_call @revert_stub.7
   }
   
   fn @third(arg0: i256) {
@@ -42,13 +42,62 @@
     bb1:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 18
-+     revert 0, 36
+      revert 0, 36
+  }
+  
+  fn @small_a(arg0: i1) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      stop
+    bb1:
+-     mstore 0, 1
+-     revert 0, 32
++     tail_call @revert_stub.8
+  }
+  
+  fn @small_b(arg0: i1) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      stop
+    bb1:
+-     mstore 0, 1
+-     revert 0, 32
++     tail_call @revert_stub.8
+  }
+  
+  fn @small_c(arg0: i1) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      stop
+    bb1:
+-     mstore 0, 1
+-     revert 0, 32
++     tail_call @revert_stub.8
+  }
+  
+  fn @small_d(arg0: i1) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      stop
+    bb1:
+-     mstore 0, 1
++     tail_call @revert_stub.8
 + }
 + 
-+ fn @revert_stub() {
++ fn @revert_stub.7() {
 +   bb0:
 +     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
 +     mstore 4, 17 !metadata(memory=scratch)
-      revert 0, 36
++     revert 0, 36
++ }
++ 
++ fn @revert_stub.8() {
++   bb0:
++     mstore 0, 1 !metadata(memory=scratch)
+      revert 0, 32
   }
   

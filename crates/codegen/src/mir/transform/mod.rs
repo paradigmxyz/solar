@@ -30,7 +30,6 @@ pub(crate) mod loop_split;
 pub(crate) mod loop_unroll;
 pub(crate) mod lower_abi;
 pub(crate) mod lower_abi_encode;
-pub(crate) mod lower_aggregates;
 pub(crate) mod lower_alloc;
 pub(crate) mod lower_arithmetic;
 pub(crate) mod lower_builtins;

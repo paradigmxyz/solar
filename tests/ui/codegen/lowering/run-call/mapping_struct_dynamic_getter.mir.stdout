@@ -3,7 +3,7 @@
 @types
   struct0: {i256, ptr<memory>}
 
-fn @m(arg0: i256) -> struct0 [selector=0x6e9410b6, view, abi_params=[u256], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @m(arg0: i256) -> struct0 [selector=0x6e9410b6, view, abi_params=[uint256], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -24,7 +24,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = mapping_slot 1, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))

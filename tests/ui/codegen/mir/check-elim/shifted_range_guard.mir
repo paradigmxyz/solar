@@ -1,0 +1,43 @@
+//@ compile-flags: -Zmir-pipeline=check-elim
+//@ filecheck:
+@module ShiftedRangeGuard
+
+// `x >> 32 == 0` bounds `x` below `2^32` on the zero edge, so the repeated
+// range test there folds, and the nonzero edge proves `x >= 2^32`.
+// CHECK-LABEL: fn @fits
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb4
+// CHECK: + jump bb4
+// CHECK-LABEL: fn @overflows
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb4
+// CHECK: + jump bb4
+fn @fits(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr 32, arg0
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = gt arg0, 0xffffffff
+    jumpi v3, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    ret arg0
+}
+
+fn @overflows(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr 32, arg0
+    v1 = ne v0, 0
+    jumpi v1, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = lt arg0, 0x100000000
+    jumpi v3, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    ret arg0
+}
