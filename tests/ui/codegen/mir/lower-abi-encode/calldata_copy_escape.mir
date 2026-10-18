@@ -1,0 +1,29 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@ filecheck:
+@module CalldataCopyEscape
+
+// The block that returns the copy comes before its allocating block in block
+// order, so the copy escapes before the scan sees its allocation. The copy keeps
+// its length and bytes.
+// CHECK-LABEL: (after lower-abi-encode)
+// CHECK: fn @escape
+// CHECK: [[OBJ:v[0-9]+]] = alloc
+// CHECK-NEXT: mstore [[OBJ]],
+// CHECK: calldatacopy
+// CHECK: ret [[OBJ]]
+fn @escape(arg0: slice<calldata>) -> ptr<memory> {
+  bb0:
+    jump bb2
+  bb1:
+    ret v0
+  bb2:
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = add v1, 32
+    v0 = alloc v2
+    mstore v0, v1
+    v4 = ptradd v0, 32
+    v5 = extract_value slice<calldata>, arg0, 0
+    calldatacopy v4, v5, v1
+    v6 = abi_encode [memory_bytes], args v0
+    jump bb1
+}
