@@ -68,7 +68,7 @@ use crate::{
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
         ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, PtrLocation,
         Terminator, Value, ValueId,
-        analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
+        analysis::{CallGraphInfo, Liveness, LoopAnalyzer, direct_callees},
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
         pass::MirPass,
@@ -997,19 +997,6 @@ fn call_counts(module: &Module) -> FxHashMap<MirFunctionId, usize> {
         *counts.entry(function).or_default() += 1;
     }
     counts
-}
-
-/// The targets of every direct internal call and tail call in `func`.
-fn direct_callees(func: &Function) -> impl Iterator<Item = MirFunctionId> + '_ {
-    let calls = func.instructions().filter_map(|inst| match func.inst(inst).kind {
-        InstKind::ICall { function: Callee::Function(function), .. } => Some(function),
-        _ => None,
-    });
-    let tail_calls = func.blocks.iter().filter_map(|block| match block.terminator {
-        Some(Terminator::TailCall { function, .. }) => Some(function),
-        _ => None,
-    });
-    calls.chain(tail_calls)
 }
 
 /// Recognizes a complete constant bytes initializer without relaxing the
