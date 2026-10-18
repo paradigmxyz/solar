@@ -759,6 +759,7 @@ impl Target {
             copies.bytes < stores.bytes
         }
     }
+
     /// Whether one shared copy of a terminal block, entered by a jump from each of `sites`,
     /// takes fewer bytes than a copy at every site. When optimizing for size, a copy no larger
     /// than a jump to and from a shared body stays with the backend, whose terminal-block sharing
