@@ -2,6 +2,8 @@
 //@[gas] compile-flags: -Ogas -Zmir-pipeline=inline-storage-readers
 //@[size] compile-flags: -Osize -Zmir-pipeline=inline-storage-readers
 @module StorageReaders
+@types
+  struct0: {i256, i256}
 
 fn @after(arg0: i256) -> i256 [selector=1] {
   bb0:
@@ -76,4 +78,32 @@ fn @observer() -> i256 {
     v1 = sload 3
     v2 = add v0, v1
     ret v2
+}
+
+fn @indirect_reader(arg0: i256) -> i256 [selector=6] {
+  bb0:
+    v0 = sload 3
+    v1 = icall @wrapper, arg0
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @wrapper(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @reader, arg0
+    ret v0
+}
+
+fn @multiple_returns(arg0: i256) -> i256 [selector=7] {
+  bb0:
+    v0 = sload 3
+    v1 = icall @pair, arg0
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @pair(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
+  bb0:
+    v0 = sload 3
+    ret v0, arg0
 }

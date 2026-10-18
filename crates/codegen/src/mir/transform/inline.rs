@@ -35,7 +35,8 @@
 //!   across the call or assuming alias freedom.
 //! - `inline-storage-readers` (gas only) exposes shared constant-slot reads to caller CSE. Only
 //!   callees without storage writes or gas observations qualify, and the call block must itself
-//!   read one of the callee's slots. Ordinary size and call-protocol profitability limits apply.
+//!   read one of the callee's direct slots. Multi-value returns stay shared because their staging
+//!   stores would miss memory cleanup. Ordinary size and call-protocol profitability limits apply.
 //! - `specialize-function-pointers` turns calls through constant internal function pointers into
 //!   direct calls.
 //!
@@ -942,9 +943,11 @@ impl MirInliner {
         let Some(summary) = self.storage_readers.as_ref().and_then(|s| s.get(site.callee)) else {
             return false;
         };
+        let callee = module.function(site.callee);
         if summary.writes(AddressSpace::Storage)
             || summary.may_observe_gas()
-            || module.function(site.callee).attributes.no_inline
+            || callee.attributes.no_inline
+            || site.returns > 1
         {
             return false;
         }
@@ -954,7 +957,11 @@ impl MirInliner {
         let caller = module.function(caller);
         caller.blocks[site.block].instructions.iter().any(|&inst| {
             matches!(caller.inst(inst).kind, InstKind::Load(slot, PtrLocation::Storage)
-                if matches!(caller.storage_alias(inst, slot), StorageAlias::Slot(slot) if slots.contains(&slot)))
+            if matches!(caller.storage_alias(inst, slot), StorageAlias::Slot(slot)
+                if slots.contains(&slot) && callee.instructions().any(|inst| {
+                    matches!(callee.inst(inst).kind, InstKind::Load(value, PtrLocation::Storage)
+                        if callee.storage_alias(inst, value) == StorageAlias::Slot(slot))
+                })))
         })
     }
 }
