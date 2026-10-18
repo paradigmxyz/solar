@@ -1,4 +1,5 @@
-//@ revisions: default size byzantium
+//@ revisions: default gas size byzantium
+//@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
 //@[byzantium] compile-flags: --evm-version byzantium
 //@ run-call: tiny; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 171

@@ -115,6 +115,9 @@
 //! the full forward analysis. Both use the existing conservative proof logic.
 //! Integer cleanup reuses the dominator walk after integer legalization to remove masks
 //! whose inputs already fit, without running the forward fixed-point analysis.
+//! It also uses runtime immutable bounds, since legalization can introduce masks after the
+//! earlier immutable pass. Constructor-reachable functions retain their full-word semantics.
+//! Late immutable mask removal can prevent outlining small getters, so use it only for gas.
 //! Run late check elimination after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
 
@@ -166,7 +169,7 @@ impl MirPass for CheckElim {
     }
 }
 
-/// Removes integer masks whose input range is proved by dominating branches.
+/// Removes integer masks proved redundant by branches or runtime immutable widths.
 pub(crate) struct IntegerCleanup;
 
 impl MirPass for IntegerCleanup {
@@ -176,15 +179,16 @@ impl MirPass for IntegerCleanup {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            if !func
-                .blocks
-                .iter()
-                .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
+        let cleanup = |func: &mut Function, immutable_ranges: Option<&FxHashMap<_, _>>| {
+            if (immutable_ranges.is_none()
+                && !func
+                    .blocks
+                    .iter()
+                    .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. }))))
                 || !func
                     .instructions()
                     .any(|id| low_mask_input(func, &func.inst(id).kind).is_some())
@@ -193,7 +197,8 @@ impl MirPass for IntegerCleanup {
             }
             let cfg = CfgInfo::new(func);
             let removed = invalidate_unreachable_blocks(func, cfg.reachable());
-            let mut eliminator = CheckEliminator { collect_masks: true, ..Default::default() };
+            let mut eliminator =
+                CheckEliminator { collect_masks: true, immutable_ranges, ..Default::default() };
             let facts = index_vec![Facts::default(); func.blocks.len()];
             let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
             if eliminator.redundant_masks.is_empty() {
@@ -210,7 +215,24 @@ impl MirPass for IntegerCleanup {
                 block.instructions.retain(|&id| !dead.contains(id));
             }
             true
-        })
+        };
+        let bounds = if gcx.sess.opts.optimization.is_gas() {
+            runtime_immutable_bounds(module, gcx)
+        } else {
+            FxHashMap::default()
+        };
+        if bounds.is_empty() {
+            return run_function_pass(module, analyses, |func, _| cleanup(func, None));
+        }
+        let runtime = runtime_only_functions(module);
+        let mut others = DenseBitSet::new_filled(module.functions.len());
+        others.subtract(&runtime);
+        let mut changed = run_selected_function_pass(module, analyses, &runtime, |func, _| {
+            cleanup(func, Some(&bounds))
+        });
+        changed |=
+            run_selected_function_pass(module, analyses, &others, |func, _| cleanup(func, None));
+        changed
     }
 }
 
@@ -309,23 +331,7 @@ impl MirPass for ImmutableCheckElim {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let narrowed = narrow_immutable_layouts(module);
-        let bounds = module
-            .iter_immutables()
-            .filter_map(|(id, immutable)| {
-                let encoding @ ImmutableEncoding::Unsigned(_) =
-                    immutable.ty.immutable_encoding()?
-                else {
-                    return None;
-                };
-                let width = immutable_push_type_size(
-                    encoding,
-                    gcx.sess.opts.optimization,
-                    gcx.sess.opts.evm_version.has_bitwise_shifting(),
-                )
-                .bits();
-                (width < 256).then(|| (id, Range::new(U256::ZERO, U256::MAX >> (256 - width))))
-            })
-            .collect::<FxHashMap<_, _>>();
+        let bounds = runtime_immutable_bounds(module, gcx);
         if bounds.is_empty() {
             return narrowed;
         }
@@ -443,6 +449,28 @@ fn runtime_only_functions(module: &Module) -> DenseBitSet<FunctionId> {
     }
     runtime.subtract(&constructor);
     runtime
+}
+
+fn runtime_immutable_bounds(
+    module: &Module,
+    gcx: solar_sema::Gcx<'_>,
+) -> FxHashMap<ImmutableId, Range> {
+    module
+        .iter_immutables()
+        .filter_map(|(id, immutable)| {
+            let encoding @ ImmutableEncoding::Unsigned(_) = immutable.ty.immutable_encoding()?
+            else {
+                return None;
+            };
+            let width = immutable_push_type_size(
+                encoding,
+                gcx.sess.opts.optimization,
+                gcx.sess.opts.evm_version.has_bitwise_shifting(),
+            )
+            .bits();
+            (width < 256).then(|| (id, Range::new(U256::ZERO, U256::MAX >> (256 - width))))
+        })
+        .collect()
 }
 
 /// Maximum recursion depth when evaluating value ranges and conditions.
