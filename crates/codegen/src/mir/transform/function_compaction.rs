@@ -26,7 +26,7 @@
 use crate::mir::{
     ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
-    analysis::cold_functions,
+    analysis::{CallGraphInfo, cold_functions},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -517,18 +517,7 @@ fn record_arg_dependencies(
 fn prune_unused_returns(module: &mut Module) -> usize {
     let mut called = DenseBitSet::new_empty(module.functions.len());
     for func in &module.functions {
-        for inst_id in func.instructions() {
-            if let InstKind::ICall { function: Callee::Function(function), .. } =
-                func.inst(inst_id).kind
-            {
-                called.insert(function);
-            }
-        }
-        for block in &func.blocks {
-            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                called.insert(*function);
-            }
-        }
+        called.union(&CallGraphInfo::collect_internal_callees(func, module.functions.len()));
     }
 
     let cold = cold_functions(module);

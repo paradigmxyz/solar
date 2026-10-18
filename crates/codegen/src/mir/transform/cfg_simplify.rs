@@ -832,25 +832,10 @@ pub(super) fn remove_unreferenced_functions(module: &mut Module, candidates: &[F
         referenced.insert(entry);
     }
     for (id, func) in module.functions.iter_enumerated() {
-        if func.selector.is_some()
-            || func.attributes.is_constructor
-            || func.attributes.is_fallback
-            || func.attributes.is_receive
-        {
+        if CallGraphInfo::is_entry_function(func) {
             referenced.insert(id);
         }
-        for inst in func.instructions() {
-            if let InstKind::ICall { function: crate::mir::Callee::Function(function), .. } =
-                func.inst(inst).kind
-            {
-                referenced.insert(function);
-            }
-        }
-        for block in func.blocks.iter() {
-            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                referenced.insert(*function);
-            }
-        }
+        referenced.union(&CallGraphInfo::collect_internal_callees(func, count));
     }
     let mut keep = DenseBitSet::new_filled(count);
     for &candidate in candidates {
