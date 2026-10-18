@@ -1,9 +1,12 @@
 //! Expand checked arithmetic after semantic optimization, before scalar cleanup.
 //!
 //! Emit explicit Solidity zero/overflow checks and exponentiation-by-squaring loops. Preserve
-//! checked widths and signedness; wrapping signed division still checks zero. Splitting blocks
-//! redirects successor phi predecessors locally, and every emitted operation inherits the source
-//! instruction's debug context. Later cleanup can combine exposed checks and scalar expressions.
+//! checked widths and signedness; wrapping signed division still checks zero. As in solc, a
+//! product of operands of at most 128 bits only checks its range, wider ones also test the
+//! quotient, and only a 256-bit signed product tests `min * -1`, which the quotient misses.
+//! Splitting blocks redirects successor phi predecessors locally, and every emitted operation
+//! inherits the source instruction's debug context. Later cleanup can combine exposed checks and
+//! scalar expressions.
 
 use crate::mir::{
     ArithmeticKind, CheckedOp, FunctionBuilder, InstKind, MirType, Module, PanicCode, ValueId,
@@ -107,6 +110,24 @@ impl ArithmeticLowerer<'_, '_> {
         result: ValueId,
         kind: ArithmeticKind,
     ) -> ValueId {
+        let (ArithmeticKind::Unsigned(bits) | ArithmeticKind::Signed(bits)) = kind;
+        if bits <= 128 {
+            // The exact product of two such operands fits in a word, so only its range can
+            // overflow, as in solc.
+            // overflow = signed ? result < min || result > max : result > max
+            return match kind {
+                ArithmeticKind::Unsigned(_) => {
+                    let max = self.builder.imm((U256::from(1) << bits) - U256::ONE);
+                    self.builder.gt(result, max)
+                }
+                ArithmeticKind::Signed(_) => {
+                    let (min, max) = signed_bounds(bits, self.builder);
+                    let below = self.builder.slt(result, min);
+                    let above = self.builder.sgt(result, max);
+                    self.builder.or(below, above)
+                }
+            };
+        }
         // valid = rhs == 0 || (signed ? sdiv : div)(result, rhs) == lhs
         // overflow = !valid
         let rhs_zero = self.builder.eq_zero(rhs);
@@ -122,13 +143,15 @@ impl ArithmeticLowerer<'_, '_> {
             if bits < 256 {
                 // overflow |= result < min || result > max
                 overflow = self.add_signed_range_check(overflow, result, min, max);
+            } else {
+                // `sdiv(min, -1)` wraps to `min`, so the quotient test accepts `min * -1`.
+                // overflow |= lhs == min && rhs < 0
+                let zero = self.builder.imm(U256::ZERO);
+                let lhs_is_min = self.builder.eq(lhs, min);
+                let rhs_negative = self.builder.slt(rhs, zero);
+                let special = self.builder.and(lhs_is_min, rhs_negative);
+                overflow = self.builder.or(overflow, special);
             }
-            // overflow |= lhs == min && rhs < 0
-            let zero = self.builder.imm(U256::ZERO);
-            let lhs_is_min = self.builder.eq(lhs, min);
-            let rhs_negative = self.builder.slt(rhs, zero);
-            let special = self.builder.and(lhs_is_min, rhs_negative);
-            overflow = self.builder.or(overflow, special);
         } else if let ArithmeticKind::Unsigned(bits) = kind
             && bits < 256
         {
