@@ -14,7 +14,7 @@ fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], ab
   MutatingBase_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:MutatingBase"
 
 @immutables
-  target: uint256
+  target: address
 
 fn @receiver() -> i160 {
   bb0:
@@ -171,17 +171,18 @@ fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_
     v2 = abi_encode [], selector 0x7795b5fc00000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
-    v5 = call v1, v0, 0, v3, v4, 0, 32
-    jumpi v5, bb2, bb1
+    v5 = zext i160 v0 to i256
+    v6 = call v1, v5, 0, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = lt v6, 32
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    ret v9
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
 }
 
 fn @constructor() [constructor] {
@@ -201,7 +202,6 @@ fn @constructor() [constructor] {
   bb1:
     revert_returndata
   bb2:
-    v9 = zext i160 v7 to i256
-    storeimmutable target, v9
+    storeimmutable target, v7
     ret
 }

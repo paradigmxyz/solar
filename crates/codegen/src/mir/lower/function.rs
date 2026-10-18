@@ -101,7 +101,7 @@ pub(super) struct LoweringState {
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
     /// DO NOT ADD OTHER HELPER MAPS. USE THIS ONE ONLY.
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
-    raw_scalars: FxHashSet<VariableId>,
+    pub(super) raw_scalars: FxHashSet<VariableId>,
     raw_pointer_types: FxHashSet<MirType>,
 }
 

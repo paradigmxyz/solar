@@ -21,23 +21,6 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
-    let mut immutable_ids = FxHashMap::default();
-    for &base in contract.linearized_bases.iter().rev() {
-        for id in gcx.hir.contract(base).variables() {
-            let variable = gcx.hir.variable(id);
-            if !variable.is_state_variable() || !variable.is_immutable() {
-                continue;
-            }
-            let Some(name) = variable.name else { continue };
-            let mir_id = module.add_immutable(
-                name,
-                TypeLowerer::immutable_layout(gcx.type_of_item(id.into())),
-                Some(id),
-            );
-            immutable_ids.insert(id, mir_id);
-        }
-    }
-
     let mut function_ids = Vec::new();
     let mut seen_selectors = FxHashSet::default();
     let reachable = gcx.contract_reachable_functions(contract_id);
@@ -138,6 +121,25 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
     state.analyze_raw_scalars(gcx, contract_id, &function_ids);
+    let mut immutable_ids = FxHashMap::default();
+    for &base in contract.linearized_bases.iter().rev() {
+        for id in gcx.hir.contract(base).variables() {
+            let variable = gcx.hir.variable(id);
+            if !variable.is_state_variable() || !variable.is_immutable() {
+                continue;
+            }
+            let Some(name) = variable.name else { continue };
+            let mir_id = module.add_immutable(
+                name,
+                TypeLowerer::immutable_layout(
+                    gcx.type_of_item(id.into()),
+                    state.raw_scalars.contains(&id),
+                ),
+                Some(id),
+            );
+            immutable_ids.insert(id, mir_id);
+        }
+    }
     let is_library = contract.kind == hir::ContractKind::Library;
     module.is_library = is_library;
     // A library's non-view external functions may only run through `DELEGATECALL`. The

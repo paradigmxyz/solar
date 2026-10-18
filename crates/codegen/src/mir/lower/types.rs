@@ -71,10 +71,11 @@ impl<'gcx> TypeLowerer<'gcx> {
         }
     }
 
-    /// Preserves raw scalar bits in immutables for inline assembly reads.
-    pub(super) fn immutable_layout(ty: Ty<'_>) -> ValueLayout {
+    /// Returns an immutable's source layout, or a full word for a `bool` or `address` that
+    /// can carry raw bits between inline assembly blocks.
+    pub(super) fn immutable_layout(ty: Ty<'_>, raw: bool) -> ValueLayout {
         match Self::value_layout(ty) {
-            ValueLayout::Bool | ValueLayout::Address => ValueLayout::uint256(),
+            ValueLayout::Bool | ValueLayout::Address if raw => ValueLayout::uint256(),
             layout => layout,
         }
     }

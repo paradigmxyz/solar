@@ -1,13 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/call_status_branch_stack.sol:CallStatusBranchStack ===
 @module CallStatusBranchStack
 @immutables
-  target: uint256
+  target: address
 
 fn @constructor() [constructor] {
   bb0:
     v0 = address
-    v1 = zext i160 v0 to i256
-    storeimmutable target, v1
+    storeimmutable target, v0
     ret
 }
 
@@ -38,18 +37,19 @@ fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, view, abi_params=[uint256], 
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 128
-    v6 = staticcall v1, v0, v3, v4, v5, 128
-    jumpi v6, bb2, bb1
+    v6 = zext i160 v0 to i256
+    v7 = staticcall v1, v6, v3, v4, v5, 128
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 128
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = make_memory_slice v5, 128
-    v10 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v9
-    v11 = mload v10
-    ret v11
+    v8 = returndatasize
+    v9 = lt v8, 128
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 128
+    v11 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v10
+    v12 = mload v11
+    ret v12
 }
 
 fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -60,22 +60,23 @@ fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[uint256],
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 128
-    v6 = staticcall v1, v0, v3, v4, v5, 128
-    jumpi v6, bb2, bb1
+    v6 = zext i160 v0 to i256
+    v7 = staticcall v1, v6, v3, v4, v5, 128
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 128
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = make_memory_slice v5, 128
-    v10 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v9
-    v11 = mload v10
-    v12 = ptradd v10, 32
-    v13 = mload v12
-    v14 = checked_add uint256, v11, v13
-    v15 = checked_sub uint256, v14, 1
-    ret v15
+    v8 = returndatasize
+    v9 = lt v8, 128
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 128
+    v11 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v10
+    v12 = mload v11
+    v13 = ptradd v11, 32
+    v14 = mload v13
+    v15 = checked_add uint256, v12, v14
+    v16 = checked_sub uint256, v15, 1
+    ret v16
 }
 
 fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -86,20 +87,21 @@ fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[uint256], 
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 128
-    v6 = staticcall v1, v0, v3, v4, v5, 128
-    jumpi v6, bb2, bb1
+    v6 = zext i160 v0 to i256
+    v7 = staticcall v1, v6, v3, v4, v5, 128
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 128
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = make_memory_slice v5, 128
-    v10 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v9
-    v11 = ptradd v10, 64
-    v12 = mload v11
-    v13 = ptradd v10, 96
-    v14 = mload v13
-    v15 = checked_add uint256, v12, v14
-    ret v15
+    v8 = returndatasize
+    v9 = lt v8, 128
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 128
+    v11 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v10
+    v12 = ptradd v11, 64
+    v13 = mload v12
+    v14 = ptradd v11, 96
+    v15 = mload v14
+    v16 = checked_add uint256, v13, v15
+    ret v16
 }

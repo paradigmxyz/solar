@@ -10,7 +10,7 @@
   narrowAddressWidth: uint160
   narrowInitial: uint64
   signedInitial: uint256
-  signedInitialEqual: uint256
+  signedInitialEqual: bool
 
 fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -33,8 +33,7 @@ fn @signedInitial() -> i256 [selector=0x19ac8d3d, view, abi_params=[], abi_retur
 fn @signedInitialEqual() -> i1 [selector=0x726e5735, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = loadimmutable signedInitialEqual
-    v1 = ne v0, 0
-    ret v1
+    ret v0
 }
 
 fn @constructor(arg0: i64, arg1: i64, arg2: i64) [constructor, abi_params=[uint64, uint64, int64]] {
@@ -57,10 +56,9 @@ fn @constructor(arg0: i64, arg1: i64, arg2: i64) [constructor, abi_params=[uint6
     v8 = icall @signedAsUnsigned
     storeimmutable signedInitial, v8
     v9 = icall @signedEqualsMinusOne
-    v10 = zext i1 v9 to i256
-    storeimmutable signedInitialEqual, v10
-    v11 = icall @total
-    storeimmutable initial, v11
+    storeimmutable signedInitialEqual, v9
+    v10 = icall @total
+    storeimmutable initial, v10
     ret
 }
 

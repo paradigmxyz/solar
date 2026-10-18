@@ -107,8 +107,9 @@ This includes loop phis.
 Mixed narrow-integer/`i256` joins widen the narrow input without normalizing the word.
 Logical operations convert those words to
 canonical booleans. This keeps the MIR invariant without changing the bits
-that source assembly can observe. Immutable encodings may shrink only when
-every assignment proves that all stored bits fit the shorter encoding.
+that source assembly can observe. Other immutables keep their source layout,
+so an `address` immutable loads as `i160`. Immutable encodings may shrink only
+when every assignment proves that all stored bits fit the shorter encoding.
 
 ## Phase model
 

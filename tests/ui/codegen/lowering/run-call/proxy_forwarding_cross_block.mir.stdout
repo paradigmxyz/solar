@@ -330,12 +330,11 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes]
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:DynamicReturnWrapper ===
 @module DynamicReturnWrapper
 @immutables
-  producer: uint256
+  producer: address
 
 fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
   bb0:
-    v0 = zext i160 arg0 to i256
-    storeimmutable producer, v0
+    storeimmutable producer, arg0
     ret
 }
 
@@ -346,14 +345,15 @@ fn @bubble() -> ptr<memory> [selector=0x4ce637d6, view, abi_params=[], abi_retur
     v2 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
-    v5 = staticcall v1, v0, v3, v4, 0, 0
-    jumpi v5, bb2, bb1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 0
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = icall returndata_bytes<>
-    v7 = abi_decode [bytes], v6
-    ret v7
+    v7 = icall returndata_bytes<>
+    v8 = abi_decode [bytes], v7
+    ret v8
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===
