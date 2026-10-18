@@ -464,7 +464,7 @@ impl LowerAbiCx {
         } else {
             FxHashMap::default()
         };
-        // An array already holding ABI-validated words needs neither the cleanup helper
+        // An array already holding ABI-validated words needs neither a cleaned copy
         // nor the encoder's per-element copy: the array this wrapper decoded when element
         // cleanup proved that nothing widens it, or one a call returned with that proof.
         // Strip the element cleanup from the layout so the encoder copies the payload once.
@@ -492,12 +492,11 @@ impl LowerAbiCx {
                     canonical_returns.insert(index);
                 }
             }
-            canonical_returns.retain(|&index| {
-                std::sync::Arc::make_mut(&mut layout)
-                    .types
-                    .get_mut(index)
-                    .is_some_and(strip_array_element_cleanup)
-            });
+            for &index in &canonical_returns {
+                if let Some(ty) = std::sync::Arc::make_mut(&mut layout).types.get_mut(index) {
+                    strip_array_element_cleanup(ty);
+                }
+            }
         }
         if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
             // Static return data occupies the low-memory ABI buffer. Keep the
@@ -2990,7 +2989,7 @@ fn is_canonical_return_value_inner(
     visiting: &mut FxHashSet<ValueId>,
     calls: &mut CanonicalCallProof<'_>,
 ) -> bool {
-    let value = if ty.is_scalar_word() { value } else { pointer_alias_root(func, value) };
+    let value = if ty.is_scalar_word() { value } else { returned_object_root(func, value) };
     if !ty.needs_return_cleanup()
         || (source == ReturnValueSource::Scalar
             && reuses_validated_input(func, value, input_params, ty))
@@ -3083,6 +3082,22 @@ fn pointer_alias_root(func: &Function, mut value: ValueId) -> ValueId {
     // A malformed cyclic definition must not make the proof loop forever.
     for _ in 0..func.num_values() {
         let Value::Inst(inst) = func.value(value) else { break };
+        let Some(input) = lossless_pointer_cast(func, *inst) else { break };
+        value = input;
+    }
+    value
+}
+
+/// Follows only conversions that keep the address, so the proof checks the words the
+/// encoding reads; unlike [`pointer_alias_root`] it stops at a nonzero offset.
+fn returned_object_root(func: &Function, mut value: ValueId) -> ValueId {
+    for _ in 0..func.num_values() {
+        let Value::Inst(inst) = func.value(value) else { break };
+        if let InstKind::PtrAdd(_, offset) = func.inst(*inst).kind
+            && func.value_u64(offset) != Some(0)
+        {
+            break;
+        }
         let Some(input) = lossless_pointer_cast(func, *inst) else { break };
         value = input;
     }
@@ -3556,18 +3571,14 @@ fn is_canonical_decoded_array(
 }
 
 /// Drops the per-element cleanup from a memory word array's encoding, leaving one payload
-/// copy. Returns whether the layout had such a cleanup to drop.
-fn strip_array_element_cleanup(ty: &mut AbiType) -> bool {
-    let (AbiType::DynamicArray { element, location: PtrLocation::Memory }
-    | AbiType::FixedArray { element, .. }) = ty
-    else {
-        return false;
-    };
-    if !matches!(**element, AbiType::Word(Some(_))) {
-        return false;
+/// copy.
+fn strip_array_element_cleanup(ty: &mut AbiType) {
+    if let AbiType::DynamicArray { element, location: PtrLocation::Memory }
+    | AbiType::FixedArray { element, .. } = ty
+        && let AbiType::Word(validator @ Some(_)) = &mut **element
+    {
+        *validator = None;
     }
-    **element = AbiType::Word(None);
-    true
 }
 
 /// Whether `object` is an array parameter whose words element cleanup proved
