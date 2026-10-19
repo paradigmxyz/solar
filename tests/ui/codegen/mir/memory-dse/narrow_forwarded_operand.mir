@@ -1,0 +1,19 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+@module NarrowForwardedOperand
+
+// The shifted operand is a load that forwarding replaces while scanning a later block, so
+// narrowing must read the store's operands after those rewrites.
+fn @forwarded_operand(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb2
+  bb1:
+    v2 = shl v1, 248
+    mstore 128, v2
+    mstore 129, arg1
+    v3 = keccak256 128, 33
+    ret v3
+  bb2:
+    mstore 0, arg0
+    v1 = mload 0
+    jump bb1
+}

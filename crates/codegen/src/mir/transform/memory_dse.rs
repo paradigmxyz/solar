@@ -30,8 +30,8 @@
 //!   the partial-overwrite classification of LLVM's dead store elimination, which only shortens
 //!   `memset` and `memcpy` because a narrower scalar store needs a new value; `mstore8` is as cheap
 //!   as `mstore` and the operand already exists. Deliberate limits: it needs one later store at the
-//!   next byte, not the union of several later overwrites, and it leaves a store whose only
-//!   surviving byte is the last.
+//!   next byte, not the union of several later overwrites; it leaves a store whose only surviving
+//!   byte is the last; and it leaves a store whose word another block also stores to.
 //! - Write-only deferred allocations: a deferred allocation whose pointer only ever addresses
 //!   stores, as a decoded struct does once forwarding has replaced the reads of its used fields,
 //!   loses those stores. Static placement already keeps every other way to reach its words out of
@@ -423,13 +423,12 @@ struct BlockScratch {
     narrowed: Vec<NarrowableStore>,
 }
 
-/// A word store whose tail a later store in its block overwrites.
+/// A word store whose tail a later store in its block overwrites. Rewrites between the scan and the
+/// narrowing may replace the store's operands, so the narrowing reads them again.
 struct NarrowableStore {
     block: BlockId,
     inst: InstId,
     key: MemAddrKey,
-    addr: ValueId,
-    byte: TopByte,
 }
 
 /// The byte a word store writes to its first address, whose other 31 bytes are zero.
@@ -892,14 +891,12 @@ impl MemoryStoreEliminator {
                             // other 31 bytes before any read.
                             if Self::offset_mem_addr_key(key, 1)
                                 .is_some_and(|tail| scratch.overwritten.contains(&tail))
-                                && let Some(top_byte) = Self::top_byte(func, *value)
+                                && Self::top_byte(func, *value).is_some()
                             {
                                 scratch.narrowed.push(NarrowableStore {
                                     block: block_id,
                                     inst: inst_id,
                                     key,
-                                    addr: *addr,
-                                    byte: top_byte,
                                 });
                             }
                             scratch.overwritten.insert(key);
@@ -996,13 +993,33 @@ impl MemoryStoreEliminator {
     /// still remove that store once the later full-word store kills it, and they no longer could
     /// after narrowing.
     fn narrow_overwritten_stores(&mut self, func: &mut Function, scratch: &BlockScratch) {
-        for narrowable in &scratch.narrowed {
-            let NarrowableStore { block, inst, key, addr, byte } = *narrowable;
-            if !func.blocks[block].instructions.contains(&inst)
-                || self.has_store_to_word_in_other_block(func, block, key)
-            {
+        if scratch.narrowed.is_empty() {
+            return;
+        }
+
+        // The only block storing to each word, or `None` when several blocks do.
+        let mut store_blocks = FxHashMap::<MemAddrKey, Option<BlockId>>::default();
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &inst in &data.instructions {
+                if let InstKind::Store(addr, _, PtrLocation::Memory) = func.inst(inst).kind
+                    && let Some(key) = self.mem_addr_key(func, addr, 32)
+                {
+                    let only = store_blocks.entry(key).or_insert(Some(block));
+                    if *only != Some(block) {
+                        *only = None;
+                    }
+                }
+            }
+        }
+
+        for &NarrowableStore { block, inst, key } in &scratch.narrowed {
+            if store_blocks.get(&key) != Some(&Some(block)) {
                 continue;
             }
+            let InstKind::Store(addr, value, PtrLocation::Memory) = func.inst(inst).kind else {
+                continue;
+            };
+            let Some(byte) = Self::top_byte(func, value) else { continue };
             let byte = match byte {
                 TopByte::Shifted(byte) => byte,
                 TopByte::Constant(byte) => {
@@ -1013,21 +1030,6 @@ impl MemoryStoreEliminator {
             func.inst_mut(inst).replace_kind(InstKind::Store8(addr, byte));
             self.eliminated_count += 1;
         }
-    }
-
-    fn has_store_to_word_in_other_block(
-        &self,
-        func: &Function,
-        block: BlockId,
-        key: MemAddrKey,
-    ) -> bool {
-        func.blocks.iter_enumerated().any(|(other, data)| {
-            other != block
-                && data.instructions.iter().any(|&inst| {
-                    matches!(func.inst(inst).kind, InstKind::Store(addr, _, PtrLocation::Memory)
-                        if self.mem_addr_key(func, addr, 32).is_some_and(|other| other == key))
-                })
-        })
     }
 
     /// Returns the byte a word store of `value` writes first when the other bytes are zero:
