@@ -190,8 +190,8 @@ bb4:
   or
   push bb8
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

@@ -22,15 +22,14 @@
 +     v2 = lt v1, 1
 +     jumpi v2, bb2, bb3
 +   bb3:
-+     v10 = add 128, 32
-+     v11 = sub v10, 128
-+     returndata 128, v11
++     v10 = sub 32, 0
++     returndata 0, v10
 +   bb2:
 +     v3 = shl v1, 5
 +     v4 = ptradd v0, v3
 +     v5 = mload v4
 +     v6 = mul v1, 32
-+     v7 = add 128, v6
++     v7 = add 0, v6
 +     v8 = and v5, 255
 +     mstore v7, v8
 +     v9 = add v1, 1

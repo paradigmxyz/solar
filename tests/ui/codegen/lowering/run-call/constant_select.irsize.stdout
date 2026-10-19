@@ -92,10 +92,10 @@ bb89:
   add
   jump bb88
 bb88:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb15:
   push 128

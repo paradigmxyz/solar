@@ -205,7 +205,7 @@ bb16 [continuation]:
   push bb11
   jump bb54
 bb20:
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -247,13 +247,13 @@ bb67 [loop]:
   swap 1
   jump
 bb23 [continuation]:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb25:
-  push 192
+  push 128
   push 64
   mstore
   push 68
@@ -278,15 +278,15 @@ bb29 [continuation]:
   jump bb66
 bb30 [continuation]:
   swap 1
-  push 128
+  push 0
   mstore
-  push 160
+  push 32
   mstore
   push 64
-  push 128
+  push 0
   return
 bb32:
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -322,10 +322,10 @@ bb35 [loop]:
   jumpi
   pop
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb37 [loop]:
   dup 1
@@ -340,13 +340,13 @@ bb37 [loop]:
   swap 1
   swap 3
   sub
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb41:
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -407,10 +407,10 @@ bb45 [loop]:
   push bb47
   jumpi
   push 1
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb47 [loop]:
   dup 3
@@ -422,10 +422,10 @@ bb47 [loop]:
   push bb49
   jumpi
   push 0
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb57 [continuation]:
   swap 1

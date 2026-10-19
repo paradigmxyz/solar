@@ -302,11 +302,9 @@
 -     ret v0
 +     v2 = mload v0
 +     v3 = and v2, 255
-+     mstore 128, v3
-+     v4 = add 128, 32
-+     v5 = add 128, 32
-+     v6 = sub v5, 128
-+     returndata 128, v6
++     mstore 0, v3 !metadata(memory=scratch)
++     v4 = sub 32, 0
++     returndata 0, v4
   }
   
 - fn @nativeCleanTuple(arg0: i128) -> ptr<memory> [selector=0x0dead005, abi_params=[uint128], abi_returns=[tuple<word<uint128>>], abi_return_params=[tuple<uint128>]] {
@@ -329,11 +327,9 @@
 -     ret v0
 +     v7 = mload v0
 +     v8 = and v7, 0xffffffffffffffffffffffffffffffff
-+     mstore 128, v8
-+     v9 = add 128, 32
-+     v10 = add 128, 32
-+     v11 = sub v10, 128
-+     returndata 128, v11
++     mstore 0, v8 !metadata(memory=scratch)
++     v9 = sub 32, 0
++     returndata 0, v9
 +   bb2:
 +     revert 0, 0
   }

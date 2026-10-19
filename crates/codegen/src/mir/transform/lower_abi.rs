@@ -498,9 +498,11 @@ impl LowerAbiCx {
                 }
             }
         }
-        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
-            // Static return data occupies the low-memory ABI buffer. Keep the
-            // backend spill area above it so a cross-block value cannot be
+        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic)
+            && !fits_scratch(layout.head_size())
+        {
+            // Static return data larger than scratch memory occupies the low-memory ABI
+            // buffer. Keep the backend spill area above it so a cross-block value cannot be
             // overwritten while the return tuple is encoded.
             func.external_static_return_size = layout.head_size();
         }
@@ -577,7 +579,11 @@ impl LowerAbiCx {
                 let size = builder.slice_len(encoded);
                 builder.ret_data(offset, size);
             } else {
-                let offset = builder.imm(EvmMemoryLayout::HEAP_START);
+                // A result that fits in scratch memory never reaches the free memory pointer or
+                // the spill area, and `return` ends execution, so nothing reads the scratch again.
+                let start =
+                    if fits_scratch(layout.head_size()) { 0 } else { EvmMemoryLayout::HEAP_START };
+                let offset = builder.imm(start);
                 let size = super::lower_abi_encode::encode_static_tuple(
                     &mut builder,
                     &values,
@@ -3946,6 +3952,11 @@ fn encode_static_bytes_return(
         builder.store(tail_offset, tail);
     }
     builder.ret_data(offset, size);
+}
+
+/// Returns whether `size` bytes fit in the scratch words below the free memory pointer.
+fn fits_scratch(size: u64) -> bool {
+    size <= EvmMemoryLayout::FMP_SLOT
 }
 
 fn materialize_calldata_return(
