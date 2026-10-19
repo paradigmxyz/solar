@@ -3,42 +3,27 @@
 @phase lowered
 fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
   bb0:
-    v53 = icall @alloc, 128
-    v56 = calldatasize
-    calldatacopy v53, v56, 128
-    mstore v53, 3
-    v37 = add v53, 32
+    v46 = icall @alloc, 128
+    v49 = calldatasize
+    calldatacopy v46, v49, 128
+    mstore v46, 3
+    v37 = add v46, 32
     mstore v37, 1
-    v39 = add v53, 64
+    v39 = add v46, 64
     mstore v39, 2
-    v41 = add v53, 96
+    v41 = add v46, 96
     mstore v41, 3
-    v54 = mload 64
-    v24 = add v54, 32
-    mstore v54, 32
-    v27 = mload v53
+    v47 = mload 64
+    v24 = add v47, 32
+    mstore v47, 32
+    v27 = mload v46
     mstore v24, v27
     v28 = shl v27, 5
     v29 = add v24, 32
     v31 = add v29, v28
-    v46 = eq v28, 0
-    jumpi v46, bb1, bb2
-  bb2:
-    jump bb3
-  bb3:
-    v47 = phi [bb2: 0], [bb4: v52]
-    v48 = lt v47, v28
-    jumpi v48, bb4, bb1
-  bb4:
-    v49 = add v37, v47
-    v50 = mload v49
-    v51 = add v29, v47
-    mstore v51, v50
-    v52 = add v47, 32
-    jump bb3
-  bb1:
-    v33 = sub v31, v54
-    v16 = keccak256 v54, v33
+    icall @mcopy_words, v29, v37, v28
+    v33 = sub v31, v47
+    v16 = keccak256 v47, v33
     v17 = eq v16, 0x62e243217b24f0adeab63b697d9c38d64bd4cbf540c9915772ddc377b45b411c
     v19 = zext i1 v17 to i256
     mstore 128, v19
