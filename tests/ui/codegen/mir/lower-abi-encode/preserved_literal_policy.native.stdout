@@ -31,12 +31,10 @@
 +     v17 = ptrtoint ptr<memory> v4 to i256
 +     v18 = sub v16, v17
 +     v19 = add v18, 0
-+     v20 = add v19, 31
-+     v21 = not 31
-+     v22 = and v20, v21
-+     v23 = alloc v22 !metadata(preserves_fmp)
-+     v24 = make_memory_slice v23, v19
-+     ret v24
++     v20 = add v18, 0
++     v21 = alloc v20 !metadata(preserves_fmp)
++     v22 = make_memory_slice v21, v19
++     ret v22
   }
   
   fn @scratch() -> slice<memory> {

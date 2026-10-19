@@ -10,7 +10,9 @@
 //! Placement. A static layout reserves its output first and stores into it. A
 //! dynamic layout writes at the free-memory pointer, then reserves the encoded
 //! extent with `preserves_fmp`, so that reservation keeps its address even
-//! after later folding makes its size constant. `Scratch` encodings stage at
+//! after later folding makes its size constant. That extent is the encoding, a
+//! whole number of words, plus the padded selector, with no rounding at
+//! runtime. `Scratch` encodings stage at
 //! the free-memory pointer without reserving. `Bytes` results keep their
 //! allocation point because source code can observe the pointer bump. A tuple
 //! whose only dynamic values are literal byte strings has a known size, so it
@@ -208,18 +210,23 @@ fn synthesize_tuple_helpers(
 ) {
     let mut counts = FxHashMap::<TupleHelperKey, (usize, usize)>::default();
     for (func_id, func) in module.functions.iter_enumerated() {
-        for inst in func.instructions() {
-            let InstKind::AbiEncode { mode, selector, args, layout } = &func.inst(inst).kind else {
-                continue;
-            };
-            if destructive_returns[func_id].contains(&inst) {
-                continue;
+        for block in func.blocks.iter() {
+            for &inst in &block.instructions {
+                let InstKind::AbiEncode { mode, selector, args, layout } = &func.inst(inst).kind
+                else {
+                    continue;
+                };
+                if destructive_returns[func_id].contains(&inst)
+                    || is_terminal_scratch(*mode, block.terminator.as_ref())
+                {
+                    continue;
+                }
+                let next = counts.len();
+                let count = counts
+                    .entry(TupleHelperKey::of(func, *mode, *selector, args, layout))
+                    .or_insert((0, next));
+                count.0 += 1;
             }
-            let next = counts.len();
-            let count = counts
-                .entry(TupleHelperKey::of(func, *mode, *selector, args, layout))
-                .or_insert((0, next));
-            count.0 += 1;
         }
     }
     let mut keys = counts
@@ -243,10 +250,12 @@ fn synthesize_tuple_helpers(
             builder.set_return_type(result_ty);
             builder.ret([encoded]);
         }
+        // A slice result returns its pointer and length.
+        let returns = if matches!(function.return_type(), MirType::Slice(_)) { 2 } else { 1 };
         let body_bytes = target.code_estimate(&function).bytes;
         let sites = u32::try_from(sites).unwrap_or(u32::MAX);
         let (with_helper, expanded) =
-            target.helper_sharing(body_bytes, function.params.len(), 1, sites);
+            target.helper_sharing(body_bytes, function.params.len(), returns, sites);
         if target.cmp(with_helper, expanded).is_lt() {
             shared.push((key, function));
         }
@@ -255,6 +264,13 @@ fn synthesize_tuple_helpers(
         let helper = module.add_function(function);
         helpers.tuples.insert(key, helper);
     }
+}
+
+/// Whether a scratch encoding's block returns or reverts with it: the backend's terminal-block
+/// sharing already merges identical copies of such tails, so they stay expanded.
+fn is_terminal_scratch(mode: AbiEncodeMode, terminator: Option<&Terminator>) -> bool {
+    mode == AbiEncodeMode::Scratch
+        && matches!(terminator, Some(Terminator::Revert { .. } | Terminator::ReturnData { .. }))
 }
 
 /// Builds `encode_abi_array(value, dest) -> length` for every memory array layout whose
@@ -461,7 +477,10 @@ fn lower_function(
                 ) {
                 encoded
             } else {
-                match helpers.tuples.get(&key) {
+                let helper = (!is_terminal_scratch(mode, original_terminator.as_ref()))
+                    .then(|| helpers.tuples.get(&key))
+                    .flatten();
+                match helper {
                     Some(&helper) => {
                         // encoded = icall @encode_abi_tuple, 1, args.., [selector]
                         let result_ty = builder.func().value_ty(result).unwrap_or(MirType::I256);
@@ -823,6 +842,8 @@ fn lower_encode(
     }
     let dest = offset_ptr(builder, allocation_base, header_size + selector_size);
     let encoded_size = encode_tuple(builder, args, &layout.types, dest, helpers);
+    // The encoding is a whole number of words, so only the selector needs padding.
+    let padded_prefix = selector_size.next_multiple_of(32);
     let selector_size = builder.imm(selector_size);
     let total = builder.add(encoded_size, selector_size);
     if mode == AbiEncodeMode::Bytes {
@@ -837,10 +858,9 @@ fn lower_encode(
     if mode == AbiEncodeMode::Scratch {
         return builder.make_slice(allocation_base, total, PtrLocation::Memory);
     }
-    let thirty_one = builder.imm(31);
-    let rounded = builder.add(total, thirty_one);
-    let mask = builder.not(thirty_one);
-    let aligned = builder.and(rounded, mask);
+    // aligned = encoded_size + align32(selector_size)
+    let padded_prefix = builder.imm(padded_prefix);
+    let aligned = builder.add(encoded_size, padded_prefix);
     // allocated = alloc aligned !metadata(preserves_fmp)
     // make_slice allocated, total
     let allocated = builder.alloc(aligned, crate::mir::AllocationSemantics::INTERNAL);
