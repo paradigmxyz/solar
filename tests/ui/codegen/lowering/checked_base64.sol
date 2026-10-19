@@ -36,7 +36,9 @@
 // last-group loop and the first two sites of the main loop; the other two
 // sites keep the call because the main loop's live words leave no room for
 // the helper's remaining joins. The encoder's mode flags differ between its
-// callers here, so its helper keeps the flag parameter and stays shared.
+// callers here, so its helper keeps the flag parameter and stays shared. The
+// encoder's output bounds checks read the length its allocation stored, so they
+// fold against the loop's own tests and its loop splits the same way.
 
 library Base64 {
     bytes32 private constant ENCODE0 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef";

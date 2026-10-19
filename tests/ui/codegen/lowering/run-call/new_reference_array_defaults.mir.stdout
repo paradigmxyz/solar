@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/new_reference_array_defaults.sol:NewReferenceArrayDefaults ===
 @module NewReferenceArrayDefaults
-fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -15,84 +15,36 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 32
-    v13 = mload v12
-    v14 = inttoptr i256 v13 to ptr<memory>
-    v15 = eq v13, 0
-    jumpi v15, bb4, bb5
-  bb4:
-    v16 = alloc 32
-    mstore v16, 0
-    v17 = ptradd v0, 32
-    v18 = ptrtoint ptr<memory> v16 to i256
-    mstore v17, v18
-    jump bb5
-  bb5:
-    v19 = phi [bb3: v14], [bb4: v16]
-    mstore v19, 7
-    v20 = mload v0
-    v21 = lt 1, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = ptradd v0, 64
+    v13 = mload v12, ptr<memory>
+    mstore v13, 7
+    v14 = mload v0
+    v15 = lt 1, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = ptradd v0, 64
+    v18 = mload v17, ptr<memory>
+    mstore v18, 11
+    v19 = mload v0
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptradd v0, 32
+    v23 = mload v22, ptr<memory>
     v24 = mload v23
-    v25 = inttoptr i256 v24 to ptr<memory>
-    v26 = eq v24, 0
-    jumpi v26, bb6, bb7
-  bb6:
-    v27 = alloc 32
-    mstore v27, 0
-    v28 = ptradd v0, 64
-    v29 = ptrtoint ptr<memory> v27 to i256
-    mstore v28, v29
-    jump bb7
-  bb7:
-    v30 = phi [bb5: v25], [bb6: v27]
-    mstore v30, 11
-    v31 = mload v0
-    v32 = lt 0, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = ptradd v0, 32
-    v35 = mload v34
-    v36 = inttoptr i256 v35 to ptr<memory>
-    v37 = eq v35, 0
-    jumpi v37, bb8, bb9
-  bb8:
-    v38 = alloc 32
-    mstore v38, 0
-    v39 = ptradd v0, 32
-    v40 = ptrtoint ptr<memory> v38 to i256
-    mstore v39, v40
-    jump bb9
-  bb9:
-    v41 = phi [bb7: v36], [bb8: v38]
-    v42 = mload v41
-    v43 = checked_mul u256, v42, 100
-    v44 = mload v0
-    v45 = lt 1, v44
-    v46 = eq v45, false
-    icall panic_if<0x32>, v46
-    v47 = ptradd v0, 64
-    v48 = mload v47
-    v49 = inttoptr i256 v48 to ptr<memory>
-    v50 = eq v48, 0
-    jumpi v50, bb10, bb11
-  bb10:
-    v51 = alloc 32
-    mstore v51, 0
-    v52 = ptradd v0, 64
-    v53 = ptrtoint ptr<memory> v51 to i256
-    mstore v52, v53
-    jump bb11
-  bb11:
-    v54 = phi [bb9: v49], [bb10: v51]
-    v55 = mload v54
-    v56 = checked_add u256, v43, v55
-    ret v56
+    v25 = checked_mul uint256, v24, 100
+    v26 = mload v0
+    v27 = lt 1, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = ptradd v0, 64
+    v30 = mload v29, ptr<memory>
+    v31 = mload v30
+    v32 = checked_add uint256, v25, v31
+    ret v32
   bb2:
     v3 = alloc 32 !metadata(preserves_fmp)
     mstore v3, 0
-    v4 = shl 5, v1
+    v4 = shl v1, 5
     v5 = ptradd v0, v4
     v6 = ptradd v5, 32
     v7 = ptrtoint ptr<memory> v3 to i256
@@ -121,7 +73,7 @@ fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_
     v14 = zext i1 v13 to i256
     ret v14
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96

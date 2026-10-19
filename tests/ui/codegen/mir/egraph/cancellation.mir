@@ -128,7 +128,7 @@ fn @carry_0(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = xor arg0, arg1
     v3 = and arg0, arg1
-    v4 = shl 1, v3
+    v4 = shl v3, 1
     v5 = add v2, v4
     ret v5
 }
@@ -137,7 +137,7 @@ fn @carry_1(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = xor arg0, arg1
     v3 = and arg1, arg0
-    v4 = shl 1, v3
+    v4 = shl v3, 1
     v5 = add v2, v4
     ret v5
 }
@@ -146,7 +146,7 @@ fn @carry_2(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = xor arg0, arg1
     v3 = and arg0, arg1
-    v4 = shl 1, v3
+    v4 = shl v3, 1
     v5 = add v4, v2
     ret v5
 }
@@ -155,7 +155,7 @@ fn @carry_3(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = xor arg0, arg1
     v3 = and arg1, arg0
-    v4 = shl 1, v3
+    v4 = shl v3, 1
     v5 = add v4, v2
     ret v5
 }
@@ -171,14 +171,14 @@ fn @carry_doubled(arg0: i256, arg1: i256) -> i256 {
 
 fn @dynamic_power_mul_0(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v2 = shl arg1, 1
+    v2 = shl 1, arg1
     v3 = mul arg0, v2
     ret v3
 }
 
 fn @dynamic_power_mul_1(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v2 = shl arg1, 1
+    v2 = shl 1, arg1
     v3 = mul v2, arg0
     ret v3
 }

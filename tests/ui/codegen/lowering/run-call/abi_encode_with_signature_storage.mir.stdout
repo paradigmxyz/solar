@@ -6,8 +6,8 @@ fn @pointer() -> ptr<memory> [selector=0x2f5f3b3c, view, abi_params=[], abi_retu
     v1 = ptradd v0, 32
     v2 = mload v0
     v3 = keccak256 v1, v2
-    v4 = shr 224, v3
-    v5 = shl 224, v4
+    v4 = shr v3, 224
+    v5 = shl v4, 224
     v6 = abi_encode [word], object, selector v5, args 7
     ret v6
 }
@@ -25,8 +25,8 @@ fn @ternary(arg0: i1) -> ptr<memory> [selector=0xee58c378, view, abi_params=[boo
     v2 = ptradd v1, 32
     v3 = mload v1
     v4 = keccak256 v2, v3
-    v5 = shr 224, v4
-    v6 = shl 224, v5
+    v5 = shr v4, 224
+    v6 = shl v5, 224
     v7 = abi_encode [word], object, selector v6, args 7
     ret v7
 }

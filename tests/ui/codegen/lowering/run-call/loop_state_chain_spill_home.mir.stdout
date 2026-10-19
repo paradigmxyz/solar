@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_state_chain_spill_home.sol:LoopStateChainSpillHome ===
 @module LoopStateChainSpillHome
-fn @pin() -> i256 [selector=0xcf25b09f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pin() -> i256 [selector=0xcf25b09f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
-fn @threeStates(arg0: i256) -> i256 [selector=0x0ce294ff, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @threeStates(arg0: i256) -> i256 [selector=0x0ce294ff, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -64,11 +64,11 @@ fn @threeStates(arg0: i256) -> i256 [selector=0x0ce294ff, pure, abi_params=[u256
   bb6:
     jump bb3
   bb3:
-    v15 = checked_add u256, v3, 1
+    v15 = checked_add uint256, v3, 1
     jump bb1
 }
 
-fn @fourStates(arg0: i256) -> i256 [selector=0xcb11e62b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fourStates(arg0: i256) -> i256 [selector=0xcb11e62b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -151,6 +151,6 @@ fn @fourStates(arg0: i256) -> i256 [selector=0xcb11e62b, pure, abi_params=[u256]
   bb6:
     jump bb3
   bb3:
-    v21 = checked_add u256, v3, 1
+    v21 = checked_add uint256, v3, 1
     jump bb1
 }

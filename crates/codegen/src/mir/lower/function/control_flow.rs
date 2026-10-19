@@ -379,9 +379,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // address = create(...)
             // ok = address != 0
             let created = self.lower_create_contract(ty, contract_id, *args, call_opts)?;
-            let zero = self.builder.imm(U256::ZERO);
-            let failed = self.builder.eq(created, zero);
-            (self.builder.eq_zero(failed), Some(created), None)
+            (self.builder.ne_zero(created), Some(created), None)
         } else {
             let address = match target.callee {
                 TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
@@ -506,7 +504,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let zero = self.builder.imm(U256::ZERO);
             let selector_word = self.builder.slice_load_word(view, zero);
             let selector_shift = self.builder.imm(224);
-            let selector = self.builder.shr(selector_shift, selector_word);
+            let selector = self.builder.shr(selector_word, selector_shift);
             TryCatchData { object, data, len, selector }
         });
         // Solidity matches the typed clauses before the low-level one, whichever order they are

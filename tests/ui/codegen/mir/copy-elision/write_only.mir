@@ -100,7 +100,7 @@ fn @guarded_loop() -> i256 {
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb2:
-    v111 = shl 5, v1
+    v111 = shl v1, 5
     v9001 = ptradd v0, v111
     mstore v9001, 7
     v3 = add v1, 1
@@ -117,7 +117,7 @@ fn @guarded_overrun(arg0: i256) -> i256 {
     v1 = lt arg0, 3
     jumpi v1, bb1, bb2
   bb1:
-    v112 = shl 5, arg0
+    v112 = shl arg0, 5
     v9001 = ptradd v0, v112
     mstore v9001, 7
     jump bb2
@@ -137,7 +137,7 @@ fn @unguarded_join(arg0: i256) -> i256 {
   bb2:
     jump bb3
   bb3:
-    v113 = shl 5, arg0
+    v113 = shl arg0, 5
     v9001 = ptradd v0, v113
     mstore v9001, 7
     ret 0

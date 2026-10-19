@@ -2,20 +2,29 @@
 //!
 //! This pass removes full-word `mstore` instructions that are overwritten by a
 //! later full-word `mstore` to the same exact address within the same basic
-//! block, before any operation can observe memory or gas. It also forwards
-//! same-block `mload` instructions from the latest exact-address `mstore` when
-//! no intervening operation can mutate memory. Across a unique predecessor
+//! block, before any operation can observe memory or gas. It also removes small
+//! word-sized zero fills and calldata copies when every word is overwritten.
+//! Returndata copies remain because their source bounds check can revert.
+//! The pass forwards same-block `mload` instructions from the latest exact-address
+//! `mstore` when no intervening operation can mutate memory. Across a unique predecessor
 //! edge, equal constant stores can be removed only while no overlapping
 //! 32-byte write has invalidated the remembered word. Gas and memory-size
 //! observations act as barriers to memory elimination. Allocation-based keys require
 //! the complete access range to fit; wider accesses may overlap adjacent allocations.
+//! A deferred allocation whose pointer only ever addresses stores, as a decoded struct
+//! does once forwarding has replaced the reads of its used fields, loses those stores:
+//! static placement already keeps every other way to reach its words out of the
+//! function.
+//!
+//! A final `-Ogas` run after allocation lowering removes fills that only become explicit
+//! there, before memory-zero lowering turns them into copies or loops.
 
 use crate::mir::{
     BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, Module, PtrLocation,
     Terminator, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
-        MemoryBase, MemoryLocation,
+        Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
+        MemoryAddress, MemoryBase, MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -80,7 +89,6 @@ fn has_memory_writes(func: &Function) -> bool {
                 | InstKind::DataCopy(_, _, _)
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ExtCodeCopy(..)
-                | InstKind::StorageToMemory { .. }
                 | InstKind::AbiEncode { .. }
                 | InstKind::AbiDecode { .. }
         )
@@ -428,6 +436,7 @@ impl MemoryStoreEliminator {
             self.process_block(func, block_id, has_precise_reads, scratch);
             self.alias().clear_cached_addresses();
         }
+        self.remove_write_only_allocation_stores(func);
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
         self.remove_dead_memory_stores(func);
@@ -859,12 +868,18 @@ impl MemoryStoreEliminator {
                 | InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
                 | InstKind::DataCopy(_, dest, size)
                 | InstKind::CodeCopy(dest, _, size) => {
-                    self.insert_or_clear_full_word_overwritten_range(
+                    if self.insert_or_clear_full_word_overwritten_range(
                         func,
                         &mut scratch.overwritten,
                         *dest,
                         *size,
-                    );
+                    ) && matches!(
+                        inst.kind,
+                        InstKind::MemoryZero(..) | InstKind::Copy(.., PtrLocation::Calldata)
+                    ) {
+                        scratch.dead.insert(inst_id);
+                        self.eliminated_count += 1;
+                    }
                 }
                 InstKind::ExtCodeCopy(_, dest, _, size) => {
                     self.insert_or_clear_full_word_overwritten_range(
@@ -1468,35 +1483,36 @@ impl MemoryStoreEliminator {
         overwritten: &mut FxHashSet<MemAddrKey>,
         dest: ValueId,
         size: ValueId,
-    ) -> bool {
-        let Some(size) = func.value_u64(size) else {
-            return false;
-        };
+    ) -> Option<bool> {
+        let size = func.value_u64(size)?;
         if size % 32 != 0 || size > 4096 {
-            return false;
+            return None;
         }
 
-        let Some(base) = self.mem_addr_key(func, dest, size) else {
-            return false;
-        };
+        let base = self.mem_addr_key(func, dest, size)?;
+        let mut fully_overwritten = size != 0;
         for offset in (0..size).step_by(32) {
-            let Some(key) = Self::offset_mem_addr_key(base, offset) else {
-                return false;
-            };
-            overwritten.insert(key);
+            let key = Self::offset_mem_addr_key(base, offset)?;
+            fully_overwritten &= !overwritten.insert(key);
         }
-        true
+        Some(fully_overwritten)
     }
 
+    /// Returns whether every word in a nonempty range was already overwritten.
     fn insert_or_clear_full_word_overwritten_range(
         &self,
         func: &Function,
         overwritten: &mut FxHashSet<MemAddrKey>,
         dest: ValueId,
         size: ValueId,
-    ) {
-        if !self.insert_full_word_overwritten_range(func, overwritten, dest, size) {
+    ) -> bool {
+        if let Some(fully_overwritten) =
+            self.insert_full_word_overwritten_range(func, overwritten, dest, size)
+        {
+            fully_overwritten
+        } else {
             overwritten.clear();
+            false
         }
     }
 
@@ -1581,5 +1597,112 @@ impl MemoryStoreEliminator {
 
     fn cross_block_memory_barrier(&self, func: &Function, inst_id: InstId) -> bool {
         self.is_memory_or_gas_observer(func, inst_id)
+    }
+
+    /// Removes the stores into a deferred allocation whose pointer only ever addresses stores.
+    ///
+    /// Static placement already proved that such an object lives in one external entry, runs
+    /// once, and is never related to the free-memory pointer, so only values derived from its
+    /// pointer can reach its words. When every such value ends as the address of a store, as
+    /// the fields of a decoded struct do once forwarding has replaced the reads of the fields
+    /// the code uses, nothing reads what the stores write. The allocation stays: placement
+    /// handles it, and the address arithmetic and the loads feeding the stores die with them.
+    /// Removing writes can lower memory expansion, so functions observing `msize` or gas keep
+    /// their stores.
+    fn remove_write_only_allocation_stores(&mut self, func: &mut Function) {
+        let allocations: Vec<ValueId> = func
+            .instructions()
+            .filter(|&inst| {
+                matches!(func.inst(inst).kind, InstKind::Alloc { .. })
+                    && func.inst(inst).metadata.deferred_alloc()
+            })
+            .filter_map(|inst| func.inst_result_value(inst))
+            .collect();
+        if allocations.is_empty() || self.alias().may_observe_msize(func) {
+            return;
+        }
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
+        let gas = GasObservations::new(func, &cfg, self.alias());
+        if func.instructions().any(|inst| gas.observes(inst)) {
+            return;
+        }
+
+        let mut users: FxHashMap<ValueId, SmallVec<[InstId; 4]>> = FxHashMap::default();
+        for inst in func.instructions() {
+            func.inst(inst)
+                .kind
+                .visit_operands(|operand| users.entry(operand).or_default().push(inst));
+        }
+        let mut terminator_uses = FxHashSet::default();
+        for block in func.blocks.iter() {
+            if let Some(terminator) = &block.terminator {
+                terminator.visit_operands(|operand| {
+                    terminator_uses.insert(operand);
+                });
+            }
+        }
+
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        for allocation in allocations {
+            let mut derived = FxHashSet::default();
+            let mut worklist = vec![allocation];
+            let mut stores = Vec::new();
+            let mut write_only = true;
+            while let Some(value) = worklist.pop() {
+                if !derived.insert(value) {
+                    continue;
+                }
+                if terminator_uses.contains(&value) {
+                    write_only = false;
+                    break;
+                }
+                for &user in users.get(&value).map(|users| users.as_slice()).unwrap_or_default() {
+                    let result = func.inst_result_value(user);
+                    match func.inst(user).kind {
+                        // mstore value, x: the pointer only addresses the write.
+                        InstKind::Store(address, stored, PtrLocation::Memory)
+                        | InstKind::Store8(address, stored)
+                            if address == value && stored != value =>
+                        {
+                            stores.push(user);
+                        }
+                        // ptradd value, offset | add value, offset: another address of the object.
+                        InstKind::PtrAdd(base, offset) | InstKind::Add(base, offset)
+                            if base == value && offset != value =>
+                        {
+                            worklist.extend(result);
+                        }
+                        InstKind::Add(offset, base) if base == value && offset != value => {
+                            worklist.extend(result);
+                        }
+                        InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => {
+                            worklist.extend(result)
+                        }
+                        _ => {
+                            write_only = false;
+                            break;
+                        }
+                    }
+                }
+                if !write_only {
+                    break;
+                }
+            }
+            // A derived value stored as data escapes, which the store arm already rejects; an
+            // offset derived from the object itself never reaches here either.
+            if write_only {
+                for store in stores {
+                    dead.insert(store);
+                }
+            }
+        }
+
+        if dead.is_empty() {
+            return;
+        }
+        self.eliminated_count += dead.count();
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|&inst| !dead.contains(inst));
+        }
     }
 }

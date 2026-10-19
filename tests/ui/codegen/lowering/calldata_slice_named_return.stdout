@@ -49,7 +49,7 @@ fn @entry() [entry] {
     jumpi v1, bb3, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb3, [0x1bd03f7 => bb2]
   bb2:
     tail_call @use

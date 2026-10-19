@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256, i256, i256}
 
-fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 7
     v1 = insert_value struct0, v0, 1, 0
@@ -19,7 +19,7 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
 @types
   struct0: {i256, i256}
 
-fn @store(arg0: i256) -> struct0 [selector=0x6057361d, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @store(arg0: i256) -> struct0 [selector=0x6057361d, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     sstore 42, arg0 !metadata(storage=slot(42))
     v0 = sload 42 !metadata(storage=slot(42))
@@ -44,7 +44,7 @@ fn @constructor() [constructor] {
 @types
   struct0: {i256, i256, i256}
 
-fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 2
     v1 = insert_value struct0, v0, 1, 3
@@ -62,7 +62,7 @@ fn @constructor() [constructor] {
 @types
   struct0: {i256, i256}
 
-fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 0
     v1 = insert_value struct0, v0, 1, 7
@@ -87,8 +87,8 @@ fn @erc7201Reference(arg0: ptr<memory>) -> i256 [pure] {
     v0 = ptradd arg0, 32
     v1 = mload arg0
     v2 = keccak256 v0, v1
-    v3 = checked_sub u256, v2, 1
-    v4 = shl 0, v3
+    v3 = checked_sub uint256, v2, 1
+    v4 = shl v3, 0
     v5 = abi_encode_packed (bytes32 v4)
     v6 = ptradd v5, 32
     v7 = mload v5

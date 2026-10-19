@@ -3,17 +3,17 @@
 @types
   struct0: {i256, i256}
 
-fn @externalDefaultTarget() -> i256 [selector=0x7660b402, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalDefaultTarget() -> i256 [selector=0x7660b402, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 11
 }
 
-fn @externalViewTarget() -> i256 [selector=0xbfbc85ef, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalViewTarget() -> i256 [selector=0xbfbc85ef, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 12
 }
 
-fn @externalPureTarget() -> i256 [selector=0xf620336b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalPureTarget() -> i256 [selector=0xf620336b, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 13
 }
@@ -28,14 +28,14 @@ fn @internalPureTarget() -> i256 [pure] {
     ret 23
 }
 
-fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0xbfbc85ef
-    v5 = shl 64, v4
+    v5 = shl v4, 64
     mstore v0, v5
     jump bb1
   bb1:
@@ -60,12 +60,12 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v67 = mul v66, 24
     v68 = sload v65 !metadata(storage=symbolic(v64))
     v69 = mul v67, 8
-    v70 = shr v69, v68
+    v70 = shr v68, v69
     v71 = trunc i256 v70 to i192
     v72 = zext i192 v71 to i256
     v73 = and v72, 0xffffffff
-    v74 = shl 224, v73
-    v75 = shr 32, v72
+    v74 = shl v73, 224
+    v75 = shr v72, 32
     v76 = gas
     v77 = abi_encode [], selector v74
     v78 = extract_value slice<memory>, v77, 0
@@ -89,10 +89,10 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v90 = mul v89, 8
     v91 = sload v88 !metadata(storage=offset(v87, 3))
     v92 = mul v90, 8
-    v93 = shr v92, v91
+    v93 = shr v91, v92
     v94 = trunc i256 v93 to i64
     v95 = zext i64 v94 to i256
-    v96 = icall @internal_dispatcher_p_none_r_u256, v95
+    v96 = icall @internal_dispatcher_p_none_r_uint256, v95
     v97 = insert_value struct0, undef struct0, 0, v84
     v98 = insert_value struct0, v97, 1, v96
     ret v98
@@ -105,26 +105,26 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     jumpi v41, bb10, bb11
   bb11:
     v53 = mul v40, 8
-    v54 = shl v53, 0xffffffffffffffff
+    v54 = shl 0xffffffffffffffff, v53
     v55 = sload v38 !metadata(storage=offset(v37, 3))
     v56 = not v54
     v57 = and v55, v56
     v58 = and 0, 0xffffffffffffffff
-    v59 = shl v53, v58
+    v59 = shl v58, v53
     v60 = or v57, v59
     sstore v38, v60 !metadata(storage=offset(v37, 3))
     jump bb12
   bb10:
-    v42 = shl 5, v35
+    v42 = shl v35, 5
     v43 = ptradd v34, v42
     v44 = mload v43
     v45 = mul v40, 8
-    v46 = shl v45, 0xffffffffffffffff
+    v46 = shl 0xffffffffffffffff, v45
     v47 = sload v38 !metadata(storage=offset(v37, 3))
     v48 = not v46
     v49 = and v47, v48
     v50 = and v44, 0xffffffffffffffff
-    v51 = shl v45, v50
+    v51 = shl v50, v45
     v52 = or v49, v51
     sstore v38, v52 !metadata(storage=offset(v37, 3))
     jump bb12
@@ -140,27 +140,27 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     jumpi v12, bb4, bb5
   bb5:
     v25 = mul v11, 8
-    v26 = shl v25, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v26 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v25
     v27 = sload v9 !metadata(storage=symbolic(v8))
     v28 = not v26
     v29 = and v27, v28
     v30 = and 0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v31 = shl v25, v30
+    v31 = shl v30, v25
     v32 = or v29, v31
     sstore v9, v32 !metadata(storage=symbolic(v8))
     jump bb6
   bb4:
-    v13 = shl 5, v6
+    v13 = shl v6, 5
     v14 = ptradd v0, v13
     v15 = mload v14
-    v16 = shr 64, v15
+    v16 = shr v15, 64
     v17 = mul v11, 8
-    v18 = shl v17, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v18 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v17
     v19 = sload v9 !metadata(storage=symbolic(v8))
     v20 = not v18
     v21 = and v19, v20
     v22 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v23 = shl v17, v22
+    v23 = shl v22, v17
     v24 = or v21, v23
     sstore v9, v24 !metadata(storage=symbolic(v8))
     jump bb6
@@ -169,14 +169,14 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     jump bb1
 }
 
-fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0xf620336b
-    v5 = shl 64, v4
+    v5 = shl v4, 64
     mstore v0, v5
     jump bb1
   bb1:
@@ -201,12 +201,12 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v67 = mul v66, 24
     v68 = sload v65 !metadata(storage=symbolic(v64))
     v69 = mul v67, 8
-    v70 = shr v69, v68
+    v70 = shr v68, v69
     v71 = trunc i256 v70 to i192
     v72 = zext i192 v71 to i256
     v73 = and v72, 0xffffffff
-    v74 = shl 224, v73
-    v75 = shr 32, v72
+    v74 = shl v73, 224
+    v75 = shr v72, 32
     v76 = gas
     v77 = abi_encode [], selector v74
     v78 = extract_value slice<memory>, v77, 0
@@ -230,10 +230,10 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v90 = mul v89, 8
     v91 = sload v88 !metadata(storage=offset(v87, 3))
     v92 = mul v90, 8
-    v93 = shr v92, v91
+    v93 = shr v91, v92
     v94 = trunc i256 v93 to i64
     v95 = zext i64 v94 to i256
-    v96 = icall @internal_dispatcher_p_none_r_u256, v95
+    v96 = icall @internal_dispatcher_p_none_r_uint256, v95
     v97 = insert_value struct0, undef struct0, 0, v84
     v98 = insert_value struct0, v97, 1, v96
     ret v98
@@ -246,26 +246,26 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     jumpi v41, bb10, bb11
   bb11:
     v53 = mul v40, 8
-    v54 = shl v53, 0xffffffffffffffff
+    v54 = shl 0xffffffffffffffff, v53
     v55 = sload v38 !metadata(storage=offset(v37, 3))
     v56 = not v54
     v57 = and v55, v56
     v58 = and 0, 0xffffffffffffffff
-    v59 = shl v53, v58
+    v59 = shl v58, v53
     v60 = or v57, v59
     sstore v38, v60 !metadata(storage=offset(v37, 3))
     jump bb12
   bb10:
-    v42 = shl 5, v35
+    v42 = shl v35, 5
     v43 = ptradd v34, v42
     v44 = mload v43
     v45 = mul v40, 8
-    v46 = shl v45, 0xffffffffffffffff
+    v46 = shl 0xffffffffffffffff, v45
     v47 = sload v38 !metadata(storage=offset(v37, 3))
     v48 = not v46
     v49 = and v47, v48
     v50 = and v44, 0xffffffffffffffff
-    v51 = shl v45, v50
+    v51 = shl v50, v45
     v52 = or v49, v51
     sstore v38, v52 !metadata(storage=offset(v37, 3))
     jump bb12
@@ -281,27 +281,27 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     jumpi v12, bb4, bb5
   bb5:
     v25 = mul v11, 8
-    v26 = shl v25, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v26 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v25
     v27 = sload v9 !metadata(storage=symbolic(v8))
     v28 = not v26
     v29 = and v27, v28
     v30 = and 0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v31 = shl v25, v30
+    v31 = shl v30, v25
     v32 = or v29, v31
     sstore v9, v32 !metadata(storage=symbolic(v8))
     jump bb6
   bb4:
-    v13 = shl 5, v6
+    v13 = shl v6, 5
     v14 = ptradd v0, v13
     v15 = mload v14
-    v16 = shr 64, v15
+    v16 = shr v15, 64
     v17 = mul v11, 8
-    v18 = shl v17, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v18 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v17
     v19 = sload v9 !metadata(storage=symbolic(v8))
     v20 = not v18
     v21 = and v19, v20
     v22 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v23 = shl v17, v22
+    v23 = shl v22, v17
     v24 = or v21, v23
     sstore v9, v24 !metadata(storage=symbolic(v8))
     jump bb6
@@ -310,14 +310,14 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     jump bb1
 }
 
-fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0xf620336b
-    v5 = shl 64, v4
+    v5 = shl v4, 64
     mstore v0, v5
     jump bb1
   bb1:
@@ -342,12 +342,12 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v67 = mul v66, 24
     v68 = sload v65 !metadata(storage=offset(v64, 1))
     v69 = mul v67, 8
-    v70 = shr v69, v68
+    v70 = shr v68, v69
     v71 = trunc i256 v70 to i192
     v72 = zext i192 v71 to i256
     v73 = and v72, 0xffffffff
-    v74 = shl 224, v73
-    v75 = shr 32, v72
+    v74 = shl v73, 224
+    v75 = shr v72, 32
     v76 = gas
     v77 = abi_encode [], selector v74
     v78 = extract_value slice<memory>, v77, 0
@@ -371,10 +371,10 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v90 = mul v89, 8
     v91 = sload v88 !metadata(storage=offset(v87, 4))
     v92 = mul v90, 8
-    v93 = shr v92, v91
+    v93 = shr v91, v92
     v94 = trunc i256 v93 to i64
     v95 = zext i64 v94 to i256
-    v96 = icall @internal_dispatcher_p_none_r_u256, v95
+    v96 = icall @internal_dispatcher_p_none_r_uint256, v95
     v97 = insert_value struct0, undef struct0, 0, v84
     v98 = insert_value struct0, v97, 1, v96
     ret v98
@@ -387,26 +387,26 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     jumpi v41, bb10, bb11
   bb11:
     v53 = mul v40, 8
-    v54 = shl v53, 0xffffffffffffffff
+    v54 = shl 0xffffffffffffffff, v53
     v55 = sload v38 !metadata(storage=offset(v37, 4))
     v56 = not v54
     v57 = and v55, v56
     v58 = and 0, 0xffffffffffffffff
-    v59 = shl v53, v58
+    v59 = shl v58, v53
     v60 = or v57, v59
     sstore v38, v60 !metadata(storage=offset(v37, 4))
     jump bb12
   bb10:
-    v42 = shl 5, v35
+    v42 = shl v35, 5
     v43 = ptradd v34, v42
     v44 = mload v43
     v45 = mul v40, 8
-    v46 = shl v45, 0xffffffffffffffff
+    v46 = shl 0xffffffffffffffff, v45
     v47 = sload v38 !metadata(storage=offset(v37, 4))
     v48 = not v46
     v49 = and v47, v48
     v50 = and v44, 0xffffffffffffffff
-    v51 = shl v45, v50
+    v51 = shl v50, v45
     v52 = or v49, v51
     sstore v38, v52 !metadata(storage=offset(v37, 4))
     jump bb12
@@ -422,27 +422,27 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     jumpi v12, bb4, bb5
   bb5:
     v25 = mul v11, 8
-    v26 = shl v25, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v26 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v25
     v27 = sload v9 !metadata(storage=offset(v8, 1))
     v28 = not v26
     v29 = and v27, v28
     v30 = and 0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v31 = shl v25, v30
+    v31 = shl v30, v25
     v32 = or v29, v31
     sstore v9, v32 !metadata(storage=offset(v8, 1))
     jump bb6
   bb4:
-    v13 = shl 5, v6
+    v13 = shl v6, 5
     v14 = ptradd v0, v13
     v15 = mload v14
-    v16 = shr 64, v15
+    v16 = shr v15, 64
     v17 = mul v11, 8
-    v18 = shl v17, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v18 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v17
     v19 = sload v9 !metadata(storage=offset(v8, 1))
     v20 = not v18
     v21 = and v19, v20
     v22 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v23 = shl v17, v22
+    v23 = shl v22, v17
     v24 = or v21, v23
     sstore v9, v24 !metadata(storage=offset(v8, 1))
     jump bb6
@@ -451,7 +451,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     jump bb1
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2

@@ -12,7 +12,7 @@ fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_retur
     ret v0
 }
 
-fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = trunc i256 v0 to i8
@@ -83,7 +83,7 @@ fn @deploys() -> i1 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>
     ret v11
 }
 
-fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<u8>], abi_return_params=[bytes, bytes, u8]] {
+fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<uint8>], abi_return_params=[bytes, bytes, uint8]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize StateStringInitializers_creation_code_0
@@ -139,7 +139,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     icall revert_if<tuple_data_too_short>, v32
     v33 = add 0, 0
     v34 = mload v33
-    v35 = shr 8, v34
+    v35 = shr v34, 8
     v36 = eq v35, 0
     v37 = eq v36, false
     icall revert_if<empty>, v37

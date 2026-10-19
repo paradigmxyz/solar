@@ -125,7 +125,7 @@ fn @_decompress() {
 @data
   Decompressor_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Decompressor"
 
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Decompressor_creation_code_0
