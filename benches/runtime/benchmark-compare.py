@@ -88,70 +88,6 @@ def comparable_gas(
     return sum(eligible) if eligible else None
 
 
-def excluded_gas(before: dict, after: dict) -> dict | None:
-    exclusions = gas_exclusions(before, after)
-    if not exclusions:
-        return None
-    totals = [
-        sum(
-            call["gas"]
-            for call in data.get("gas_results") or []
-            if gas_call_key(call) in exclusions and numeric(call.get("gas"))
-        )
-        if data.get("gas_results")
-        else None
-        for data in (before, after)
-    ]
-    return {
-        "calls": len(exclusions),
-        "before": totals[0],
-        "after": totals[1],
-        "reasons": sorted(set(exclusions.values())),
-    }
-
-
-def gas_exclusion_lines(rows: list[dict]) -> list[str]:
-    lines = []
-    for row in rows:
-        excluded = row.get("excluded_gas")
-        if excluded:
-            reasons = markdown_cell("; ".join(excluded["reasons"]))
-            lines.append(
-                f"| {markdown_cell(row['test_id'])} | {excluded['calls']} | {fmt_int(excluded['before'])} | {fmt_int(excluded['after'])} | {reasons} |"
-            )
-    if not lines:
-        return []
-    return [
-        "",
-        "### Gas excluded from comparison",
-        "",
-        "Calls still execute; raw gas and failures remain in the results. Totals below contain measured gas only.",
-        "",
-        "| Case | Calls | Baseline raw gas | Candidate raw gas | Reason |",
-        "| --- | ---: | ---: | ---: | --- |",
-        *lines,
-        "",
-    ]
-
-
-def gas_exclusion_report(
-    results: list[dict], baseline_results: list[dict]
-) -> list[str]:
-    baseline = by_test_id(baseline_results)
-    return gas_exclusion_lines(
-        [
-            {
-                "test_id": result["test_id"],
-                "excluded_gas": excluded_gas(
-                    compiler_data(baseline.get(suite_key(result), {}), "solar"),
-                    compiler_data(result, "solar"),
-                ),
-            }
-            for result in results
-        ]
-    )
-
-
 def compare_runs(
     results: list[dict[str, Any]],
     baseline_results: list[dict[str, Any]],
@@ -296,7 +232,6 @@ def compare_runs(
                 "issues": issues,
                 "metrics": measurements,
                 "gas_calls": calls,
-                "excluded_gas": excluded_gas(old, new),
                 "runtime_changes": runtime_changes,
                 "compile_samples_before": old.get("compile_time_samples", []),
                 "compile_samples_after": new.get("compile_time_samples", []),
@@ -446,7 +381,7 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         "",
         f"Compiler: `{comparison['compiler']}`. Deltas are candidate minus baseline; lower is better.",
         "Change is the geometric mean of candidate/baseline ratios, with equal weight per benchmark. Only positive, comparable pairs enter the mean.",
-        "Runtime gas sums comparable calls within each benchmark; excluded measurements are listed separately. Timing and RSS are noisy.",
+        "Runtime gas sums comparable calls within each benchmark; excluded measurements are omitted. Timing and RSS are noisy.",
         "",
         "| Metric | Change |",
         "| --- | ---: |",
@@ -521,7 +456,6 @@ def comparison_report(comparison: dict[str, Any]) -> str:
                 "</details>",
             ]
         )
-    lines.extend(gas_exclusion_lines(rows))
     artifacts = []
     for row in rows:
         files = row.get("artifacts", [])
@@ -1510,7 +1444,6 @@ def report_section(
         )
     lines.extend(compile_time_report(results, baseline, baseline_label, compared))
     lines.extend(memory_report(results, compared))
-    lines.extend(gas_exclusion_report(results, baseline_results))
     return "\n".join(lines)
 
 
@@ -1615,7 +1548,6 @@ def pr_comment(
             )
             lines.append(f"| {METRICS[name]} | {change} |")
         lines.extend(["", "Equal-weight geometric means; lower is better."])
-        lines.extend(gas_exclusion_lines(comparison["rows"]))
         changed = []
         for row in comparison["rows"]:
             if any(row["metrics"][name]["delta"] not in (None, 0) for name in metrics):
