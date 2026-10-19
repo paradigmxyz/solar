@@ -98,7 +98,7 @@ impl MirPass for MergeAborts {
     ) -> bool {
         let target = Target::new(gcx);
         let cold = cold_functions(module);
-        run_function_pass(module, analyses, |func, _| merge_function(func, &cold, target))
+        run_function_pass(module, analyses, |func, _| merge_function(func, &cold, &target))
     }
 }
 
@@ -141,7 +141,7 @@ struct Test {
     word: bool,
 }
 
-fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: Target) -> bool {
+fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: &Target) -> bool {
     rebuild_predecessors(func);
     let mut changed = false;
     let mut wraps = FxHashMap::default();
@@ -259,7 +259,7 @@ fn same_abort(func: &Function, a: BlockId, b: BlockId, cold: &DenseBitSet<Functi
 }
 
 /// Whether an instruction may run before deciding an abort.
-fn speculatable(kind: &InstKind, target: Target) -> bool {
+fn speculatable(kind: &InstKind, target: &Target) -> bool {
     !kind.has_side_effects()
         && !target.op_has_variable_gas(&kind.op())
         && match kind.effect_kind() {
@@ -276,7 +276,7 @@ fn mergeable(
     block: BlockId,
     cold: &DenseBitSet<FunctionId>,
     cyclic: &DenseBitSet<BlockId>,
-    target: Target,
+    target: &Target,
 ) -> Option<(Test, Test, Option<Flip>)> {
     let first = test(func, block, cold, target.copies_loops())?;
     // Another edge into the continuation may leave only the first test's own aborting block,

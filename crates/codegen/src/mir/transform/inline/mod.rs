@@ -108,8 +108,8 @@ impl MirPass for Inline {
             changed = true;
         }
         if physical {
-            changed |= guards::inline_guards(module, target);
-            if dispatch::inline_dispatch(module, target) {
+            changed |= guards::inline_guards(module, &target);
+            if dispatch::inline_dispatch(module, &target) {
                 let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
                 changed = true;
             }
@@ -318,7 +318,7 @@ impl MirInliner {
                     // they are weighed.
                     loop_costs = block_loop_costs(module.function(caller_id));
                     let new_summary = summarize_function(
-                        self.target,
+                        &self.target,
                         module,
                         module.function(caller_id),
                         self.physical,
@@ -347,7 +347,7 @@ impl MirInliner {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| (id, summarize_function(self.target, module, func, self.physical)))
+            .map(|(id, func)| (id, summarize_function(&self.target, module, func, self.physical)))
             .collect()
     }
 
@@ -548,8 +548,8 @@ impl MirInliner {
             && site.loop_depth == 0
             && summary.has_state_effect
             && summary.estimated_code_size
-                > estimated_icall_code_size(self.target, site)
-                    + estimated_internal_return_code_size(self.target, summary, site)
+                > estimated_icall_code_size(&self.target, site)
+                    + estimated_internal_return_code_size(&self.target, summary, site)
         {
             return false;
         }
@@ -570,11 +570,11 @@ impl MirInliner {
         single_call: bool,
     ) -> bool {
         let inlined_bytes = summary.estimated_code_size;
-        let mut removed_bytes = estimated_icall_code_size(self.target, site);
+        let mut removed_bytes = estimated_icall_code_size(&self.target, site);
         if single_call {
             removed_bytes = removed_bytes.saturating_add(
                 summary.estimated_code_size
-                    + estimated_internal_return_code_size(self.target, summary, site),
+                    + estimated_internal_return_code_size(&self.target, summary, site),
             );
         }
         let loop_executions = if !self.target.optimization().is_gas() {
@@ -585,10 +585,10 @@ impl MirInliner {
             site.loop_executions
         };
         profitable(
-            self.target,
+            &self.target,
             inlined_bytes,
             removed_bytes,
-            estimated_icall_savings(self.target, site, summary),
+            estimated_icall_savings(&self.target, site, summary),
             loop_executions,
         )
     }
@@ -621,7 +621,7 @@ impl MirInliner {
 }
 
 fn profitable(
-    target: Target,
+    target: &Target,
     added_bytes: usize,
     removed_bytes: usize,
     saved_gas: u64,
@@ -812,7 +812,7 @@ fn never_returns(callee: &Function) -> bool {
 }
 
 fn summarize_function(
-    target: Target,
+    target: &Target,
     module: &Module,
     func: &Function,
     objects_lowered: bool,
@@ -1220,7 +1220,7 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
 /// An operation that lowers to one opcode is priced by the target directly; immediates are
 /// left out throughout, as they are for those.
 fn estimate_inst_cost(
-    target: Target,
+    target: &Target,
     module: &Module,
     func: &Function,
     kind: &InstKind,
@@ -1409,7 +1409,7 @@ fn estimate_inst_cost(
 }
 
 /// Estimated code of a terminator, as the opcode sequence it emits priced by the target.
-fn estimate_terminator_cost(target: Target, term: &Terminator) -> Cost {
+fn estimate_terminator_cost(target: &Target, term: &Terminator) -> Cost {
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
     match term {
@@ -1434,7 +1434,7 @@ fn estimate_terminator_cost(target: Target, term: &Terminator) -> Cost {
     }
 }
 
-fn estimated_icall_savings(target: Target, site: CallSite, summary: MirInlineSummary) -> u64 {
+fn estimated_icall_savings(target: &Target, site: CallSite, summary: MirInlineSummary) -> u64 {
     let frame_words = (summary.internal_frame_size / EvmMemoryLayout::WORD_SIZE)
         + (EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE)
         + (site.args_len + site.returns) as u64;
@@ -1444,12 +1444,12 @@ fn estimated_icall_savings(target: Target, site: CallSite, summary: MirInlineSum
     u64::from(protocol + return_protocol) * loop_multiplier
 }
 
-fn estimated_icall_code_size(target: Target, site: CallSite) -> usize {
+fn estimated_icall_code_size(target: &Target, site: CallSite) -> usize {
     target.icall(site.args_len, site.returns, 0).bytes as usize
 }
 
 fn estimated_internal_return_code_size(
-    target: Target,
+    target: &Target,
     summary: MirInlineSummary,
     site: CallSite,
 ) -> usize {
