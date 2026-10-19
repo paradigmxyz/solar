@@ -63,7 +63,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
 
     // TESTER_MODE can be a single mode or a comma-separated list.
     // The "ui" alias also implicitly runs the "mir" mode, since they share the
-    // same `tests/ui/` tree and users typically want `cargo uitest` to cover
+    // same `tests/ui/` tree and users typically want `cargo tq ui` to cover
     // both.
     if let Ok(mode_str) = std::env::var("TESTER_MODE") {
         let mut requested = Vec::new();
@@ -158,7 +158,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             cfg_flag: None,
         },
         output_conflict_handling: ui_test::error_on_output_conflict,
-        bless_command: Some("cargo uibless".into()),
+        bless_command: Some("cargo bless".into()),
         out_dir: root.join("target/ui"),
         comment_start: "//",
         diagnostic_extractor: ui_test::diagnostics::rustc::rustc_diagnostics_extractor,
