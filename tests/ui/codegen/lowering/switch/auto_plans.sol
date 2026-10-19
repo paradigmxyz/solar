@@ -37,12 +37,12 @@ contract SmallDense {
 }
 
 contract Conservative {
-    // Gas mode pays for a table over 0..19. Size mode keeps the linear scan
-    // because table entries need full-width labels before layout.
+    // Gas mode selects eight buckets; size mode keeps the linear scan. Byzantium's
+    // different immediate costs still favor a dense table over 0..19.
     // CHECK-LABEL: @module Conservative_runtime
-    // GAS: push 20{{$}}
-    // GAS-NEXT: gt
-    // GAS: indexed_jump {{(bb[0-9]+, ){19}bb[0-9]+$}}
+    // GAS: push 7{{$}}
+    // GAS-NEXT: and
+    // GAS: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
     // SIZE-NOT: indexed_jump
     // BYZ: push 20{{$}}
     // BYZ-NEXT: gt
@@ -211,16 +211,15 @@ contract BitSlice7 {
 
 contract Coalesced16 {
     // Merged case guards make a 16-slot bit-slice table fit its growth cap.
-    // Byzantium cannot shift, so it uses modulo buckets with one shared miss.
+    // Byzantium cannot shift, so it uses eight masked buckets with one shared miss.
     // CHECK-LABEL: @module Coalesced16_runtime
     // GAS: push 15{{$}}
     // GAS-NEXT: and
     // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){15}bb[0-9]+$}}
     // SIZE-NOT: indexed_jump
-    // BYZ: push 17{{$}}
-    // BYZ-NEXT: dup 2
-    // BYZ-NEXT: mod
-    // BYZ-NEXT: indexed_jump {{(bb[0-9]+, ){16}bb[0-9]+$}}
+    // BYZ: push 7{{$}}
+    // BYZ-NEXT: and
+    // BYZ-NEXT: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -247,14 +246,15 @@ contract Coalesced16 {
 }
 
 contract Binary32 {
-    // Bucket tables would exceed the growth limit, so gas mode splits the
-    // sorted keys into eight leaves of four.
+    // Sixteen short buckets fit the growth limit in gas mode; Byzantium selects eight.
     // CHECK-LABEL: @module Binary32_runtime
-    // GAS-COUNT-7: {{^  gt$}}
-    // GAS-NOT: {{^  (gt|indexed_jump)$}}
+    // GAS: push 15{{$}}
+    // GAS-NEXT: and
+    // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){15}bb[0-9]+$}}
     // SIZE-NOT: indexed_jump
-    // BYZ-COUNT-7: {{^  gt$}}
-    // BYZ-NOT: {{^  (gt|indexed_jump)$}}
+    // BYZ: push 7{{$}}
+    // BYZ-NEXT: and
+    // BYZ-NEXT: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
     fallback() external {
         assembly {
             switch calldataload(0)
