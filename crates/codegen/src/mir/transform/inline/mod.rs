@@ -36,8 +36,8 @@
 //! twelve words, leaving headroom for operand staging. This bounds spills but does
 //! not promise the scheduler emits none.
 //!
-//! A callee documented `@custom:solar-inline` skips every profitability test: each call where
-//! cloning is legal is cloned, though a body with phis still needs the stack estimate below.
+//! A callee documented `@custom:solar-inline` skips every profitability test, the stack
+//! estimate below included: each call where cloning is legal is cloned.
 //! `@custom:solar-noinline` marks a function no-inline.
 //!
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate
@@ -526,8 +526,8 @@ impl MirInliner {
             && call_count <= Self::MAX_HOT_LEAF_CALL_SITES;
         let can_specialize_dispatcher =
             summary.is_function_pointer_dispatcher && site.has_constant_function_selector;
-        // `@custom:solar-inline` asks for every legal clone, whatever it costs. A body with
-        // phis still needs a bounded stack estimate.
+        // `@custom:solar-inline` asks for every legal clone, whatever it costs, the spills a
+        // body with phis may add included.
         let always = module.function(site.callee).attributes.always_inline;
         if caller == site.callee
             || (summary.is_function_pointer_dispatcher
@@ -535,7 +535,7 @@ impl MirInliner {
                 && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
-            || (summary.has_phi && !(summary.phi_stack_peak.is_some() && (sole || hot || always)))
+            || (summary.has_phi && !always && !(summary.phi_stack_peak.is_some() && (sole || hot)))
             || summary.has_unsupported_terminator
             || summary.return_count == 0
             || (self.physical
