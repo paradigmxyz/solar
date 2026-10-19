@@ -1,0 +1,54 @@
+// === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_fixed_bytes_retyped_pointer.sol:DirtyFixedBytesRetypedPointer ===
+@module DirtyFixedBytesRetypedPointer
+fn @first(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @outer(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = icall @inner, arg0
+    ret v0
+}
+
+fn @inner(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = icall @dirty
+    v1 = icall @internal_dispatcher_p_bytes4_r_bytes4, 1, v0
+    ret v1
+}
+
+fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = icall @dirty
+    v1 = icall @internal_dispatcher_p_bytes4_r_bytes4, 2, v0
+    ret v1
+}
+
+fn @dirty() -> i256 [pure] {
+  bb0:
+    ret 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+fn @internal_dispatcher_p_bytes4_r_bytes4(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = eq arg0, 2
+    jumpi v2, bb3, bb4
+  bb4:
+    icall panic_if<0x51>, true
+    invalid
+  bb3:
+    v3 = icall @outer, arg1
+    ret v3
+  bb1:
+    v1 = icall @first, arg1
+    ret v1
+}

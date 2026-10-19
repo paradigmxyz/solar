@@ -100,6 +100,19 @@ impl<'gcx> Exposure<'gcx> {
             .clone()
     }
 
+    /// Closes `raw` over the copy graph from the newly raw bindings in `pending`.
+    fn close_raw(&mut self, mut pending: Vec<VariableId>) {
+        while let Some(id) = pending.pop() {
+            if let Some(neighbors) = self.edges.get(&id) {
+                for &neighbor in neighbors {
+                    if self.raw.insert(neighbor) {
+                        pending.push(neighbor);
+                    }
+                }
+            }
+        }
+    }
+
     fn sources(&mut self, expr: &hir::Expr<'_>, out: &mut SmallVec<[VariableId; 4]>) {
         if let Some(id) = self.gcx.user_operator(expr.id) {
             out.extend_from_slice(self.gcx.hir.function(id).returns);
@@ -496,16 +509,7 @@ impl LoweringState {
                 }
             }
         }
-        let mut pending = exposure.raw.iter().copied().collect::<Vec<_>>();
-        while let Some(id) = pending.pop() {
-            if let Some(neighbors) = exposure.edges.get(&id) {
-                for &neighbor in neighbors {
-                    if exposure.raw.insert(neighbor) {
-                        pending.push(neighbor);
-                    }
-                }
-            }
-        }
+        exposure.close_raw(exposure.raw.iter().copied().collect());
 
         let mut tainted = exposure.raw.clone();
         let mut pending = tainted.iter().copied().collect::<Vec<_>>();
@@ -560,6 +564,23 @@ impl LoweringState {
                 break;
             }
         }
+        // An exposed function can be called through a pointer of another type, so assembly can
+        // pass it raw bits and read the raw bits it returns. A narrow carrier already truncates
+        // them at the call, so only a word carrier needs the binding raw.
+        let mut pending = Vec::new();
+        for &function in &exposed {
+            let function = gcx.hir.function(function);
+            for &id in function.parameters.iter().chain(function.returns) {
+                let ty = gcx.type_of_item(id.into());
+                if ty.is_value_type()
+                    && types::TypeLowerer::mir_type(ty) == MirType::I256
+                    && exposure.raw.insert(id)
+                {
+                    pending.push(id);
+                }
+            }
+        }
+        exposure.close_raw(pending);
         self.dispatched = exposure.indirect_callees.values().flatten().copied().collect();
         self.pointer_registry.assembly_exposed = exposed;
         self.pointer_registry.assembly_calls = calls;
