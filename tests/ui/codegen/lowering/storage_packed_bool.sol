@@ -9,7 +9,7 @@ contract PackedBool {
 
     // CHECK-LABEL: fn @b{{[( ]}}
     // CHECK: [[WORD:v[0-9]+]] = sload 0
-    // CHECK: [[SHIFTED:v[0-9]+]] = shr 8, [[WORD]]
+    // CHECK: [[SHIFTED:v[0-9]+]] = shr [[WORD]], 8
     // CHECK: trunc i256 [[SHIFTED]] to i8
     bool public b;
 
@@ -19,7 +19,7 @@ contract PackedBool {
     // CHECK: and [[WORD]], {{v[0-9]+}}
     // CHECK: sstore 0,
     // CHECK: {{v[0-9]+}} = sload 0
-    // CHECK: shl 8,
+    // CHECK: shl {{[^ ,]+}}, 8{{$}}
     // CHECK: sstore 0,
     function set(bool x, bool y) external {
         a = x;
@@ -32,7 +32,7 @@ contract PackedBool {
     // CHECK: [[COND:v[0-9]+]] = ne [[A]], i8 0
     // CHECK: jumpi [[COND]],
     // CHECK: {{v[0-9]+}} = sload 0
-    // CHECK: {{v[0-9]+}} = shr 8,
+    // CHECK: {{v[0-9]+}} = shr {{[^ ,]+}}, 8{{$}}
     // CHECK: {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i8
     // CHECK: phi
     function both() external view returns (bool) {

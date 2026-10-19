@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib ===
 @module TryLib
 @library
-fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_mul u256, 2, arg0
+    v0 = checked_mul uint256, 2, arg0
     ret v0
 }
 
-fn @noop(arg0: i256) [selector=0x67190395, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @noop(arg0: i256) [selector=0x67190395, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -17,13 +17,13 @@ fn @noop(arg0: i256) [selector=0x67190395, pure, abi_params=[u256], abi_returns=
 @libraries
   TryLib_0: "ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib"
 
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = library_address TryLib_0
     v1 = gas
@@ -53,7 +53,7 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
     ret v11
 }
 
-fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = library_address TryLib_0
     v1 = gas

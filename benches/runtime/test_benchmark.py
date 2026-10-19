@@ -93,7 +93,7 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 35)
+        self.assertEqual(len(benchmark.TEST_CASES), 36)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
@@ -291,15 +291,16 @@ class CorpusTests(unittest.TestCase):
 
     def test_large_cases_resolve_from_pinned_projects(self) -> None:
         large_cases = [case for case in benchmark.TEST_CASES if case.suite == "large"]
-        self.assertEqual(len(large_cases), 3)
+        self.assertEqual(len(large_cases), 4)
         expected_source_counts = {
             "openzeppelin-governor": 48,
+            "openzeppelin-p256": 6,
             "solady-signature-checker": 12,
             "solady-lib-string": 9,
         }
         for case in large_cases:
-            project = benchmark.load_project(case.project_path)
-            selected = benchmark.project_slice(project, case.source)
+            payload, _, _ = benchmark.compiler_input(case, None)
+            selected = json.loads(payload)["sources"]
             self.assertEqual(len(selected), expected_source_counts[case.test_id])
 
     def test_project_slice_resolves_relative_and_remapped_imports(self) -> None:

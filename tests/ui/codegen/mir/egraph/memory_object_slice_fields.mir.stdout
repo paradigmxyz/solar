@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_fields.sol:SliceFields ===
 @module SliceFields
-fn @first(arg0: slice<calldata>) -> i256 [selector=0xa355ea34, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @first(arg0: slice<calldata>) -> i256 [selector=0xa355ea34, pure, abi_params=[tuple<uint256, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -9,7 +9,7 @@ fn @first(arg0: slice<calldata>) -> i256 [selector=0xa355ea34, pure, abi_params=
     ret v3
 }
 
-fn @second(arg0: slice<calldata>) -> i256 [selector=0x8516528b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @second(arg0: slice<calldata>) -> i256 [selector=0x8516528b, pure, abi_params=[tuple<uint256, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -18,7 +18,7 @@ fn @second(arg0: slice<calldata>) -> i256 [selector=0x8516528b, pure, abi_params
     ret v3
 }
 
-fn @choose(arg0: slice<calldata>, arg1: i1) -> i256 [selector=0x1fae9324, pure, abi_params=[tuple<u256, u256>, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @choose(arg0: slice<calldata>, arg1: i1) -> i256 [selector=0x1fae9324, pure, abi_params=[tuple<uint256, uint256>, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg1, bb1, bb2
   bb2:
@@ -37,7 +37,7 @@ fn @choose(arg0: slice<calldata>, arg1: i1) -> i256 [selector=0x1fae9324, pure, 
     ret v3
 }
 
-fn @memoryFirst(arg0: ptr<memory>) -> i256 [selector=0xfd428e4b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryFirst(arg0: ptr<memory>) -> i256 [selector=0xfd428e4b, pure, abi_params=[tuple<uint256, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     ret v0

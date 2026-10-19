@@ -34,9 +34,11 @@ contract PointerLoops {
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
     // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, [[ENTER:bb[0-9]+]]
     // CHECK: [[ENTER]]:
+    // CHECK-NEXT: [[IN:v[0-9]+]] = phi
     // CHECK-NEXT: [[OUT:v[0-9]+]] = phi [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK: jump [[HEADER:bb[0-9]+]]
     // CHECK-NEXT: [[HEADER]]:
+    // CHECK-NEXT: {{v[0-9]+}} = phi {{\[}}[[ENTER]]: [[IN]]],
     // CHECK-NEXT: [[O:v[0-9]+]] = phi {{\[}}[[ENTER]]: [[OUT]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
     // The second copy writes at constant offsets from the pair's first output
     // pointer, and the pair advances it by four once.
@@ -66,7 +68,8 @@ contract PointerLoops {
     // Words step by 32, so the parity of the remaining count is bit 5 of the distance. The
     // end adds the length shifted by five to the start, so that bit is the length's lowest.
     // CHECK-LABEL: fn @sumWords()
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl 5, [[LENGTH:v[0-9]+]]
+    // CHECK: [[LENGTH:v[0-9]+]] = calldataload {{v[0-9]+}}
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[LENGTH]], 5
     // CHECK: calldatacopy
     // CHECK: = add {{v[0-9]+}}, [[SHIFTED]]
     // CHECK-NEXT: [[BIT:v[0-9]+]] = and [[LENGTH]], 1

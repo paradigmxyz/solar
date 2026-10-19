@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after sccp) ===
   @module Integers
   @immutables
-    signed: i64
+    signed: int64
   
   fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
     bb0:
@@ -12,14 +12,14 @@
       v3 = sdiv v2, arg1
       v4 = smod v3, arg0
       v5 = not v4
-      v6 = sar arg1, v5
+      v6 = sar v5, arg1
       ret v6
   }
   
   fn @byte_width(arg0: i24, arg1: i24) -> i24 {
     bb0:
-      v0 = shl arg1, arg0
-      v1 = sar arg1, v0
+      v0 = shl arg0, arg1
+      v1 = sar v0, arg1
       v2 = sext i24 v1 to i248
       v3 = trunc i248 v2 to i24
       ret v3
@@ -198,7 +198,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after egraph) ===
   @module Integers
   @immutables
-    signed: i64
+    signed: int64
   
   fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
     bb0:
@@ -209,14 +209,14 @@
       v3 = sdiv v2, arg1
       v4 = smod v3, arg0
       v5 = not v4
-      v6 = sar arg1, v5
+      v6 = sar v5, arg1
       ret v6
   }
   
   fn @byte_width(arg0: i24, arg1: i24) -> i24 {
     bb0:
-      v0 = shl arg1, arg0
-      v1 = sar arg1, v0
+      v0 = shl arg0, arg1
+      v1 = sar v0, arg1
       v2 = sext i24 v1 to i248
 -     v3 = trunc i248 v2 to i24
 -     ret v3
@@ -234,9 +234,9 @@
 -     v1 = div arg0, i24 8
 -     v2 = mod v1, i24 8
 -     v3 = mul v2, i24 8
-+     v1 = shr i24 3, arg0
++     v1 = shr arg0, i24 3
 +     v2 = and v1, i24 7
-+     v3 = shl i24 3, v2
++     v3 = shl v2, i24 3
       ret v3
   }
   
@@ -392,7 +392,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after check-elim) ===
   @module Integers
   @immutables
-    signed: i64
+    signed: int64
   
   fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
     bb0:
@@ -401,14 +401,14 @@
       v3 = sdiv v2, arg1
       v4 = smod v3, arg0
       v5 = not v4
-      v6 = sar arg1, v5
+      v6 = sar v5, arg1
       ret v6
   }
   
   fn @byte_width(arg0: i24, arg1: i24) -> i24 {
     bb0:
-      v0 = shl arg1, arg0
-      v1 = sar arg1, v0
+      v0 = shl arg0, arg1
+      v1 = sar v0, arg1
       v2 = sext i24 v1 to i248
       ret v1
   }
@@ -421,9 +421,9 @@
   
   fn @power_of_two(arg0: i24) -> i24 {
     bb0:
-      v1 = shr i24 3, arg0
+      v1 = shr arg0, i24 3
       v2 = and v1, i24 7
-      v3 = shl i24 3, v2
+      v3 = shl v2, i24 3
       ret v3
   }
   

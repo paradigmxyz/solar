@@ -21,7 +21,7 @@
 +     v13 = ptrtoint ptr<memory> arg2 to i256
 +     v14 = add v13, 32
 +     mstore v14, v2
-      v6 = shl 5, v2
+      v6 = shl v2, 5
 -     v7 = ptradd arg1, 32
 -     v8 = ptradd v7, v6
 -     mstore v8, v2
@@ -29,7 +29,7 @@
 +     v16 = add v15, 32
 +     v17 = add v16, v6
 +     mstore v17, v2
-      v9 = shl 5, v2
+      v9 = shl v2, 5
 -     v10 = ptradd arg3, v9
 -     mstore v10, v2
 +     v18 = ptrtoint ptr<memory> arg3 to i256
@@ -116,6 +116,18 @@
 +     v2 = inttoptr i256 v5 to ptr<memory>
       v3 = ptrtoint ptr<memory> v2 to i256
       mstore v3, 0
+      ret v2
+  }
+  
+  fn @narrow_word(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+      v0 = inttoptr i1 arg0 to ptr<memory>
+      v1 = ptrtoint ptr<memory> v0 to i256
+      jumpi arg0, bb1, bb2
+    bb1:
+      jump bb2
+    bb2:
+      v2 = phi [bb0: v1], [bb1: arg1]
       ret v2
   }
   

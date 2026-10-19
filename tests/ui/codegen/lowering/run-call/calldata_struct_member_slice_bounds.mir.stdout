@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_member_slice_bounds.sol:CalldataStructMemberSliceBounds ===
 @module CalldataStructMemberSliceBounds
-fn @edge(arg0: slice<calldata>) -> i256 [selector=0xf583b19b, pure, abi_params=[tuple<bytes, bytes>], abi_returns=[word], abi_return_params=[u256]] {
+fn @edge(arg0: slice<calldata>) -> i256 [selector=0xf583b19b, pure, abi_params=[tuple<bytes, bytes>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -34,7 +34,7 @@ fn @edge(arg0: slice<calldata>) -> i256 [selector=0xf583b19b, pure, abi_params=[
     ret v24
 }
 
-fn @abiEdge(arg0: slice<calldata>) -> i256 [selector=0xdff25446, pure, abi_params=[tuple<bytes, bytes>], abi_returns=[word], abi_return_params=[u256]] {
+fn @abiEdge(arg0: slice<calldata>) -> i256 [selector=0xdff25446, pure, abi_params=[tuple<bytes, bytes>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -63,30 +63,9 @@ fn @abiEdge(arg0: slice<calldata>) -> i256 [selector=0xdff25446, pure, abi_param
     icall revert_if<calldata_tail_too_short>, v20
     v21 = inttoptr i256 v18 to ptr<calldata>
     v22 = make_calldata_slice v21, v15
-    v23 = extract_value slice<calldata>, v22, 0
-    v24 = extract_value slice<calldata>, v22, 1
-    v25 = calldatasize
-    v26 = gt v24, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = sub v25, v24
-    v28 = ptrtoint ptr<calldata> v23 to i256
-    v29 = sgt v28, v27
-    icall revert_if<calldata_tail_too_short>, v29
-    v30 = extract_value slice<calldata>, v22, 1
-    v31 = add v30, 63
-    v32 = lt v31, v30
-    icall panic_if<0x41>, v32
-    v33 = not 31
-    v34 = and v31, v33
-    v35 = alloc v34
-    mstore v35, v30
-    v36 = ptradd v35, 32
-    v37 = extract_value slice<calldata>, v22, 0
-    v38 = extract_value slice<calldata>, v22, 1
-    calldatacopy v36, v37, v38
-    v39 = abi_decode [array<_, tuple<address, u256, bytes>>], v35
-    v40 = mload v39
-    ret v40
+    v23 = abi_decode [array<_, tuple<address, uint256, bytes>>], v22
+    v24 = mload v23
+    ret v24
 }
 
 fn @_decodeBatch(arg0: slice<calldata>) -> slice<calldata> [pure] {
@@ -111,11 +90,11 @@ fn @_decodeBatch(arg0: slice<calldata>) -> slice<calldata> [pure] {
     v17 = extract_value slice<calldata>, v15, 0
     v18 = make_calldata_slice v17, v16
     v19 = extract_value slice<calldata>, v18, 1
-    v20 = shl 5, v19
+    v20 = shl v19, 5
     v21 = add v5, v20
     v22 = gt v21, v10
     v23 = zext i1 v22 to i256
-    v24 = shr 64, v2
+    v24 = shr v2, 64
     v25 = or v24, v23
     v26 = ne v25, 0
     jumpi v26, bb1, bb2

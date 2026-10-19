@@ -26,7 +26,7 @@ fn @patch(arg0: i1) -> i256 [selector=0x7f603a02, pure, abi_params=[bool], abi_r
     v10 = ptradd v0, 32
     v11 = mload v10
     v12 = byte 0, v11
-    v13 = shl 248, v12
+    v13 = shl v12, 248
     ret v13
 }
 
@@ -35,11 +35,11 @@ fn @store() -> i256 [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = shr 248, 0x2d00000000000000000000000000000000000000000000000000000000000000
+    v3 = shr 0x2d00000000000000000000000000000000000000000000000000000000000000, 248
     v4 = and v3, 255
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = shl 248, v6
+    v7 = shl v6, 248
     ret v7
 }

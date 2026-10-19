@@ -15,7 +15,7 @@ fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[], abi_r
     ret
 }
 
-fn @accept(arg0: slice<calldata>, arg1: slice<calldata>) -> i256 [selector=0x1403c78f, pure, abi_params=[bytes, array<_, u256>], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @accept(arg0: slice<calldata>, arg1: slice<calldata>) -> i256 [selector=0x1403c78f, pure, abi_params=[bytes, array<_, uint256>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [calldata_bytes, calldata_array<word>], scratch, args arg0, arg1
     v1 = extract_value slice<memory>, v0, 0
@@ -36,7 +36,7 @@ fn @next() -> ptr<memory> [selector=0x4c8fe526, pure, abi_params=[], abi_returns
     ret v2
 }
 
-fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -54,18 +54,18 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     mstore v8, 99
     jump bb1
   bb1:
-    v9 = phi [bb0: 0], [bb3: v41]
+    v9 = phi [bb0: 0], [bb3: v9]
     v10 = phi [bb0: ptr<memory> 96], [bb3: v35]
-    v11 = phi [bb0: 0], [bb3: v11]
-    v12 = phi [bb0: v0], [bb3: v36]
-    v13 = lt v9, 2
+    v11 = phi [bb0: v0], [bb3: v36]
+    v12 = phi [bb0: 0], [bb3: v41]
+    v13 = lt v12, 2
     jumpi v13, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret 1
   bb4:
-    v14 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v10, v12
+    v14 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v10, v11
     v15 = address
     v16 = gas
     v17 = address_call v15, v14, gas v16
@@ -73,7 +73,7 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v19 = eq v17, false
     icall revert_if<empty>, v19
     v20 = abi_decode [bytes32], v18
-    v21 = abi_encode [memory_bytes, memory_array<word>], scratch, args v10, v12
+    v21 = abi_encode [memory_bytes, memory_array<word>], scratch, args v10, v11
     v22 = extract_value slice<memory>, v21, 0
     v23 = extract_value slice<memory>, v21, 1
     v24 = keccak256 v22, v23
@@ -105,7 +105,7 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
   bb6:
     jump bb3
   bb3:
-    v41 = checked_add u256, v9, 1
+    v41 = checked_add uint256, v12, 1
     jump bb1
 }
 
@@ -115,12 +115,12 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     memory_zero v0, 64
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0xa7a0d537
     v5 = lt 0, 2
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = shl 64, v4
+    v7 = shl v4, 64
     mstore v0, v7
     v8 = abi_encode []
     v9 = datasize AbiEncodeCallMemoryTarget_creation_code_0
@@ -138,12 +138,12 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     revert_returndata
   bb2:
     v17 = zext i160 v15 to i256
-    v18 = shl 32, v17
+    v18 = shl v17, 32
     v19 = or v18, 0xa7a0d537
     v20 = lt 1, 2
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = shl 64, v19
+    v22 = shl v19, 64
     v23 = ptradd v0, 32
     mstore v23, v22
     v24 = lt 1, 2
@@ -151,26 +151,26 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     icall panic_if<0x32>, v25
     v26 = ptradd v0, 32
     v27 = mload v26
-    v28 = shr 64, v27
+    v28 = shr v27, 64
     v29 = lt 0, 2
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = mload v0
-    v32 = shr 64, v31
+    v32 = shr v31, 64
     v33 = and v32, 0xffffffff
-    v34 = shl 224, v33
+    v34 = shl v33, 224
     v35 = abi_encode [], object, selector v34
     v36 = lt 1, 2
     v37 = eq v36, false
     icall panic_if<0x32>, v37
     v38 = ptradd v0, 32
     v39 = mload v38
-    v40 = shr 64, v39
+    v40 = shr v39, 64
     v41 = and v40, 0xffffffff
-    v42 = shl 224, v41
+    v42 = shl v41, 224
     v43 = abi_encode [], object, selector v42
     v44 = and v28, 0xffffffff
-    v45 = shl 224, v44
+    v45 = shl v44, 224
     v46 = abi_encode [], object, selector v45
     v47 = mload v35
     v48 = eq v47, 4
@@ -200,7 +200,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v59 = lt v58, 4
     v60 = sub 4, v58
     v61 = mul 8, v60
-    v62 = shl v61, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v62 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v61
     v63 = select v59, v62, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v64 = and v57, v63
     v65 = ptradd v43, 32
@@ -209,7 +209,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v68 = lt v67, 4
     v69 = sub 4, v67
     v70 = mul 8, v69
-    v71 = shl v70, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v71 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v70
     v72 = select v68, v71, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v73 = and v66, v72
     v74 = eq v64, v73
@@ -221,7 +221,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v79 = lt v78, 4
     v80 = sub 4, v78
     v81 = mul 8, v80
-    v82 = shl v81, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v82 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v81
     v83 = select v79, v82, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v84 = and v77, v83
     v85 = ptradd v46, 32
@@ -230,7 +230,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v88 = lt v87, 4
     v89 = sub 4, v87
     v90 = mul 8, v89
-    v91 = shl v90, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v91 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v90
     v92 = select v88, v91, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v93 = and v86, v92
     v94 = eq v84, v93
@@ -242,11 +242,11 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v99 = lt v98, 4
     v100 = sub 4, v98
     v101 = mul 8, v100
-    v102 = shl v101, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v102 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v101
     v103 = select v99, v102, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v104 = and v97, v103
     v105 = and v28, 0xffffffff
-    v106 = shl 224, v105
+    v106 = shl v105, 224
     v107 = eq v104, v106
     v108 = eq v107, false
     icall panic_if<0x1>, v108
@@ -256,7 +256,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v112 = lt v111, 4
     v113 = sub 4, v111
     v114 = mul 8, v113
-    v115 = shl v114, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v115 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v114
     v116 = select v112, v115, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v117 = and v110, v116
     ret v117

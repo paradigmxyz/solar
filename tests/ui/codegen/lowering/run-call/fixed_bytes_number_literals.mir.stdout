@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:Probe ===
 @module Probe
-fn @probe(arg0: i256) -> i256 [selector=0x14beb1ca, pure, abi_params=[bytes4], abi_returns=[word], abi_return_params=[u256]] {
+fn @probe(arg0: i256) -> i256 [selector=0x14beb1ca, pure, abi_params=[bytes4], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v1 = shr 224, v0
+    v1 = shr v0, 224
     v2 = trunc i256 v1 to i32
     v3 = zext i32 v2 to i256
     ret v3
@@ -30,7 +30,7 @@ fn @constructor() [constructor] {
 @immutables
   immutableLiteral: bytes4
 
-fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Probe_creation_code_0
@@ -90,7 +90,7 @@ fn @retLit() -> i256 [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[wor
 
 fn @declLit() -> i256 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    v0 = shl 224, 0x55667788
+    v0 = shl 0x55667788, 224
     ret v0
 }
 
@@ -99,12 +99,12 @@ fn @assignLit() -> i256 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[
     ret 0x6677889900000000000000000000000000000000000000000000000000000000
 }
 
-fn @mapKeyCross() -> i256 [selector=0xef866c75, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @mapKeyCross() -> i256 [selector=0xef866c75, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and 0x3132333400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v1 = mapping_slot v0, 0
     sstore v1, 5 !metadata(storage=symbolic(v1))
-    v2 = shl 224, 0x31323334
+    v2 = shl 0x31323334, 224
     v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v4 = mapping_slot v3, 0
     v5 = sload v4 !metadata(storage=symbolic(v4))
@@ -129,13 +129,13 @@ fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_ret
     v5 = lt v4, 4
     v6 = sub 4, v4
     v7 = mul 8, v6
-    v8 = shl v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v8 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v7
     v9 = select v5, v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v10 = and v3, v9
     ret v10
 }
 
-fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @returnBytes
     v1 = extract_value struct0, v0, 0
@@ -146,10 +146,10 @@ fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[],
     v6 = lt v5, 32
     v7 = sub 32, v5
     v8 = mul 8, v7
-    v9 = shl v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v9 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v8
     v10 = select v6, v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v11 = and v4, v10
-    v12 = shr 248, v11
+    v12 = shr v11, 248
     ret v12
 }
 
@@ -182,7 +182,7 @@ fn @takeSlice(arg0: slice<calldata>) -> i256 [selector=0x4f4c8d8b, pure, abi_par
     v12 = lt v11, 32
     v13 = sub 32, v11
     v14 = mul 8, v13
-    v15 = shl v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v15 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v14
     v16 = select v12, v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v17 = and v10, v16
     ret v17
@@ -213,7 +213,7 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
     ret v12
 }
 
-fn @stringAddressCast() -> i160 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @stringAddressCast() -> i160 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     ret i160 0x6d696c6164790000000000000000000000000000
 }
@@ -227,10 +227,10 @@ fn @emptyStringCompare() -> i1 [selector=0x97e464f0, pure, abi_params=[], abi_re
 fn @stateLiterals() -> struct1 [selector=0x803da9a2, view, abi_params=[], abi_returns=[word<bytes4>, word<bytes2>, word<bytes4>], abi_return_params=[bytes4, bytes2, bytes4]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = shl 224, v0
+    v1 = shl v0, 224
     v2 = sload 1 !metadata(storage=slot(1))
-    v3 = shr 32, v2
-    v4 = shl 240, v3
+    v3 = shr v2, 32
+    v4 = shl v3, 240
     v5 = loadimmutable immutableLiteral
     v6 = insert_value struct1, undef struct1, 0, v1
     v7 = insert_value struct1, v6, 1, v4
@@ -248,17 +248,17 @@ fn @constructor() [constructor] {
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = not 0xffffffff
     v2 = and v0, v1
-    v3 = shr 224, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v3 = shr 0x1122334400000000000000000000000000000000000000000000000000000000, 224
     v4 = and v3, 0xffffffff
     v5 = or v2, v4
     sstore 1, v5 !metadata(storage=slot(1))
-    v6 = shl 32, 0xffff
+    v6 = shl 0xffff, 32
     v7 = sload 1 !metadata(storage=slot(1))
     v8 = not v6
     v9 = and v7, v8
-    v10 = shr 240, 0xaabb000000000000000000000000000000000000000000000000000000000000
+    v10 = shr 0xaabb000000000000000000000000000000000000000000000000000000000000, 240
     v11 = and v10, 0xffff
-    v12 = shl 32, v11
+    v12 = shl v11, 32
     v13 = or v9, v12
     sstore 1, v13 !metadata(storage=slot(1))
     storeimmutable immutableLiteral, 0x5566778800000000000000000000000000000000000000000000000000000000

@@ -149,6 +149,21 @@ CALLDATA_WEIGHTS = "[" + ",".join(str(i + 1) for i in range(32)) + "]"
 CALLDATA_ACCOUNTS = "[" + ",".join(f"0x{0xA11CE000 + i:040x}" for i in range(32)) + "]"
 CALLDATA_LAST_ACCOUNT = f"0x{0xA11CE000 + 31:040x}"
 
+# The valid RIP-7212 probe vector from the pinned OpenZeppelin P256 library.
+P256_SIGNATURE = (
+    "0xbb5a52f42f9c9261ed4361f59422a1e30036e7c32b270c8807a419feca605023",
+    "0x" + "00" * 31 + "05",
+    "0x" + "00" * 31 + "01",
+    "0xa71af64de5126a4a4e02b7922d66ce9415ce88a4c9d25514d91082c8725ac957",
+    "0x5d47723c8fbe580bb369fec9c2665d8e30a435b9932645482e7c9f11e872296b",
+)
+P256_INPUTS = (
+    ("valid", P256_SIGNATURE),
+    ("wrong-hash", ("0x" + "11" * 32, *P256_SIGNATURE[1:])),
+    ("zero-r", (P256_SIGNATURE[0], "0x" + "00" * 32, *P256_SIGNATURE[2:])),
+    ("off-curve", (*P256_SIGNATURE[:3], "0x" + "00" * 32, "0x" + "00" * 32)),
+)
+
 
 @dataclass(frozen=True)
 class RuntimeCheck:
@@ -1439,6 +1454,26 @@ TEST_CASES: Sequence[TestCase] = (
                 )
                 for label, args in GOVERNOR_PROPOSALS
             ),
+        ),
+        suite="large",
+    ),
+    TestCase(
+        test_id="openzeppelin-p256",
+        description="OpenZeppelin P256 software verification",
+        project=PROJECTS["openzeppelin-5.6.1"],
+        source="runtime/P256.sol",
+        source_code=source("runtime/P256.sol"),
+        source_path="testdata/runtime/P256.sol",
+        contract_name="P256Verifier",
+        gas_calls=tuple(
+            GasCall(label, "verify(bytes32,bytes32,bytes32,bytes32,bytes32)", args)
+            for label, args in P256_INPUTS
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(
+                label, "verify(bytes32,bytes32,bytes32,bytes32,bytes32)(bool)", args
+            )
+            for label, args in P256_INPUTS
         ),
         suite="large",
     ),

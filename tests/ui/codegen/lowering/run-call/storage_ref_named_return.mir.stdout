@@ -15,14 +15,14 @@ fn @_getPool(arg0: i256) -> i256 [view] {
     ret v0
 }
 
-fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
     v1 = add v0, 1
     v2 = icall @_get, v1, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
     v3 = sload v2 !metadata(storage=symbolic(v2))
     v4 = trunc i256 v3 to i128
-    v5 = checked_add u128, v4, i128 5
+    v5 = checked_add uint128, v4, i128 5
     v6 = sload v2 !metadata(storage=symbolic(v2))
     v7 = not 0xffffffffffffffffffffffffffffffff
     v8 = and v6, v7

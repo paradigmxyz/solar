@@ -15,7 +15,7 @@
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
-    mir::{BlockId, Function, Op, Terminator, Value, ValueId},
+    mir::{BlockId, Function, Op, Terminator, Value, ValueId, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -361,6 +361,9 @@ impl Target {
     /// a build still values its code size, and the copies grow a contract built
     /// around one loop by half or more.
     pub(crate) const LOOP_COPY_MIN_RUNS: u64 = 10_000;
+    /// The most bytes the copies of a completely unrolled loop's body may take, whatever its
+    /// pricing, so that a contract near the code size limit cannot grow past it.
+    pub(crate) const MAX_LOOP_COPY_BYTES: u32 = 256;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
@@ -614,6 +617,27 @@ impl Target {
         Cost::new(24 + moved * 8, 8 + moved * 4)
     }
 
+    /// Prices sharing one helper with `body_bytes` of body, `params` parameters, and `returns`
+    /// results among `sites` call sites against expanding the body at every site, as
+    /// `(shared, expanded)`. The body runs in both shapes, so sharing adds the call protocol's
+    /// gas at every site and its bytes once per site plus one copy of the body and return.
+    pub(crate) fn helper_sharing(
+        self,
+        body_bytes: u32,
+        params: usize,
+        returns: usize,
+        sites: u32,
+    ) -> (Cost, Cost) {
+        let frame_words = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE
+            + (params + returns) as u64;
+        let call = self.icall(params, returns, frame_words);
+        let ret = self.internal_return(params, returns);
+        let shared = Cost::new(call.gas + ret.gas, call.bytes)
+            .times(sites)
+            .plus(Cost::new(0, body_bytes.saturating_add(ret.bytes)));
+        (shared, Cost::new(0, body_bytes).times(sites))
+    }
+
     /// Estimated code of a function body: every operation with the pushes
     /// of its immediates, and a pushed label with a jump and a landing per
     /// edge. Sizes the shape of a helper before deciding to share it.
@@ -701,6 +725,73 @@ impl Target {
     /// Cost of a conditional edge, including the pushed label and the target's landing.
     pub(crate) fn branch(self) -> Cost {
         self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
+    }
+
+    /// Whether legacy splat expansion beats the selected ordinary lowering in size.
+    /// For word stores, the first two stores are common; price each remaining materialized
+    /// word, offset, store, and stack moves. For a data copy, include the pool and the splat's
+    /// two seed stores. Each copy pays for its own loop, including setup and stack moves,
+    /// without relying on helper sharing or later unrolling.
+    pub(crate) fn legacy_splat_is_profitable(
+        &self,
+        word: U256,
+        size: usize,
+        data_copy: bool,
+    ) -> bool {
+        let word_size = op::WORD_BYTES;
+        let loop_body = self.jump()
+            + self.branch()
+            + self.dup().times(7)
+            + self.opcode(op::ADD).times(4)
+            + self.opcode(op::LT)
+            + self.opcode(op::MLOAD)
+            + self.opcode(op::MSTORE)
+            + self.opcode(op::POP).times(3)
+            + self.push(U256::ZERO)
+            + self.push(U256::from(word_size));
+        let mut copies = Cost::ZERO;
+        let mut filled = 2 * word_size;
+        while filled < size {
+            let chunk = filled.min(size - filled);
+            copies += loop_body + self.push(U256::from(filled)) + self.push(U256::from(chunk));
+            filled += chunk;
+        }
+        if data_copy {
+            let seed = self.push(word)
+                + self.dup().times(3)
+                + self.opcode(op::MSTORE).times(2)
+                + self.push(U256::from(word_size))
+                + self.opcode(op::ADD);
+            let copy = self.push(U256::from(size))
+                + self.opcode(op::PUSH3)
+                + self.dup()
+                + self.opcode(op::CODECOPY);
+            ((copies + seed).bytes as usize) < size.saturating_add(copy.bytes as usize)
+        } else {
+            let stores = (2..size / word_size)
+                .map(|index| {
+                    self.push(word)
+                        + self.push(U256::from(index * word_size))
+                        + self.dup().times(2)
+                        + self.opcode(op::ADD)
+                        + self.opcode(op::MSTORE)
+                })
+                .sum::<Cost>();
+            copies.bytes < stores.bytes
+        }
+    }
+
+    /// Whether one shared copy of a terminal block, entered by a jump from each of `sites`,
+    /// takes fewer bytes than a copy at every site. When optimizing for size, a copy no larger
+    /// than a jump to and from a shared body stays with the backend, whose terminal-block sharing
+    /// and outlining handle it in its final layout; sharing it earlier grew the measured code.
+    pub(crate) fn shares_terminal_copy(self, copy: Cost, sites: u32) -> bool {
+        let jump = self.label_push() + self.opcode(op::JUMP);
+        if matches!(self.optimization, OptimizationMode::Size) && copy.bytes <= jump.times(2).bytes
+        {
+            return false;
+        }
+        (jump.times(sites) + copy + self.opcode(op::JUMPDEST)).bytes < copy.times(sites).bytes
     }
 }
 
@@ -956,6 +1047,18 @@ mod tests {
     }
 
     #[test]
+    fn helper_sharing_prices_the_call_protocol_per_site() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        let (shared, expanded) = target.helper_sharing(100, 2, 1, 3);
+        // Three sites each pay a call with a 5-word frame and a return; one body and return.
+        assert_eq!(shared, Cost::new(3 * ((90 + 3 * 24 + 5 * 6) + (24 + 3 * 8)), 3 * 33 + 120));
+        assert_eq!(expanded, Cost::new(0, 300));
+        assert!(target.cmp(shared, expanded).is_lt());
+        let (shared, expanded) = target.helper_sharing(40, 2, 1, 2);
+        assert!(target.cmp(shared, expanded).is_gt());
+    }
+
+    #[test]
     fn control_flow_costs_distinguish_unconditional_edges() {
         for version in
             [EvmVersion::Homestead, EvmVersion::Paris, EvmVersion::Osaka, EvmVersion::Amsterdam]
@@ -979,5 +1082,33 @@ mod tests {
             function.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::Jump(then_block));
             assert_eq!(target.block_code_estimate(&function, BlockId::ENTRY), target.jump());
         }
+    }
+
+    #[test]
+    fn legacy_splats_price_copy_loops_against_stores() {
+        let target = Target::with(EvmVersion::Paris, OptimizationMode::Size, 1);
+        assert!(!target.legacy_splat_is_profitable(U256::from(1), 160, false));
+        assert!(!target.legacy_splat_is_profitable(U256::from(1), 256, false));
+        assert!(target.legacy_splat_is_profitable(U256::from(1), 1024, false));
+        assert!(target.legacy_splat_is_profitable(U256::from(1), 2048, false));
+        assert!(target.legacy_splat_is_profitable(U256::from(1), 5120, false));
+        let word = U256::from_be_bytes([0x11; 32]);
+        assert!(target.legacy_splat_is_profitable(word, 96, true));
+        assert!(target.legacy_splat_is_profitable(word, 5120, true));
+    }
+    #[test]
+    fn terminal_copy_sharing() {
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        // `mstore 0, 1; revert 0, 32`: four 4-byte jumps and one landing beat four copies.
+        let small = Cost::new(0, 8);
+        assert!(gas.shares_terminal_copy(small, 4));
+        assert!(!size.shares_terminal_copy(small, 4));
+        // A 9-byte copy shared by three sites: 12 + 9 + 1 bytes against 27.
+        let medium = Cost::new(0, 9);
+        assert!(gas.shares_terminal_copy(medium, 3));
+        assert!(size.shares_terminal_copy(medium, 3));
+        // One site never pays for a jump.
+        assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
     }
 }

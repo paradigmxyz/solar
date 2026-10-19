@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_parameter_frame_viair.sol:ConstructorModifierParameterFrameBase ===
 @module ConstructorModifierParameterFrameBase
-fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb2
   bb2:
-    v1 = checked_add u256, arg0, 1
+    v1 = checked_add uint256, arg0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb3
   bb3:
@@ -25,11 +25,11 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 @module ConstructorModifierParameterFrame
 fn @constructor() [constructor] {
   bb0:
-    v0 = checked_add u256, 5, 1
+    v0 = checked_add uint256, 5, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    v1 = checked_add u256, 5, 1
+    v1 = checked_add uint256, 5, 1
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb4
   bb4:
@@ -42,7 +42,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

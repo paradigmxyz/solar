@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/require_evaluation_order.sol:RequireEvaluationOrder ===
 @module RequireEvaluationOrder
-fn @customError() -> i256 [selector=0xdda3a7bd, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @customError() -> i256 [selector=0xdda3a7bd, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = icall @increment
@@ -9,7 +9,7 @@ fn @customError() -> i256 [selector=0xdda3a7bd, abi_params=[], abi_returns=[word
     ret v1
 }
 
-fn @stringError() -> i256 [selector=0x277dd25f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @stringError() -> i256 [selector=0x277dd25f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = icall @reason
@@ -18,7 +18,7 @@ fn @stringError() -> i256 [selector=0x277dd25f, abi_params=[], abi_returns=[word
     ret v1
 }
 
-fn @earlyReturn() -> i256 [selector=0x00aa1cdb, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @earlyReturn() -> i256 [selector=0x00aa1cdb, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @returnSeven
     icall require<custom_error [word]>, true, 0x2ff06700000000000000000000000000000000000000000000000000000000, v0
@@ -65,7 +65,7 @@ fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[], a
     icall require<custom_error [memory_array<memory_bytes>]>, false, 0xae7687df00000000000000000000000000000000000000000000000000000000, v0
     ret
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -76,7 +76,7 @@ fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[], a
 fn @increment() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     ret v1
 }
@@ -84,7 +84,7 @@ fn @increment() -> i256 {
 fn @reason() -> ptr<memory> {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = alloc 64 !metadata(preserves_fmp)
     mstore v2, 1

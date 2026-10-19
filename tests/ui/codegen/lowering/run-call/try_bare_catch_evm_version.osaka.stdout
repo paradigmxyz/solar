@@ -3,19 +3,19 @@
 @types
   struct0: {i256, i256}
 
-fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 42
 }
 
-fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 1
     v1 = insert_value struct0, v0, 1, 2
     ret v1
 }
 
-fn @agg() -> ptr<memory> [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @agg() -> ptr<memory> [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -36,7 +36,7 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
     ret
 }
 
-fn @fail() [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fail() [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall revert_if<empty>, true
     invalid
@@ -47,7 +47,7 @@ fn @fail() [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word], abi
 @data
   TryCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryCallee"
 
-fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
@@ -90,7 +90,7 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     ret v19
 }
 
-fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
@@ -131,14 +131,14 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v20 = ptrtoint ptr<memory> v11 to i256
     v21 = add v20, 32
     v22 = mload v21
-    v23 = checked_add u256, v19, v22
+    v23 = checked_add uint256, v19, v22
     jump bb5
   bb5:
     v24 = phi [bb3: v23], [bb6: 7]
     ret v24
 }
 
-fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
@@ -175,7 +175,7 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v17 = lt v16, 64
     icall revert_if<tuple_data_too_short>, v17
     v18 = make_memory_slice v13, 64
-    v19 = abi_decode [array<2, u256>], v18
+    v19 = abi_decode [array<2, uint256>], v18
     v20 = lt 0, 2
     v21 = eq v20, false
     icall panic_if<0x32>, v21
@@ -185,14 +185,14 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     icall panic_if<0x32>, v24
     v25 = ptradd v19, 32
     v26 = mload v25
-    v27 = checked_add u256, v22, v26
+    v27 = checked_add uint256, v22, v26
     jump bb5
   bb5:
     v28 = phi [bb3: v27], [bb6: 7]
     ret v28
 }
 
-fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
@@ -234,7 +234,7 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     ret v18
 }
 
-fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
@@ -277,7 +277,7 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
     ret v19
 }
 
-fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
@@ -295,11 +295,11 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     revert_returndata
   bb2:
     v9 = zext i160 v7 to i256
-    v10 = shl 32, v9
+    v10 = shl v9, 32
     v11 = or v10, 0x3fa4f245
     v12 = and v11, 0xffffffff
-    v13 = shl 224, v12
-    v14 = shr 32, v11
+    v13 = shl v12, 224
+    v14 = shr v11, 32
     v15 = gas
     v16 = abi_encode [], selector v13
     v17 = extract_value slice<memory>, v16, 0
@@ -325,7 +325,7 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     ret v24
 }
 
-fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
@@ -337,9 +337,8 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
     v6 = add v5, v1
     mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
-    v8 = eq v7, i160 0
-    v9 = eq v8, false
-    jumpi v9, bb1, bb2
+    v8 = ne v7, i160 0
+    jumpi v8, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -350,11 +349,11 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
   bb1:
     jump bb3
   bb3:
-    v10 = phi [bb1: 1], [bb4: 7]
-    ret v10
+    v9 = phi [bb1: 1], [bb4: 7]
+    ret v9
 }
 
-fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
@@ -381,7 +380,7 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
     ret v9
 }
 
-fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000

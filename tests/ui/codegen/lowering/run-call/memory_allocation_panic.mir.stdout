@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_allocation_panic.sol:MemoryAllocationPanicRuntime ===
 @module MemoryAllocationPanicRuntime
-fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -13,7 +13,7 @@ fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[u256],
     ret v5
 }
 
-fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -40,7 +40,7 @@ fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256],
     ret v17
 }
 
-fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall panic_if<0x41>, true
     v0 = alloc zeroed checked 32
@@ -60,7 +60,7 @@ fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_r
     ret v9
 }
 
-fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -103,23 +103,11 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     v31 = eq v30, false
     icall panic_if<0x32>, v31
     v32 = ptradd v0, 32
-    v33 = mload v32
-    v34 = inttoptr i256 v33 to ptr<memory>
-    v35 = eq v33, 0
-    jumpi v35, bb4, bb5
-  bb4:
-    v36 = alloc 32
-    mstore v36, 0
-    v37 = ptradd v0, 32
-    v38 = ptrtoint ptr<memory> v36 to i256
-    mstore v37, v38
-    jump bb5
-  bb5:
-    v39 = phi [bb3: v34], [bb4: v36]
-    v40 = mload v39
-    ret v40
+    v33 = mload v32, ptr<memory>
+    v34 = mload v33
+    ret v34
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -127,7 +115,7 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     jump bb1
 }
 
-fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -163,7 +151,7 @@ fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[
     mstore v19, 0
     v20 = ptradd v19, 32
     mstore v20, 96
-    v21 = shl 5, v17
+    v21 = shl v17, 5
     v22 = ptradd v16, v21
     v23 = ptradd v22, 32
     v24 = ptrtoint ptr<memory> v19 to i256

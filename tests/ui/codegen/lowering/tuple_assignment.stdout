@@ -11,7 +11,7 @@ bb0:
   dup 1
   push 0x1b8f5d50
   eq
-  push bb14
+  push bb12
   jumpi
   dup 1
   push 0x5030da75
@@ -21,7 +21,7 @@ bb0:
   dup 1
   push 0xd96073cf
   eq
-  push bb11
+  push bb9
   jumpi
   jump bb5
 bb5 [cold]:
@@ -32,17 +32,14 @@ bb6:
   push 160
   push 64
   mstore
-  push 68
-  calldatasize
-  lt
-  push bb5
-  jumpi
   push 4
   calldataload
   push 160
   shr
-  push bb5
-  jumpi
+  push 68
+  calldatasize
+  lt
+  or
   push 36
   calldataload
   push 4
@@ -70,20 +67,8 @@ bb6:
   dup 3
   gt
   or
-  gas
   swap 1
-  push 0
-  not
-  push 192
-  shr
-  dup 4
-  gt
-  or
-  dup 3
-  calldatasize
-  sub
-  dup 5
-  sgt
+  swap 3
   or
   push bb5
   jumpi
@@ -106,24 +91,24 @@ bb6:
   push 32
   add
   dup 3
-  dup 5
+  dup 3
   dup 3
   calldatacopy
   push 0
-  swap 3
-  swap 1
+  push 0
+  dup 5
+  dup 4
   push 0
   push 4
   calldataload
-  push 0
-  swap 5
+  gas
   call
   push 128
   mstore
   push 32
   push 128
   return
-bb11:
+bb9:
   push 68
   calldatasize
   lt
@@ -140,7 +125,7 @@ bb11:
   push 64
   push 128
   return
-bb14:
+bb12:
   push 7
   push 128
   mstore

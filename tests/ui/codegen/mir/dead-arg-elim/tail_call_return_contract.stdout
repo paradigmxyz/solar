@@ -29,3 +29,27 @@
       ret
   }
   
+  fn @abort() {
+    bb0:
+      revert 0, 0
+  }
+  
+  fn @cold() -> i256 {
+    bb0:
+      icall @abort
+      ret 7
+  }
+  
+  fn @forward_cold() -> i256 {
+    bb0:
+      tail_call @cold
+  }
+  
+  fn @entry_cold() [selector=0x05060708] {
+    bb0:
+      v0 = icall @forward_cold
+      v1 = icall @cold
+      mstore 0, v1
+      ret
+  }
+  

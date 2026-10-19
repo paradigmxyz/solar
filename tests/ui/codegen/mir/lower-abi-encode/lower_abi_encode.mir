@@ -56,10 +56,14 @@ fn @dynamic(arg0: slice<calldata>) -> slice<memory> {
     ret v0
 }
 
+// Memory pointers are never null, so lengths are read without a guard.
 // CHECK-LABEL: {{^[ +].*}}fn @nested_dynamic_array{{[( ]}}
 // CHECK: + {{v[0-9]+}} = mload arg0
-// CHECK: + {{v[0-9]+}} = zext i1
+// CHECK-NOT: zext i1
 // CHECK: + {{v[0-9]+}} = ptradd arg0, 32
+// CHECK: + [[ELEMENT:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK-NOT: zext i1
+// CHECK: + {{v[0-9]+}} = mload [[ELEMENT]]
 fn @nested_dynamic_array(arg0: ptr<memory>) -> slice<memory> {
   bb0:
     v0 = abi_encode [memory_array<memory_array<word>>], args arg0
@@ -73,7 +77,7 @@ fn @nested_dynamic_array(arg0: ptr<memory>) -> slice<memory> {
 // CHECK-NEXT: + {{v[0-9]+}} = add [[TAIL]], [[ENCODED_LEN]]
 fn @fixed_nested_dynamic_arrays(arg0: ptr<memory>) -> slice<memory> {
   bb0:
-    v0 = abi_encode [array<2, memory_array<word<u8>>>], args arg0
+    v0 = abi_encode [array<2, memory_array<word<uint8>>>], args arg0
     ret v0
 }
 
