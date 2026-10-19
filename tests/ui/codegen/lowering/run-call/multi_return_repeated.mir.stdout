@@ -7,7 +7,7 @@
 @types
   struct0: {i256, i256}
 
-fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @sort, 2, 1
     v1 = extract_value struct0, v0, 0

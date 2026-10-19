@@ -29,13 +29,13 @@ contract SignedConstantOps {
     }
 
     // CHECK-LABEL: fn @divParam{{[( ]}}
-    // CHECK: checked_div {{[ui][0-9]+}}, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, arg0
+    // CHECK: checked_div {{u?int[0-9]+}}, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, arg0
     function divParam(int256 x) public pure returns (int256) {
         return int256(-7) / x;
     }
 
     // CHECK-LABEL: fn @shrParam{{[( ]}}
-    // CHECK: sar arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
+    // CHECK: sar 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8, arg0
     function shrParam(uint256 x) public pure returns (int256) {
         return int256(-8) >> x;
     }

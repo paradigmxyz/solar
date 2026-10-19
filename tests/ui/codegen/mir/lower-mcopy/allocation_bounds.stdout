@@ -113,14 +113,14 @@
 +   bb8:
 +     v15 = and arg0, 31
 +     v16 = sub 32, v15
-+     v17 = shl 3, v16
++     v17 = shl v16, 3
 +     v18 = add v1, v6
 +     v19 = mload v18
-+     v20 = shr v17, v19
-+     v21 = shl v17, v20
++     v20 = shr v19, v17
++     v21 = shl v20, v17
 +     v22 = add v3, v6
 +     v23 = mload v22
-+     v24 = shl v17, 1
++     v24 = shl 1, v17
 +     v25 = sub v24, 1
 +     v26 = and v23, v25
 +     v27 = or v21, v26
@@ -141,14 +141,14 @@
 +   bb12:
 +     v29 = and arg0, 31
 +     v30 = sub 32, v29
-+     v31 = shl 3, v30
++     v31 = shl v30, 3
 +     v32 = add v1, v6
 +     v33 = mload v32
-+     v34 = shr v31, v33
-+     v35 = shl v31, v34
++     v34 = shr v33, v31
++     v35 = shl v34, v31
 +     v36 = add v3, v6
 +     v37 = mload v36
-+     v38 = shl v31, 1
++     v38 = shl 1, v31
 +     v39 = sub v38, 1
 +     v40 = and v37, v39
 +     v41 = or v35, v40

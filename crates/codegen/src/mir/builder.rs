@@ -1,11 +1,11 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AddressCallKind, AllocationSemantics, BlockId, CalldataTail, FrameMode,
-    FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
-    InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType, PanicCode,
-    PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId, Terminator,
-    Value, ValueId,
+    AbiEncodeMode, AddressCallKind, AllocationFailure, AllocationSemantics, BlockId, CalldataTail,
+    FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType,
+    PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
+    Terminator, Value, ValueId,
 };
 use crate::{
     link::LibraryId,
@@ -861,6 +861,22 @@ impl<'a> FunctionBuilder<'a> {
         object
     }
 
+    /// Allocates a bytes object whose `length` is known to be far below `2^256 - 63`, such as
+    /// the length of calldata, so its padded size needs no overflow check.
+    pub(crate) fn alloc_bounded_bytes_object(
+        &mut self,
+        length: ValueId,
+        semantics: AllocationSemantics,
+    ) -> ValueId {
+        // size = (length + 63) & ~31
+        let padding = self.imm(63);
+        let rounded = self.add(length, padding);
+        let size = self.mask_padded_size(rounded);
+        let object = self.alloc(size, semantics);
+        self.set_memory_len(object, length);
+        object
+    }
+
     /// Allocates a fixed array whose elements each occupy one memory word.
     pub(crate) fn alloc_word_array(
         &mut self,
@@ -890,9 +906,20 @@ impl<'a> FunctionBuilder<'a> {
         semantics: AllocationSemantics,
     ) -> (ValueId, MemoryObjectLayout) {
         let one = self.imm(1);
-        let words = self.checked_add(length, one);
-        let word_size = self.imm(32);
-        let size = self.checked_mul(words, word_size);
+        let word_size = self.imm(EvmMemoryLayout::WORD_SIZE);
+        let size = if semantics.failure == AllocationFailure::Checked {
+            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE - 1, 0x41
+            // size = (length + 1) * WORD_SIZE
+            let limit =
+                self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE - 1);
+            let invalid = self.gt(length, limit);
+            self.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
+            let words = self.add(length, one);
+            self.mul(words, word_size)
+        } else {
+            let words = self.checked_add(length, one);
+            self.checked_mul(words, word_size)
+        };
         let layout = MemoryObjectLayout::WORD_ARRAY;
         let object = self.alloc(size, semantics);
         self.set_memory_len(object, length);
@@ -1044,9 +1071,9 @@ impl<'a> FunctionBuilder<'a> {
         if let Some(index) = self.func.value_u64(index) {
             return self.imm(index.saturating_mul(EvmMemoryLayout::WORD_SIZE));
         }
-        // offset = shl 5, index
+        // offset = shl index, 5
         let shift = self.imm(u64::from(EvmMemoryLayout::WORD_SIZE.trailing_zeros()));
-        self.shl(shift, index)
+        self.shl(index, shift)
     }
 
     /// Returns the header bytes before a memory object's words: none for a fixed array or
@@ -1270,6 +1297,16 @@ impl<'a> FunctionBuilder<'a> {
         self.eq(value, zero)
     }
 
+    /// Tests a value for being nonzero.
+    pub(crate) fn ne_zero(&mut self, value: ValueId) -> ValueId {
+        let zero = self.func.alloc_value(Value::Immediate(Immediate::for_type(
+            self.func.value_ty(value),
+            U256::ZERO,
+        )));
+        // result = ne value, 0
+        self.ne(value, zero)
+    }
+
     /// Preserves all bits while forgetting a value's nominal one-word type.
     pub(crate) fn cast_word(&mut self, value: ValueId) -> ValueId {
         // word = zext integer or ptrtoint pointer to i256
@@ -1322,7 +1359,7 @@ impl<'a> FunctionBuilder<'a> {
         let long_mask = self.sub(zero, flag);
         let short_mask = self.imm(0x7f);
         let mask = self.or(short_mask, long_mask);
-        let half = self.shr(one, header);
+        let half = self.shr(header, one);
         let length = self.and(half, mask);
         (is_long, length)
     }
@@ -1338,7 +1375,7 @@ impl<'a> FunctionBuilder<'a> {
         let bits = self.imm(8);
         let shift = self.mul(unused_bytes, bits);
         let one = self.imm(1);
-        let high_bit = self.shl(shift, one);
+        let high_bit = self.shl(one, shift);
         let low_mask = self.sub(high_bit, one);
         let data_mask = self.not(low_mask);
         self.and(data, data_mask)
@@ -1359,7 +1396,7 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn long_storage_bytes_header(&mut self, length: ValueId) -> ValueId {
         // header = length << 1 | 1
         let one = self.imm(1);
-        let shifted = self.shl(one, length);
+        let shifted = self.shl(length, one);
         self.or(shifted, one)
     }
 
@@ -1839,6 +1876,19 @@ impl<'a> FunctionBuilder<'a> {
         self.set_terminator(Terminator::RevertReturndata);
     }
 
+    /// Reverts with the return data of a failed call unless `success`, then continues in a new
+    /// block.
+    pub(crate) fn revert_returndata_unless(&mut self, success: ValueId) {
+        // branch success, done, failed
+        // failed: revert_returndata
+        let failed = self.create_block();
+        let done = self.create_block();
+        self.branch(success, done, failed);
+        self.switch_to_block(failed);
+        self.revert_returndata();
+        self.switch_to_block(done);
+    }
+
     /// Sets a return-data terminator: `RETURN(offset, size)`.
     pub(crate) fn ret_data(&mut self, offset: ValueId, size: ValueId) {
         // offset = zext offset to i256, unless it is a ptr<memory>
@@ -1894,5 +1944,23 @@ impl<'a> FunctionBuilder<'a> {
     /// Returns a mutable reference to the function.
     pub(crate) fn func_mut(&mut self) -> &mut Function {
         self.func
+    }
+
+    /// Emits `value << shift`.
+    pub(crate) fn shl(&mut self, value: ValueId, shift: ValueId) -> ValueId {
+        // result = shl value, shift
+        self.emit_inst(InstKind::Shl(shift, value), Some(MirType::I256))
+    }
+
+    /// Emits `value >> shift`.
+    pub(crate) fn shr(&mut self, value: ValueId, shift: ValueId) -> ValueId {
+        // result = shr value, shift
+        self.emit_inst(InstKind::Shr(shift, value), Some(MirType::I256))
+    }
+
+    /// Emits the arithmetic shift `value >> shift`.
+    pub(crate) fn sar(&mut self, value: ValueId, shift: ValueId) -> ValueId {
+        // result = sar value, shift
+        self.emit_inst(InstKind::Sar(shift, value), Some(MirType::I256))
     }
 }

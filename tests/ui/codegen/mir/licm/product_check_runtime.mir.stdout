@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/licm/product_check_runtime.sol:ProductCheck ===
 @module ProductCheck
-fn @scale(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xca939f26, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @scale(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xca939f26, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -16,16 +16,16 @@ fn @scale(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xca939f26, pure
   bb2:
     ret v0
   bb4:
-    v6 = checked_mul u256, v0, v1
+    v6 = checked_mul uint256, v0, v1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v4, 1
+    v7 = checked_add uint256, v4, 1
     jump bb1
 }
 
-fn @scaleLeft(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf91f4c50, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @scaleLeft(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf91f4c50, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -41,11 +41,11 @@ fn @scaleLeft(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf91f4c50, 
   bb2:
     ret v0
   bb4:
-    v6 = checked_mul u256, v1, v0
+    v6 = checked_mul uint256, v1, v0
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v4, 1
+    v7 = checked_add uint256, v4, 1
     jump bb1
 }

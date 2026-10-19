@@ -44,6 +44,7 @@ pub(super) fn alternatives(
     seen: &FxHashSet<InstId>,
     op: &Op,
     target: Target,
+    late: bool,
 ) -> Vec<Recipe> {
     let mut result = Vec::new();
     let scalar_ty = op
@@ -57,7 +58,7 @@ pub(super) fn alternatives(
         })
         .unwrap_or(MirType::I256);
     generated::constructor_sequence_rewrite(
-        &mut Context { func, seen, target, scalar_ty, temporaries: FxHashMap::default() },
+        &mut Context { func, seen, target, scalar_ty, late, temporaries: FxHashMap::default() },
         op,
         &mut result,
     );
@@ -69,6 +70,7 @@ struct Context<'a> {
     seen: &'a FxHashSet<InstId>,
     target: Target,
     scalar_ty: MirType,
+    late: bool,
     temporaries: FxHashMap<ValueId, Temporary>,
 }
 
@@ -190,5 +192,9 @@ impl generated::Context for Context<'_> {
 
     fn u256_same(&mut self, a: U256, b: U256) -> bool {
         a == b
+    }
+
+    fn late_word_sequence(&mut self) -> bool {
+        self.late
     }
 }

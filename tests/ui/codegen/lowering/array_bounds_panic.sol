@@ -31,7 +31,7 @@ contract ArrayBoundsPanic {
     // CHECK: [[X:v[0-9]+]] = alloc 96
     // CHECK: {{v[0-9]+}} = lt arg0, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg0
+    // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl arg0, 5
     // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[X]], [[OFF1]]
     // CHECK-NEXT: {{v[0-9]+}} = mload [[ELEM]]
     function memFix(uint256 i) public pure returns (uint256) {

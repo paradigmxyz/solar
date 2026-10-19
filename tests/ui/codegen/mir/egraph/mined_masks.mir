@@ -8,7 +8,7 @@
 
 fn @high_mask(arg0: i256) -> i256 {
   bb0:
-    v0 = shl arg0, 1
+    v0 = shl 1, arg0
     v1 = sub v0, 1
     v2 = not v1
     ret v2
@@ -23,7 +23,7 @@ fn @negation(arg0: i256) -> i256 {
 
 fn @shared_mask(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
   bb0:
-    v0 = shl arg0, 1
+    v0 = shl 1, arg0
     v1 = sub v0, 1
     v2 = not v1
     ret v1, v2
@@ -31,7 +31,7 @@ fn @shared_mask(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
 
 fn @nonunit(arg0: i256) -> i256 {
   bb0:
-    v0 = shl arg0, 2
+    v0 = shl 2, arg0
     v1 = sub v0, 2
     v2 = not v1
     ret v2

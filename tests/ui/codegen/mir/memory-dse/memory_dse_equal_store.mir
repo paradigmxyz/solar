@@ -16,13 +16,13 @@ fn @remove_equal_store_after_keccak(arg0: i256) -> i256 {
     ret v2
 }
 
-// A memory mutator can change the address, so the equal-looking store after it
-// must be kept.
-// CHECK-LABEL: {{^[ +].*}}fn @keep_equal_store_after_copy{{[( ]}}
-// CHECK: {{^[ +].*}}calldatacopy
+// An unobserved copy dies first, allowing the equal store to die as well.
+// CHECK-LABEL: {{^[ +].*}}fn @remove_copy_and_equal_store{{[( ]}}
 // CHECK: {{^[ +].*}}mstore 128, arg0
+// CHECK: - calldatacopy
+// CHECK: - mstore 128, arg0
 // CHECK: + ret arg0
-fn @keep_equal_store_after_copy(arg0: i256, arg1: i256) -> i256 {
+fn @remove_copy_and_equal_store(arg0: i256, arg1: i256) -> i256 {
   bb0:
     mstore 128, arg0
     calldatacopy 128, arg1, 32
@@ -70,4 +70,20 @@ fn @keep_restore_after_dynamic_overlapping_store(arg0: i256) -> i256 {
   bb3:
     v3 = mload 128
     ret v3
+}
+
+// Observing the copy keeps it live, so the later equal store must restore the word.
+// CHECK-LABEL: @keep_equal_store_after_observed_copy
+// CHECK: {{^[ +].*}}calldatacopy
+// CHECK: {{^[ +].*}}keccak256
+// CHECK: {{^[ +].*}}mstore 128, arg0
+fn @keep_equal_store_after_observed_copy(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore 128, arg0
+    calldatacopy 128, arg1, 32
+    v2 = keccak256 128, 32
+    mstore 128, arg0
+    v3 = mload 128
+    v4 = xor v2, v3
+    ret v4
 }

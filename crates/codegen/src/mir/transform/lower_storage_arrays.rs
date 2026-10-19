@@ -54,7 +54,7 @@ pub(super) fn load(
             builder.counted_loop(count, |builder, index_in_word| {
                 let bits = builder.imm(bytes * 8);
                 let shift = builder.mul(index_in_word, bits);
-                let shifted = builder.shr(shift, word);
+                let shifted = builder.shr(word, shift);
                 let value = unpack(builder, shifted, element, bytes);
                 if let Some(variants) = enum_variants {
                     // panic if value >= variants
@@ -109,7 +109,7 @@ fn load_scalar(
     let index_in_slot = builder.mod_(index, per_slot);
     let bits = builder.imm(bytes * 8);
     let shift = builder.mul(index_in_slot, bits);
-    let shifted = builder.shr(shift, word);
+    let shifted = builder.shr(word, shift);
     unpack(builder, shifted, element, bytes)
 }
 
@@ -142,7 +142,7 @@ fn unpack(
         ValueLayout::FixedBytes(_) => {
             // value = value << (32 - bytes) * 8
             let shift = builder.imm((32 - bytes) * 8);
-            builder.shl(shift, value)
+            builder.shl(value, shift)
         }
         _ => value,
     }

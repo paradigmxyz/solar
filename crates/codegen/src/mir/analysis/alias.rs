@@ -374,18 +374,6 @@ impl ModRef {
     }
 }
 
-fn add_storage_range(effects: &mut ModRef, base: StorageAlias, slots: u64, write: bool) {
-    for offset in 0..slots {
-        let offset = alloy_primitives::U256::from_limbs([offset, 0, 0, 0]);
-        let access = Access::Location(Location::Storage(base.offset_by(offset)));
-        if write {
-            effects.write(access);
-        } else {
-            effects.read(access);
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct AllocationProvenance {
     dynamic: bool,
@@ -673,7 +661,20 @@ impl AliasAnalysis {
         let Value::Inst(inst) = func.value(indexed) else { return None };
         let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else { return None };
         func.value_u64(index).is_none().then(|| {
-            self.memory_address(func, base).and_then(|base| base.checked_add(address.offset))
+            let base = self.memory_address(func, base)?.checked_add(address.offset)?;
+            // NOTE: `ptradd` keeps the access inside its object, but a direct access to an
+            // allocation of runtime size cannot prove it fits, so `bounded_memory_location` names
+            // that object by its pointer value. Name the indexed access the same way, or the two
+            // would look like different objects and every indexed store would clobber the
+            // object's header words.
+            match base.base {
+                MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst)
+                    if Self::allocation_size(func, inst).is_none() =>
+                {
+                    Self::unbounded_allocation(func, base, inst)
+                }
+                _ => Some(base),
+            }
         })
     }
 
@@ -695,10 +696,7 @@ impl AliasAnalysis {
         size: LocationSize,
     ) -> Option<MemoryLocation> {
         if let MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) = address.base {
-            let bound = match func.inst(inst).kind {
-                InstKind::Alloc { size, .. } => func.value_u64(size),
-                _ => None,
-            };
+            let bound = Self::allocation_size(func, inst);
             let within_bounds = size.as_const().is_some_and(|size| {
                 size == 0
                     || address
@@ -708,15 +706,34 @@ impl AliasAnalysis {
                         .is_some_and(|(end, bound)| end <= bound)
             });
             if !within_bounds {
-                // A fresh allocation's nonnegative offsets can reach other heap objects while
-                // staying outside reserved memory. Loop allocations may follow an FMP reset.
-                if matches!(address.base, MemoryBase::DynamicAllocation(_)) {
-                    address.region = MemoryRegion::Unknown;
-                }
-                address.base = MemoryBase::Value(func.inst_result_value(inst)?);
+                address = Self::unbounded_allocation(func, address, inst)?;
             }
         }
         Some(MemoryLocation::new(address, size))
+    }
+
+    /// The constant byte size of allocation `inst`, if any.
+    fn allocation_size(func: &Function, inst: InstId) -> Option<u64> {
+        match func.inst(inst).kind {
+            InstKind::Alloc { size, .. } => func.value_u64(size),
+            _ => None,
+        }
+    }
+
+    /// Names an access to allocation `inst` that may leave its bounds by the allocation's
+    /// pointer value instead, which keeps no disjointness from other allocations.
+    fn unbounded_allocation(
+        func: &Function,
+        mut address: MemoryAddress,
+        inst: InstId,
+    ) -> Option<MemoryAddress> {
+        // A fresh allocation's nonnegative offsets can reach other heap objects while
+        // staying outside reserved memory. Loop allocations may follow an FMP reset.
+        if matches!(address.base, MemoryBase::DynamicAllocation(_)) {
+            address.region = MemoryRegion::Unknown;
+        }
+        address.base = MemoryBase::Value(func.inst_result_value(inst)?);
+        Some(address)
     }
 
     /// Converts a MIR size operand to a canonical location size.
@@ -887,11 +904,9 @@ impl AliasAnalysis {
             InstKind::Store(address, _, PtrLocation::Memory)
             | InstKind::Store8(address, _)
             | InstKind::MemoryZero(address, _) => operand != *address,
-            InstKind::Copy(dest, source, _, PtrLocation::Memory)
-            | InstKind::StorageToMemory { memory: dest, storage: source, .. } => {
+            InstKind::Copy(dest, source, _, PtrLocation::Memory) => {
                 operand != *dest && operand != *source
             }
-            InstKind::MemoryToStorage { memory, .. } => operand != *memory,
             InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
             | InstKind::DataCopy(_, dest, _)
             | InstKind::CodeCopy(dest, _, _)
@@ -1166,38 +1181,6 @@ impl AliasAnalysis {
                 }
                 effects.write_any(AddressSpace::Memory);
             }
-            InstKind::StorageToMemory { .. } => {
-                let InstKind::StorageToMemory { storage, memory, layout } = kind else {
-                    unreachable!()
-                };
-                let base =
-                    self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
-                add_storage_range(&mut effects, base, layout.storage_slots(), false);
-                write_memory(&mut effects, *memory, SizeOperand::Const(layout.memory_words() * 32));
-                if layout.has_nested_layout() {
-                    effects.write_any(AddressSpace::Memory);
-                    let fmp = Access::Location(Location::Memory(Self::fmp_location()));
-                    effects.read(fmp);
-                    effects.write(fmp);
-                }
-            }
-            InstKind::MemoryToStorage { .. } => {
-                let InstKind::MemoryToStorage { memory, storage, layout } = kind else {
-                    unreachable!()
-                };
-                if layout.has_nested_layout() {
-                    effects.read_any(AddressSpace::Memory);
-                } else {
-                    read_memory(
-                        &mut effects,
-                        *memory,
-                        SizeOperand::Const(layout.memory_words() * 32),
-                    );
-                }
-                let base =
-                    self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
-                add_storage_range(&mut effects, base, layout.storage_slots(), true);
-            }
             InstKind::StorageBytesStore(_, object) => {
                 effects.read_any(AddressSpace::Storage);
                 effects.write_any(AddressSpace::Storage);
@@ -1208,12 +1191,6 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Storage);
             }
             InstKind::StorageClearWords(..) => effects.write_any(AddressSpace::Storage),
-            InstKind::ClearStorage { .. } => {
-                let InstKind::ClearStorage { storage, layout } = kind else { unreachable!() };
-                let base =
-                    self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
-                add_storage_range(&mut effects, base, layout.storage_slots(), true);
-            }
             InstKind::Copy(dest, source, size, PtrLocation::Memory) => {
                 read_memory(&mut effects, source, SizeOperand::Value(size));
                 write_memory(&mut effects, dest, SizeOperand::Value(size));

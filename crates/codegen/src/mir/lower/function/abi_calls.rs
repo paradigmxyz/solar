@@ -185,13 +185,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn is_external_abi_argument(&self, value: ValueId) -> bool {
-        self.builder.func().selector.is_some()
+        (self.builder.func().selector.is_some() || self.builder.func().attributes.is_fallback)
             && matches!(self.builder.func().value(value), Value::Arg(_))
     }
 
-    /// Whether `value` is an argument of an external function, which only ABI decoding passes. A
-    /// public function also takes its arguments from internal calls, which can pass a calldata
-    /// slice that assembly set.
+    /// Whether `value` is an external argument checked by ABI decoding, or the complete calldata
+    /// passed to a fallback. A public function also takes its arguments from internal calls,
+    /// which can pass a calldata slice that assembly set.
     pub(super) fn is_decoded_external_argument(&self, value: ValueId) -> bool {
         self.is_external_abi_argument(value)
             && self.builder.func().attributes.visibility == solar_ast::Visibility::External
@@ -443,6 +443,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let object =
                         self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
                     self.validate_calldata_bytes_slice(value);
+                    self.builder.memory_copy_from_slice(object, value);
+                    Some(object)
+                } else if self.is_decoded_external_argument(value) {
+                    // ABI decoding already checked the range, and a length within
+                    // calldata cannot overflow its padded allocation size.
+                    // object = bytes(data.len) !unchecked size
+                    // copy(data, object.data)
+                    let length = self.builder.slice_len(value);
+                    let object = self
+                        .builder
+                        .alloc_bounded_bytes_object(length, AllocationSemantics::INTERNAL);
                     self.builder.memory_copy_from_slice(object, value);
                     Some(object)
                 } else {
@@ -786,7 +797,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if is_external_function {
             // value = value >> 64
             let shift = self.builder.imm(64);
-            self.builder.shr(shift, value)
+            self.builder.shr(value, shift)
         } else {
             value
         }
@@ -808,6 +819,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn validate_calldata_bytes_slice(&mut self, slice: ValueId) {
+        // ABI decoding already checked an external argument's range.
+        if self.is_decoded_external_argument(slice) {
+            return;
+        }
         // calldata_tail_data(pointer, length, 1)
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);

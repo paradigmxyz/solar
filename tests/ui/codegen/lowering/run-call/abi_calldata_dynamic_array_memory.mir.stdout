@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_array_memory.sol:AbiCalldataDynamicArrayMemory ===
 @module AbiCalldataDynamicArrayMemory
-fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
+fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, uint256>>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -84,7 +84,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     v61 = extract_value slice<calldata>, v58, 1
     calldatacopy v59, v60, v61
     v62 = ptrtoint ptr<memory> v56 to i256
-    v63 = shl 5, v23
+    v63 = shl v23, 5
     v64 = ptradd v22, v63
     v65 = ptradd v64, 32
     mstore v65, v62
@@ -92,13 +92,13 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     jump bb1
 }
 
-fn @lengthMemory(arg0: ptr<memory>) -> i256 [selector=0xdefa62e9, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @lengthMemory(arg0: ptr<memory>) -> i256 [selector=0xdefa62e9, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     ret v0
 }
 
-fn @sumMemory(arg0: ptr<memory>) -> i256 [selector=0x13201b5d, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @sumMemory(arg0: ptr<memory>) -> i256 [selector=0x13201b5d, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     v1 = lt 0, v0
@@ -112,6 +112,6 @@ fn @sumMemory(arg0: ptr<memory>) -> i256 [selector=0x13201b5d, pure, abi_params=
     icall panic_if<0x32>, v7
     v8 = ptradd arg0, 64
     v9 = mload v8
-    v10 = checked_add u256, v4, v9
+    v10 = checked_add uint256, v4, v9
     ret v10
 }

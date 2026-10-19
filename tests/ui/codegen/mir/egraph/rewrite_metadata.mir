@@ -4,7 +4,7 @@
 
 // Local rewrites invalidate operation-specific facts while retaining provenance.
 // CHECK-LABEL: {{^[ +].*}}fn @arithmetic
-// CHECK: + {{v[0-9]+}} = shl 3, arg0 !metadata(hir=42, span=1..5, modifier_depth=3, unchecked, loop_depth=2)
+// CHECK: + {{v[0-9]+}} = shl arg0, 3 !metadata(hir=42, span=1..5, modifier_depth=3, unchecked, loop_depth=2)
 @types
   struct0: {i256, i256}
 

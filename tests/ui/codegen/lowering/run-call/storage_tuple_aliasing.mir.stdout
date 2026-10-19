@@ -6,7 +6,7 @@
   struct2: {i256, i256, i256}
   struct3: {ptr<memory>, ptr<memory>}
 
-fn @storageAliases() -> struct0 [selector=0x985e71ce, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @storageAliases() -> struct0 [selector=0x985e71ce, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = lt 0, 3
     v1 = eq v0, false
@@ -69,7 +69,7 @@ fn @storageAliases() -> struct0 [selector=0x985e71ce, abi_params=[], abi_returns
     ret v41
 }
 
-fn @lhsMutation() -> struct1 [selector=0x8bbab81c, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @lhsMutation() -> struct1 [selector=0x8bbab81c, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = lt 0, 3
     v1 = eq v0, false
@@ -123,7 +123,7 @@ fn @lhsMutation() -> struct1 [selector=0x8bbab81c, abi_params=[], abi_returns=[w
     ret v34
 }
 
-fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = lt 0, 3
     v1 = eq v0, false
@@ -142,7 +142,7 @@ fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns
     v9 = lt v8, 1
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = shl 5, v8
+    v11 = shl v8, 5
     v12 = ptradd v4, v11
     mstore v12, 1
     v13 = alloc checked 32
@@ -159,7 +159,7 @@ fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns
     ret v21
 }
 
-fn @returnedReferences() -> struct1 [selector=0x29826554, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @returnedReferences() -> struct1 [selector=0x29826554, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = lt 0, 3
     v1 = eq v0, false
@@ -207,7 +207,7 @@ fn @returnedReferences() -> struct1 [selector=0x29826554, abi_params=[], abi_ret
     ret v30
 }
 
-fn @nestedReturnedReferences() -> struct2 [selector=0xccf01a6c, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @nestedReturnedReferences() -> struct2 [selector=0xccf01a6c, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = lt 0, 3
     v1 = eq v0, false
@@ -274,7 +274,7 @@ fn @nestedReturnedReferences() -> struct2 [selector=0xccf01a6c, abi_params=[], a
     ret v44
 }
 
-fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = sload 5 !metadata(storage=slot(5))
     sstore 5, 0 !metadata(storage=slot(5))
@@ -380,7 +380,7 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
     v80 = insert_value struct0, v79, 3, v76
     ret v80
   bb21:
-    v56 = shl 5, v54
+    v56 = shl v54, 5
     v57 = ptradd v45, v56
     v58 = ptradd v57, 32
     v59 = mload v58
@@ -396,7 +396,7 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
     v53 = add v49, 1
     jump bb17
   bb13:
-    v38 = shl 5, v36
+    v38 = shl v36, 5
     v39 = ptradd v27, v38
     v40 = ptradd v39, 32
     v41 = mload v40
@@ -443,7 +443,7 @@ fn @byteArrays() -> struct3 [selector=0x2d074e2f, abi_params=[], abi_returns=[me
 fn @nextLhs() -> i256 {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 3, v1 !metadata(storage=slot(3))
     ret v0
 }
@@ -484,7 +484,7 @@ fn @pair() -> struct1 [view] {
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
-    v0 = load_storage_array u256, arg0
+    v0 = load_storage_array uint256, arg0
     ret v0
 }
 

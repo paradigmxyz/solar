@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256}
 
-fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = lt 0, 2
     v1 = eq v0, false
@@ -86,7 +86,7 @@ fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word
     sstore v22, 0 !metadata(storage=symbolic(v22))
     jump bb9
   bb7:
-    v24 = shl 5, v20
+    v24 = shl v20, 5
     v25 = ptradd v6, v24
     v26 = mload v25
     sstore v22, v26 !metadata(storage=symbolic(v22))
@@ -97,14 +97,14 @@ fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word
   bb2:
     v9 = add 2, v7
     v10 = sload v9 !metadata(storage=offset(v7, 2))
-    v11 = shl 5, v7
+    v11 = shl v7, 5
     v12 = ptradd v6, v11
     mstore v12, v10
     v13 = add v7, 1
     jump bb1
 }
 
-fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = lt 0, 2
     v1 = eq v0, false
@@ -114,12 +114,12 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     v4 = mod 0, 32
     v5 = mul v4, 1
     v6 = mul v5, 8
-    v7 = shl v6, 255
+    v7 = shl 255, v6
     v8 = sload v3 !metadata(storage=offset(v2, 4))
     v9 = not v7
     v10 = and v8, v9
     v11 = and 11, 255
-    v12 = shl v6, v11
+    v12 = shl v11, v6
     v13 = or v10, v12
     sstore v3, v13 !metadata(storage=offset(v2, 4))
     v14 = lt 1, 2
@@ -130,12 +130,12 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     v18 = mod 1, 32
     v19 = mul v18, 1
     v20 = mul v19, 8
-    v21 = shl v20, 255
+    v21 = shl 255, v20
     v22 = sload v17 !metadata(storage=offset(v16, 4))
     v23 = not v21
     v24 = and v22, v23
     v25 = and 22, 255
-    v26 = shl v20, v25
+    v26 = shl v25, v20
     v27 = or v24, v26
     sstore v17, v27 !metadata(storage=offset(v16, 4))
     v28 = alloc checked 64
@@ -209,7 +209,7 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     sstore v56, 0 !metadata(storage=symbolic(v56))
     jump bb12
   bb10:
-    v58 = shl 5, v54
+    v58 = shl v54, 5
     v59 = ptradd v28, v58
     v60 = mload v59
     sstore v56, v60 !metadata(storage=symbolic(v56))
@@ -234,11 +234,11 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     jump bb1
   bb5:
     v39 = mul v37, 8
-    v40 = shr v39, v32
+    v40 = shr v32, v39
     v41 = trunc i256 v40 to i8
     v42 = zext i8 v41 to i256
     v43 = add v33, v37
-    v44 = shl 5, v43
+    v44 = shl v43, 5
     v45 = ptradd v28, v44
     mstore v45, v42
     v46 = add v37, 1

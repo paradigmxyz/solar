@@ -4,7 +4,7 @@
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256}
 
-fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice ptr<calldata> 0, v0
@@ -18,71 +18,38 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v8 = sub v3, 4
     v9 = ptradd v2, 4
     v10 = make_calldata_slice v9, v8
-    v11 = extract_value slice<calldata>, v10, 1
-    v12 = extract_value slice<calldata>, v10, 0
-    v13 = add v11, 63
-    v14 = lt v13, v11
-    icall panic_if<0x41>, v14
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc v16
-    mstore v17, v11
-    v18 = ptradd v17, 32
-    calldatacopy v18, v12, v11 !metadata(memory=heap)
-    v19 = abi_decode [u256, u256], v17
-    v20 = extract_value struct1, v19, 0
-    v21 = extract_value struct1, v19, 1
-    v22 = calldatasize
-    v23 = make_calldata_slice ptr<calldata> 0, v22
-    v24 = extract_value slice<calldata>, v23, 0
-    v25 = extract_value slice<calldata>, v23, 1
-    v26 = gt 36, v25
-    v27 = lt 36, 4
-    v28 = or v26, v27
-    v29 = zext i1 v28 to i256
-    icall revert_if<empty>, v28
-    v30 = sub 36, 4
-    v31 = ptradd v24, 4
-    v32 = make_calldata_slice v31, v30
-    v33 = extract_value slice<calldata>, v32, 1
-    v34 = extract_value slice<calldata>, v32, 0
-    v35 = add v33, 63
-    v36 = lt v35, v33
-    icall panic_if<0x41>, v36
-    v37 = not 31
-    v38 = and v35, v37
-    v39 = alloc v38
-    mstore v39, v33
-    v40 = ptradd v39, 32
-    calldatacopy v40, v34, v33 !metadata(memory=heap)
-    v41 = abi_decode [u256], v39
-    v42 = calldatasize
-    v43 = make_calldata_slice ptr<calldata> 0, v42
-    v44 = extract_value slice<calldata>, v43, 0
-    v45 = extract_value slice<calldata>, v43, 1
-    v46 = gt 68, v45
-    v47 = lt 68, 36
-    v48 = or v46, v47
-    v49 = zext i1 v48 to i256
-    icall revert_if<empty>, v48
-    v50 = sub 68, 36
-    v51 = ptradd v44, 36
-    v52 = make_calldata_slice v51, v50
-    v53 = extract_value slice<calldata>, v52, 1
-    v54 = extract_value slice<calldata>, v52, 0
-    v55 = add v53, 63
-    v56 = lt v55, v53
-    icall panic_if<0x41>, v56
-    v57 = not 31
-    v58 = and v55, v57
-    v59 = alloc v58
-    mstore v59, v53
-    v60 = ptradd v59, 32
-    calldatacopy v60, v54, v53 !metadata(memory=heap)
-    v61 = abi_decode [u256], v59
-    v62 = insert_value struct0, undef struct0, 0, v20
-    v63 = insert_value struct0, v62, 1, v21
-    v64 = insert_value struct0, v63, 2, v41
-    v65 = insert_value struct0, v64, 3, v61
-    ret v65
+    v11 = abi_decode [uint256, uint256], v10
+    v12 = extract_value struct1, v11, 0
+    v13 = extract_value struct1, v11, 1
+    v14 = calldatasize
+    v15 = make_calldata_slice ptr<calldata> 0, v14
+    v16 = extract_value slice<calldata>, v15, 0
+    v17 = extract_value slice<calldata>, v15, 1
+    v18 = gt 36, v17
+    v19 = lt 36, 4
+    v20 = or v18, v19
+    v21 = zext i1 v20 to i256
+    icall revert_if<empty>, v20
+    v22 = sub 36, 4
+    v23 = ptradd v16, 4
+    v24 = make_calldata_slice v23, v22
+    v25 = abi_decode [uint256], v24
+    v26 = calldatasize
+    v27 = make_calldata_slice ptr<calldata> 0, v26
+    v28 = extract_value slice<calldata>, v27, 0
+    v29 = extract_value slice<calldata>, v27, 1
+    v30 = gt 68, v29
+    v31 = lt 68, 36
+    v32 = or v30, v31
+    v33 = zext i1 v32 to i256
+    icall revert_if<empty>, v32
+    v34 = sub 68, 36
+    v35 = ptradd v28, 36
+    v36 = make_calldata_slice v35, v34
+    v37 = abi_decode [uint256], v36
+    v38 = insert_value struct0, undef struct0, 0, v12
+    v39 = insert_value struct0, v38, 1, v13
+    v40 = insert_value struct0, v39, 2, v25
+    v41 = insert_value struct0, v40, 3, v37
+    ret v41
 }

@@ -3,7 +3,7 @@
   @module WordCursors
   fn @words(arg0: ptr<memory>) -> slice<memory> {
     bb0:
--     v0 = abi_encode [memory_array<word<u8>>], args arg0
+-     v0 = abi_encode [memory_array<word<uint8>>], args arg0
 -     ret v0
 +     v1 = fmp
 +     v2 = ptrtoint ptr<memory> v1 to i256
@@ -12,42 +12,37 @@
 +     v5 = sub v3, v4
 +     mstore v1, v5
 +     v6 = mload arg0
-+     v7 = ptrtoint ptr<memory> arg0 to i256
-+     v8 = eq v7, 0
-+     v9 = eq v8, false
-+     v10 = zext i1 v9 to i256
-+     v11 = mul v6, v10
-+     mstore v3, v11
-+     v12 = mul v11, 32
-+     v13 = add v3, 32
-+     v14 = ptradd arg0, 32
-+     v15 = add v13, v12
-+     v16 = ptrtoint ptr<memory> v14 to i256
-+     v17 = sub v16, v13
-+     v18 = ne v11, 0
-+     jumpi v18, bb1, bb2
++     mstore v3, v6
++     v7 = mul v6, 32
++     v8 = add v3, 32
++     v9 = ptradd arg0, 32
++     v10 = add v8, v7
++     v11 = ptrtoint ptr<memory> v9 to i256
++     v12 = sub v11, v8
++     v13 = ne v6, 0
++     jumpi v13, bb1, bb2
 +   bb1:
-+     v19 = phi [bb0: v11], [bb1: v24]
-+     v20 = phi [bb0: v13], [bb1: v25]
-+     v21 = add v20, v17
-+     v22 = mload v21
-+     v23 = and v22, 255
-+     mstore v20, v23
-+     v24 = sub v19, 1
-+     v25 = add v20, 32
-+     v26 = ne v24, 0
-+     jumpi v26, bb1, bb2
++     v14 = phi [bb0: v6], [bb1: v19]
++     v15 = phi [bb0: v8], [bb1: v20]
++     v16 = add v15, v12
++     v17 = mload v16
++     v18 = and v17, 255
++     mstore v15, v18
++     v19 = sub v14, 1
++     v20 = add v15, 32
++     v21 = ne v19, 0
++     jumpi v21, bb1, bb2
 +   bb2:
-+     v27 = phi [bb0: v13], [bb1: v25]
-+     v28 = ptrtoint ptr<memory> v1 to i256
-+     v29 = sub v27, v28
-+     v30 = add v29, 0
-+     v31 = add v30, 31
-+     v32 = not 31
-+     v33 = and v31, v32
-+     v34 = alloc v33 !metadata(preserves_fmp)
-+     v35 = make_memory_slice v34, v30
-+     ret v35
++     v22 = phi [bb0: v8], [bb1: v20]
++     v23 = ptrtoint ptr<memory> v1 to i256
++     v24 = sub v22, v23
++     v25 = add v24, 0
++     v26 = add v25, 31
++     v27 = not 31
++     v28 = and v26, v27
++     v29 = alloc v28 !metadata(preserves_fmp)
++     v30 = make_memory_slice v29, v25
++     ret v30
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (before egraph) ===
@@ -63,48 +58,42 @@
 -     mstore v1, v5
 +     mstore v1, 32
       v6 = mload arg0
-      v7 = ptrtoint ptr<memory> arg0 to i256
-      v8 = eq v7, 0
--     v9 = eq v8, false
-+     v9 = ne v7, 0
-      v10 = zext i1 v9 to i256
-      v11 = mul v6, v10
-      mstore v3, v11
--     v12 = mul v11, 32
-+     v12 = shl 5, v11
-      v13 = add v3, 32
-      v14 = ptradd arg0, 32
-      v15 = add v13, v12
-      v16 = ptrtoint ptr<memory> v14 to i256
-      v17 = sub v16, v13
-      v18 = ne v11, 0
-      jumpi v18, bb1, bb2
+      mstore v3, v6
+-     v7 = mul v6, 32
++     v7 = shl v6, 5
+      v8 = add v3, 32
+      v9 = ptradd arg0, 32
+      v10 = add v8, v7
+      v11 = ptrtoint ptr<memory> v9 to i256
+      v12 = sub v11, v8
+      v13 = ne v6, 0
+      jumpi v13, bb1, bb2
     bb1:
-      v19 = phi [bb0: v11], [bb1: v24]
-      v20 = phi [bb0: v13], [bb1: v25]
-      v21 = add v20, v17
-      v22 = mload v21
-      v23 = and v22, 255
-      mstore v20, v23
-      v24 = sub v19, 1
-      v25 = add v20, 32
-      v26 = ne v24, 0
-      jumpi v26, bb1, bb2
+      v14 = phi [bb0: v6], [bb1: v19]
+      v15 = phi [bb0: v8], [bb1: v20]
+      v16 = add v15, v12
+      v17 = mload v16
+      v18 = and v17, 255
+      mstore v15, v18
+      v19 = sub v14, 1
+      v20 = add v15, 32
+      v21 = ne v19, 0
+      jumpi v21, bb1, bb2
     bb2:
-      v27 = phi [bb0: v13], [bb1: v25]
--     v28 = ptrtoint ptr<memory> v1 to i256
--     v29 = sub v27, v28
--     v30 = add v29, 0
--     v31 = add v30, 31
--     v32 = not 31
--     v33 = and v31, v32
-+     v29 = sub v27, v2
-+     v31 = add v29, 31
-+     v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-      v34 = alloc v33 !metadata(preserves_fmp)
--     v35 = make_memory_slice v34, v30
-+     v35 = make_memory_slice v34, v29
-      ret v35
+      v22 = phi [bb0: v8], [bb1: v20]
+-     v23 = ptrtoint ptr<memory> v1 to i256
+-     v24 = sub v22, v23
+-     v25 = add v24, 0
+-     v26 = add v25, 31
+-     v27 = not 31
+-     v28 = and v26, v27
++     v24 = sub v22, v2
++     v26 = add v24, 31
++     v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+      v29 = alloc v28 !metadata(preserves_fmp)
+-     v30 = make_memory_slice v29, v25
++     v30 = make_memory_slice v29, v24
+      ret v30
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (before dce) ===
@@ -117,38 +106,33 @@
       v3 = add v2, 32
       mstore v1, 32
       v6 = mload arg0
-      v7 = ptrtoint ptr<memory> arg0 to i256
--     v8 = eq v7, 0
-      v9 = ne v7, 0
-      v10 = zext i1 v9 to i256
-      v11 = mul v6, v10
-      mstore v3, v11
--     v12 = shl 5, v11
-      v13 = add v3, 32
-      v14 = ptradd arg0, 32
--     v15 = add v13, v12
-      v16 = ptrtoint ptr<memory> v14 to i256
-      v17 = sub v16, v13
-      v18 = ne v11, 0
-      jumpi v18, bb1, bb2
+      mstore v3, v6
+-     v7 = shl v6, 5
+      v8 = add v3, 32
+      v9 = ptradd arg0, 32
+-     v10 = add v8, v7
+      v11 = ptrtoint ptr<memory> v9 to i256
+      v12 = sub v11, v8
+      v13 = ne v6, 0
+      jumpi v13, bb1, bb2
     bb1:
-      v19 = phi [bb0: v11], [bb1: v24]
-      v20 = phi [bb0: v13], [bb1: v25]
-      v21 = add v20, v17
-      v22 = mload v21
-      v23 = and v22, 255
-      mstore v20, v23
-      v24 = sub v19, 1
-      v25 = add v20, 32
-      v26 = ne v24, 0
-      jumpi v26, bb1, bb2
+      v14 = phi [bb0: v6], [bb1: v19]
+      v15 = phi [bb0: v8], [bb1: v20]
+      v16 = add v15, v12
+      v17 = mload v16
+      v18 = and v17, 255
+      mstore v15, v18
+      v19 = sub v14, 1
+      v20 = add v15, 32
+      v21 = ne v19, 0
+      jumpi v21, bb1, bb2
     bb2:
-      v27 = phi [bb0: v13], [bb1: v25]
-      v29 = sub v27, v2
-      v31 = add v29, 31
-      v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-      v34 = alloc v33 !metadata(preserves_fmp)
-      v35 = make_memory_slice v34, v29
-      ret v35
+      v22 = phi [bb0: v8], [bb1: v20]
+      v24 = sub v22, v2
+      v26 = add v24, 31
+      v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+      v29 = alloc v28 !metadata(preserves_fmp)
+      v30 = make_memory_slice v29, v24
+      ret v30
   }
   

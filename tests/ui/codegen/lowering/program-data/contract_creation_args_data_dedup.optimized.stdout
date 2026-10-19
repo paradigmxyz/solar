@@ -43,9 +43,6 @@ bb6:
   add
   push 64
   mstore
-  dup 1
-  dup 2
-  mstore
   push 32
   dup 2
   add
@@ -53,41 +50,30 @@ bb6:
   push_data literal_0
   dup 3
   codecopy
-  dup 2
-  iszero
-  iszero
-  push 7
-  shl
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
   push 0
-  dup 2
-  dup 5
+  dup 3
+  dup 3
   add
   mstore
   dup 2
-  dup 4
+  dup 2
   push 64
-  dup 7
+  dup 5
   add
   mcopy
   push 32
-  dup 5
+  dup 3
   mstore
-  swap 2
+  dup 2
+  swap 1
   mstore
-  push 64
-  add
+  push 192
   swap 1
   return
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 @module FactoryWithArgs_runtime
 @data
-  ChildWithArg_creation_code_0: hex"6101d33803806101d360e03960e001601f01601f19166040523460455760e06101d33803016101001160455760e05160c05261010a8060c960e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040528081526020810181608a823981151560071b601f8101601f19165f818401528183604086015e60208452915260400190f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+  ChildWithArg_creation_code_0: hex"61014138038061014160e03960e001601f01601f191660405260e0806101413803019060200111341760445760e05160c05260f980604860e03960c0516101035260e0f35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040526020810181607982395f828201528181604084015e6020825281905260c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
 bb0:
   callvalue
@@ -145,22 +131,22 @@ bb6:
   mstore
   push 64
   mload
-  push 512
+  push 384
   dup 2
   add
   push 64
   mstore
-  push 467
+  push 321
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 467
+  push 321
   dup 4
   add
   mcopy
-  push 499
+  push 353
   swap 1
   push 0
   create
@@ -224,23 +210,23 @@ bb12:
   mstore
   push 64
   mload
-  push 512
+  push 384
   dup 2
   add
   push 64
   mstore
-  push 467
+  push 321
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 467
+  push 321
   dup 4
   add
   mcopy
   push 1
-  push 499
+  push 353
   dup 3
   push 0
   create2
@@ -265,22 +251,22 @@ bb18:
   mstore
   push 64
   mload
-  push 512
+  push 384
   dup 2
   add
   push 64
   mstore
-  push 467
+  push 321
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 467
+  push 321
   dup 4
   add
   mcopy
-  push 499
+  push 353
   swap 1
   push 0
   create
@@ -305,22 +291,22 @@ bb18:
   mstore
   push 64
   mload
-  push 512
+  push 384
   dup 2
   add
   push 64
   mstore
-  push 467
+  push 321
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 467
+  push 321
   dup 4
   add
   mcopy
-  push 499
+  push 353
   swap 1
   push 0
   create

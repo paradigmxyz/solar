@@ -1,0 +1,44 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/decoded_struct_field.sol:DecodedStructField ===
+@module DecodedStructField
+@phase lowered
+fn @tokenId() [selector=0x8f25c453, abi_wrapper, pure] {
+  bb0:
+    v23 = calldatasize
+    v24 = lt v23, 36
+    v25 = calldataload 4
+    v26 = add v25, 4
+    v27 = add v26, 32
+    v28 = gt v25, 0xffffffffffffffff
+    v29 = gt v27, v23
+    v30 = or v28, v29
+    v32 = calldataload v26
+    v34 = sub v23, v27
+    v35 = gt v32, v34
+    v38 = or v30, v35
+    v44 = or v24, v38
+    v6 = slt v32, 128
+    v45 = or v44, v6
+    jumpi v45, bb1, bb2
+  bb2:
+    v7 = alloc 128 !metadata(deferred_alloc)
+    v8 = calldataload v27
+    mstore 128, v8
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x8f25c453 => bb2]
+  bb2:
+    tail_call @tokenId
+  bb3:
+    revert 0, 0
+}
