@@ -13,7 +13,6 @@ mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
 pub(crate) mod compact_pushes;
-mod constant_data;
 pub(super) mod data;
 mod dce;
 mod inline_returns;
@@ -101,7 +100,6 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &stack_normalize::StackNormalize::FINAL,
     &stack_reschedule::StackReschedule,
     &compact_pushes::CompactPushes,
-    &constant_data::ConstantData,
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
     &legalize_shifts::LegalizeShifts,
@@ -170,8 +168,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify::FINAL,
     &block_layout::BlockLayout,
-    // Materialize constants and pack the referenced data pool before final sharing and cleanup.
-    &constant_data::ConstantData,
+    // Materialize literal-store runs and pack the referenced data pool before final sharing and
+    // cleanup.
     &data::PackData,
     // Data packing can add compactable immediates and local stack shuffles.
     &compact_pushes::CompactPushes,
@@ -182,7 +180,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(dce::Dce),
     &late_structural::LateStructural,
     &peephole::Peephole::FINAL,
-    &inline_returns::InlineReturns,
+    &peephole::Cleanup(inline_returns::InlineReturns),
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,

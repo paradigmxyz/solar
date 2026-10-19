@@ -402,10 +402,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_op(op::CODECOPY);
             }
-            // mstore(FMP_SLOT, heap_start)
-            self.emit_constructor_heap_start();
-            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-            self.asm.emit_op(op::MSTORE);
+            // Without arguments to place above, the pointer matters only to code that reads it,
+            // as in runtime entries.
+            let needs_free_memory = constructor_arg_offset.is_some()
+                || Self::functions_need_free_memory(
+                    module,
+                    call_graph,
+                    internal_targets.iter().chain([ctor_id]),
+                );
+            if needs_free_memory {
+                // mstore(FMP_SLOT, heap_start)
+                self.emit_constructor_heap_start();
+                self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+                self.asm.emit_op(op::MSTORE);
+            }
 
             // Every ordinary completion of the constructor body (which includes SSTORE for
             // initializers) jumps to one label so branch layout cannot strand the deployment

@@ -9,7 +9,7 @@
 +     v2 = eq v1, 1 !metadata(span=10..20, modifier_depth=1)
 +     v3 = sub 0, v1 !metadata(span=10..20, modifier_depth=1)
 +     v4 = or 127, v3 !metadata(span=10..20, modifier_depth=1)
-+     v5 = shr 1, v0 !metadata(span=10..20, modifier_depth=1)
++     v5 = shr v0, 1 !metadata(span=10..20, modifier_depth=1)
 +     v6 = and v5, v4 !metadata(span=10..20, modifier_depth=1)
 +     v7 = lt v6, 32 !metadata(span=10..20, modifier_depth=1)
 +     v8 = eq v2, v7 !metadata(span=10..20, modifier_depth=1)
@@ -31,7 +31,7 @@
 +     v3 = eq v2, 1 !metadata(span=20..30, modifier_depth=2)
 +     v4 = sub 0, v2 !metadata(span=20..30, modifier_depth=2)
 +     v5 = or 127, v4 !metadata(span=20..30, modifier_depth=2)
-+     v6 = shr 1, v1 !metadata(span=20..30, modifier_depth=2)
++     v6 = shr v1, 1 !metadata(span=20..30, modifier_depth=2)
 +     v7 = and v6, v5 !metadata(span=20..30, modifier_depth=2)
 +     v8 = lt v7, 32 !metadata(span=20..30, modifier_depth=2)
 +     v9 = eq v3, v8 !metadata(span=20..30, modifier_depth=2)
@@ -95,7 +95,7 @@
 +     v4 = eq v3, 1
 +     v5 = sub 0, v3
 +     v6 = or 127, v5
-+     v7 = shr 1, v2
++     v7 = shr v2, 1
 +     v8 = and v7, v6
 +     v9 = lt v8, 32
 +     v10 = eq v4, v9
@@ -191,7 +191,7 @@
 +     v3 = eq v2, 1 !metadata(span=40..50, modifier_depth=4)
 +     v4 = sub 0, v2 !metadata(span=40..50, modifier_depth=4)
 +     v5 = or 127, v4 !metadata(span=40..50, modifier_depth=4)
-+     v6 = shr 1, v1 !metadata(span=40..50, modifier_depth=4)
++     v6 = shr v1, 1 !metadata(span=40..50, modifier_depth=4)
 +     v7 = and v6, v5 !metadata(span=40..50, modifier_depth=4)
 +     v8 = lt v7, 32 !metadata(span=40..50, modifier_depth=4)
 +     v9 = eq v3, v8 !metadata(span=40..50, modifier_depth=4)
@@ -220,7 +220,7 @@
 +   bb9:
 +     jumpi v19, bb10, bb11 !metadata(span=40..50, modifier_depth=4)
 +   bb11:
-+     v34 = shl 1, v13 !metadata(span=40..50, modifier_depth=4)
++     v34 = shl v13, 1 !metadata(span=40..50, modifier_depth=4)
 +     v35 = or v34, 1 !metadata(span=40..50, modifier_depth=4)
 +     sstore arg1, v35 !metadata(storage=symbolic(arg1), span=40..50, modifier_depth=4)
 +     v36 = storage_array_data_slot arg1 !metadata(span=40..50, modifier_depth=4)
@@ -242,7 +242,7 @@
 +     v53 = mload v52 !metadata(span=40..50, modifier_depth=4)
 +     v54 = sub 32, v47 !metadata(span=40..50, modifier_depth=4)
 +     v55 = mul v54, 8 !metadata(span=40..50, modifier_depth=4)
-+     v56 = shl v55, 1 !metadata(span=40..50, modifier_depth=4)
++     v56 = shl 1, v55 !metadata(span=40..50, modifier_depth=4)
 +     v57 = sub v56, 1 !metadata(span=40..50, modifier_depth=4)
 +     v58 = not v57 !metadata(span=40..50, modifier_depth=4)
 +     v59 = and v53, v58 !metadata(span=40..50, modifier_depth=4)
@@ -264,7 +264,7 @@
 +     v25 = mload v24 !metadata(span=40..50, modifier_depth=4)
 +     v26 = sub 32, v13 !metadata(span=40..50, modifier_depth=4)
 +     v27 = mul v26, 8 !metadata(span=40..50, modifier_depth=4)
-+     v28 = shl v27, 1 !metadata(span=40..50, modifier_depth=4)
++     v28 = shl 1, v27 !metadata(span=40..50, modifier_depth=4)
 +     v29 = sub v28, 1 !metadata(span=40..50, modifier_depth=4)
 +     v30 = not v29 !metadata(span=40..50, modifier_depth=4)
 +     v31 = and v25, v30 !metadata(span=40..50, modifier_depth=4)
@@ -299,7 +299,7 @@
 +     v17 = eq v16, 1
 +     v18 = sub 0, v16
 +     v19 = or 127, v18
-+     v20 = shr 1, v15
++     v20 = shr v15, 1
 +     v21 = and v20, v19
 +     v22 = lt v21, 32
 +     v23 = eq v17, v22
@@ -326,7 +326,7 @@
 +     v34 = eq v33, 1
 +     v35 = sub 0, v33
 +     v36 = or 127, v35
-+     v37 = shr 1, v32
++     v37 = shr v32, 1
 +     v38 = and v37, v36
 +     v39 = lt v38, 32
 +     v40 = eq v34, v39
@@ -355,7 +355,7 @@
 +     v3 = eq v2, 1 !metadata(span=50..60, modifier_depth=5)
 +     v4 = sub 0, v2 !metadata(span=50..60, modifier_depth=5)
 +     v5 = or 127, v4 !metadata(span=50..60, modifier_depth=5)
-+     v6 = shr 1, v1 !metadata(span=50..60, modifier_depth=5)
++     v6 = shr v1, 1 !metadata(span=50..60, modifier_depth=5)
 +     v7 = and v6, v5 !metadata(span=50..60, modifier_depth=5)
 +     v8 = lt v7, 32 !metadata(span=50..60, modifier_depth=5)
 +     v9 = eq v3, v8 !metadata(span=50..60, modifier_depth=5)
@@ -424,7 +424,7 @@
 +     v1 = eq v0, 1
 +     v2 = sub 0, v0
 +     v3 = or 127, v2
-+     v4 = shr 1, arg1
++     v4 = shr arg1, 1
 +     v5 = and v4, v3
 +     v6 = lt v5, 32
 +     v7 = eq v1, v6

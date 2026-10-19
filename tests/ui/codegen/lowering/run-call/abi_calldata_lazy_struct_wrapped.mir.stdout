@@ -3,7 +3,7 @@
 @types
   struct0: {i256, ptr<memory>}
 
-fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_params=[array<_, tuple<u256, bytes>>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_params=[array<_, tuple<uint256, bytes>>], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 0, v0

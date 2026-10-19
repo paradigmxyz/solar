@@ -7,7 +7,7 @@ contract ConstructorAbiValidation {
     bool public flag;
 
     // CHECK-LABEL: fn @second{{[( ]}}
-    // CHECK: shr 8,
+    // CHECK: shr {{[^ ,]+}}, 8{{$}}
     // CHECK: trunc i256 {{v[0-9]+}} to i8
     bool public second;
 

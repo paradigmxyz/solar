@@ -8,12 +8,12 @@
 
 // Three adjacent byte reads packed in order are one field of one word read.
 // CHECK-LABEL: fn @three
-// CHECK: shr 232
+// CHECK: shr {{v[0-9]+}}, 232
 // CHECK-NOT: byte 0
 
 // Two adjacent reads are a run as well, at the width they cover.
 // CHECK-LABEL: fn @two
-// CHECK: shr 240
+// CHECK: shr {{v[0-9]+}}, 240
 
 // Offsets that skip a byte are not a run and keep their shift and OR, but the
 // two reads still land in one word, so the second takes the byte its offset
@@ -26,7 +26,7 @@
 // A store between the reads may change what the later ones see, so the read
 // above it cannot join their run.
 // CHECK-LABEL: fn @stored
-// CHECK-NOT: shr 232
+// CHECK-NOT: shr {{v[0-9]+}}, 232
 
 contract Test {
     function three(bytes memory s) public pure returns (uint256) {

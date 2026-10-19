@@ -6,72 +6,72 @@
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = shl 16, 0xffff
+    v0 = shl 0xffff, 16
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = not v0
     v3 = and v1, v2
-    v4 = shr 240, 0xbbcc000000000000000000000000000000000000000000000000000000000000
+    v4 = shr 0xbbcc000000000000000000000000000000000000000000000000000000000000, 240
     v5 = and v4, 0xffff
-    v6 = shl 16, v5
+    v6 = shl v5, 16
     v7 = or v3, v6
     sstore 0, v7 !metadata(storage=slot(0))
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = not 255
     v10 = and v8, v9
-    v11 = shr 248, 0xaa00000000000000000000000000000000000000000000000000000000000000
+    v11 = shr 0xaa00000000000000000000000000000000000000000000000000000000000000, 248
     v12 = and v11, 255
     v13 = or v10, v12
     sstore 0, v13 !metadata(storage=slot(0))
-    v14 = shl 8, 255
+    v14 = shl 255, 8
     v15 = sload 0 !metadata(storage=slot(0))
     v16 = not v14
     v17 = and v15, v16
     v18 = and 17, 255
-    v19 = shl 8, v18
+    v19 = shl v18, 8
     v20 = or v17, v19
     sstore 0, v20 !metadata(storage=slot(0))
-    v21 = shl 32, 255
+    v21 = shl 255, 32
     v22 = sload 0 !metadata(storage=slot(0))
     v23 = not v21
     v24 = and v22, v23
     v25 = and 254, 255
-    v26 = shl 32, v25
+    v26 = shl v25, 32
     v27 = or v24, v26
     sstore 0, v27 !metadata(storage=slot(0))
-    v28 = shl 40, 0xffffff
+    v28 = shl 0xffffff, 40
     v29 = sload 0 !metadata(storage=slot(0))
     v30 = not v28
     v31 = and v29, v30
-    v32 = shr 232, 0xddeeff0000000000000000000000000000000000000000000000000000000000
+    v32 = shr 0xddeeff0000000000000000000000000000000000000000000000000000000000, 232
     v33 = and v32, 0xffffff
-    v34 = shl 40, v33
+    v34 = shl v33, 40
     v35 = or v31, v34
     sstore 0, v35 !metadata(storage=slot(0))
     ret
 }
 
-fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u16>, word<i8>, word<u24>], abi_return_params=[u8, u8, u16, i8, u24]] {
+fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint16>, word<int8>, word<uint24>], abi_return_params=[uint8, uint8, uint16, int8, uint24]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = shl 248, v0
-    v2 = shr 248, v1
+    v1 = shl v0, 248
+    v2 = shr v1, 248
     v3 = trunc i256 v2 to i8
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = shr 8, v4
+    v5 = shr v4, 8
     v6 = trunc i256 v5 to i8
     v7 = sload 0 !metadata(storage=slot(0))
-    v8 = shr 16, v7
-    v9 = shl 240, v8
-    v10 = shr 240, v9
+    v8 = shr v7, 16
+    v9 = shl v8, 240
+    v10 = shr v9, 240
     v11 = trunc i256 v10 to i16
     v12 = sload 0 !metadata(storage=slot(0))
-    v13 = shr 32, v12
+    v13 = shr v12, 32
     v14 = signextend 0, v13
     v15 = trunc i256 v14 to i8
     v16 = sload 0 !metadata(storage=slot(0))
-    v17 = shr 40, v16
-    v18 = shl 232, v17
-    v19 = shr 232, v18
+    v17 = shr v16, 40
+    v18 = shl v17, 232
+    v19 = shr v18, 232
     v20 = trunc i256 v19 to i24
     v21 = insert_value struct0, undef struct0, 0, v3
     v22 = insert_value struct0, v21, 1, v6
@@ -87,13 +87,13 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
     ret v0
 }
 
-fn @selector() -> struct1 [selector=0xea3d508a, pure, abi_params=[], abi_returns=[word<bytes4>, word<u32>], abi_return_params=[bytes4, u32]] {
+fn @selector() -> struct1 [selector=0xea3d508a, pure, abi_params=[], abi_returns=[word<bytes4>, word<uint32>], abi_return_params=[bytes4, uint32]] {
   bb0:
     v0 = calldataload 0
     v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v2 = calldataload 0
     v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v4 = shr 224, v3
+    v4 = shr v3, 224
     v5 = trunc i256 v4 to i32
     v6 = insert_value struct1, undef struct1, 0, v1
     v7 = insert_value struct1, v6, 1, v5

@@ -30,7 +30,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v50 = eq v49, 1
     v51 = sub 0, v49
     v52 = or 127, v51
-    v53 = shr 1, v48
+    v53 = shr v48, 1
     v54 = and v53, v52
     v55 = eq v54, 0
     icall panic_if<0x31>, v55
@@ -42,18 +42,18 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     jumpi v68, bb19, bb20
   bb20:
     v77 = storage_array_data_slot 0
-    v78 = shr 5, v67
+    v78 = shr v67, 5
     v79 = add v77, v78
     v80 = and v67, 31
     v81 = sub 31, v80
     v82 = mul v81, 8
-    v83 = shl v82, 255
+    v83 = shl 255, v82
     v84 = sload v79 !metadata(storage=symbolic(v79))
     v85 = not v83
     v86 = and v84, v85
-    v87 = shr 248, 0
+    v87 = shr 0, 248
     v88 = and v87, 255
-    v89 = shl v82, v88
+    v89 = shl v88, v82
     v90 = or v86, v89
     sstore v79, v90 !metadata(storage=symbolic(v79))
     v91 = sub v48, 2
@@ -62,7 +62,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb19:
     v69 = sub 32, v67
     v70 = mul v69, 8
-    v71 = shl v70, 1
+    v71 = shl 1, v70
     v72 = sub v71, 1
     v73 = not v72
     v74 = and v48, v73
@@ -75,7 +75,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v58 = sload v57 !metadata(storage=symbolic(v57))
     v59 = sub 32, 31
     v60 = mul v59, 8
-    v61 = shl v60, 1
+    v61 = shl 1, v60
     v62 = sub v61, 1
     v63 = not v62
     v64 = and v58, v63
@@ -89,7 +89,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb17:
     jump bb14
   bb14:
-    v92 = checked_add u256, v46, 1
+    v92 = checked_add uint256, v46, 1
     jump bb12
   bb4:
     v3 = sload 0 !metadata(storage=slot(0))
@@ -98,7 +98,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v5 = eq v4, 1
     v6 = sub 0, v4
     v7 = or 127, v6
-    v8 = shr 1, v3
+    v8 = shr v3, 1
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
     v11 = eq v10, false
@@ -112,11 +112,11 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v34 = add v3, 2
     v35 = sub 31, v9
     v36 = mul v35, 8
-    v37 = shl v36, 255
+    v37 = shl 255, v36
     v38 = not v37
     v39 = and v34, v38
     v40 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
-    v41 = shl v36, v40
+    v41 = shl v40, v36
     v42 = or v39, v41
     sstore 0, v42 !metadata(storage=slot(0))
     jump bb11
@@ -133,18 +133,18 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v13 = add v3, 2
     sstore 0, v13 !metadata(storage=slot(0))
     v14 = storage_array_data_slot 0
-    v15 = shr 5, v9
+    v15 = shr v9, 5
     v16 = add v14, v15
     v17 = and v9, 31
     v18 = sub 31, v17
     v19 = mul v18, 8
-    v20 = shl v19, 255
+    v20 = shl 255, v19
     v21 = sload v16 !metadata(storage=symbolic(v16))
     v22 = not v20
     v23 = and v21, v22
-    v24 = shr 248, 0x300000000000000000000000000000000000000000000000000000000000000
+    v24 = shr 0x300000000000000000000000000000000000000000000000000000000000000, 248
     v25 = and v24, 255
-    v26 = shl v19, v25
+    v26 = shl v25, v19
     v27 = or v23, v26
     sstore v16, v27 !metadata(storage=symbolic(v16))
     jump bb11
@@ -153,7 +153,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb6:
     jump bb3
   bb3:
-    v43 = checked_add u256, v1, 1
+    v43 = checked_add uint256, v1, 1
     jump bb1
 }
 
@@ -177,7 +177,7 @@ fn @testNoPop() -> ptr<memory> [selector=0xa43e8948, abi_params=[], abi_returns=
     v5 = eq v4, 1
     v6 = sub 0, v4
     v7 = or 127, v6
-    v8 = shr 1, v3
+    v8 = shr v3, 1
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
     v11 = eq v10, false
@@ -191,11 +191,11 @@ fn @testNoPop() -> ptr<memory> [selector=0xa43e8948, abi_params=[], abi_returns=
     v34 = add v3, 2
     v35 = sub 31, v9
     v36 = mul v35, 8
-    v37 = shl v36, 255
+    v37 = shl 255, v36
     v38 = not v37
     v39 = and v34, v38
     v40 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
-    v41 = shl v36, v40
+    v41 = shl v40, v36
     v42 = or v39, v41
     sstore 0, v42 !metadata(storage=slot(0))
     jump bb11
@@ -212,18 +212,18 @@ fn @testNoPop() -> ptr<memory> [selector=0xa43e8948, abi_params=[], abi_returns=
     v13 = add v3, 2
     sstore 0, v13 !metadata(storage=slot(0))
     v14 = storage_array_data_slot 0
-    v15 = shr 5, v9
+    v15 = shr v9, 5
     v16 = add v14, v15
     v17 = and v9, 31
     v18 = sub 31, v17
     v19 = mul v18, 8
-    v20 = shl v19, 255
+    v20 = shl 255, v19
     v21 = sload v16 !metadata(storage=symbolic(v16))
     v22 = not v20
     v23 = and v21, v22
-    v24 = shr 248, 0x300000000000000000000000000000000000000000000000000000000000000
+    v24 = shr 0x300000000000000000000000000000000000000000000000000000000000000, 248
     v25 = and v24, 255
-    v26 = shl v19, v25
+    v26 = shl v25, v19
     v27 = or v23, v26
     sstore v16, v27 !metadata(storage=symbolic(v16))
     jump bb11
@@ -232,11 +232,11 @@ fn @testNoPop() -> ptr<memory> [selector=0xa43e8948, abi_params=[], abi_returns=
   bb6:
     jump bb3
   bb3:
-    v43 = checked_add u256, v1, 1
+    v43 = checked_add uint256, v1, 1
     jump bb1
 }
 
-fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     jump bb1
   bb1:
@@ -253,7 +253,7 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v46 = eq v45, 1
     v47 = sub 0, v45
     v48 = or 127, v47
-    v49 = shr 1, v44
+    v49 = shr v44, 1
     v50 = and v49, v48
     v51 = eq v50, 0
     icall panic_if<0x31>, v51
@@ -265,18 +265,18 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     jumpi v64, bb13, bb14
   bb14:
     v73 = storage_array_data_slot 0
-    v74 = shr 5, v63
+    v74 = shr v63, 5
     v75 = add v73, v74
     v76 = and v63, 31
     v77 = sub 31, v76
     v78 = mul v77, 8
-    v79 = shl v78, 255
+    v79 = shl 255, v78
     v80 = sload v75 !metadata(storage=symbolic(v75))
     v81 = not v79
     v82 = and v80, v81
-    v83 = shr 248, 0
+    v83 = shr 0, 248
     v84 = and v83, 255
-    v85 = shl v78, v84
+    v85 = shl v84, v78
     v86 = or v82, v85
     sstore v75, v86 !metadata(storage=symbolic(v75))
     v87 = sub v44, 2
@@ -285,7 +285,7 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
   bb13:
     v65 = sub 32, v63
     v66 = mul v65, 8
-    v67 = shl v66, 1
+    v67 = shl 1, v66
     v68 = sub v67, 1
     v69 = not v68
     v70 = and v44, v69
@@ -298,7 +298,7 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v54 = sload v53 !metadata(storage=symbolic(v53))
     v55 = sub 32, 31
     v56 = mul v55, 8
-    v57 = shl v56, 1
+    v57 = shl 1, v56
     v58 = sub v57, 1
     v59 = not v58
     v60 = and v54, v59
@@ -314,7 +314,7 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v90 = eq v89, 1
     v91 = sub 0, v89
     v92 = or 127, v91
-    v93 = shr 1, v88
+    v93 = shr v88, 1
     v94 = and v93, v92
     v95 = lt 0, v94
     v96 = eq v95, false
@@ -324,7 +324,7 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     jump bb19
   bb17:
     v97 = storage_array_data_slot 0
-    v98 = shr 5, 0
+    v98 = shr 0, 5
     v99 = add v97, v98
     jump bb19
   bb19:
@@ -333,9 +333,9 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v102 = sub 31, v101
     v103 = sload v100 !metadata(storage=symbolic(v100))
     v104 = mul v102, 8
-    v105 = shr v104, v103
-    v106 = shl 248, v105
-    v107 = shr 248, v106
+    v105 = shr v103, v104
+    v106 = shl v105, 248
+    v107 = shr v106, 248
     v108 = trunc i256 v107 to i8
     ret v108
   bb4:
@@ -345,7 +345,7 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v5 = eq v4, 1
     v6 = sub 0, v4
     v7 = or 127, v6
-    v8 = shr 1, v3
+    v8 = shr v3, 1
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
     v11 = eq v10, false
@@ -359,11 +359,11 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v34 = add v3, 2
     v35 = sub 31, v9
     v36 = mul v35, 8
-    v37 = shl v36, 255
+    v37 = shl 255, v36
     v38 = not v37
     v39 = and v34, v38
     v40 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
-    v41 = shl v36, v40
+    v41 = shl v40, v36
     v42 = or v39, v41
     sstore 0, v42 !metadata(storage=slot(0))
     jump bb11
@@ -380,18 +380,18 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v13 = add v3, 2
     sstore 0, v13 !metadata(storage=slot(0))
     v14 = storage_array_data_slot 0
-    v15 = shr 5, v9
+    v15 = shr v9, 5
     v16 = add v14, v15
     v17 = and v9, 31
     v18 = sub 31, v17
     v19 = mul v18, 8
-    v20 = shl v19, 255
+    v20 = shl 255, v19
     v21 = sload v16 !metadata(storage=symbolic(v16))
     v22 = not v20
     v23 = and v21, v22
-    v24 = shr 248, 0x300000000000000000000000000000000000000000000000000000000000000
+    v24 = shr 0x300000000000000000000000000000000000000000000000000000000000000, 248
     v25 = and v24, 255
-    v26 = shl v19, v25
+    v26 = shl v25, v19
     v27 = or v23, v26
     sstore v16, v27 !metadata(storage=symbolic(v16))
     jump bb11
@@ -400,6 +400,6 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
   bb6:
     jump bb3
   bb3:
-    v43 = checked_add u256, v1, 1
+    v43 = checked_add uint256, v1, 1
     jump bb1
 }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/bytes_memory_storage.sol:BytesMemoryStorage ===
 @module BytesMemoryStorage
-fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 4
@@ -13,7 +13,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v4 = eq v3, 1
     v5 = sub 0, v3
     v6 = or 127, v5
-    v7 = shr 1, v2
+    v7 = shr v2, 1
     v8 = and v7, v6
     v9 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v9
@@ -21,7 +21,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v11 = eq v10, 1
     v12 = sub 0, v10
     v13 = or 127, v12
-    v14 = shr 1, v9
+    v14 = shr v9, 1
     v15 = and v14, v13
     v16 = lt 0, v15
     v17 = eq v16, false
@@ -31,7 +31,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     jump bb3
   bb1:
     v18 = storage_array_data_slot 0
-    v19 = shr 5, 0
+    v19 = shr 0, 5
     v20 = add v18, v19
     jump bb3
   bb3:
@@ -40,16 +40,16 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v23 = sub 31, v22
     v24 = sload v21 !metadata(storage=symbolic(v21))
     v25 = mul v23, 8
-    v26 = shr v25, v24
-    v27 = shl 248, v26
-    v28 = shr 248, v27
+    v26 = shr v24, v25
+    v27 = shl v26, 248
+    v28 = shr v27, 248
     v29 = trunc i256 v28 to i8
     v30 = zext i8 v29 to i256
-    v31 = checked_add u256, v8, v30
+    v31 = checked_add uint256, v8, v30
     ret v31
 }
 
-fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
     v1 = and 66, v0
@@ -66,7 +66,7 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v8 = eq v7, 1
     v9 = sub 0, v7
     v10 = or 127, v9
-    v11 = shr 1, v6
+    v11 = shr v6, 1
     v12 = and v11, v10
     v13 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v13
@@ -74,7 +74,7 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v15 = eq v14, 1
     v16 = sub 0, v14
     v17 = or 127, v16
-    v18 = shr 1, v13
+    v18 = shr v13, 1
     v19 = and v18, v17
     v20 = lt 0, v19
     v21 = eq v20, false
@@ -84,7 +84,7 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     jump bb3
   bb1:
     v22 = storage_array_data_slot 0
-    v23 = shr 5, 0
+    v23 = shr 0, 5
     v24 = add v22, v23
     jump bb3
   bb3:
@@ -93,19 +93,19 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v27 = sub 31, v26
     v28 = sload v25 !metadata(storage=symbolic(v25))
     v29 = mul v27, 8
-    v30 = shr v29, v28
-    v31 = shl 248, v30
-    v32 = shr 248, v31
+    v30 = shr v28, v29
+    v31 = shl v30, 248
+    v32 = shr v31, 248
     v33 = trunc i256 v32 to i8
     v34 = zext i8 v33 to i256
-    v35 = checked_add u256, v12, v34
+    v35 = checked_add uint256, v12, v34
     v36 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v36
     v37 = and v36, 1
     v38 = eq v37, 1
     v39 = sub 0, v37
     v40 = or 127, v39
-    v41 = shr 1, v36
+    v41 = shr v36, 1
     v42 = and v41, v40
     v43 = lt 2, v42
     v44 = eq v43, false
@@ -115,7 +115,7 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     jump bb6
   bb4:
     v45 = storage_array_data_slot 0
-    v46 = shr 5, 2
+    v46 = shr 2, 5
     v47 = add v45, v46
     jump bb6
   bb6:
@@ -124,12 +124,12 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v50 = sub 31, v49
     v51 = sload v48 !metadata(storage=symbolic(v48))
     v52 = mul v50, 8
-    v53 = shr v52, v51
-    v54 = shl 248, v53
-    v55 = shr 248, v54
+    v53 = shr v51, v52
+    v54 = shl v53, 248
+    v55 = shr v54, 248
     v56 = trunc i256 v55 to i8
     v57 = zext i8 v56 to i256
-    v58 = checked_add u256, v35, v57
+    v58 = checked_add uint256, v35, v57
     ret v58
 }
 

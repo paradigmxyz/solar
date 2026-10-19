@@ -6,7 +6,7 @@
     child_1: creation_code "child.sol:Child"
   
   @immutables
-    fn: u8
+    fn: uint8
   
   fn @call(arg0: i256, arg1: i256) -> i256 {
     bb0:

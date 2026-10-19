@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_arg_eval_order.sol:C ===
 @module C
-fn @builtinOrder() -> i256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @builtinOrder() -> i256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 3 !metadata(memory=scratch)
     v0 = icall @eff
@@ -9,7 +9,7 @@ fn @builtinOrder() -> i256 [selector=0x0eb481d9, pure, abi_params=[], abi_return
     ret v2
 }
 
-fn @userFnOrder() -> i256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @userFnOrder() -> i256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     v0 = icall @w, 7
@@ -19,7 +19,7 @@ fn @userFnOrder() -> i256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns
     ret v3
 }
 
-fn @deployIdiom() -> i256 [selector=0x298d6964, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @deployIdiom() -> i256 [selector=0x298d6964, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 20

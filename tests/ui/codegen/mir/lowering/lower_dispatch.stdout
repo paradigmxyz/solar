@@ -22,7 +22,7 @@
 +     jumpi v3, bb5, bb2
 +   bb2:
 +     v4 = calldataload 0
-+     v5 = shr 224, v4
++     v5 = shr v4, 224
 +     switch v5, default bb5, [0x12000000 => bb3, 0x8d3a3e57 => bb4]
 +   bb4:
 +     tail_call @pong

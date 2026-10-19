@@ -1,0 +1,16 @@
+//@ codegen-matrix: standard optimized
+//@ compile-flags: --evm-version paris
+//@[optimized] compile-flags: -Osize --optimize-runs 1 -Zdump=mir
+//@[optimized] filecheck:
+//@ run-call: f => 0x7996880df79726f9f37d2ef8fef60eeef8d2a19c47965755ea4854bd63514ac7
+
+contract C {
+    // CHECK-LABEL: fn @f
+    // CHECK-NOT: jump
+    // CHECK-NOT: icall
+    // CHECK: keccak256
+    function f() external pure returns (bytes32) {
+        bytes memory value = hex"00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001";
+        return keccak256(value);
+    }
+}

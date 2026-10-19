@@ -77,8 +77,8 @@
 //! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
-    AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, MirType, Module, PtrLocation, StorageAlias, Value, ValueId,
+    BlockId, Callee, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
+    MirType, Module, PtrLocation, StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -1335,7 +1335,7 @@ impl CommonSubexprEliminator {
                 Access::Any(AddressSpace::Immutable) => Clobber::Immutable(ClobberScope::All),
             });
         }
-        if Self::may_change_account_environment(kind) {
+        if kind.may_change_account_state() {
             clobbers.push(Clobber::AccountEnvironment);
         }
     }
@@ -1438,20 +1438,6 @@ impl CommonSubexprEliminator {
                 | ExprKey::ExtCodeHash(_)
                 | ExprKey::Balance(_)
                 | ExprKey::SelfBalance
-        )
-    }
-
-    /// STATICCALL is excluded: the whole static context forbids value transfers, `SSTORE`,
-    /// `CREATE`, and `SELFDESTRUCT`, so balances and deployed code cannot change. Its memory
-    /// clobber (the return buffer write) is represented precisely by ModRef analysis.
-    fn may_change_account_environment(kind: &InstKind) -> bool {
-        matches!(
-            kind.effect_kind(),
-            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
-        ) && !matches!(
-            kind,
-            InstKind::StaticCall { .. }
-                | InstKind::AddressCall { kind: AddressCallKind::Static, .. }
         )
     }
 
@@ -1622,57 +1608,16 @@ impl CommonSubexprEliminator {
 
     fn value_use_counts(func: &Function) -> FxHashMap<ValueId, usize> {
         let mut counts = FxHashMap::default();
+        let mut count = |value| *counts.entry(value).or_default() += 1;
         for inst_id in func.instructions() {
-            func.inst(inst_id).visit_operands(|value| {
-                *counts.entry(value).or_default() += 1;
-            });
+            func.inst(inst_id).visit_operands(&mut count);
         }
         for block in func.blocks.iter() {
             if let Some(term) = &block.terminator {
-                Self::count_terminator_uses(term, &mut counts);
+                term.visit_operands(&mut count);
             }
         }
         counts
-    }
-
-    fn count_terminator_uses(
-        term: &crate::mir::Terminator,
-        counts: &mut FxHashMap<ValueId, usize>,
-    ) {
-        use crate::mir::Terminator;
-
-        let mut count = |value| {
-            *counts.entry(value).or_default() += 1;
-        };
-
-        match term {
-            Terminator::Jump(_)
-            | Terminator::RevertReturndata
-            | Terminator::Stop
-            | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => count(*condition),
-            Terminator::Switch { value, cases, .. } => {
-                count(*value);
-                for (case, _) in cases {
-                    count(*case);
-                }
-            }
-            Terminator::Return { values } => {
-                for &value in values {
-                    count(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                count(*offset);
-                count(*size);
-            }
-            Terminator::SelfDestruct { recipient } => count(*recipient),
-            Terminator::TailCall { args, .. } => {
-                for &arg in args {
-                    count(arg);
-                }
-            }
-        }
     }
 
     fn apply_replacements_to_all_blocks(

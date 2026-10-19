@@ -117,7 +117,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // result = lower_struct_ctor(callee, args)
             return self.lower_struct_constructor(expr, struct_id, args).map(CallResult::Value);
         }
-        if self.is_type_conversion(callee) {
+        if expressions::is_type_conversion(self.cx.gcx, callee) {
             // result = convert(callee, args)
             if args.len() != 1 {
                 return self.cx.report_unsupported(expr.span, "type conversion");
@@ -251,7 +251,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let created = self.lower_create_contract(ty, contract_id, args, call_opts)?;
-        self.revert_external_call(created);
+        self.builder.revert_returndata_unless(created);
         Some(created)
     }
 
@@ -419,7 +419,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(options),
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         // results = decode_buffer | decode_returndata | load_words(ret_offset)
         self.finish_external_call(
             return_plan,
@@ -437,9 +437,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let selector_mask = self.builder.imm(u32::MAX);
         let selector = self.builder.and(function_value, selector_mask);
         let selector_shift = self.builder.imm(224);
-        let selector = self.builder.shl(selector_shift, selector);
+        let selector = self.builder.shl(selector, selector_shift);
         let address_shift = self.builder.imm(32);
-        let address = self.builder.shr(address_shift, function_value);
+        let address = self.builder.shr(function_value, address_shift);
         (address, selector)
     }
 
@@ -631,7 +631,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && u64::from(32 - size.bytes()) * 8 != 0
         {
             let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
-            self.builder.shr(shift, value)
+            self.builder.shr(value, shift)
         } else {
             value
         };
@@ -670,7 +670,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         // value = value << (32 - to.width) * 8
         let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
-        self.builder.shl(shift, value)
+        self.builder.shl(value, shift)
     }
 
     /// Converts the first data word of a dynamic `bytes` value of `length` bytes to a
@@ -684,7 +684,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let missing = self.builder.sub(width_value, length);
         let bits_per_byte = self.builder.imm(8);
         let shift = self.builder.mul(bits_per_byte, missing);
-        let short_mask = self.builder.shl(shift, fixed_mask);
+        let short_mask = self.builder.shl(fixed_mask, shift);
         let mask = self.builder.select(short, short_mask, fixed_mask);
         self.builder.and(word, mask)
     }
@@ -725,7 +725,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
             let shift = self.builder.imm(64);
-            return self.builder.shr(shift, value);
+            return self.builder.shr(value, shift);
         }
         self.normalize_abi_scalar(value, ty)
     }
@@ -735,7 +735,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
         {
             let shift = self.builder.imm(64);
-            return self.builder.shr(shift, value);
+            return self.builder.shr(value, shift);
         }
         value
     }
@@ -749,7 +749,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
         {
             let shift = self.builder.imm(64);
-            return self.builder.shl(shift, value);
+            return self.builder.shl(value, shift);
         }
         let value = self.normalize_dirty_scalar(value, ty);
         raw_scalars::cast_carrier(
@@ -967,7 +967,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(options),
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         // result = decode_buffer | decode_returndata | load_words(ret_offset)
         let values = self.finish_external_call(
             return_plan,
@@ -1110,7 +1110,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             None,
         );
         // if !ok { revert(0, returndatasize()) }
-        self.revert_external_call(success);
+        self.builder.revert_returndata_unless(success);
         if return_types.is_empty() {
             return Some(CallResult::Void);
         }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Target ===
 @module Target
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -9,8 +9,8 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
 fn @constructor(arg0: i256) [constructor, abi_params=[function]] {
   bb0:
     v0 = and arg0, 0xffffffff
-    v1 = shl 224, v0
-    v2 = shr 32, arg0
+    v1 = shl v0, 224
+    v2 = shr arg0, 32
     v3 = gas
     v4 = abi_encode [], selector v1
     v5 = extract_value slice<memory>, v4, 0
@@ -31,7 +31,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[function]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget ===
 @module ArrayTarget
-fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -51,11 +51,11 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<1, function>]
   Target_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Target"
   ArrayTarget_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget"
 
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0x990227f1
     v4 = abi_encode [function], args v3
     v5 = datasize Target_creation_code_0
@@ -97,12 +97,12 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     memory_zero v0, 32
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0x990227f1
     v5 = lt 0, 1
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = shl 64, v4
+    v7 = shl v4, 64
     mstore v0, v7
     v8 = abi_encode [array<1, function>], args v0
     v9 = datasize ArrayTarget_creation_code_1
@@ -122,7 +122,7 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
   bb2:
     v18 = address
     v19 = zext i160 v18 to i256
-    v20 = shl 96, v19
+    v20 = shl v19, 96
     v21 = or v20, 0x990227f10000000000000000
     v22 = gas
     v23 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
@@ -143,7 +143,7 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     ret v32
 }
 
-fn @sixteen() -> i256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @sixteen() -> i256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 16
 }

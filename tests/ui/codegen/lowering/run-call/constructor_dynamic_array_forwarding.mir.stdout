@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Base ===
 @module Base
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[u256, array<_, address>]] {
+fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256, array<_, address>]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     v0 = mload arg1
@@ -31,7 +31,7 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[u256, a
   bb8:
     ret
   bb7:
-    v21 = shl 5, v19
+    v21 = shl v19, 5
     v22 = ptradd arg1, v21
     v23 = ptradd v22, 32
     v24 = mload v23
@@ -41,12 +41,12 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[u256, a
     v28 = mod v19, 1
     v29 = mul v28, 20
     v30 = mul v29, 8
-    v31 = shl v30, 0xffffffffffffffffffffffffffffffffffffffff
+    v31 = shl 0xffffffffffffffffffffffffffffffffffffffff, v30
     v32 = sload v27 !metadata(storage=symbolic(v27))
     v33 = not v31
     v34 = and v32, v33
     v35 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
-    v36 = shl v30, v35
+    v36 = shl v35, v30
     v37 = or v34, v36
     sstore v27, v37 !metadata(storage=symbolic(v27))
     v38 = add v19, 1
@@ -58,19 +58,19 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[u256, a
     v8 = mod v3, 1
     v9 = mul v8, 20
     v10 = mul v9, 8
-    v11 = shl v10, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = shl 0xffffffffffffffffffffffffffffffffffffffff, v10
     v12 = sload v7 !metadata(storage=symbolic(v7))
     v13 = not v11
     v14 = and v12, v13
     v15 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = shl v10, v15
+    v16 = shl v15, v10
     v17 = or v14, v16
     sstore v7, v17 !metadata(storage=symbolic(v7))
     v18 = add v3, 1
     jump bb3
 }
 
-fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt arg0, v0
@@ -83,14 +83,14 @@ fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[u256], abi
     v7 = mul v6, 20
     v8 = sload v5 !metadata(storage=symbolic(v5))
     v9 = mul v7, 8
-    v10 = shr v9, v8
+    v10 = shr v8, v9
     v11 = trunc i256 v10 to i160
     ret v11
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Main ===
 @module Main
-fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_, address>, u256]] {
+fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_, address>, uint256]] {
   bb0:
     v0 = icall @forward, arg0
     sstore 0, arg1 !metadata(storage=slot(0))
@@ -120,7 +120,7 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_
   bb10:
     ret
   bb8:
-    v22 = shl 5, v20
+    v22 = shl v20, 5
     v23 = ptradd v0, v22
     v24 = ptradd v23, 32
     v25 = mload v24
@@ -130,12 +130,12 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_
     v29 = mod v20, 1
     v30 = mul v29, 20
     v31 = mul v30, 8
-    v32 = shl v31, 0xffffffffffffffffffffffffffffffffffffffff
+    v32 = shl 0xffffffffffffffffffffffffffffffffffffffff, v31
     v33 = sload v28 !metadata(storage=symbolic(v28))
     v34 = not v32
     v35 = and v33, v34
     v36 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
-    v37 = shl v31, v36
+    v37 = shl v36, v31
     v38 = or v35, v37
     sstore v28, v38 !metadata(storage=symbolic(v28))
     v39 = add v20, 1
@@ -147,12 +147,12 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_
     v9 = mod v4, 1
     v10 = mul v9, 20
     v11 = mul v10, 8
-    v12 = shl v11, 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = shl 0xffffffffffffffffffffffffffffffffffffffff, v11
     v13 = sload v8 !metadata(storage=symbolic(v8))
     v14 = not v12
     v15 = and v13, v14
     v16 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = shl v11, v16
+    v17 = shl v16, v11
     v18 = or v15, v17
     sstore v8, v18 !metadata(storage=symbolic(v8))
     v19 = add v4, 1
@@ -164,13 +164,13 @@ fn @forward(arg0: ptr<memory>) -> ptr<memory> [pure] {
     ret arg0
 }
 
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt arg0, v0
@@ -183,7 +183,7 @@ fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[u256], abi
     v7 = mul v6, 20
     v8 = sload v5 !metadata(storage=symbolic(v5))
     v9 = mul v7, 8
-    v10 = shr v9, v8
+    v10 = shr v8, v9
     v11 = trunc i256 v10 to i160
     ret v11
 }
@@ -196,9 +196,9 @@ fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[u256], abi
 @data
   Main_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Main"
 
-fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0x1b2902dd, abi_params=[u256, array<_, address>], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
+fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0x1b2902dd, abi_params=[uint256, array<_, address>], abi_returns=[word, word<uint160>], abi_return_params=[uint256, address]] {
   bb0:
-    v0 = abi_encode [memory_array<word<u160>>, word], args arg1, arg0
+    v0 = abi_encode [memory_array<word<uint160>>, word], args arg1, arg0
     v1 = extract_value slice<memory>, v0, 1
     v2 = datasize Main_creation_code_0
     v3 = add v2, v1
@@ -251,7 +251,7 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0x1b2902dd, abi_params
     icall revert_if<tuple_data_too_short>, v32
     v33 = add 0, 0
     v34 = mload v33
-    v35 = shr 160, v34
+    v35 = shr v34, 160
     v36 = eq v35, 0
     v37 = eq v36, false
     icall revert_if<empty>, v37

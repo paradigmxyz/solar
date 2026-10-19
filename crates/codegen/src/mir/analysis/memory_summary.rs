@@ -43,6 +43,16 @@ pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSu
     })
 }
 
+/// Returns whether any function in `module` reads `msize`. Internal calls share memory, so such a
+/// read observes the expansion of every memory access that runs before it, in callers and
+/// siblings as well as callees.
+pub(crate) fn module_may_observe_msize(module: &Module) -> bool {
+    module
+        .functions
+        .iter()
+        .any(|func| func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize)))
+}
+
 /// A bounded set of storage slots, or an unknown access to the whole space.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct SlotFootprint {
@@ -786,13 +796,7 @@ pub(crate) fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let mut returning = DenseBitSet::new_empty(func.blocks.len());
     let mut worklist = Vec::new();
     for (block_id, block) in func.blocks.iter_enumerated() {
-        if block.terminator.as_ref().is_none_or(|term| {
-            !term.has_successors()
-                && !matches!(
-                    term,
-                    Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
-                )
-        }) {
+        if block.terminator.as_ref().is_none_or(|term| !term.has_successors() && !term.reverts()) {
             returning.insert(block_id);
             worklist.push(block_id);
         }

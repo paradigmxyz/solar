@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/hot_leaves.mir (before inline-hot-leaves) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/hot_leaves.mir (after inline-hot-leaves) ===
+- // === ROOT/tests/ui/codegen/mir/inline/hot_leaves.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/hot_leaves.mir (after inline) ===
   @module HotLeaves
   fn @loop_caller(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -66,27 +66,43 @@
   
   fn @straight_caller(arg0: i256) -> i256 {
     bb0:
-      v0 = icall @classify, arg0
-      ret v0
-  }
-  
-  fn @classify(arg0: i256) -> i256 {
-    bb0:
-      v0 = lt arg0, 32
-      jumpi v0, bb1, bb2
+-     v0 = icall @classify, arg0
+-     ret v0
+- }
+- 
+- fn @classify(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = lt arg0, 32
+-     jumpi v0, bb1, bb2
++     jump bb2
     bb2:
-      v1 = lt arg0, 64
+-     v1 = lt arg0, 64
++     v1 = lt arg0, 32
       jumpi v1, bb3, bb4
     bb4:
-      jump bb5
-    bb3:
-      jump bb5
+-     jump bb5
+-   bb3:
+-     jump bb5
++     v2 = lt arg0, 64
++     jumpi v2, bb5, bb6
++   bb6:
++     jump bb7
     bb5:
-      v2 = phi [bb3: 7], [bb4: 9]
-      v3 = and arg0, 31
-      v4 = add v2, v3
-      ret v4
+-     v2 = phi [bb3: 7], [bb4: 9]
+-     v3 = and arg0, 31
+-     v4 = add v2, v3
+-     ret v4
++     jump bb7
++   bb7:
++     v3 = phi [bb5: 7], [bb6: 9]
++     v4 = and arg0, 31
++     v5 = add v3, v4
++     jump bb1
++   bb3:
++     jump bb1
     bb1:
-      ret 0
+-     ret 0
++     v6 = phi [bb3: 0], [bb7: v5]
++     ret v6
   }
   

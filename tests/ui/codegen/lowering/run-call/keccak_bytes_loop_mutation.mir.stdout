@@ -22,7 +22,7 @@ fn @hashTracksWrites() -> i1 [selector=0xfa4d6080, pure, abi_params=[], abi_retu
   bb4:
     v8 = trunc i256 v6 to i8
     v9 = zext i8 v8 to i256
-    v10 = shl 248, v9
+    v10 = shl v9, 248
     v11 = mload v4
     v12 = lt 0, v11
     v13 = eq v12, false
@@ -37,6 +37,6 @@ fn @hashTracksWrites() -> i1 [selector=0xfa4d6080, pure, abi_params=[], abi_retu
   bb6:
     jump bb3
   bb3:
-    v19 = checked_add u256, v6, 1
+    v19 = checked_add uint256, v6, 1
     jump bb1
 }
