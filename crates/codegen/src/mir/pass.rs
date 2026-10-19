@@ -31,16 +31,8 @@ pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_pass
 
 /// All known MIR passes exposed by `-Zmir-pipeline`.
 static ALL_PASSES: &[&dyn MirPass] = &[
-    &inline::Inline,
-    &inline::InlineSingleUse::Semantic,
-    &inline_guards::InlineGuards,
-    &inline::InlineConstantLeaves,
-    &inline::InlineTinyLeaves,
-    &inline::InlineHotLeaves,
+    &inline::Inline::Semantic,
     &if_convert::IfConvert,
-    &inline::InlineImmutableLeaves,
-    &inline::InlineMemoryWrappers,
-    &inline_dispatch::InlineDispatch,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &call_cleanup::CallCleanup,
@@ -64,6 +56,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &load_pre::LoadPre::Storage,
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
+    &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
     &loop_unroll::LoopUnroll,
     &merge_aborts::MergeAborts,
@@ -180,10 +173,6 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Clamp inline assembly's stores of absolute addresses to the free memory pointer before any
     // pass forwards the stored value to the pointer's loads.
     &heap_floor::HeapFloor,
-    // Clone one constant call to a shared pure leaf so scalar passes can fold it.
-    &GasOnly::new(inline::InlineConstantLeaves),
-    // Broad MIR inlining remains available as an ad-hoc pass, but static internal
-    // frames make calls cheap enough that the measured candidates regress gas.
     &cfg_simplify::FunctionDce,
     // HIR lowering leaves trivial phis for locals that loops never reassign.
     // They hide one object behind several SSA names, which alias analysis
@@ -213,6 +202,10 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &element_cleanup::ElementCleanup,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
+    // Evaluate recurrences before gas-bounded reasoning removes checks that
+    // become reachable if a loop is replaced by a constant-time formula.
+    &GasOnly::new(dce::Dce),
+    &GasOnly::new(loop_reduce::LoopReduce),
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
@@ -228,10 +221,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // simplified graph in one pass through the pipeline.
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
-    // Trivial leaf helpers cost less to duplicate than even the static internal-call protocol.
-    // Keep this separate from general inlining, whose larger candidates regress measured gas.
-    &GasOnly::new(inline::InlineTinyLeaves),
-    &GasOnly::new(inline::InlineSingleUse::Semantic),
+    &GasOnly::new(inline::Inline::Semantic),
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &function_compaction::DeadArgElim,
@@ -259,24 +249,15 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
-    // Small pure diamonds become selects once folded conditions are gone, so
-    // bit searches lose their branches and lookup helpers arrive branch-free
-    // at the hot-leaf cloner below.
+    // Small pure diamonds become selects once folded conditions are gone.
     &if_convert::IfConvert,
-    // Lookup helpers called from loops pay for their clones through the
-    // protocol removed per iteration. They run after specialization so the
-    // clones carry no mode flags that every caller fixed; the lowering-time
-    // cleanup folds the exposed bodies.
-    &GasOnly::new(inline::InlineHotLeaves),
     &frame_promotion::FrameSlotPromotion,
     &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
     &adce::Adce,
     &lower_abi::LowerAbi,
-    // ABI lowering leaves tiny canonical-word helpers after the earlier
-    // inlining pass; expand those leaves before encoding wrappers.
-    &GasOnly::new(inline::InlineTinyLeaves),
-    &SizeOnly::new(inline::InlineTinyLeaves),
+    // ABI lowering exposes canonical-word helpers to the same inlining policy.
+    &inline::Inline::Semantic,
     // Getter inlining exposes runtime immutable widths after the general check passes.
     &check_elim::ImmutableCheckElim,
     &cfg_simplify::FunctionDce,
@@ -298,8 +279,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence::Late,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
-    // Check elimination and CFG cleanup expose straight-line immutable helpers.
-    &inline::InlineImmutableLeaves,
+    // Expose callee reads before late CSE and storage PRE.
+    &inline::Inline::Semantic,
     // Late CSE reduces runtime gas after ABI encoding lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly::new(cse::Cse),
@@ -328,8 +309,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // branch condition, body, exit; body: ...; branch condition, checked, panic
     // => body: ...; jump checked
     &check_elim::LateCheckElim,
-    &inline_guards::InlineGuards,
-    &inline::InlineMemoryWrappers,
+    &inline::Inline::Physical,
     // Revisit allocations after semantic memory accesses become bounded raw
     // operations, so fixed-size hash buffers can use backend-known static
     // regions.
@@ -357,7 +337,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Carry proved argument widths across calls before simplifying word masks.
     &call_cleanup::CallCleanup,
     // Shared scalar ABI words and wrapper bodies become one CFG before extraction.
-    &inline_dispatch::InlineDispatch,
+    &inline::Inline::Physical,
     &check_elim::IntegerCleanup,
     // Memory lowering materializes address arithmetic; number and simplify it
     // once more before the physical shape is fixed. The stack-aware cost keeps
@@ -394,7 +374,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // A word-at-a-time loop is compact enough to consume at its sole call site.
     // This removes the internal frame protocol without duplicating the body;
     // the pass drops the consumed callee itself.
-    &GasOnly::new(inline::InlineSingleUse::Physical),
+    &inline::Inline::Physical,
     &cfg_simplify::CfgSimplify,
     &lower_evm_shaped::LowerEvmShaped,
 ];

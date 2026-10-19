@@ -22,6 +22,11 @@
 //! access, encodes as immediate stores, and its now unused allocation is
 //! removed. The candidates are proven on the original IR, before encoding
 //! emits its own raw accesses.
+//! Literal bytes with observable allocations can still fold into encoder stores;
+//! their original allocations and initialization remain for later observers.
+//! This is limited to gas-mode encodings before Cancun, excluding scratch results.
+//! NOTE: Duplicating preserved payloads can grow native-MCOPY and scratch encoders;
+//! keep their copies, and size-mode copies, until their full code shape is priced.
 //!
 //! Element loops. Full-word memory arrays and calldata word arrays copy as one
 //! block. Memory words that need cleanup use a guarded do-while over a
@@ -91,10 +96,10 @@ impl MirPass for LowerAbiEncode {
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = Target::new(gcx);
         let (fresh_object_returns, mut destructive_returns) =
-            plan_destructive_terminal_returns(target, module);
-        let mut helpers = synthesize_array_helpers(target, module, revert_strings);
+            plan_destructive_terminal_returns(&target, module);
+        let mut helpers = synthesize_array_helpers(&target, module, revert_strings);
         synthesize_tuple_helpers(
-            target,
+            &target,
             module,
             &mut helpers,
             revert_strings,
@@ -125,6 +130,7 @@ impl MirPass for LowerAbiEncode {
             let helpers =
                 if constructors.contains(func_id) { &mut inline_helpers } else { &mut helpers };
             changed |= lower_function(
+                &target,
                 func,
                 helpers,
                 revert_strings,
@@ -194,7 +200,7 @@ struct EncodeHelpers {
 /// the expanded copies: under the size objective the sites call one body, under the gas
 /// objective each keeps its own.
 fn synthesize_tuple_helpers(
-    target: Target,
+    target: &Target,
     module: &mut Module,
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
@@ -255,7 +261,7 @@ fn synthesize_tuple_helpers(
 /// element-wise loop at least two sites would otherwise expand inline. Inner layouts are built
 /// first so an outer helper's element encoding calls the inner helper.
 fn synthesize_array_helpers(
-    target: Target,
+    target: &Target,
     module: &mut Module,
     revert_strings: RevertStrings,
 ) -> EncodeHelpers {
@@ -385,6 +391,7 @@ enum AbiValueSource {
 }
 
 fn lower_function(
+    target: &Target,
     func: &mut Function,
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
@@ -397,6 +404,24 @@ fn lower_function(
         return false;
     }
     helpers.literal_objects = literal_objects_at_encodes(func);
+    let fold_preserved = target.optimization().is_gas() && !target.evm_version().has_mcopy();
+    helpers.literal_objects.retain(|&object| {
+        fold_preserved
+            || !matches!(func.value(object), Value::Inst(inst) if func.inst(*inst).metadata.preserves_fmp())
+    });
+    for inst in func.instructions() {
+        if let InstKind::AbiEncode { mode: AbiEncodeMode::Scratch, args, .. } =
+            &func.inst(inst).kind
+        {
+            for &object in args {
+                if let Value::Inst(inst) = func.value(object)
+                    && func.inst(*inst).metadata.preserves_fmp()
+                {
+                    helpers.literal_objects.remove(&object);
+                }
+            }
+        }
+    }
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
@@ -466,7 +491,7 @@ fn lower_function(
 /// Selects destructive terminal encodings before module-wide helper sharing is
 /// costed. Unoptimized lowering retains the direct semantic expansion.
 fn plan_destructive_terminal_returns(
-    target: Target,
+    target: &Target,
     module: &Module,
 ) -> (DenseBitSet<FunctionId>, IndexVec<FunctionId, FxHashSet<InstId>>) {
     let mut fresh = DenseBitSet::new_empty(module.functions.len());
@@ -1533,7 +1558,7 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
         available.clear();
         for &inst in &block.instructions {
             let kind = &func.inst(inst).kind;
-            if literal_opaque_instruction(func, kind) {
+            if literal_opaque_instruction(func, kind, &available) {
                 available.clear();
             }
             if matches!(kind, InstKind::Alloc { .. })
@@ -1558,10 +1583,16 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
     objects
 }
 
-fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
+fn literal_opaque_instruction(
+    func: &Function,
+    kind: &InstKind,
+    available: &FxHashSet<ValueId>,
+) -> bool {
     match kind {
         InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => false,
-        InstKind::Store(address, _, PtrLocation::Memory) => !literal_word_in_bounds(func, *address),
+        InstKind::Store(address, _, PtrLocation::Memory) => {
+            !literal_word_in_bounds(func, *address, available)
+        }
         InstKind::MSize => true,
         _ => matches!(
             kind.effect_kind(),
@@ -1575,11 +1606,18 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
     }
 }
 
-/// A store to a different object is disjoint only inside its fresh allocation. An
-/// unknown or wrapping offset can overwrite a preceding object.
-fn literal_word_in_bounds(func: &Function, address: ValueId) -> bool {
+/// A store is disjoint only within an allocation made since the last opaque access.
+/// Older allocations may alias new ones after a free-memory-pointer reset.
+fn literal_word_in_bounds(
+    func: &Function,
+    address: ValueId,
+    available: &FxHashSet<ValueId>,
+) -> bool {
     let Some((object, base)) = func.object_address(address) else { return false };
-    base.checked_add(32).is_some_and(|end| func.alloc_size(object).is_some_and(|size| end <= size))
+    available.contains(&object)
+        && base
+            .checked_add(32)
+            .is_some_and(|end| func.alloc_size(object).is_some_and(|size| end <= size))
 }
 
 /// Instructions other than its allocation that use a literal object or an address into it.
@@ -1603,9 +1641,7 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
     if !func.blocks[block].instructions.contains(defining_inst) {
         return None;
     }
-    if !matches!(func.inst(*defining_inst).kind, InstKind::Alloc { .. })
-        || func.inst(*defining_inst).metadata.preserves_fmp()
-    {
+    if !matches!(func.inst(*defining_inst).kind, InstKind::Alloc { .. }) {
         return None;
     }
 
@@ -1669,6 +1705,9 @@ fn remove_literal_objects(func: &mut Function, values: &[ValueId]) {
     let mut removed = FxHashSet::default();
     for &object in values {
         let Value::Inst(defining_inst) = func.value(object) else { continue };
+        if func.inst(*defining_inst).metadata.preserves_fmp() {
+            continue;
+        }
         let Some(block) = func
             .blocks
             .iter_enumerated()

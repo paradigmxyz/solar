@@ -150,7 +150,7 @@ impl MirPass for LoadPre {
                 stats: LoadPreStats::default(),
                 alias: Rc::clone(analyses.alias()),
                 summaries: Arc::clone(&summaries),
-                target,
+                target: &target,
             };
             eliminator.run(func).total() != 0
         })
@@ -175,7 +175,7 @@ impl LoadPreStats {
 
 /// Dataflow-based redundancy eliminator for memory-dependent reads.
 #[derive(Debug)]
-struct LoadRedundancyEliminator {
+struct LoadRedundancyEliminator<'a> {
     storage_only: bool,
     liveness: OnceCell<Liveness>,
     /// Shared CFG snapshot for the availability dataflow.
@@ -184,7 +184,7 @@ struct LoadRedundancyEliminator {
     alias: Rc<AliasAnalysis>,
     /// Call summaries for the alias snapshot rebuilt after edge splitting.
     summaries: Arc<MemoryCallSummaries>,
-    target: Target,
+    target: &'a Target,
 }
 
 /// A normalized key for a state-dependent read.
@@ -237,8 +237,8 @@ struct Candidate {
 /// path, while a compensating load only executes on the paths where the value
 /// was unavailable.
 #[derive(Clone, Copy, Debug)]
-struct LoadPreCostModel {
-    target: Target,
+struct LoadPreCostModel<'a> {
+    target: &'a Target,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -266,7 +266,7 @@ struct LoadPreCostInput<'a> {
     needs_phi: bool,
 }
 
-impl LoadPreCostModel {
+impl LoadPreCostModel<'_> {
     fn estimate(&self, input: LoadPreCostInput<'_>) -> LoadPreCost {
         let read = self.read_cost(input.key);
         let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
@@ -498,7 +498,7 @@ struct LoadScan {
     taken: KeySet,
 }
 
-impl LoadRedundancyEliminator {
+impl<'a> LoadRedundancyEliminator<'a> {
     /// Runs load PRE to a fixed point under the rewrite budget.
     fn run(&mut self, func: &mut Function) -> LoadPreStats {
         self.stats = LoadPreStats::default();

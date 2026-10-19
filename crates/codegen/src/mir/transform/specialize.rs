@@ -241,8 +241,8 @@ fn specialize_round(
         }
 
         let mut candidate = candidate.clone();
-        // Keep one shared body through subsequent inlining passes.
-        candidate.attributes.no_inline = true;
+        // Keep sharing when a clone would exceed the call protocol it removes.
+        candidate.attributes.no_inline = new.bytes > new_call.bytes;
         let specialized = if all_calls {
             module.functions[callee] = candidate;
             callee

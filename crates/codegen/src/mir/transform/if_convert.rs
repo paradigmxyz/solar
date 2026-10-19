@@ -70,7 +70,7 @@ impl MirPass for IfConvert {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, _| if_convert_function(func, target))
+        run_function_pass(module, analyses, |func, _| if_convert_function(func, &target))
     }
 }
 
@@ -118,7 +118,7 @@ enum SelectForm {
     General(Option<U256>),
 }
 
-fn if_convert_function(func: &mut Function, target: Target) -> bool {
+fn if_convert_function(func: &mut Function, target: &Target) -> bool {
     let cfg = CfgInfo::new(func);
     let mut changed = invalidate_unreachable_blocks(func, cfg.reachable()) != 0;
     loop {
@@ -138,7 +138,7 @@ fn if_convert_function(func: &mut Function, target: Target) -> bool {
     changed
 }
 
-fn find_site(func: &Function, target: Target, block: BlockId) -> Option<Site> {
+fn find_site(func: &Function, target: &Target, block: BlockId) -> Option<Site> {
     let body = &func.blocks[block];
     let Some(Terminator::Branch { condition, then_block, else_block }) = body.terminator else {
         return None;
@@ -309,7 +309,7 @@ fn implies(func: &Function, first: ValueId, mut second: ValueId) -> bool {
 /// more under the objective than the branch, the arm jump, their labels,
 /// one stack move per phi at the join, and the arm and phi literal an
 /// average path executes.
-fn profitable(func: &Function, target: Target, site: &Site, selects: &[Select]) -> bool {
+fn profitable(func: &Function, target: &Target, site: &Site, selects: &[Select]) -> bool {
     // Arm instructions whose results the scaled forms recompute are dropped.
     let replaced: Vec<ValueId> = selects
         .iter()
@@ -353,13 +353,13 @@ fn profitable(func: &Function, target: Target, site: &Site, selects: &[Select]) 
 /// Doubled per-execution cost of the transfers a site removes: the branch
 /// and the join label on every path, and the arm jump with its label on one
 /// of the two paths.
-fn transfer_cost(target: Target) -> Cost {
+fn transfer_cost(target: &Target) -> Cost {
     target.branch().times(2).plus(target.jump())
 }
 
 /// Cost of one instruction: its operation and the pushes that materialize
 /// its literal operands.
-fn inst_cost(func: &Function, target: Target, inst: InstId) -> Cost {
+fn inst_cost(func: &Function, target: &Target, inst: InstId) -> Cost {
     let kind = &func.inst(inst).kind;
     let mut cost = target.op(&kind.op(), |value| func.value_u256(value));
     kind.visit_operands(|operand| {
@@ -372,7 +372,7 @@ fn inst_cost(func: &Function, target: Target, inst: InstId) -> Cost {
 
 /// Cost of the instructions a select adds: the pushes of its literal
 /// operands, one duplicate of an operand it uses twice, and its operations.
-fn select_cost(func: &Function, target: Target, select: &Select) -> Cost {
+fn select_cost(func: &Function, target: &Target, select: &Select) -> Cost {
     let literal = |value| func.value_u256(value).map_or(Cost::ZERO, |literal| target.push(literal));
     let scaled = |derived: Derivation, negated: bool, scaled_value| {
         let mut cost = target.opcode(op::MUL);
