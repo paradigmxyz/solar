@@ -5,24 +5,24 @@
   struct1: {i256, i256, i256, i256}
   struct2: {i256, i256}
 
-fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[u256]] {
+fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, uint8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
     v2 = add v1, 32
     v3 = calldataload v2
-    v4 = shr 8, v3
+    v4 = shr v3, 8
     v5 = eq v4, 0
     v6 = eq v5, false
     icall revert_if<empty>, v6
     v7 = trunc i256 v3 to i8
     v8 = zext i8 v7 to i160
-    v9 = checked_add u160, v8, arg1
+    v9 = checked_add uint160, v8, arg1
     v10 = zext i160 v9 to i256
     ret v10
 }
 
-fn @tail(arg0: slice<calldata>) -> ptr<memory> [selector=0x39663a7e, pure, abi_params=[tuple<address, u8, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @tail(arg0: slice<calldata>) -> ptr<memory> [selector=0x39663a7e, pure, abi_params=[tuple<address, uint8, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
@@ -85,7 +85,7 @@ fn @tail(arg0: slice<calldata>) -> ptr<memory> [selector=0x39663a7e, pure, abi_p
     ret v44
 }
 
-fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -214,7 +214,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v98 = ptradd v0, 64
     v99 = mload v98, ptr<memory>
     v100 = mload v99
-    v101 = checked_add u256, v94, v100
+    v101 = checked_add uint256, v94, v100
     v102 = mload v0
     v103 = lt 0, v102
     v104 = eq v103, false
@@ -233,7 +233,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v115 = ptradd v114, 32
     v116 = mload v115, ptr<memory>
     v117 = mload v116
-    v118 = checked_add u256, v109, v117
+    v118 = checked_add uint256, v109, v117
     v119 = mload v0
     v120 = lt 0, v119
     v121 = eq v120, false
@@ -270,7 +270,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptradd v7, 32
     v9 = ptrtoint ptr<memory> v3 to i256
@@ -279,7 +279,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     jump bb1
 }
 
-fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
@@ -390,7 +390,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v80 = ptradd v0, 32
     v81 = mload v80, ptr<memory>
     v82 = mload v81
-    v83 = checked_add u256, v77, v82
+    v83 = checked_add uint256, v77, v82
     v84 = lt 0, 2
     v85 = eq v84, false
     icall panic_if<0x32>, v85
@@ -406,7 +406,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v94 = ptradd v93, 32
     v95 = mload v94, ptr<memory>
     v96 = mload v95
-    v97 = checked_add u256, v89, v96
+    v97 = checked_add uint256, v89, v96
     v98 = lt 1, 2
     v99 = eq v98, false
     icall panic_if<0x32>, v99
@@ -441,7 +441,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptrtoint ptr<memory> v3 to i256
     mstore v7, v8
@@ -449,7 +449,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     jump bb1
 }
 
-fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -474,7 +474,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v21 = ptradd v0, 64
     v22 = mload v21, ptr<memory>
     v23 = mload v22
-    v24 = checked_add u256, v17, v23
+    v24 = checked_add uint256, v17, v23
     v25 = mload v0
     v26 = lt 0, v25
     v27 = eq v26, false
@@ -493,7 +493,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v38 = ptradd v37, 32
     v39 = mload v38, ptr<memory>
     v40 = mload v39
-    v41 = checked_add u256, v32, v40
+    v41 = checked_add uint256, v32, v40
     v42 = mload v0
     v43 = lt 0, v42
     v44 = eq v43, false
@@ -512,7 +512,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v55 = ptradd v54, 64
     v56 = mload v55, ptr<memory>
     v57 = mload v56
-    v58 = checked_add u256, v49, v57
+    v58 = checked_add uint256, v49, v57
     v59 = insert_value struct1, undef struct1, 0, v11
     v60 = insert_value struct1, v59, 1, v24
     v61 = insert_value struct1, v60, 2, v41
@@ -525,7 +525,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptradd v7, 32
     v9 = ptrtoint ptr<memory> v3 to i256
@@ -534,7 +534,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     jump bb1
 }
 
-fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -567,7 +567,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v24 = ptradd v0, 64
     v25 = mload v24, ptr<memory>
     v26 = mload v25
-    v27 = checked_add u256, v20, v26
+    v27 = checked_add uint256, v20, v26
     v28 = mload v7
     v29 = mload v7
     v30 = lt 0, v29
@@ -583,21 +583,21 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v38 = ptradd v7, 64
     v39 = mload v38, ptr<memory>
     v40 = mload v39
-    v41 = checked_add u256, v34, v40
+    v41 = checked_add uint256, v34, v40
     v42 = insert_value struct1, undef struct1, 0, v14
     v43 = insert_value struct1, v42, 1, v27
     v44 = insert_value struct1, v43, 2, v28
     v45 = insert_value struct1, v44, 3, v41
     ret v45
   bb5:
-    v10 = shl 5, v8
+    v10 = shl v8, 5
     v11 = ptradd v7, v10
     v12 = ptradd v11, 32
     mstore v12, 96
     v13 = add v8, 1
     jump bb4
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -605,7 +605,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     jump bb1
 }
 
-fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -628,7 +628,7 @@ fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, a
     v15 = insert_value struct2, v14, 1, v13
     ret v15
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96
@@ -636,7 +636,7 @@ fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, a
     jump bb1
 }
 
-fn @zeroNestedDynamicAggregateAfterScratch() -> i256 [selector=0x84af5c73, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @zeroNestedDynamicAggregateAfterScratch() -> i256 [selector=0x84af5c73, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -664,7 +664,7 @@ fn @zeroNestedDynamicAggregateAfterScratch() -> i256 [selector=0x84af5c73, pure,
     mstore v4, 96
     v5 = ptradd v3, 64
     mstore v5, 96
-    v6 = shl 5, v1
+    v6 = shl v1, 5
     v7 = ptradd v0, v6
     v8 = ptradd v7, 32
     v9 = ptrtoint ptr<memory> v3 to i256

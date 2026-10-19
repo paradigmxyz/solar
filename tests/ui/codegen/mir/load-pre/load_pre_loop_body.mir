@@ -14,7 +14,7 @@
 fn @fill(arg0: i256) -> ptr<memory> {
   bb0:
     v1 = add arg0, 1
-    v2 = shl 5, v1
+    v2 = shl v1, 5
     v3 = alloc zeroed checked v2
     mstore v3, arg0
     jump bb1
@@ -26,7 +26,7 @@ fn @fill(arg0: i256) -> ptr<memory> {
     v6 = mload v3
     v7 = lt v4, v6
     icall panic_if_zero<0x32>, v7
-    v10 = shl 5, v4
+    v10 = shl v4, 5
     v11 = ptradd v3, v10
     v12 = ptradd v11, 32
     mstore v12, v4
@@ -47,7 +47,7 @@ fn @fill(arg0: i256) -> ptr<memory> {
 fn @rewrites_length(arg0: i256) -> ptr<memory> {
   bb0:
     v1 = add arg0, 1
-    v2 = shl 5, v1
+    v2 = shl v1, 5
     v3 = alloc zeroed checked v2
     mstore v3, arg0
     jump bb1
@@ -77,7 +77,7 @@ fn @rewrites_length(arg0: i256) -> ptr<memory> {
 fn @reads_msize(arg0: i256) -> i256 {
   bb0:
     v1 = add arg0, 1
-    v2 = shl 5, v1
+    v2 = shl v1, 5
     v3 = alloc zeroed checked v2
     mstore v3, arg0
     jump bb1
@@ -105,7 +105,7 @@ fn @reads_msize(arg0: i256) -> i256 {
 fn @clobbered_length(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v1 = add arg0, 1
-    v2 = shl 5, v1
+    v2 = shl v1, 5
     v3 = alloc zeroed checked v2
     mstore v3, arg0
     jump bb1

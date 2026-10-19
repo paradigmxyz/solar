@@ -6,7 +6,7 @@
 @types
   struct0: {i256, i256}
 
-fn @qualified() -> struct0 [selector=0xf25be4f2, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @qualified() -> struct0 [selector=0xf25be4f2, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -19,7 +19,7 @@ fn @qualified() -> struct0 [selector=0xf25be4f2, abi_params=[], abi_returns=[wor
     ret v2
 }
 
-fn @virtualDispatch() -> struct0 [selector=0x9996f134, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @virtualDispatch() -> struct0 [selector=0x9996f134, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))

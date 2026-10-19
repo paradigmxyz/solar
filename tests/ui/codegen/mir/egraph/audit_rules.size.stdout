@@ -93,9 +93,9 @@
   
   fn @dynamic_power_divisor(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl arg1, 1
+      v0 = shl 1, arg1
 -     v1 = div arg0, v0
-+     v1 = shr arg1, arg0
++     v1 = shr arg0, arg1
       ret v1
   }
   
@@ -165,9 +165,9 @@
   
   fn @exact_signed(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 3, arg0
+      v0 = shl arg0, 3
 -     v1 = sdiv v0, 8
-+     v1 = sar 3, v0
++     v1 = sar v0, 3
       ret v1
   }
   
@@ -241,10 +241,10 @@
   fn @shifted_inclusive_bound(arg0: i256) -> i1 {
     bb0:
       v0 = and arg0, 255
--     v1 = shl 248, v0
+-     v1 = shl v0, 248
 -     v2 = lt v1, 0x3000000000000000000000000000000000000000000000000000000000000000
 -     v3 = eq v2, false
-+     v1 = shl 248, arg0
++     v1 = shl arg0, 248
 +     v2 = lt v0, 48
 +     v3 = gt v0, 47
       ret v3
@@ -593,8 +593,8 @@
   
   fn @dynamic_power_divisor(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl arg1, 1
-      v1 = shr arg1, arg0
+      v0 = shl 1, arg1
+      v1 = shr arg0, arg1
       ret v1
   }
   
@@ -668,8 +668,8 @@
   
   fn @exact_signed(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 3, arg0
-      v1 = sar 3, v0
+      v0 = shl arg0, 3
+      v1 = sar v0, 3
       ret v1
   }
   
@@ -741,7 +741,7 @@
   fn @shifted_inclusive_bound(arg0: i256) -> i1 {
     bb0:
       v0 = and arg0, 255
-      v1 = shl 248, arg0
+      v1 = shl arg0, 248
       v2 = lt v0, 48
       v3 = gt v0, 47
       ret v3
@@ -1079,8 +1079,8 @@
   
   fn @dynamic_power_divisor(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl arg1, 1
-      v1 = shr arg1, arg0
+      v0 = shl 1, arg1
+      v1 = shr arg0, arg1
       ret v1
   }
   
@@ -1149,8 +1149,8 @@
   
   fn @exact_signed(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 3, arg0
-      v1 = sar 3, v0
+      v0 = shl arg0, 3
+      v1 = sar v0, 3
       ret v1
   }
   
@@ -1219,7 +1219,7 @@
   fn @shifted_inclusive_bound(arg0: i256) -> i1 {
     bb0:
       v0 = and arg0, 255
-      v1 = shl 248, arg0
+      v1 = shl arg0, 248
       v2 = lt v0, 48
       v3 = gt v0, 47
       ret v3

@@ -32,7 +32,7 @@ library Recursive {
 
     // CHECK-LABEL: fn @child(
     // CHECK-SAME: selector=0xfdf833f5
-    // CHECK-SAME: abi_params=[storageptr, u256]
+    // CHECK-SAME: abi_params=[storageptr, uint256]
     // CHECK: storage_array_data_slot
     // CHECK: ret
     function child(Node storage node, uint index) external view returns (Node storage) {
@@ -50,7 +50,7 @@ library Recursive {
 
     // CHECK-LABEL: fn @mapped(
     // CHECK-SAME: selector=0x6a49b46f
-    // CHECK-SAME: abi_params=[storageptr, u256]
+    // CHECK-SAME: abi_params=[storageptr, uint256]
     // CHECK: [[MAPPED_SLOT:v[0-9]+]] = mapping_slot arg1,
     // CHECK: sload [[MAPPED_SLOT]]
     // CHECK: ret

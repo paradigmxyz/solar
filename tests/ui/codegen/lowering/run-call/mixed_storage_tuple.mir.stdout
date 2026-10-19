@@ -44,7 +44,7 @@ fn @f() -> struct0 [view] {
     ret v6
 }
 
-fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @f
     v1 = extract_value struct0, v0, 0
@@ -74,7 +74,7 @@ fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, 
     ret v19
 }
 
-fn @test_h() -> i256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_h() -> i256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @f
     v1 = extract_value struct0, v0, 0
@@ -87,11 +87,11 @@ fn @test_h() -> i256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word], ab
     v6 = storage_array_data_slot 0
     v7 = add v6, 0
     v8 = sload v7 !metadata(storage=symbolic(v6))
-    v9 = checked_add u256, v1, v8
+    v9 = checked_add uint256, v1, v8
     ret v9
 }
 
-fn @mapping_reference() -> struct1 [selector=0xc5744cb1, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8]] {
+fn @mapping_reference() -> struct1 [selector=0xc5744cb1, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint8>, word<uint8>], abi_return_params=[uint8, uint8, uint8, uint8]] {
   bb0:
     v0 = mapping_slot 1, 2
     v1 = sload v0 !metadata(storage=symbolic(v0))

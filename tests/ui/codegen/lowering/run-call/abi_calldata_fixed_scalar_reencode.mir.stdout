@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_scalar_reencode.sol:AbiCalldataFixedScalarReencode ===
 @module AbiCalldataFixedScalarReencode
-fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x5dc12891, pure, abi_params=[array<3, u256>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x5dc12891, pure, abi_params=[array<3, uint256>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [array<3, word>], object, args arg0
     ret v0
 }
 
-fn @g(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x1fd55338, view, abi_params=[array<2, array<3, u256>>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @g(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x1fd55338, view, abi_params=[array<2, array<3, uint256>>, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas
@@ -41,7 +41,7 @@ fn @g(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x1fd55338, vi
     ret v23
 }
 
-fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0x94e17704, pure, abi_params=[array<3, u8>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0x94e17704, pure, abi_params=[array<3, uint8>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
@@ -60,14 +60,14 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0x94e17704, pure, abi_para
     v17 = extract_value slice<calldata>, v16, 0
     v18 = extract_value slice<calldata>, v16, 1
     calldatacopy v5, v17, v18
-    v19 = abi_encode [array<3, word<u8>>], object, args v5
+    v19 = abi_encode [array<3, word<uint8>>], object, args v5
     ret v19
   bb2:
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
     v11 = calldataload v10
-    v12 = shr 8, v11
+    v12 = shr v11, 8
     v13 = eq v12, 0
     v14 = eq v13, false
     icall revert_if<empty>, v14
@@ -75,7 +75,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0x94e17704, pure, abi_para
     jump bb1
 }
 
-fn @i(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x18e849a4, view, abi_params=[array<2, array<3, u8>>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @i(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x18e849a4, view, abi_params=[array<2, array<3, uint8>>, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas
@@ -103,7 +103,7 @@ fn @i(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x18e849a4, vi
     v19 = lt v18, 3
     jumpi v19, bb2, bb3
   bb3:
-    v28 = abi_encode [array<3, word<u8>>], selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v16
+    v28 = abi_encode [array<3, word<uint8>>], selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v16
     v29 = extract_value slice<memory>, v28, 0
     v30 = extract_value slice<memory>, v28, 1
     v31 = zext i160 v0 to i256
@@ -120,7 +120,7 @@ fn @i(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x18e849a4, vi
     v21 = ptrtoint ptr<calldata> v17 to i256
     v22 = add v21, v20
     v23 = calldataload v22
-    v24 = shr 8, v23
+    v24 = shr v23, 8
     v25 = eq v24, 0
     v26 = eq v25, false
     icall revert_if<empty>, v26

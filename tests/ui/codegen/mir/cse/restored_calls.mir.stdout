@@ -4,7 +4,7 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
-fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = gt arg1, 8
     v1 = eq v0, false
@@ -22,7 +22,7 @@ fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_para
     mstore v9, 1
     v10 = icall @scan, v5, arg1
     v11 = icall @scan, v5, arg1
-    v12 = checked_add u256, v10, v11
+    v12 = checked_add uint256, v10, v11
     v13 = ptrtoint ptr<memory> v5 to i256
     v14 = add v13, 32
     v15 = mload v14
@@ -31,7 +31,7 @@ fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_para
     ret v17
 }
 
-fn @repeated(arg0: i256, arg1: i256, arg2: i1) -> struct1 [selector=0xd6d01539, pure, abi_params=[u256, u256, bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @repeated(arg0: i256, arg1: i256, arg2: i1) -> struct1 [selector=0xd6d01539, pure, abi_params=[uint256, uint256, bool], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = gt arg1, 8
     v1 = eq v0, false
@@ -102,7 +102,7 @@ fn @scan(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
     jump bb1
 }
 
-fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = gt arg1, 8
     v1 = eq v0, false
@@ -158,7 +158,7 @@ fn @temporary(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
     jump bb1
 }
 
-fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0

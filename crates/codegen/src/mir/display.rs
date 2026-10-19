@@ -391,7 +391,10 @@ fn display_inst_kind<'a>(
         func: &Function,
     ) -> fmt::Result {
         write!(f, "{}", kind.mnemonic())?;
-        let operands = kind.operands();
+        let mut operands = kind.operands();
+        if kind.reverses_text_operands() {
+            operands.reverse();
+        }
         if !operands.is_empty() {
             write!(
                 f,
@@ -601,21 +604,6 @@ fn display_inst_kind<'a>(
         }
         InstKind::AbiDecode { data, layout } => {
             write!(f, "abi_decode {layout}, {}", display_val(*data, func))
-        }
-        InstKind::StorageToMemory { storage, memory, layout } => write!(
-            f,
-            "storage_to_memory {layout}, {}, {}",
-            display_val(*storage, func),
-            display_val(*memory, func)
-        ),
-        InstKind::MemoryToStorage { memory, storage, layout } => write!(
-            f,
-            "memory_to_storage {layout}, {}, {}",
-            display_val(*memory, func),
-            display_val(*storage, func)
-        ),
-        InstKind::ClearStorage { storage, layout } => {
-            write!(f, "clear_storage {layout}, {}", display_val(*storage, func))
         }
         InstKind::ICall { function: Callee::Function(function), args } => {
             write!(f, "icall {}", display_function_ref(*function, module))?;

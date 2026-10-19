@@ -4,7 +4,7 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
-fn @swap(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x9d9892cd, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @swap(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x9d9892cd, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -27,11 +27,11 @@ fn @swap(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x9d9892cd, pu
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v5, 1
+    v7 = checked_add uint256, v5, 1
     jump bb1
 }
 
-fn @rotate(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [selector=0x5423941f, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @rotate(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [selector=0x5423941f, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -57,11 +57,11 @@ fn @rotate(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [selector=
   bb6:
     jump bb3
   bb3:
-    v9 = checked_add u256, v7, 1
+    v9 = checked_add uint256, v7, 1
     jump bb1
 }
 
-fn @swapSpilled(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb11604b0, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @swapSpilled(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb11604b0, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg1, 1
     v1 = add arg2, 2
@@ -111,7 +111,7 @@ fn @swapSpilled(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb11604b0
     jump bb1
 }
 
-fn @rotateSpilled(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x0fe3e75b, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @rotateSpilled(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x0fe3e75b, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg1, 1
     v1 = add arg2, 2

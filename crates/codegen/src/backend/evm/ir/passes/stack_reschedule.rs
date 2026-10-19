@@ -25,10 +25,11 @@
 //! `PUSH target; JUMPI` of an overflow check or a guard: the pair takes only its condition, so it
 //! joins the run as one more ordered operation. Work may move below it, as only the path that
 //! continues needs it, but never above it, so the aborting path spends no more gas than before
-//! and still reaches its revert. Such a block reaches its `REVERT` or `INVALID` without a jump
-//! and without an operation that depends on the gas left, such as a `GAS` reading in its
-//! payload, which could tell where the work ran. A block that returns or stops is a normal exit
-//! and ends the run. Spanning the checks gives the search more freedom, but a longer run can
+//! and still reaches its revert. Such a block reaches its `REVERT` or `INVALID` without a branch,
+//! within at most [`MAX_ABORT_JUMPS`] blocks linked by direct jumps, as tail merging shares the
+//! ends of reverts, and without an operation that depends on the gas left, such as a `GAS` reading
+//! in its payload, which could tell where the work ran. A block that returns or stops is a normal
+//! exit and ends the run. Spanning the checks gives the search more freedom, but a longer run can
 //! exhaust its budget where the runs between its checks would not, so those are scheduled
 //! separately as well, split after each operation that depends on the gas left too, and the
 //! cheaper result is kept. A run with more operations than one search takes is cut into windows
@@ -91,7 +92,7 @@
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
-        ir::{Block, BlockId, Instruction, Module, TerminatorKind},
+        ir::{BlockId, Instruction, Module, TerminatorKind},
         op::{self, StackOp},
     },
     target::{Cost, Target},
@@ -150,6 +151,8 @@ const REACH: usize = 16;
 const WORD_BITS: u32 = 6;
 /// Words a packed stack holds.
 const MAX_HEIGHT: usize = 21;
+/// Blocks an abort may span through direct jumps.
+const MAX_ABORT_JUMPS: usize = 4;
 
 pub(super) struct StackReschedule;
 
@@ -161,8 +164,8 @@ impl EvmPass for StackReschedule {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let target = Target::new(gcx);
         let mut halts = DenseBitSet::new_empty(module.blocks.len());
-        for (id, block) in module.blocks.iter_enumerated() {
-            if aborts_without_stack(block) {
+        for id in module.blocks.indices() {
+            if aborts_without_stack(module, id) {
                 halts.insert(id);
             }
         }
@@ -1204,32 +1207,39 @@ fn is_branch_pair(
 }
 
 /// Whether a block aborts without reading a word that was on the stack when it was entered, and
-/// without anything that tells how much work ran before the branch into it.
+/// without anything that tells how much work ran before the branch into it. The abort may end in
+/// a block that a few direct jumps reach.
 ///
 /// A run may move work below a branch to such a block: the work then runs only on the path that
 /// continues, which is the one that needs it. A block that returns or stops is a normal exit, and
-/// so is one that jumps elsewhere before its end. A `GAS` reading, a call or an `SSTORE` would see
-/// how much gas the path spent, so a block with one keeps its branch out of runs.
-fn aborts_without_stack(block: &Block) -> bool {
+/// so is one that may branch elsewhere before its end. A `GAS` reading, a call or an `SSTORE` would
+/// see how much gas the path spent, so a block with one keeps its branch out of runs.
+fn aborts_without_stack(module: &Module, mut id: BlockId) -> bool {
     let mut depth = 0usize;
-    for inst in &block.instructions {
-        if inst.opcode == op::JUMPI
-            || inst
-                .definition()
-                .is_some_and(|definition| definition.is_terminal() || definition.observes_gas())
-        {
-            return false;
+    // Shared tails move the end of an abort into another block, so follow a few direct jumps.
+    for _ in 0..MAX_ABORT_JUMPS {
+        let block = &module.blocks[id];
+        for inst in &block.instructions {
+            if inst.opcode == op::JUMPI
+                || inst
+                    .definition()
+                    .is_some_and(|definition| definition.is_terminal() || definition.observes_gas())
+            {
+                return false;
+            }
+            let effect = inst.stack_effect();
+            let Some(rest) = depth.checked_sub(usize::from(effect.inputs)) else { return false };
+            depth = rest + usize::from(effect.outputs);
         }
-        let effect = inst.stack_effect();
-        let Some(rest) = depth.checked_sub(usize::from(effect.inputs)) else { return false };
-        depth = rest + usize::from(effect.outputs);
-    }
-    match block.terminator.as_ref().map(|terminator| &terminator.kind) {
-        Some(kind @ TerminatorKind::Op(op::REVERT | op::INVALID)) => {
-            kind.stack_io().is_some_and(|(inputs, _)| usize::from(inputs) <= depth)
+        match block.terminator.as_ref().map(|terminator| &terminator.kind) {
+            Some(kind @ TerminatorKind::Op(op::REVERT | op::INVALID)) => {
+                return kind.stack_io().is_some_and(|(inputs, _)| usize::from(inputs) <= depth);
+            }
+            Some(&TerminatorKind::Jump(target)) => id = target,
+            _ => return false,
         }
-        _ => false,
     }
+    false
 }
 
 /// Whether an instruction of a run is an operation: a branch pair's push is part of its `JUMPI`.

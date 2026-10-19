@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/unused_bound_library_function.sol:D ===
 @module D
 @library
-fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_mul u256, 2, arg0
+    v0 = checked_mul uint256, 2, arg0
     ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/unused_bound_library_function.sol:UnusedBoundLibraryFunction ===
 @module UnusedBoundLibraryFunction
-fn @f(arg0: i256) [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @f(arg0: i256) [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }

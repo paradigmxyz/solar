@@ -5,9 +5,12 @@
 //! entry, push, and terminator reference together.
 
 use super::compact_pushes::selected_len;
-use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
-    op,
+use crate::{
+    backend::evm::{
+        ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
+        op,
+    },
+    target::Target,
 };
 use solar_data_structures::{
     index::{IndexVec, index_vec},
@@ -85,6 +88,22 @@ impl Hash for MachineInstKey {
     }
 }
 
+/// A stack operation as a symbolic stack simulation sees it. A push is a stack operation for this
+/// purpose: deleting it deletes the word it pushes.
+#[derive(Clone, Copy)]
+pub(super) enum SymbolicStackOp {
+    Push,
+    Physical(op::StackOp),
+}
+
+/// Returns the symbolic stack operation of a push or physical stack operation.
+pub(super) fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
+    if inst.is_encoded_push() {
+        return Some(SymbolicStackOp::Push);
+    }
+    inst.as_stack_op().map(SymbolicStackOp::Physical)
+}
+
 /// Returns whether the boundary at `index` in `instructions` may be disturbed.
 ///
 /// The boundary right after a `keep_with_next` instruction is not a legal split point, so no
@@ -138,10 +157,10 @@ pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> 
         });
     }
     if inst.pushed_library().is_some() {
-        return 21;
+        return Target::new(gcx).opcode(op::PUSH20).bytes as usize;
     }
     if let Some(type_size) = inst.immutable_type_size() {
-        return usize::from(type_size.bytes()) + 1;
+        return Target::new(gcx).opcode(op::push(type_size.bytes())).bytes as usize;
     }
     if let Some(value) = inst.concrete_immediate() {
         return selected_len(gcx, value);

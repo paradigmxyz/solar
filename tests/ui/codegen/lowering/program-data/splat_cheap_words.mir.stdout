@@ -1,0 +1,21 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/splat_cheap_words.sol:C ===
+@module C
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = alloc 192 !metadata(preserves_fmp)
+    mstore v0, 160
+    v1 = ptradd v0, 32
+    mstore v1, 1
+    v2 = ptradd v0, 64
+    mstore v2, 1
+    v3 = ptradd v0, 96
+    mstore v3, 1
+    v4 = ptradd v0, 128
+    mstore v4, 1
+    v5 = ptradd v0, 160
+    mstore v5, 1
+    v6 = ptradd v0, 32
+    v7 = mload v0
+    v8 = keccak256 v6, v7
+    ret v8
+}

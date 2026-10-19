@@ -168,9 +168,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             BinOpKind::And | BinOpKind::BitAnd => self.builder.and(lhs, rhs),
             BinOpKind::Or | BinOpKind::BitOr => self.builder.or(lhs, rhs),
             BinOpKind::BitXor => self.builder.xor(lhs, rhs),
-            BinOpKind::Shl => self.builder.shl(rhs, lhs),
-            BinOpKind::Shr => self.builder.shr(rhs, lhs),
-            BinOpKind::Sar => self.builder.sar(rhs, lhs),
+            BinOpKind::Shl => self.builder.shl(lhs, rhs),
+            BinOpKind::Shr => self.builder.shr(lhs, rhs),
+            BinOpKind::Sar => self.builder.sar(lhs, rhs),
             BinOpKind::Pow => {
                 if self.unchecked {
                     let result = self.builder.exp(lhs, rhs);

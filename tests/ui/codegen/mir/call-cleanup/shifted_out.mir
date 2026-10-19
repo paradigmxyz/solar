@@ -19,7 +19,7 @@ fn @root() -> i256 {
 // CHECK: {{^[ +].*}}= ne 0, 0
 fn @fits(arg0: i256) -> i256 {
   bb0:
-    v0 = shr 160, arg0
+    v0 = shr arg0, 160
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
   bb1:
@@ -30,9 +30,9 @@ fn @fits(arg0: i256) -> i256 {
 
 // A shift by less than the width keeps the address's high bits.
 // CHECK-LABEL: fn @partial
-// CHECK: {{^[ +].*}}= shr 159, arg0
+// CHECK: {{^[ +].*}}= shr arg0, 159
 fn @partial(arg0: i256) -> i256 {
   bb0:
-    v0 = shr 159, arg0
+    v0 = shr arg0, 159
     ret v0
 }

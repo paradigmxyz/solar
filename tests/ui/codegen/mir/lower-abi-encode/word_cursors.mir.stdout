@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.sol:WordCursors ===
 @module WordCursors
-fn @reencode(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x6c07f40d, pure, abi_params=[array<_, u8>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @reencode(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x6c07f40d, pure, abi_params=[array<_, uint8>, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
   bb1:
@@ -17,7 +17,7 @@ fn @reencode(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x6c07f40d,
   bb5:
     jump bb2
   bb2:
-    v15 = abi_encode [memory_array<word<u8>>], object, args v0
+    v15 = abi_encode [memory_array<word<uint8>>], object, args v0
     ret v15
   bb4:
     v9 = add v1, v3
@@ -34,7 +34,7 @@ fn @reencode(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x6c07f40d,
     jump bb1
 }
 
-fn @encode(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xdc0aa2af, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encode(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xdc0aa2af, pure, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gt arg0, 64
     v1 = eq v0, false
@@ -78,7 +78,7 @@ fn @encode(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xdc0aa2af, pure, ab
   bb5:
     jump bb2
   bb2:
-    v35 = abi_encode [memory_array<word<u8>>], object, args v25
+    v35 = abi_encode [memory_array<word<uint8>>], object, args v25
     ret v35
   bb4:
     v31 = add v23, v27
@@ -93,7 +93,7 @@ fn @encode(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xdc0aa2af, pure, ab
     jump bb1
 }
 
-fn @enums(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x7918856a, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @enums(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x7918856a, pure, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -122,12 +122,12 @@ fn @grownSmall() -> ptr<memory> [selector=0x220ca531, pure, abi_params=[], abi_r
     v6 = ptrtoint ptr<memory> v0 to i256
     v7 = add v6, 96
     mstore 64, v7 !metadata(memory=scratch)
-    v8 = abi_encode [memory_array<word<u16>>], object, args v0
+    v8 = abi_encode [memory_array<word<uint16>>], object, args v0
     ret v8
 }
 
 fn @defaultArray() -> ptr<memory> [selector=0x1407f84d, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = abi_encode [memory_array<word<u8>>], object, args ptr<memory> 96
+    v0 = abi_encode [memory_array<word<uint8>>], object, args ptr<memory> 96
     ret v0
 }

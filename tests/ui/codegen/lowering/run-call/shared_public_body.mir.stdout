@@ -3,16 +3,16 @@
 @types
   struct0: {i256, i256}
 
-fn @shared(arg0: i256) -> struct0 [selector=0x727ee1fa, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shared(arg0: i256) -> struct0 [selector=0x727ee1fa, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, arg0, v0
-    v2 = checked_add u256, v1, 1
+    v1 = checked_add uint256, arg0, v0
+    v2 = checked_add uint256, v1, 1
     jump bb2
   bb2:
     v3 = sload 0 !metadata(storage=slot(0))
-    v4 = checked_add u256, v3, 10
+    v4 = checked_add uint256, v3, 10
     sstore 0, v4 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -21,7 +21,7 @@ fn @shared(arg0: i256) -> struct0 [selector=0x727ee1fa, abi_params=[u256], abi_r
     ret v6
 }
 
-fn @invoke(arg0: i256) -> struct0 [selector=0x2b30d2b8, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @invoke(arg0: i256) -> struct0 [selector=0x2b30d2b8, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @shared, arg0
     v1 = extract_value struct0, v0, 0
@@ -31,18 +31,18 @@ fn @invoke(arg0: i256) -> struct0 [selector=0x2b30d2b8, abi_params=[u256], abi_r
     ret v4
 }
 
-fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 2
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v1 = checked_sub u256, arg0, 1
+    v1 = checked_sub uint256, arg0, 1
     v2 = icall @fib, v1
-    v3 = checked_sub u256, arg0, 2
+    v3 = checked_sub uint256, arg0, 2
     v4 = icall @fib, v3
-    v5 = checked_add u256, v2, v4
+    v5 = checked_add uint256, v2, v4
     ret v5
   bb1:
     ret arg0

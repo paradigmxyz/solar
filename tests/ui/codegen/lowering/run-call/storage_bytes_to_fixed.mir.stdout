@@ -9,7 +9,7 @@ fn @short() -> i256 [selector=0x38bea4cb, abi_params=[], abi_returns=[word<bytes
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
   bb2:
@@ -23,7 +23,7 @@ fn @short() -> i256 [selector=0x38bea4cb, abi_params=[], abi_returns=[word<bytes
     v10 = lt v6, 4
     v11 = sub 4, v6
     v12 = mul 8, v11
-    v13 = shl v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v13 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v12
     v14 = select v10, v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v15 = and v9, v14
     ret v15
@@ -38,7 +38,7 @@ fn @long() -> i256 [selector=0x07bfce37, abi_params=[], abi_returns=[word], abi_
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
   bb2:
@@ -52,7 +52,7 @@ fn @long() -> i256 [selector=0x07bfce37, abi_params=[], abi_returns=[word], abi_
     v10 = lt v6, 32
     v11 = sub 32, v6
     v12 = mul 8, v11
-    v13 = shl v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v12
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v15 = and v9, v14
     ret v15
@@ -67,7 +67,7 @@ fn @convertedString() -> i256 [selector=0x3d08d827, abi_params=[], abi_returns=[
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
   bb2:
@@ -81,7 +81,7 @@ fn @convertedString() -> i256 [selector=0x3d08d827, abi_params=[], abi_returns=[
     v10 = lt v6, 32
     v11 = sub 32, v6
     v12 = mul 8, v11
-    v13 = shl v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v12
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v15 = and v9, v14
     ret v15
@@ -96,7 +96,7 @@ fn @convertedString31() -> i256 [selector=0x4a6ab498, abi_params=[], abi_returns
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
   bb2:
@@ -110,7 +110,7 @@ fn @convertedString31() -> i256 [selector=0x4a6ab498, abi_params=[], abi_returns
     v10 = lt v6, 32
     v11 = sub 32, v6
     v12 = mul 8, v11
-    v13 = shl v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v12
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v15 = and v9, v14
     ret v15
@@ -125,7 +125,7 @@ fn @convertedString32() -> i256 [selector=0x02030859, abi_params=[], abi_returns
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
   bb2:
@@ -139,7 +139,7 @@ fn @convertedString32() -> i256 [selector=0x02030859, abi_params=[], abi_returns
     v10 = lt v6, 32
     v11 = sub 32, v6
     v12 = mul 8, v11
-    v13 = shl v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v12
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v15 = and v9, v14
     ret v15
@@ -154,7 +154,7 @@ fn @convertedLongString() -> i256 [selector=0x31126685, abi_params=[], abi_retur
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
   bb2:
@@ -168,7 +168,7 @@ fn @convertedLongString() -> i256 [selector=0x31126685, abi_params=[], abi_retur
     v10 = lt v6, 32
     v11 = sub 32, v6
     v12 = mul 8, v11
-    v13 = shl v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v12
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v15 = and v9, v14
     ret v15
@@ -183,7 +183,7 @@ fn @storagePointer() -> i256 [selector=0x8f8e9061, abi_params=[], abi_returns=[w
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
   bb2:
@@ -197,7 +197,7 @@ fn @storagePointer() -> i256 [selector=0x8f8e9061, abi_params=[], abi_returns=[w
     v10 = lt v6, 4
     v11 = sub 4, v6
     v12 = mul 8, v11
-    v13 = shl v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v13 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v12
     v14 = select v10, v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v15 = and v9, v14
     ret v15
@@ -212,7 +212,7 @@ fn @structMember() -> i256 [selector=0x9f2d7231, abi_params=[], abi_returns=[wor
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
   bb2:
@@ -226,7 +226,7 @@ fn @structMember() -> i256 [selector=0x9f2d7231, abi_params=[], abi_returns=[wor
     v10 = lt v6, 2
     v11 = sub 2, v6
     v12 = mul 8, v11
-    v13 = shl v12, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v13 = shl 0xffff000000000000000000000000000000000000000000000000000000000000, v12
     v14 = select v10, v13, 0xffff000000000000000000000000000000000000000000000000000000000000
     v15 = and v9, v14
     ret v15
@@ -258,7 +258,7 @@ fn @arrayElement() -> i256 [selector=0x050651a8, abi_params=[], abi_returns=[wor
     v14 = eq v13, 1
     v15 = sub 0, v13
     v16 = or 127, v15
-    v17 = shr 1, v12
+    v17 = shr v12, 1
     v18 = and v17, v16
     jumpi v14, bb1, bb2
   bb2:
@@ -272,7 +272,7 @@ fn @arrayElement() -> i256 [selector=0x050651a8, abi_params=[], abi_returns=[wor
     v22 = lt v18, 2
     v23 = sub 2, v18
     v24 = mul 8, v23
-    v25 = shl v24, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v25 = shl 0xffff000000000000000000000000000000000000000000000000000000000000, v24
     v26 = select v22, v25, 0xffff000000000000000000000000000000000000000000000000000000000000
     v27 = and v21, v26
     ret v27

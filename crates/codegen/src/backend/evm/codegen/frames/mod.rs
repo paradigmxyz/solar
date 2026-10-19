@@ -1454,7 +1454,25 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         self.record_runtime_entry_reachability(call_graph, entry);
         let reachable = &self.runtime_entry_reachability[&entry];
-        let needs_free_memory = reachable.iter().any(|func_id| {
+        if !Self::functions_need_free_memory(module, call_graph, reachable.iter()) {
+            return;
+        }
+
+        let id = self.asm.new_deferred_const();
+        self.asm.emit_push_deferred(id);
+        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+        self.asm.emit_op(op::MSTORE);
+        self.runtime_free_memory_consts.insert(entry, id);
+    }
+
+    /// Whether any of `functions` reads the free memory pointer, directly or through the frame
+    /// and multi-word return conventions that allocate above it.
+    pub(in crate::backend::evm::codegen) fn functions_need_free_memory(
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        mut functions: impl Iterator<Item = FunctionId>,
+    ) -> bool {
+        functions.any(|func_id| {
             call_graph.is_recursive(func_id)
                 || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
                 || module.functions[func_id].instructions().any(|inst_id| {
@@ -1464,16 +1482,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             if module.function(function).return_components().len() > 1
                     )
                 })
-        });
-        if !needs_free_memory {
-            return;
-        }
-
-        let id = self.asm.new_deferred_const();
-        self.asm.emit_push_deferred(id);
-        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-        self.asm.emit_op(op::MSTORE);
-        self.runtime_free_memory_consts.insert(entry, id);
+        })
     }
 
     /// Records every function whose memory bounds contribute to one runtime entry.
@@ -1604,13 +1613,13 @@ mod tests {
         // divided = (add / 32) * 32
         // mixed_alignment = (add >> 5) * 32
         let shift = builder.imm(5);
-        let quotient = builder.shr(shift, add);
-        let shifted_alignment = builder.shl(shift, quotient);
+        let quotient = builder.shr(add, shift);
+        let shifted_alignment = builder.shl(quotient, shift);
         let mixed_alignment = builder.mul(word, quotient);
         let quotient = builder.div(add, word);
         let divided_alignment = builder.mul(quotient, word);
         let commuted_divided = builder.mul(word, quotient);
-        let mixed_shift = builder.shl(shift, quotient);
+        let mixed_shift = builder.shl(quotient, shift);
         // opaque_alignment = (opaque / 32) * 32
         // mismatched = (add / 32) * 16
         let opaque_quotient = builder.div(opaque, word);

@@ -25,6 +25,25 @@
     bb1:
 -     v0 = sload 0
 -     sstore 0, 2
+-     ret v0
++     sstore 0, 2 !metadata(storage=slot(0))
++     ret 1
+  }
+  
+  fn @one_path_reads_after_alias(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+-     sstore 0, 1
++     sstore 0, 1 !metadata(storage=slot(0))
+      jumpi arg0, bb1, bb2
+    bb2:
+-     sstore 0, 3
++     sstore 0, 3 !metadata(storage=slot(0))
+      ret 0
+    bb1:
+-     sstore arg1, 5
+-     v0 = sload 0
+-     sstore 0, 2
++     sstore arg1, 5 !metadata(storage=symbolic(arg1))
 +     v0 = sload 0 !metadata(storage=slot(0))
 +     sstore 0, 2 !metadata(storage=slot(0))
       ret v0
@@ -56,7 +75,7 @@
 +     sstore 0, v3 !metadata(storage=slot(0))
 +     v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
       v6 = and arg1, 255
-      v7 = shl 8, v6
+      v7 = shl v6, 8
       v8 = or v5, v7
 -     sstore 0, v8
 +     sstore 0, v8 !metadata(storage=slot(0))
@@ -110,12 +129,25 @@
   
   fn @one_path_reads(arg0: i1) -> i256 {
     bb0:
+-     sstore 0, 1 !metadata(storage=slot(0))
+      jumpi arg0, bb1, bb2
+    bb2:
+      sstore 0, 3 !metadata(storage=slot(0))
+      ret 0
+    bb1:
+      sstore 0, 2 !metadata(storage=slot(0))
+      ret 1
+  }
+  
+  fn @one_path_reads_after_alias(arg0: i1, arg1: i256) -> i256 {
+    bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
     bb2:
       sstore 0, 3 !metadata(storage=slot(0))
       ret 0
     bb1:
+      sstore arg1, 5 !metadata(storage=symbolic(arg1))
       v0 = sload 0 !metadata(storage=slot(0))
       sstore 0, 2 !metadata(storage=slot(0))
       ret v0
@@ -145,7 +177,7 @@
 -     sstore 0, v3 !metadata(storage=slot(0))
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
       v6 = and arg1, 255
-      v7 = shl 8, v6
+      v7 = shl v6, 8
       v8 = or v5, v7
       sstore 0, v8 !metadata(storage=slot(0))
       stop
@@ -199,12 +231,24 @@
   
   fn @one_path_reads(arg0: i1) -> i256 {
     bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      sstore 0, 3 !metadata(storage=slot(0))
+      ret 0
+    bb1:
+      sstore 0, 2 !metadata(storage=slot(0))
+      ret 1
+  }
+  
+  fn @one_path_reads_after_alias(arg0: i1, arg1: i256) -> i256 {
+    bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
     bb2:
       sstore 0, 3 !metadata(storage=slot(0))
       ret 0
     bb1:
+      sstore arg1, 5 !metadata(storage=symbolic(arg1))
       v0 = sload 0 !metadata(storage=slot(0))
       sstore 0, 2 !metadata(storage=slot(0))
       ret v0
@@ -231,7 +275,7 @@
       v3 = or v1, v2
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
       v6 = and arg1, 255
-      v7 = shl 8, v6
+      v7 = shl v6, 8
       v8 = or v5, v7
       sstore 0, v8 !metadata(storage=slot(0))
       stop
@@ -281,12 +325,24 @@
   
   fn @one_path_reads(arg0: i1) -> i256 {
     bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      sstore 0, 3 !metadata(storage=slot(0))
+      ret 0
+    bb1:
+      sstore 0, 2 !metadata(storage=slot(0))
+      ret 1
+  }
+  
+  fn @one_path_reads_after_alias(arg0: i1, arg1: i256) -> i256 {
+    bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
     bb2:
       sstore 0, 3 !metadata(storage=slot(0))
       ret 0
     bb1:
+      sstore arg1, 5 !metadata(storage=symbolic(arg1))
       v0 = sload 0 !metadata(storage=slot(0))
       sstore 0, 2 !metadata(storage=slot(0))
       ret v0
@@ -313,7 +369,7 @@
       v3 = or v1, v2
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
       v6 = and arg1, 255
-      v7 = shl 8, v6
+      v7 = shl v6, 8
       v8 = or v5, v7
       sstore 0, v8 !metadata(storage=slot(0))
       stop

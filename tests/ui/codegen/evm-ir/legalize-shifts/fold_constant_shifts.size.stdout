@@ -1,0 +1,35 @@
+- // === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/fold_constant_shifts.evmir (before legalize-shifts) ===
++ // === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/fold_constant_shifts.evmir (after legalize-shifts) ===
+  @module module
+  bb0:
+    push 7
+-   push 31
+-   shl
++   push 0x80000000
++   mul
+    push 7
+    push 224
+-   shr
++   push 2
++   exp
++   swap 1
++   div
+    push 7
+-   push 300
+-   shl
++   push 0
++   mul
+    push 7
+-   push 300
+-   shr
++   push 0
++   swap 1
++   div
+    push 7
+    calldatasize
+-   shl
++   push 2
++   exp
++   mul
+    stop
+  
