@@ -1,6 +1,6 @@
-//@ compile-flags: -Zevm-ir-pipeline=constant-data
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
 //@ filecheck:
-@module DebugInfo
+@module StoreOrigins
 
 // The copy carries the origins of every store it replaces, and the function
 // event of the run lands on the copy itself.
@@ -10,7 +10,7 @@
 // CHECK-NEXT: + dup 3 !metadata(spans=[3..4, 5..6, 7..8])
 // CHECK-NEXT: + codecopy !metadata(spans=[3..4, 5..6, 7..8], invoke=f@1..40)
 bb0:
-  push 0 !metadata(span=1..2)
+  push 128 !metadata(span=1..2)
   push 0x1111111111111111111111111111111111111111111111111111111111111111 !metadata(span=3..4)
   dup 2 !metadata(span=3..4)
   mstore !metadata(span=3..4)

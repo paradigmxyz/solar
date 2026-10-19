@@ -83,8 +83,10 @@ impl EvmPass for TerminalLayout {
                 || moved.contains(*tail)
                 || suffix.metadata.in_loop
                 || suffix.metadata.hotness.is_cold()
-                || !matches!(suffix.terminator.as_ref().map(|term| &term.kind),
-                    Some(TerminatorKind::Op(opcode)) if op::is_terminal(*opcode))
+                || !matches!(
+                    suffix.terminator.as_ref().map(|term| &term.kind),
+                    Some(TerminatorKind::Op(_))
+                )
             {
                 continue;
             }

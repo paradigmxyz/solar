@@ -104,19 +104,19 @@ use crate::{
         Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-            Location, LocationSize, MemoryAddress, MemoryLocation, ModRef,
+            Location, LocationSize, MemoryAddress, MemoryCallSummaries, MemoryLocation, ModRef,
         },
         pass::{MirPass, run_function_pass_with_alias_and_cfg},
         utils as mir_utils,
     },
-    target::{GasTier, Target, Warmth},
+    target::{Target, Warmth},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
-use std::{cell::OnceCell, collections::BTreeMap, rc::Rc};
+use std::{cell::OnceCell, collections::BTreeMap, rc::Rc, sync::Arc};
 
 /// Function pass for load PRE.
 pub(crate) enum LoadPre {
@@ -141,11 +141,17 @@ impl MirPass for LoadPre {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = Target::new(gcx);
+        let summaries = analyses.call_summaries(module);
         run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
-            let mut eliminator = LoadRedundancyEliminator::new(target);
-            eliminator.storage_only = matches!(self, Self::Storage);
-            eliminator.alias = Some(Rc::clone(analyses.alias()));
-            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+            let mut eliminator = LoadRedundancyEliminator {
+                storage_only: matches!(self, Self::Storage),
+                liveness: OnceCell::new(),
+                cfg: Some(Rc::clone(analyses.cfg())),
+                stats: LoadPreStats::default(),
+                alias: Rc::clone(analyses.alias()),
+                summaries: Arc::clone(&summaries),
+                target,
+            };
             eliminator.run(func).total() != 0
         })
     }
@@ -175,7 +181,9 @@ struct LoadRedundancyEliminator {
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
     stats: LoadPreStats,
-    alias: Option<Rc<AliasAnalysis>>,
+    alias: Rc<AliasAnalysis>,
+    /// Call summaries for the alias snapshot rebuilt after edge splitting.
+    summaries: Arc<MemoryCallSummaries>,
     target: Target,
 }
 
@@ -259,15 +267,6 @@ struct LoadPreCostInput<'a> {
 }
 
 impl LoadPreCostModel {
-    const MEMORY_READ: i64 = GasTier::VeryLow.fixed_gas() as i64;
-    const TRANSIENT_READ: i64 = GasTier::Transient.fixed_gas() as i64;
-    const KECCAK_BASE: i64 = GasTier::Keccak.fixed_gas() as i64;
-    const KECCAK_WORD: i64 = GasTier::Keccak.fixed_dynamic_gas() as i64;
-    /// One `DUP` on the edge.
-    const NON_LOOP_PHI_EDGE_COPY: i64 = GasTier::VeryLow.fixed_gas() as i64;
-    /// One `DUP` to reach the operand.
-    const CROSS_BLOCK_OPERAND: i64 = GasTier::VeryLow.fixed_gas() as i64;
-
     fn estimate(&self, input: LoadPreCostInput<'_>) -> LoadPreCost {
         let read = self.read_cost(input.key);
         let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
@@ -287,9 +286,10 @@ impl LoadPreCostModel {
         let phi = if !input.needs_phi || input.loop_carried {
             0
         } else {
-            Self::NON_LOOP_PHI_EDGE_COPY * input.predecessors.len() as i64
+            // One `DUP` per edge.
+            i64::from(self.target.dup().gas) * input.predecessors.len() as i64
         };
-        let operands = Self::inserted_operand_cost(input.func, input.kind, input.insertions);
+        let operands = self.inserted_operand_cost(input.func, input.kind, input.insertions);
         LoadPreCost { saved, inserted, phi, operands }
     }
 
@@ -297,18 +297,26 @@ impl LoadPreCostModel {
         match key {
             // A repeated storage read is warm, whatever the first access cost.
             LoadKey::Storage(_) => self.target.opcode_gas_at(op::SLOAD, Warmth::Warm) as i64,
-            LoadKey::Transient(_) => Self::TRANSIENT_READ,
-            LoadKey::Memory(_) => Self::MEMORY_READ,
-            LoadKey::Keccak(_, size) => match size {
-                KeccakSize::Const(size) => {
-                    Self::KECCAK_BASE + Self::KECCAK_WORD * size.div_ceil(32) as i64
-                }
-                KeccakSize::Dyn(_) => Self::KECCAK_BASE + Self::KECCAK_WORD * 2,
-            },
+            LoadKey::Transient(_) => self.target.opcode_gas(op::TLOAD) as i64,
+            LoadKey::Memory(_) => self.target.opcode_gas(op::MLOAD) as i64,
+            LoadKey::Keccak(_, size) => {
+                // A dynamic size is priced as a two-word mapping key.
+                let size = match size {
+                    KeccakSize::Const(size) => size,
+                    KeccakSize::Dyn(_) => 64,
+                };
+                let arguments = [None, Some(U256::from(size))];
+                self.target.opcode_with_immediates(op::KECCAK256, &arguments).gas as i64
+            }
         }
     }
 
-    fn inserted_operand_cost(func: &Function, kind: &InstKind, insertions: &[BlockId]) -> i64 {
+    fn inserted_operand_cost(
+        &self,
+        func: &Function,
+        kind: &InstKind,
+        insertions: &[BlockId],
+    ) -> i64 {
         if insertions.is_empty() {
             return 0;
         }
@@ -317,7 +325,8 @@ impl LoadPreCostModel {
             .into_iter()
             .filter(|&value| matches!(func.value(value), Value::Inst(_) | Value::Undef(_)))
             .count();
-        Self::CROSS_BLOCK_OPERAND * cross_block_operands as i64 * insertions.len() as i64
+        // One `DUP` to reach each operand.
+        i64::from(self.target.dup().gas) * cross_block_operands as i64 * insertions.len() as i64
     }
 }
 
@@ -490,24 +499,9 @@ struct LoadScan {
 }
 
 impl LoadRedundancyEliminator {
-    /// Creates a new load PRE pass pricing reads on `target`.
-    fn new(target: Target) -> Self {
-        Self {
-            cfg: None,
-            stats: LoadPreStats::default(),
-            alias: None,
-            target,
-            storage_only: false,
-            liveness: OnceCell::new(),
-        }
-    }
-
     /// Runs load PRE to a fixed point under the rewrite budget.
     fn run(&mut self, func: &mut Function) -> LoadPreStats {
         self.stats = LoadPreStats::default();
-        if self.alias.is_none() {
-            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
-        }
 
         let rewrite_limit = func.num_insts().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
@@ -534,7 +528,8 @@ impl LoadRedundancyEliminator {
             }
             if func.blocks.len() != blocks_before {
                 self.cfg = None;
-                self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+                self.alias =
+                    Rc::new(AliasAnalysis::with_call_summaries(func, Arc::clone(&self.summaries)));
             } else {
                 self.alias().clear_cached_addresses();
             }
@@ -543,12 +538,12 @@ impl LoadRedundancyEliminator {
         self.stats
     }
 
-    /// Computes the key universe, the per-block gen/kill summaries, and the
-    /// availability fixpoint. Returns `None` if no read is trackable.
     fn alias(&self) -> &AliasAnalysis {
-        self.alias.as_ref().expect("load PRE alias snapshot is initialized")
+        &self.alias
     }
 
+    /// Computes the key universe, the per-block gen/kill summaries, and the
+    /// availability fixpoint. Returns `None` if no read is trackable.
     fn compute_analysis(&self, func: &Function) -> Option<Analysis> {
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let rpo = cfg.rpo();
@@ -1269,9 +1264,9 @@ impl LoadRedundancyEliminator {
             }
         };
 
-        for &(_, load_result) in &loads {
-            Self::replace_uses(func, load_result, replacement);
-        }
+        func.replace_uses(
+            &loads.iter().map(|&(_, load_result)| (load_result, replacement)).collect(),
+        );
         let mut load_insts = DenseBitSet::new_empty(func.num_insts());
         for &(inst_id, _) in &loads {
             load_insts.insert(inst_id);
@@ -1480,58 +1475,5 @@ impl LoadRedundancyEliminator {
                 .get(inst_id)
                 .is_some_and(|def_block| analysis.cfg.dominators().dominates(*def_block, block)),
         })
-    }
-
-    // ----- Rewriting -----
-
-    fn replace_uses(func: &mut Function, from: ValueId, to: ValueId) {
-        func.for_each_instruction_mut(|_, inst| {
-            inst.rewrite_operands(|value| {
-                if *value == from {
-                    *value = to;
-                }
-            });
-        });
-
-        for block in func.blocks.iter_mut() {
-            if let Some(term) = &mut block.terminator {
-                Self::replace_terminator_uses(term, from, to);
-            }
-        }
-    }
-
-    fn replace_terminator_uses(term: &mut Terminator, from: ValueId, to: ValueId) {
-        let replace = |value: &mut ValueId| {
-            if *value == from {
-                *value = to;
-            }
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case, _) in cases {
-                    replace(case);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::RevertReturndata => {}
-            Terminator::SelfDestruct { recipient } => replace(recipient),
-            Terminator::TailCall { args, .. } => {
-                for arg in args {
-                    replace(arg);
-                }
-            }
-        }
     }
 }
