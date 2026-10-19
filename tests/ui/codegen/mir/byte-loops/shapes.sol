@@ -27,6 +27,7 @@
 //@ run-call: viaHelper 0x0102030405, 2, 3 => 0x030405
 //@ run-call: zeroSome 0x0102030405060708090a, 2 => 0x0102000000000000000a
 //@ run-call: copyWords [5, 6, 7], 1 => [6, 7]
+//@ run-call: asciiWords 0x6161616161616161616161616161616161616161616161616161616161616161e161616161616161616161616161616161616161616161616161616161616161 => 1
 //@ run-call: copyWords [5], 0 => [5]
 //@ run-call-fail: copyWords [5, 6], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: withinWords [1, 2, 3, 4], 0, 1, 3 => [1, 1, 1, 1]
@@ -94,6 +95,11 @@
 // CHECK-NOT: mstore8
 // CHECK: mul
 // CHECK: mstore
+
+// A gather in an outer loop compares with the length that loop hoisted.
+// CHECK-LABEL: fn @asciiWords(
+// CHECK-NOT: byte 0
+// CHECK: ret
 
 // A copy of word elements into a fresh array is one `mcopy` of 32 bytes per element.
 // CHECK-LABEL: fn @copyWords(
@@ -176,6 +182,18 @@ contract Test {
             b[k] = c;
         }
         return b;
+    }
+
+    function asciiWords(bytes memory b) external pure returns (uint256 words) {
+        for (uint256 i; b.length - i >= 32; i += 32) {
+            bytes32 w;
+            for (uint256 k; k < 32; ++k) {
+                w |= bytes32(b[i + k]) >> (8 * k);
+            }
+            if (uint256(w) & 0x8080808080808080808080808080808080808080808080808080808080808080 == 0) {
+                ++words;
+            }
+        }
     }
 
     function copyWords(uint256[] memory a, uint256 from) external pure returns (uint256[] memory c) {
