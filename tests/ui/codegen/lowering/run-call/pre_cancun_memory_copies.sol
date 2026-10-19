@@ -17,8 +17,7 @@
 // Returning a fresh array encodes it in place, a backward whole-word copy.
 // In size mode, the forward byte copies of ABI encoding share one helper, which
 // needs no runtime direction check, even for an object that assembly allocates.
-// Concatenation keeps a runtime direction check when the loaded length does not
-// prove that the whole copy fits its allocation.
+// Concatenation of bounded heap literals uses the same forward helper.
 // Once assembly moves the free memory pointer back, a new object can overlap a
 // live one, and the copy between them must check its direction at runtime.
 contract PreCancunMemoryCopies {
@@ -47,9 +46,8 @@ contract PreCancunMemoryCopies {
     }
 
     // SHARED-LABEL: fn @concat(
-    // SHARED: [[SOURCE:v[0-9]+]] = add {{v[0-9]+}}, 32
-    // SHARED: [[REVERSE:v[0-9]+]] = lt [[SOURCE]], {{v[0-9]+}}
-    // SHARED-NEXT: jumpi [[REVERSE]],
+    // SHARED: icall @[[FORWARD]], {{v[0-9]+}}, {{v[0-9]+}}, 33
+    // SHARED: icall @[[FORWARD]], {{v[0-9]+}}, {{v[0-9]+}}, 2
     function concat() external pure returns (bool) {
         bytes memory first = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021";
         bytes memory second = hex"2223";

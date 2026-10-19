@@ -18,7 +18,7 @@
 -     returndata v2, v3
 +     v4 = mload v0
 +     v5 = ptradd v0, 32
-+     v6 = shl 5, v4
++     v6 = shl v4, 5
 +     v7 = ptradd v0, 64
 +     mcopy v7, v5, v6
 +     mstore v0, 32
@@ -52,14 +52,12 @@
 +     v13 = ptrtoint ptr<memory> v3 to i256
 +     v14 = sub v12, v13
 +     v15 = add v14, 0
-+     v16 = add v15, 31
-+     v17 = not 31
-+     v18 = and v16, v17
-+     v19 = alloc v18 !metadata(preserves_fmp)
-+     v20 = make_memory_slice v19, v15
-+     v1 = extract_value slice<memory>, v20, 0
-+     v2 = extract_value slice<memory>, v20, 1
-+     returndata v19, v15
++     v16 = add v14, 0
++     v17 = alloc v16 !metadata(preserves_fmp)
++     v18 = make_memory_slice v17, v15
++     v1 = extract_value slice<memory>, v18, 0
++     v2 = extract_value slice<memory>, v18, 1
++     returndata v17, v15
   }
   
   fn @fresh_bytes(arg0: i256) -> ptr<memory> {

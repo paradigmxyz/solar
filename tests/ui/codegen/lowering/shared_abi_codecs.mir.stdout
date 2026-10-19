@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/shared_abi_codecs.sol:SharedAbiCodecs ===
 @module SharedAbiCodecs
-fn @encodeFirst(arg0: ptr<memory>) -> ptr<memory> [selector=0xe9a7b169, pure, abi_params=[tuple<u256, array<_, array<_, u256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeFirst(arg0: ptr<memory>) -> ptr<memory> [selector=0xe9a7b169, pure, abi_params=[tuple<uint256, array<_, array<_, uint256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [tuple<word, memory_array<memory_array<word>>>], object, args arg0
     ret v0
 }
 
-fn @encodeSecond(arg0: ptr<memory>) -> ptr<memory> [selector=0x108c1ec5, pure, abi_params=[tuple<u256, array<_, array<_, u256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeSecond(arg0: ptr<memory>) -> ptr<memory> [selector=0x108c1ec5, pure, abi_params=[tuple<uint256, array<_, array<_, uint256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [tuple<word, memory_array<memory_array<word>>>], object, args arg0
     ret v0
 }
 
-fn @roundTrip(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x00746047, pure, abi_params=[u256, array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @roundTrip(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x00746047, pure, abi_params=[uint256, array<_, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
     v1 = extract_value slice<calldata>, arg1, 1
@@ -54,7 +54,7 @@ fn @roundTrip(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x00746047, p
     v69 = ptradd v0, 32
     mstore v69, v68
     v70 = icall @encodeFirst, v0
-    v71 = abi_decode [tuple<u256, array<_, array<_, u256>>>], v70
+    v71 = abi_decode [tuple<uint256, array<_, array<_, uint256>>>], v70
     v72 = mload v71
     v73 = ptradd v71, 32
     v74 = mload v73, ptr<memory>
@@ -70,7 +70,7 @@ fn @roundTrip(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x00746047, p
     icall panic_if<0x32>, v82
     v83 = ptradd v79, 32
     v84 = mload v83
-    v85 = checked_add u256, v72, v84
+    v85 = checked_add uint256, v72, v84
     v86 = ptradd v71, 32
     v87 = mload v86, ptr<memory>
     v88 = mload v87
@@ -85,7 +85,7 @@ fn @roundTrip(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x00746047, p
     icall panic_if<0x32>, v95
     v96 = ptradd v92, 32
     v97 = mload v96
-    v98 = checked_add u256, v85, v97
+    v98 = checked_add uint256, v85, v97
     ret v98
   bb2:
     v26 = mul v24, 32
@@ -134,7 +134,7 @@ fn @roundTrip(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x00746047, p
     v62 = extract_value slice<calldata>, v59, 1
     calldatacopy v60, v61, v62
     v63 = ptrtoint ptr<memory> v57 to i256
-    v64 = shl 5, v24
+    v64 = shl v24, 5
     v65 = ptradd v23, v64
     v66 = ptradd v65, 32
     mstore v66, v63

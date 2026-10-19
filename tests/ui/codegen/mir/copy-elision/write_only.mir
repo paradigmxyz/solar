@@ -2,12 +2,14 @@
 //@filecheck:
 @module CopyElision
 
-// An unused object can overlap reserved memory without an address proof.
-// Keep its writes and the checked allocation's failure and FMP effects.
+// An object filled by a copy but never read loses the copy. The allocation's
+// own free-memory-pointer read happens before the object exists, so it does
+// not read it. The checked allocation remains because its failure and FMP
+// bump are observable.
 // CHECK-LABEL: after copy-elision
 // CHECK: {{^[ +].*}}fn @unread{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc zeroed checked 64
-// CHECK: {{^[ +].*}}calldatacopy {{v[0-9]+}}, 4, 32
+// CHECK: - calldatacopy {{v[0-9]+}}, 4, 32
 // CHECK-LABEL: after dce
 // CHECK: {{^[ +].*}}fn @unread{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc zeroed checked 64
@@ -87,10 +89,11 @@ fn @write_past_allocation() -> i256 {
     ret v3
 }
 
+// An indexed store whose loop guard bounds the index stays inside the object.
 // CHECK-LABEL: {{^[ +].*}}fn @guarded_loop{{[( ]}}
 // CHECK: alloc 64
-// CHECK: [[ELEM:v[0-9]+]] = ptradd
-// CHECK-NEXT: mstore [[ELEM]], 7
+// CHECK-NOT: mstore
+// CHECK: ret 0
 fn @guarded_loop() -> i256 {
   bb0:
     v0 = alloc 64
@@ -100,7 +103,7 @@ fn @guarded_loop() -> i256 {
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb2:
-    v111 = shl 5, v1
+    v111 = shl v1, 5
     v9001 = ptradd v0, v111
     mstore v9001, 7
     v3 = add v1, 1
@@ -117,7 +120,7 @@ fn @guarded_overrun(arg0: i256) -> i256 {
     v1 = lt arg0, 3
     jumpi v1, bb1, bb2
   bb1:
-    v112 = shl 5, arg0
+    v112 = shl arg0, 5
     v9001 = ptradd v0, v112
     mstore v9001, 7
     jump bb2
@@ -137,8 +140,42 @@ fn @unguarded_join(arg0: i256) -> i256 {
   bb2:
     jump bb3
   bb3:
-    v113 = shl 5, arg0
+    v113 = shl arg0, 5
     v9001 = ptradd v0, v113
     mstore v9001, 7
     ret 0
+}
+
+// An allocation in a loop reads the free-memory pointer again on the next
+// iteration, after the previous instance's writes, so they stay.
+// CHECK-LABEL: {{^[ +].*}}fn @loop_allocation{{[( ]}}
+// CHECK: {{^[ +].*}}alloc 64
+// CHECK-NEXT: {{^ .*}}mstore {{v[0-9]+}}, 7
+fn @loop_allocation(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v1, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v0 = alloc 64
+    mstore v0, 7
+    v3 = add v1, 1
+    jump bb1
+  bb3:
+    ret 0
+}
+
+// `returndatacopy` past the end of the return data reverts, so it stays even
+// though nothing reads the object.
+// CHECK-LABEL: {{^[ +].*}}fn @returndata_trap{{[( ]}}
+// CHECK: {{^ .*}}returndatacopy
+fn @returndata_trap() -> i256 {
+  bb0:
+    v0 = alloc 64
+    v9001 = ptradd v0, 32
+    v1 = ptrtoint ptr<memory> v9001 to i256
+    returndatacopy v1, 0, 32
+    ret 7
 }

@@ -177,3 +177,14 @@
       ret v0
   }
   
+  fn @merge_equal_allocations(arg0: i1) -> ptr<memory> {
+    bb0:
+-     jumpi arg0, bb1, bb2
+-   bb2:
+-     v1 = alloc zeroed checked 64
+-     ret v1
+-   bb1:
+      v0 = alloc zeroed checked 64
+      ret v0
+  }
+  

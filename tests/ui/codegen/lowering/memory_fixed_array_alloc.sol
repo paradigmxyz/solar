@@ -10,7 +10,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK: [[ARRAY:v[0-9]+]] = alloc 96
     // CHECK: lt arg0, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg0
+    // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl arg0, 5
     // CHECK-NEXT: [[ELEM1:v[0-9]+]] = ptradd [[ARRAY]], [[OFF1]]
     // CHECK-NEXT: mload [[ELEM1]]
     function guardedFix(uint256 i) public pure returns (uint256) {
@@ -23,7 +23,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK: [[ARRAY:v[0-9]+]] = alloc 96
     // CHECK: mstore [[STRUCT]], {{v[0-9]+}}
     // CHECK-NEXT: [[VALUES:v[0-9]+]] = mload [[STRUCT]], ptr<memory>
-    // CHECK: [[OFF2:v[0-9]+]] = shl 5, arg0
+    // CHECK: [[OFF2:v[0-9]+]] = shl arg0, 5
     // CHECK-NEXT: [[ELEM2:v[0-9]+]] = ptradd [[VALUES]], [[OFF2]]
     // CHECK-NEXT: mload [[ELEM2]]
     function structArr(uint256 i) public pure returns (uint256) {
@@ -34,15 +34,15 @@ contract MemoryFixedArrayAlloc {
     // CHECK-LABEL: fn @nested{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = alloc 96
     // CHECK: [[INDEX:v[0-9]+]] = phi
-    // CHECK: [[OFF3:v[0-9]+]] = shl 5, arg0
+    // CHECK: [[OFF3:v[0-9]+]] = shl arg0, 5
     // CHECK-NEXT: [[ROW:v[0-9]+]] = ptradd [[OUTER]], [[OFF3]]
     // CHECK-NEXT: mload [[ROW]]
-    // CHECK: [[OFF4:v[0-9]+]] = shl 5, arg1
+    // CHECK: [[OFF4:v[0-9]+]] = shl arg1, 5
     // CHECK-NEXT: [[CELL:v[0-9]+]] = ptradd {{v[0-9]+}}, [[OFF4]]
     // CHECK-NEXT: mload [[CELL]]
     // CHECK: [[INNER:v[0-9]+]] = alloc 64
     // CHECK-NEXT: memory_zero [[INNER]], 64
-    // CHECK: [[OFF5:v[0-9]+]] = shl 5, [[INDEX]]
+    // CHECK: [[OFF5:v[0-9]+]] = shl [[INDEX]], 5
     // CHECK-NEXT: [[SLOT:v[0-9]+]] = ptradd [[OUTER]], [[OFF5]]
     // CHECK-NEXT: [[INNER_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[INNER]] to i256
     // CHECK-NEXT: mstore [[SLOT]], [[INNER_WORD]]
@@ -86,7 +86,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK-LABEL: fn @bulkDefault{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc 128
     // CHECK: memory_zero {{v[0-9]+}}, 128
-    // CHECK: [[OFF6:v[0-9]+]] = shl 5, arg0
+    // CHECK: [[OFF6:v[0-9]+]] = shl arg0, 5
     // CHECK-NEXT: [[ELEM6:v[0-9]+]] = ptradd [[ARRAY]], [[OFF6]]
     // CHECK-NEXT: mload [[ELEM6]]
     function bulkDefault(uint256 i) public pure returns (uint256) {

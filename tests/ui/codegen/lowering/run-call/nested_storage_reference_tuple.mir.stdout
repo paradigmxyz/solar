@@ -5,7 +5,7 @@
   struct1: {i256, i256}
   struct2: {i256, i256, i256}
 
-fn @fromCall() -> struct0 [selector=0xbe4b486b, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @fromCall() -> struct0 [selector=0xbe4b486b, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     icall @initialize
     v0 = lt 0, 3
@@ -43,7 +43,7 @@ fn @fromCall() -> struct0 [selector=0xbe4b486b, abi_params=[], abi_returns=[word
     ret v24
 }
 
-fn @fromTuple() -> struct0 [selector=0x7550b31f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @fromTuple() -> struct0 [selector=0x7550b31f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     icall @initialize
     v0 = lt 0, 3
@@ -86,7 +86,7 @@ fn @fromTuple() -> struct0 [selector=0x7550b31f, abi_params=[], abi_returns=[wor
     ret v27
 }
 
-fn @fromFunctionPointer() -> struct0 [selector=0xceab4ac0, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @fromFunctionPointer() -> struct0 [selector=0xceab4ac0, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     icall @initialize
     v0 = lt 0, 3
@@ -131,7 +131,7 @@ fn @fromFunctionPointer() -> struct0 [selector=0xceab4ac0, abi_params=[], abi_re
     ret v25
 }
 
-fn @fromDeclaration() -> struct2 [selector=0x3d9dfb25, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @fromDeclaration() -> struct2 [selector=0x3d9dfb25, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     icall @initialize
     v0 = lt 1, 3

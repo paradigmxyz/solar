@@ -35,7 +35,7 @@ fn packed_storage_array_position(
     let per_slot = u64::from(32 / bytes);
     if per_slot.is_power_of_two() {
         let slot_shift = builder.imm(u64::from(per_slot.trailing_zeros()));
-        let slot_index = builder.shr(slot_shift, index);
+        let slot_index = builder.shr(index, slot_shift);
         let slot_mask = builder.imm(per_slot - 1);
         let index_in_slot = builder.and(index, slot_mask);
         (slot_index, index_in_slot)
@@ -736,12 +736,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let bits = self.builder.imm(8);
         let shift = self.builder.mul(free_bytes, bits);
         let byte_mask = self.builder.imm(0xff);
-        let shifted_mask = self.builder.shl(shift, byte_mask);
+        let shifted_mask = self.builder.shl(byte_mask, shift);
         let keep_mask = self.builder.not(shifted_mask);
         let cleared = self.builder.and(grown, keep_mask);
         let zero = self.builder.imm(0);
         let byte = self.builder.byte(zero, value);
-        let shifted = self.builder.shl(shift, byte);
+        let shifted = self.builder.shl(byte, shift);
         let header = self.builder.or(cleared, shifted);
         self.builder.sstore(slot, header);
         self.builder.jump(merge_block);
@@ -1049,6 +1049,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let size =
                     self.builder.imm(len.checked_mul(u64::from(element_words))?.saturating_mul(32));
                 let object = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+                if let Some((size, encoding)) = self.cx.storage.packed_encoding(element)
+                    && 32 / size.bytes() >= 2
+                    && self.types.memory_layout(element).is_none()
+                {
+                    self.load_packed_fixed_array(
+                        object,
+                        layout,
+                        slot,
+                        len,
+                        element,
+                        StorageLocation::packed_word(size, encoding),
+                    )?;
+                    return Some(object);
+                }
                 let len = self.builder.imm(len);
                 self.counted_loop(len, |this, index| {
                     let access =
@@ -1530,7 +1544,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let element_bits = self.builder.imm(u64::from(size.bits()));
                 let used_bits = self.builder.mul(remainder, element_bits);
                 let one = self.builder.imm(1);
-                let high_bit = self.builder.shl(used_bits, one);
+                let high_bit = self.builder.shl(one, used_bits);
                 let mask = self.builder.sub(high_bit, one);
                 self.clear_unused_packed_array_elements(slot, slot_index, mask);
                 self.builder.jump(merge_block);
@@ -1822,6 +1836,49 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             })
             .slot = slot;
     }
+
+    /// Copies packed elements of a fixed-size storage array one word at a time into `object`.
+    /// Each word is loaded once and its elements unpacked, the last word only up to `len`.
+    fn load_packed_fixed_array(
+        &mut self,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        slot: ValueId,
+        len: u64,
+        element: Ty<'gcx>,
+        location: StorageLocation,
+    ) -> Option<()> {
+        // for w in 0..words {
+        //     word = sload(slot + w)
+        //     first = w * per_slot
+        //     count = min(per_slot, len - first)
+        //     for j in 0..count { object[first + j] = unpack(word, j) }
+        // }
+        let bytes = u64::from(location.size.bytes());
+        let per_slot = 32 / bytes;
+        let words = self.builder.imm(len.div_ceil(per_slot));
+        let per_slot = self.builder.imm(per_slot);
+        let len = self.builder.imm(len);
+        self.counted_loop(words, |this, word_index| {
+            let word_slot = this.builder.add(slot, word_index);
+            let word = this.builder.sload(word_slot);
+            let first = this.builder.mul(word_index, per_slot);
+            let rest = this.builder.sub(len, first);
+            let short = this.builder.lt(rest, per_slot);
+            let count = this.builder.select(short, rest, per_slot);
+            this.counted_loop(count, |this, index_in_word| {
+                let bits = this.builder.imm(bytes * 8);
+                let shift = this.builder.mul(index_in_word, bits);
+                let value = location.load_word(&mut this.builder, word, Some(shift));
+                this.validate_enum(element, value);
+                let value = this.encode_memory_scalar(element, value);
+                // object[first + j] = value
+                let index = this.builder.add(first, index_in_word);
+                this.builder.memory_store_element(object, layout, index, value);
+                Some(())
+            })
+        })
+    }
 }
 
 fn decode_storage_bytes_header(
@@ -1848,7 +1905,7 @@ fn long_storage_bytes_byte_slot(
     // word_slot = storage_array_data_slot(slot) + index / 32
     let data_slot = builder.storage_array_data_slot(slot);
     let word_shift = builder.imm(5);
-    let word_index = builder.shr(word_shift, index);
+    let word_index = builder.shr(index, word_shift);
     builder.add(data_slot, word_index)
 }
 

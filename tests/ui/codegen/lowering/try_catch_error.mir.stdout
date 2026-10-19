@@ -43,7 +43,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
@@ -67,7 +67,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
     v18 = mload v17
-    v19 = shr 224, v18
+    v19 = shr v18, 224
     v20 = eq v19, 0x8c379a0
     jumpi v20, bb4, bb5
   bb5:
@@ -95,7 +95,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     ret 7
 }
 
-fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
@@ -119,7 +119,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
     v18 = mload v17
-    v19 = shr 224, v18
+    v19 = shr v18, 224
     v20 = eq v19, 0x8c379a0
     jumpi v20, bb4, bb5
   bb5:

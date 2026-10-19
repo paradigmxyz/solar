@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_array_element_memory_storage.sol:NestedArrayElementMemoryStorage ===
 @module NestedArrayElementMemoryStorage
-fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, array<2, array<2, u8>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, array<2, array<2, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 0, 2
     v1 = eq v0, false
@@ -25,7 +25,7 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v75 = mul v74, 1
     v76 = sload v73 !metadata(storage=symbolic(v73))
     v77 = mul v75, 8
-    v78 = shr v77, v76
+    v78 = shr v76, v77
     v79 = trunc i256 v78 to i8
     v80 = lt 0, 2
     v81 = eq v80, false
@@ -40,9 +40,9 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v88 = mul v87, 1
     v89 = sload v86 !metadata(storage=symbolic(v86))
     v90 = mul v88, 8
-    v91 = shr v90, v89
+    v91 = shr v89, v90
     v92 = trunc i256 v91 to i8
-    v93 = checked_add u8, v79, v92
+    v93 = checked_add uint8, v79, v92
     v94 = lt 1, 2
     v95 = eq v94, false
     icall panic_if<0x32>, v95
@@ -56,9 +56,9 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v102 = mul v101, 1
     v103 = sload v100 !metadata(storage=symbolic(v100))
     v104 = mul v102, 8
-    v105 = shr v104, v103
+    v105 = shr v103, v104
     v106 = trunc i256 v105 to i8
-    v107 = checked_add u8, v93, v106
+    v107 = checked_add uint8, v93, v106
     v108 = lt 1, 2
     v109 = eq v108, false
     icall panic_if<0x32>, v109
@@ -72,9 +72,9 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v116 = mul v115, 1
     v117 = sload v114 !metadata(storage=symbolic(v114))
     v118 = mul v116, 8
-    v119 = shr v118, v117
+    v119 = shr v117, v118
     v120 = trunc i256 v119 to i8
-    v121 = checked_add u8, v107, v120
+    v121 = checked_add uint8, v107, v120
     v122 = zext i8 v121 to i256
     ret v122
   bb2:
@@ -100,26 +100,26 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     jumpi v45, bb16, bb17
   bb17:
     v57 = mul v44, 8
-    v58 = shl v57, 255
+    v58 = shl 255, v57
     v59 = sload v42 !metadata(storage=symbolic(v42))
     v60 = not v58
     v61 = and v59, v60
     v62 = and 0, 255
-    v63 = shl v57, v62
+    v63 = shl v62, v57
     v64 = or v61, v63
     sstore v42, v64 !metadata(storage=symbolic(v42))
     jump bb18
   bb16:
-    v46 = shl 5, v39
+    v46 = shl v39, 5
     v47 = ptradd v38, v46
     v48 = mload v47
     v49 = mul v44, 8
-    v50 = shl v49, 255
+    v50 = shl 255, v49
     v51 = sload v42 !metadata(storage=symbolic(v42))
     v52 = not v50
     v53 = and v51, v52
     v54 = and v48, 255
-    v55 = shl v49, v54
+    v55 = shl v54, v49
     v56 = or v53, v55
     sstore v42, v56 !metadata(storage=symbolic(v42))
     jump bb18
@@ -127,7 +127,7 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v65 = add v39, 1
     jump bb13
   bb4:
-    v7 = shl 5, v3
+    v7 = shl v3, 5
     v8 = ptradd v2, v7
     v9 = mload v8
     jump bb7
@@ -149,27 +149,27 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     jumpi v16, bb10, bb11
   bb11:
     v29 = mul v15, 8
-    v30 = shl v29, 255
+    v30 = shl 255, v29
     v31 = sload v13 !metadata(storage=symbolic(v13))
     v32 = not v30
     v33 = and v31, v32
     v34 = and 0, 255
-    v35 = shl v29, v34
+    v35 = shl v34, v29
     v36 = or v33, v35
     sstore v13, v36 !metadata(storage=symbolic(v13))
     jump bb12
   bb10:
-    v17 = shl 5, v10
+    v17 = shl v10, 5
     v18 = inttoptr i256 v9 to ptr<memory>
     v19 = ptradd v18, v17
     v20 = mload v19
     v21 = mul v15, 8
-    v22 = shl v21, 255
+    v22 = shl 255, v21
     v23 = sload v13 !metadata(storage=symbolic(v13))
     v24 = not v22
     v25 = and v23, v24
     v26 = and v20, 255
-    v27 = shl v21, v26
+    v27 = shl v26, v21
     v28 = or v25, v27
     sstore v13, v28 !metadata(storage=symbolic(v13))
     jump bb12
@@ -178,7 +178,7 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     jump bb7
 }
 
-fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, array<2, u8>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, array<2, uint8>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 0, 2
     v1 = eq v0, false
@@ -209,7 +209,7 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v80 = mul v79, 1
     v81 = sload v78 !metadata(storage=symbolic(v78))
     v82 = mul v80, 8
-    v83 = shr v82, v81
+    v83 = shr v81, v82
     v84 = trunc i256 v83 to i8
     v85 = lt 0, 2
     v86 = eq v85, false
@@ -229,9 +229,9 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v97 = mul v96, 1
     v98 = sload v95 !metadata(storage=symbolic(v95))
     v99 = mul v97, 8
-    v100 = shr v99, v98
+    v100 = shr v98, v99
     v101 = trunc i256 v100 to i8
-    v102 = checked_add u8, v84, v101
+    v102 = checked_add uint8, v84, v101
     v103 = lt 0, 2
     v104 = eq v103, false
     icall panic_if<0x32>, v104
@@ -250,9 +250,9 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v115 = mul v114, 1
     v116 = sload v113 !metadata(storage=symbolic(v113))
     v117 = mul v115, 8
-    v118 = shr v117, v116
+    v118 = shr v116, v117
     v119 = trunc i256 v118 to i8
-    v120 = checked_add u8, v102, v119
+    v120 = checked_add uint8, v102, v119
     v121 = lt 0, 2
     v122 = eq v121, false
     icall panic_if<0x32>, v122
@@ -271,9 +271,9 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v133 = mul v132, 1
     v134 = sload v131 !metadata(storage=symbolic(v131))
     v135 = mul v133, 8
-    v136 = shr v135, v134
+    v136 = shr v134, v135
     v137 = trunc i256 v136 to i8
-    v138 = checked_add u8, v120, v137
+    v138 = checked_add uint8, v120, v137
     v139 = zext i8 v138 to i256
     ret v139
   bb2:
@@ -299,26 +299,26 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     jumpi v46, bb16, bb17
   bb17:
     v58 = mul v45, 8
-    v59 = shl v58, 255
+    v59 = shl 255, v58
     v60 = sload v43 !metadata(storage=symbolic(v43))
     v61 = not v59
     v62 = and v60, v61
     v63 = and 0, 255
-    v64 = shl v58, v63
+    v64 = shl v63, v58
     v65 = or v62, v64
     sstore v43, v65 !metadata(storage=symbolic(v43))
     jump bb18
   bb16:
-    v47 = shl 5, v40
+    v47 = shl v40, 5
     v48 = ptradd v39, v47
     v49 = mload v48
     v50 = mul v45, 8
-    v51 = shl v50, 255
+    v51 = shl 255, v50
     v52 = sload v43 !metadata(storage=symbolic(v43))
     v53 = not v51
     v54 = and v52, v53
     v55 = and v49, 255
-    v56 = shl v50, v55
+    v56 = shl v55, v50
     v57 = or v54, v56
     sstore v43, v57 !metadata(storage=symbolic(v43))
     jump bb18
@@ -326,7 +326,7 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v66 = add v40, 1
     jump bb13
   bb4:
-    v8 = shl 5, v4
+    v8 = shl v4, 5
     v9 = ptradd arg0, v8
     v10 = mload v9
     jump bb7
@@ -348,27 +348,27 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     jumpi v17, bb10, bb11
   bb11:
     v30 = mul v16, 8
-    v31 = shl v30, 255
+    v31 = shl 255, v30
     v32 = sload v14 !metadata(storage=symbolic(v14))
     v33 = not v31
     v34 = and v32, v33
     v35 = and 0, 255
-    v36 = shl v30, v35
+    v36 = shl v35, v30
     v37 = or v34, v36
     sstore v14, v37 !metadata(storage=symbolic(v14))
     jump bb12
   bb10:
-    v18 = shl 5, v11
+    v18 = shl v11, 5
     v19 = inttoptr i256 v10 to ptr<memory>
     v20 = ptradd v19, v18
     v21 = mload v20
     v22 = mul v16, 8
-    v23 = shl v22, 255
+    v23 = shl 255, v22
     v24 = sload v14 !metadata(storage=symbolic(v14))
     v25 = not v23
     v26 = and v24, v25
     v27 = and v21, 255
-    v28 = shl v22, v27
+    v28 = shl v27, v22
     v29 = or v26, v28
     sstore v14, v29 !metadata(storage=symbolic(v14))
     jump bb12

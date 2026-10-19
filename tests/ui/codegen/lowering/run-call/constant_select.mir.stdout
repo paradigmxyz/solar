@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_select.sol:ConstantSelect ===
 @module ConstantSelect
-fn @choose(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x739ca28b, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @choose(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x739ca28b, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -28,7 +28,7 @@ fn @word(arg0: slice<calldata>) -> i256 [selector=0xc22ee0b0, pure, abi_params=[
     v3 = lt v2, 32
     v4 = sub 32, v2
     v5 = mul 8, v4
-    v6 = shl v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v6 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v5
     v7 = select v3, v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v8 = and v1, v7
     ret v8
@@ -42,7 +42,7 @@ fn @prefix(arg0: slice<calldata>) -> i256 [selector=0x01cd9057, pure, abi_params
     v3 = lt v2, 4
     v4 = sub 4, v2
     v5 = mul 8, v4
-    v6 = shl v5, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v6 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v5
     v7 = select v3, v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v8 = and v1, v7
     ret v8
@@ -55,7 +55,7 @@ fn @signature(arg0: i1) -> ptr<memory> [selector=0x59834352, pure, abi_params=[b
     ret v1
 }
 
-fn @dirtySignature(arg0: i256) -> ptr<memory> [selector=0xca22fbdf, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @dirtySignature(arg0: i256) -> ptr<memory> [selector=0xca22fbdf, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ne arg0, 0
     v1 = select v0, 0x26121ff000000000000000000000000000000000000000000000000000000000, 0xe2179b8e00000000000000000000000000000000000000000000000000000000
@@ -63,7 +63,7 @@ fn @dirtySignature(arg0: i256) -> ptr<memory> [selector=0xca22fbdf, pure, abi_pa
     ret v2
 }
 
-fn @reverseSignature(arg0: i256) -> ptr<memory> [selector=0x97ffd282, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @reverseSignature(arg0: i256) -> ptr<memory> [selector=0x97ffd282, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ne arg0, 0
     v1 = select v0, 0xe2179b8e00000000000000000000000000000000000000000000000000000000, 0x26121ff000000000000000000000000000000000000000000000000000000000
@@ -71,7 +71,7 @@ fn @reverseSignature(arg0: i256) -> ptr<memory> [selector=0x97ffd282, pure, abi_
     ret v2
 }
 
-fn @dirtyTernary(arg0: i256, arg1: i256) -> i256 [selector=0xcd9c288e, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyTernary(arg0: i256, arg1: i256) -> i256 [selector=0xcd9c288e, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -84,7 +84,7 @@ fn @dirtyTernary(arg0: i256, arg1: i256) -> i256 [selector=0xcd9c288e, pure, abi
     ret v1
 }
 
-fn @yulBranch(arg0: i256, arg1: i256) -> i256 [selector=0x3701b99b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @yulBranch(arg0: i256, arg1: i256) -> i256 [selector=0x3701b99b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2

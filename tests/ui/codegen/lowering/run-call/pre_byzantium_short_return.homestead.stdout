@@ -33,7 +33,7 @@ fn @shortFour() [selector=0xfb8720fc, pure, abi_params=[], abi_returns=[], abi_r
     returndata 0, 4
 }
 
-fn @emptySingle() -> i256 [selector=0x52635aa1, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptySingle() -> i256 [selector=0x52635aa1, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     v0 = address
@@ -62,7 +62,7 @@ fn @emptySingle() -> i256 [selector=0x52635aa1, abi_params=[], abi_returns=[word
     ret v16
 }
 
-fn @emptySingleArg() -> i256 [selector=0x44cc61d5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptySingleArg() -> i256 [selector=0x44cc61d5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = fmp
@@ -90,7 +90,7 @@ fn @emptySingleArg() -> i256 [selector=0x44cc61d5, abi_params=[], abi_returns=[w
     ret v16
 }
 
-fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     mstore 32, 43 !metadata(memory=scratch)
@@ -129,7 +129,7 @@ fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[wor
     ret v25
 }
 
-fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = address
     v1 = fmp
@@ -178,7 +178,7 @@ fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[wor
     ret v37
 }
 
-fn @emptyAgg() -> ptr<memory> [selector=0x06df237b, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @emptyAgg() -> ptr<memory> [selector=0x06df237b, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -205,11 +205,11 @@ fn @emptyAgg() -> ptr<memory> [selector=0x06df237b, abi_params=[], abi_returns=[
   bb2:
     mcopy v2, v7, 64
     v16 = make_memory_slice v2, 64
-    v17 = abi_decode [array<2, u256>], v16
+    v17 = abi_decode [array<2, uint256>], v16
     ret v17
 }
 
-fn @emptyAggArg() -> ptr<memory> [selector=0x3dd9064d, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @emptyAggArg() -> ptr<memory> [selector=0x3dd9064d, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -236,11 +236,11 @@ fn @emptyAggArg() -> ptr<memory> [selector=0x3dd9064d, abi_params=[], abi_return
   bb2:
     mcopy v2, v7, 64
     v16 = make_memory_slice v2, 64
-    v17 = abi_decode [array<2, u256>], v16
+    v17 = abi_decode [array<2, uint256>], v16
     ret v17
 }
 
-fn @partialSingle() -> i256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @partialSingle() -> i256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = fmp
@@ -268,7 +268,7 @@ fn @partialSingle() -> i256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[wo
     ret v16
 }
 
-fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = address
     v1 = fmp
@@ -305,7 +305,7 @@ fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[w
     ret v25
 }
 
-fn @partialAgg() -> ptr<memory> [selector=0xbf0809fa, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @partialAgg() -> ptr<memory> [selector=0xbf0809fa, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -332,11 +332,11 @@ fn @partialAgg() -> ptr<memory> [selector=0xbf0809fa, abi_params=[], abi_returns
   bb2:
     mcopy v2, v7, 64
     v16 = make_memory_slice v2, 64
-    v17 = abi_decode [array<2, u256>], v16
+    v17 = abi_decode [array<2, uint256>], v16
     ret v17
 }
 
-fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = not 0

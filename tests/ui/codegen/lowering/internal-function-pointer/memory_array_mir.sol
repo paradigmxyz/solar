@@ -36,7 +36,7 @@ contract FunctionPointerMemoryArray {
     // CHECK-NEXT: mstore [[ARR_128]], [[D:[0-9]+]]
     // CHECK: [[ARR_160:v[0-9]+]] = ptradd [[ARR]], 160
     // CHECK-NEXT: mstore [[ARR_160]], [[E:[0-9]+]]
-    // CHECK: [[OFF1:v[0-9]+]] = shl 5, arg1
+    // CHECK: [[OFF1:v[0-9]+]] = shl arg1, 5
     // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[ARR]], [[OFF1]]
     // CHECK-NEXT: [[ELEM_32:v[0-9]+]] = ptradd [[ELEM]], 32
     // CHECK-NEXT: [[ARRAY_FN:v[0-9]+]] = mload [[ELEM_32]]

@@ -131,7 +131,7 @@ pub(super) struct Planner<'a> {
     func_id: FunctionId,
     func: &'a Function,
     liveness: &'a Liveness,
-    target: Target,
+    target: &'a Target,
     spilled: &'a DenseBitSet<ValueId>,
     hints: &'a FxHashMap<BlockId, Layout>,
     /// Whether the function is entered with a return address.
@@ -160,6 +160,8 @@ pub(super) struct Planner<'a> {
     conditions: FxHashMap<BlockId, (ValueId, bool)>,
     /// External arguments loaded at the start of a block and kept on the stack.
     arg_defs: FxHashMap<BlockId, SmallVec<[ValueId; 2]>>,
+    /// The constant retained by this trial, with the block that first materializes it.
+    constant_def: Option<(BlockId, ValueId)>,
     /// Number of operand positions reading each value.
     use_counts: IndexVec<ValueId, u32>,
     /// Blocks that return the results of their last instruction, an internal call, which
@@ -189,6 +191,7 @@ pub(super) struct Planner<'a> {
     peak: usize,
     calls: Vec<(FunctionId, usize)>,
     cost: Cost,
+    non_loop_gas: u32,
 }
 
 impl<'a> Planner<'a> {
@@ -198,7 +201,7 @@ impl<'a> Planner<'a> {
         info: &'a ModuleInfo,
         func_id: FunctionId,
         analysis: &'a Analysis,
-        target: Target,
+        target: &'a Target,
         spilled: &'a DenseBitSet<ValueId>,
         ret_spilled: bool,
         batch_spills: bool,
@@ -509,6 +512,7 @@ impl<'a> Planner<'a> {
             publish,
             conditions,
             arg_defs,
+            constant_def: None,
             use_counts,
             tail_calls,
             args,
@@ -527,6 +531,7 @@ impl<'a> Planner<'a> {
             peak: 0,
             calls: Vec::new(),
             cost: Cost::ZERO,
+            non_loop_gas: 0,
         })
     }
 
@@ -572,8 +577,82 @@ impl<'a> Planner<'a> {
             peak: self.peak,
             calls: self.calls,
             cost: self.cost,
+            non_loop_gas: self.non_loop_gas,
         };
         Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
+    }
+
+    /// Returns the repeated immediate that saves the most when kept on the stack, with the
+    /// nearest block outside loops that dominates its uses.
+    ///
+    /// Only one constant is retained. This is a profitability limit, not a stack limit: the plan
+    /// cannot see the later EVM IR pipeline, and keeping more constants traded small size savings
+    /// for large gas losses, such as P256 verification in size mode. Retaining more needs a
+    /// profitability check that accounts for EVM IR.
+    pub(super) fn constant_to_retain(&self) -> Option<(BlockId, ValueId)> {
+        let value = self
+            .remat
+            .iter()
+            .filter_map(|value| {
+                let Value::Immediate(immediate) = self.func.value(value) else { return None };
+                let count = self.use_counts[value];
+                if count < 2 {
+                    return None;
+                }
+                let push = self.target.push(immediate.as_u256()?);
+                // Leave cheap literals to local stack scheduling and EVM IR reuse.
+                if push.bytes <= (self.target.dup() + self.dead_word_removal()).bytes {
+                    return None;
+                }
+                let copies = self.target.dup().times(count - 1);
+                let before = push.times(count);
+                let after = push + copies + self.dead_word_removal();
+                self.target.cmp_lifetime(after, before).is_lt().then_some((
+                    value,
+                    Cost::new(
+                        before.gas.saturating_sub(after.gas),
+                        before.bytes.saturating_sub(after.bytes),
+                    ),
+                ))
+            })
+            .max_by(|(_, a), (_, b)| self.target.cmp_lifetime(*a, *b))?
+            .0;
+        let mut definition = None;
+        let mut note = |block| {
+            definition =
+                Some(definition.map_or(block, |other| common_dominator(self.cfg, other, block)));
+        };
+        for (block, data) in self.func.blocks.iter_enumerated() {
+            for &inst in &data.instructions {
+                match &self.func.inst(inst).kind {
+                    InstKind::Phi(incoming) => {
+                        for &(pred, operand) in incoming {
+                            if operand == value {
+                                note(pred);
+                            }
+                        }
+                    }
+                    kind if kind.operands().contains(&value) => note(block),
+                    _ => {}
+                }
+            }
+            if data.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
+                note(block);
+            }
+        }
+        let mut block = definition?;
+        while self.cfg.cyclic_blocks().contains(block)
+            && let Some(idom) = self.cfg.dominators().idom(block)
+        {
+            block = idom;
+        }
+        Some((block, value))
+    }
+
+    pub(super) fn retain_constant(mut self, definition: (BlockId, ValueId)) -> Self {
+        self.remat.remove(definition.1);
+        self.constant_def = Some(definition);
+        self
     }
 
     /// Plans a block's instructions in their MIR order.
@@ -581,6 +660,8 @@ impl<'a> Planner<'a> {
         let func = self.func;
         let early = self.early_branch_phis(block);
         let tail_call = self.tail_calls.get(&block).copied();
+        let mut constant =
+            self.constant_def.filter(|&(def, _)| def == block).map(|(_, value)| value);
         let mut uses = self.block_uses(block);
         let planned: Vec<InstId> = func.blocks[block]
             .instructions
@@ -594,6 +675,14 @@ impl<'a> Planner<'a> {
             .collect();
         let windows = self.preplacement_windows(&planned);
         for (position, &inst) in planned.iter().enumerate() {
+            if let Some(value) = constant
+                && func.inst(inst).kind.operands().contains(&value)
+            {
+                sim.steps.push(Step::Begin(None));
+                // push constant
+                self.fresh(sim, value);
+                constant = None;
+            }
             if let Some((early_inst, then_block, else_block)) = early
                 && early_inst == inst
             {
@@ -624,6 +713,11 @@ impl<'a> Planner<'a> {
             {
                 self.place_result(sim, block, &planned, position + 1, &mut uses)?;
             }
+        }
+        if let Some(value) = constant {
+            sim.steps.push(Step::Begin(None));
+            // push constant
+            self.fresh(sim, value);
         }
         Ok(())
     }
@@ -870,6 +964,9 @@ impl<'a> Planner<'a> {
     /// Adds the cost of code planned in `block` and raises the peak to its stack.
     fn charge(&mut self, sim: &Sim, block: BlockId) {
         self.cost += self.weigh(sim.cost, block);
+        if !self.cfg.cyclic_blocks().contains(block) {
+            self.non_loop_gas = self.non_loop_gas.saturating_add(sim.cost.gas);
+        }
         self.peak = self.peak.max(sim.peak);
     }
 
@@ -1619,7 +1716,7 @@ impl<'a> Planner<'a> {
     ) -> Result<(), Fail> {
         let func = self.func;
         let kind = &func.inst(inst).kind;
-        sim.steps.push(Step::Begin(inst));
+        sim.steps.push(Step::Begin(Some(inst)));
         let result = func.inst_result_value(inst);
         let operands = kind.operands();
         let dying = |value: ValueId| self.dies(block, uses, &operands, value);
@@ -2788,7 +2885,7 @@ pub(super) fn recomputable(
     func: &Function,
     cfg: &CfgInfo,
     internal: bool,
-    target: Target,
+    target: &Target,
 ) -> FxHashMap<ValueId, (Cost, u32)> {
     let mut values = FxHashMap::default();
     // Operands are defined before their users in reverse postorder; phis never qualify.
@@ -2832,7 +2929,7 @@ pub(super) fn recomputable(
 }
 
 /// The cost of pushing a value that is materialized at its use.
-fn materialize_cost(func: &Function, target: Target, value: ValueId) -> Cost {
+fn materialize_cost(func: &Function, target: &Target, value: ValueId) -> Cost {
     match func.value(value) {
         Value::Immediate(imm) => target.push(imm.as_u256().unwrap_or_default()),
         Value::Undef(_) => target.push(U256::ZERO),

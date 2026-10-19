@@ -20,7 +20,7 @@ fn @words(arg0: i256) -> slice<calldata> [pure] {
     ret v4
 }
 
-fn @sink(arg0: slice<calldata>) -> i256 [selector=0xa49cb33b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @sink(arg0: slice<calldata>) -> i256 [selector=0xa49cb33b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     ret v0
@@ -132,10 +132,10 @@ fn @shaIt() -> i256 [selector=0x43234fee, pure, abi_params=[], abi_returns=[word
     ret v9
 }
 
-fn @decodeIt() -> i256 [selector=0xd2549072, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @decodeIt() -> i256 [selector=0xd2549072, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @b
-    v1 = abi_decode [u256], v0
+    v1 = abi_decode [uint256], v0
     ret v1
 }
 
@@ -149,7 +149,7 @@ fn @eventIt() [selector=0x3af46c3b, abi_params=[], abi_returns=[], abi_return_pa
     ret
 }
 
-fn @callIt() -> i256 [selector=0x83d6f579, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callIt() -> i256 [selector=0x83d6f579, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -181,7 +181,7 @@ fn @callIt() -> i256 [selector=0x83d6f579, view, abi_params=[], abi_returns=[wor
     ret v20
 }
 
-fn @hugeWords() -> i256 [selector=0x450b33f5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @hugeWords() -> i256 [selector=0x450b33f5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @words, 0x800000000000000000000000000000000000000000000000000000000000001
     v1 = extract_value slice<calldata>, v0, 1

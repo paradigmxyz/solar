@@ -30,14 +30,14 @@ fn @build() -> ptr<memory> [pure] {
     mstore v16, v15
     ret v2
   bb2:
-    v5 = shl 5, v3
+    v5 = shl v3, 5
     v6 = ptradd v2, v5
     mstore v6, 96
     v7 = add v3, 1
     jump bb1
 }
 
-fn @sumSecond() -> i256 [selector=0xee09deba, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @sumSecond() -> i256 [selector=0xee09deba, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @build
     v1 = icall @sumElement1, v0
@@ -58,8 +58,8 @@ fn @sumElement1(arg0: ptr<memory>) -> i256 [pure] {
     v7 = ptradd v3, 32
     v8 = mload v7
     v9 = byte 0, v8
-    v10 = shl 248, v9
-    v11 = shr 248, v10
+    v10 = shl v9, 248
+    v11 = shr v10, 248
     v12 = trunc i256 v11 to i8
     v13 = lt 1, 2
     v14 = eq v13, false
@@ -73,15 +73,15 @@ fn @sumElement1(arg0: ptr<memory>) -> i256 [pure] {
     v20 = ptradd v16, 33
     v21 = mload v20
     v22 = byte 0, v21
-    v23 = shl 248, v22
-    v24 = shr 248, v23
+    v23 = shl v22, 248
+    v24 = shr v23, 248
     v25 = trunc i256 v24 to i8
-    v26 = checked_add u8, v12, v25
+    v26 = checked_add uint8, v12, v25
     v27 = zext i8 v26 to i256
     ret v27
 }
 
-fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @build
     v1 = lt 0, 2
@@ -95,7 +95,7 @@ fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=
     v7 = ptradd v3, 32
     v8 = mload v7
     v9 = byte 0, v8
-    v10 = shl 248, v9
+    v10 = shl v9, 248
     v11 = lt 1, 2
     v12 = eq v11, false
     icall panic_if<0x32>, v12
@@ -108,7 +108,7 @@ fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=
     v18 = ptradd v14, 32
     v19 = mload v18
     v20 = byte 0, v19
-    v21 = shl 248, v20
+    v21 = shl v20, 248
     v22 = eq v10, v21
     v23 = eq v22, false
     icall panic_if<0x1>, v23
@@ -123,7 +123,7 @@ fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=
     v30 = ptradd v26, 33
     v31 = mload v30
     v32 = byte 0, v31
-    v33 = shl 248, v32
+    v33 = shl v32, 248
     v34 = lt 1, 2
     v35 = eq v34, false
     icall panic_if<0x32>, v35
@@ -136,7 +136,7 @@ fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=
     v41 = ptradd v37, 33
     v42 = mload v41
     v43 = byte 0, v42
-    v44 = shl 248, v43
+    v44 = shl v43, 248
     v45 = eq v33, v44
     v46 = eq v45, false
     icall panic_if<0x1>, v46

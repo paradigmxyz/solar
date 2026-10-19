@@ -113,14 +113,14 @@
 +   bb8:
 +     v15 = and arg0, 31
 +     v16 = sub 32, v15
-+     v17 = shl 3, v16
++     v17 = shl v16, 3
 +     v18 = add v1, v6
 +     v19 = mload v18
 +     v20 = add v3, v6
 +     v21 = mload v20
 +     v22 = xor v19, v21
-+     v23 = shr v17, v22
-+     v24 = shl v17, v23
++     v23 = shr v22, v17
++     v24 = shl v23, v17
 +     v25 = xor v21, v24
 +     mstore v20, v25
 +     jump bb1
@@ -139,14 +139,14 @@
 +   bb12:
 +     v27 = and arg0, 31
 +     v28 = sub 32, v27
-+     v29 = shl 3, v28
++     v29 = shl v28, 3
 +     v30 = add v1, v6
 +     v31 = mload v30
 +     v32 = add v3, v6
 +     v33 = mload v32
 +     v34 = xor v31, v33
-+     v35 = shr v29, v34
-+     v36 = shl v29, v35
++     v35 = shr v34, v29
++     v36 = shl v35, v29
 +     v37 = xor v33, v36
 +     mstore v32, v37
 +     jump bb9

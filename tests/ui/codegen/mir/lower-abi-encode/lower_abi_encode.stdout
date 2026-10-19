@@ -75,12 +75,10 @@
 +     v14 = ptrtoint ptr<memory> v1 to i256
 +     v15 = sub v13, v14
 +     v16 = add v15, 0
-+     v17 = add v16, 31
-+     v18 = not 31
-+     v19 = and v17, v18
-+     v20 = alloc v19 !metadata(preserves_fmp)
-+     v21 = make_memory_slice v20, v16
-+     ret v21
++     v17 = add v15, 0
++     v18 = alloc v17 !metadata(preserves_fmp)
++     v19 = make_memory_slice v18, v16
++     ret v19
   }
   
   fn @nested_dynamic_array(arg0: ptr<memory>) -> slice<memory> {
@@ -111,12 +109,10 @@
 +     v28 = ptrtoint ptr<memory> v1 to i256
 +     v29 = sub v12, v28
 +     v30 = add v29, 0
-+     v31 = add v30, 31
-+     v32 = not 31
-+     v33 = and v31, v32
-+     v34 = alloc v33 !metadata(preserves_fmp)
-+     v35 = make_memory_slice v34, v30
-+     ret v35
++     v31 = add v29, 0
++     v32 = alloc v31 !metadata(preserves_fmp)
++     v33 = make_memory_slice v32, v30
++     ret v33
 +   bb2:
 +     v16 = mload v14
 +     v17 = sub v12, v7
@@ -138,7 +134,7 @@
   
   fn @fixed_nested_dynamic_arrays(arg0: ptr<memory>) -> slice<memory> {
     bb0:
--     v0 = abi_encode [array<2, memory_array<word<u8>>>], args arg0
+-     v0 = abi_encode [array<2, memory_array<word<uint8>>>], args arg0
 -     ret v0
 +     v1 = fmp
 +     v2 = ptrtoint ptr<memory> v1 to i256
@@ -161,12 +157,10 @@
 +     v22 = ptrtoint ptr<memory> v1 to i256
 +     v23 = sub v10, v22
 +     v24 = add v23, 0
-+     v25 = add v24, 31
-+     v26 = not 31
-+     v27 = and v25, v26
-+     v28 = alloc v27 !metadata(preserves_fmp)
-+     v29 = make_memory_slice v28, v24
-+     ret v29
++     v25 = add v23, 0
++     v26 = alloc v25 !metadata(preserves_fmp)
++     v27 = make_memory_slice v26, v24
++     ret v27
 +   bb2:
 +     v14 = mload v12
 +     v15 = sub v10, v3
@@ -206,12 +200,10 @@
 +     v16 = ptrtoint ptr<memory> v3 to i256
 +     v17 = sub v15, v16
 +     v18 = add v17, 0
-+     v19 = add v18, 31
-+     v20 = not 31
-+     v21 = and v19, v20
-+     v22 = alloc v21 !metadata(preserves_fmp)
-+     v23 = make_memory_slice v22, v18
-+     ret v23
++     v19 = add v17, 0
++     v20 = alloc v19 !metadata(preserves_fmp)
++     v21 = make_memory_slice v20, v18
++     ret v21
   }
   
   fn @returndata_words(arg0: i256) -> slice<memory> {
@@ -235,12 +227,10 @@
 +     v12 = ptrtoint ptr<memory> v2 to i256
 +     v13 = sub v11, v12
 +     v14 = add v13, 0
-+     v15 = add v14, 31
-+     v16 = not 31
-+     v17 = and v15, v16
-+     v18 = alloc v17 !metadata(preserves_fmp)
-+     v19 = make_memory_slice v18, v14
-+     ret v19
++     v15 = add v13, 0
++     v16 = alloc v15 !metadata(preserves_fmp)
++     v17 = make_memory_slice v16, v14
++     ret v17
 + }
 + 
 + fn @encode_abi_array(arg0: i256, arg1: ptr<memory>) -> i256 {

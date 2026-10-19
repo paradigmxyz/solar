@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256, i256, i256}
 
-fn @encodeDynamicStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x199f835c, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeDynamicStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x199f835c, abi_params=[array<_, array<2, uint256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -101,7 +101,7 @@ fn @encodeDynamicStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x199f83
     jumpi v100, bb25, bb26
   bb26:
     v106 = ptrtoint ptr<memory> v98 to i256
-    v107 = shl 5, v93
+    v107 = shl v93, 5
     v108 = ptradd v92, v107
     v109 = ptradd v108, 32
     mstore v109, v106
@@ -110,13 +110,13 @@ fn @encodeDynamicStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x199f83
   bb25:
     v101 = add v97, v99
     v102 = sload v101 !metadata(storage=symbolic(v101))
-    v103 = shl 5, v99
+    v103 = shl v99, 5
     v104 = ptradd v98, v103
     mstore v104, v102
     v105 = add v99, 1
     jump bb24
   bb13:
-    v59 = shl 5, v57
+    v59 = shl v57, 5
     v60 = ptradd v22, v59
     v61 = ptradd v60, 32
     v62 = mload v61, ptr<memory>
@@ -139,7 +139,7 @@ fn @encodeDynamicStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x199f83
     sstore v68, 0 !metadata(storage=symbolic(v68))
     jump bb20
   bb18:
-    v70 = shl 5, v66
+    v70 = shl v66, 5
     v71 = ptradd v62, v70
     v72 = mload v71
     sstore v68, v72 !metadata(storage=symbolic(v68))
@@ -182,7 +182,7 @@ fn @encodeDynamicStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x199f83
     v38 = extract_value slice<calldata>, v36, 1
     calldatacopy v34, v37, v38
     v39 = ptrtoint ptr<memory> v34 to i256
-    v40 = shl 5, v23
+    v40 = shl v23, 5
     v41 = ptradd v22, v40
     v42 = ptradd v41, 32
     mstore v42, v39
@@ -190,7 +190,7 @@ fn @encodeDynamicStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x199f83
     jump bb1
 }
 
-fn @readDynamicStorage(arg0: slice<calldata>) -> struct0 [selector=0x26153afa, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @readDynamicStorage(arg0: slice<calldata>) -> struct0 [selector=0x26153afa, abi_params=[array<_, array<2, uint256>>], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -326,7 +326,7 @@ fn @readDynamicStorage(arg0: slice<calldata>) -> struct0 [selector=0x26153afa, a
     v140 = insert_value struct0, v139, 5, v134
     ret v140
   bb13:
-    v59 = shl 5, v57
+    v59 = shl v57, 5
     v60 = ptradd v22, v59
     v61 = ptradd v60, 32
     v62 = mload v61, ptr<memory>
@@ -349,7 +349,7 @@ fn @readDynamicStorage(arg0: slice<calldata>) -> struct0 [selector=0x26153afa, a
     sstore v68, 0 !metadata(storage=symbolic(v68))
     jump bb20
   bb18:
-    v70 = shl 5, v66
+    v70 = shl v66, 5
     v71 = ptradd v62, v70
     v72 = mload v71
     sstore v68, v72 !metadata(storage=symbolic(v68))
@@ -392,7 +392,7 @@ fn @readDynamicStorage(arg0: slice<calldata>) -> struct0 [selector=0x26153afa, a
     v38 = extract_value slice<calldata>, v36, 1
     calldatacopy v34, v37, v38
     v39 = ptrtoint ptr<memory> v34 to i256
-    v40 = shl 5, v23
+    v40 = shl v23, 5
     v41 = ptradd v22, v40
     v42 = ptradd v41, 32
     mstore v42, v39
@@ -400,7 +400,7 @@ fn @readDynamicStorage(arg0: slice<calldata>) -> struct0 [selector=0x26153afa, a
     jump bb1
 }
 
-fn @encodeStaticStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x60e1923b, abi_params=[array<2, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeStaticStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x60e1923b, abi_params=[array<2, array<2, uint256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
@@ -441,7 +441,7 @@ fn @encodeStaticStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x60e1923
     jumpi v54, bb26, bb27
   bb27:
     v60 = ptrtoint ptr<memory> v52 to i256
-    v61 = shl 5, v48
+    v61 = shl v48, 5
     v62 = ptradd v47, v61
     mstore v62, v60
     v63 = add v48, 1
@@ -449,7 +449,7 @@ fn @encodeStaticStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x60e1923
   bb26:
     v55 = add v51, v53
     v56 = sload v55 !metadata(storage=symbolic(v55))
-    v57 = shl 5, v53
+    v57 = shl v53, 5
     v58 = ptradd v52, v57
     mstore v58, v56
     v59 = add v53, 1
@@ -477,7 +477,7 @@ fn @encodeStaticStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x60e1923
     sstore v40, 0 !metadata(storage=symbolic(v40))
     jump bb21
   bb19:
-    v42 = shl 5, v38
+    v42 = shl v38, 5
     v43 = ptradd v37, v42
     v44 = mload v43
     sstore v40, v44 !metadata(storage=symbolic(v40))
@@ -486,7 +486,7 @@ fn @encodeStaticStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x60e1923
     v45 = add v38, 1
     jump bb16
   bb7:
-    v25 = shl 5, v20
+    v25 = shl v20, 5
     v26 = ptradd v5, v25
     v27 = mload v26
     jump bb10
@@ -507,7 +507,7 @@ fn @encodeStaticStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x60e1923
     sstore v30, 0 !metadata(storage=symbolic(v30))
     jump bb15
   bb13:
-    v32 = shl 5, v28
+    v32 = shl v28, 5
     v33 = inttoptr i256 v27 to ptr<memory>
     v34 = ptradd v33, v32
     v35 = mload v34
@@ -527,7 +527,7 @@ fn @encodeStaticStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x60e1923
     v15 = extract_value slice<calldata>, v13, 1
     calldatacopy v11, v14, v15
     v16 = ptrtoint ptr<memory> v11 to i256
-    v17 = shl 5, v6
+    v17 = shl v6, 5
     v18 = ptradd v5, v17
     mstore v18, v16
     v19 = add v6, 1

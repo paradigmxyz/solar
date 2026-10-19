@@ -19,7 +19,7 @@ fn @reverse_pairs(arg0: i256, arg1: i256) -> i256 {
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb9: v12]
-    v1 = shr 1, arg1
+    v1 = shr arg1, 1
     v2 = lt v0, v1
     jumpi v2, bb3, bb2
   bb2:
@@ -38,7 +38,7 @@ fn @reverse_pairs(arg0: i256, arg1: i256) -> i256 {
     v6 = lt v4, arg1
     jumpi v6, bb7, bb8
   bb7:
-    v7 = shl 5, v4
+    v7 = shl v4, 5
     v8 = add arg0, v7
     v9 = mload v8
     v10 = lt v0, arg1
@@ -46,7 +46,7 @@ fn @reverse_pairs(arg0: i256, arg1: i256) -> i256 {
   bb8:
     revert 0, 36
   bb9:
-    v11 = shl 5, v0
+    v11 = shl v0, 5
     v13 = add arg0, v11
     mstore v13, v9
     v12 = add v0, 1
@@ -147,7 +147,7 @@ fn @keep_negative_sext(arg0: i256) -> i256 {
 fn @narrow_double_roundtrip(arg0: i8) -> i256 {
   bb0:
     v0 = add arg0, arg0
-    v1 = shr i8 1, v0
+    v1 = shr v0, i8 1
     v2 = eq v1, arg0
     jumpi v2, bb1, bb2
   bb1:

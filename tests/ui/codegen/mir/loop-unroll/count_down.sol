@@ -58,7 +58,7 @@ contract CountDown {
 
     // Stepping down by two, the parity is bit 1 of the counter.
     // CHECK-LABEL: fn @stepDown()
-    // CHECK: [[HALF:v[0-9]+]] = shr 1, arg0
+    // CHECK: [[HALF:v[0-9]+]] = shr arg0, 1
     // CHECK-NEXT: and [[HALF]], 1
     function stepDown(uint256 n) external pure returns (uint256 s) {
         assembly {

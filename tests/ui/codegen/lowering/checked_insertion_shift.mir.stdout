@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_insertion_shift.sol:CheckedInsertionShift ===
 @module CheckedInsertionShift
-fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     jump bb1
   bb1:
@@ -19,7 +19,7 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
     v6 = lt v2, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = shl 5, v2
+    v8 = shl v2, 5
     v9 = ptradd v0, v8
     v10 = ptradd v9, 32
     v11 = mload v10
@@ -35,12 +35,12 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
   bb10:
     jump bb11
   bb9:
-    v18 = checked_sub u256, v16, 1
+    v18 = checked_sub uint256, v16, 1
     v19 = mload v12
     v20 = lt v18, v19
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = shl 5, v18
+    v22 = shl v18, 5
     v23 = ptradd v12, v22
     v24 = ptradd v23, 32
     v25 = mload v24
@@ -56,7 +56,7 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
     v44 = lt v16, v43
     v45 = eq v44, false
     icall panic_if<0x32>, v45
-    v46 = shl 5, v16
+    v46 = shl v16, 5
     v47 = ptradd v12, v46
     v48 = ptradd v47, 32
     mstore v48, v15
@@ -64,15 +64,15 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
   bb6:
     jump bb3
   bb3:
-    v49 = checked_add u256, v14, 1
+    v49 = checked_add uint256, v14, 1
     jump bb1
   bb12:
-    v28 = checked_sub u256, v16, 1
+    v28 = checked_sub uint256, v16, 1
     v29 = mload v12
     v30 = lt v28, v29
     v31 = eq v30, false
     icall panic_if<0x32>, v31
-    v32 = shl 5, v28
+    v32 = shl v28, 5
     v33 = ptradd v12, v32
     v34 = ptradd v33, 32
     v35 = mload v34
@@ -80,29 +80,29 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
     v37 = lt v16, v36
     v38 = eq v37, false
     icall panic_if<0x32>, v38
-    v39 = shl 5, v16
+    v39 = shl v16, 5
     v40 = ptradd v12, v39
     v41 = ptradd v40, 32
     mstore v41, v35
-    v42 = checked_sub u256, v16, 1
+    v42 = checked_sub uint256, v16, 1
     jump bb14
   bb14:
     jump bb7
 }
 
-fn @shiftAt(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xa227bfd8, pure, abi_params=[array<_, u256>, u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @shiftAt(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xa227bfd8, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v1 = checked_sub u256, arg1, 1
+    v1 = checked_sub uint256, arg1, 1
     v2 = mload arg0
     v3 = lt v1, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd arg0, v5
     v7 = ptradd v6, 32
     v8 = mload v7
@@ -110,7 +110,7 @@ fn @shiftAt(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xa227bfd8, 
     v10 = lt arg1, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    v12 = shl 5, arg1
+    v12 = shl arg1, 5
     v13 = ptradd arg0, v12
     v14 = ptradd v13, 32
     mstore v14, v8

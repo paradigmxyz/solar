@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow_runtime.sol:StorageControlFlow ===
 @module StorageControlFlow
-fn @halted(arg0: i256, arg1: i1) -> i256 [selector=0x85726af7, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @halted(arg0: i256, arg1: i1) -> i256 [selector=0x85726af7, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -22,7 +22,7 @@ fn @halted(arg0: i256, arg1: i1) -> i256 [selector=0x85726af7, abi_params=[u256,
     ret v11
 }
 
-fn @writeAcrossHalt(arg0: i256, arg1: i1) [selector=0x4db2264e, abi_params=[u256, bool], abi_returns=[], abi_return_params=[]] {
+fn @writeAcrossHalt(arg0: i256, arg1: i1) [selector=0x4db2264e, abi_params=[uint256, bool], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     icall @haltIndirect, arg0, arg1
@@ -57,7 +57,7 @@ fn @halt(arg0: i256, arg1: i1) {
     jump bb3
 }
 
-fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -91,7 +91,7 @@ fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[wor
     ret v8
 }
 
-fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = address
@@ -114,13 +114,13 @@ fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], 
     ret v10
 }
 
-fn @readWord() -> i256 [selector=0x05cd82f4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @readWord() -> i256 [selector=0x05cd82f4, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @write(arg0: i1) -> i256 [selector=0x6ebfc750, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @write(arg0: i1) -> i256 [selector=0x6ebfc750, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jumpi arg0, bb1, bb2
@@ -135,7 +135,7 @@ fn @write(arg0: i1) -> i256 [selector=0x6ebfc750, abi_params=[bool], abi_returns
     ret v0
 }
 
-fn @observed(arg0: i1) -> i256 [selector=0xc61230fa, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @observed(arg0: i1) -> i256 [selector=0xc61230fa, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jumpi arg0, bb1, bb2
@@ -151,7 +151,7 @@ fn @observed(arg0: i1) -> i256 [selector=0xc61230fa, abi_params=[bool], abi_retu
     ret v1
 }
 
-fn @pack(arg0: i8, arg1: i8) -> i256 [selector=0x5a5ffdde, abi_params=[u8, u8], abi_returns=[word], abi_return_params=[u256]] {
+fn @pack(arg0: i8, arg1: i8) -> i256 [selector=0x5a5ffdde, abi_params=[uint8, uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = not 255
@@ -160,28 +160,28 @@ fn @pack(arg0: i8, arg1: i8) -> i256 [selector=0x5a5ffdde, abi_params=[u8, u8], 
     v4 = and v3, 255
     v5 = or v2, v4
     sstore 1, v5 !metadata(storage=slot(1))
-    v6 = shl 8, 255
+    v6 = shl 255, 8
     v7 = sload 1 !metadata(storage=slot(1))
     v8 = not v6
     v9 = and v7, v8
     v10 = zext i8 arg1 to i256
     v11 = and v10, 255
-    v12 = shl 8, v11
+    v12 = shl v11, 8
     v13 = or v9, v12
     sstore 1, v13 !metadata(storage=slot(1))
     v14 = sload 1 !metadata(storage=slot(1))
     v15 = trunc i256 v14 to i8
     v16 = zext i8 v15 to i256
     v17 = sload 1 !metadata(storage=slot(1))
-    v18 = shr 8, v17
+    v18 = shr v17, 8
     v19 = trunc i256 v18 to i8
     v20 = zext i8 v19 to i256
-    v21 = shl 8, v20
+    v21 = shl v20, 8
     v22 = or v16, v21
     ret v22
 }
 
-fn @preserve(arg0: i8, arg1: i8) -> i256 [selector=0xced1063a, abi_params=[u8, u8], abi_returns=[word], abi_return_params=[u256]] {
+fn @preserve(arg0: i8, arg1: i8) -> i256 [selector=0xced1063a, abi_params=[uint8, uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 0xffffffffffffffff !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -192,7 +192,7 @@ fn @preserve(arg0: i8, arg1: i8) -> i256 [selector=0xced1063a, abi_params=[u8, u
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
     v6 = zext i8 arg1 to i256
-    v7 = shl 8, v6
+    v7 = shl v6, 8
     v8 = or v5, v7
     sstore 0, v8 !metadata(storage=slot(0))
     v9 = sload 0 !metadata(storage=slot(0))

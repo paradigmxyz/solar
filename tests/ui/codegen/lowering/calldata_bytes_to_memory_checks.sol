@@ -10,21 +10,21 @@
 // it into memory does not check it again, and a length within calldata cannot
 // overflow the padded allocation size.
 // CHECK-LABEL: fn @decoded
-// CHECK-NOT: 0xffffffffffffffff{{$}}
+// CHECK-NOT: {{0xffffffffffffffff$|shr 64,}}
 // CHECK-NOT: 0x4e487b71
 // CHECK: calldatacopy
 
 // A slice whose length or offset assembly set keeps the copy's checks.
 // CHECK-LABEL: fn @lengthSet
-// CHECK: gt arg1, 0xffffffffffffffff{{$}}
+// CHECK: shr arg1, 64
 // CHECK: sgt
 // CHECK-LABEL: fn @offsetSet
-// CHECK: 0xffffffffffffffff{{$}}
+// CHECK: shr {{[^ ,]+}}, 64{{$}}
 // CHECK: sgt
 
 // A public function also takes slices from internal calls, so it keeps them.
 // CHECK-LABEL: fn @forwarded
-// CHECK: 0xffffffffffffffff{{$}}
+// CHECK: shr {{[^ ,]+}}, 64{{$}}
 // CHECK: sgt
 contract CalldataBytesToMemoryChecks {
     function length(bytes memory b) internal pure returns (uint256) {
