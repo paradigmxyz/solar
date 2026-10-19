@@ -21,8 +21,8 @@
 //!   b`, becomes `C + [x < b] * (B - C) + [x < a] * (A - B)`, so a ladder of literal selections on
 //!   one value collapses one level at a time;
 //! - a boolean merged with `true`, `c ? true : e` and `c ? t : true`, becomes `c | e` and `!c | t`,
-//!   the shape a chain of `||` operands leaves at its last join, while the boolean products
-//!   `c ? t : false` and `c ? false : e` are emitted as `c & t` and `!c & e`; and
+//!   the shape a chain of `||` operands leaves at its last join;
+//! - a boolean merged with `false`, `c ? t : false` or `c ? false : e`, becomes an `and`; and
 //! - any other pair becomes `f + c * (t - f)`.
 //!
 //! Conditions are canonical booleans and cast to words before arithmetic.
