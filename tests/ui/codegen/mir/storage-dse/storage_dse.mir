@@ -208,3 +208,99 @@ fn @returning() {
   bb0:
     ret
 }
+
+// A revert discards every storage write, so a store that only reaches a revert
+// or a later overwrite is dead.
+// CHECK-LABEL: fn @remove_before_revert_path
+// CHECK: - sstore 0, 1
+// CHECK: + sstore 0, 2
+fn @remove_before_revert_path(arg0: i1) {
+  bb0:
+    sstore 0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    sstore 0, 2
+    stop
+}
+
+// Revert data that reads the slot keeps the store.
+// CHECK-LABEL: fn @keep_store_read_before_revert
+// CHECK: + sstore 0, 1
+// CHECK: + sstore 0, 2
+fn @keep_store_read_before_revert(arg0: i1) {
+  bb0:
+    sstore 0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = sload 0
+    mstore 0, v0
+    revert 0, 32
+  bb2:
+    sstore 0, 2
+    stop
+}
+
+// A tail call to a function that never returns reverts as well, unless the
+// callee reads the slot first.
+// CHECK-LABEL: fn @remove_before_reverting_tail_call
+// CHECK: - sstore 0, 1
+// CHECK: + sstore 0, 2
+fn @remove_before_reverting_tail_call(arg0: i1) {
+  bb0:
+    sstore 0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    tail_call @fail
+  bb2:
+    sstore 0, 2
+    stop
+}
+
+// CHECK-LABEL: fn @keep_before_reading_tail_call
+// CHECK: + sstore 0, 1
+// CHECK: + sstore 0, 2
+fn @keep_before_reading_tail_call(arg0: i1) {
+  bb0:
+    sstore 0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    tail_call @fail_with_slot
+  bb2:
+    sstore 0, 2
+    stop
+}
+
+// A callee that ends in a revert can still halt successfully through a call,
+// which commits the store.
+// CHECK-LABEL: fn @keep_before_tail_call_that_may_stop
+// CHECK: + sstore 0, 42
+fn @keep_before_tail_call_that_may_stop() {
+  bb0:
+    sstore 0, 42
+    tail_call @stop_then_revert
+}
+
+fn @fail() {
+  bb0:
+    revert 0, 0
+}
+
+fn @stop_then_revert() {
+  bb0:
+    icall @stop_now
+    revert 0, 0
+}
+
+fn @stop_now() {
+  bb0:
+    stop
+}
+
+fn @fail_with_slot() {
+  bb0:
+    v0 = sload 0
+    mstore 0, v0
+    revert 0, 32
+}

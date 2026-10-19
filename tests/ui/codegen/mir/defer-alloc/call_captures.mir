@@ -1,0 +1,62 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocCallCaptures
+
+// A callee that returns the pointer it receives lets the caller keep an alias
+// to the object, so the allocation must stay dynamic.
+// CHECK:   fn @returning_caller{{.*}}
+// CHECK-NEXT:     bb0:
+// CHECK-NEXT: {{.*}}v0 = alloc 32{{$}}
+fn @returning_caller() -> i256 [selector=0x01020304] {
+  bb0:
+    v6 = alloc 32
+    v0 = ptrtoint ptr<memory> v6 to i256
+    mstore v0, 7
+    v1 = icall @returns, v0
+    ret v1
+}
+
+// Bitwise identities of the pointer capture it too.
+// CHECK:   fn @masking_caller{{.*}}
+// CHECK-NEXT:     bb0:
+// CHECK-NEXT: {{.*}}v0 = alloc 32{{$}}
+fn @masking_caller() -> i256 [selector=0x01020305] {
+  bb0:
+    v7 = alloc 32
+    v0 = ptrtoint ptr<memory> v7 to i256
+    mstore v0, 7
+    v1 = icall @masks, v0
+    ret v1
+}
+
+// A callee that only dereferences the pointer does not capture it, so the
+// object is deferred to static placement.
+// CHECK:   fn @dereferencing_caller{{.*}}
+// CHECK-NEXT:     bb0:
+// CHECK-NEXT: - {{.*}}v0 = alloc 32
+// CHECK-NEXT: + {{.*}}v0 = alloc 32 !metadata(deferred_alloc)
+fn @dereferencing_caller() -> i256 [selector=0x01020306] {
+  bb0:
+    v8 = alloc 32
+    v0 = ptrtoint ptr<memory> v8 to i256
+    mstore v0, 7
+    v1 = icall @dereferences, v0
+    ret v1
+}
+
+fn @returns(arg0: i256) -> i256 {
+  bb0:
+    ret arg0
+}
+
+fn @masks(arg0: i256) -> i256 {
+  bb0:
+    v0 = xor arg0, 0
+    ret v0
+}
+
+fn @dereferences(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}

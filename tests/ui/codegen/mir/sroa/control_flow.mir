@@ -64,16 +64,6 @@ fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
     ret v4
 }
 
-fn @observe_size() -> i256 {
-  bb0:
-    v0 = alloc 32
-    v12 = ptrtoint ptr<memory> v0 to i256
-    memory_zero v12, 32
-    mstore v0, 7
-    v2 = msize
-    ret v2
-}
-
 fn @outside_object() -> i256 {
   bb0:
     v0 = alloc 32
