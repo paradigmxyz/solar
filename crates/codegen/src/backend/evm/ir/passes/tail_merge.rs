@@ -165,11 +165,8 @@ impl RunState {
                     suffix_size > transfer_bytes
                         && (!gcx.sess.opts.optimization.is_gas()
                             || !hot
-                            || tail_merge_improves_lifetime(
-                                saved_bytes,
-                                transfer_gas,
-                                target.expected_executions(),
-                            ))
+                            || target
+                                .deposit_repays_gas(saved_bytes as u64, u64::from(transfer_gas)))
                 }
             {
                 self.merges.push(Merge { representative, block: block_id, common });
@@ -476,16 +473,6 @@ impl RunState {
         debug_assert!(labels.next().is_none());
         true
     }
-}
-
-/// Whether one hot transfer into a shared tail repays its deposited-byte saving.
-const fn tail_merge_improves_lifetime(
-    saved_bytes: usize,
-    transfer_gas: u32,
-    expected_executions: u64,
-) -> bool {
-    saved_bytes as u128 * Target::CODE_DEPOSIT_GAS_PER_BYTE as u128
-        > transfer_gas as u128 * expected_executions as u128
 }
 
 /// Preserve an address's control-only identity when its consumer moves into a shared tail.

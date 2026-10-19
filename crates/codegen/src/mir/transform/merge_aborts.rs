@@ -334,8 +334,8 @@ fn mergeable(
     let saved = target.label_push() + target.opcode(op::JUMPI);
     target
         .improves(
-            i128::from(saved.gas) - i128::from(added.gas),
-            i128::from(saved.bytes) - i128::from(added.bytes),
+            i64::from(saved.gas) - i64::from(added.gas),
+            i64::from(saved.bytes) - i64::from(added.bytes),
         )
         .then_some((first, second, flip))
 }

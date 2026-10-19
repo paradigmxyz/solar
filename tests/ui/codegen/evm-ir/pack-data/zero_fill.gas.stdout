@@ -1,0 +1,33 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/zero_fill.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/zero_fill.evmir (after pack-data) ===
+  @module zero_fill
+  bb0:
+    push 128
+-   push 0
+-   dup 2
+-   mstore
+-   push 0
+-   push 32
++   push 128
++   calldatasize
+    dup 3
+-   add
+-   mstore
+-   push 0
+-   push 64
+-   dup 3
+-   add
+-   mstore
+-   push 0
+-   push 96
+-   dup 3
+-   add
+-   mstore
++   calldatacopy
+    stop
+  bb1:
+    push 0
+    push 128
+    mstore
+    stop
+  
