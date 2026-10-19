@@ -126,24 +126,26 @@ pub(crate) fn resynthesize_physical_ops(
         .take(source_depth)
         .enumerate()
         .all(|(depth, &same)| usize::from(same) == depth);
-    let permutation = distinct
-        .then(|| {
-            let removal = synthesize_unique_layout(source.as_slice(), target, evm_version);
-            let placement = synthesize_unique_placement(source.as_slice(), target)
-                .filter(|ops| ops.iter().all(|op| op.lowering(evm_version).is_some()));
-            match (removal, placement) {
-                (Some(removal), Some(placement))
-                    if lowered_stack_cost(&placement, evm_version)
-                        < lowered_stack_cost(&removal, evm_version) =>
-                {
-                    Some(placement)
-                }
-                (removal @ Some(_), _) => removal,
-                (None, placement) => placement,
-            }
-        })
+    let removal = distinct
+        .then(|| synthesize_unique_layout(source.as_slice(), target, evm_version))
         .flatten();
-    if !evm_version.has_extended_stack_ops() && permutation.is_some() {
+    let placement = distinct
+        .then(|| synthesize_unique_placement(source.as_slice(), target))
+        .flatten()
+        .filter(|ops| ops.iter().all(|op| op.lowering(evm_version).is_some()));
+    // Without a removal-search result, the placement result still competes with the shuffler.
+    let removal_solved = removal.is_some();
+    let permutation = match (removal, placement) {
+        (Some(removal), Some(placement))
+            if lowered_stack_cost(&placement, evm_version)
+                < lowered_stack_cost(&removal, evm_version) =>
+        {
+            Some(placement)
+        }
+        (removal @ Some(_), _) => removal,
+        (None, placement) => placement,
+    };
+    if !evm_version.has_extended_stack_ops() && removal_solved {
         return permutation;
     }
     let mut shuffler = StackShuffler::new(source.as_slice(), target, evm_version, exchanges);
