@@ -651,6 +651,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::function_pointer_dispatcher => {
                     builder.func_mut().attributes.is_function_pointer_dispatcher = true;
                 }
+                sym::always_inline => builder.func_mut().attributes.always_inline = true,
                 kw::Constructor => builder.func_mut().attributes.is_constructor = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,

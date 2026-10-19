@@ -349,6 +349,7 @@ pub(super) fn declaration(
     function: &hir::Function<'_>,
 ) -> Function {
     let name = Ident::with_dummy_span(function.name_or_kind());
+    let tags = gcx.solar_tags(hir::ItemId::Function(function_id));
     let mut mir = Function::new(name);
     mir.declaration_span = function.span;
     mir.debug_identifier = Some(name.name);
@@ -361,7 +362,8 @@ pub(super) fn declaration(
         is_receive: function.kind == hir::FunctionKind::Receive,
         may_return_memory: false,
         is_function_pointer_dispatcher: false,
-        no_inline: false,
+        no_inline: tags.noinline,
+        always_inline: tags.inline,
         array_element_bits: Default::default(),
         array_return_element_bits: None,
     };
