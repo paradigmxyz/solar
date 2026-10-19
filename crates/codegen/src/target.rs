@@ -1064,6 +1064,12 @@ mod tests {
         assert!(target.cmp(shared, expanded).is_lt());
         let (shared, expanded) = target.helper_sharing(10, 2, 1, 2);
         assert!(target.cmp(shared, expanded).is_gt());
+        // A second result costs a move at each site and in the helper: 51 bytes against 52
+        // expanded with one result, 54 with two.
+        let (shared, expanded) = target.helper_sharing(26, 2, 1, 2);
+        assert!(target.cmp(shared, expanded).is_lt());
+        let (shared, expanded) = target.helper_sharing(26, 2, 2, 2);
+        assert!(target.cmp(shared, expanded).is_gt());
     }
 
     #[test]

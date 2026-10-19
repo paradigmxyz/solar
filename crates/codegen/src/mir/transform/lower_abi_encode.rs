@@ -204,25 +204,28 @@ fn synthesize_tuple_helpers(
 ) {
     let mut counts = FxHashMap::<TupleHelperKey, (usize, usize)>::default();
     for (func_id, func) in module.functions.iter_enumerated() {
-        for inst in func.instructions() {
-            let InstKind::AbiEncode { mode, selector, args, layout } = &func.inst(inst).kind else {
-                continue;
-            };
-            if destructive_returns[func_id].contains(&inst) {
-                continue;
+        for block in func.blocks.iter() {
+            for &inst in &block.instructions {
+                let InstKind::AbiEncode { mode, selector, args, layout } = &func.inst(inst).kind
+                else {
+                    continue;
+                };
+                if destructive_returns[func_id].contains(&inst)
+                    || is_terminal_scratch(*mode, block.terminator.as_ref())
+                {
+                    continue;
+                }
+                let next = counts.len();
+                let count = counts
+                    .entry(TupleHelperKey::of(func, *mode, *selector, args, layout))
+                    .or_insert((0, next));
+                count.0 += 1;
             }
-            let next = counts.len();
-            let count = counts
-                .entry(TupleHelperKey::of(func, *mode, *selector, args, layout))
-                .or_insert((0, next));
-            count.0 += 1;
         }
     }
-    // A scratch encoding ends its block in a return or revert, whose identical copies the
-    // backend's terminal-block sharing already merges.
     let mut keys = counts
         .into_iter()
-        .filter(|(key, (count, _))| *count >= 2 && key.mode != AbiEncodeMode::Scratch)
+        .filter(|(_, (count, _))| *count >= 2)
         .map(|(key, (count, first))| (first, count, key))
         .collect::<Vec<_>>();
     keys.sort_by_key(|(first, _, _)| *first);
@@ -241,14 +244,12 @@ fn synthesize_tuple_helpers(
             builder.set_return_type(result_ty);
             builder.ret([encoded]);
         }
+        // A slice result returns its pointer and length.
+        let returns = if matches!(function.return_type(), MirType::Slice(_)) { 2 } else { 1 };
         let body_bytes = target.code_estimate(&function).bytes;
         let sites = u32::try_from(sites).unwrap_or(u32::MAX);
-        let (with_helper, expanded) = target.helper_sharing(
-            body_bytes,
-            function.params.len(),
-            function.return_components().len(),
-            sites,
-        );
+        let (with_helper, expanded) =
+            target.helper_sharing(body_bytes, function.params.len(), returns, sites);
         if target.cmp(with_helper, expanded).is_lt() {
             shared.push((key, function));
         }
@@ -257,6 +258,13 @@ fn synthesize_tuple_helpers(
         let helper = module.add_function(function);
         helpers.tuples.insert(key, helper);
     }
+}
+
+/// Whether a scratch encoding's block returns or reverts with it: the backend's terminal-block
+/// sharing already merges identical copies of such tails, so they stay expanded.
+fn is_terminal_scratch(mode: AbiEncodeMode, terminator: Option<&Terminator>) -> bool {
+    mode == AbiEncodeMode::Scratch
+        && matches!(terminator, Some(Terminator::Revert { .. } | Terminator::ReturnData { .. }))
 }
 
 /// Builds `encode_abi_array(value, dest) -> length` for every memory array layout whose
@@ -444,7 +452,10 @@ fn lower_function(
                 ) {
                 encoded
             } else {
-                match helpers.tuples.get(&key) {
+                let helper = (!is_terminal_scratch(mode, original_terminator.as_ref()))
+                    .then(|| helpers.tuples.get(&key))
+                    .flatten();
+                match helper {
                     Some(&helper) => {
                         // encoded = icall @encode_abi_tuple, 1, args.., [selector]
                         let result_ty = builder.func().value_ty(result).unwrap_or(MirType::I256);
