@@ -218,9 +218,11 @@ fn synthesize_tuple_helpers(
             count.0 += 1;
         }
     }
+    // A scratch encoding ends its block in a return or revert, whose identical copies the
+    // backend's terminal-block sharing already merges.
     let mut keys = counts
         .into_iter()
-        .filter(|(_, (count, _))| *count >= 2)
+        .filter(|(key, (count, _))| *count >= 2 && key.mode != AbiEncodeMode::Scratch)
         .map(|(key, (count, first))| (first, count, key))
         .collect::<Vec<_>>();
     keys.sort_by_key(|(first, _, _)| *first);
@@ -241,8 +243,12 @@ fn synthesize_tuple_helpers(
         }
         let body_bytes = target.code_estimate(&function).bytes;
         let sites = u32::try_from(sites).unwrap_or(u32::MAX);
-        let (with_helper, expanded) =
-            target.helper_sharing(body_bytes, function.params.len(), 1, sites);
+        let (with_helper, expanded) = target.helper_sharing(
+            body_bytes,
+            function.params.len(),
+            function.return_components().len(),
+            sites,
+        );
         if target.cmp(with_helper, expanded).is_lt() {
             shared.push((key, function));
         }
