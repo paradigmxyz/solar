@@ -2,13 +2,13 @@
 //@ filecheck:
 @module high_fanout
 
-// Highly shared stores stay available to global code sharing instead of
-// taking a locally profitable rewrite that can grow the complete program.
-// CHECK-NOT: push_data
-// CHECK-NOT: @data
+// Every site of a highly shared run copies from one data entry; the cost
+// model prices the whole group, with no cap on its sites.
+// CHECK: literal_0: hex"0000000000000000000000000000000011112222333344445555666677778888000000000000000000000000000000009999aaaabbbbccccddddeeeeffff0000"
+// CHECK-NOT: literal_1
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: mstore
-// CHECK: mstore
+// CHECK: push_data literal_0
+// CHECK-NOT: mstore
 bb0:
   push 128
   push 0x11112222333344445555666677778888
@@ -23,8 +23,8 @@ bb0:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb1:
-// CHECK: mstore
-// CHECK: mstore
+// CHECK: push_data literal_0
+// CHECK-NOT: mstore
 bb1:
   push 256
   push 0x11112222333344445555666677778888
@@ -39,8 +39,8 @@ bb1:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb2:
-// CHECK: mstore
-// CHECK: mstore
+// CHECK: push_data literal_0
+// CHECK-NOT: mstore
 bb2:
   push 384
   push 0x11112222333344445555666677778888
@@ -55,8 +55,8 @@ bb2:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb3:
-// CHECK: mstore
-// CHECK: mstore
+// CHECK: push_data literal_0
+// CHECK-NOT: mstore
 bb3:
   push 512
   push 0x11112222333344445555666677778888
@@ -71,8 +71,8 @@ bb3:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb4:
-// CHECK: mstore
-// CHECK: mstore
+// CHECK: push_data literal_0
+// CHECK-NOT: mstore
 bb4:
   push 640
   push 0x11112222333344445555666677778888

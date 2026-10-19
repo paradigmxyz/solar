@@ -1,15 +1,15 @@
-//@compile-flags: -Ogas -Zmir-pipeline=inline-hot-leaves
+//@compile-flags: -Ogas -Zmir-pipeline=inline
 //@filecheck:
 @module HotLeaves
 
-// A small branchy lookup helper called from inside a loop is cloned at both
-// loop sites; the call outside the loop keeps the shared body.
+// A small branchy lookup helper is cloned at both loop sites; its last call
+// outside the loop consumes the remaining shared body.
 // CHECK-LABEL: {{^[ +].*}}fn @loop_caller{{[( ]}}
 // CHECK: - {{v[0-9]+}} = icall @classify
 // CHECK: - {{v[0-9]+}} = icall @classify
 // CHECK: + {{v[0-9]+}} = phi
 // CHECK-LABEL: {{^[ +].*}}fn @straight_caller{{[( ]}}
-// CHECK: {{^ +}}{{v[0-9]+}} = icall @classify
+// CHECK: - {{v[0-9]+}} = icall @classify
 fn @loop_caller(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1

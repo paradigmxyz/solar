@@ -1,0 +1,46 @@
+// === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts_runtime.sol:LiteralArtifacts ===
+@module LiteralArtifacts
+@immutables
+  initial: bytes32
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @version
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    storeimmutable initial, v3
+    ret
+}
+
+fn @version() -> ptr<memory> [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @constructorAndRuntime() -> i1 [selector=0x6b57fb7b, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable initial
+    v1 = address
+    v2 = gas
+    v3 = abi_encode [], selector 0x54fd4d5000000000000000000000000000000000000000000000000000000000
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    v6 = zext i160 v1 to i256
+    v7 = staticcall v2, v6, v4, v5, 0, 0
+    jumpi v7, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v8 = icall returndata_bytes<>
+    v9 = abi_decode [bytes], v8
+    v10 = ptradd v9, 32
+    v11 = mload v9
+    v12 = keccak256 v10, v11
+    v13 = eq v0, v12
+    ret v13
+}

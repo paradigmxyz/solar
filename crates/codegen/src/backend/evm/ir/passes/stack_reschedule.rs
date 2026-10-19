@@ -25,10 +25,11 @@
 //! `PUSH target; JUMPI` of an overflow check or a guard: the pair takes only its condition, so it
 //! joins the run as one more ordered operation. Work may move below it, as only the path that
 //! continues needs it, but never above it, so the aborting path spends no more gas than before
-//! and still reaches its revert. Such a block reaches its `REVERT` or `INVALID` without a jump
-//! and without an operation that depends on the gas left, such as a `GAS` reading in its
-//! payload, which could tell where the work ran. A block that returns or stops is a normal exit
-//! and ends the run. Spanning the checks gives the search more freedom, but a longer run can
+//! and still reaches its revert. Such a block reaches its `REVERT` or `INVALID` without a branch,
+//! within at most [`MAX_ABORT_JUMPS`] blocks linked by direct jumps, as tail merging shares the
+//! ends of reverts, and without an operation that depends on the gas left, such as a `GAS` reading
+//! in its payload, which could tell where the work ran. A block that returns or stops is a normal
+//! exit and ends the run. Spanning the checks gives the search more freedom, but a longer run can
 //! exhaust its budget where the runs between its checks would not, so those are scheduled
 //! separately as well, split after each operation that depends on the gas left too, and the
 //! cheaper result is kept. A run with more operations than one search takes is cut into windows
@@ -91,7 +92,7 @@
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
-        ir::{Block, BlockId, Instruction, Module, TerminatorKind},
+        ir::{BlockId, Instruction, Module, TerminatorKind},
         op::{self, StackOp},
     },
     target::{Cost, Target},
@@ -150,6 +151,8 @@ const REACH: usize = 16;
 const WORD_BITS: u32 = 6;
 /// Words a packed stack holds.
 const MAX_HEIGHT: usize = 21;
+/// Blocks an abort may span through direct jumps.
+const MAX_ABORT_JUMPS: usize = 4;
 
 pub(super) struct StackReschedule;
 
@@ -161,8 +164,8 @@ impl EvmPass for StackReschedule {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let target = Target::new(gcx);
         let mut halts = DenseBitSet::new_empty(module.blocks.len());
-        for (id, block) in module.blocks.iter_enumerated() {
-            if aborts_without_stack(block) {
+        for id in module.blocks.indices() {
+            if aborts_without_stack(module, id) {
                 halts.insert(id);
             }
         }
@@ -174,7 +177,7 @@ impl EvmPass for StackReschedule {
                 && !block.metadata.hotness.is_cold();
             let budget = if hot_loop { LOOP_BUDGET } else { BLOCK_BUDGET };
             changed |=
-                reschedule_block(&mut block.instructions, target, budget, &halts, &mut scratch);
+                reschedule_block(&mut block.instructions, &target, budget, &halts, &mut scratch);
         }
         changed
     }
@@ -282,7 +285,7 @@ impl State {
 
 fn reschedule_block(
     instructions: &mut Vec<Instruction>,
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
@@ -521,7 +524,7 @@ fn constant(inst: &Instruction) -> Option<Constant> {
 }
 
 /// Price of a push as assembly encodes it: the narrowest `PUSH` of its value.
-fn push_cost(inst: &Instruction, target: Target) -> Cost {
+fn push_cost(inst: &Instruction, target: &Target) -> Cost {
     match inst.concrete_immediate() {
         Some(value) if value.is_zero() && target.evm_version().has_push0() => {
             target.opcode(op::PUSH0)
@@ -532,7 +535,7 @@ fn push_cost(inst: &Instruction, target: Target) -> Cost {
 }
 
 /// Price of an instruction a run holds.
-fn instruction_cost(inst: &Instruction, target: Target) -> Cost {
+fn instruction_cost(inst: &Instruction, target: &Target) -> Cost {
     if let Some(stack_op) = inst.as_stack_op() {
         target.opcode(stack_op.single_byte_evm_opcode().expect("runs hold one-byte stack ops"))
     } else if inst.is_encoded_push() {
@@ -555,7 +558,7 @@ fn apply(stack: &mut SmallVec<[Word; 24]>, stack_op: StackOp) {
 }
 
 /// Orders costs under the objective as one number: gas first, then bytes.
-fn scalar(cost: Cost, target: Target) -> u64 {
+fn scalar(cost: Cost, target: &Target) -> u64 {
     let [first, second] = target.objective_key(cost);
     (u64::from(first) << 32) | u64::from(second)
 }
@@ -563,7 +566,7 @@ fn scalar(cost: Cost, target: Target) -> u64 {
 /// Executes a run symbolically.
 fn summarize(
     run: &[Instruction],
-    target: Target,
+    target: &Target,
     max_operations: usize,
     halts: &DenseBitSet<BlockId>,
 ) -> Option<Run> {
@@ -677,7 +680,7 @@ impl Words {
 
 /// Searches for the cheapest schedule of a run's operations that leaves its stack, when one
 /// beats the run's own stack operations.
-fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> Option<Vec<Move>> {
+fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> Option<Vec<Move>> {
     let operation_count = run.operations.len();
     let words = Words { entry: run.entry, operations: operation_count };
     let word_count = run.entry + operation_count + run.pushes.len();
@@ -1204,32 +1207,39 @@ fn is_branch_pair(
 }
 
 /// Whether a block aborts without reading a word that was on the stack when it was entered, and
-/// without anything that tells how much work ran before the branch into it.
+/// without anything that tells how much work ran before the branch into it. The abort may end in
+/// a block that a few direct jumps reach.
 ///
 /// A run may move work below a branch to such a block: the work then runs only on the path that
 /// continues, which is the one that needs it. A block that returns or stops is a normal exit, and
-/// so is one that jumps elsewhere before its end. A `GAS` reading, a call or an `SSTORE` would see
-/// how much gas the path spent, so a block with one keeps its branch out of runs.
-fn aborts_without_stack(block: &Block) -> bool {
+/// so is one that may branch elsewhere before its end. A `GAS` reading, a call or an `SSTORE` would
+/// see how much gas the path spent, so a block with one keeps its branch out of runs.
+fn aborts_without_stack(module: &Module, mut id: BlockId) -> bool {
     let mut depth = 0usize;
-    for inst in &block.instructions {
-        if inst.opcode == op::JUMPI
-            || inst
-                .definition()
-                .is_some_and(|definition| definition.is_terminal() || definition.observes_gas())
-        {
-            return false;
+    // Shared tails move the end of an abort into another block, so follow a few direct jumps.
+    for _ in 0..MAX_ABORT_JUMPS {
+        let block = &module.blocks[id];
+        for inst in &block.instructions {
+            if inst.opcode == op::JUMPI
+                || inst
+                    .definition()
+                    .is_some_and(|definition| definition.is_terminal() || definition.observes_gas())
+            {
+                return false;
+            }
+            let effect = inst.stack_effect();
+            let Some(rest) = depth.checked_sub(usize::from(effect.inputs)) else { return false };
+            depth = rest + usize::from(effect.outputs);
         }
-        let effect = inst.stack_effect();
-        let Some(rest) = depth.checked_sub(usize::from(effect.inputs)) else { return false };
-        depth = rest + usize::from(effect.outputs);
-    }
-    match block.terminator.as_ref().map(|terminator| &terminator.kind) {
-        Some(kind @ TerminatorKind::Op(op::REVERT | op::INVALID)) => {
-            kind.stack_io().is_some_and(|(inputs, _)| usize::from(inputs) <= depth)
+        match block.terminator.as_ref().map(|terminator| &terminator.kind) {
+            Some(kind @ TerminatorKind::Op(op::REVERT | op::INVALID)) => {
+                return kind.stack_io().is_some_and(|(inputs, _)| usize::from(inputs) <= depth);
+            }
+            Some(&TerminatorKind::Jump(target)) => id = target,
+            _ => return false,
         }
-        _ => false,
     }
+    false
 }
 
 /// Whether an instruction of a run is an operation: a branch pair's push is part of its `JUMPI`.
@@ -1240,7 +1250,7 @@ fn is_operation(inst: &Instruction) -> bool {
 /// The cheapest schedule the search finds for a run, if it beats the run's own.
 fn schedule(
     run: &[Instruction],
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
@@ -1275,7 +1285,7 @@ fn schedule(
 /// schedule costs no more gas, as nothing of the original ran after the access.
 fn split_schedule(
     window: &[Instruction],
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
@@ -1326,7 +1336,7 @@ fn split_schedule(
 fn extend_scheduled(
     rebuilt: &mut Vec<Instruction>,
     run: &[Instruction],
-    target: Target,
+    target: &Target,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
@@ -1344,7 +1354,7 @@ fn extend_scheduled(
 }
 
 /// The price of a sequence's stack operations and pushes, which is all a schedule changes.
-fn price(instructions: &[Instruction], target: Target) -> u64 {
+fn price(instructions: &[Instruction], target: &Target) -> u64 {
     let cost = instructions
         .iter()
         .filter(|inst| !is_operation(inst))
@@ -1366,7 +1376,7 @@ fn observes_gas(inst: &Instruction) -> bool {
 fn spends_no_more_before_observations(
     original: &[Instruction],
     schedule: &[Instruction],
-    target: Target,
+    target: &Target,
 ) -> bool {
     let spent_before = |instructions: &[Instruction]| {
         let mut spent = 0u64;

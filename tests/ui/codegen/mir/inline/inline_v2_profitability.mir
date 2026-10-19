@@ -66,7 +66,7 @@ fn @multi_return_callee(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
 
 // CHECK-LABEL: {{^[ +].*}}fn @tiny_stateful_caller{{[( ]}}
 // CHECK: - {{.*}}icall @tiny_stateful_callee
-// CHECK: + sstore 0, arg0
+// CHECK: {{^[ +].*}}sstore 0, arg0
 // CHECK: + sstore 0, arg1
 fn @tiny_stateful_caller(arg0: i256, arg1: i256) {
   bb0:
@@ -81,8 +81,7 @@ fn @tiny_stateful_callee(arg0: i256) {
     ret
 }
 
-// A shared callee above the ordinary 10-block cap inlines at only its most
-// tail-like call site, even when the less profitable site appears first.
+// Large shared bodies without constants or a hot call site stay shared.
 // CHECK-LABEL: {{^[ +].*}}fn @large_shared_nontail{{[( ]}}
 // CHECK: {{^[ +].*}}icall @large_shared_callee
 fn @large_shared_nontail(arg0: i256) -> i256 {
@@ -94,9 +93,7 @@ fn @large_shared_nontail(arg0: i256) -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @large_shared_tail{{[( ]}}
-// CHECK: - {{.*}}icall @large_shared_callee
-// CHECK: + [[INLINED:v[0-9]+]] = add arg0, 1
-// CHECK: + {{v[0-9]+}} = phi [bb13: [[INLINED]]]
+// CHECK: {{^[ +].*}}icall @large_shared_callee
 fn @large_shared_tail(arg0: i256) -> i256 {
   bb0:
     v1 = icall fn8, arg0

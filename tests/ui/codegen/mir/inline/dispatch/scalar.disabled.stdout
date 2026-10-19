@@ -1,0 +1,31 @@
+- // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (after inline) ===
+  @module ScalarDispatcher
+  @phase lowered
+  fn @add() [selector=0x00000001, abi_wrapper, pure] {
+    bb0:
+      v0 = add arg0, arg1
+      mstore 128, v0
+      returndata 128, 32
+  }
+  
+  fn @sub() [selector=0x00000002, abi_wrapper, pure] {
+    bb0:
+      v0 = sub arg0, arg1
+      mstore 128, v0
+      returndata 128, 32
+  }
+  
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb3, [1 => bb1, 2 => bb2]
+    bb2:
+      tail_call @sub
+    bb1:
+      tail_call @add
+    bb3:
+      revert 0, 0
+  }
+  
