@@ -12,7 +12,7 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
     mstore v4, 2
     v5 = ptradd v4, 32
     mstore v5, 0x1111000000000000000000000000000000000000000000000000000000000000
-    v6 = shl 240, 0xabcd
+    v6 = shl 0xabcd, 240
     v7 = ptrtoint ptr<memory> v2 to i256
     v8 = add v7, 32
     mstore v8, v6
@@ -38,7 +38,7 @@ fn @length() -> ptr<memory> [selector=0x1f7b6d32, pure, abi_params=[], abi_retur
     ret v7
 }
 
-fn @overlap() -> i256 [selector=0xea9e4070, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @overlap() -> i256 [selector=0xea9e4070, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 33
@@ -57,8 +57,8 @@ fn @overlap() -> i256 [selector=0xea9e4070, pure, abi_params=[], abi_returns=[wo
     v9 = ptradd v5, 64
     v10 = mload v9
     v11 = byte 0, v10
-    v12 = shl 248, v11
-    v13 = shr 248, v12
+    v12 = shl v11, 248
+    v13 = shr v12, 248
     v14 = trunc i256 v13 to i8
     v15 = zext i8 v14 to i256
     ret v15
