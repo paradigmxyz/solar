@@ -13,6 +13,7 @@ time: <TIME>	MIR TimePasses load-pre changed=false
 time: <TIME>	MIR TimePasses element-cleanup changed=false
 time: <TIME>	MIR TimePasses frame-slot-promotion changed=false
 time: <TIME>	MIR TimePasses loop-canonicalize changed=false
+time: <TIME>	MIR TimePasses byte-loops changed=false
 time: <TIME>	MIR TimePasses dce changed=false
 time: <TIME>	MIR TimePasses loop-reduce changed=false
 time: <TIME>	MIR TimePasses indvar-simplify changed=false
