@@ -893,6 +893,15 @@ impl InstKind {
         }
     }
 
+    /// Returns the tested operand of a canonical inequality with zero.
+    pub(crate) fn nonzero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
+        match *self {
+            Self::Ne(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
+            Self::Ne(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
+            _ => None,
+        }
+    }
+
     /// Clones the instruction with zeroed value operands to compare its remaining fields.
     pub(crate) fn clone_without_operands(&self) -> Self {
         let mut kind = self.clone();

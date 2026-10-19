@@ -118,7 +118,9 @@
 //! fixed-point range propagation to the earlier check passes. Size mode retains
 //! the full forward analysis. Both use the existing conservative proof logic.
 //! Integer cleanup reuses the dominator walk after integer legalization to remove masks
-//! whose inputs already fit, without running the forward fixed-point analysis.
+//! whose inputs already fit, without running the forward fixed-point analysis. A word
+//! widened back from its own nonzero test, `zext(v != 0)`, counts as a one-bit mask, so a
+//! boolean that ABI decoding checked keeps its word instead of normalizing it again.
 //! It also uses runtime immutable bounds, since legalization can introduce masks after the
 //! earlier immutable pass. Constructor-reachable functions retain their full-word semantics.
 //! Late immutable mask removal can prevent outlining small getters, so use it only for gas.
@@ -174,7 +176,8 @@ impl MirPass for CheckElim {
     }
 }
 
-/// Removes integer masks proved redundant by branches or runtime immutable widths.
+/// Removes integer masks and boolean renormalizations proved redundant by branches or
+/// runtime immutable widths.
 pub(crate) struct IntegerCleanup;
 
 impl MirPass for IntegerCleanup {
@@ -194,9 +197,11 @@ impl MirPass for IntegerCleanup {
                     .blocks
                     .iter()
                     .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. }))))
-                || !func
-                    .instructions()
-                    .any(|id| low_mask_input(func, &func.inst(id).kind).is_some())
+                || !func.instructions().any(|id| {
+                    let kind = &func.inst(id).kind;
+                    low_mask_input(func, kind).is_some()
+                        || widened_nonzero_test(func, kind).is_some()
+                })
             {
                 return false;
             }
@@ -1125,7 +1130,8 @@ impl<'a> CheckEliminator<'a> {
 
     fn redundant_mask(&mut self, func: &Function, id: InstId) -> Option<ValueId> {
         let inst = func.inst(id);
-        let (value, mask) = low_mask_input(func, &inst.kind)?;
+        let (value, mask) = low_mask_input(func, &inst.kind)
+            .or_else(|| widened_nonzero_test(func, &inst.kind).map(|value| (value, U256::ONE)))?;
         (self.range_of(func, value, MAX_DEPTH).hi <= mask
             && inst.result_ty == func.value_ty(value)
             && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure))
@@ -2364,6 +2370,13 @@ fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
         .map(|mask| (a, mask))
         .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
     (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
+}
+
+/// The word `v` of `zext(v != 0)`, which is `v` itself whenever `v` is 0 or 1, as a
+/// boolean that ABI decoding already checked is.
+fn widened_nonzero_test(func: &Function, kind: &InstKind) -> Option<ValueId> {
+    let InstKind::Zext(test) = *kind else { return None };
+    inst_kind(func, test)?.nonzero_test_operand(func)
 }
 
 /// The values a header phi `p = phi [pre: initial], [latch: next]` can take when every value
