@@ -200,15 +200,6 @@ impl GasTier {
         }
     }
 
-    /// Dynamic gas of a tier priced the same on every EVM version, usable in
-    /// constants.
-    pub(crate) const fn fixed_dynamic_gas(self) -> u32 {
-        match self {
-            Self::Exp => panic!("tier is priced per EVM version"),
-            _ => self.dynamic_gas(EvmVersion::Homestead),
-        }
-    }
-
     /// The stack argument that sizes the dynamic work: the exponent of
     /// `EXP`, the byte length of a hash or a log, the last argument of a copy.
     const fn sizing_argument(self, arguments: usize) -> Option<usize> {
@@ -591,13 +582,10 @@ impl Target {
         GasTier::Copy.dynamic_gas(self.evm_version)
     }
 
-    /// Gas of one program-data copy of `size` bytes: three pushes, the copy,
-    /// and its words.
-    pub(crate) fn data_copy_gas(self, size: usize) -> u32 {
+    /// Word gas of copying `size` bytes with a copy opcode, beyond its static gas.
+    pub(crate) fn copied_words(self, size: usize) -> Cost {
         let words = u32::try_from(size.div_ceil(32)).unwrap_or(u32::MAX);
-        GasTier::VeryLow.gas(self.evm_version) * 3
-            + self.opcode_gas(op::CODECOPY)
-            + self.copy_word_gas().saturating_mul(words)
+        Cost::new(self.copy_word_gas().saturating_mul(words), 0)
     }
 
     /// Cost of one internal call site with its return landing: the pushed
@@ -707,9 +695,16 @@ impl Target {
         self.lifetime_gas(a).cmp(&self.lifetime_gas(b)).then_with(|| self.cmp(a, b))
     }
 
+    /// Whether depositing `bytes` fewer bytes outweighs spending `gas` more gas
+    /// on each expected execution.
+    pub(crate) fn deposit_repays_gas(self, bytes: u64, gas: u64) -> bool {
+        u128::from(bytes) * u128::from(Self::CODE_DEPOSIT_GAS_PER_BYTE)
+            > u128::from(gas) * u128::from(self.expected_executions)
+    }
+
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
-    pub(crate) fn improves(self, gas_saving: i128, byte_saving: i128) -> bool {
+    pub(crate) fn improves(self, gas_saving: i64, byte_saving: i64) -> bool {
         if self.optimization.is_gas() {
             gas_saving > 0 && byte_saving >= 0
         } else {
@@ -1014,7 +1009,7 @@ mod tests {
         assert_eq!(target.label_push(), Cost::new(3, 3));
         assert_eq!(target.push(U256::ZERO), Cost::new(2, 1));
         assert_eq!(target.push(U256::from(0x1234)), Cost::new(3, 3));
-        assert_eq!(target.data_copy_gas(64), 18);
+        assert_eq!(target.copied_words(64), Cost::new(6, 0));
         let legacy = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
         assert_eq!(legacy.push(U256::ZERO), Cost::new(3, 2));
         assert_eq!(target.stack_op(op::StackOp::Swap(16)), Some(Cost::new(3, 1)));
@@ -1044,6 +1039,17 @@ mod tests {
         assert!(!target(Target::LOOP_COPY_MIN_RUNS - 1).copies_loops());
         assert!(target(Target::LOOP_COPY_MIN_RUNS).copies_loops());
         assert!(target(u64::from(u32::MAX)).copies_loops());
+    }
+
+    #[test]
+    fn deposit_repays_gas_over_expected_executions() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        // 10 bytes deposit 2,000 gas; 9 gas on 200 executions is 1,800.
+        assert!(target.deposit_repays_gas(10, 9));
+        assert!(!target.deposit_repays_gas(10, 10));
+        assert!(!target.deposit_repays_gas(0, 0));
+        let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 10_000);
+        assert!(!hot.deposit_repays_gas(10, 1));
     }
 
     #[test]

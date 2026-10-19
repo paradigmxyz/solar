@@ -1,0 +1,58 @@
+//@compile-flags: -Zmir-pipeline=sroa
+//@filecheck:
+@module SroaMsizeCaller
+
+// Internal calls share memory, so `msize` in a caller observes the expansion
+// of the object's store even though `@touch` never reads `msize` itself.
+// CHECK-LABEL: fn @touch{{[( ]}}
+// CHECK: mstore [[OBJ:v[0-9]+]], arg0
+// CHECK: mload [[OBJ]]
+fn @touch(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 32
+    mstore v0, arg0
+    v1 = mload v0
+    ret v1
+}
+
+fn @caller(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @touch, arg0
+    v1 = msize
+    v2 = add v0, v1
+    ret v2
+}
+
+// A callee that reads `msize` observes it the same way.
+// CHECK-LABEL: fn @touch_then_measure{{[( ]}}
+// CHECK: mstore [[OBJ:v[0-9]+]], arg0
+// CHECK: mload [[OBJ]]
+fn @touch_then_measure(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 32
+    mstore v0, arg0
+    v1 = mload v0
+    v2 = icall @measure
+    v3 = add v1, v2
+    ret v3
+}
+
+fn @measure() -> i256 {
+  bb0:
+    v0 = msize
+    ret v0
+}
+
+// `msize` in the function itself observes the object's writes too.
+// CHECK-LABEL: fn @observe_size{{[( ]}}
+// CHECK: memory_zero
+// CHECK: mstore {{v[0-9]+}}, 7
+fn @observe_size() -> i256 {
+  bb0:
+    v0 = alloc 32
+    v12 = ptrtoint ptr<memory> v0 to i256
+    memory_zero v12, 32
+    mstore v0, 7
+    v2 = msize
+    ret v2
+}

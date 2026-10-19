@@ -7,9 +7,12 @@
 //! necessarily preserve.
 
 use super::EvmPass;
-use crate::backend::evm::{
-    ir::{Instruction, Module},
-    op::{self, WORD_BYTES},
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Module},
+        op::{self, WORD_BYTES},
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::OptimizationMode;
@@ -35,9 +38,6 @@ impl EvmPass for CoalesceCopies {
 const COPY_INSTRUCTIONS: usize = 4;
 
 fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    if !module.blocks.iter().any(|block| has_candidate(gcx, &block.instructions)) {
-        return false;
-    }
     let mut groups = 0usize;
     let mut words = 0usize;
     for block in &mut module.blocks {
@@ -101,36 +101,6 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
     groups != 0
 }
 
-fn has_candidate(gcx: Gcx<'_>, instructions: &[Instruction]) -> bool {
-    let mut index = 0;
-    while index + COPY_INSTRUCTIONS <= instructions.len() {
-        let Some((source, destination)) = word_copy(&instructions[index..]) else {
-            index += 1;
-            continue;
-        };
-        let mut count = 1usize;
-        while let Some(next) = index.checked_add(count * COPY_INSTRUCTIONS)
-            && let Some((next_source, next_destination)) =
-                instructions.get(next..).and_then(word_copy)
-            && let Some(expected_source) = source.checked_add(U256::from(count * WORD_BYTES))
-            && let Some(expected_destination) =
-                destination.checked_add(U256::from(count * WORD_BYTES))
-            && next_source == expected_source
-            && next_destination == expected_destination
-        {
-            count += 1;
-        }
-        if count >= 2
-            && ranges_disjoint(source, destination, count)
-            && profitable(gcx, source, destination, U256::from(count * WORD_BYTES), count)
-        {
-            return true;
-        }
-        index += COPY_INSTRUCTIONS;
-    }
-    false
-}
-
 fn word_copy(instructions: &[Instruction]) -> Option<(U256, U256)> {
     let [source, load, destination, store, ..] = instructions else { return None };
     if load.opcode != op::MLOAD || store.opcode != op::MSTORE {
@@ -147,25 +117,18 @@ fn ranges_disjoint(source: U256, destination: U256, words: usize) -> bool {
 }
 
 fn profitable(gcx: Gcx<'_>, source: U256, destination: U256, length: U256, words: usize) -> bool {
-    let evm_version = gcx.sess.opts.evm_version;
-    let mut old_size = words * 2;
-    let mut old_gas = words * 6;
+    let target = Target::new(gcx);
+    // push source; mload; push destination; mstore, for each word
+    let mut old = (target.opcode(op::MLOAD) + target.opcode(op::MSTORE)).times(words as u32);
     for index in 0..words {
         let offset = U256::from(index * WORD_BYTES);
-        for value in [source + offset, destination + offset] {
-            let (size, gas) =
-                super::compact_pushes::immediate_materialization_cost(evm_version, value);
-            old_size += size;
-            old_gas += gas;
-        }
+        old += target.push(source + offset) + target.push(destination + offset);
     }
-
-    let mut new_size = 1;
-    let mut new_gas = 3 + 3 * words;
+    // push length; push source; push destination; mcopy
+    let mut new = target.opcode(op::MCOPY);
+    new.gas += target.copy_word_gas() * words as u32;
     for value in [length, source, destination] {
-        let (size, gas) = super::compact_pushes::immediate_materialization_cost(evm_version, value);
-        new_size += size;
-        new_gas += gas;
+        new += target.push(value);
     }
-    new_size < old_size && new_gas <= old_gas
+    new.bytes < old.bytes && new.gas <= old.gas
 }
