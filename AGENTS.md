@@ -32,17 +32,11 @@ build or run tests. Avoid plain `cargo test`.
 NEVER RUN TESTS WITH `--all-features`: it enables `tracy`, whose per-process
 overhead turns the UI tests into minutes of 100% CPU.
 
-### Cheap test output
+### Test output
 
-Without a terminal, the UI harness prints only failures and a final
-`test result: ... N passed` line, also for filtered runs and `cargo tq <mode>`.
-`cargo uitest` runs `ui`, `mir` and `evm-ir`, not `standard-json`. Redirect to a file and search it:
-`cargo uitest > /tmp/ui.log 2>&1; rg "FAILED TEST|test result" /tmp/ui.log`.
-For one failing snapshot, run `cargo uitest <name> 2>&1 | head -60`. Do not dump
-CI logs: they are ANSI-heavy, repeat per toolchain, and GitHub truncates them
-with `... N lines skipped ...`. Filter with
-`gh run view <id> --log-failed | rg "FAILED TEST|error" | cut -c60-`, or
-reproduce locally.
+Without a terminal the UI harness prints only failures and a `test result:`
+line, so run `cargo uitest` and `cargo tq <mode>` directly. `cargo uitest` does
+not run `standard-json`; use `cargo tq standard-json`.
 
 ## Architecture
 
