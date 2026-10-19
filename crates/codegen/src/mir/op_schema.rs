@@ -23,6 +23,8 @@
 //! load, without duplicating the rest of its metadata.
 //! `#[commutative(lhs, rhs)]` generates the trait and canonicalizes exactly that
 //! operand pair, leaving attributes and any remaining operands untouched.
+//! `#[demanded(Rule { field: operand, .. })]` declares how a bitwise operation's result bits
+//! depend on its operands as a [`DemandedBits`] rule, which demanded-bits analyses interpret.
 
 use crate::link::LibraryId;
 use alloy_primitives::Bytes;
@@ -697,6 +699,36 @@ macro_rules! commutative_trait {
     };
 }
 
+/// How the result bits of a bitwise operation depend on its operands, declared with
+/// `#[demanded(..)]` for demanded-bits analyses. Operands are values; analyses read constants
+/// from them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DemandedBits {
+    /// A result bit is zero where `mask` is zero and equals `operand` where it is one.
+    Mask { operand: ValueId, mask: ValueId },
+    /// A result bit equals `operand` where `constant` is zero.
+    Merge { operand: ValueId, constant: ValueId },
+    /// The result is byte `index` of `operand`, counted from the most significant byte.
+    Byte { index: ValueId, operand: ValueId },
+    /// The result extends the sign bit of byte `index` of `operand`, counted from the least
+    /// significant byte.
+    SignExtend { index: ValueId, operand: ValueId },
+    /// The result is `operand << count`.
+    ShiftLeft { count: ValueId, operand: ValueId },
+    /// The result is `operand >> count`, logically.
+    ShiftRight { count: ValueId, operand: ValueId },
+}
+
+/// Emits the declared [`DemandedBits`] rule, if any.
+macro_rules! demanded_bits_rule {
+    () => {
+        None
+    };
+    ($rule:ident { $($field:ident : $value:ident),+ }) => {
+        Some(DemandedBits::$rule { $($field: *$value),+ })
+    };
+}
+
 /// Emits the size of a raw memory range declared with `#[raw_memory]`.
 macro_rules! raw_memory_size {
     ($bytes:literal) => {
@@ -733,6 +765,7 @@ macro_rules! define_mir_ops {
                 $(#[commutative($lhs:ident, $rhs:ident)])?
                 $(#[builder($builder:ident $(, $void:ident)?)])?
                 $(#[raw_memory($( $access:ident($address:ident, $size:tt) $(if $guard:expr)? ),+)])?
+                $(#[demanded($demand:ident { $($demand_field:ident : $demand_value:ident),+ })])?
                 #[operand_types($func:ident => $operand_types:expr)]
                 $variant:ident
                 $( ( $( $operand:ident : $operand_ty:ty ),+ $(,)? ) )?
@@ -876,6 +909,18 @@ macro_rules! define_mir_ops {
                                     f(RawMemoryAccess::$access, *$address, raw_memory_size!($size));
                                 }
                             )+ )?
+                        }
+                    )+
+                }
+            }
+
+            /// Returns how the operation's result bits depend on its operands, when declared.
+            #[allow(unused_variables)]
+            pub(crate) fn demanded_bits(&self) -> Option<DemandedBits> {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            demanded_bits_rule!($( $demand { $( $demand_field : $demand_value ),+ } )?)
                         }
                     )+
                 }
@@ -1412,6 +1457,7 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(and)]
+    #[demanded(Mask { operand: a, mask: b })]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     And(a: ValueId, b: ValueId),
     /// Bitwise OR: `a | b`
@@ -1426,6 +1472,7 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(or)]
+    #[demanded(Merge { operand: a, constant: b })]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Or(a: ValueId, b: ValueId),
     /// Bitwise XOR: `a ^ b`
@@ -1440,6 +1487,7 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(xor)]
+    #[demanded(Merge { operand: a, constant: b })]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 2]))]
     Xor(a: ValueId, b: ValueId),
     /// Bitwise NOT: `~a`
@@ -1481,6 +1529,7 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
+    #[demanded(ShiftLeft { count: shift, operand: value })]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     Shl(shift: ValueId, value: ValueId),
     /// Logical right shift: `value >> shift`, with shift operands stored like [`Self::Shl`].
@@ -1493,6 +1542,7 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
+    #[demanded(ShiftRight { count: shift, operand: value })]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     Shr(shift: ValueId, value: ValueId),
     /// Arithmetic right shift: `value >> shift` (signed), with shift operands stored like
@@ -1519,6 +1569,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(byte)]
+    #[demanded(Byte { index: index, operand: value })]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Byte(index: ValueId, value: ValueId),
 
@@ -2620,6 +2671,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(signextend)]
+    #[demanded(SignExtend { index: byte, operand: value })]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     SignExtend(byte: ValueId, value: ValueId),
 }

@@ -106,8 +106,8 @@ operand with a cheaper value that agrees on the bits the opcode reads, per
 `input_bits` in `backend/evm/op.rs`: `mstore8(p, and(x, 255))` becomes
 `mstore8(p, x)`. Extend the pass with rules in `isle/mir/egraph/`, bounds in
 `max_bits`, and stack-traffic terms in `Costs::node`. Opcode prices belong in
-the gas schedule; the pass never prices instructions itself, and only the
-demanded-bits step matches them outside ISLE.
+the gas schedule; the pass never prices or matches instructions itself. The
+demanded-bits step reads the operation schema's `#[demanded(..)]` rules.
 
 ## Target Cost Model
 

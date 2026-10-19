@@ -15,7 +15,9 @@
 //! as a `trunc`; `MSTORE8` takes a full word, so it comes from `input_bits`. Unlike LLVM, this
 //! does not join the demand of all users.
 //!
-//! Starting from the demanded mask of an operand, it walks the operand's definition:
+//! Starting from the demanded mask of an operand, it walks the operand's definition. The schema
+//! declares how each bitwise operation's result bits depend on its operands (`#[demanded(..)]` in
+//! `op_schema.rs`); this module only interprets those rules:
 //!
 //! - `and(x, c)` is `x` when `c` covers the demanded bits, and zero when `c` misses all of them.
 //! - `or(x, c)` and `xor(x, c)` are `x` when `c` misses all the demanded bits.
@@ -39,7 +41,7 @@
 use crate::{
     backend::evm::op,
     mir::{
-        EffectKind, Function, Immediate, InstId, InstKind, MirType, Value, ValueId,
+        DemandedBits, EffectKind, Function, Immediate, InstId, MirType, Value, ValueId,
         analysis::integers::integer_mask,
     },
 };
@@ -144,40 +146,44 @@ impl Narrower<'_> {
             exclusive &= self.uses[value] == 1;
             let func = &*self.func;
             let Value::Inst(def) = *func.value(value) else { break };
-            let step = match func.inst(def).kind {
-                InstKind::And(x, c) => match func.value_u256(c) {
+            let step = match func.inst(def).kind.demanded_bits() {
+                Some(DemandedBits::Mask { operand, mask }) => match func.value_u256(mask) {
                     Some(mask) if mask & demanded == U256::ZERO => Step::Zero,
-                    Some(mask) if mask & demanded == demanded => Step::Operand(x),
+                    Some(mask) if mask & demanded == demanded => Step::Operand(operand),
                     _ => Step::Stop,
                 },
-                InstKind::Or(x, c) | InstKind::Xor(x, c) => match func.value_u256(c) {
-                    Some(constant) if constant & demanded == U256::ZERO => Step::Operand(x),
-                    _ => Step::Stop,
-                },
-                InstKind::Byte(index, x) => match func.value_u256(index) {
+                Some(DemandedBits::Merge { operand, constant }) => {
+                    match func.value_u256(constant) {
+                        Some(constant) if constant & demanded == U256::ZERO => {
+                            Step::Operand(operand)
+                        }
+                        _ => Step::Stop,
+                    }
+                }
+                Some(DemandedBits::Byte { index, operand }) => match func.value_u256(index) {
                     Some(index) if index == U256::from(31) && (demanded >> 8usize).is_zero() => {
-                        Step::Operand(x)
+                        Step::Operand(operand)
                     }
                     _ => Step::Stop,
                 },
-                InstKind::SignExtend(index, x) => match func.value_u256(index) {
+                Some(DemandedBits::SignExtend { index, operand }) => match func.value_u256(index) {
                     Some(index)
                         if index >= U256::from(31)
                             || (demanded >> (8 * (index.to::<usize>() + 1))).is_zero() =>
                     {
-                        Step::Operand(x)
+                        Step::Operand(operand)
                     }
                     _ => Step::Stop,
                 },
-                InstKind::Shl(count, x) => match func.value_u256(count) {
-                    Some(count) => shift_step(demanded >> count, x),
+                Some(DemandedBits::ShiftLeft { count, operand }) => match func.value_u256(count) {
+                    Some(count) => shift_step(demanded >> count, operand),
                     None => Step::Stop,
                 },
-                InstKind::Shr(count, x) => match func.value_u256(count) {
-                    Some(count) => shift_step(demanded << count, x),
+                Some(DemandedBits::ShiftRight { count, operand }) => match func.value_u256(count) {
+                    Some(count) => shift_step(demanded << count, operand),
                     None => Step::Stop,
                 },
-                _ => Step::Stop,
+                None => Step::Stop,
             };
             match step {
                 Step::Operand(x) if func.value_ty(x) == ty => value = x,
@@ -189,7 +195,11 @@ impl Narrower<'_> {
                 Step::Shifted(x, inner) => {
                     if exclusive {
                         // shift(count, x) => shift(count, x narrowed to the inner demanded bits)
-                        self.narrow_operand(def, 1, x, inner, remaining);
+                        let index =
+                            self.func.inst(def).kind.operands().iter().position(|&v| v == x);
+                        if let Some(index) = index {
+                            self.narrow_operand(def, index, x, inner, remaining);
+                        }
                     }
                     break;
                 }
