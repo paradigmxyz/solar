@@ -69,8 +69,14 @@
 //! spells a word access shrinks to a few instructions before callers decide to inline it. Both
 //! optimization objectives run it: the result is smaller and cheaper.
 //!
-//! Not handled yet: copies that run downwards, and loops that fill, compare or gather into an
-//! integer with left shifts.
+//! A copy may also run downwards, from `offset + bound - 1` to `offset`, as a memmove toward
+//! higher addresses is written. Its first iteration touches the highest indices, so it alone
+//! decides whether and how the loop fails: the addition `offset + bound` panics with
+//! `Panic(0x11)` when it wraps and the index with `Panic(0x32)` when it is past the end, the
+//! source's checks before the destination's. A downward loop equals `mcopy` unless its source
+//! starts strictly inside the destination range, which the run-time test checks instead.
+//!
+//! Not handled yet: loops that fill, compare or gather into an integer with left shifts.
 //!
 //! NOTE: The replacement summarizes every iteration of the loop, so its instructions carry no
 //! source location rather than an arbitrary iteration's checkpoint.
@@ -115,7 +121,7 @@ fn run_function(func: &mut Function) -> bool {
     changed
 }
 
-/// A canonical counted loop from zero by one to `bound`.
+/// A canonical counted loop from zero by one to `bound`, or from `bound` down by one to zero.
 struct Counted {
     header: BlockId,
     preheader: BlockId,
@@ -123,9 +129,12 @@ struct Counted {
     body: Vec<BlockId>,
     /// The counter phi's value.
     counter: ValueId,
-    /// The header test `counter < bound`.
+    /// The header test: `counter < bound`, or `counter > 0` counting down.
     test: ValueId,
     bound: ValueId,
+    /// Whether the counter runs from `bound` down to one, the iteration
+    /// indexing `offset + counter - 1`.
+    descending: bool,
     /// The header's other phis, by result value.
     phis: Vec<(ValueId, InstId)>,
     /// The latch's counter increment.
@@ -183,8 +192,11 @@ struct Plan {
 
 fn plan(func: &Function, l: &Loop) -> Option<Plan> {
     let lp = counted(func, l)?;
-    let shape =
-        gather(func, l, &lp).or_else(|| scatter(func, l, &lp)).or_else(|| copy(func, l, &lp))?;
+    let shape = if lp.descending {
+        copy(func, l, &lp)?
+    } else {
+        gather(func, l, &lp).or_else(|| scatter(func, l, &lp)).or_else(|| copy(func, l, &lp))?
+    };
     // Values computed in the body die with the loop, so nothing after it may read them.
     for &inst in &lp.insts {
         if let Some(value) = func.inst_result_value(inst)
@@ -219,7 +231,11 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
         return None;
     }
     let [phis @ .., test_inst] = func.blocks[header].instructions.as_slice() else { return None };
-    let InstKind::Lt(counter, bound) = func.inst(*test_inst).kind else { return None };
+    let (counter, test_bound, descending) = match func.inst(*test_inst).kind {
+        InstKind::Lt(counter, bound) => (counter, Some(bound), false),
+        InstKind::Gt(counter, zero) if func.value_u64(zero) == Some(0) => (counter, None, true),
+        _ => return None,
+    };
     let test = func.inst_result_value(*test_inst)?;
     let Some(Terminator::Branch { condition, then_block, else_block }) =
         func.blocks[header].terminator
@@ -227,9 +243,6 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
         return None;
     };
     if condition != test || else_block != *exit || !l.blocks.contains(then_block) {
-        return None;
-    }
-    if !defined_outside(func, l, bound) {
         return None;
     }
     // The body is a chain of single-predecessor blocks from the branch target to the latch.
@@ -269,16 +282,32 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
     let incoming = counter_phi?;
     let init = incoming.iter().find(|(b, _)| *b == preheader)?.1;
     let next = incoming.iter().find(|(b, _)| b == latch)?.1;
-    if func.value_u64(init) != Some(0) {
-        return None;
-    }
     let Value::Inst(step) = *func.value(next) else { return None };
-    match func.inst(step).kind {
-        InstKind::Add(a, b)
-        | InstKind::CheckedBinary { op: CheckedOp::Add, lhs: a, rhs: b, .. }
-            if (a == counter && func.value_u64(b) == Some(1))
-                || (b == counter && func.value_u64(a) == Some(1)) => {}
-        _ => return None,
+    let bound = if descending {
+        // k = phi [bound, k - 1]; k > 0
+        match func.inst(step).kind {
+            InstKind::Sub(a, b)
+            | InstKind::CheckedBinary { op: CheckedOp::Sub, lhs: a, rhs: b, .. }
+                if a == counter && func.value_u64(b) == Some(1) => {}
+            _ => return None,
+        }
+        init
+    } else {
+        // k = phi [0, k + 1]; k < bound
+        if func.value_u64(init) != Some(0) {
+            return None;
+        }
+        match func.inst(step).kind {
+            InstKind::Add(a, b)
+            | InstKind::CheckedBinary { op: CheckedOp::Add, lhs: a, rhs: b, .. }
+                if (a == counter && func.value_u64(b) == Some(1))
+                    || (b == counter && func.value_u64(a) == Some(1)) => {}
+            _ => return None,
+        }
+        test_bound?
+    };
+    if !defined_outside(func, l, bound) {
+        return None;
     }
     let insts: Vec<_> =
         body.iter().flat_map(|&block| func.blocks[block].instructions.iter().copied()).collect();
@@ -293,6 +322,7 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
         counter,
         test,
         bound,
+        descending,
         phis: other,
         step,
         insts,
@@ -309,15 +339,37 @@ fn body_def<'f>(
     lp.insts.contains(&inst).then(|| (inst, &func.inst(inst).kind))
 }
 
-/// Matches the byte index `offset + k`, or `k`. Returns the offset and the defining instruction.
+/// Matches the byte index `offset + k`, or `k`, counting up, and `offset + k - 1`, or `k - 1`,
+/// counting down. Returns the offset and the defining instructions.
 fn index(
     func: &Function,
     l: &Loop,
     lp: &Counted,
     value: ValueId,
-) -> Option<(Option<ValueId>, Option<InstId>)> {
+) -> Option<(Option<ValueId>, Vec<InstId>)> {
+    let mut insts = Vec::new();
+    let mut value = value;
+    if lp.descending {
+        // index = sub (offset + k), 1
+        let (inst, kind) = body_def(func, lp, value)?;
+        let (InstKind::Sub(a, b)
+        | InstKind::CheckedBinary {
+            op: CheckedOp::Sub,
+            arithmetic: ArithmeticKind::Unsigned(256),
+            lhs: a,
+            rhs: b,
+        }) = *kind
+        else {
+            return None;
+        };
+        if func.value_u64(b) != Some(1) {
+            return None;
+        }
+        insts.push(inst);
+        value = a;
+    }
     if value == lp.counter {
-        return Some((None, None));
+        return Some((None, insts));
     }
     let (inst, kind) = body_def(func, lp, value)?;
     let (a, b) = match *kind {
@@ -337,7 +389,8 @@ fn index(
     } else {
         return None;
     };
-    defined_outside(func, l, offset).then_some((Some(offset), Some(inst)))
+    insts.push(inst);
+    defined_outside(func, l, offset).then_some((Some(offset), insts))
 }
 
 /// Matches the memory byte address `object + idx + 32` in either association. Returns the
@@ -483,8 +536,8 @@ fn checked_access(
     if !defined_outside(func, l, object) {
         return None;
     }
-    let (offset, index_inst) = index(func, l, lp, idx)?;
-    used.extend(index_inst);
+    let (offset, index_insts) = index(func, l, lp, idx)?;
+    used.extend(index_insts);
     used.extend(bounds_check(func, lp, buffer, idx)?);
     Some(Access { buffer, offset })
 }
@@ -664,7 +717,7 @@ fn copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
             used.extend(check);
             true
         }
-        None if dst_offset.is_none() => {
+        None if dst_offset.is_none() && !lp.descending => {
             // `out[k]` checked against `out.length`, already known to equal the bound.
             let check =
                 lp.insts.iter().copied().find(|&inst| {
@@ -760,9 +813,13 @@ fn rewrite(func: &mut Function, plan: Plan) {
                     let to = memory_data_address(&mut builder, &dst);
                     let from = builder.cast(from, MirType::I256);
                     let to = builder.cast(to, MirType::I256);
-                    let end = builder.add(from, lp.bound);
-                    let after = builder.lt(from, to);
-                    let inside = builder.lt(to, end);
+                    // A downward copy goes wrong the other way round, when its source starts
+                    // inside the destination range:
+                    // behind = to < from && from < to + bound
+                    let (lead, trail) = if lp.descending { (to, from) } else { (from, to) };
+                    let end = builder.add(lead, lp.bound);
+                    let after = builder.lt(lead, trail);
+                    let inside = builder.lt(trail, end);
                     let ahead = builder.and(after, inside);
                     let fast = builder.create_block();
                     builder.branch(ahead, lp.header, fast);
@@ -770,18 +827,43 @@ fn rewrite(func: &mut Function, plan: Plan) {
                     Some(fast)
                 }
             };
-            // panic_if (bound != 0 && (src range does not fit || dst range does not fit)), 0x32
-            // mcopy|calldatacopy dst data + offset, src data + offset, bound
-            let mut fails = range_fails(&mut builder, &src, lp.bound, false);
-            if dst_checked {
-                let dst_fails = range_fails(&mut builder, &dst, lp.bound, false);
-                fails = builder.or(fails, dst_fails);
-            }
-            if literal.is_none_or(|bound| bound == 0) {
+            if lp.descending {
+                // The first iteration indexes `offset + bound - 1`, the highest of all, so it
+                // fails exactly when the loop does, with its own order of panics: the source
+                // index's addition, then its bounds check, then the destination's.
+                // panic_if (bound != 0 && offset + bound wraps), 0x11
+                // panic_if (bound != 0 && offset + bound > len), 0x32
                 let nonzero = builder.ne_zero(lp.bound);
-                fails = builder.and(fails, nonzero);
+                for access in [Some(&src), dst_checked.then_some(&dst)].into_iter().flatten() {
+                    let len = buffer_len(&mut builder, access);
+                    let end = match access.offset {
+                        Some(offset) => {
+                            let end = builder.add(offset, lp.bound);
+                            let wraps = builder.lt(end, offset);
+                            let wraps = builder.and(wraps, nonzero);
+                            builder.panic_if(wraps, PanicCode::ArithmeticOverflowUnderflow);
+                            end
+                        }
+                        None => lp.bound,
+                    };
+                    let past = builder.gt(end, len);
+                    let past = builder.and(past, nonzero);
+                    builder.panic_if(past, PanicCode::ArrayOutOfBounds);
+                }
+            } else {
+                // panic_if (bound != 0 && (src range does not fit || dst range does not fit)), 0x32
+                let mut fails = range_fails(&mut builder, &src, lp.bound, false);
+                if dst_checked {
+                    let dst_fails = range_fails(&mut builder, &dst, lp.bound, false);
+                    fails = builder.or(fails, dst_fails);
+                }
+                if literal.is_none_or(|bound| bound == 0) {
+                    let nonzero = builder.ne_zero(lp.bound);
+                    fails = builder.and(fails, nonzero);
+                }
+                builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
             }
-            builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
+            // mcopy|calldatacopy dst data + offset, src data + offset, bound
             let to = memory_data_address(&mut builder, &dst);
             let (from, location) = match src.buffer {
                 Buffer::Memory(_) => (memory_data_address(&mut builder, &src), PtrLocation::Memory),
@@ -819,10 +901,7 @@ fn range_fails(
 ) -> ValueId {
     // len = mload object | slice.len
     // fails = lt len, count
-    let len = match access.buffer {
-        Buffer::Memory(object) => builder.load(object, PtrLocation::Memory),
-        Buffer::Calldata(slice) => builder.slice_len(slice),
-    };
+    let len = buffer_len(builder, access);
     let mut fails = builder.lt(len, count);
     if let Some(offset) = access.offset {
         // room = sub len, count; past = gt offset, room; fails = or fails, past
@@ -836,6 +915,16 @@ fn range_fails(
         fails = builder.and(fails, nonzero);
     }
     fails
+}
+
+/// Emits the length of the access's buffer.
+fn buffer_len(builder: &mut FunctionBuilder<'_>, access: &Access) -> ValueId {
+    match access.buffer {
+        // len = mload object
+        Buffer::Memory(object) => builder.load(object, PtrLocation::Memory),
+        // len = slice.len
+        Buffer::Calldata(slice) => builder.slice_len(slice),
+    }
 }
 
 /// Emits the word at the access's first byte.
