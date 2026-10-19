@@ -21,38 +21,36 @@ fn @constructor() [constructor] {
     v0 = abi_encode []
     v1 = datasize TryCatchBytesTarget_creation_code_0
     v2 = datasize TryCatchBytesTarget_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy TryCatchBytesTarget_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v3 = alloc v2
+    datacopy TryCatchBytesTarget_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = zext i160 v9 to i256
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = or v13, v15
-    sstore 0, v16 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = zext i160 v7 to i256
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 0, v14 !metadata(storage=slot(0))
     ret
 }
 
-fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = abi_encode [], selector 0xd909b40300000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v1 to i256
     v7 = extcodesize v6
     v8 = eq v7, 0
@@ -62,33 +60,34 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     jumpi v10, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = memory_object_data memorybytes, v11
-    v13 = memory_object_len memorybytes, v11
-    v14 = ptrtoint memptr v12 to i256
-    v15 = make_memory_slice v14, v13
-    v16 = memory_slice_load_word memory, v15, 0
-    v17 = shr 224, v16
+    v12 = ptradd v11, 32
+    v13 = mload v11
+    v14 = make_memory_slice v12, v13
+    v15 = extract_value slice<memory>, v14, 0
+    v16 = extract_value slice<memory>, v14, 1
+    v17 = extract_value slice<memory>, v14, 0
+    v18 = mload v17
+    v19 = shr v18, 224
     jumpi true, bb4, bb5
   bb5:
-    v19 = ptrtoint memptr v12 to i256
-    revert v19, v13
+    revert v15, v16
   bb4:
-    v18 = memory_object_len memorybytes, v11
-    ret v18
+    v20 = mload v11
+    ret v20
   bb1:
     jump bb3
   bb3:
     ret 7
 }
 
-fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v1 to i256
     v7 = extcodesize v6
     v8 = eq v7, 0
@@ -98,19 +97,20 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     jumpi v10, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = memory_object_data memorybytes, v11
-    v13 = memory_object_len memorybytes, v11
-    v14 = ptrtoint memptr v12 to i256
-    v15 = make_memory_slice v14, v13
-    v16 = memory_slice_load_word memory, v15, 0
-    v17 = shr 224, v16
+    v12 = ptradd v11, 32
+    v13 = mload v11
+    v14 = make_memory_slice v12, v13
+    v15 = extract_value slice<memory>, v14, 0
+    v16 = extract_value slice<memory>, v14, 1
+    v17 = extract_value slice<memory>, v14, 0
+    v18 = mload v17
+    v19 = shr v18, 224
     jumpi true, bb4, bb5
   bb5:
-    v19 = ptrtoint memptr v12 to i256
-    revert v19, v13
+    revert v15, v16
   bb4:
-    v18 = memory_object_len memorybytes, v11
-    ret v18
+    v20 = mload v11
+    ret v20
   bb1:
     jump bb3
   bb3:

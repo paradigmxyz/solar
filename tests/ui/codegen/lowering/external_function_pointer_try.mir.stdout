@@ -1,17 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/external_function_pointer_try.sol:ExternalFunctionPointerTry ===
 @module ExternalFunctionPointerTry
 @types
-  struct0: {i256, memptr}
+  struct0: {i256, ptr<memory>}
 
-fn @invoke(arg0: i256, arg1: memptr) {
+fn @invoke(arg0: i256, arg1: ptr<memory>) {
   bb0:
     v0 = and arg0, 0xffffffff
-    v1 = shl 224, v0
-    v2 = shr 32, arg0
+    v1 = shl v0, 224
+    v2 = shr arg0, 32
     v3 = gas
     v4 = abi_encode [tuple<word>], selector v1, args arg1
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = extcodesize v2
     v8 = eq v7, 0
     icall revert_if<target_contract_has_no_code>, v8
@@ -19,19 +19,20 @@ fn @invoke(arg0: i256, arg1: memptr) {
     jumpi v9, bb1, bb2
   bb2:
     v10 = icall returndata_bytes<>
-    v11 = memory_object_data memorybytes, v10
-    v12 = memory_object_len memorybytes, v10
-    v13 = ptrtoint memptr v11 to i256
-    v14 = make_memory_slice v13, v12
-    v15 = memory_slice_load_word memory, v14, 0
-    v16 = shr 224, v15
+    v11 = ptradd v10, 32
+    v12 = mload v10
+    v13 = make_memory_slice v11, v12
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
+    v16 = extract_value slice<memory>, v13, 0
+    v17 = mload v16
+    v18 = shr v17, 224
     jumpi true, bb4, bb5
   bb5:
-    v18 = ptrtoint memptr v11 to i256
-    revert v18, v12
+    revert v14, v15
   bb4:
-    v17 = memory_object_len memorybytes, v10
-    sstore 0, v17 !metadata(storage=slot(0))
+    v19 = mload v10
+    sstore 0, v19 !metadata(storage=slot(0))
     jump bb3
   bb1:
     jump bb3
@@ -39,41 +40,40 @@ fn @invoke(arg0: i256, arg1: memptr) {
     ret
 }
 
-fn @succeed(arg0: memptr) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
+fn @succeed(arg0: ptr<memory>) [selector=0x93edcd0d, abi_params=[tuple<uint256>], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v0 = mload arg0
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
-fn @fail(arg0: memptr) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
+fn @fail(arg0: ptr<memory>) [selector=0xe8be0a6f, pure, abi_params=[tuple<uint256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @pair(arg0: memptr) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<uint256>], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<1>, arg0, 0
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v1, 2
-    v2 = memory_object_data memorybytes, v1
-    v3 = ptrtoint memptr v2 to i256
-    mstore v3, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v4 = insert_value struct0, undef struct0, 0, v0
-    v5 = insert_value struct0, v4, 1, v1
-    ret v5
+    v0 = mload arg0
+    v1 = alloc 64 !metadata(preserves_fmp)
+    mstore v1, 2
+    v2 = ptradd v1, 32
+    mstore v2, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v3 = insert_value struct0, undef struct0, 0, v0
+    v4 = insert_value struct0, v3, 1, v1
+    ret v4
 }
 
-fn @invokePair(arg0: i256, arg1: memptr) -> struct0 {
+fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
   bb0:
     v0 = and arg0, 0xffffffff
-    v1 = shl 224, v0
-    v2 = shr 32, arg0
+    v1 = shl v0, 224
+    v2 = shr arg0, 32
     v3 = gas
     v4 = abi_encode [tuple<word>], selector v1, args arg1
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
   bb2:
@@ -82,62 +82,61 @@ fn @invokePair(arg0: i256, arg1: memptr) -> struct0 {
     icall revert_if<empty>, true
     invalid
   bb4:
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v14, 6
-    v15 = memory_object_data memorybytes, v14
-    v16 = ptrtoint memptr v15 to i256
-    mstore v16, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v17 = insert_value struct0, undef struct0, 0, 0
-    v18 = insert_value struct0, v17, 1, v14
-    ret v18
+    v14 = alloc 64 !metadata(preserves_fmp)
+    mstore v14, 6
+    v15 = ptradd v14, 32
+    mstore v15, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v16 = insert_value struct0, undef struct0, 0, 0
+    v17 = insert_value struct0, v16, 1, v14
+    ret v17
   bb1:
     v8 = icall returndata_bytes<>
-    v9 = abi_decode [u256, bytes], v8
+    v9 = abi_decode [uint256, bytes], v8
     v10 = extract_value struct0, v9, 0
     v11 = extract_value struct0, v9, 1
     v12 = insert_value struct0, undef struct0, 0, v10
     v13 = insert_value struct0, v12, 1, v11
     ret v13
   bb3:
-    v19 = insert_value struct0, undef struct0, 0, 0
-    v20 = insert_value struct0, v19, 1, memptr 96
-    ret v20
+    v18 = insert_value struct0, undef struct0, 0, 0
+    v19 = insert_value struct0, v18, 1, ptr<memory> 96
+    ret v19
 }
 
-fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0x93edcd0d
-    v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v4, 0, 7
+    v4 = alloc 32
+    mstore v4, 7
     icall @invoke, v3, v4
     v5 = sload 0 !metadata(storage=slot(0))
     ret v5
 }
 
-fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xe8be0a6f
-    v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v4, 0, 7
+    v4 = alloc 32
+    mstore v4, 7
     icall @invoke, v3, v4
     v5 = sload 0 !metadata(storage=slot(0))
     ret v5
 }
 
-fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0x76ea4d37
-    v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v4, 0, 7
+    v4 = alloc 32
+    mstore v4, 7
     v5 = icall @invokePair, v3, v4
     v6 = extract_value struct0, v5, 0
     v7 = extract_value struct0, v5, 1

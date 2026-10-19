@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/narrow_signed_counter.sol:NarrowSignedCounter ===
 @module NarrowSignedCounter
-fn @count() -> i256 [selector=0x06661abd, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @count() -> i256 [selector=0x06661abd, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:

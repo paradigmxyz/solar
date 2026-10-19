@@ -5,7 +5,7 @@
     bb0:
 -     mstore 128, 0
       mstore 128, 42
-      stop
+      ret
   }
   
   fn @store_observed_only_by_load() -> i256 {
@@ -22,7 +22,7 @@
 -     mstore 128, 0
       v0 = keccak256 0, 64
       mstore 128, 1
-      stop
+      ret
   }
   
   fn @overlapping_keccak() {
@@ -30,7 +30,7 @@
       mstore 128, 0
       v0 = keccak256 96, 64
       mstore 128, 1
-      stop
+      ret
   }
   
   fn @cross_block_dead_store(arg0: i256) {
@@ -68,14 +68,14 @@
       mstore 128, 0
       v0 = gas
       mstore 128, 42
-      stop
+      ret
   }
   
   fn @distinct_immediate_addresses() {
     bb0:
 -     mstore 128, 0
       mstore 128, 42
-      stop
+      ret
   }
   
   fn @equivalent_base_load(arg0: i256) -> i256 {
@@ -94,13 +94,13 @@
 -     mstore v0, 0
       v1 = add arg0, 32
       mstore v1, 42
-      stop
+      ret
   }
   
   fn @unused_frame_store() -> i256 {
     bb0:
       v0 = internal_frame_addr 192
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
 -     mstore v1, 0
       ret 0
   }
@@ -128,7 +128,7 @@
       mstore 128, 0
       v0 = mload 129
       mstore 128, 42
-      stop
+      ret
   }
   
   fn @forward_load() -> i256 {
@@ -182,20 +182,6 @@
   fn @callee() {
     bb0:
       ret
-  }
-  
-  fn @icall_msize_barrier() -> i256 {
-    bb0:
-      mstore 0x1000, 42
-      v0 = icall @observe_msize
-      mstore 0x1000, 0
-      ret v0
-  }
-  
-  fn @observe_msize() -> i256 {
-    bb0:
-      v0 = msize
-      ret v0
   }
   
   fn @chained_forwarding() -> i256 {

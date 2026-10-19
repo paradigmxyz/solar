@@ -6,6 +6,6 @@
 fn @entry() [entry] {
   bb0:
     v1 = fmp
-    v0 = ptrtoint memptr v1 to i256
+    v0 = ptrtoint ptr<memory> v1 to i256
     stop
 }

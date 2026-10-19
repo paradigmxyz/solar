@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrderTarget ===
 @module ExternalFunctionPointerHigherOrderTarget
-fn @addTwo(arg0: i256) -> i256 [selector=0xcae57913, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @addTwo(arg0: i256) -> i256 [selector=0xcae57913, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, arg0, 2
+    v0 = checked_add uint256, arg0, 2
     ret v0
 }
 
@@ -13,26 +13,26 @@ fn @addTwo(arg0: i256) -> i256 [selector=0xcae57913, pure, abi_params=[u256], ab
 
 fn @store(arg0: i256) [selector=0xf018a0a7, abi_params=[function], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = shl 64, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v0 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, 64
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = not v0
     v3 = and v1, v2
     v4 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = shl 64, v4
+    v5 = shl v4, 64
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
     ret
 }
 
-fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_returns=[word], abi_return_params=[u256]] {
+fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffff
-    v1 = shl 224, v0
-    v2 = shr 32, arg0
+    v1 = shl v0, 224
+    v2 = shr arg0, 32
     v3 = gas
     v4 = abi_encode [word], selector v1, args 7
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 32
     jumpi v7, bb2, bb1
   bb1:
@@ -46,7 +46,7 @@ fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_re
     ret v11
 }
 
-fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffff
@@ -59,48 +59,46 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     v7 = abi_encode []
     v8 = datasize ExternalFunctionPointerHigherOrderTarget_creation_code_0
     v9 = datasize ExternalFunctionPointerHigherOrderTarget_creation_code_0, 31, aligned
-    v10 = alloc raw, exact, uninitialized, infallible, v9
-    v11 = ptrtoint memptr v10 to i256
-    datacopy ExternalFunctionPointerHigherOrderTarget_creation_code_0, v11, v8
-    v12 = slice_ptr v7
-    v13 = ptrtoint memptr v10 to i256
-    v14 = add v13, v8
-    mcopy v14, v12, 0 !metadata(memory=heap)
-    v15 = ptrtoint memptr v10 to i256
-    v16 = create 0, v15, v8
-    v17 = ne v16, i160 0
-    jumpi v17, bb2, bb1
+    v10 = alloc v9
+    datacopy ExternalFunctionPointerHigherOrderTarget_creation_code_0, v10, v8
+    v11 = extract_value slice<memory>, v7, 0
+    v12 = ptrtoint ptr<memory> v10 to i256
+    v13 = add v12, v8
+    mcopy v13, v11, 0 !metadata(memory=heap)
+    v14 = create 0, v10, v8
+    v15 = ne v14, i160 0
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v18 = zext i160 v16 to i256
-    v19 = shl 32, v18
-    v20 = or v19, 0xcae57913
-    v21 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v20
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = zext i160 v5 to i256
-    v25 = extcodesize v24
-    v26 = eq v25, 0
-    icall revert_if<target_contract_has_no_code>, v26
-    v27 = zext i160 v5 to i256
-    v28 = call v6, v27, 0, v22, v23, 0, 0
-    jumpi v28, bb4, bb3
+    v16 = zext i160 v14 to i256
+    v17 = shl v16, 32
+    v18 = or v17, 0xcae57913
+    v19 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v18
+    v20 = extract_value slice<memory>, v19, 0
+    v21 = extract_value slice<memory>, v19, 1
+    v22 = zext i160 v5 to i256
+    v23 = extcodesize v22
+    v24 = eq v23, 0
+    icall revert_if<target_contract_has_no_code>, v24
+    v25 = zext i160 v5 to i256
+    v26 = call v6, v25, 0, v20, v21, 0, 0
+    jumpi v26, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v29 = sload 0 !metadata(storage=slot(0))
-    v30 = trunc i256 v29 to i64
-    v31 = zext i64 v30 to i256
-    v32 = sload 0 !metadata(storage=slot(0))
-    v33 = shr 64, v32
-    v34 = trunc i256 v33 to i192
-    v35 = zext i192 v34 to i256
-    v36 = icall @internal_dispatcher_p_function_r_u256, v31, v35
-    ret v36
+    v27 = sload 0 !metadata(storage=slot(0))
+    v28 = trunc i256 v27 to i64
+    v29 = zext i64 v28 to i256
+    v30 = sload 0 !metadata(storage=slot(0))
+    v31 = shr v30, 64
+    v32 = trunc i256 v31 to i192
+    v33 = zext i192 v32 to i256
+    v34 = icall @internal_dispatcher_p_function_r_uint256, v29, v33
+    ret v34
 }
 
-fn @internal_dispatcher_p_function_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_function_r_uint256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2

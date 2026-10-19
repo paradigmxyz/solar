@@ -1,6 +1,6 @@
 //! Semantic ABI layout descriptors used by MIR encoding operations.
 
-use super::{FunctionBuilder, SliceLocation, ValueId, ValueLayout};
+use super::{FunctionBuilder, PtrLocation, ValueId, ValueLayout};
 use alloy_primitives::U256;
 use std::{fmt, sync::Arc};
 
@@ -152,7 +152,7 @@ impl AbiParamType {
             Self::Scalar(ty) => ty.mir_type(),
             Self::Enum { ty, .. } => ty.mir_type(),
             Self::Bytes | Self::DynamicArray(_) | Self::FixedArray { .. } | Self::Tuple(_) => {
-                super::MirType::MemPtr
+                super::MirType::MEMPTR
             }
         }
     }
@@ -226,6 +226,19 @@ impl AbiParamType {
             _ => Some(32),
         }
     }
+
+    /// Returns the calldata element size of a dynamically sized value: one byte for `bytes`, the
+    /// element head size for arrays, and `None` for every other shape.
+    #[must_use]
+    pub(crate) fn calldata_stride(&self) -> Option<u64> {
+        match self {
+            Self::Bytes => Some(1),
+            Self::DynamicArray(element) => {
+                Some(element.checked_head_size().expect("ABI head size exceeds u64 range"))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The ABI-relevant shape and source representation of one value.
@@ -238,13 +251,13 @@ pub(crate) enum AbiType {
     /// An external function pointer encoded as a left-aligned `bytes24` word.
     Function,
     /// A dynamic byte string represented in the given address space.
-    Bytes(SliceLocation),
+    Bytes(PtrLocation),
     /// A dynamic array represented in the given address space.
     DynamicArray {
         /// Array element layout.
         element: Box<Self>,
         /// Address space containing the array.
-        location: SliceLocation,
+        location: PtrLocation,
     },
     /// A fixed-size array represented by a memory pointer.
     FixedArray {
@@ -353,9 +366,9 @@ pub(crate) enum AbiWordValidator {
 impl fmt::Display for AbiWordValidator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unsigned(bits) => write!(f, "u{bits}"),
+            Self::Unsigned(bits) => write!(f, "uint{bits}"),
             Self::LeftAligned(bits) => write!(f, "bytes{}", bits / 8),
-            Self::SignExtend(byte_index) => write!(f, "i{}", (byte_index + 1) * 8),
+            Self::SignExtend(byte_index) => write!(f, "int{}", (byte_index + 1) * 8),
             Self::Bool => write!(f, "bool"),
             Self::EnumRange(variants) => write!(f, "enum {variants}"),
         }
@@ -427,9 +440,9 @@ impl AbiWordValidator {
                 if has_bitwise_shifting {
                     let shift = builder.imm(u64::from(bits));
                     let shifted = if matches!(self, Self::Unsigned(_)) {
-                        builder.shr(shift, word)
+                        builder.shr(word, shift)
                     } else {
-                        builder.shl(shift, word)
+                        builder.shl(word, shift)
                     };
                     builder.eq_zero(shifted)
                 } else {
@@ -449,8 +462,7 @@ impl AbiWordValidator {
                     let two = builder.imm(2);
                     builder.lt(word, two)
                 } else {
-                    let zero = builder.eq_zero(word);
-                    let canonical = builder.eq_zero(zero);
+                    let canonical = builder.ne_zero(word);
                     builder.eq(word, canonical)
                 }
             }
@@ -473,10 +485,7 @@ impl AbiWordValidator {
                 let byte_index = builder.imm(byte_index);
                 builder.signextend(byte_index, word)
             }
-            Self::Bool => {
-                let zero = builder.eq_zero(word);
-                builder.eq_zero(zero)
-            }
+            Self::Bool => builder.ne_zero(word),
             Self::EnumRange(_) => word,
         }
     }

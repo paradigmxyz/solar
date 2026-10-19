@@ -9,9 +9,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         layout: MemoryObjectLayout,
     ) -> ValueId {
         match layout {
-            MemoryObjectLayout::DynamicArray { .. } => {
-                self.builder.memory_object_len(object, layout.kind())
-            }
+            MemoryObjectLayout::DynamicArray { .. } => self.builder.memory_len(object),
             MemoryObjectLayout::FixedArray { len, .. } => self.builder.imm(len),
             _ => unreachable!("array layout expected"),
         }
@@ -77,13 +75,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let base = self.builder.slice_ptr(object);
             return if self.is_dynamic_bytes_type(receiver_ty) {
                 // value = byte(0, load_word(slice, index))
-                let word = match location {
-                    SliceLocation::Calldata => self.builder.calldata_slice_load_word(object, index),
-                    SliceLocation::Memory => self.builder.memory_slice_load_word(object, index),
-                    SliceLocation::Returndata => {
-                        return self.cx.report_unsupported(expr.span, "returndata index");
-                    }
-                };
+                if location == PtrLocation::Returndata {
+                    return self.cx.report_unsupported(expr.span, "returndata index");
+                }
+                let word = self.builder.slice_load_word(object, index);
                 let zero = self.builder.imm(0);
                 let byte = self.builder.byte(zero, word);
                 Some(self.normalize_byte_value(expr, byte))
@@ -92,7 +87,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Slice(_) => {
                         // head = slice.data + index * element_head_size
                         // value = decode_calldata_element(head, slice.data)
-                        if location != SliceLocation::Calldata {
+                        if location != PtrLocation::Calldata {
                             return self
                                 .cx
                                 .report_unsupported(expr.span, "memory array slice index");
@@ -133,18 +128,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.cx.report_unsupported(expr.span, "array index");
                 };
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_object_load_element(object, layout, index);
                 if self.types.memory_layout(element).is_some() {
-                    return self.materialize_array_element(object, layout, index, element, value);
+                    return Some(self.builder.memory_load_element_as(
+                        object,
+                        layout,
+                        index,
+                        MirType::MEMPTR,
+                    ));
                 }
+                let value = self.builder.memory_load_element(object, layout, index);
                 Some(self.normalize_memory_scalar(element, value))
             }
             MemoryObjectLayout::Bytes => {
                 // bounds_check(index, object.length)
                 // value = load_byte(object, index)
-                let length = self.builder.memory_object_len(object, layout.kind());
+                let length = self.builder.memory_len(object);
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_object_load_byte(object, index);
+                let value = self.builder.memory_load_byte(object, index);
                 Some(self.normalize_byte_value(expr, value))
             }
             MemoryObjectLayout::Struct { .. } => {
@@ -169,19 +169,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if layout != MemoryObjectLayout::Bytes {
                     return self.cx.report_unsupported(expr.span, "slice");
                 }
-                let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
-                let pointer = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
-                (
-                    self.builder.make_slice(pointer, length, SliceLocation::Memory),
-                    SliceLocation::Memory,
-                )
+                (self.builder.memory_slice(value), PtrLocation::Memory)
             }
         };
         let is_bytes = self.is_dynamic_bytes_type(receiver_ty);
         let element_stride = if is_bytes {
             1
         } else if !matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_))
-            || location != SliceLocation::Calldata
+            || location != PtrLocation::Calldata
         {
             return self.cx.report_unsupported(expr.span, "slice");
         } else {
@@ -223,8 +218,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let stride = self.builder.imm(element_stride);
             self.builder.checked_mul(start, stride)
         };
-        // result = slice(base.data + start * stride, end - start)
-        let pointer = self.builder.add(base_ptr, start_offset);
+        // The checks above keep the start inside the base slice.
+        // result = slice(ptradd base.data, start * stride, end - start)
+        let pointer = self.builder.ptradd(base_ptr, start_offset);
         Some(self.builder.make_slice(pointer, length, location))
     }
 }

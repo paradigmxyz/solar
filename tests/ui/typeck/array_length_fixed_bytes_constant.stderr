@@ -1,44 +1,46 @@
-error: failed to evaluate constant: `bytesN` constants are not integers
+error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_length_fixed_bytes_constant.sol:LL:CC
    │
+LL │     bytes1 constant B = 0x02;
+   │     ────── evaluation of constant value failed here
+   ‡
 LL │     uint256[B] a;
-   ╰╴            ━ evaluation of constant value failed here
+   │             ━
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
-error: failed to evaluate constant: `bytesN` constants are not integers
+error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_length_fixed_bytes_constant.sol:LL:CC
    │
+LL │     bytes1 constant S = "a";
+   │     ────── evaluation of constant value failed here
+   ‡
 LL │     uint256[S] s;
-   ╰╴            ━ evaluation of constant value failed here
+   │             ━
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
-error: failed to evaluate constant: `bytesN` constants are not integers
+error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_length_fixed_bytes_constant.sol:LL:CC
    │
+LL │     bytes1 constant B = 0x02;
+   │     ────── evaluation of constant value failed here
+   ‡
 LL │         uint256[B] memory b;
-   ╰╴                ━ evaluation of constant value failed here
+   │                 ━
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
-error: mismatched types
+error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_length_fixed_bytes_constant.sol:LL:CC
    │
-LL │     uint256[B] a;
-   ╰╴            ━ expected `uint256`, found `bytes1`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/array_length_fixed_bytes_constant.sol:LL:CC
-   │
-LL │     uint256[S] s;
-   ╰╴            ━ expected `uint256`, found `bytes1`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/array_length_fixed_bytes_constant.sol:LL:CC
-   │
-LL │         uint256[B] memory b;
-   ╰╴                ━ expected `uint256`, found `bytes1`
-
-error: failed to evaluate constant: `bytesN` constants are not integers
-   ╭▸ ROOT/tests/ui/typeck/array_length_fixed_bytes_constant.sol:LL:CC
-   │
+LL │     bytes1 constant B = 0x02;
+   │     ────── evaluation of constant value failed here
+   ‡
 LL │         abi.decode("", (uint256[B]));
-   ╰╴                                ━ evaluation of constant value failed here
+   │                                 ━
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
-error: aborting due to 7 previous errors
+error: aborting due to 4 previous errors
 

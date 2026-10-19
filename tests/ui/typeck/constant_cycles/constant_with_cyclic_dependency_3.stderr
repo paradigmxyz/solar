@@ -1,0 +1,26 @@
+error[6161]: the value of the constant `x` has a cyclic dependency via `a`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/constant_with_cyclic_dependency_3.sol:LL:CC
+   │
+LL │     uint constant x = a;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `a` has a cyclic dependency via `b`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/constant_with_cyclic_dependency_3.sol:LL:CC
+   │
+LL │     uint constant a = b * c;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `b` has a cyclic dependency via `c`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/constant_with_cyclic_dependency_3.sol:LL:CC
+   │
+LL │     uint constant b = c;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `c` has a cyclic dependency via `b`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/constant_with_cyclic_dependency_3.sol:LL:CC
+   │
+LL │     uint constant c = b;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
+

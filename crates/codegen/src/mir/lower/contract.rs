@@ -1,6 +1,6 @@
 //! Contract-level lowering and function discovery.
 
-use super::{function, storage::StorageLayout, types::TypeLowerer};
+use super::{function, storage::StorageLayout};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet, FxIndexSet},
@@ -21,23 +21,6 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
-    let mut immutable_ids = FxHashMap::default();
-    for &base in contract.linearized_bases.iter().rev() {
-        for id in gcx.hir.contract(base).variables() {
-            let variable = gcx.hir.variable(id);
-            if !variable.is_state_variable() || !variable.is_immutable() {
-                continue;
-            }
-            let Some(name) = variable.name else { continue };
-            let mir_id = module.add_immutable(
-                name,
-                TypeLowerer::immutable_layout(gcx.type_of_item(id.into())),
-                Some(id),
-            );
-            immutable_ids.insert(id, mir_id);
-        }
-    }
-
     let mut function_ids = Vec::new();
     let mut seen_selectors = FxHashSet::default();
     let reachable = gcx.contract_reachable_functions(contract_id);
@@ -138,6 +121,18 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
     state.analyze_raw_scalars(gcx, contract_id, &function_ids);
+    let mut immutable_ids = FxHashMap::default();
+    for &base in contract.linearized_bases.iter().rev() {
+        for id in gcx.hir.contract(base).variables() {
+            let variable = gcx.hir.variable(id);
+            if !variable.is_state_variable() || !variable.is_immutable() {
+                continue;
+            }
+            let Some(name) = variable.name else { continue };
+            let mir_id = module.add_immutable(name, state.immutable_layout(gcx, id), Some(id));
+            immutable_ids.insert(id, mir_id);
+        }
+    }
     let is_library = contract.kind == hir::ContractKind::Library;
     module.is_library = is_library;
     // A library's non-view external functions may only run through `DELEGATECALL`. The
@@ -192,13 +187,14 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let has_implicit_base_constructors =
         contract.linearized_bases.iter().skip(1).any(|&base| gcx.hir.contract(base).ctor.is_some())
             || contract.linearized_bases_args.iter().any(Option::is_some);
+    let bytecode_dependencies = gcx.contract_bytecode_dependencies(contract_id);
     let synthetic_ok = (|| {
         let mut context = function::LoweringContext {
             gcx,
             module: &mut module,
             storage: &storage,
             contract_id,
-            bytecode_dependencies: gcx.contract_bytecode_dependencies(contract_id),
+            bytecode_dependencies: &bytecode_dependencies,
             function_ids: &mir_ids,
             immutable_ids: &immutable_ids,
             state: &mut state,

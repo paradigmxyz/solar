@@ -3,38 +3,38 @@
 @types
   struct0: {i256, i256}
 
-fn @trimLen(arg0: calldataslice) -> i256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @trimLen(arg0: slice<calldata>) -> i256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @trim, arg0
-    v1 = slice_len v0
+    v1 = extract_value slice<calldata>, v0, 1
     ret v1
 }
 
-fn @trim(arg0: calldataslice) -> calldataslice [pure] {
+fn @trim(arg0: slice<calldata>) -> slice<calldata> [pure] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 1
     v1 = gt v0, 4
-    v2 = make_calldata_slice 0, 0
+    v2 = make_calldata_slice ptr<calldata> 0, 0
     jumpi v1, bb1, bb2
   bb2:
     jump bb3
   bb3:
     ret arg0
   bb1:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = extract_value slice<calldata>, arg0, 1
     v5 = gt v4, v4
     v6 = lt v4, 4
     v7 = or v5, v6
     v8 = zext i1 v7 to i256
     icall revert_if<empty>, v7
     v9 = sub v4, 4
-    v10 = add v3, 4
+    v10 = ptradd v3, 4
     v11 = make_calldata_slice v10, v9
     ret v11
 }
 
-fn @repeatedSourceJoin(arg0: i1, arg1: i256, arg2: i256) -> struct0 [selector=0x406b1ab7, pure, abi_params=[bool, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @repeatedSourceJoin(arg0: i1, arg1: i256, arg2: i256) -> struct0 [selector=0x406b1ab7, pure, abi_params=[bool, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -48,63 +48,63 @@ fn @repeatedSourceJoin(arg0: i1, arg1: i256, arg2: i256) -> struct0 [selector=0x
     ret v2
 }
 
-fn @loopJoin(arg0: i256) -> i256 [selector=0x136d329b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @loopJoin(arg0: i256) -> i256 [selector=0x136d329b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v9]
-    v1 = phi [bb0: arg0], [bb3: v1]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v9]
     v2 = phi [bb0: 0], [bb3: v10]
-    v3 = lt v2, v1
+    v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v1
   bb4:
     v4 = and v2, 1
     v5 = eq v4, 0
     jumpi v5, bb7, bb8
   bb8:
-    v7 = checked_add u256, v2, 2
+    v7 = checked_add uint256, v2, 2
     jump bb9
   bb7:
-    v6 = checked_add u256, v2, 1
+    v6 = checked_add uint256, v2, 1
     jump bb9
   bb9:
     v8 = phi [bb7: v6], [bb8: v7]
-    v9 = checked_add u256, v0, v8
+    v9 = checked_add uint256, v1, v8
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = checked_add u256, v2, 1
+    v10 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @nestedLoops(arg0: i256, arg1: i256) -> i256 [selector=0xc538770a, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedLoops(arg0: i256, arg1: i256) -> i256 [selector=0xc538770a, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v5]
-    v1 = phi [bb0: 0], [bb3: v15]
-    v2 = phi [bb0: arg0], [bb3: v7]
-    v3 = phi [bb0: 0], [bb3: v8]
-    v4 = lt v1, v2
+    v0 = phi [bb0: arg0], [bb3: v5]
+    v1 = phi [bb0: arg1], [bb3: v6]
+    v2 = phi [bb0: 0], [bb3: v7]
+    v3 = phi [bb0: 0], [bb3: v15]
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v3
+    ret v2
   bb4:
     jump bb7
   bb7:
     v5 = phi [bb4: v0], [bb9: v5]
     v6 = phi [bb4: v1], [bb9: v6]
-    v7 = phi [bb4: v2], [bb9: v7]
-    v8 = phi [bb4: v3], [bb9: v13]
+    v7 = phi [bb4: v2], [bb9: v13]
+    v8 = phi [bb4: v3], [bb9: v8]
     v9 = phi [bb4: 0], [bb9: v14]
-    v10 = lt v9, v5
+    v10 = lt v9, v6
     jumpi v10, bb10, bb11
   bb11:
     jump bb8
@@ -113,36 +113,36 @@ fn @nestedLoops(arg0: i256, arg1: i256) -> i256 [selector=0xc538770a, pure, abi_
   bb6:
     jump bb3
   bb3:
-    v15 = checked_add u256, v6, 1
+    v15 = checked_add uint256, v8, 1
     jump bb1
   bb10:
-    v11 = checked_add u256, v6, v9
-    v12 = checked_add u256, v11, 1
-    v13 = checked_add u256, v8, v12
+    v11 = checked_add uint256, v8, v9
+    v12 = checked_add uint256, v11, 1
+    v13 = checked_add uint256, v7, v12
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v14 = checked_add u256, v9, 1
+    v14 = checked_add uint256, v9, 1
     jump bb7
 }
 
-fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v16]
-    v1 = phi [bb0: 0], [bb3: v17]
-    v2 = phi [bb0: arg1], [bb3: v18]
+    v1 = phi [bb0: arg1], [bb3: v17]
+    v2 = phi [bb0: 0], [bb3: v18]
     v3 = phi [bb0: 0], [bb3: v20]
     v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v2
   bb4:
-    v5 = eq v2, 0
+    v5 = eq v1, 0
     jumpi v5, bb7, bb8
   bb8:
     jump bb9
@@ -150,17 +150,17 @@ fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pu
     jump bb10
   bb10:
     v6 = phi [bb9: v0], [bb13: v6]
-    v7 = phi [bb9: v1], [bb13: v13]
-    v8 = phi [bb9: 0], [bb13: v14]
-    v9 = phi [bb9: v2], [bb13: v9]
-    v10 = phi [bb9: v3], [bb13: v10]
-    v11 = add v10, v8
+    v7 = phi [bb9: v1], [bb13: v7]
+    v8 = phi [bb9: v2], [bb13: v13]
+    v9 = phi [bb9: v3], [bb13: v9]
+    v10 = phi [bb9: 0], [bb13: v14]
+    v11 = add v9, v10
     v12 = add v11, 1
-    v13 = add v7, v12
-    v14 = add v8, 1
+    v13 = add v8, v12
+    v14 = add v10, 1
     jump bb12
   bb12:
-    v15 = lt v14, v9
+    v15 = lt v14, v7
     jumpi v15, bb13, bb14
   bb14:
     jump bb11
@@ -174,26 +174,26 @@ fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pu
     jump bb3
   bb3:
     v16 = phi [bb6: v6], [bb7: v0]
-    v17 = phi [bb6: v13], [bb7: v1]
-    v18 = phi [bb6: v9], [bb7: v2]
-    v19 = phi [bb6: v10], [bb7: v3]
-    v20 = checked_add u256, v19, 1
+    v17 = phi [bb6: v7], [bb7: v1]
+    v18 = phi [bb6: v13], [bb7: v2]
+    v19 = phi [bb6: v9], [bb7: v3]
+    v20 = checked_add uint256, v19, 1
     jump bb1
   bb15:
     invalid
 }
 
-fn @emptyExitSelfLoop(arg0: i256) -> i256 [selector=0xe817f803, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptyExitSelfLoop(arg0: i256) -> i256 [selector=0xe817f803, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb4: v3]
+    v0 = phi [bb0: arg0], [bb4: v0]
     v1 = phi [bb0: 0], [bb4: v1]
-    v2 = phi [bb0: arg0], [bb4: v2]
-    v3 = add v0, 1
+    v2 = phi [bb0: 0], [bb4: v3]
+    v3 = add v2, 1
     jump bb3
   bb3:
-    v4 = lt v3, v2
+    v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
@@ -205,50 +205,50 @@ fn @emptyExitSelfLoop(arg0: i256) -> i256 [selector=0xe817f803, pure, abi_params
     invalid
 }
 
-fn @repeatedLoopExit(arg0: i256, arg1: i256) -> struct0 [selector=0x6c126bdd, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @repeatedLoopExit(arg0: i256, arg1: i256) -> struct0 [selector=0x6c126bdd, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
-    v0 = shl 128, arg0
+    v0 = shl arg0, 128
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v1 = phi [bb0: arg1], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: arg0], [bb3: v3]
-    v4 = phi [bb0: arg0], [bb3: v10]
-    v5 = phi [bb0: 0], [bb3: v5]
-    v6 = ne v4, 0
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: arg1], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v4]
+    v5 = phi [bb0: arg0], [bb3: v10]
+    v6 = ne v5, 0
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v11 = icall @findLoopExit, v1
+    v11 = icall @findLoopExit, v2
     v12 = extract_value struct0, v11, 0
     v13 = extract_value struct0, v11, 1
     v14 = insert_value struct0, undef struct0, 0, v12
     v15 = insert_value struct0, v14, 1, v13
     ret v15
   bb4:
-    v7 = sub v4, 1
-    v8 = shl 160, v4
+    v7 = sub v5, 1
+    v8 = shl v5, 160
     v9 = or v8, v7
-    sstore v4, v9 !metadata(storage=symbolic(v4))
+    sstore v5, v9 !metadata(storage=symbolic(v5))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = sub v4, 1
+    v10 = sub v5, 1
     jump bb1
 }
 
 fn @findLoopExit(arg0: i256) -> struct0 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = shr 128, v0
+    v1 = shr v0, 128
     jump bb1
   bb1:
     v2 = phi [bb0: arg0], [bb5: v2]
-    v3 = phi [bb0: 0], [bb5: v3]
-    v4 = phi [bb0: 0], [bb5: v5]
+    v3 = phi [bb0: 0], [bb5: v5]
+    v4 = phi [bb0: 0], [bb5: v4]
     v5 = phi [bb0: v1], [bb5: v19]
     v6 = ne v5, 0
     jumpi v6, bb3, bb4
@@ -256,7 +256,7 @@ fn @findLoopExit(arg0: i256) -> struct0 [view] {
     jump bb2
   bb3:
     v7 = sload v5 !metadata(storage=symbolic(v5))
-    v8 = shr 160, v7
+    v8 = shr v7, 160
     v9 = eq v8, 0
     v10 = zext i1 v9 to i256
     v11 = ne v10, 0
@@ -264,7 +264,7 @@ fn @findLoopExit(arg0: i256) -> struct0 [view] {
   bb7:
     jump bb8
   bb6:
-    v12 = shl 255, 1
+    v12 = shl 1, 255
     v13 = or v5, v12
     v14 = sload v13 !metadata(storage=symbolic(v13))
     jump bb8
@@ -286,7 +286,7 @@ fn @findLoopExit(arg0: i256) -> struct0 [view] {
   bb2:
     v20 = phi [bb9: v5], [bb4: v3]
     v21 = phi [bb9: v5], [bb4: v4]
-    v22 = insert_value struct0, undef struct0, 0, v21
-    v23 = insert_value struct0, v22, 1, v20
+    v22 = insert_value struct0, undef struct0, 0, v20
+    v23 = insert_value struct0, v22, 1, v21
     ret v23
 }

@@ -1,0 +1,17 @@
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_solc_errors.sol:LL:CC
+   │
+LL │ contract Shift layout at ONE << 8 {}
+   ╰╴                         ━━━━━━━━ evaluation of constant value failed here
+
+error[5210]: failed to evaluate constant: constants are nested too deeply
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_solc_errors.sol:LL:CC
+   │
+LL │ uint constant C0 = 1;
+   │ ───────────────────── evaluation of constant value failed here
+   ‡
+LL │ contract Deep layout at C32 {}
+   ╰╴                        ━━━
+
+error: aborting due to 2 previous errors
+

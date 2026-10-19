@@ -11,15 +11,26 @@
 //! Ordinary dead-store elimination keeps such copies because they write
 //! memory; proving the destination allocation is unread lets them go. The pass
 //! is conservative: any read of the allocation (`mload`, `keccak256`, a copy
-//! that reads it, or an escape into a call/return) keeps every write. Writes must fit a known
+//! that reads it, or an escape into a call/return) keeps every write, and a write that can fail
+//! on its own, such as `returndatacopy`, always stays. Writes must fit a known
 //! allocation extent; writes outside it can affect other objects, even when this object is unread.
 //! Indexed element stores also qualify when their sole incoming edge proves an unsigned index
 //! bound whose final word fits the allocation. Other dynamic addresses remain conservative.
+//! An allocation that runs once reads the free-memory pointer before its object exists, so that
+//! read does not count; an allocation in a loop reads it again after the previous instance's
+//! writes and keeps them. Every other read of the pointer's slot still counts. Callers' later
+//! reads of the slot cannot see the removed writes: allocations start at or above the heap floor
+//! (see `heap-floor`), above the slot.
+//! Modules where any function reads `msize` are skipped: internal calls share memory, so a caller
+//! or callee could observe the lower memory expansion.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryLocation},
-    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+    BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation,
+        module_may_observe_msize,
+    },
+    memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -38,6 +49,11 @@ impl MirPass for CopyElision {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        // Removing writes can lower memory expansion, which `msize` in any function can
+        // observe: internal calls share memory.
+        if module_may_observe_msize(module) {
+            return false;
+        }
         run_function_pass_with_alias(module, analyses, |func, analyses| {
             CopyElisionCx::default().run(func, analyses.alias())
         })
@@ -58,9 +74,6 @@ struct CopyElisionCx {
 
 impl CopyElisionCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
-        if func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize)) {
-            return false;
-        }
         let allocs: Vec<ValueId> = func
             .instructions()
             .filter_map(|inst_id| {
@@ -142,9 +155,12 @@ impl CopyElisionCx {
 
     fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
         let block = *self.indexed_stores.get(&inst)?;
-        if let InstKind::MemoryObjectStoreElement { layout, object: target, index, .. } =
-            func.inst(inst).kind
-            && target == object
+        let InstKind::Store(address, _, PtrLocation::Memory) = func.inst(inst).kind else {
+            return None;
+        };
+        // A dynamic object's elements follow its length word; a fixed one's start at it.
+        let (target, data_offset, index) = func.element_address(address)?;
+        if target == object
             && let [pred] = func.blocks[block].predecessors.as_slice()
             && let Some(Terminator::Branch { condition, then_block, else_block }) =
                 func.blocks[*pred].terminator
@@ -154,11 +170,8 @@ impl CopyElisionCx {
             && let InstKind::Lt(value, bound) = func.inst(condition).kind
             && value == index
         {
-            let last = func.value_u64(bound)?.checked_sub(1)?;
-            let stride = EvmMemoryLayout::element_stride(layout)?;
-            EvmMemoryLayout::object_data_offset(layout.kind())
-                .checked_add(last.checked_mul(stride)?)?
-                .checked_add(EvmMemoryLayout::WORD_SIZE)
+            let bound = func.value_u64(bound).filter(|&bound| bound > 0)?;
+            data_offset.checked_add(bound.checked_mul(EvmMemoryLayout::WORD_SIZE)?)
         } else {
             None
         }
@@ -170,15 +183,18 @@ impl CopyElisionCx {
         alias: &AliasAnalysis,
         object: ValueId,
     ) -> bool {
-        let allocation = if let Value::Inst(inst) = func.value(object)
+        let (allocation, alloc_inst) = if let Value::Inst(inst) = func.value(object)
             && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
             && let Some(address) = alias.memory_address(func, object)
         {
             // The allocation's own extent is in bounds, including when its size is dynamic.
-            MemoryLocation::new(address, alias.location_size(func, size))
+            (MemoryLocation::new(address, alias.location_size(func, size)), *inst)
         } else {
             return true;
         };
+        // An allocation that runs once reads the free-memory pointer before its object exists.
+        // A loop allocation's next run may read a previous instance, so it keeps the read.
+        let own_fmp_read = allocation.address.base == MemoryBase::Allocation(alloc_inst);
         let reads_allocation = |access: Access| match access {
             Access::Any(AddressSpace::Memory) => true,
             Access::Location(Location::Memory(location)) => {
@@ -187,7 +203,13 @@ impl CopyElisionCx {
             _ => false,
         };
         func.instructions().any(|inst| {
-            alias.instruction_mod_ref(func, inst).reads().iter().copied().any(reads_allocation)
+            !(own_fmp_read && inst == alloc_inst)
+                && alias
+                    .instruction_mod_ref(func, inst)
+                    .reads()
+                    .iter()
+                    .copied()
+                    .any(reads_allocation)
         }) || func.blocks.iter().filter_map(|block| block.terminator.as_ref()).any(|terminator| {
             alias.terminator_mod_ref(func, terminator).reads().iter().copied().any(reads_allocation)
         })
@@ -197,7 +219,9 @@ impl CopyElisionCx {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                if matches!(inst.kind, InstKind::MemoryObjectStoreElement { .. }) {
+                if let InstKind::Store(address, _, PtrLocation::Memory) = inst.kind
+                    && func.element_address(address).is_some()
+                {
                     self.indexed_stores.insert(inst_id, block_id);
                 }
                 inst.visit_operands(|operand| {
@@ -229,14 +253,19 @@ impl CopyElisionCx {
                 }
                 let kind = &func.inst(inst_id).kind;
                 let propagates = match kind {
-                    InstKind::Add(first, second) | InstKind::Sub(first, second) => {
+                    InstKind::Add(first, second)
+                    | InstKind::Sub(first, second)
+                    | InstKind::PtrAdd(first, second) => {
                         derived.contains(first) || derived.contains(second)
                     }
-                    InstKind::MemoryObjectData(value, _)
-                    | InstKind::MemoryObjectFieldAddr { object: value, .. }
-                    | InstKind::MemoryObjectElementAddr { object: value, .. } => {
-                        derived.contains(value)
+                    InstKind::PtrToInt(value, 256)
+                    | InstKind::IntToPtr(value)
+                    | InstKind::ExtractValue {
+                        ty: MirType::Slice(_),
+                        aggregate: value,
+                        index: MirType::SLICE_PTR_FIELD,
                     }
+                    | InstKind::MakeSlice { ptr: value, .. } => derived.contains(value),
                     _ => false,
                 };
                 if propagates
@@ -258,7 +287,7 @@ impl CopyElisionCx {
                 let inst = func.inst(inst_id);
                 match &inst.kind {
                     // Writes to the allocation: the address is a derived value.
-                    InstKind::MStore(addr, value) => {
+                    InstKind::Store(addr, value, PtrLocation::Memory) => {
                         if derived.contains(value) {
                             return None; // Storing an interior address elsewhere is a read/escape.
                         }
@@ -266,7 +295,7 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::MStore8(addr, value) => {
+                    InstKind::Store8(addr, value) => {
                         if derived.contains(value) {
                             return None;
                         }
@@ -279,58 +308,9 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::SetMemoryObjectLen(addr, len, _) => {
-                        if derived.contains(len) {
-                            return None;
-                        }
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryObjectStoreField { object, value, .. } => {
-                        if derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(object) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryObjectStoreElement { object, index, value, .. } => {
-                        if derived.contains(index) || derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(object) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryObjectStoreByte { object, index, value } => {
-                        if derived.contains(index) || derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(object) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryObjectStoreWord { object, offset, value } => {
-                        if derived.contains(offset) || derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(object) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryObjectCopy { destination, source, length, .. } => {
-                        if derived.contains(source) || derived.contains(length) {
-                            return None;
-                        }
-                        if derived.contains(destination) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::CalldataCopy(dest, _, _)
+                    InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
                     | InstKind::DataCopy(_, dest, _)
-                    | InstKind::CodeCopy(dest, _, _)
-                    | InstKind::ReturnDataCopy(dest, _, _) => {
+                    | InstKind::CodeCopy(dest, _, _) => {
                         if derived.contains(dest) {
                             writes.push(inst_id);
                         }
@@ -340,7 +320,7 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::MCopy(dest, source, _) => {
+                    InstKind::Copy(dest, source, _, PtrLocation::Memory) => {
                         if derived.contains(source) {
                             return None; // Read as a copy source.
                         }
@@ -349,7 +329,12 @@ impl CopyElisionCx {
                         }
                     }
                     // Reads of the allocation keep every write.
-                    InstKind::MLoad(addr) | InstKind::MemoryObjectLen(addr, _) => {
+                    InstKind::Load(addr, PtrLocation::Memory)
+                    | InstKind::ExtractValue {
+                        ty: MirType::Slice(_),
+                        aggregate: addr,
+                        index: MirType::SLICE_LEN_FIELD,
+                    } => {
                         if derived.contains(addr) {
                             return None;
                         }
@@ -362,9 +347,15 @@ impl CopyElisionCx {
                     // Address-derivation instructions are the closure itself.
                     InstKind::Add(..)
                     | InstKind::Sub(..)
-                    | InstKind::MemoryObjectData(..)
-                    | InstKind::MemoryObjectFieldAddr { .. }
-                    | InstKind::MemoryObjectElementAddr { .. }
+                    | InstKind::PtrAdd(..)
+                    | InstKind::PtrToInt(_, 256)
+                    | InstKind::IntToPtr(_)
+                    | InstKind::ExtractValue {
+                        ty: MirType::Slice(_),
+                        index: MirType::SLICE_PTR_FIELD,
+                        ..
+                    }
+                    | InstKind::MakeSlice { .. }
                     | InstKind::Alloc { .. } => {}
                     // Any other use of a derived address is treated as a read.
                     kind => {
@@ -382,6 +373,9 @@ impl CopyElisionCx {
             return None;
         }
 
+        // A write that can fail on its own, such as `returndatacopy` past the end of the return
+        // data, stays even though its destination is unread.
+        writes.retain(|&inst_id| !func.inst(inst_id).kind.effects().control.any());
         (!writes.is_empty()).then_some(writes)
     }
 }

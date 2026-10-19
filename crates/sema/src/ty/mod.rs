@@ -3,6 +3,7 @@ use crate::{
     ast_lowering::SymbolResolver,
     ast_passes::number_literal_underscore_errors,
     builtins::{Builtin, members},
+    eval::EvalErrorKind,
     hir::{self, Hir, SourceId},
     typeck::override_checker::OverrideProxy,
 };
@@ -11,7 +12,7 @@ use solar_ast::{
     DataLocation, ElementaryType, StateMutability, TypeSize, UserDefinableOperator, Visibility,
 };
 use solar_data_structures::{
-    BumpExt,
+    BumpExt, DropArena,
     bit_set::{DenseBitSet, GrowableBitSet},
     fmt::or_list,
     graph,
@@ -59,7 +60,7 @@ mod ty;
 pub(crate) use ty::SameSourceFileLevelUserTypeError;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind};
 
-type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
+pub(crate) type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 type NatSpecContractKey = (Symbol, hir::SourceId);
 type UsingDirectiveKey = usize;
 
@@ -95,6 +96,8 @@ pub struct TypeckResults<'gcx> {
     /// The user-defined operator function a binary/unary operator expression
     /// resolves to, keyed by the operator expression's id.
     pub(crate) user_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
+    /// Contracts whose base slot is a constant integer, for `constant_values` to evaluate.
+    pub(crate) base_slots: Vec<(hir::ContractId, &'gcx hir::Expr<'gcx>)>,
 }
 
 /// The target selected for a call callee expression.
@@ -376,9 +379,10 @@ pub struct GlobalCtxt<'gcx> {
 
     pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
+    cached_arenas: ThreadLocal<DropArena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
-    pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
+    pub(crate) const_eval_cache: crate::eval::ConstEvalCache,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -412,9 +416,10 @@ impl<'gcx> GlobalCtxt<'gcx> {
 
             ast_arenas: ThreadLocal::new(),
             hir_arenas,
+            cached_arenas: ThreadLocal::new(),
             interner,
             cache: Cache::default(),
-            eval_cache: FxOnceMap::default(),
+            const_eval_cache: Default::default(),
             override_index: OnceLock::new(),
         }
     }
@@ -487,7 +492,17 @@ impl<'gcx> Gcx<'gcx> {
         self.arena().bump()
     }
 
+    /// Returns the arena for cached values that own heap memory.
+    pub(crate) fn cached_arena(self) -> &'gcx DropArena {
+        self.cached_arenas.get_or_default()
+    }
+
+    /// Allocates a value in the arena.
+    ///
+    /// The arena never runs destructors, so `T` must not need drop. Allocate values that own
+    /// heap memory with `cached_arena` instead.
     pub fn alloc<T>(self, value: T) -> &'gcx T {
+        const { assert!(!std::mem::needs_drop::<T>(), "arena values must not need drop") };
         self.bump().alloc(value)
     }
 
@@ -515,18 +530,28 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty(TyKind::StringLiteral(std::str::from_utf8(s).is_ok(), s.len()))
     }
 
-    pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {
+    /// Creates an integer literal type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits` does not fit in a `u16`, which literal arithmetic never needs.
+    pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Ty<'gcx> {
         self.mk_ty_int_literal_with_fixed_bytes(negative, bits, None)
     }
 
+    /// Creates an integer literal type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits` does not fit in a `u16`, which literal arithmetic never needs.
     pub fn mk_ty_int_literal_with_fixed_bytes(
         self,
         negative: bool,
         bits: u64,
         compatible_fixed_bytes: Option<TypeSize>,
-    ) -> Option<Ty<'gcx>> {
-        let bits = u16::try_from(bits.max(1)).ok()?;
-        Some(self.mk_ty(TyKind::IntLiteral(negative, bits, compatible_fixed_bytes)))
+    ) -> Ty<'gcx> {
+        let bits = u16::try_from(bits.max(1)).expect("integer literal is too wide");
+        self.mk_ty(TyKind::IntLiteral(negative, bits, compatible_fixed_bytes))
     }
 
     pub fn mk_ty_fn(self, ptr: TyFn<'gcx>) -> Ty<'gcx> {
@@ -551,6 +576,27 @@ impl<'gcx> Gcx<'gcx> {
             return results.resolved_expr(expr);
         }
         expr.as_res()
+    }
+
+    /// Resolves an identifier, or a member access on a contract, module or builtin name, from
+    /// name resolution alone.
+    ///
+    /// Unlike [`resolved_expr`](Self::resolved_expr), this does not need type checking, so it
+    /// also works on sources that are not type checked yet. Overloaded names resolve to nothing.
+    pub fn resolve_path_expr(self, expr: &hir::Expr<'_>) -> Option<hir::Res> {
+        match expr.kind {
+            hir::ExprKind::Ident(&[res]) => Some(res),
+            hir::ExprKind::Member(base, member) => {
+                let scope = self.symbol_resolver.scope_of(self.resolve_path_expr(base)?)?;
+                // A public variable also declares its getter.
+                let mut declarations = scope.resolve(member)?.iter().map(|d| d.res).filter(|res| {
+                    !res.as_function().is_some_and(|f| self.hir.function(f).is_getter())
+                });
+                let res = declarations.next()?;
+                declarations.next().is_none().then_some(res)
+            }
+            _ => None,
+        }
     }
 
     /// Returns the variable selected for an expression, if available.
@@ -717,6 +763,11 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn user_operator(self, id: hir::ExprId) -> Option<hir::FunctionId> {
         self.typeck_results.get()?.user_operator(id)
+    }
+
+    /// Returns the contracts whose base slot is a constant integer, with the base slot.
+    pub(crate) fn typeck_base_slots(self) -> &'gcx [(hir::ContractId, &'gcx hir::Expr<'gcx>)] {
+        self.typeck_results.get().map_or(&[], |results| &results.base_slots)
     }
 
     /// Returns whether sparse type-checker results are available for codegen queries.
@@ -952,6 +1003,23 @@ impl<'gcx> Gcx<'gcx> {
         self.item_selector(id.into())
     }
 
+    /// Returns whether the given function, error or event has an ABI signature.
+    ///
+    /// Recursive structs have no ABI type, except in library functions, whose signatures name
+    /// structs instead. Type checking reports them.
+    pub fn has_abi_signature(self, id: impl Into<hir::ItemId>) -> bool {
+        let id = id.into();
+        self.signature_names_structs(id)
+            || !self.item_parameter_types(id).iter().any(|ty| ty.is_recursive(self))
+    }
+
+    /// Returns whether the signature of the given item uses canonical type names, which only
+    /// library functions do; events and errors use ABI types.
+    fn signature_names_structs(self, id: hir::ItemId) -> bool {
+        matches!(id, hir::ItemId::Function(_))
+            && self.hir.item(id).contract().is_some_and(|c| self.hir.contract(c).kind.is_library())
+    }
+
     /// Computes the [`Ty`] of the given [`hir::Type`]. Not cached.
     pub fn type_of_hir_ty(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
         let kind = match ty.kind {
@@ -959,7 +1027,7 @@ impl<'gcx> Gcx<'gcx> {
             hir::TypeKind::Array(array) => {
                 let elem = self.type_of_hir_ty(&array.element);
                 match array.size {
-                    Some(size) => match crate::eval::eval_array_len(self, size) {
+                    Some(size) => match self.early_const_eval().eval_array_len(size) {
                         Ok(size) => TyKind::Array(elem, size),
                         Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
                     },
@@ -1145,20 +1213,16 @@ impl<'gcx> Gcx<'gcx> {
                     int.bit_len() as _,
                     compatible_fixed_bytes,
                 )
-                .unwrap_or_else(|| {
-                    self.mk_ty_err(
-                        self.dcx().emit_err(lit.span, "integer literal is greater than 2**256"),
-                    )
-                })
             }
-            solar_ast::LitKind::Rational(_) => {
+            solar_ast::LitKind::BigNumber(int) => {
+                self.mk_ty_int_literal_with_fixed_bytes(false, int.bit_len() as _, None)
+            }
+            solar_ast::LitKind::Rational(..) => {
                 // The AST validator has already reported invalid underscores.
                 if !number_literal_underscore_errors(lit.symbol.as_str()).is_empty() {
                     self.mk_ty_misc_err()
                 } else {
-                    self.mk_ty_err(
-                        self.dcx().emit_err(lit.span, "rational literals are not supported"),
-                    )
+                    self.mk_ty(TyKind::RationalLiteral)
                 }
             }
             solar_ast::LitKind::Address(_) => self.types.address,
@@ -1469,7 +1533,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns all events included in the external interface of the given contract.
-    pub fn interface_events(self, id: hir::ContractId) -> &'gcx DenseBitSet<hir::EventId> {
+    pub fn interface_events(self, id: hir::ContractId) -> DenseBitSet<hir::EventId> {
         let items = self.interface_items(id);
         let mut events = DenseBitSet::new_empty(self.hir.event_ids().len());
         for item in self.hir.contract_item_ids(id) {
@@ -1480,11 +1544,11 @@ impl<'gcx> Gcx<'gcx> {
         for event in items.creation.events.iter().chain(items.deployed.events.iter()) {
             events.insert(event);
         }
-        self.alloc(events)
+        events
     }
 
     /// Returns all errors included in the external interface of the given contract.
-    pub fn interface_errors(self, id: hir::ContractId) -> &'gcx DenseBitSet<hir::ErrorId> {
+    pub fn interface_errors(self, id: hir::ContractId) -> DenseBitSet<hir::ErrorId> {
         let items = self.interface_items(id);
         let mut errors = DenseBitSet::new_empty(self.hir.error_ids().len());
         for item in self.hir.contract_item_ids(id) {
@@ -1495,32 +1559,29 @@ impl<'gcx> Gcx<'gcx> {
         for error in items.creation.errors.iter().chain(items.deployed.errors.iter()) {
             errors.insert(error);
         }
-        self.alloc(errors)
+        errors
     }
 
     /// Returns the functions reachable during contract creation or at runtime.
-    pub fn contract_reachable_functions(
-        self,
-        id: hir::ContractId,
-    ) -> &'gcx DenseBitSet<hir::FunctionId> {
+    pub fn contract_reachable_functions(self, id: hir::ContractId) -> DenseBitSet<hir::FunctionId> {
         if self.sess.opts.unstable.codegen_all_functions {
-            return self.all_contract_reachable_functions(id);
+            return self.all_contract_reachable_functions(id).clone();
         }
         let items = self.interface_items(id);
         let mut functions = DenseBitSet::new_empty(self.hir.function_ids().len());
         for function in items.creation.functions.iter().chain(items.deployed.functions.iter()) {
             functions.insert(function);
         }
-        self.alloc(functions)
+        functions
     }
 
     /// Returns the contracts whose bytecode is referenced by the given contract.
     pub fn contract_bytecode_dependencies(
         self,
         id: hir::ContractId,
-    ) -> &'gcx DenseBitSet<hir::ContractId> {
+    ) -> DenseBitSet<hir::ContractId> {
         if self.sess.opts.unstable.codegen_all_functions {
-            return self.all_contract_bytecode_dependencies(id);
+            return self.all_contract_bytecode_dependencies(id).clone();
         }
         let items = self.interface_items(id);
         let mut dependencies = DenseBitSet::new_empty(self.hir.contract_ids().len());
@@ -1532,12 +1593,31 @@ impl<'gcx> Gcx<'gcx> {
         {
             dependencies.insert(dependency);
         }
-        self.alloc(dependencies)
+        dependencies
     }
 
     /// Builds the error for a literal at `span` that is too large for any integer type.
     pub(crate) fn literal_too_large_err(self, span: Span) -> DiagBuilder<'gcx, ErrorGuaranteed> {
-        self.dcx().err("literal is too large for any integer type").span(span)
+        self.dcx().err(EvalErrorKind::LiteralTooLarge.msg()).span(span)
+    }
+
+    /// Builds the error for a builtin binary operator that does not apply to its operands.
+    pub(crate) fn binop_err(
+        self,
+        op: hir::BinOp,
+        (lhs_span, lhs): (Span, Ty<'gcx>),
+        (rhs_span, rhs): (Span, Ty<'gcx>),
+        assign: bool,
+    ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
+        let (lhs, rhs) = (lhs.display(self).to_string(), rhs.display(self).to_string());
+        let msg = format!("cannot apply builtin operator `{op}` to `{lhs}` and `{rhs}`");
+        let code = if assign { error_code!(7366) } else { error_code!(2271) };
+        self.dcx()
+            .err(msg)
+            .code(code)
+            .span(op.span)
+            .span_label(lhs_span, lhs)
+            .span_label(rhs_span, rhs)
     }
 }
 
@@ -1622,17 +1702,17 @@ macro_rules! cached {
 cached! {
 /// Returns the ABI of the given contract.
 pub fn contract_abi(gcx: _, id: hir::ContractId) -> &'gcx [alloy_json_abi::AbiItem<'gcx>] {
-    gcx.bump().alloc_slice_fill_iter(gcx.build_contract_abi(id))
+    gcx.cached_arena().alloc_slice_fill_iter(gcx.build_contract_abi(id))
 }
 
 /// Returns the developer documentation for the given contract.
 pub fn dev_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
-    gcx.alloc(gcx.build_dev_documentation(id))
+    gcx.cached_arena().alloc(gcx.build_dev_documentation(id))
 }
 
 /// Returns the user documentation for the given contract.
 pub fn user_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
-    gcx.alloc(gcx.build_user_documentation(id))
+    gcx.cached_arena().alloc(gcx.build_user_documentation(id))
 }
 
 fn virtual_function_target(
@@ -1690,12 +1770,12 @@ fn super_function_target(
 
 fn interface_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::InterfaceItems {
     assert!(gcx.has_typeck_results(), "interface items require type checking");
-    gcx.alloc(call_graph::interface_items(gcx, id))
+    gcx.cached_arena().alloc(call_graph::interface_items(gcx, id))
 }
 
 fn all_contract_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::ReferencedItems {
     assert!(gcx.has_typeck_results(), "contract items require type checking");
-    gcx.alloc(call_graph::all_items(gcx, id))
+    gcx.cached_arena().alloc(call_graph::all_items(gcx, id))
 }
 
 fn all_contract_bytecode_dependencies(
@@ -1857,9 +1937,7 @@ pub(crate) fn natspec_contract_in_source(
 pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     let name = gcx.item_name(id);
     let tys = gcx.item_parameter_types(id);
-    // Only library functions use canonical type names; events and errors use ABI types.
-    let in_library = matches!(id, hir::ItemId::Function(_))
-        && gcx.hir.item(id).contract().is_some_and(|c| gcx.hir.contract(c).kind.is_library());
+    let in_library = gcx.signature_names_structs(id);
     gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied(), in_library))
 }
 
@@ -2169,12 +2247,21 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             .emit();
     }
 
-    // solc reports this as a fatal error, so the error type stops follow-up diagnostics.
+    // solc reports this as a fatal error, so the error type stops follow-up diagnostics. An array
+    // stays an array when its length fails to evaluate, so solc reports both errors, unless the
+    // innermost element type fails to resolve.
     // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
+    let innermost_element_resolves = || {
+        let hir::TypeKind::Array(mut array) = var.ty.kind else { return false };
+        while let hir::TypeKind::Array(inner) = array.element.kind {
+            array = inner;
+        }
+        !gcx.type_of_hir_ty(&array.element).references_error()
+    };
     if var.is_constant()
         && !ty.is_value_type()
         && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
-        && !ty.references_error()
+        && (!ty.references_error() || innermost_element_resolves())
     {
         let guar = gcx
             .dcx()

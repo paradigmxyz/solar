@@ -1,16 +1,21 @@
 //! Local storage-load forwarding.
 //!
 //! This pass removes redundant `sload` instructions on straight-line paths when
-//! no intervening storage write may alias the loaded slot. Exact stores also
+//! no intervening storage write may alias the loaded slot. A path continues
+//! into a successor that has no other predecessor, so facts flow through
+//! extended basic blocks in reverse postorder, as when inlining leaves a callee's
+//! read in its own block after the caller's write; joins start empty. Exact stores also
 //! forward their full word to subsequent loads. This exposes packed field
 //! updates as word expressions, allowing storage DSE to remove intermediate
-//! writes while retaining every preserved bit. Calls and possible aliases
+//! writes while retaining every preserved bit. A load whose earlier load of the
+//! same slot is no longer used stays and replaces it in the cache, so forwarding
+//! never extends a loaded value's lifetime. Calls and possible aliases
 //! invalidate both load and store facts. After a `gas` read, storage accesses
 //! remain explicit so a later `gas` read observes their cost and warmness
 //! effects, including observations in predecessor blocks and transitive callees.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId,
+    BlockId, Function, InstId, InstKind, Module, PtrLocation, StorageAlias, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Liveness, Location},
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
@@ -34,7 +39,9 @@ impl MirPass for StorageLoadCse {
     ) -> bool {
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
-            if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::SLoad(..))) {
+            if func.instructions().any(|inst| {
+                matches!(func.inst(inst).kind, InstKind::Load(.., PtrLocation::Storage))
+            }) {
                 selected.insert(id);
             }
         }
@@ -43,8 +50,8 @@ impl MirPass for StorageLoadCse {
             analyses,
             &selected,
             |func, analyses| {
-                let mut cse = StorageLoadCseCx::new();
-                cse.alias = Some(Rc::clone(analyses.alias()));
+                let mut cse =
+                    StorageLoadCseCx::new(Rc::clone(analyses.alias()), Rc::clone(analyses.cfg()));
                 let changed = cse.run_to_fixpoint(func) != 0;
                 if cse.annotated_aliases {
                     analyses.note_unreported_edit();
@@ -56,11 +63,12 @@ impl MirPass for StorageLoadCse {
 }
 
 /// Local storage load CSE pass.
-#[derive(Debug, Default)]
 struct StorageLoadCseCx {
     /// Number of storage loads eliminated.
     eliminated_count: usize,
-    alias: Option<Rc<AliasAnalysis>>,
+    alias: Rc<AliasAnalysis>,
+    /// The pass rewrites operands and removes loads only, so one CFG snapshot serves every round.
+    cfg: Rc<CfgInfo>,
     /// Whether storage-alias annotation changed metadata, which is not reported as a change.
     annotated_aliases: bool,
 }
@@ -68,8 +76,10 @@ struct StorageLoadCseCx {
 struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
-    cached_loads: FxHashMap<StorageAlias, (ValueId, bool)>,
+    cached_loads: StorageFacts,
 }
+
+type StorageFacts = FxHashMap<StorageAlias, (ValueId, bool)>;
 
 impl RunState {
     fn new(func: &Function) -> Self {
@@ -83,27 +93,48 @@ impl RunState {
 
 impl StorageLoadCseCx {
     /// Creates a new storage-load CSE pass.
-    fn new() -> Self {
-        Self::default()
+    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>) -> Self {
+        Self { eliminated_count: 0, alias, cfg, annotated_aliases: false }
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         self.annotated_aliases |=
             func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
-        if self.alias.is_none() {
-            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
-        }
 
         // Liveness is only needed when a load meets an earlier load of the same slot.
         let liveness = OnceCell::new();
         state.replacements.clear();
         state.dead.clear();
 
-        let gas = GasObservations::new(func, &CfgInfo::new(func), self.alias.as_ref().unwrap());
-        for block_id in func.blocks.indices() {
-            state.cached_loads.clear();
+        let cfg = Rc::clone(&self.cfg);
+        let gas = GasObservations::new(func, &cfg, &self.alias);
+        // A block entered only from one predecessor starts with the facts that predecessor ends
+        // with: no terminator that continues to a successor touches storage. Reverse postorder
+        // visits that predecessor first; every other block starts empty. Each exit is kept with
+        // the number of successors still waiting for it, and the last one takes it.
+        let mut exits = FxHashMap::<BlockId, (usize, StorageFacts)>::default();
+        for &block_id in cfg.rpo() {
+            state.cached_loads = match cfg.predecessors(block_id) {
+                &[pred] => match exits.get_mut(&pred) {
+                    Some((1, _)) => exits.remove(&pred).unwrap().1,
+                    Some((waiting, facts)) => {
+                        *waiting -= 1;
+                        facts.clone()
+                    }
+                    None => StorageFacts::default(),
+                },
+                _ => StorageFacts::default(),
+            };
             self.process_block(func, block_id, &liveness, &gas, state);
+            let waiting = cfg
+                .successors(block_id)
+                .iter()
+                .filter(|&&successor| cfg.predecessors(successor).len() == 1)
+                .count();
+            if waiting != 0 {
+                exits.insert(block_id, (waiting, std::mem::take(&mut state.cached_loads)));
+            }
         }
 
         if !state.replacements.is_empty() {
@@ -140,11 +171,11 @@ impl StorageLoadCseCx {
         gas: &GasObservations,
         state: &mut RunState,
     ) {
-        let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
+        let aa = &*self.alias;
         let mut gas_observed = gas.at_entry(block_id);
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
             match &func.inst(inst_id).kind {
-                InstKind::SLoad(slot) => {
+                InstKind::Load(slot, PtrLocation::Storage) => {
                     let alias = aa.storage_alias_after_replacements(
                         func,
                         inst_id,
@@ -173,7 +204,7 @@ impl StorageLoadCseCx {
                         state.cached_loads.insert(alias, (result, false));
                     }
                 }
-                InstKind::SStore(slot, value) => {
+                InstKind::Store(slot, value, PtrLocation::Storage) => {
                     let alias = aa.storage_alias_after_replacements(
                         func,
                         inst_id,
@@ -241,7 +272,11 @@ impl StorageLoadCseCx {
 
         func.for_each_instruction_mut(|_, inst| {
             mir_utils::replace_inst_uses_canonicalized(inst, replacements);
-            if matches!(inst.kind, InstKind::SLoad(_) | InstKind::SStore(_, _)) {
+            if matches!(
+                inst.kind,
+                InstKind::Load(_, PtrLocation::Storage)
+                    | InstKind::Store(_, _, PtrLocation::Storage)
+            ) {
                 inst.metadata.set_storage_alias(None);
             }
         });

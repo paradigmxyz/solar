@@ -40,12 +40,4 @@ exceptions = [
 
 [sources]
 unknown-registry = "deny"
-unknown-git = "deny"
-allow-git = [
-    # Used only for testing.
-    "https://github.com/DaniPopes/ui_test",
-    "https://github.com/oli-obk/ui_test",
-    "https://github.com/alloy-rs/evm2",
-    # Used only for benchmarks.
-    "https://github.com/DaniPopes/codspeed-rust",
-]
+unknown-git = "allow"

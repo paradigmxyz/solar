@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:Target ===
 @module Target
-fn @six(arg0: i256) -> i256 [selector=0x84b8ba08, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @six(arg0: i256) -> i256 [selector=0x84b8ba08, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_mul u256, arg0, 6
+    v0 = checked_mul uint256, arg0, 6
     ret v0
 }
 
@@ -16,27 +16,25 @@ fn @constructor() [constructor] {
     v0 = abi_encode []
     v1 = datasize Target_creation_code_0
     v2 = datasize Target_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy Target_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v3 = alloc v2
+    datacopy Target_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = zext i160 v9 to i256
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = or v13, v15
-    sstore 0, v16 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = zext i160 v7 to i256
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 0, v14 !metadata(storage=slot(0))
     ret
 }
 
@@ -47,9 +45,9 @@ fn @depth(arg0: i256) -> i256 [pure] {
   bb2:
     jump bb3
   bb3:
-    v1 = checked_sub u256, arg0, 1
+    v1 = checked_sub uint256, arg0, 1
     v2 = icall @depth, v1
-    v3 = checked_add u256, v2, 1
+    v3 = checked_add uint256, v2, 1
     ret v3
   bb1:
     ret 0
@@ -66,7 +64,7 @@ fn @check(arg0: i1) [pure] {
     ret
 }
 
-fn @probe(arg0: i256) -> i256 [selector=0xdb082440, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @probe(arg0: i256) -> i256 [selector=0xdb082440, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
@@ -75,6 +73,6 @@ fn @probe(arg0: i256) -> i256 [selector=0xdb082440, view, abi_params=[u256], abi
     v4 = address_staticcall v1, v3, gas v2
     v5 = icall returndata_bytes<>
     icall @check, v4
-    v6 = abi_decode [u256], v5
+    v6 = abi_decode [uint256], v5
     ret v6
 }

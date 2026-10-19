@@ -30,15 +30,16 @@
 //!
 //! Only word-element arrays, contiguous low-bit masks, and `zext iN (trunc i256 x to iN) to
 //! i256` round trips are rewritten. A narrowing result with other typed uses stays in place.
-//! Runs early in the optimized phase, while element accesses are still
-//! semantic and the call graph is explicit; removed masks lose their debug
+//! Runs early in the optimized phase, while `ptradd` keeps element addresses
+//! explicit and the call graph is explicit; removed masks lose their debug
 //! checkpoints rather than lending them to the loads.
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{
-    AbiParamType, AbiWordValidator, AllocationInitialization, AllocationKind, ArgIdx, EffectKind,
-    Function, FunctionId, InstId, InstKind, MemoryObjectLayout, MemoryRegion, MirType, Module,
-    Terminator, Value, ValueId,
+    AbiParamType, AbiWordValidator, AllocationInitialization, ArgIdx, EffectKind, Function,
+    FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PtrLocation, Terminator, Value,
+    ValueId,
+    analysis::direct_callees,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils,
@@ -57,6 +58,9 @@ pub(crate) struct ElementCleanup;
 const MAX_VALUE_DEPTH: u32 = 8;
 /// The width of a word nothing bounds.
 const FULL_WIDTH: u32 = 256;
+/// The widest array length whose element addresses cannot wrap around to the length word: every
+/// index below it addresses at most `32 + 32 * (2^251 - 2)`, under `2^256`.
+const MAX_HEADER_LENGTH_BITS: u32 = 251;
 /// Fixed-point rounds after which every bound is given up as full.
 const MAX_ROUNDS: usize = 16;
 
@@ -140,9 +144,7 @@ impl MirPass for ElementCleanup {
             for inst in func.instructions() {
                 if let Some((element, bits)) = masked_element(func, inst)
                     && let Value::Inst(load) = func.value(element)
-                    && let InstKind::MemoryObjectLoadElement { object, layout, .. } =
-                        func.inst(*load).kind
-                    && is_word_array(layout)
+                    && let Some(object) = word_element_object(func, *load)
                     && objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits)
                     && let Some(result) = func.inst_result_value(inst)
                 {
@@ -181,12 +183,48 @@ impl MirPass for ElementCleanup {
     }
 }
 
-fn is_word_array(layout: MemoryObjectLayout) -> bool {
-    matches!(
-        layout,
-        MemoryObjectLayout::DynamicArray { element_words: 1 }
-            | MemoryObjectLayout::FixedArray { element_words: 1, .. }
-    )
+/// The array a word element load or store accesses: a `ptr<memory>` object at a word-aligned
+/// offset. The word at a dynamic object's pointer is its length, not an element, so a constant
+/// offset of zero counts only in a constant-size allocation, whose first word, length or not,
+/// is tracked like any element. Every fixed array and struct has a constant size, so only a
+/// runtime-sized allocation is known to start with a length word.
+fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
+    let (InstKind::Load(address, PtrLocation::Memory)
+    | InstKind::Store(address, _, PtrLocation::Memory)) = func.inst(inst).kind
+    else {
+        return None;
+    };
+    let (object, offset, index) = func.word_access(address)?;
+    let length = index.is_none() && offset == 0 && func.alloc_size(object).is_none();
+    (!length && func.value_ty(object) == Some(MirType::MEMPTR)).then_some(object)
+}
+
+/// Whether storing `length` into the header of `object` keeps the header out of reach of its
+/// elements: `object` is a direct runtime-sized allocation, and no index below `length` wraps the
+/// element address around to the header. That holds when `length` fits in
+/// [`MAX_HEADER_LENGTH_BITS`] or is the length the allocation's checked size scales from, as in
+/// `new T[](length)`. A forged length, as from assembly, may let a wrapping index read the header.
+fn is_header_length(func: &Function, object: ValueId, length: ValueId) -> bool {
+    let Value::Inst(alloc) = *func.value(object) else { return false };
+    let InstKind::Alloc { size, .. } = func.inst(alloc).kind else { return false };
+    func.value_u64(size).is_none()
+        && (max_bits_with_args(func, length, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
+            <= MAX_HEADER_LENGTH_BITS
+            || scaled_root(func, size) == length)
+}
+
+/// The value `value` scales from through additions, multiplications, and shifts by constants.
+fn scaled_root(func: &Function, mut value: ValueId) -> ValueId {
+    for _ in 0..MAX_VALUE_DEPTH {
+        let Value::Inst(inst) = *func.value(value) else { break };
+        value = match func.inst(inst).kind {
+            InstKind::Add(a, b) | InstKind::Mul(a, b) if func.value_u256(b).is_some() => a,
+            InstKind::Add(a, b) | InstKind::Mul(a, b) if func.value_u256(a).is_some() => b,
+            InstKind::Shl(shift, x) if func.value_u256(shift).is_some() => x,
+            _ => break,
+        };
+    }
+    value
 }
 
 /// The value a contiguous low-bit mask keeps, and the mask's width in bits.
@@ -213,26 +251,28 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
     for inst in func.instructions() {
         let instruction = func.inst(inst);
         let width = match &instruction.kind {
-            InstKind::MemoryObjectStoreElement { object, value, .. }
-                if objects.is_none_or(|objects| {
-                    objects.get(object).is_some_and(|&bound| bound < FULL_WIDTH)
+            InstKind::Store(.., PtrLocation::Memory)
+                if func
+                    .memory_length_store(inst)
+                    .is_some_and(|(object, length)| is_header_length(func, object, length)) =>
+            {
+                0
+            }
+            InstKind::Store(_, value, PtrLocation::Memory)
+                if word_element_object(func, inst).is_some_and(|object| {
+                    objects.is_none_or(|objects| {
+                        objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH)
+                    })
                 }) =>
             {
                 max_bits_with_args(func, *value, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
-            }
-            // A direct allocation's header is separate from existing array elements.
-            InstKind::SetMemoryObjectLen(object, ..)
-                if matches!(func.value(*object), Value::Inst(alloc)
-                    if matches!(func.inst(*alloc).kind, InstKind::Alloc { .. })) =>
-            {
-                0
             }
             // Only compiler-owned words and zeroing are harmless without an alias proof.
             InstKind::Alloc { .. }
             | InstKind::FrameStore { .. }
             | InstKind::MemoryZero(..)
             | InstKind::StorageArrayLoad { .. } => 0,
-            InstKind::MStore(..) | InstKind::MStore8(..) => {
+            InstKind::Store(.., PtrLocation::Memory) | InstKind::Store8(..) => {
                 if instruction.metadata.memory_region() == Some(MemoryRegion::Scratch) {
                     0
                 } else {
@@ -255,18 +295,6 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
     bound
 }
 
-fn callees(func: &Function) -> impl Iterator<Item = FunctionId> + '_ {
-    let calls = func.instructions().filter_map(|inst| match func.inst(inst).kind {
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => Some(function),
-        _ => None,
-    });
-    let tail_calls = func.blocks.iter().filter_map(|block| match block.terminator {
-        Some(Terminator::TailCall { function, .. }) => Some(function),
-        _ => None,
-    });
-    calls.chain(tail_calls)
-}
-
 /// Each function's store bound including the functions it calls.
 fn transitive_bounds(
     module: &Module,
@@ -283,7 +311,8 @@ fn transitive_bounds(
     for _ in 0..MAX_ROUNDS {
         let mut changed = false;
         for (id, func) in module.functions.iter_enumerated() {
-            let widened = callees(func).map(|callee| bounds[callee]).fold(bounds[id], u32::max);
+            let widened =
+                direct_callees(func).map(|callee| bounds[callee]).fold(bounds[id], u32::max);
             if widened != bounds[id] {
                 bounds[id] = widened;
                 changed = true;
@@ -333,7 +362,7 @@ fn param_bounds(
     let mut bounds = FxHashMap::default();
     for (id, func) in module.functions.iter_enumerated() {
         for (index, &ty) in func.params.iter_enumerated() {
-            if ty != MirType::MemPtr {
+            if ty != MirType::MEMPTR {
                 continue;
             }
             let entry = if !externally_callable(func) {
@@ -406,9 +435,8 @@ fn object_bounds(
     for inst in func.instructions() {
         let Some(result) = func.inst_result_value(inst) else { continue };
         match &func.inst(inst).kind {
-            InstKind::Alloc { kind: AllocationKind::Object(layout), semantics, .. }
-                if is_word_array(*layout)
-                    && semantics.initialization == AllocationInitialization::Zeroed =>
+            InstKind::Alloc { semantics, .. }
+                if semantics.initialization == AllocationInitialization::Zeroed =>
             {
                 bounds.insert(result, 0);
             }

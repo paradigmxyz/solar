@@ -14,7 +14,8 @@ use crate::{
         },
     },
     mir::{
-        BlockId, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId,
+        BlockId, Function, FunctionId, InstId, InstKind, Module, PtrLocation, Terminator, Value,
+        ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
     },
@@ -378,9 +379,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             Step::Filler => self.asm.emit_push(U256::ZERO),
             Step::Begin(inst) => {
                 if self.capture_debug_info {
-                    let metadata = &func.inst(inst).metadata;
-                    self.asm.set_source_spans(metadata.source_spans());
-                    self.asm.set_modifier_depth(metadata.modifier_depth());
+                    if let Some(inst) = inst {
+                        let metadata = &func.inst(inst).metadata;
+                        self.asm.set_source_spans(metadata.source_spans());
+                        self.asm.set_modifier_depth(metadata.modifier_depth());
+                    } else {
+                        // NOTE: A retained constant has no single source consumer.
+                        self.asm.set_source_span(None);
+                        self.asm.set_modifier_depth(0);
+                    }
                 }
             }
             Step::Op(opcode) => self.asm.emit_op(opcode),
@@ -447,7 +454,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::Zext(operand)
                 | InstKind::PtrToInt(operand, _)
                 | InstKind::IntToPtr(operand) => self.emit_materialized(func, *operand),
-                InstKind::CalldataLoad(offset) => {
+                InstKind::Load(offset, PtrLocation::Calldata) => {
                     // <offset>; calldataload
                     self.emit_materialized(func, *offset);
                     self.asm.emit_op(op::CALLDATALOAD);

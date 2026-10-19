@@ -1,28 +1,30 @@
-//! Lower semantic memory-object operations to physical word operations.
+//! Lower semantic memory objects and pointer arithmetic to physical word operations.
 //!
-//! The selected memory-layout policy supplies object headers, field offsets, and element strides.
-//! Semantic accesses and allocations become raw pointer arithmetic, loads, stores, and allocation
-//! operations. Mixed slice/object merges are materialized first so later operations still use the
-//! correct representation. Unreachable blocks are removed before substitution: their definitions
-//! need not obey SSA and can contain cast cycles.
+//! `ptradd` becomes an integer `add` between pointer casts. Every memory access is already a
+//! `mload`, `mstore`, or `mcopy` at an address, so nothing else changes here. An EVM opcode whose
+//! operands do not match its types, as an integer `add` of a pointer, gets word operands and a word
+//! result cast back to the pointer, and the casts this leaves unused are removed;
+//! `lower-evm-shaped` later erases pointer types altogether. Unreachable blocks are removed first:
+//! their definitions need not obey SSA and can contain cast cycles.
+//!
+//! Within a block, a run of constant-size internal allocations separated only by stores into them
+//! and their address arithmetic becomes one allocation and constant offsets from it, provided
+//! every member is written, so the group pays for one free-memory-pointer bump. `coalesce-allocs`
+//! later fuses the wider groups this conservative scan leaves, once slice lowering has run. A
+//! function whose signature carries a memory reference is marked as possibly returning memory.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
 //! verifies all backend representation requirements.
-//! An earlier simplification can replace a zero-offset object projection with
-//! its slice operand. Such a function still needs slice-load lowering even if
-//! it no longer contains object operations. Unsupported layouts
-//! and address spaces retain their operations for the subsequent phase checks.
+//! Unsupported layouts and address spaces retain their operations for the
+//! subsequent phase checks.
 
 use crate::mir::{
-    AllocationAlignment, AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate,
-    InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation,
-    Value,
-    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
-    pass::MirPass,
+    AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType, Module,
+    PtrLocation, Value, pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Lowers semantic object layouts under the selected physical memory policy.
@@ -53,376 +55,50 @@ impl MirPass for LowerMemoryObjects {
             );
             return false;
         }
-        if module.phase() == MirPhase::Lowered {
-            return false;
-        }
         let mut changed = false;
         for func in module.functions.iter_mut() {
-            changed |= lower_function::<EvmMemoryLayout>(func);
+            changed |= lower_function(func);
         }
         changed
     }
 }
 
-fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
-    let is_pointer = |ty: MirType| ty == MirType::MemPtr;
+fn lower_function(func: &mut Function) -> bool {
+    let is_pointer = MirType::is_pointer;
     let needs_lowering = func.arg_indices().any(|index| is_pointer(func.arg_ty(index)))
         || func.return_components().iter().copied().any(is_pointer)
         || func.live_values().any(|value| func.value_ty(value).is_some_and(is_pointer))
-        || func.instructions().any(|inst_id| {
-            let kind = &func.inst(inst_id).kind;
-            kind.is_memory_object_op()
-                || matches!(kind, InstKind::MLoad(object) if func.value_slice_location(*object).is_some())
-        });
+        || func
+            .instructions()
+            .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::PtrAdd(..)));
     if !needs_lowering {
         return false;
     }
 
     // unreachable definitions -> removed blocks and phi inputs
     let _ = super::cfg_simplify::remove_unreachable_blocks(func);
-    materialize_mixed_byte_phis(func);
-    let mut replacements = FxHashMap::default();
-    let blocks = func.blocks.indices();
-
-    for block in blocks {
+    for block in func.blocks.indices() {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
-        for &inst in &instructions {
-            if builder
-                .func()
-                .inst_result_value(inst)
-                .is_some_and(|value| replacements.contains_key(&value))
-            {
-                continue;
-            }
-            let kind = builder.func().inst(inst).kind.clone();
-            let keep = (|| {
-                match kind {
-                    InstKind::Alloc { size, kind: AllocationKind::Object(_), semantics } => {
-                        let instruction = builder.func_mut().inst_mut(inst);
-                        instruction.kind =
-                            InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
-                    }
-                    InstKind::MemoryObjectLen(object, kind) => {
-                        if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
-                            builder.func_mut().inst_mut(inst).kind = InstKind::SliceLen(object);
-                            return true;
-                        }
-                        let Some(offset) = P::object_length_offset(kind) else {
-                            return true;
-                        };
-                        let address = builder.add_u64_offset(object, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    }
-                    InstKind::SetMemoryObjectLen(object, len, kind) => {
-                        let Some(offset) = P::object_length_offset(kind) else {
-                            return true;
-                        };
-                        let address = builder.add_u64_offset(object, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, len);
-                    }
-                    InstKind::MemoryObjectData(object, kind) => {
-                        if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
-                            let Some(result) = builder.func().inst_result_value(inst) else {
-                                return false;
-                            };
-                            let pointer = builder.slice_ptr(object);
-                            // pointer = inttoptr slice_ptr to memptr
-                            let pointer = builder.cast(pointer, MirType::MemPtr);
-                            replacements.insert(result, pointer);
-                            return false;
-                        }
-                        let offset = P::object_data_offset(kind);
-                        if offset == 0 {
-                            if let Some(result) = builder.func().inst_result_value(inst) {
-                                replacements.insert(result, object);
-                            }
-                            return false;
-                        }
-                        let offset = builder.imm(offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
-                    }
-                    InstKind::MLoad(object) => {
-                        let Some(location) = builder.func().value_slice_location(object) else {
-                            return true;
-                        };
-                        // %source = slice_ptr %object
-                        // %value = mload %source | calldataload %source
-                        let source = builder.slice_ptr(object);
-                        let Some(kind) = slice_load_kind(location, source) else {
-                            return true;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = kind;
-                    }
-                    InstKind::MemoryObjectFieldAddr { object, layout, field } => {
-                        let Some(offset) = P::field_offset(layout, field) else {
-                            return true;
-                        };
-                        if let Some(location) = builder.func().value_slice_location(object) {
-                            if location == SliceLocation::Calldata {
-                                let Some(result) = builder.func().inst_result_value(inst) else {
-                                    return true;
-                                };
-                                let mut user = None;
-                                let mut multiple_users = false;
-                                for &candidate in &instructions {
-                                    if !builder.func().inst(candidate).operands().contains(&result)
-                                    {
-                                        continue;
-                                    }
-                                    if user.replace(candidate).is_some() {
-                                        multiple_users = true;
-                                        break;
-                                    }
-                                }
-                                if !multiple_users && let Some(mut user) = user {
-                                    let mut address_value = result;
-                                    let mut cast_result = None;
-                                    if let InstKind::PtrToInt(value, 256) =
-                                        builder.func().inst(user).kind
-                                        && value == result
-                                    {
-                                        address_value =
-                                            builder.func().inst_result_value(user).unwrap();
-                                        cast_result = Some(address_value);
-                                        let mut uses = instructions.iter().copied().filter(|&id| {
-                                            builder
-                                                .func()
-                                                .inst(id)
-                                                .operands()
-                                                .contains(&address_value)
-                                        });
-                                        if let Some(load) = uses.next()
-                                            && uses.next().is_none()
-                                        {
-                                            user = load;
-                                        }
-                                    }
-                                    if matches!(builder.func().inst(user).kind, InstKind::MLoad(value) if value == address_value)
-                                    {
-                                        // address = slice_ptr calldata_slice + field_offset
-                                        // value = calldataload address
-                                        let base = builder.slice_ptr(object);
-                                        let address = builder.add_u64_offset(base, offset);
-                                        builder.func_mut().inst_mut(user).kind =
-                                            InstKind::CalldataLoad(address);
-                                        if let Some(cast_result) = cast_result {
-                                            replacements.insert(cast_result, address);
-                                        }
-                                        return false;
-                                    }
-                                }
-                            }
-                            if location != SliceLocation::Memory {
-                                return true;
-                            }
-                            let base = builder.slice_ptr(object);
-                            let address = builder.add_u64_offset(base, offset);
-                            // address = inttoptr byte_offset to memptr
-                            let address = builder.cast(address, MirType::MemPtr);
-                            if let Some(result) = builder.func().inst_result_value(inst) {
-                                replacements.insert(result, address);
-                            }
-                            return false;
-                        }
-                        if offset == 0 {
-                            if let Some(result) = builder.func().inst_result_value(inst) {
-                                replacements.insert(result, object);
-                            }
-                            return false;
-                        }
-                        let offset = builder.imm(offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
-                    }
-                    InstKind::Keccak256Bytes(object) => {
-                        if let Some(MirType::Slice(location)) = builder.func().value_ty(object) {
-                            let source = builder.slice_ptr(object);
-                            let len = builder.slice_len(object);
-                            let data = match location {
-                                SliceLocation::Memory => source,
-                                location
-                                @ (SliceLocation::Calldata | SliceLocation::Returndata) => {
-                                    let data = builder.fmp();
-                                    builder.copy_slice_data(location, data, source, len);
-                                    data
-                                }
-                            };
-                            builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
-                            return true;
-                        }
-                        let kind = crate::mir::MemoryObjectKind::Bytes;
-                        let Some(length_offset) = P::object_length_offset(kind) else {
-                            return true;
-                        };
-                        let length_address = builder.add_u64_offset(object, length_offset);
-                        let len = builder.mload(length_address);
-                        let data = builder.add_u64_offset(object, P::object_data_offset(kind));
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
-                    }
-                    InstKind::MemoryObjectElementAddr { object, layout, index } => {
-                        // The rewritten `Add` keeps the `MemPtr` result type. This is safe because
-                        // Solidity bounds-checks the index before forming the address.
-                        let Some((base, offset)) =
-                            memory_element_address_parts::<P>(&mut builder, object, index, layout)
-                        else {
-                            return true;
-                        };
-                        let offset = offset.unwrap_or_else(|| builder.imm(0));
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(base, offset);
-                    }
-                    InstKind::MemoryObjectLoadField { object, layout, field } => {
-                        let Some(offset) = P::field_offset(layout, field) else {
-                            return true;
-                        };
-                        if let Some(location) = builder.func().value_slice_location(object) {
-                            let base = builder.slice_ptr(object);
-                            let address = builder.add_u64_offset(base, offset);
-                            let Some(kind) = slice_load_kind(location, address) else {
-                                return true;
-                            };
-                            builder.func_mut().inst_mut(inst).kind = kind;
-                            return true;
-                        }
-                        let address = builder.add_u64_offset(object, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    }
-                    InstKind::MemoryObjectStoreField { object, layout, field, value } => {
-                        let Some(offset) = P::field_offset(layout, field) else {
-                            return true;
-                        };
-                        let address = builder.add_u64_offset(object, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
-                    }
-                    InstKind::MemoryObjectLoadElement { object, layout, index } => {
-                        if let Some(location) = builder.func().value_slice_location(object) {
-                            if !matches!(
-                                layout,
-                                MemoryObjectLayout::DynamicArray { element_words: 1 }
-                                    | MemoryObjectLayout::FixedArray { element_words: 1, .. }
-                            ) {
-                                return true;
-                            }
-                            let Some(stride) = P::element_stride(layout) else {
-                                return true;
-                            };
-                            let base = builder.slice_ptr(object);
-                            let address = if let Some(index) = builder.func().value_u64(index)
-                                && let Some(offset) = index.checked_mul(stride)
-                            {
-                                builder.add_u64_offset(base, offset)
-                            } else {
-                                let stride = builder.imm(stride);
-                                let offset = builder.mul(index, stride);
-                                builder.add(base, offset)
-                            };
-                            let Some(kind) = slice_load_kind(location, address) else {
-                                return true;
-                            };
-                            builder.func_mut().inst_mut(inst).kind = kind;
-                            return true;
-                        }
-                        let Some(address) =
-                            memory_element_address::<P>(&mut builder, object, index, layout)
-                        else {
-                            return true;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    }
-                    InstKind::MemoryObjectLoadByte { object, index } => {
-                        let word = if let Some(location) =
-                            builder.func().value_slice_location(object)
-                        {
-                            let source = builder.slice_ptr(object);
-                            let address = dynamic_offset_address(&mut builder, source, index);
-                            match location {
-                                crate::mir::SliceLocation::Calldata => {
-                                    builder.calldataload(address)
-                                }
-                                crate::mir::SliceLocation::Memory => builder.mload(address),
-                                crate::mir::SliceLocation::Returndata => return true,
-                            }
-                        } else {
-                            let address = memory_bytes_address::<P>(&mut builder, object, index);
-                            builder.mload(address)
-                        };
-                        let zero = builder.imm(0);
-                        let byte = builder.byte(zero, word);
-                        if let Some(result) = builder.func().inst_result_value(inst) {
-                            replacements.insert(result, byte);
-                        }
-                        return false;
-                    }
-                    InstKind::MemoryObjectStoreElement { object, layout, index, value } => {
-                        let Some(address) =
-                            memory_element_address::<P>(&mut builder, object, index, layout)
-                        else {
-                            return true;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
-                    }
-                    InstKind::MemoryObjectStoreByte { object, index, value } => {
-                        let address = memory_bytes_address::<P>(&mut builder, object, index);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore8(address, value);
-                    }
-                    InstKind::MemoryObjectStoreWord { object, offset, value } => {
-                        let address = memory_bytes_address::<P>(&mut builder, object, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
-                    }
-                    InstKind::MemorySliceLoadWord { slice, offset } => {
-                        let source = builder.slice_ptr(slice);
-                        let address = dynamic_offset_address(&mut builder, source, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    }
-                    InstKind::CalldataSliceLoadWord { slice, offset } => {
-                        let source = builder.slice_ptr(slice);
-                        let address = dynamic_offset_address(&mut builder, source, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::CalldataLoad(address);
-                    }
-                    InstKind::MemoryObjectCopyFromSlice { object, kind, source } => {
-                        let Some(physical) =
-                            lower_object_copy::<P>(&mut builder, object, kind, None, source)
-                        else {
-                            return true;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = physical;
-                    }
-                    InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => {
-                        let Some(physical) = lower_object_copy::<P>(
-                            &mut builder,
-                            object,
-                            kind,
-                            Some(offset),
-                            source,
-                        ) else {
-                            return true;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = physical;
-                    }
-                    InstKind::MemoryObjectCopy {
-                        destination,
-                        destination_kind,
-                        source,
-                        source_kind,
-                        length,
-                    } => {
-                        let destination = builder
-                            .add_u64_offset(destination, P::object_data_offset(destination_kind));
-                        let source =
-                            builder.add_u64_offset(source, P::object_data_offset(source_kind));
-                        builder.func_mut().inst_mut(inst).kind =
-                            InstKind::MCopy(destination, source, length);
-                    }
-                    _ => {}
+        for inst in instructions {
+            match builder.func().inst(inst).kind {
+                InstKind::PtrAdd(ptr, offset) => {
+                    // address = add (ptrtoint ptr), offset
+                    // result = inttoptr address
+                    let base = builder.cast(ptr, MirType::I256);
+                    let address = builder.add(base, offset);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::IntToPtr(address);
                 }
-                true
-            })();
-            if keep {
-                let mut kind = builder.func().inst(inst).kind.clone();
-                if kind.evm_opcode().is_some()
-                    && !kind.scalar_types_match(builder.func(), builder.func().inst(inst).result_ty)
+                ref kind
+                    if kind.evm_opcode().is_some()
+                        && !kind.scalar_types_match(
+                            builder.func(),
+                            builder.func().inst(inst).result_ty,
+                        ) =>
                 {
                     // scalar_operand = zext scalar_operand to i256
+                    let mut kind = kind.clone();
                     kind.visit_operands_mut(|value| {
                         if matches!(
                             builder.func().value_ty(*value),
@@ -433,20 +109,79 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                     });
                     builder.func_mut().inst_mut(inst).kind = kind;
                 }
-                builder.func_mut().blocks[block].instructions.push(inst);
+                _ => {}
             }
+            builder.func_mut().blocks[block].instructions.push(inst);
         }
     }
 
-    func.replace_uses_canonicalized(&replacements);
+    fold_word_casts(func);
+
     func.attributes.may_return_memory |=
         func.params.iter().chain(func.return_components()).any(|ty| ty.is_memory_reference());
     coalesce_constant_allocations(func);
     normalize_pointer_operands(func);
+    remove_unused_pointer_casts(func);
     true
 }
 
-/// Combines adjacent exact internal allocations before their first observable
+/// Replaces each word cast of a pointer cast of a word with that word, so one value names it.
+///
+/// A pointer cast of a narrower integer keeps its casts: its result word is the zero-extended
+/// integer, which `lower-evm-shaped` materializes.
+fn fold_word_casts(func: &mut Function) {
+    // address = ptrtoint (inttoptr word) => word
+    let replacements: FxHashMap<_, _> = func
+        .instructions()
+        .filter_map(|inst| {
+            let InstKind::PtrToInt(ptr, 256) = func.inst(inst).kind else { return None };
+            let Value::Inst(def) = *func.value(ptr) else { return None };
+            let InstKind::IntToPtr(word) = func.inst(def).kind else { return None };
+            if func.value_ty(word) != Some(MirType::I256) {
+                return None;
+            }
+            Some((func.inst_result_value(inst)?, word))
+        })
+        .collect();
+    func.replace_uses_canonicalized(&replacements);
+}
+
+/// Removes the pointer casts that folding address casts left without uses, as the `inttoptr` of a
+/// lowered `ptradd` whose every user takes the address word.
+fn remove_unused_pointer_casts(func: &mut Function) {
+    let cast_operand = |func: &Function, inst: InstId| match func.inst(inst).kind {
+        InstKind::IntToPtr(operand) | InstKind::PtrToInt(operand, _) => Some(operand),
+        _ => None,
+    };
+    let mut uses = super::egraph::use_counts(func);
+    let mut worklist = func
+        .instructions()
+        .filter(|&inst| {
+            cast_operand(func, inst).is_some()
+                && func.inst_result_value(inst).is_some_and(|value| uses[value] == 0)
+        })
+        .collect::<Vec<_>>();
+    if worklist.is_empty() {
+        return;
+    }
+    let mut dead = DenseBitSet::new_empty(func.num_insts());
+    while let Some(inst) = worklist.pop() {
+        dead.insert(inst);
+        let operand = cast_operand(func, inst).expect("only casts are removed");
+        uses[operand] -= 1;
+        if uses[operand] == 0
+            && let Value::Inst(def) = *func.value(operand)
+            && cast_operand(func, def).is_some()
+        {
+            worklist.push(def);
+        }
+    }
+    for block in func.blocks.iter_mut() {
+        block.instructions.retain(|&inst| !dead.contains(inst));
+    }
+}
+
+/// Combines adjacent constant-size internal allocations before their first observable
 /// operation. Lowering a call's literal arguments commonly emits one small
 /// allocation per argument; one bump for the whole group keeps the same
 /// disjoint ranges while removing repeated free-memory-pointer updates.
@@ -456,54 +191,52 @@ fn coalesce_constant_allocations(func: &mut Function) {
         let mut position = 0;
         while position < instructions.len() {
             let inst_id = instructions[position];
-            let Some(first) = constant_raw_allocation(func, inst_id) else {
+            let Some(first) = constant_allocation(func, inst_id) else {
                 position += 1;
                 continue;
             };
 
             let mut allocations = Vec::new();
             allocations.push((inst_id, first, false));
+            // The member each address belongs to, and whether it is an integer cast of the
+            // member, which only addresses its header word.
             let mut owners = IndexVec::from_vec(vec![None; func.num_values()]);
-            owners[first.result] = Some(0);
+            owners[first.result] = Some((0, false));
             let mut scan = position + 1;
             while scan < instructions.len() {
                 let next_id = instructions[scan];
-                if let Some(allocation) = constant_raw_allocation(func, next_id) {
+                if let Some(allocation) = constant_allocation(func, next_id) {
                     if allocation.deferred_alloc != first.deferred_alloc {
                         break;
                     }
                     let index = allocations.len();
                     allocations.push((next_id, allocation, false));
-                    owners[allocation.result] = Some(index);
+                    owners[allocation.result] = Some((index, false));
                     scan += 1;
                     continue;
                 }
 
-                let result = func.inst_result_value(next_id);
-                let derived_owner = match &func.inst(next_id).kind {
-                    InstKind::Add(lhs, rhs) if func.value_u64(*rhs).is_some() => owners[*lhs],
-                    InstKind::Add(lhs, rhs) if func.value_u64(*lhs).is_some() => owners[*rhs],
-                    _ => None,
-                };
-                let store_owner = match &func.inst(next_id).kind {
-                    InstKind::MStore(address, _) | InstKind::MStore8(address, _) => {
-                        owners[*address]
+                let member =
+                    |value: crate::mir::ValueId| owners[value].filter(|&(_, header)| !header);
+                let derived = match func.inst(next_id).kind {
+                    InstKind::Store(address, .., PtrLocation::Memory)
+                    | InstKind::Store8(address, ..) => {
+                        let Some((owner, _)) = owners[address] else { break };
+                        allocations[owner].2 = true;
+                        scan += 1;
+                        continue;
                     }
+                    InstKind::Add(lhs, rhs) if func.value_u64(rhs).is_some() => member(lhs),
+                    InstKind::Add(lhs, rhs) if func.value_u64(lhs).is_some() => member(rhs),
+                    InstKind::PtrToInt(base, 256) => member(base).map(|(owner, _)| (owner, true)),
                     _ => None,
                 };
-                if let Some(owner) = store_owner {
-                    allocations[owner].2 = true;
-                }
-                if let Some(owner) = derived_owner
-                    && let Some(result) = result
-                {
-                    owners[result] = Some(owner);
-                }
-                if store_owner.is_some() || derived_owner.is_some() {
-                    scan += 1;
-                    continue;
-                }
-                break;
+                let (Some(derived), Some(result)) = (derived, func.inst_result_value(next_id))
+                else {
+                    break;
+                };
+                owners[result] = Some(derived);
+                scan += 1;
             }
 
             if allocations.len() < 2 || allocations.iter().any(|(_, _, stored)| !stored) {
@@ -528,11 +261,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
             for (index, (allocation_id, allocation, _)) in allocations.iter().enumerate() {
                 if index == 0 {
                     let inst = func.inst_mut(*allocation_id);
-                    inst.kind = InstKind::Alloc {
-                        size,
-                        kind: AllocationKind::Raw,
-                        semantics: AllocationSemantics::INTERNAL,
-                    };
+                    inst.kind = InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL };
                     inst.metadata.set_preserves_fmp(preserves_fmp);
                 } else {
                     let offset_value =
@@ -553,186 +282,28 @@ fn coalesce_constant_allocations(func: &mut Function) {
 }
 
 #[derive(Clone, Copy)]
-struct ConstantRawAllocation {
+struct ConstantAllocation {
     result: crate::mir::ValueId,
     size: u64,
     deferred_alloc: bool,
 }
 
-fn constant_raw_allocation(
-    func: &Function,
-    inst_id: crate::mir::InstId,
-) -> Option<ConstantRawAllocation> {
-    let InstKind::Alloc { size, kind: AllocationKind::Raw, semantics } = func.inst(inst_id).kind
-    else {
+fn constant_allocation(func: &Function, inst_id: crate::mir::InstId) -> Option<ConstantAllocation> {
+    let InstKind::Alloc { size, semantics } = func.inst(inst_id).kind else {
         return None;
     };
     if semantics != AllocationSemantics::INTERNAL {
         return None;
     }
-    Some(ConstantRawAllocation {
+    Some(ConstantAllocation {
         result: func.inst_result_value(inst_id)?,
         size: func.value_u64(size)?,
         deferred_alloc: func.inst(inst_id).metadata.deferred_alloc(),
     })
 }
 
-fn slice_load_kind(location: SliceLocation, address: crate::mir::ValueId) -> Option<InstKind> {
-    match location {
-        SliceLocation::Calldata => Some(InstKind::CalldataLoad(address)),
-        SliceLocation::Memory => Some(InstKind::MLoad(address)),
-        SliceLocation::Returndata => None,
-    }
-}
-
-/// Materializes a calldata slice before it enters a memory-object phi.
-///
-/// A conditional assignment such as `bytes memory x = condition ? bytes(0) :
-/// msg.data[...]` has one memory-object incoming edge and one slice incoming
-/// edge. The memory-object users after this pass expect the same header/data
-/// representation on both edges, so copy the slice into a fresh bytes object
-/// before forming the phi.
-///
-/// NOTE: pointers carry no object kind, so this treats every pointer phi with a
-/// slice input as bytes; only `bytes` and `string` values join slices in source.
-fn materialize_mixed_byte_phis(func: &mut Function) {
-    let blocks = func.blocks.indices();
-    for block in blocks {
-        let phis: Vec<_> = func.blocks[block]
-            .instructions
-            .iter()
-            .copied()
-            .filter(|&inst| {
-                let Some(result) = func.inst_result_value(inst) else { return false };
-                matches!(func.value_ty(result), Some(MirType::MemPtr))
-                    && matches!(func.inst(inst).kind, InstKind::Phi(_))
-            })
-            .collect();
-        for inst in phis {
-            let InstKind::Phi(incoming) = func.inst(inst).kind.clone() else { continue };
-            if !incoming
-                .iter()
-                .any(|(_, value)| matches!(func.value_ty(*value), Some(MirType::Slice(_))))
-                || !incoming.iter().all(|(_, value)| {
-                    matches!(func.value_ty(*value), Some(MirType::Slice(_) | MirType::MemPtr))
-                })
-            {
-                continue;
-            }
-
-            let mut lowered = Vec::with_capacity(incoming.len());
-            for (predecessor, value) in incoming {
-                if !matches!(func.value_ty(value), Some(MirType::Slice(_))) {
-                    lowered.push((predecessor, value));
-                    continue;
-                }
-
-                let mut builder = FunctionBuilder::new(func);
-                builder.switch_to_block(predecessor);
-                let length = builder.slice_len(value);
-                let size = builder.add_u64_offset(length, EvmMemoryLayout::WORD_SIZE);
-                let semantics = AllocationSemantics {
-                    alignment: AllocationAlignment::Word,
-                    ..AllocationSemantics::SOLIDITY_UNINITIALIZED
-                };
-                let layout = MemoryObjectLayout::Bytes;
-                let object = builder.alloc_object(size, layout, semantics);
-                builder.set_memory_object_len(object, length, layout.kind());
-                builder.memory_object_copy_from_slice(object, layout.kind(), value);
-                lowered.push((predecessor, object));
-            }
-            func.inst_mut(inst).kind = InstKind::Phi(lowered);
-        }
-    }
-}
-
-fn dynamic_offset_address(
-    builder: &mut FunctionBuilder<'_>,
-    base: crate::mir::ValueId,
-    offset: crate::mir::ValueId,
-) -> crate::mir::ValueId {
-    if builder.func().value_u64(offset) == Some(0) { base } else { builder.add(base, offset) }
-}
-
-fn memory_bytes_address<P: MemoryLayoutPolicy>(
-    builder: &mut FunctionBuilder<'_>,
-    object: crate::mir::ValueId,
-    offset: crate::mir::ValueId,
-) -> crate::mir::ValueId {
-    let base = builder.add_u64_offset(object, P::object_data_offset(MemoryObjectKind::Bytes));
-    builder.add(base, offset)
-}
-
-fn memory_element_address<P: MemoryLayoutPolicy>(
-    builder: &mut FunctionBuilder<'_>,
-    object: crate::mir::ValueId,
-    index: crate::mir::ValueId,
-    layout: MemoryObjectLayout,
-) -> Option<crate::mir::ValueId> {
-    let (base, offset) = memory_element_address_parts::<P>(builder, object, index, layout)?;
-    Some(offset.map_or(base, |offset| dynamic_offset_address(builder, base, offset)))
-}
-
-fn memory_element_address_parts<P: MemoryLayoutPolicy>(
-    builder: &mut FunctionBuilder<'_>,
-    object: crate::mir::ValueId,
-    index: crate::mir::ValueId,
-    layout: MemoryObjectLayout,
-) -> Option<(crate::mir::ValueId, Option<crate::mir::ValueId>)> {
-    let stride = P::element_stride(layout)?;
-    debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-    let base_offset = P::object_data_offset(layout.kind());
-    if let Some(index) = builder.func().value_u64(index)
-        && let Some(offset) = index.checked_mul(stride)
-        && let Some(offset) = base_offset.checked_add(offset)
-    {
-        Some((object, (offset != 0).then(|| builder.imm(offset))))
-    } else {
-        let base = builder.add_u64_offset(object, base_offset);
-        let stride = builder.imm(stride);
-        let offset = builder.mul(index, stride);
-        Some((base, Some(offset)))
-    }
-}
-
-fn lower_slice_copy<P: MemoryLayoutPolicy>(
-    builder: &mut FunctionBuilder<'_>,
-    destination: crate::mir::ValueId,
-    source: crate::mir::ValueId,
-) -> Option<InstKind> {
-    match builder.func().value_ty(source)? {
-        MirType::Slice(location) => {
-            let source_ptr = builder.slice_ptr(source);
-            let length = builder.slice_len(source);
-            Some(match location {
-                crate::mir::SliceLocation::Memory => {
-                    InstKind::MCopy(destination, source_ptr, length)
-                }
-                crate::mir::SliceLocation::Calldata => {
-                    InstKind::CalldataCopy(destination, source_ptr, length)
-                }
-                crate::mir::SliceLocation::Returndata => {
-                    InstKind::ReturnDataCopy(destination, source_ptr, length)
-                }
-            })
-        }
-        _ => None,
-    }
-}
-
-fn lower_object_copy<P: MemoryLayoutPolicy>(
-    builder: &mut FunctionBuilder<'_>,
-    object: crate::mir::ValueId,
-    kind: MemoryObjectKind,
-    offset: Option<crate::mir::ValueId>,
-    source: crate::mir::ValueId,
-) -> Option<InstKind> {
-    let base = builder.add_u64_offset(object, P::object_data_offset(kind));
-    let destination = offset.map_or(base, |offset| dynamic_offset_address(builder, base, offset));
-    lower_slice_copy::<P>(builder, destination, source)
-}
-
-/// Materializes integer operands and pointer results at the physical opcode boundary.
+/// Gives an EVM opcode with a pointer operand, or whose operands or result do not match its types,
+/// word operands, and a word result cast back to the pointer it stands for.
 pub(super) fn normalize_pointer_operands(func: &mut Function) {
     for block in func.blocks.indices() {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -740,16 +311,23 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
         builder.switch_to_block(block);
         for id in instructions {
             let inst = builder.func().inst(id).clone();
+            // Late word passes match addresses as integer arithmetic, so a pointer address becomes
+            // its word here too; `lower-evm-shaped` erases the remaining casts.
+            let mut pointer_operand = false;
+            inst.kind.visit_operands(|value| {
+                pointer_operand |= builder.func().value_ty(value).is_some_and(MirType::is_pointer);
+            });
             if inst.kind.evm_opcode().is_some()
-                && !inst.kind.scalar_types_match(builder.func(), inst.result_ty)
+                && (pointer_operand
+                    || !inst.kind.scalar_types_match(builder.func(), inst.result_ty))
             {
                 builder.set_debug_context(&inst.metadata);
                 let mut kind = inst.kind;
                 // integer_operand = ptrtoint pointer_operand to i256
                 kind.visit_operands_mut(|value| *value = builder.cast(*value, MirType::I256));
-                if inst.result_ty == Some(MirType::MemPtr) {
+                if inst.result_ty.is_some_and(MirType::is_pointer) {
                     // integer_result = opcode integer_operands
-                    // pointer_result = inttoptr integer_result to memptr
+                    // pointer_result = inttoptr integer_result to ptr<memory>
                     let value = builder.emit_inst(kind, Some(MirType::I256));
                     if let Value::Inst(emitted) = *builder.func().value(value) {
                         builder.func_mut().inst_mut(emitted).metadata = inst.metadata.clone();

@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .expr import MASK, Cond, Expr, Unsupported
-from .memory import MemoryAddresses
 
 ROOT = Path(__file__).resolve().parents[3]
 ISLE = ROOT / "crates/codegen/isle"
@@ -70,6 +69,10 @@ def opcode_bindings(source):
         _, (_, pattern), replacement = form
         name, *operands = pattern
         shape, opcode = replacement
+        # An opcode chosen by an extern constructor, such as LOG0 + topic count, is not a
+        # direct binding.
+        if not isinstance(opcode, str):
+            continue
         if name in bindings:
             raise Unsupported(f"multiple instruction-selection rules for {name}")
         bindings[name] = (
@@ -125,11 +128,12 @@ CALL_OPERANDS = {
 
 EFFECT_OPERANDS = {
     **CALL_OPERANDS,
-    **{
-        f"log{count}": ("offset", "size", *(f"topic{i + 1}" for i in range(count)))
-        for count in range(5)
-    },
+    # The topics are one opaque operand that a rewrite must pass through unchanged.
+    "log": ("offset", "size", "topics"),
 }
+
+# Effect operands whose ISLE type is not `Value`.
+EFFECT_OPERAND_TYPES = {"topics": "LogTopics"}
 
 
 class Context:
@@ -144,7 +148,6 @@ class Context:
             else (ISLE / "mir-to-evm/select.isle").read_text()
         )
         self.fresh_id = 0
-        self.memory = MemoryAddresses(self)
         self.integer_width = None if integer_bits is None else Expr.const(integer_bits)
         self.matching_integer = False
 
@@ -209,26 +212,13 @@ class Context:
                 for variants in declarations
                 for variant in variants
             }
-            expected = tuple((field, "Value") for field in EFFECT_OPERANDS[opcode])
+            expected = tuple(
+                (field, EFFECT_OPERAND_TYPES.get(field, "Value"))
+                for field in EFFECT_OPERANDS[opcode]
+            )
             if shapes.get(name) != expected or len(args) != len(expected):
                 raise Unsupported(f"unmodeled or changed call operand schema: {name}")
             return Expr(opcode, tuple(args))
-        if name in MemoryAddresses.SHAPES:
-            # Semantic projections have no single-opcode selector. Check their
-            # schema-generated field names/types before applying the model.
-            declarations = [
-                form[3][1:]
-                for form, _ in forms((ISLE / "mir/prelude.isle").read_text())
-                if form[:3] == ("type", "Op", "extern")
-            ]
-            shapes = {
-                "Op." + variant[0]: variant[1:]
-                for variants in declarations
-                for variant in variants
-            }
-            if shapes.get(name) != MemoryAddresses.SHAPES[name]:
-                raise Unsupported(f"unmodeled or changed memory address schema: {name}")
-            return self.memory.operation(name, tuple(args))
         if name in ("Op.Ne", "Op.Zext", "Op.IntToPtr"):
             self.contracts.add(
                 f"{name}: trusted MIR word inequality or bit-preserving scalar cast"
@@ -368,8 +358,6 @@ class Context:
         if name.startswith("Op."):
             return self.operation(name, [self.constructor(a) for a in args])
         values = [self.constructor(a) for a in args]
-        if name in ("object_data_offset", "field_offset", "layout_kind"):
-            return self.memory.constructor(name, tuple(values))
         if name == "integer_imm" and len(values) == 2:
             if self.integer_width is None or values[0] != self.integer_width:
                 raise Unsupported(
@@ -533,6 +521,7 @@ class Context:
             "single_use",
             "push_not_larger",
             "optimize_for_size",
+            "late_word_sequence",
         ):
             # In particular, different ValueIds must NOT imply different word values.
             self.contracts.add(f"{name}: structural/fork condition is overapproximated")

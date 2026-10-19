@@ -24,10 +24,10 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = lt v0, v2
@@ -36,7 +36,7 @@ fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word
     v5 = storage_array_data_slot 0
     v6 = add v5, v0
     v7 = sload v6 !metadata(storage=symbolic(v6))
-    v8 = checked_add u256, v7, 7
+    v8 = checked_add uint256, v7, 7
     sstore v6, v8 !metadata(storage=symbolic(v6))
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = sload 0 !metadata(storage=slot(0))
@@ -59,10 +59,10 @@ fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word
     ret v24
 }
 
-fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = lt v0, v2
@@ -71,7 +71,7 @@ fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=
     v5 = storage_array_data_slot 0
     v6 = add v5, v0
     v7 = sload v6 !metadata(storage=symbolic(v6))
-    v8 = checked_add u256, v7, 1
+    v8 = checked_add uint256, v7, 1
     sstore v6, v8 !metadata(storage=symbolic(v6))
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = sload 0 !metadata(storage=slot(0))
@@ -94,7 +94,7 @@ fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=
     ret v24
 }
 
-fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = gt v0, 0xffffffffffffffff
@@ -107,13 +107,13 @@ fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi
     ret 7
 }
 
-fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, v3, v4, 0, 32
     jumpi v6, bb2, bb1

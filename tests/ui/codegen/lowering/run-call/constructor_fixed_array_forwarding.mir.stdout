@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_fixed_array_forwarding.sol:C ===
 @module C
-fn @a() -> i256 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @a() -> i256 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 3
     icall revert_if_zero<empty>, v0
@@ -15,12 +15,12 @@ fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[u256], abi_ret
     ret v2
 }
 
-fn @constructor(arg0: i256, arg1: memptr) [constructor, abi_params=[u256, array<3, u256>]] {
+fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256, array<3, uint256>]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb6: v5]
+    v0 = phi [bb0: 0], [bb6: v7]
     v1 = lt v0, 3
     jumpi v1, bb2, bb3
   bb3:
@@ -33,10 +33,12 @@ fn @constructor(arg0: i256, arg1: memptr) [constructor, abi_params=[u256, array<
     sstore v2, 0 !metadata(storage=offset(v0, 1))
     jump bb6
   bb4:
-    v4 = memory_object_load_element memoryfixedarray<3, 1>, arg1, v0
-    sstore v2, v4 !metadata(storage=offset(v0, 1))
+    v4 = shl v0, 5
+    v5 = ptradd arg1, v4
+    v6 = mload v5
+    sstore v2, v6 !metadata(storage=offset(v0, 1))
     jump bb6
   bb6:
-    v5 = add v0, 1
+    v7 = add v0, 1
     jump bb1
 }

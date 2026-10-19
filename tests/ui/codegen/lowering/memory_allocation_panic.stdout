@@ -1,19 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/memory_allocation_panic.sol:MemoryAllocationPanic ===
 @module MemoryAllocationPanic
-fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
     icall panic_if<0x41>, v1
     v2 = not 31
     v3 = and v0, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, arg0
-    v5 = memory_object_len memorybytes, v4
+    v4 = alloc zeroed checked v3
+    mstore v4, arg0
+    v5 = mload v4
     ret v5
 }
 
-fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -34,8 +34,8 @@ fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256],
     v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
-    v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    set_memory_object_len memoryarray, v16, arg0
-    v17 = memory_object_len memoryarray, v16
+    v16 = alloc zeroed checked v9
+    mstore v16, arg0
+    v17 = mload v16
     ret v17
 }

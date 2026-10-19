@@ -3,31 +3,29 @@
 @module LowerAbiEncode
 
 // CHECK-LABEL: {{^[ +].*}}fn @static{{[( ]}}
-// CHECK: + [[STATIC_MEMORY_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
-// CHECK: [[STATIC_MEMORY:v[0-9]+]] = ptrtoint memptr [[STATIC_MEMORY_PTR]] to i256
-// CHECK: + mstore [[STATIC_MEMORY]], 0x1234567800000000000000000000000000000000000000000000000000000000
+// CHECK: + [[STATIC_MEMORY_PTR:v[0-9]+]] = alloc 64
+// CHECK: + mstore [[STATIC_MEMORY_PTR]], 0x1234567800000000000000000000000000000000000000000000000000000000
 // CHECK: + mstore {{v[0-9]+}}, arg0
-// CHECK: + [[STATIC_SLICE:v[0-9]+]] = ptrtoint memptr [[STATIC_MEMORY_PTR]] to i256
-// CHECK: + {{v[0-9]+}} = make_memory_slice [[STATIC_SLICE]], 36
-fn @static(arg0: i256) -> memoryslice {
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[STATIC_MEMORY_PTR]], 36
+fn @static(arg0: i256) -> slice<memory> {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
     ret v0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @static_bytes{{[( ]}}
-// CHECK: + [[OBJECT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-// CHECK: + set_memory_object_len memorybytes, [[OBJECT]], 64
-fn @static_bytes(arg0: i256, arg1: i256) -> memptr {
+// CHECK: + [[OBJECT:v[0-9]+]] = alloc 96 !metadata(preserves_fmp)
+// CHECK: + mstore [[OBJECT]], 64
+fn @static_bytes(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = abi_encode [word, word], object, args arg0, arg1
     ret v0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @selector_bytes{{[( ]}}
-// CHECK: + [[SELECTOR_OBJECT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-// CHECK: + set_memory_object_len memorybytes, [[SELECTOR_OBJECT]], 36
-fn @selector_bytes(arg0: i256) -> memptr {
+// CHECK: + [[SELECTOR_OBJECT:v[0-9]+]] = alloc 96 !metadata(preserves_fmp)
+// CHECK: + mstore [[SELECTOR_OBJECT]], 36
+fn @selector_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, object, args arg0
     ret v0
@@ -35,12 +33,10 @@ fn @selector_bytes(arg0: i256) -> memptr {
 
 // CHECK-LABEL: {{^[ +].*}}fn @scratch{{[( ]}}
 // CHECK: + [[SCRATCH_MEMORY_PTR:v[0-9]+]] = fmp
-// CHECK: [[SCRATCH_MEMORY:v[0-9]+]] = ptrtoint memptr [[SCRATCH_MEMORY_PTR]] to i256
-// CHECK: + mstore [[SCRATCH_MEMORY]], arg0
+// CHECK: + mstore [[SCRATCH_MEMORY_PTR]], arg0
 // CHECK-NOT: alloc
-// CHECK: + [[SCRATCH_SLICE:v[0-9]+]] = ptrtoint memptr [[SCRATCH_MEMORY_PTR]] to i256
-// CHECK: + {{v[0-9]+}} = make_memory_slice [[SCRATCH_SLICE]], 32
-fn @scratch(arg0: i256) -> memoryslice {
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[SCRATCH_MEMORY_PTR]], 32
+fn @scratch(arg0: i256) -> slice<memory> {
   bb0:
     v0 = abi_encode [word], scratch, args arg0
     ret v0
@@ -48,25 +44,27 @@ fn @scratch(arg0: i256) -> memoryslice {
 
 // CHECK-LABEL: {{^[ +].*}}fn @dynamic{{[( ]}}
 // CHECK: + [[DYNAMIC_MEMORY_PTR:v[0-9]+]] = fmp
-// CHECK: [[DYNAMIC_MEMORY:v[0-9]+]] = ptrtoint memptr [[DYNAMIC_MEMORY_PTR]] to i256
 // CHECK: + {{v[0-9]+}} = sub
-// CHECK: + [[DYNAMIC_STORE:v[0-9]+]] = ptrtoint memptr [[DYNAMIC_MEMORY_PTR]] to i256
-// CHECK: + mstore [[DYNAMIC_STORE]], {{v[0-9]+}}
-// CHECK: + [[LENGTH:v[0-9]+]] = slice_len arg0
+// CHECK: + mstore [[DYNAMIC_MEMORY_PTR]], {{v[0-9]+}}
+// CHECK: + [[LENGTH:v[0-9]+]] = extract_value slice<calldata>, arg0, 1
 // CHECK: + calldatacopy
-// CHECK: + [[ALLOCATED_MEMORY_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, {{v[0-9]+}}
-// CHECK: [[ALLOCATED_MEMORY:v[0-9]+]] = ptrtoint memptr [[ALLOCATED_MEMORY_PTR]] to i256
-// CHECK: + {{v[0-9]+}} = make_memory_slice [[ALLOCATED_MEMORY]], {{v[0-9]+}}
-fn @dynamic(arg0: calldataslice) -> memoryslice {
+// CHECK: + [[ALLOCATED_MEMORY_PTR:v[0-9]+]] = alloc {{v[0-9]+}}
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[ALLOCATED_MEMORY_PTR]], {{v[0-9]+}}
+fn @dynamic(arg0: slice<calldata>) -> slice<memory> {
   bb0:
     v0 = abi_encode [calldata_bytes], args arg0
     ret v0
 }
 
+// Memory pointers are never null, so lengths are read without a guard.
 // CHECK-LABEL: {{^[ +].*}}fn @nested_dynamic_array{{[( ]}}
-// CHECK: + {{v[0-9]+}} = memory_object_len memoryarray, arg0
-// CHECK: + {{v[0-9]+}} = memory_object_data memoryarray, arg0
-fn @nested_dynamic_array(arg0: memptr) -> memoryslice {
+// CHECK: + {{v[0-9]+}} = mload arg0
+// CHECK-NOT: zext i1
+// CHECK: + {{v[0-9]+}} = ptradd arg0, 32
+// CHECK: + [[ELEMENT:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK-NOT: zext i1
+// CHECK: + {{v[0-9]+}} = mload [[ELEMENT]]
+fn @nested_dynamic_array(arg0: ptr<memory>) -> slice<memory> {
   bb0:
     v0 = abi_encode [memory_array<memory_array<word>>], args arg0
     ret v0
@@ -74,26 +72,26 @@ fn @nested_dynamic_array(arg0: memptr) -> memoryslice {
 
 // A fixed array expands one encoder site per element.
 // CHECK-LABEL: {{^[ +].*}}fn @fixed_nested_dynamic_arrays{{[( ]}}
-// CHECK: + [[DEST:v[0-9]+]] = inttoptr i256 [[TAIL:v[0-9]+]] to memptr
+// CHECK: + [[DEST:v[0-9]+]] = inttoptr i256 [[TAIL:v[0-9]+]] to ptr<memory>
 // CHECK-NEXT: + [[ENCODED_LEN:v[0-9]+]] = icall @encode_abi_array, {{v[0-9]+}}, [[DEST]]
 // CHECK-NEXT: + {{v[0-9]+}} = add [[TAIL]], [[ENCODED_LEN]]
-fn @fixed_nested_dynamic_arrays(arg0: memptr) -> memoryslice {
+fn @fixed_nested_dynamic_arrays(arg0: ptr<memory>) -> slice<memory> {
   bb0:
-    v0 = abi_encode [array<2, memory_array<word<u8>>>], args arg0
+    v0 = abi_encode [array<2, memory_array<word<uint8>>>], args arg0
     ret v0
 }
 
-fn @returndata_bytes() -> memoryslice {
+fn @returndata_bytes() -> slice<memory> {
   bb0:
     v0 = returndatasize
-    v1 = make_returndata_slice 0, v0
+    v1 = make_returndata_slice ptr<returndata> 0, v0
     v2 = abi_encode [returndata_bytes], args v1
     ret v2
 }
 
-fn @returndata_words(arg0: i256) -> memoryslice {
+fn @returndata_words(arg0: i256) -> slice<memory> {
   bb0:
-    v0 = make_returndata_slice 0, arg0
+    v0 = make_returndata_slice ptr<returndata> 0, arg0
     v1 = abi_encode [returndata_array<word>], args v0
     ret v1
 }

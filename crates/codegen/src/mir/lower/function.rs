@@ -7,10 +7,10 @@ use super::{
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, DataId,
-    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
-    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp, DataId,
+    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LogTopics,
+    MemoryObjectKind, MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart,
+    PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
@@ -52,7 +52,7 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) storage: &'ctx StorageLayout<'gcx>,
     pub(super) contract_id: hir::ContractId,
     /// Contracts whose bytecode this contract embeds.
-    pub(super) bytecode_dependencies: &'gcx DenseBitSet<hir::ContractId>,
+    pub(super) bytecode_dependencies: &'ctx DenseBitSet<hir::ContractId>,
     pub(super) function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
     pub(super) state: &'ctx mut LoweringState,
@@ -319,7 +319,7 @@ struct StorageAccess {
 enum LValuePlace<'gcx> {
     Variable { id: VariableId, span: Span },
     Storage { ty: Ty<'gcx>, access: StorageAccess, span: Span },
-    MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
+    MemoryField { object: ValueId, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
     YulSuffix { id: VariableId, suffix: YulSuffix, span: Span },
@@ -416,15 +416,14 @@ impl InternalFunctionPointerShape {
     fn helper_name(&self, from_assembly: bool) -> Symbol {
         let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
-        helper_name(
-            sym::internal_dispatcher,
-            format!(
-                "{}p_{}_r_{}",
-                if from_assembly { "asm_" } else { "" },
-                if params.is_empty() { "none" } else { &params },
-                if returns.is_empty() { "none" } else { &returns },
-            ),
-        )
+        let suffix = format!(
+            "{}p_{}_r_{}",
+            if from_assembly { "asm_" } else { "" },
+            if params.is_empty() { "none" } else { &params },
+            if returns.is_empty() { "none" } else { &returns },
+        );
+        // `slice<calldata>` -> `slice_calldata`, keeping the name an identifier.
+        helper_name(sym::internal_dispatcher, suffix.replace('<', "_").replace('>', ""))
     }
 }
 
@@ -690,14 +689,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        // Literal arithmetic is exact, so its intermediate values may not fit any integer type.
+        // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
+        // be fractions or may not fit any integer type. Constant names fold in
+        // `lower_constant_variable`.
+        let computes = matches!(
+            expr.kind,
+            ExprKind::Unary(..)
+                | ExprKind::Binary(..)
+                | ExprKind::Ternary(..)
+                | ExprKind::Call(..)
+                | ExprKind::Member(..)
+                | ExprKind::Payable(_)
+                | ExprKind::Index(..)
+                | ExprKind::Tuple(_)
+        );
+        // Inline assembly reads raw words, so only literal arithmetic folds there.
+        let solidity_value = || {
+            !self.in_inline_assembly
+                && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
+        };
         // value = const_eval(expr)
-        if !matches!(expr.kind, ExprKind::Lit(_))
-            && expr.is_int_literal()
-            && let Ok(value) = self.cx.gcx.try_eval_const(expr)
-            && let Some(word) = value.as_evm_word()
+        if computes
+            && (solidity_value() || is_literal_operation(self.cx.gcx, expr))
+            && let Ok(value) = self.cx.gcx.const_eval().eval_expr(expr)
+            && !matches!(value, ConstValue::Bytes(..))
         {
-            return Some(self.builder.imm(word));
+            // Fractions have no runtime value.
+            if let ConstValue::Rational(_) = value {
+                return self.cx.report_unsupported(expr.span, "fractional value");
+            }
+            if let Some(value) = self.lower_const_value(value, expr.span) {
+                return Some(value);
+            }
         }
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
@@ -715,7 +738,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(value),
-                        Some(MirType::Slice(SliceLocation::Calldata))
+                        Some(MirType::Slice(PtrLocation::Calldata))
                     )
                 {
                     Some(self.builder.slice_ptr(value))
@@ -725,7 +748,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Binary(lhs, op, rhs) => {
                 self.assert_operand_ty_registered(expr);
-                if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {
+                if op.kind.is_logical() {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
@@ -959,7 +982,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(rhs_value),
-                        Some(MirType::Slice(SliceLocation::Calldata))
+                        Some(MirType::Slice(PtrLocation::Calldata))
                     );
                 let value = if preserve_calldata_slice {
                     rhs_value
@@ -1147,14 +1170,10 @@ fn arithmetic_kind(ty: Ty<'_>) -> Option<ArithmeticKind> {
     match ty.peel_refs().kind {
         TyKind::Udvt(inner, _) => arithmetic_kind(inner),
         TyKind::Elementary(elementary) => match elementary {
-            solar_sema::hir::ElementaryType::UInt(size)
-            | solar_sema::hir::ElementaryType::UFixed(size, _) => {
+            solar_sema::hir::ElementaryType::UInt(size) => {
                 Some(ArithmeticKind::Unsigned(size.bits()))
             }
-            solar_sema::hir::ElementaryType::Int(size)
-            | solar_sema::hir::ElementaryType::Fixed(size, _) => {
-                Some(ArithmeticKind::Signed(size.bits()))
-            }
+            solar_sema::hir::ElementaryType::Int(size) => Some(ArithmeticKind::Signed(size.bits())),
             _ => None,
         },
         _ => None,
@@ -1197,4 +1216,16 @@ fn reinterpret_word(
             .map_or(word, |validator| validator.cleanup(builder, word))
     };
     builder.cast(word, carrier)
+}
+
+/// Returns `true` if `expr` is a number literal, an operation on them, or a comparison of them.
+///
+/// Only literal arithmetic has literal types, so this needs no walk of the operands.
+fn is_literal_operation(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
+    let is_literal =
+        |expr: &hir::Expr<'_>| gcx.type_of_expr(expr.id).is_some_and(Ty::is_number_literal);
+    match &expr.kind {
+        ExprKind::Binary(lhs, op, rhs) if op.kind.is_cmp() => is_literal(lhs) && is_literal(rhs),
+        _ => is_literal(expr),
+    }
 }

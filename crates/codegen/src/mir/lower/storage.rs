@@ -87,7 +87,7 @@ impl StorageLocation {
             // value = word
             return word;
         }
-        let shifted = shift.map_or(word, |shift| builder.shr(shift, word));
+        let shifted = shift.map_or(word, |shift| builder.shr(word, shift));
         match self.encoding {
             StorageEncoding::Unsigned => {
                 // value = trunc field to its storage width
@@ -101,7 +101,7 @@ impl StorageLocation {
             StorageEncoding::FixedBytes => {
                 // value = field << align_shift
                 let shift = builder.imm(u64::from(Self::word_bytes() - self.size.bytes()) * 8);
-                builder.shl(shift, shifted)
+                builder.shl(shifted, shift)
             }
         }
     }
@@ -115,9 +115,7 @@ pub(super) struct StorageLayout<'gcx> {
 impl<'gcx> StorageLayout<'gcx> {
     /// Computes Solidity's base-to-derived storage order once for a module.
     pub(super) fn for_contract(gcx: Gcx<'gcx>, contract_id: ContractId) -> Self {
-        let base_slot = gcx.hir.contract(contract_id).layout.map_or(U256::ZERO, |layout| {
-            gcx.eval_const(layout).ok().and_then(|value| value.as_u256()).unwrap_or_default()
-        });
+        let base_slot = gcx.const_eval().eval_base_slot(contract_id);
         StorageBuilder::new(gcx, base_slot).lower(contract_id)
     }
 
@@ -236,7 +234,7 @@ impl<'gcx> StorageLayout<'gcx> {
         let field_mask = location.mask();
         let field_mask_value = builder.imm(field_mask);
         let shifted_mask =
-            shift.map_or(field_mask_value, |shift| builder.shl(shift, field_mask_value));
+            shift.map_or(field_mask_value, |shift| builder.shl(field_mask_value, shift));
         let old = location.load(builder, slot);
         let keep_mask = builder.not(shifted_mask);
         let cleared = builder.and(old, keep_mask);
@@ -245,14 +243,14 @@ impl<'gcx> StorageLayout<'gcx> {
                 // encoded = value >> align_shift
                 let shift = builder
                     .imm(u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8);
-                builder.shr(shift, value)
+                builder.shr(value, shift)
             }
             StorageEncoding::Unsigned | StorageEncoding::Signed => value,
         };
         // updated = cleared | (shift ? (encoded & field_mask) << shift : encoded & field_mask)
         // store(slot, updated)
         let value = builder.and(value, field_mask_value);
-        let value = shift.map_or(value, |shift| builder.shl(shift, value));
+        let value = shift.map_or(value, |shift| builder.shl(value, shift));
         let updated = builder.or(cleared, value);
         location.store(builder, slot, updated);
     }
@@ -420,10 +418,6 @@ impl<'gcx> StorageBuilder<'gcx> {
             }
             TyKind::Elementary(ElementaryType::Int(size)) => (size, StorageEncoding::Signed),
             TyKind::Elementary(ElementaryType::UInt(size)) => (size, StorageEncoding::Unsigned),
-            TyKind::Elementary(ElementaryType::Fixed(size, _)) => (size, StorageEncoding::Signed),
-            TyKind::Elementary(ElementaryType::UFixed(size, _)) => {
-                (size, StorageEncoding::Unsigned)
-            }
             TyKind::Enum(id) => {
                 let variants = self.gcx.hir.enumm(id).variants.len().max(1);
                 let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);

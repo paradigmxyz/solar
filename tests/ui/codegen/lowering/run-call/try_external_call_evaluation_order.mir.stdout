@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget ===
 @module TryExternalCallEvaluationOrderTarget
-fn @ping(arg0: i256) -> i256 [selector=0x773acdef, payable, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @ping(arg0: i256) -> i256 [selector=0x773acdef, payable, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
@@ -15,35 +15,33 @@ fn @constructor() [constructor] {
     v0 = abi_encode []
     v1 = datasize TryExternalCallEvaluationOrderTarget_creation_code_0
     v2 = datasize TryExternalCallEvaluationOrderTarget_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy TryExternalCallEvaluationOrderTarget_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v3 = alloc v2
+    datacopy TryExternalCallEvaluationOrderTarget_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = sload 1 !metadata(storage=slot(1))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = zext i160 v9 to i256
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = or v13, v15
-    sstore 1, v16 !metadata(storage=slot(1))
+    v9 = sload 1 !metadata(storage=slot(1))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = zext i160 v7 to i256
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 1, v14 !metadata(storage=slot(1))
     ret
 }
 
 fn @receiver() -> i160 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 1
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = sload 1 !metadata(storage=slot(1))
     v4 = trunc i256 v3 to i160
@@ -53,8 +51,8 @@ fn @receiver() -> i160 {
 fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 2
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 2
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = gas
     ret v3
@@ -63,8 +61,8 @@ fn @gasOpt() -> i256 {
 fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 3
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 3
     sstore 0, v2 !metadata(storage=slot(0))
     ret 0
 }
@@ -72,13 +70,13 @@ fn @valueOpt() -> i256 {
 fn @arg() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_mul u256, v0, 10
-    v2 = checked_add u256, v1, 4
+    v1 = checked_mul uint256, v0, 10
+    v2 = checked_add uint256, v1, 4
     sstore 0, v2 !metadata(storage=slot(0))
     ret 7
 }
 
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @receiver
     v1 = gas
@@ -86,8 +84,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v3 = icall @valueOpt
     v4 = icall @arg
     v5 = abi_encode [word], selector 0x773acdef00000000000000000000000000000000000000000000000000000000, args v4
-    v6 = slice_ptr v5
-    v7 = slice_len v5
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v0 to i256
     v9 = call v2, v8, v3, v6, v7, 0, 32
     jumpi v9, bb1, bb2

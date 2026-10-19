@@ -24,10 +24,15 @@ contract NestedCalldataForward {
     }
 
     // CHECK-LABEL: fn @forwardStructs{{[( ]}}
-    // CHECK: set_memory_object_len memoryarray
-    // CHECK-DAG: set_memory_object_len memorybytes
+    // CHECK: [[ARR:v[0-9]+]] = alloc
+    // CHECK: mstore [[ARR]], {{v[0-9]+}}
+    // CHECK-DAG: [[BYTES:v[0-9]+]] = alloc
+    // CHECK-DAG: mstore [[BYTES]], {{v[0-9]+}}
     // CHECK-DAG: abi_encode [memory_array<tuple<word, memory_bytes>>]
-    // CHECK: memory_object_store_element memoryarray
+    // CHECK: [[OFF1:v[0-9]+]] = shl {{v[0-9]+}}, 5
+    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[ARR]], [[OFF1]]
+    // CHECK-NEXT: [[ELEM_32:v[0-9]+]] = ptradd [[ELEM]], 32
+    // CHECK-NEXT: mstore [[ELEM_32]], {{v[0-9]+}}
     function forwardStructs(NestedItem[] calldata data, StructSink sink) external {
         sink.consume(data);
     }

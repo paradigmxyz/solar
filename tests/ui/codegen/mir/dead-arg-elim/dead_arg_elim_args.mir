@@ -2,8 +2,8 @@
 //@ filecheck:
 @module DeadArgElimArgs
 
-// Argument pruning runs under every objective; result pruning is size-only and
-// is covered by `dead_arg_elim_returns.mir`.
+// Argument and result pruning run under every objective; result pruning is
+// covered in depth by `dead_arg_elim_returns.mir`.
 
 // CHECK-LABEL: fn @leaf(arg0: i256, arg1: i256) -> i256
 fn @leaf(arg0: i256, arg1: i256, arg2: i256) -> i256 {
@@ -73,11 +73,12 @@ fn @tail_entry() [selector=0x01020306] {
     tail_call fn6, 4, 5
 }
 
-// CHECK-LABEL: fn @same_argument(arg0: i1, arg1: i256) -> i256
+// Callers reuse their own argument, so the result goes unread and is pruned.
+// CHECK-LABEL: fn @same_argument(arg0: i1, arg1: i256) {
 // CHECK: sstore 1, arg1
-// CHECK: ret arg1
+// CHECK: ret{{$}}
 // CHECK: sstore 0, arg1
-// CHECK: ret arg1
+// CHECK: ret{{$}}
 fn @same_argument(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
@@ -108,13 +109,12 @@ fn @tail_result(arg0: i1, arg1: i256) -> i256 {
 }
 
 // CHECK-LABEL: fn @forwarded_calls(arg0: i1, arg1: i256) -> i256
-// CHECK:       v0 = icall @same_argument, arg0, arg1
-// CHECK: +     v1 = icall @same_argument, arg0, arg1
-// CHECK: +     v2 = icall @different_arguments, arg0, arg1, 11
-// CHECK:       v3 = icall @tail_result, arg0, arg1
-// CHECK: +     v4 = add arg1, v2
-// CHECK:       v5 = add v4, v3
-// CHECK:       ret v5
+// CHECK: {{^\+ +}}icall @same_argument, arg0, arg1
+// CHECK: {{^\+ +}}icall @same_argument, arg0, arg1
+// CHECK: {{^\+ +}}[[DIFF:v[0-9]+]] = icall @different_arguments, arg0, arg1, 11
+// CHECK: {{^\+ +}}[[TAIL:v[0-9]+]] = icall @tail_result, arg0, arg1
+// CHECK: {{^\+ +}}[[SUM:v[0-9]+]] = add arg1, [[DIFF]]
+// CHECK: {{^\+ +}}{{v[0-9]+}} = add [[SUM]], [[TAIL]]
 fn @forwarded_calls(arg0: i1, arg1: i256) -> i256 [selector=0x01020307] {
   bb0:
     v0 = icall @same_argument, arg0, arg1

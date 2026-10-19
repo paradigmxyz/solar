@@ -227,6 +227,11 @@ impl BinOpKind {
         use BinOpKind::*;
         matches!(self, Shl | Shr | Sar)
     }
+
+    /// Returns `true` if the operator is a logical operator.
+    pub const fn is_logical(self) -> bool {
+        matches!(self, Self::And | Self::Or)
+    }
 }
 
 /// A unary operation: `!x`, `-x`, `x++`.

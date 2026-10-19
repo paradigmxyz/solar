@@ -1,0 +1,24 @@
+//@ revisions: dce adce byte
+//@[dce] compile-flags: -Zmir-pipeline=dce
+//@[adce] compile-flags: -Zmir-pipeline=adce
+//@[byte] compile-flags: -Zmir-pipeline=byte-run-loads
+//@ filecheck:
+// An unused read in a callee still expands memory, and internal calls share
+// memory, so the caller's later `msize` observes it. Each pass that deletes
+// dead reads keeps this one.
+@module MsizeCaller
+
+// CHECK-LABEL: fn @touch()
+// CHECK: mload 0x10000
+fn @touch() {
+  bb0:
+    v0 = mload 65536
+    ret
+}
+
+fn @caller() -> i256 {
+  bb0:
+    icall @touch
+    v0 = msize
+    ret v0
+}

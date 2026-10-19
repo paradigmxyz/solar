@@ -18,7 +18,7 @@
 //! call. The analysis is capped at 32 blocks and 128 live instructions.
 
 use super::{AliasAnalysis, CfgInfo, LocationSize};
-use crate::mir::{BlockId, EffectKind, Function, InstKind, Terminator, Value};
+use crate::mir::{BlockId, EffectKind, Function, InstKind, PtrLocation, Terminator, Value};
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec, map::FxHashMap};
 use std::collections::VecDeque;
 
@@ -53,13 +53,13 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
                 return false;
             }
             match &instruction.kind {
-                InstKind::MStore(address, value) => {
+                InstKind::Store(address, value, PtrLocation::Memory) => {
                     stores.push((block, position, *address, *value, 32))
                 }
-                InstKind::MStore8(address, value) => {
+                InstKind::Store8(address, value) => {
                     stores.push((block, position, *address, *value, 1))
                 }
-                InstKind::MLoad(_) => {}
+                InstKind::Load(_, PtrLocation::Memory) => {}
                 kind if kind.effect_kind() == EffectKind::Pure => {}
                 _ => return false,
             }
@@ -91,7 +91,7 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
             if width == 32
                 && store_address == address
                 && let Value::Inst(inst) = func.value(value)
-                && matches!(func.inst(*inst).kind, InstKind::MLoad(other) if other == address)
+                && matches!(func.inst(*inst).kind, InstKind::Load(other, PtrLocation::Memory) if other == address)
             {
                 Some((value, *inst))
             } else {
@@ -159,7 +159,7 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
         for &inst in &func.blocks[block].instructions {
             if let Some(&slot) = store_slots.get(&inst) {
                 let bit = 1 << (slot + 1);
-                if matches!(func.inst(inst).kind, InstKind::MStore(address, value)
+                if matches!(func.inst(inst).kind, InstKind::Store(address, value, PtrLocation::Memory)
                     if address == words[slot].0 && value == words[slot].1)
                 {
                     state &= !bit;

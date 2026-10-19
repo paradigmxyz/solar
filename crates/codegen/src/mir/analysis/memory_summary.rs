@@ -10,12 +10,13 @@
 //! value identities escape into a caller summary.
 
 use super::{
-    Access, AddressSpace, AliasAnalysis, CallGraphInfo, Location, LocationSize, MemoryAddress,
-    MemoryBase, MemoryLocation,
+    Access, AddressSpace, AliasAnalysis, CallGraphInfo, GasObservations, Location, LocationSize,
+    MemoryAddress, MemoryBase, MemoryLocation,
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
-    Module, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout, utils::IndexLists,
+    MirType, Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+    memory::EvmMemoryLayout, utils::IndexLists,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -40,6 +41,16 @@ pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSu
     }) || func.blocks.iter().any(|block| {
         matches!(&block.terminator, Some(Terminator::TailCall { function, .. }) if callee_observes(*function))
     })
+}
+
+/// Returns whether any function in `module` reads `msize`. Internal calls share memory, so such a
+/// read observes the expansion of every memory access that runs before it, in callers and
+/// siblings as well as callees.
+pub(crate) fn module_may_observe_msize(module: &Module) -> bool {
+    module
+        .functions
+        .iter()
+        .any(|func| func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize)))
 }
 
 /// A bounded set of storage slots, or an unknown access to the whole space.
@@ -653,6 +664,9 @@ fn local_summary(
         heap_derived_values(func)
     };
     let returning = returning_blocks(func);
+    // A `gas` read that only sets an external call's gas forwards it without observing it,
+    // as `GasObservations` treats it within the function.
+    let forwarded_gas = GasObservations::classify_forwarded_call_gas(func);
     for (block_id, block) in func.blocks.iter_enumerated() {
         // A write or free-memory-pointer move on a path that can only revert is
         // rolled back with the call frame, so no caller observes it; a panic
@@ -692,7 +706,8 @@ fn local_summary(
             }
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
             summary.may_observe_msize |= matches!(kind, InstKind::MSize);
-            summary.may_observe_gas |= matches!(kind, InstKind::Gas);
+            summary.may_observe_gas |=
+                matches!(kind, InstKind::Gas) && !forwarded_gas.contains(inst_id);
             // An instruction that consumes both a pointer-derived value and a heap-derived one
             // can relate the object to the heap, whatever the positions: comparisons, pointer
             // arithmetic against the free-memory pointer, or storing one through the other.
@@ -705,25 +720,11 @@ fn local_summary(
             }
 
             match kind {
-                InstKind::MStore(_, value)
-                | InstKind::MStore8(_, value)
-                | InstKind::SStore(_, value)
-                | InstKind::TStore(_, value)
+                InstKind::Store(_, value, _)
+                | InstKind::Store8(_, value)
                 | InstKind::SetFmp(value)
-                | InstKind::MemoryObjectStoreField { value, .. }
-                | InstKind::MemoryObjectStoreElement { value, .. }
-                | InstKind::MemoryObjectStoreByte { value, .. }
-                | InstKind::MemoryObjectStoreWord { value, .. }
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
-                }
-                InstKind::MemorySliceLoadWord { slice, offset } => {
-                    capture_sources(&mut summary, func, sources, *slice);
-                    capture_sources(&mut summary, func, sources, *offset);
-                }
-                InstKind::CalldataSliceLoadWord { slice, offset } => {
-                    capture_sources(&mut summary, func, sources, *slice);
-                    capture_sources(&mut summary, func, sources, *offset);
                 }
                 _ => {}
             }
@@ -791,17 +792,11 @@ fn local_summary(
 /// Blocks from which control can still leave the function without reverting.
 /// Every other block lies on paths that end in `revert` or `invalid`, whose
 /// state changes are discarded with the call frame.
-fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
+pub(crate) fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let mut returning = DenseBitSet::new_empty(func.blocks.len());
     let mut worklist = Vec::new();
     for (block_id, block) in func.blocks.iter_enumerated() {
-        if block.terminator.as_ref().is_none_or(|term| {
-            !term.has_successors()
-                && !matches!(
-                    term,
-                    Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
-                )
-        }) {
+        if block.terminator.as_ref().is_none_or(|term| !term.has_successors() && !term.reverts()) {
             returning.insert(block_id);
             worklist.push(block_id);
         }
@@ -828,7 +823,9 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
             InstKind::Fmp
             | InstKind::MSize
             | InstKind::ICall { function: Callee::Function(_), .. } => true,
-            InstKind::MLoad(address) => func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT),
+            InstKind::Load(address, PtrLocation::Memory) => {
+                func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT)
+            }
             _ => false,
         };
         if root && let Some(result) = func.inst_result_value(inst_id) {
@@ -884,12 +881,11 @@ fn observe_sources(
 /// using transient heap scratch can expose a pointer's position relative to the heap.
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Fmp
-        | InstKind::SetFmp(_)
-        | InstKind::MSize
-        | InstKind::MappingSlotMemory(..)
-        | InstKind::MappingSlotCalldata(..) => true,
-        InstKind::MLoad(address) | InstKind::MStore(address, _) => {
+        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize | InstKind::MappingSlotBytes(..) => {
+            true
+        }
+        InstKind::Load(address, PtrLocation::Memory)
+        | InstKind::Store(address, _, PtrLocation::Memory) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
         _ => false,
@@ -898,21 +894,17 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::SetFmp(_)
-        | InstKind::MappingSlotMemory(..)
-        | InstKind::MappingSlotCalldata(..) => true,
-        InstKind::MStore(address, value) => {
+        InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
+        InstKind::Store(address, value, PtrLocation::Memory) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
                 return false;
             }
             !is_monotonic_fmp_advance(func, value)
         }
-        InstKind::MStore8(address, _)
-        | InstKind::MCopy(address, _, _)
+        InstKind::Store8(address, _)
+        | InstKind::Copy(address, ..)
         | InstKind::MemoryZero(address, _)
-        | InstKind::CalldataCopy(address, _, _)
-        | InstKind::CodeCopy(address, _, _)
-        | InstKind::ReturnDataCopy(address, _, _) => {
+        | InstKind::CodeCopy(address, _, _) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
         InstKind::ExtCodeCopy(_, address, _, _) => {
@@ -958,7 +950,9 @@ fn is_fmp_derived(
 
     let result = match func.value(value) {
         Value::Inst(inst_id) => match func.inst(*inst_id).kind.clone() {
-            InstKind::MLoad(address) => func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT),
+            InstKind::Load(address, PtrLocation::Memory) => {
+                func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+            }
             InstKind::Add(first, second) => {
                 (is_fmp_derived(func, first, visiting, anchor, supported)
                     && is_nonnegative_offset(func, second))
@@ -996,14 +990,12 @@ fn is_nonnegative_offset(func: &Function, value: ValueId) -> bool {
             | InstKind::Sar(_, _)
             | InstKind::Not(_)
             | InstKind::SetFmp(_)
-            | InstKind::MStore(_, _)
-            | InstKind::MStore8(_, _)
-            | InstKind::MCopy(_, _, _)
+            | InstKind::Store(..)
+            | InstKind::Store8(..)
+            | InstKind::Copy(..)
             | InstKind::MemoryZero(_, _)
-            | InstKind::CalldataCopy(_, _, _)
             | InstKind::CodeCopy(_, _, _)
-            | InstKind::ReturnDataCopy(_, _, _)
-            | InstKind::ExtCodeCopy(_, _, _, _)
+            | InstKind::ExtCodeCopy(..)
             | InstKind::Call { .. }
             | InstKind::CallCode { .. }
             | InstKind::StaticCall { .. }
@@ -1093,17 +1085,8 @@ fn instruction_compares_values(kind: &InstKind) -> bool {
 fn instruction_loads_data(kind: &InstKind) -> bool {
     matches!(
         kind,
-        InstKind::MLoad(_)
-            | InstKind::CalldataLoad(_)
-            | InstKind::SLoad(_)
-            | InstKind::TLoad(_)
+        InstKind::Load(..)
             | InstKind::Keccak256(_, _)
-            | InstKind::MemoryObjectLoadField { .. }
-            | InstKind::MemoryObjectLoadElement { .. }
-            | InstKind::MemoryObjectLoadByte { .. }
-            | InstKind::MemoryObjectLen(_, _)
-            | InstKind::MemorySliceLoadWord { .. }
-            | InstKind::CalldataSliceLoadWord { .. }
-            | InstKind::SliceLen(_)
+            | InstKind::ExtractValue { ty: MirType::Slice(_), index: MirType::SLICE_LEN_FIELD, .. }
     )
 }

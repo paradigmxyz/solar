@@ -4,7 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:Test ===
 @module Test
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @libFun, 0
     icall @libFun, 0
@@ -15,10 +15,10 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
 fn @libFun(arg0: i256) {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore arg0, v1 !metadata(storage=symbolic(arg0))
     v2 = sload arg0 !metadata(storage=symbolic(arg0))
-    v3 = checked_add u256, v2, 256
+    v3 = checked_add uint256, v2, 256
     sstore arg0, v3 !metadata(storage=symbolic(arg0))
     jump bb2
   bb2:

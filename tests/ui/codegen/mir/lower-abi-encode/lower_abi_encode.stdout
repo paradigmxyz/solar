@@ -1,314 +1,274 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/lower_abi_encode.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/lower_abi_encode.mir (after lower-abi-encode) ===
   @module LowerAbiEncode
-  fn @static(arg0: i256) -> memoryslice {
+  fn @static(arg0: i256) -> slice<memory> {
     bb0:
 -     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
 -     ret v0
-+     v1 = alloc raw, exact, uninitialized, infallible, 64
-+     v2 = ptrtoint memptr v1 to i256
-+     mstore v2, 0x1234567800000000000000000000000000000000000000000000000000000000
-+     v3 = ptrtoint memptr v1 to i256
-+     v4 = add v3, 4
-+     mstore v4, arg0
-+     v5 = ptrtoint memptr v1 to i256
-+     v6 = make_memory_slice v5, 36
-+     ret v6
++     v1 = alloc 64
++     mstore v1, 0x1234567800000000000000000000000000000000000000000000000000000000
++     v2 = ptrtoint ptr<memory> v1 to i256
++     v3 = add v2, 4
++     mstore v3, arg0
++     v4 = make_memory_slice v1, 36
++     ret v4
   }
   
-  fn @static_bytes(arg0: i256, arg1: i256) -> memptr {
+  fn @static_bytes(arg0: i256, arg1: i256) -> ptr<memory> {
     bb0:
 -     v0 = abi_encode [word, word], object, args arg0, arg1
 -     ret v0
-+     v1 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-+     set_memory_object_len memorybytes, v1, 64
-+     v2 = memory_object_data memorybytes, v1
-+     v3 = ptrtoint memptr v2 to i256
-+     mstore v3, arg0
-+     v4 = ptrtoint memptr v2 to i256
-+     v5 = add v4, 32
-+     mstore v5, arg1
++     v1 = alloc 96 !metadata(preserves_fmp)
++     mstore v1, 64
++     v2 = ptradd v1, 32
++     mstore v2, arg0
++     v3 = ptrtoint ptr<memory> v2 to i256
++     v4 = add v3, 32
++     mstore v4, arg1
 +     ret v1
   }
   
-  fn @selector_bytes(arg0: i256) -> memptr {
+  fn @selector_bytes(arg0: i256) -> ptr<memory> {
     bb0:
 -     v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
 -     ret v0
-+     v1 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-+     set_memory_object_len memorybytes, v1, 36
-+     v2 = memory_object_data memorybytes, v1
-+     v3 = ptrtoint memptr v2 to i256
-+     mstore v3, 0x1234567800000000000000000000000000000000000000000000000000000000
-+     v4 = ptrtoint memptr v2 to i256
-+     v5 = add v4, 4
-+     mstore v5, arg0
++     v1 = alloc 96 !metadata(preserves_fmp)
++     mstore v1, 36
++     v2 = ptradd v1, 32
++     mstore v2, 0x1234567800000000000000000000000000000000000000000000000000000000
++     v3 = ptradd v1, 36
++     mstore v3, arg0
 +     ret v1
   }
   
-  fn @scratch(arg0: i256) -> memoryslice {
+  fn @scratch(arg0: i256) -> slice<memory> {
     bb0:
 -     v0 = abi_encode [word], scratch, args arg0
 -     ret v0
 +     v1 = fmp
-+     v2 = ptrtoint memptr v1 to i256
-+     mstore v2, arg0
-+     v3 = ptrtoint memptr v1 to i256
-+     v4 = make_memory_slice v3, 32
-+     ret v4
++     mstore v1, arg0
++     v2 = make_memory_slice v1, 32
++     ret v2
   }
   
-  fn @dynamic(arg0: calldataslice) -> memoryslice {
+  fn @dynamic(arg0: slice<calldata>) -> slice<memory> {
     bb0:
 -     v0 = abi_encode [calldata_bytes], args arg0
 -     ret v0
 +     v1 = fmp
-+     v2 = ptrtoint memptr v1 to i256
++     v2 = ptrtoint ptr<memory> v1 to i256
 +     v3 = add v2, 32
-+     v4 = ptrtoint memptr v1 to i256
++     v4 = ptrtoint ptr<memory> v1 to i256
 +     v5 = sub v3, v4
-+     v6 = ptrtoint memptr v1 to i256
-+     mstore v6, v5
-+     v7 = slice_len arg0
-+     v8 = not 31
-+     v9 = add v7, 31
-+     v10 = and v9, v8
-+     v11 = add v3, 32
-+     v12 = add v3, v10
-+     mstore v12, 0
-+     mstore v3, v7
-+     v13 = slice_ptr arg0
-+     v14 = add v11, v10
-+     calldatacopy v11, v13, v7 !metadata(memory=heap)
-+     v15 = ptrtoint memptr v1 to i256
-+     v16 = sub v14, v15
-+     v17 = add v16, 0
-+     v18 = add v17, 31
-+     v19 = not 31
-+     v20 = and v18, v19
-+     v21 = alloc raw, exact, uninitialized, infallible, v20 !metadata(preserves_fmp)
-+     v22 = ptrtoint memptr v21 to i256
-+     v23 = make_memory_slice v22, v17
-+     ret v23
++     mstore v1, v5
++     v6 = extract_value slice<calldata>, arg0, 1
++     v7 = not 31
++     v8 = add v6, 31
++     v9 = and v8, v7
++     v10 = add v3, 32
++     v11 = add v3, v9
++     mstore v11, 0
++     mstore v3, v6
++     v12 = extract_value slice<calldata>, arg0, 0
++     v13 = add v10, v9
++     calldatacopy v10, v12, v6 !metadata(memory=heap)
++     v14 = ptrtoint ptr<memory> v1 to i256
++     v15 = sub v13, v14
++     v16 = add v15, 0
++     v17 = add v16, 31
++     v18 = not 31
++     v19 = and v17, v18
++     v20 = alloc v19 !metadata(preserves_fmp)
++     v21 = make_memory_slice v20, v16
++     ret v21
   }
   
-  fn @nested_dynamic_array(arg0: memptr) -> memoryslice {
+  fn @nested_dynamic_array(arg0: ptr<memory>) -> slice<memory> {
     bb0:
 -     v0 = abi_encode [memory_array<memory_array<word>>], args arg0
 -     ret v0
 +     v1 = fmp
-+     v2 = ptrtoint memptr v1 to i256
++     v2 = ptrtoint ptr<memory> v1 to i256
 +     v3 = add v2, 32
-+     v4 = ptrtoint memptr v1 to i256
++     v4 = ptrtoint ptr<memory> v1 to i256
 +     v5 = sub v3, v4
-+     v6 = ptrtoint memptr v1 to i256
-+     mstore v6, v5
-+     v7 = memory_object_len memoryarray, arg0
-+     v8 = ptrtoint memptr arg0 to i256
-+     v9 = eq v8, 0
-+     v10 = eq v9, false
-+     v11 = zext i1 v10 to i256
-+     v12 = mul v7, v11
-+     mstore v3, v12
-+     v13 = add v3, 32
-+     v14 = mul v12, 32
-+     v15 = add v13, v14
-+     v16 = memory_object_data memoryarray, arg0
++     mstore v1, v5
++     v6 = mload arg0
++     mstore v3, v6
++     v7 = add v3, 32
++     v8 = mul v6, 32
++     v9 = add v7, v8
++     v10 = ptradd arg0, 32
 +     jump bb1
 +   bb1:
-+     v17 = phi [bb0: v12], [bb2: v37]
-+     v18 = phi [bb0: v15], [bb2: v35]
-+     v19 = phi [bb0: v13], [bb2: v40]
-+     v20 = phi [bb0: v16], [bb2: v41]
-+     v21 = gt v17, 0
-+     jumpi v21, bb2, bb3
++     v11 = phi [bb0: v6], [bb2: v23]
++     v12 = phi [bb0: v9], [bb2: v22]
++     v13 = phi [bb0: v7], [bb2: v24]
++     v14 = phi [bb0: v10], [bb2: v27]
++     v15 = gt v11, 0
++     jumpi v15, bb2, bb3
 +   bb3:
-+     v42 = ptrtoint memptr v1 to i256
-+     v43 = sub v18, v42
-+     v44 = add v43, 0
-+     v45 = add v44, 31
-+     v46 = not 31
-+     v47 = and v45, v46
-+     v48 = alloc raw, exact, uninitialized, infallible, v47 !metadata(preserves_fmp)
-+     v49 = ptrtoint memptr v48 to i256
-+     v50 = make_memory_slice v49, v44
-+     ret v50
++     v28 = ptrtoint ptr<memory> v1 to i256
++     v29 = sub v12, v28
++     v30 = add v29, 0
++     v31 = add v30, 31
++     v32 = not 31
++     v33 = and v31, v32
++     v34 = alloc v33 !metadata(preserves_fmp)
++     v35 = make_memory_slice v34, v30
++     ret v35
 +   bb2:
-+     v22 = ptrtoint memptr v20 to i256
-+     v23 = mload v22
-+     v24 = sub v18, v13
-+     mstore v19, v24
-+     v25 = inttoptr i256 v23 to memptr
-+     v26 = memory_object_len memoryarray, v25
-+     v27 = eq v23, 0
-+     v28 = eq v27, false
-+     v29 = zext i1 v28 to i256
-+     v30 = mul v26, v29
-+     mstore v18, v30
-+     v31 = mul v30, 32
-+     v32 = add v18, 32
-+     v33 = inttoptr i256 v23 to memptr
-+     v34 = memory_object_data memoryarray, v33
-+     v35 = add v32, v31
-+     v36 = ptrtoint memptr v34 to i256
-+     mcopy v32, v36, v31 !metadata(memory=heap, disjoint)
-+     v37 = sub v17, 1
-+     v38 = ptrtoint memptr v20 to i256
-+     v39 = add v38, 32
-+     v40 = add v19, 32
-+     v41 = inttoptr i256 v39 to memptr
++     v16 = mload v14
++     v17 = sub v12, v7
++     mstore v13, v17
++     v18 = mload v16
++     mstore v12, v18
++     v19 = mul v18, 32
++     v20 = add v12, 32
++     v21 = add v16, 32
++     v22 = add v20, v19
++     mcopy v20, v21, v19 !metadata(memory=heap, disjoint)
++     v23 = sub v11, 1
++     v24 = add v13, 32
++     v25 = ptrtoint ptr<memory> v14 to i256
++     v26 = add v25, 32
++     v27 = inttoptr i256 v26 to ptr<memory>
 +     jump bb1
   }
   
-  fn @fixed_nested_dynamic_arrays(arg0: memptr) -> memoryslice {
+  fn @fixed_nested_dynamic_arrays(arg0: ptr<memory>) -> slice<memory> {
     bb0:
--     v0 = abi_encode [array<2, memory_array<word<u8>>>], args arg0
+-     v0 = abi_encode [array<2, memory_array<word<uint8>>>], args arg0
 -     ret v0
 +     v1 = fmp
-+     v2 = ptrtoint memptr v1 to i256
++     v2 = ptrtoint ptr<memory> v1 to i256
 +     v3 = add v2, 32
-+     v4 = ptrtoint memptr v1 to i256
++     v4 = ptrtoint ptr<memory> v1 to i256
 +     v5 = sub v3, v4
-+     v6 = ptrtoint memptr v1 to i256
-+     mstore v6, v5
-+     v7 = mul 2, 32
-+     v8 = add v3, v7
-+     v9 = memory_object_data memoryfixedarray, arg0
++     mstore v1, v5
++     v6 = mul 2, 32
++     v7 = add v3, v6
++     v8 = ptrtoint ptr<memory> arg0 to i256
 +     jump bb1
 +   bb1:
-+     v10 = phi [bb0: 2], [bb2: v21]
-+     v11 = phi [bb0: v8], [bb2: v20]
-+     v12 = phi [bb0: v3], [bb2: v24]
-+     v13 = phi [bb0: v9], [bb2: v25]
-+     v14 = gt v10, 0
-+     jumpi v14, bb2, bb3
++     v9 = phi [bb0: 2], [bb2: v19]
++     v10 = phi [bb0: v7], [bb2: v18]
++     v11 = phi [bb0: v3], [bb2: v20]
++     v12 = phi [bb0: v8], [bb2: v21]
++     v13 = gt v9, 0
++     jumpi v13, bb2, bb3
 +   bb3:
-+     v26 = ptrtoint memptr v1 to i256
-+     v27 = sub v11, v26
-+     v28 = add v27, 0
-+     v29 = add v28, 31
-+     v30 = not 31
-+     v31 = and v29, v30
-+     v32 = alloc raw, exact, uninitialized, infallible, v31 !metadata(preserves_fmp)
-+     v33 = ptrtoint memptr v32 to i256
-+     v34 = make_memory_slice v33, v28
-+     ret v34
++     v22 = ptrtoint ptr<memory> v1 to i256
++     v23 = sub v10, v22
++     v24 = add v23, 0
++     v25 = add v24, 31
++     v26 = not 31
++     v27 = and v25, v26
++     v28 = alloc v27 !metadata(preserves_fmp)
++     v29 = make_memory_slice v28, v24
++     ret v29
 +   bb2:
-+     v15 = ptrtoint memptr v13 to i256
-+     v16 = mload v15
-+     v17 = sub v11, v3
-+     mstore v12, v17
-+     v18 = inttoptr i256 v11 to memptr
-+     v19 = icall @encode_abi_array, v16, v18
-+     v20 = add v11, v19
-+     v21 = sub v10, 1
-+     v22 = ptrtoint memptr v13 to i256
-+     v23 = add v22, 32
-+     v24 = add v12, 32
-+     v25 = inttoptr i256 v23 to memptr
++     v14 = mload v12
++     v15 = sub v10, v3
++     mstore v11, v15
++     v16 = inttoptr i256 v10 to ptr<memory>
++     v17 = icall @encode_abi_array, v14, v16
++     v18 = add v10, v17
++     v19 = sub v9, 1
++     v20 = add v11, 32
++     v21 = add v12, 32
 +     jump bb1
   }
   
-  fn @returndata_bytes() -> memoryslice {
+  fn @returndata_bytes() -> slice<memory> {
     bb0:
       v0 = returndatasize
-      v1 = make_returndata_slice 0, v0
+      v1 = make_returndata_slice ptr<returndata> 0, v0
 -     v2 = abi_encode [returndata_bytes], args v1
 -     ret v2
 +     v3 = fmp
-+     v4 = ptrtoint memptr v3 to i256
++     v4 = ptrtoint ptr<memory> v3 to i256
 +     v5 = add v4, 32
-+     v6 = ptrtoint memptr v3 to i256
++     v6 = ptrtoint ptr<memory> v3 to i256
 +     v7 = sub v5, v6
-+     v8 = ptrtoint memptr v3 to i256
-+     mstore v8, v7
-+     v9 = slice_len v1
-+     v10 = not 31
-+     v11 = add v0, 31
-+     v12 = and v11, v10
-+     v13 = add v5, 32
-+     v14 = add v5, v12
-+     mstore v14, 0
++     mstore v3, v7
++     v8 = extract_value slice<returndata>, v1, 1
++     v9 = not 31
++     v10 = add v0, 31
++     v11 = and v10, v9
++     v12 = add v5, 32
++     v13 = add v5, v11
++     mstore v13, 0
 +     mstore v5, v0
-+     v15 = slice_ptr v1
-+     v16 = add v13, v12
-+     returndatacopy v13, 0, v0
-+     v17 = ptrtoint memptr v3 to i256
-+     v18 = sub v16, v17
-+     v19 = add v18, 0
-+     v20 = add v19, 31
-+     v21 = not 31
-+     v22 = and v20, v21
-+     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
-+     v24 = ptrtoint memptr v23 to i256
-+     v25 = make_memory_slice v24, v19
-+     ret v25
++     v14 = extract_value slice<returndata>, v1, 0
++     v15 = add v12, v11
++     returndatacopy v12, ptr<returndata> 0, v0
++     v16 = ptrtoint ptr<memory> v3 to i256
++     v17 = sub v15, v16
++     v18 = add v17, 0
++     v19 = add v18, 31
++     v20 = not 31
++     v21 = and v19, v20
++     v22 = alloc v21 !metadata(preserves_fmp)
++     v23 = make_memory_slice v22, v18
++     ret v23
   }
   
-  fn @returndata_words(arg0: i256) -> memoryslice {
+  fn @returndata_words(arg0: i256) -> slice<memory> {
     bb0:
-      v0 = make_returndata_slice 0, arg0
+      v0 = make_returndata_slice ptr<returndata> 0, arg0
 -     v1 = abi_encode [returndata_array<word>], args v0
 -     ret v1
 +     v2 = fmp
-+     v3 = ptrtoint memptr v2 to i256
++     v3 = ptrtoint ptr<memory> v2 to i256
 +     v4 = add v3, 32
-+     v5 = ptrtoint memptr v2 to i256
++     v5 = ptrtoint ptr<memory> v2 to i256
 +     v6 = sub v4, v5
-+     v7 = ptrtoint memptr v2 to i256
-+     mstore v7, v6
-+     v8 = slice_len v0
++     mstore v2, v6
++     v7 = extract_value slice<returndata>, v0, 1
 +     mstore v4, arg0
-+     v9 = mul arg0, 32
-+     v10 = add v4, 32
-+     v11 = slice_ptr v0
-+     v12 = add v10, v9
-+     returndatacopy v10, 0, v9
-+     v13 = ptrtoint memptr v2 to i256
-+     v14 = sub v12, v13
-+     v15 = add v14, 0
-+     v16 = add v15, 31
-+     v17 = not 31
-+     v18 = and v16, v17
-+     v19 = alloc raw, exact, uninitialized, infallible, v18 !metadata(preserves_fmp)
-+     v20 = ptrtoint memptr v19 to i256
-+     v21 = make_memory_slice v20, v15
-+     ret v21
++     v8 = mul arg0, 32
++     v9 = add v4, 32
++     v10 = extract_value slice<returndata>, v0, 0
++     v11 = add v9, v8
++     returndatacopy v9, ptr<returndata> 0, v8
++     v12 = ptrtoint ptr<memory> v2 to i256
++     v13 = sub v11, v12
++     v14 = add v13, 0
++     v15 = add v14, 31
++     v16 = not 31
++     v17 = and v15, v16
++     v18 = alloc v17 !metadata(preserves_fmp)
++     v19 = make_memory_slice v18, v14
++     ret v19
 + }
 + 
-+ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 {
++ fn @encode_abi_array(arg0: i256, arg1: ptr<memory>) -> i256 {
 +   bb0:
-+     v0 = ptrtoint memptr arg1 to i256
-+     v1 = inttoptr i256 arg0 to memptr
-+     v2 = memory_object_len memoryarray, v1
-+     v3 = eq arg0, 0
-+     v4 = eq v3, false
-+     v5 = zext i1 v4 to i256
-+     v6 = mul v2, v5
-+     mstore v0, v6
-+     v7 = mul v6, 32
-+     v8 = add v0, 32
-+     v9 = inttoptr i256 arg0 to memptr
-+     v10 = memory_object_data memoryarray, v9
-+     v11 = add v8, v7
-+     v12 = ptrtoint memptr v10 to i256
-+     v13 = sub v12, v8
-+     v14 = ne v6, 0
-+     jumpi v14, bb1, bb2
++     v0 = ptrtoint ptr<memory> arg1 to i256
++     v1 = mload arg0
++     mstore arg1, v1
++     v2 = mul v1, 32
++     v3 = add v0, 32
++     v4 = add arg0, 32
++     v5 = add v3, v2
++     v6 = sub v4, v3
++     v7 = ne v1, 0
++     jumpi v7, bb1, bb2
 +   bb1:
-+     v15 = phi [bb0: v6], [bb1: v20]
-+     v16 = phi [bb0: v8], [bb1: v21]
-+     v17 = add v16, v13
-+     v18 = mload v17
-+     v19 = and v18, 255
-+     mstore v16, v19
-+     v20 = sub v15, 1
-+     v21 = add v16, 32
-+     v22 = ne v20, 0
-+     jumpi v22, bb1, bb2
++     v8 = phi [bb0: v1], [bb1: v13]
++     v9 = phi [bb0: v3], [bb1: v14]
++     v10 = add v9, v6
++     v11 = mload v10
++     v12 = and v11, 255
++     mstore v9, v12
++     v13 = sub v8, 1
++     v14 = add v9, 32
++     v15 = ne v13, 0
++     jumpi v15, bb1, bb2
 +   bb2:
-+     v23 = phi [bb0: v8], [bb1: v21]
-+     v24 = sub v23, v0
-+     ret v24
++     v16 = phi [bb0: v3], [bb1: v14]
++     v17 = sub v16, v0
++     ret v17
   }
   

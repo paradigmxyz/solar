@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Registry ===
 @module Registry
-fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x8a54c52f, abi_params=[address, bytes32, u256, address, u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x8a54c52f, abi_params=[address, bytes32, uint256, address, uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     calldatacopy 140, 36, 128
     mstore 108, 0x5af43d82803e903d91602b57fd5bf3 !metadata(memory=scratch)
@@ -11,7 +11,7 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
     mstore 53, v0 !metadata(memory=scratch)
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 96, v2
+    v3 = shl v2, 96
     mstore 1, v3 !metadata(memory=scratch)
     mstore 21, arg1 !metadata(memory=scratch)
     v4 = keccak256 0, 85 !metadata(memory=scratch)
@@ -23,8 +23,8 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
   bb2:
     jump bb3
   bb3:
-    v13 = shl 96, v4
-    v14 = shr 96, v13
+    v13 = shl v4, 96
+    v14 = shr v13, 96
     mstore 0, v14 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
@@ -37,7 +37,7 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
     jump bb6
   bb6:
     mstore 108, v9 !metadata(memory=scratch)
-    log4 108, 96, 0x79f19b3655ee38b1ce526556b7731a20c8f218fbda4a3990b6cc4172fdf88722, arg0, arg3, arg4
+    log 108, 96, 0x79f19b3655ee38b1ce526556b7731a20c8f218fbda4a3990b6cc4172fdf88722, arg0, arg3, arg4
     returndata 108, 32
   bb4:
     mstore 0, 0x20188a59 !metadata(memory=scratch)
@@ -49,76 +49,72 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
 @data
   Registry_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Registry"
 
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Registry_creation_code_0
     v2 = datasize Registry_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy Registry_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v3 = alloc v2
+    datacopy Registry_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = gas
-    v12 = shl 0, 0x2200000000000000000000000000000000000000000000000000000000000033
-    v13 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args 0x1111111111111111111111111111111111111111, v12, 0x7a69, 0x4444444444444444444444444444444444444444, 0x5555
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v9 to i256
-    v17 = call v11, v16, 0, v14, v15, 0, 32
-    jumpi v17, bb4, bb3
+    v9 = gas
+    v10 = abi_encode [word<uint160>, word, word, word<uint160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args 0x1111111111111111111111111111111111111111, 0x2200000000000000000000000000000000000000000000000000000000000033, 0x7a69, 0x4444444444444444444444444444444444444444, 0x5555
+    v11 = extract_value slice<memory>, v10, 0
+    v12 = extract_value slice<memory>, v10, 1
+    v13 = zext i160 v7 to i256
+    v14 = call v9, v13, 0, v11, v12, 0, 32
+    jumpi v14, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    v22 = shr 160, v21
-    v23 = eq v22, 0
-    v24 = eq v23, false
-    icall revert_if<empty>, v24
-    v25 = trunc i256 v21 to i160
-    v26 = zext i160 v25 to i256
-    v27 = extcodesize v26
-    v28 = add v27, 63
-    v29 = lt v28, v27
-    icall panic_if<0x41>, v29
-    v30 = not 31
-    v31 = and v28, v30
-    v32 = alloc memorybytes, exact, zeroed, panic, v31
-    set_memory_object_len memorybytes, v32, v27
-    v33 = memory_object_data memorybytes, v32
-    v34 = zext i160 v25 to i256
-    v35 = ptrtoint memptr v33 to i256
-    extcodecopy v34, v35, 0, v27 !metadata(memory=heap)
-    v36 = memory_object_len memorybytes, v32
-    v37 = eq v36, 173
-    icall require<short_string>, v37, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v38 = ptrtoint memptr v32 to i256
-    v39 = add v38, 109
-    v40 = mload v39
-    v41 = ptrtoint memptr v32 to i256
-    v42 = add v41, 141
-    v43 = mload v42
-    v44 = ptrtoint memptr v32 to i256
-    v45 = add v44, 173
-    v46 = mload v45
-    v47 = eq v40, 0x7a69
-    icall require<short_string>, v47, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
-    v48 = eq v43, 0x4444444444444444444444444444444444444444
-    icall require<short_string>, v48, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
-    v49 = eq v46, 0x5555
-    icall require<short_string>, v49, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
+    v15 = returndatasize
+    v16 = lt v15, 32
+    icall revert_if<tuple_data_too_short>, v16
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = shr v18, 160
+    v20 = eq v19, 0
+    v21 = eq v20, false
+    icall revert_if<empty>, v21
+    v22 = trunc i256 v18 to i160
+    v23 = zext i160 v22 to i256
+    v24 = extcodesize v23
+    v25 = add v24, 63
+    v26 = lt v25, v24
+    icall panic_if<0x41>, v26
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc zeroed checked v28
+    mstore v29, v24
+    v30 = ptradd v29, 32
+    v31 = zext i160 v22 to i256
+    extcodecopy v31, v30, 0, v24 !metadata(memory=heap)
+    v32 = mload v29
+    v33 = eq v32, 173
+    icall require<short_string>, v33, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v34 = ptrtoint ptr<memory> v29 to i256
+    v35 = add v34, 109
+    v36 = mload v35
+    v37 = ptrtoint ptr<memory> v29 to i256
+    v38 = add v37, 141
+    v39 = mload v38
+    v40 = ptrtoint ptr<memory> v29 to i256
+    v41 = add v40, 173
+    v42 = mload v41
+    v43 = eq v36, 0x7a69
+    icall require<short_string>, v43, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
+    v44 = eq v39, 0x4444444444444444444444444444444444444444
+    icall require<short_string>, v44, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
+    v45 = eq v42, 0x5555
+    icall require<short_string>, v45, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
     ret 1
 }

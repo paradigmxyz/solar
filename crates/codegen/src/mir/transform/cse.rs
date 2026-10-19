@@ -54,6 +54,11 @@
 //! proves deterministic reads and complete restoration of temporary writes.
 //! Every intervening memory write invalidates these entries. Calls never sink or
 //! inherit a cached result across blocks; no read-footprint disjointness is assumed.
+//! Calls to pure leaf functions are the exception: a `pure` single-result leaf that
+//! touches no storage, writes no memory a caller sees, observes neither gas,
+//! `msize`, nor return data, and reads memory only on paths that revert depends
+//! on its arguments alone, so its result is reused like pure arithmetic, across dominating blocks
+//! and after any write. Such calls still never sink, which would move their revert.
 //! After a `gas` read, state-dependent expressions remain explicit so a later
 //! `gas` read observes their dynamically priced execution. A forward CFG may-observe
 //! analysis includes observations in non-dominating branches and loop backedges.
@@ -72,13 +77,12 @@
 //! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
-    AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
-    SliceLocation, StorageAlias, Value, ValueId,
+    BlockId, Callee, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
+    MirType, Module, PtrLocation, StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
-        MemoryLocation,
+        MemoryLocation, returning_blocks,
     },
     memory::EvmMemoryLayout,
     pass::{
@@ -92,6 +96,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::FxHashMap,
 };
+use solar_sema::hir::StateMutability;
 use std::{cell::OnceCell, cmp::Ordering, ops::Range, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
@@ -121,6 +126,9 @@ impl MirPass for Cse {
             }
         }
         let summaries = (!callers.is_empty()).then(|| analyses.call_summaries(module));
+        let pure_calls = summaries
+            .as_ref()
+            .map(|summaries| Arc::new(pure_leaf_functions(module, &leaves, summaries)));
         let run = |func: &mut Function, analyses: &crate::mir::pass::FunctionAnalyses| {
             if func
                 .instructions()
@@ -128,16 +136,14 @@ impl MirPass for Cse {
                 .nth(1)
                 .is_none()
                 && !func.instructions().any(|inst| {
-                    matches!(
-                        func.inst(inst).kind,
-                        InstKind::MStore(..) | InstKind::SetMemoryObjectLen(..)
-                    )
+                    matches!(func.inst(inst).kind, InstKind::Store(.., PtrLocation::Memory))
                 })
             {
                 return false;
             }
             let mut eliminator = CommonSubexprEliminator {
                 call_summaries: summaries.as_ref().map(Arc::clone),
+                pure_calls: pure_calls.as_ref().map(Arc::clone),
                 ..Default::default()
             };
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
@@ -175,7 +181,7 @@ impl MirPass for FmpCse {
                 let mut cached = None;
                 for &inst in &block.instructions {
                     match &func.inst(inst).kind {
-                        InstKind::MLoad(ptr)
+                        InstKind::Load(ptr, PtrLocation::Memory)
                             if func
                                 .value_u64(mir_utils::resolve_replacement(*ptr, &replacements))
                                 == Some(EvmMemoryLayout::FMP_SLOT) =>
@@ -189,7 +195,7 @@ impl MirPass for FmpCse {
                                 cached = Some(result);
                             }
                         }
-                        InstKind::MStore(ptr, value)
+                        InstKind::Store(ptr, value, PtrLocation::Memory)
                             if func
                                 .value_u64(mir_utils::resolve_replacement(*ptr, &replacements))
                                 == Some(EvmMemoryLayout::FMP_SLOT) =>
@@ -222,13 +228,16 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
-    /// Number of casts the dominator-scoped pass eliminated, which call for another fixpoint
-    /// round only through phi sinking.
-    eliminated_casts: usize,
+    /// Number of eliminations the rest of the dominator-scoped pass already sees, which call
+    /// for another fixpoint round only through phi sinking.
+    eliminated_settled: usize,
     /// Gas observations and their forward CFG closure, including backedges.
     gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
+    /// Pure leaf functions whose calls depend on their arguments alone, per
+    /// [`pure_leaf_functions`].
+    pure_calls: Option<Arc<DenseBitSet<FunctionId>>>,
 }
 
 /// A normalized expression key for CSE lookup.
@@ -236,6 +245,7 @@ struct CommonSubexprEliminator {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum ExprKey {
     Add(OperandKey, OperandKey),
+    PtrAdd(OperandKey, OperandKey),
     Offset(OperandKey, U256),
     Sub(OperandKey, OperandKey),
     Mul(OperandKey, OperandKey),
@@ -265,16 +275,14 @@ enum ExprKey {
     Select(OperandKey, OperandKey, OperandKey),
     MLoad(MemRangeKey),
     RestoringCall(FunctionId, Vec<OperandKey>),
+    /// A call to a pure leaf function, which depends on its arguments alone.
+    PureCall(FunctionId, Vec<OperandKey>),
     Keccak256(MemRangeKey),
     MappingSlot(OperandKey, OperandKey),
     StorageArrayDataSlot(OperandKey),
     StorageArrayElementSlot(OperandKey, OperandKey, u64),
-    MakeSlice(OperandKey, OperandKey, SliceLocation),
-    SlicePtr(OperandKey),
-    SliceLen(OperandKey),
-    MemoryObjectData(OperandKey, MemoryObjectKind),
-    MemoryObjectFieldAddr(OperandKey, MemoryObjectLayout, u64),
-    MemoryObjectElementAddr(OperandKey, MemoryObjectLayout, OperandKey),
+    MakeSlice(OperandKey, OperandKey, PtrLocation),
+    ExtractValue(OperandKey, u32),
     SLoad(StorageAlias),
     TLoad(StorageAlias),
     CalldataLoad(OperandKey),
@@ -328,6 +336,8 @@ struct GlobalCseContext<'a> {
     cfg: &'a CfgInfo,
     /// Compute liveness and loop membership only for a reused load on a cycle.
     reuse: Option<OnceCell<MemoryReuseFacts>>,
+    /// The values the clobber summaries read, built for the first merged memory read.
+    summary_inputs: OnceCell<DenseBitSet<ValueId>>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
 }
@@ -478,7 +488,7 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
-        self.eliminated_casts = 0;
+        self.eliminated_settled = 0;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
         let removed = mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
@@ -490,16 +500,16 @@ impl CommonSubexprEliminator {
         self.refresh_alias(func);
         self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
-            let (before, casts) = (self.eliminated_count, self.eliminated_casts);
+            let (before, merged) = (self.eliminated_count, self.eliminated_settled);
             self.alias().clear_cached_addresses();
             self.run_with_cfg(func, &cfg);
-            if self.eliminated_count - self.eliminated_casts != before - casts {
+            if self.eliminated_count - self.eliminated_settled != before - merged {
                 continue;
             }
-            // Later instructions of the dominator-scoped pass read its merged casts through its
+            // Later instructions of the dominator-scoped pass read its settled merges through its
             // replacements, but phi sinking ran before the merges. Rerun only it, and keep going
             // if it sinks.
-            if self.eliminated_casts == casts {
+            if self.eliminated_settled == merged {
                 break;
             }
             let sunk = self.eliminated_count;
@@ -531,6 +541,7 @@ impl CommonSubexprEliminator {
             side_effect_clobbers: &side_effect_clobbers,
             cfg,
             reuse,
+            summary_inputs: OnceCell::new(),
             replacements: &mut replacements,
             dead: &mut dead,
         };
@@ -708,7 +719,8 @@ impl CommonSubexprEliminator {
                     ctx.replacements.insert(*result, *cached);
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
-                    self.eliminated_casts += usize::from(matches!(key, ExprKey::Cast(..)));
+                    self.eliminated_settled +=
+                        usize::from(Self::settles_in_walk(func, ctx, key, *result));
                     continue;
                 }
                 if kind.has_side_effects() {
@@ -912,6 +924,70 @@ impl CommonSubexprEliminator {
         (summaries, side_effects)
     }
 
+    /// Whether merging `key`, which `result` computes, changes nothing the rest of the
+    /// dominator-scoped pass has already summarized: a state-independent expression, or a memory
+    /// word that no summarized clobber reads as an address, a size, or a slot.
+    fn settles_in_walk(
+        func: &Function,
+        ctx: &GlobalCseContext<'_>,
+        key: &ExprKey,
+        result: ValueId,
+    ) -> bool {
+        !Self::is_path_sensitive_expr(key)
+            || matches!(key, ExprKey::MLoad(_))
+                && !ctx
+                    .summary_inputs
+                    .get_or_init(|| Self::summary_inputs(func, ctx.side_effect_clobbers))
+                    .contains(result)
+    }
+
+    /// The values clobber summaries may read: the operands of the summarized side effects other
+    /// than stored words, and the values they derive from through pointer arithmetic, casts,
+    /// slices, and merges.
+    fn summary_inputs(func: &Function, side_effects: &SideEffectClobbers) -> DenseBitSet<ValueId> {
+        let mut worklist = Vec::new();
+        for &inst in side_effects.keys() {
+            let kind = &func.inst(inst).kind;
+            let stored = match *kind {
+                InstKind::Store(_, value, _) | InstKind::Store8(_, value) => Some(value),
+                _ => None,
+            };
+            kind.visit_operands(|operand| {
+                if Some(operand) != stored {
+                    worklist.push(operand);
+                }
+            });
+        }
+        let mut inputs = DenseBitSet::new_empty(func.num_values());
+        while let Some(value) = worklist.pop() {
+            if !inputs.insert(value) {
+                continue;
+            }
+            let Value::Inst(inst) = *func.value(value) else { continue };
+            let kind = &func.inst(inst).kind;
+            if matches!(
+                kind,
+                InstKind::PtrToInt(..)
+                    | InstKind::IntToPtr(_)
+                    | InstKind::Zext(_)
+                    | InstKind::Add(..)
+                    | InstKind::Sub(..)
+                    | InstKind::PtrAdd(..)
+                    | InstKind::MakeSlice { .. }
+                    | InstKind::ExtractValue {
+                        ty: MirType::Slice(_),
+                        index: MirType::SLICE_PTR_FIELD,
+                        ..
+                    }
+                    | InstKind::Phi(_)
+                    | InstKind::Select(..)
+            ) {
+                kind.visit_operands(|operand| worklist.push(operand));
+            }
+        }
+        inputs
+    }
+
     /// Whether a side effect can ever invalidate `key`.
     ///
     /// This is exactly the union of what [`Self::apply_clobber`] removes, which
@@ -925,16 +1001,13 @@ impl CommonSubexprEliminator {
     fn is_path_sensitive_kind(kind: &InstKind) -> bool {
         matches!(
             kind,
-            InstKind::MLoad(_)
+            InstKind::Load(.., PtrLocation::Memory)
                 | InstKind::Fmp
-                | InstKind::MemoryObjectLen(_, _)
                 | InstKind::Keccak256(_, _)
-                | InstKind::Keccak256Bytes(_)
                 | InstKind::MappingSlot(..)
                 | InstKind::StorageArrayDataSlot(..)
                 | InstKind::StorageArrayElementSlot { .. }
-                | InstKind::SLoad(_)
-                | InstKind::TLoad(_)
+                | InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient)
                 | InstKind::ExtCodeSize(_)
                 | InstKind::ExtCodeHash(_)
                 | InstKind::Balance(_)
@@ -1014,18 +1087,9 @@ impl CommonSubexprEliminator {
     ) -> Option<(ExprKey, ValueId)> {
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
         match *kind {
-            InstKind::MStore(addr, stored) => {
+            InstKind::Store(addr, stored, PtrLocation::Memory) => {
                 let key =
                     self.memory_range_key(func, inst_id, value(addr), LocationSize::Const(32))?;
-                Some((ExprKey::MLoad(key), value(stored)))
-            }
-            InstKind::SetMemoryObjectLen(object, stored, object_kind) => {
-                let key = self.alias().memory_object_length_location(
-                    func,
-                    inst_id,
-                    value(object),
-                    object_kind,
-                )?;
                 Some((ExprKey::MLoad(key), value(stored)))
             }
             _ => None,
@@ -1041,7 +1105,8 @@ impl CommonSubexprEliminator {
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ExprKey> {
-        if !kind.effects().can_common() && !self.is_restoring_call(kind) {
+        if !kind.effects().can_common() && !self.is_restoring_call(kind) && !self.is_pure_call(kind)
+        {
             return None;
         }
         // Helper to get canonical operands after in-block replacements.
@@ -1050,6 +1115,12 @@ impl CommonSubexprEliminator {
         let cast = |cast, v| Some(ExprKey::Cast(cast, operand(v), func.inst(inst_id).result_ty));
 
         match kind {
+            // A pure leaf call depends on its arguments alone, so no side effect invalidates it.
+            InstKind::ICall { function: Callee::Function(function), args }
+                if self.is_pure_call(kind) =>
+            {
+                Some(ExprKey::PureCall(*function, args.iter().map(|&arg| operand(arg)).collect()))
+            }
             InstKind::ICall { function: Callee::Function(function), args }
                 if self.is_restoring_call(kind) =>
             {
@@ -1068,6 +1139,7 @@ impl CommonSubexprEliminator {
                     Some(ExprKey::Add(a, b))
                 }
             }
+            InstKind::PtrAdd(ptr, offset) => Some(ExprKey::PtrAdd(operand(*ptr), operand(*offset))),
             InstKind::Mul(a, b) => {
                 let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
                 Some(ExprKey::Mul(a, b))
@@ -1129,7 +1201,7 @@ impl CommonSubexprEliminator {
             // Unary operations
             InstKind::Not(a) => Some(ExprKey::Not(operand(*a))),
             InstKind::Clz(a) => Some(ExprKey::Clz(operand(*a))),
-            InstKind::CalldataLoad(a) => Some(ExprKey::CalldataLoad(operand(*a))),
+            InstKind::Load(a, PtrLocation::Calldata) => Some(ExprKey::CalldataLoad(operand(*a))),
             InstKind::ExtCodeSize(a) => Some(ExprKey::ExtCodeSize(operand(*a))),
             InstKind::ExtCodeHash(a) => Some(ExprKey::ExtCodeHash(operand(*a))),
             InstKind::Balance(a) => Some(ExprKey::Balance(operand(*a))),
@@ -1144,7 +1216,7 @@ impl CommonSubexprEliminator {
                 operand(*else_value),
             )),
 
-            InstKind::MLoad(addr) => {
+            InstKind::Load(addr, PtrLocation::Memory) => {
                 let key =
                     self.memory_range_key(func, inst_id, value(*addr), LocationSize::Const(32))?;
                 Some(ExprKey::MLoad(key))
@@ -1155,14 +1227,6 @@ impl CommonSubexprEliminator {
                 let size =
                     func.value_u64(size).map_or(LocationSize::Dynamic(size), LocationSize::Const);
                 let key = self.memory_range_key(func, inst_id, value(*offset), size)?;
-                Some(ExprKey::Keccak256(key))
-            }
-            // A whole-object hash reads the length word and the data, so its
-            // range is the object with an unknown extent: any overlapping
-            // write conservatively invalidates the cached hash.
-            InstKind::Keccak256Bytes(object) => {
-                let key =
-                    self.memory_range_key(func, inst_id, value(*object), LocationSize::Unknown)?;
                 Some(ExprKey::Keccak256(key))
             }
             InstKind::MappingSlot(key, slot) => {
@@ -1177,31 +1241,14 @@ impl CommonSubexprEliminator {
             InstKind::MakeSlice { ptr, len, location } => {
                 Some(ExprKey::MakeSlice(operand(*ptr), operand(*len), *location))
             }
-            InstKind::SlicePtr(slice) => Some(ExprKey::SlicePtr(operand(*slice))),
-            InstKind::SliceLen(slice) => Some(ExprKey::SliceLen(operand(*slice))),
-            InstKind::MemoryObjectLen(object, kind) => {
-                let key = self.alias().memory_object_length_location(
-                    func,
-                    inst_id,
-                    value(*object),
-                    *kind,
-                )?;
-                Some(ExprKey::MLoad(key))
-            }
-            InstKind::MemoryObjectData(object, kind) => {
-                Some(ExprKey::MemoryObjectData(operand(*object), *kind))
-            }
-            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
-                Some(ExprKey::MemoryObjectFieldAddr(operand(*object), *layout, *field))
-            }
-            InstKind::MemoryObjectElementAddr { object, layout, index } => {
-                Some(ExprKey::MemoryObjectElementAddr(operand(*object), *layout, operand(*index)))
+            InstKind::ExtractValue { aggregate, index, .. } => {
+                Some(ExprKey::ExtractValue(operand(*aggregate), *index))
             }
 
-            InstKind::SLoad(slot) => Some(ExprKey::SLoad(
+            InstKind::Load(slot, PtrLocation::Storage) => Some(ExprKey::SLoad(
                 self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
             )),
-            InstKind::TLoad(slot) => Some(ExprKey::TLoad(
+            InstKind::Load(slot, PtrLocation::Transient) => Some(ExprKey::TLoad(
                 self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
             )),
 
@@ -1288,7 +1335,7 @@ impl CommonSubexprEliminator {
                 Access::Any(AddressSpace::Immutable) => Clobber::Immutable(ClobberScope::All),
             });
         }
-        if Self::may_change_account_environment(kind) {
+        if kind.may_change_account_state() {
             clobbers.push(Clobber::AccountEnvironment);
         }
     }
@@ -1371,6 +1418,12 @@ impl CommonSubexprEliminator {
         )
     }
 
+    fn is_pure_call(&self, kind: &InstKind) -> bool {
+        matches!(kind, InstKind::ICall { function: Callee::Function(function), args }
+            if args.len() <= 8
+                && self.pure_calls.as_ref().is_some_and(|pure| pure.contains(*function)))
+    }
+
     fn is_restoring_call(&self, kind: &InstKind) -> bool {
         matches!(kind, InstKind::ICall { function: Callee::Function(function), args }
             if args.len() <= 8 && self.call_summaries.as_ref()
@@ -1388,32 +1441,20 @@ impl CommonSubexprEliminator {
         )
     }
 
-    /// STATICCALL is excluded: the whole static context forbids value transfers, `SSTORE`,
-    /// `CREATE`, and `SELFDESTRUCT`, so balances and deployed code cannot change. Its memory
-    /// clobber (the return buffer write) is represented precisely by ModRef analysis.
-    fn may_change_account_environment(kind: &InstKind) -> bool {
-        matches!(
-            kind.effect_kind(),
-            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
-        ) && !matches!(
-            kind,
-            InstKind::StaticCall { .. }
-                | InstKind::AddressCall { kind: AddressCallKind::Static, .. }
-        )
-    }
-
     fn is_sinkable_pure_expr(key: &ExprKey) -> bool {
         !matches!(
             key,
             ExprKey::MLoad(_)
                 | ExprKey::RestoringCall(..)
+                // Moving a call would move its revert.
+                | ExprKey::PureCall(..)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
                 | ExprKey::StorageArrayDataSlot(..)
                 | ExprKey::StorageArrayElementSlot(..)
                 | ExprKey::SLoad(_)
                 | ExprKey::TLoad(_)
-                | ExprKey::CalldataLoad(_)
+                | ExprKey::CalldataLoad(..)
                 | ExprKey::ExtCodeSize(_)
                 | ExprKey::ExtCodeHash(_)
                 | ExprKey::BlockHash(_)
@@ -1567,57 +1608,16 @@ impl CommonSubexprEliminator {
 
     fn value_use_counts(func: &Function) -> FxHashMap<ValueId, usize> {
         let mut counts = FxHashMap::default();
+        let mut count = |value| *counts.entry(value).or_default() += 1;
         for inst_id in func.instructions() {
-            func.inst(inst_id).visit_operands(|value| {
-                *counts.entry(value).or_default() += 1;
-            });
+            func.inst(inst_id).visit_operands(&mut count);
         }
         for block in func.blocks.iter() {
             if let Some(term) = &block.terminator {
-                Self::count_terminator_uses(term, &mut counts);
+                term.visit_operands(&mut count);
             }
         }
         counts
-    }
-
-    fn count_terminator_uses(
-        term: &crate::mir::Terminator,
-        counts: &mut FxHashMap<ValueId, usize>,
-    ) {
-        use crate::mir::Terminator;
-
-        let mut count = |value| {
-            *counts.entry(value).or_default() += 1;
-        };
-
-        match term {
-            Terminator::Jump(_)
-            | Terminator::RevertReturndata
-            | Terminator::Stop
-            | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => count(*condition),
-            Terminator::Switch { value, cases, .. } => {
-                count(*value);
-                for (case, _) in cases {
-                    count(*case);
-                }
-            }
-            Terminator::Return { values } => {
-                for &value in values {
-                    count(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                count(*offset);
-                count(*size);
-            }
-            Terminator::SelfDestruct { recipient } => count(*recipient),
-            Terminator::TailCall { args, .. } => {
-                for &arg in args {
-                    count(arg);
-                }
-            }
-        }
     }
 
     fn apply_replacements_to_all_blocks(
@@ -1648,10 +1648,8 @@ impl CommonSubexprEliminator {
                 }
                 if matches!(
                     inst.kind,
-                    InstKind::SLoad(_)
-                        | InstKind::SStore(_, _)
-                        | InstKind::TLoad(_)
-                        | InstKind::TStore(_, _)
+                    InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient)
+                        | InstKind::Store(.., PtrLocation::Storage | PtrLocation::Transient)
                 ) {
                     inst.metadata.set_storage_alias(None);
                 }
@@ -1664,4 +1662,60 @@ impl CommonSubexprEliminator {
             mir_utils::replace_terminator_uses_canonicalized(term, replacements);
         }
     }
+}
+
+/// Pure leaf functions whose calls CSE may reuse: a call's result depends on its arguments alone.
+///
+/// `pure` keeps environment, state, and gas reads out of the source, inline assembly included,
+/// except for the return data, which the function must not read. The memory summary proves that
+/// the function never touches storage or transient storage, writes no memory a caller sees, and
+/// never observes gas or `msize`, and no block that can still return reads memory: a revert path
+/// may read the error data it staged, but whether a call returns, and what, then depends on its
+/// arguments alone. A repeated call with the same arguments returns the
+/// same word, and when it would revert the dominating call already reverted. A leaf calls no other
+/// function, and one result keeps the reuse a plain value substitution.
+fn pure_leaf_functions(
+    module: &Module,
+    leaves: &DenseBitSet<FunctionId>,
+    summaries: &MemoryCallSummaries,
+) -> DenseBitSet<FunctionId> {
+    let mut pure = DenseBitSet::new_empty(module.functions.len());
+    for id in leaves.iter() {
+        let func = module.function(id);
+        let Some(summary) = summaries.get(id) else { continue };
+        let untouched = [AddressSpace::Storage, AddressSpace::Transient]
+            .into_iter()
+            .all(|space| !summary.reads(space) && !summary.writes(space));
+        if func.attributes.state_mutability != StateMutability::Pure
+            || func.return_components().len() != 1
+            || func.internal_frame_size != 0
+            || !untouched
+            || summary.writes(AddressSpace::Memory)
+            || summary.may_observe_gas()
+            || summary.may_observe_msize()
+            // `pure` assembly may read the return data, which an external call between two
+            // calls replaces.
+            || func.instructions().any(|inst| {
+                matches!(
+                    func.inst(inst).kind,
+                    InstKind::ReturnDataSize | InstKind::Copy(.., PtrLocation::Returndata)
+                )
+            })
+        {
+            continue;
+        }
+        let alias = AliasAnalysis::new(func);
+        let reads_memory = |block: BlockId| {
+            let block = &func.blocks[block];
+            block.instructions.iter().any(|&inst| {
+                alias.instruction_mod_ref(func, inst).reads_space(AddressSpace::Memory)
+            }) || block.terminator.as_ref().is_some_and(|terminator| {
+                alias.terminator_mod_ref(func, terminator).reads_space(AddressSpace::Memory)
+            })
+        };
+        if !returning_blocks(func).iter().any(reads_memory) {
+            pure.insert(id);
+        }
+    }
+    pure
 }

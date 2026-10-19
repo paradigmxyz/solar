@@ -7,77 +7,81 @@
 @types
   struct0: {i256, i256}
 
-fn @test_value() -> i256 [selector=0x130d6dc5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_value() -> i256 [selector=0x130d6dc5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @add, 40, 2
     ret v0
 }
 
-fn @test_storage_view() -> i256 [selector=0x210fb3eb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_storage_view() -> i256 [selector=0x210fb3eb, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @get, 0
     ret v0
 }
 
-fn @test_storage_write() -> i256 [selector=0x66f2b6c3, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_storage_write() -> i256 [selector=0x66f2b6c3, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @bump, 0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v0, 2
-    v1 = memory_object_len memoryarray, v0
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    memory_object_store_element memoryarray<1>, v0, 0, 7
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v0, 1, 8
-    v7 = icall @pick, v0
-    v8 = extract_value struct0, v7, 0
-    v9 = extract_value struct0, v7, 1
-    v10 = insert_value struct0, undef struct0, 0, v8
-    v11 = insert_value struct0, v10, 1, v9
-    ret v11
+    v4 = ptradd v0, 32
+    mstore v4, 7
+    v5 = mload v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    mstore v8, 8
+    v9 = icall @pick, v0
+    v10 = extract_value struct0, v9, 0
+    v11 = extract_value struct0, v9, 1
+    v12 = insert_value struct0, undef struct0, 0, v10
+    v13 = insert_value struct0, v12, 1, v11
+    ret v13
 }
 
-fn @test_calldata(arg0: calldataslice) -> i256 [selector=0x46370830, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_calldata(arg0: slice<calldata>) -> i256 [selector=0x46370830, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @first, arg0
     ret v0
 }
 
-fn @test_using() -> i256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_using() -> i256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v0, 2
-    v1 = memory_object_len memoryarray, v0
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    memory_object_store_element memoryarray<1>, v0, 0, 7
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v0, 1, 8
-    v7 = icall @pick, v0
-    v8 = extract_value struct0, v7, 0
-    v9 = extract_value struct0, v7, 1
-    v10 = checked_add u256, v8, v9
-    ret v10
+    v4 = ptradd v0, 32
+    mstore v4, 7
+    v5 = mload v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    mstore v8, 8
+    v9 = icall @pick, v0
+    v10 = extract_value struct0, v9, 0
+    v11 = extract_value struct0, v9, 1
+    v12 = checked_add uint256, v10, v11
+    ret v12
 }
 
 fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = checked_add u256, arg0, arg1
+    v0 = checked_add uint256, arg0, arg1
     ret v0
 }
 
@@ -90,36 +94,39 @@ fn @get(arg0: i256) -> i256 [view] {
 fn @bump(arg0: i256) {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore arg0, v1 !metadata(storage=symbolic(arg0))
     ret
 }
 
-fn @pick(arg0: memptr) -> struct0 [pure] {
+fn @pick(arg0: ptr<memory>) -> struct0 [pure] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
+    v0 = mload arg0
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    v4 = memory_object_len memoryarray, arg0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = memory_object_load_element memoryarray<1>, arg0, 1
-    v8 = insert_value struct0, undef struct0, 0, v3
-    v9 = insert_value struct0, v8, 1, v7
-    ret v9
+    v3 = ptradd arg0, 32
+    v4 = mload v3
+    v5 = mload arg0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd arg0, 64
+    v9 = mload v8
+    v10 = insert_value struct0, undef struct0, 0, v4
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
-fn @first(arg0: calldataslice) -> i256 [pure] {
+fn @first(arg0: slice<calldata>) -> i256 [pure] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
-    v4 = add v3, 0
-    v5 = calldataload v4
-    ret v5
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 0
+    v6 = calldataload v5
+    ret v6
 }

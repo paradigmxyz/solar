@@ -82,7 +82,7 @@ contract C {
     // `delegatecall(..., out, 32)` does: the input area before Byzantium, scratch memory after.
     // PREBYZ-LABEL: fn @len
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: mload
+    // PREBYZ: {{(^|[^a-z_])}}mload
     // PREBYZ: sload
     // POSTBYZ-LABEL: fn @len
     // POSTBYZ: delegatecall {{.*}}, 0, 32
@@ -95,7 +95,7 @@ contract C {
     // A `bytes` slot is a slot too: the length still comes from storage.
     // PREBYZ-LABEL: fn @bytesLen
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: mload
+    // PREBYZ: {{(^|[^a-z_])}}mload
     // PREBYZ: sload
     // POSTBYZ-LABEL: fn @bytesLen
     // POSTBYZ: delegatecall {{.*}}, 0, 32
@@ -108,7 +108,7 @@ contract C {
     // A struct pointer indexes its member off the returned slot.
     // PREBYZ-LABEL: fn @member
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: mload
+    // PREBYZ: {{(^|[^a-z_])}}mload
     // PREBYZ: sload
     // POSTBYZ-LABEL: fn @member
     // POSTBYZ: delegatecall {{.*}}, 0, 32
@@ -130,11 +130,11 @@ contract C {
 
     // PREBYZ-LABEL: fn @fixedLast
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: mload
+    // PREBYZ: {{(^|[^a-z_])}}mload
     // PREBYZ: sload
     // POSTBYZ-LABEL: fn @fixedLast
     // POSTBYZ: delegatecall {{.*}}, 0, 32
-    // POSTBYZ: mload
+    // POSTBYZ: {{(^|[^a-z_])}}mload
     // POSTBYZ: sload
     function fixedLast() external view returns (uint256) {
         return Lib.fixedRef(fixedNums)[2];
@@ -156,14 +156,14 @@ contract C {
     // first word of the head.
     // PREBYZ-LABEL: fn @agg
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 96
-    // PREBYZ: [[DECODED:v[0-9]+]] = abi_decode [storageptr, array<2, u256>]
+    // PREBYZ: [[DECODED:v[0-9]+]] = abi_decode [storageptr, array<2, uint256>]
     // PREBYZ: [[FIRST:v[0-9]+]] = extract_value {{struct[0-9]+}}, [[DECODED]], 0
     // PREBYZ: [[PACKED:v[0-9]+]] = insert_value {{struct[0-9]+}}, undef {{struct[0-9]+}}, 0, [[FIRST]]
     // PREBYZ: [[PAIR:v[0-9]+]] = insert_value {{struct[0-9]+}}, [[PACKED]], 1,
     // PREBYZ: [[SLOT:v[0-9]+]] = extract_value {{struct[0-9]+}}, [[PAIR]], 0
     // PREBYZ: sload [[SLOT]]
     // POSTBYZ-LABEL: fn @agg
-    // POSTBYZ: [[DECODED:v[0-9]+]] = abi_decode [storageptr, array<2, u256>]
+    // POSTBYZ: [[DECODED:v[0-9]+]] = abi_decode [storageptr, array<2, uint256>]
     // POSTBYZ: [[FIRST:v[0-9]+]] = extract_value {{struct[0-9]+}}, [[DECODED]], 0
     // POSTBYZ: [[PACKED:v[0-9]+]] = insert_value {{struct[0-9]+}}, undef {{struct[0-9]+}}, 0, [[FIRST]]
     // POSTBYZ: [[PAIR:v[0-9]+]] = insert_value {{struct[0-9]+}}, [[PACKED]], 1,
@@ -177,7 +177,7 @@ contract C {
     // An attached call passes the receiver's slot and gets a slot back.
     // PREBYZ-LABEL: fn @attached
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: mload
+    // PREBYZ: {{(^|[^a-z_])}}mload
     // PREBYZ: sload
     // POSTBYZ-LABEL: fn @attached
     // POSTBYZ: delegatecall {{.*}}, 0, 32

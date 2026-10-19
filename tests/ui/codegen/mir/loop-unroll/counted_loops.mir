@@ -212,7 +212,7 @@ fn @exit_use(arg0: i256) -> i256 {
 // CHECK-NOT: {{^[-+]}}
 fn @hoisted(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v6 = shl 3, arg1
+    v6 = shl arg1, 3
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb2: v4]
@@ -237,7 +237,7 @@ fn @hoisted(arg0: i256, arg1: i256) -> i256 {
 // CHECK-COUNT-4: + {{v[0-9]+}} = gt {{v[0-9]+}}, v0
 fn @hoisted_limit(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v6 = shl 3, arg1
+    v6 = shl arg1, 3
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v4]
@@ -345,7 +345,7 @@ fn @nested(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @pointer_counter{{[( ]}}
 // CHECK: + jump [[CHECK:bb[0-9]+]]
 // CHECK-NEXT: + [[CHECK]]:
-// CHECK: + [[WORD:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+// CHECK: + [[WORD:v[0-9]+]] = ptrtoint ptr<memory> {{v[0-9]+}} to i256
 // CHECK: + [[LEFT:v[0-9]+]] = sub v1, [[WORD]]
 // CHECK-NEXT: + [[BIT:v[0-9]+]] = and [[LEFT]], 1
 // CHECK-NEXT: + [[ODD:v[0-9]+]] = ne [[BIT]], 0
@@ -359,15 +359,15 @@ fn @nested(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + jump [[SECOND_HEADER:bb[0-9]+]]
 // CHECK-NEXT: + [[SECOND_HEADER]]:
 // CHECK: + [[SECOND]]:
-fn @pointer_counter(arg0: memptr, arg1: i256) -> i256 {
+fn @pointer_counter(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, arg1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb3: v8]
     v3 = phi [bb0: arg0], [bb3: v9]
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     v5 = ne v4, v1
     jumpi v5, bb3, bb2
   bb2:
@@ -376,7 +376,7 @@ fn @pointer_counter(arg0: memptr, arg1: i256) -> i256 {
     v6 = add v4, 1
     v7 = mload v6
     v8 = add v2, v7
-    v9 = inttoptr i256 v6 to memptr
+    v9 = inttoptr i256 v6 to ptr<memory>
     jump bb1
 }
 
@@ -385,7 +385,7 @@ fn @pointer_counter(arg0: memptr, arg1: i256) -> i256 {
 // pointer by 64 from where it started instead of by 32 twice.
 // CHECK-LABEL: {{^[ +].*}}fn @word_scan{{[( ]}}
 // CHECK: + [[LEFT:v[0-9]+]] = sub arg1, {{v[0-9]+}}
-// CHECK-NEXT: + [[COUNT:v[0-9]+]] = shr 5, [[LEFT]]
+// CHECK-NEXT: + [[COUNT:v[0-9]+]] = shr [[LEFT]], 5
 // CHECK-NEXT: + {{v[0-9]+}} = and [[COUNT]], 1
 // CHECK: [[SECOND:v[0-9]+]] = add v0, 32
 // CHECK: + {{v[0-9]+}} = mload [[SECOND]]
@@ -416,7 +416,7 @@ fn @word_scan(arg0: i256, arg1: i256) -> i256 {
 // CHECK-NEXT: + jumpi [[ODD]],
 fn @word_scan_to_end(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v6 = shl 5, arg1
+    v6 = shl arg1, 5
     v7 = add arg0, v6
     jump bb1
   bb1:
@@ -481,7 +481,7 @@ fn @at_most(arg0: i256) -> i256 {
 // reversed.
 // CHECK-LABEL: {{^[ +].*}}fn @eq_exit{{[( ]}}
 // CHECK: + [[LEFT:v[0-9]+]] = sub arg1, {{v[0-9]+}}
-// CHECK-NEXT: + [[COUNT:v[0-9]+]] = shr 5, [[LEFT]]
+// CHECK-NEXT: + [[COUNT:v[0-9]+]] = shr [[LEFT]], 5
 // CHECK-NEXT: + {{v[0-9]+}} = and [[COUNT]], 1
 fn @eq_exit(arg0: i256, arg1: i256) -> i256 {
   bb0:
@@ -587,7 +587,7 @@ fn @count_down(arg0: i256) -> i256 {
 // comes from bit 1.
 // CHECK-LABEL: {{^[ +].*}}fn @above_zero{{[( ]}}
 // CHECK: + [[I:v[0-9]+]] = phi [bb0: arg0]
-// CHECK: + [[COUNT:v[0-9]+]] = shr 1, [[I]]
+// CHECK: + [[COUNT:v[0-9]+]] = shr [[I]], 1
 // CHECK-NEXT: + {{v[0-9]+}} = and [[COUNT]], 1
 fn @above_zero(arg0: i256) -> i256 {
   bb0:
@@ -693,7 +693,7 @@ fn @invariant_test(arg0: i256, arg1: i256) -> i256 {
 // CHECK-NOT: {{^[-+]}}
 fn @variant_test(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v8 = shl 3, arg1
+    v8 = shl arg1, 3
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v5]
@@ -749,7 +749,7 @@ fn @gas_header(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + {{v[0-9]+}} = ne {{v[0-9]+}}, 0
 fn @reversed(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v6 = shl 3, arg1
+    v6 = shl arg1, 3
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb2: v4]

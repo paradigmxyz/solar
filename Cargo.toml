@@ -140,6 +140,7 @@ evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "9b037449c846515624ff6a
     "map-foldhash",
     "asm-keccak",
 ] }
+ripemd = "0.2"
 ruint = { version = "1.16", features = ["num-integer"] }
 
 num-bigint = "0.5"

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder ===
 @module Recorder
-fn @last() -> i256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @last() -> i256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -11,13 +11,13 @@ fn @sync(arg0: i160) [selector=0xa5841194, abi_params=[address], abi_returns=[],
     ret
 }
 
-fn @transfer(arg0: i160, arg1: i256) -> i1 [selector=0xa9059cbb, abi_params=[address, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @transfer(arg0: i160, arg1: i256) -> i1 [selector=0xa9059cbb, abi_params=[address, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     sstore 0, arg1 !metadata(storage=slot(0))
     ret true
 }
 
-fn @take(arg0: i160, arg1: i160, arg2: i256) [selector=0x0b0d9c09, abi_params=[address, address, u256], abi_returns=[], abi_return_params=[]] {
+fn @take(arg0: i160, arg1: i160, arg2: i256) [selector=0x0b0d9c09, abi_params=[address, address, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg2 !metadata(storage=slot(0))
     ret
@@ -37,7 +37,7 @@ fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[], abi_r
 @data
   Recorder_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder"
 
-fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[int128], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffffffffffffffffffff
@@ -63,7 +63,7 @@ fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns
     jump bb3
   bb3:
     v15 = sload 0 !metadata(storage=slot(0))
-    v16 = shr 128, v15
+    v16 = shr v15, 128
     v17 = signextend 15, v16
     v18 = trunc i256 v17 to i128
     v19 = ne v18, i128 0
@@ -72,7 +72,7 @@ fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns
     jump bb6
   bb4:
     v20 = sload 0 !metadata(storage=slot(0))
-    v21 = shr 128, v20
+    v21 = shr v20, 128
     v22 = signextend 15, v21
     v23 = trunc i256 v22 to i128
     icall @_settleOrTake, v7, v23
@@ -82,8 +82,8 @@ fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns
     v25 = trunc i256 v24 to i160
     v26 = gas
     v27 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
-    v28 = slice_ptr v27
-    v29 = slice_len v27
+    v28 = extract_value slice<memory>, v27, 0
+    v29 = extract_value slice<memory>, v27, 1
     v30 = zext i160 v25 to i256
     v31 = staticcall v26, v30, v28, v29, 0, 32
     jumpi v31, bb8, bb7
@@ -104,7 +104,7 @@ fn @_settleOrTake(arg0: i160, arg1: i128) {
     jumpi v0, bb1, bb2
   bb2:
     v5 = sext i128 arg1 to i256
-    v6 = checked_sub i256, 0, v5
+    v6 = checked_sub int256, 0, v5
     v7 = eq arg0, i160 0
     jumpi v7, bb4, bb5
   bb5:
@@ -118,8 +118,8 @@ fn @_settleOrTake(arg0: i160, arg1: i128) {
     v9 = trunc i256 v8 to i160
     v10 = gas
     v11 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
-    v12 = slice_ptr v11
-    v13 = slice_len v11
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
     v14 = zext i160 v9 to i256
     v15 = extcodesize v14
     v16 = eq v15, 0
@@ -152,9 +152,9 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
   bb3:
     v0 = gas
     v1 = zext i160 arg0 to i256
-    v2 = abi_encode [word<u160>], selector 0xa584119400000000000000000000000000000000000000000000000000000000, args v1
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v2 = abi_encode [word<uint160>], selector 0xa584119400000000000000000000000000000000000000000000000000000000, args v1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 arg1 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -173,9 +173,9 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
   bb8:
     v12 = gas
     v13 = zext i160 arg1 to i256
-    v14 = abi_encode [word<u160>, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v13, arg3
-    v15 = slice_ptr v14
-    v16 = slice_len v14
+    v14 = abi_encode [word<uint160>, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v13, arg3
+    v15 = extract_value slice<memory>, v14, 0
+    v16 = extract_value slice<memory>, v14, 1
     v17 = zext i160 arg0 to i256
     v18 = call v12, v17, 0, v15, v16, 0, 32
     jumpi v18, bb10, bb9
@@ -192,8 +192,8 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     icall revert_if<empty>, v24
     v25 = gas
     v26 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
-    v27 = slice_ptr v26
-    v28 = slice_len v26
+    v27 = extract_value slice<memory>, v26, 0
+    v28 = extract_value slice<memory>, v26, 1
     v29 = zext i160 arg1 to i256
     v30 = extcodesize v29
     v31 = eq v30, 0
@@ -220,9 +220,9 @@ fn @take(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     v0 = gas
     v1 = zext i160 arg0 to i256
     v2 = zext i160 arg2 to i256
-    v3 = abi_encode [word<u160>, word<u160>, word], selector 0xb0d9c0900000000000000000000000000000000000000000000000000000000, args v1, v2, arg3
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v3 = abi_encode [word<uint160>, word<uint160>, word], selector 0xb0d9c0900000000000000000000000000000000000000000000000000000000, args v1, v2, arg3
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 arg1 to i256
     v7 = extcodesize v6
     v8 = eq v7, 0
@@ -243,26 +243,24 @@ fn @constructor() [constructor] {
     v0 = abi_encode []
     v1 = datasize Recorder_creation_code_0
     v2 = datasize Recorder_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy Recorder_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v3 = alloc v2
+    datacopy Recorder_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = sload 2 !metadata(storage=slot(2))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = zext i160 v9 to i256
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = or v13, v15
-    sstore 2, v16 !metadata(storage=slot(2))
+    v9 = sload 2 !metadata(storage=slot(2))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = zext i160 v7 to i256
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 2, v14 !metadata(storage=slot(2))
     ret
 }

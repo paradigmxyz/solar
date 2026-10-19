@@ -5,13 +5,13 @@
 @module DceSideEffects
 // CHECK-LABEL: {{^[ +].*}}fn @effects{{[( ]}}
 // CHECK: {{^[ +].*}}sstore arg0, arg1
-// CHECK: {{^[ +].*}}log0 0, 32
+// CHECK: {{^[ +].*}}log 0, 32
 // CHECK: - {{v[0-9]+}} = add arg0, arg1
 // CHECK: {{^[ +].*}}stop
 fn @effects(arg0: i256, arg1: i256) {
   bb0:
     sstore arg0, arg1
-    log0 0, 32
+    log 0, 32
     v1 = add arg0, arg1
     stop
 }
@@ -53,7 +53,7 @@ fn @fails() {
 
 fn @logs() {
   bb0:
-    log0 0, 0
+    log 0, 0
     ret
 }
 
@@ -106,11 +106,11 @@ fn @observe_memory() -> i256 {
 }
 
 // CHECK-LABEL: fn @abi_dependency
-// CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = memory_object_load_field memorystruct<1>, arg0, 0
+// CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = mload arg0
 // CHECK: {{^[ +].*}}validate_abi [[FIELD]]
-fn @abi_dependency(arg0: memptr) {
+fn @abi_dependency(arg0: ptr<memory>) {
   bb0:
-    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v0 = mload arg0
     validate_abi v0
     ret
 }
@@ -147,8 +147,10 @@ fn @unused_storage_array(arg0: i256) {
     ret
 }
 
+// Other functions in this module still read `msize`, so the read stays even
+// though its own observer is dead.
 // CHECK-LABEL: fn @dead_memory_observer
-// CHECK: - {{v[0-9]+}} = mload 0x1000
+// CHECK: {{^ +}}v0 = mload 0x1000
 // CHECK: - {{v[0-9]+}} = msize
 // CHECK: - {{v[0-9]+}} = add {{v[0-9]+}}, {{v[0-9]+}}
 fn @dead_memory_observer() {

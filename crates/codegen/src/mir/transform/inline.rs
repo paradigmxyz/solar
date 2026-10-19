@@ -1,79 +1,75 @@
-//! Function inlining optimization pass.
+//! Function inlining passes.
 //!
-//! This module inlines profitable MIR internal calls to remove their call
-//! protocol and expose further optimization opportunities. The dedicated single-use pass only
-//! consumes one-call-site, frameless scalar helpers without reference returns. The
-//! original body disappears through function DCE, so this avoids duplicating shared bodies.
-//! Recursive calls, explicit no-inline functions, large helpers, and aggregate allocation
-//! semantics stay with the existing call convention. It runs before late scalar cleanup.
-//! For gas-oriented lifetime decisions, statically counted loops weight call-protocol
-//! savings by their iteration count. Only blocks that dominate every latch in a loop
-//! with a header guard and no other exit receive that weight. Conditional calls and
-//! unknown loop bounds retain the ordinary per-invocation estimate; size mode keeps
-//! its existing growth policy. These are profitability estimates, never legality facts.
-//! Tiny check wrappers containing a semantic check and an optional boolean
-//! negation also inline before check lowering. This exposes the guard to caller
-//! analyses without duplicating arbitrary control flow or allocation. Ordinary
-//! size limits and lifetime pricing still decide whether cloning is profitable.
-//! Tiny forwarding wrappers may return one call result or forward a void call.
-//! Both forms contain only that call and its internal return, so inlining exposes
-//! the original call exactly once without cloning the callee body. Shared void
-//! forwarders that add arguments stay shared: cloning their extra setup can
-//! outweigh the removed wrapper and increase stack pressure at every caller.
-//! Frameless one-word literal initializers also inline when each emitted artifact
-//! contains at most one call site. Creation and runtime reachability are counted
-//! separately, including tail calls and conservative roots for unrooted MIR.
-//! Cloning retains each allocation and its initialization at the original call
-//! site; arbitrary reference-returning helpers remain excluded.
-//! Slice-only helpers are also transparent: constructing and projecting a slice
-//! copies its pointer, length and address space without reading the payload or
-//! allocating memory. Inlining exposes these components before slice lowering
-//! expands a returned slice into the internal multi-word return convention.
-//! The existing leaf-size and lifetime-cost limits still apply.
-//! A targeted late adapter revisits argument-free immutable word helpers after
-//! range checks and CFG cleanup make them straight-line leaves. It admits only
-//! immutable loads and pure single-opcode computations, retaining the ordinary
-//! tiny-leaf size and lifetime-cost limits. Inlining stays at the original call
-//! site, including constructor calls; no runtime immutable bounds are assumed.
-//! Small scalar helpers with phis may also inline at their sole call site.
-//! Backward liveness estimates the callee's peak live words and the caller values
-//! surviving the call. Their sum must fit twelve words, leaving stack-addressing
-//! headroom for operand staging. The gas-only hot-leaf pass reuses that estimate
-//! for bounded acyclic scalar helpers called from inside loops, under the same
-//! twelve-word budget now that the loop's carried words stay resident through
-//! every join a clone adds: each such site is cloned when the call protocol it removes, weighed
-//! over the loop's trip count (ten iterations when none is computable) and the
-//! expected executions, repays the deposited copy; sites outside loops and
-//! callees shared by more than eight sites keep the call. Read-only loops are eligible after
-//! loop-idiom lowering when their bounded MIR shape replaces the original scalar loop.
-//! A phi-free helper with one return may also call a nonreturning failure helper.
-//! Such calls stay on their original paths: caller values never survive them.
-//! Keep more complex call-containing helpers shared rather than duplicating their
-//! diamonds under the scalar leaf cost estimate.
-//! Other writes and shared phi helpers remain excluded. This is a bounded profitability
-//! estimate, not a promise that the scheduler will emit no spills.
-//! A separate gas-only late adapter accepts frameless wrappers with one returning
-//! call followed by at most five physical address/load/store operations. It clones
-//! the call and subsequent memory operations in order, without moving accesses
-//! across the call or assuming alias freedom. Both caller live words and wrapper
-//! peak words must fit the same twelve-word budget, and lifetime gas must pay for
-//! code growth. General allocators, branches, and larger memory helpers stay shared.
-//! After inlining a multi-word return, immediate reads of the published return
-//! buffer can use the returned SSA words directly. Only scalar word loads at
-//! constant offsets before the next memory/effect barrier qualify. Publication
-//! stores remain intact so later observers of the buffer retain their behavior;
-//! ordinary memory DSE decides whether those stores are removable.
+//! Every pass here clones internal callees into their callers to remove the
+//! internal-call protocol and expose further optimization. They share one inliner
+//! and differ in which callees and call sites they admit:
+//!
+//! - `inline` is the general inliner, available through `-Zmir-pipeline`. It does nothing in size
+//!   mode, where general inlining only ever grew real contracts.
+//! - `inline-single-use` consumes frameless helpers without reference returns at their only call
+//!   site; function DCE then removes the original body, so nothing is duplicated. Consuming a
+//!   helper moves its calls into the caller, where each may have become the only call of its
+//!   callee, so the pass repeats for a few bounded rounds until one inlines nothing. Small helpers
+//!   with phis also qualify, whatever their effects and calls, but only scalar ones may contain a
+//!   loop.
+//! - `inline-tiny-leaves` clones one-block leaves of at most four instructions, or twelve at a sole
+//!   call site. It also admits tiny check wrappers (a semantic check and an optional boolean
+//!   negation), which exposes the guard to caller analyses; frameless one-word literal initializers
+//!   when each artifact contains at most one call site, counting creation and runtime reachability
+//!   separately; and transparent forwarders. A forwarder returns an argument, returns one call
+//!   result, forwards a void call, or only builds and projects a slice, which copies its pointer,
+//!   length and address space without touching memory (`calldatasize` may measure it, as `msg.data`
+//!   does in `_msgData()`). Shared void forwarders that add arguments stay shared: cloning their
+//!   setup can outweigh the removed wrapper and raise stack pressure at every caller.
+//! - `inline-constant-leaves` specializes one constant-argument call to a shared pure leaf.
+//! - `inline-hot-leaves` (gas only) clones bounded acyclic scalar helpers called from inside loops.
+//!   Call-protocol savings are weighed over the loop's trip count, ten iterations when none is
+//!   computable, and callees shared by more than eight sites keep the call.
+//! - `inline-immutable-leaves` revisits argument-free immutable word helpers after range checks and
+//!   CFG cleanup make them straight-line leaves. It admits only immutable loads and pure
+//!   single-opcode computations, under the tiny-leaf limits, and assumes no runtime immutable
+//!   bounds.
+//! - `inline-memory-wrappers` (gas only) clones frameless wrappers of one returning call followed
+//!   by at most five physical address, load and store operations, in order, without moving accesses
+//!   across the call or assuming alias freedom.
+//! - `specialize-function-pointers` turns calls through constant internal function pointers into
+//!   direct calls.
+//!
+//! Profitability compares the call protocol a clone removes, weighted by expected
+//! executions and, for statically counted loops, by iteration count, with the
+//! deposit cost of the cloned bytes. Only blocks that dominate every latch of a
+//! guarded loop with no other exit receive the trip-count weight. These are
+//! estimates, never legality facts.
+//!
+//! Callees with phis need a stack estimate: backward liveness gives the callee's
+//! peak live words and the caller words surviving the call, and their sum must fit
+//! twelve words, leaving headroom for operand staging. This bounds spills but does
+//! not promise the scheduler emits none.
+//!
+//! Recursive calls, explicit no-inline functions, large helpers, and aggregate
+//! allocation semantics keep the call. A tail call to a helper that never returns,
+//! as `outline-reverts` leaves on failure paths, counts as a revert; any other tail
+//! call keeps its callee shared. A phi-free helper with one return may call such a
+//! failure helper, since caller values never survive the call; more complex helpers
+//! with calls stay shared rather than duplicating their diamonds under the scalar
+//! leaf estimate.
+//!
+//! After a multi-word return is inlined, immediate reads of the published return
+//! buffer use the returned SSA words directly. Only scalar word loads at constant
+//! offsets before the next memory or effect barrier qualify. The publication stores
+//! stay, so later observers of the buffer keep their behavior; memory DSE decides
+//! whether they can go.
 
 use crate::{
     backend::evm::{op, select},
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
-        ImmutableEncoding, InstId, InstKind, Instruction, MemoryObjectKind, MirPhase, MirType,
-        Module, Terminator, Value, ValueId,
-        analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
+        ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, PtrLocation,
+        Terminator, Value, ValueId,
+        analysis::{CallGraphInfo, Liveness, LoopAnalyzer, direct_callees},
         immutable::immutable_push_type_size,
-        memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+        memory::EvmMemoryLayout,
         pass::MirPass,
         utils::{rebuild_predecessors, replace_terminator_uses_canonicalized, resolve_replacement},
     },
@@ -98,12 +94,13 @@ impl MirPass for Inline {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
-            MirInliner::for_size()
-        } else {
-            MirInliner::default()
-        };
-        inliner.run(gcx, module).inlined != 0
+        // General inlining only ever grew emitted code on real contracts in size mode: both
+        // multi-use duplication and the cascades that single-call inlining sets off were measured
+        // to increase size.
+        if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
+            return false;
+        }
+        MirInliner::default().run(gcx, module).inlined != 0
     }
 }
 
@@ -217,6 +214,11 @@ pub(crate) enum InlineSingleUse {
     Physical,
 }
 
+impl InlineSingleUse {
+    /// Rounds of consuming helpers whose last call a previous round moved.
+    const MAX_ROUNDS: usize = 4;
+}
+
 impl MirPass for InlineSingleUse {
     fn name(&self) -> &'static str {
         "inline-single-use"
@@ -228,23 +230,33 @@ impl MirPass for InlineSingleUse {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let stats = MirInliner {
-            mode: InlineMode::SingleUse,
-            max_single_call_sanity_instructions: 256,
-            frame_staging_allowed: matches!(self, Self::Semantic)
-                && module.phase < MirPhase::Lowered,
-            objects_lowered: matches!(self, Self::Physical),
-            ..MirInliner::default()
+        // Consuming a callee moves its calls into the caller, where each can be
+        // single-use in turn. Rounds repeat until one inlines nothing, at most
+        // `MAX_ROUNDS` times.
+        let mut changed = false;
+        for _ in 0..Self::MAX_ROUNDS {
+            let stats = MirInliner {
+                mode: InlineMode::SingleUse,
+                max_single_call_sanity_instructions: 256,
+                frame_staging_allowed: matches!(self, Self::Semantic)
+                    && module.phase < MirPhase::Lowered,
+                objects_lowered: matches!(self, Self::Physical),
+                ..MirInliner::default()
+            }
+            .run(gcx, module);
+            // The consumed bodies are dead now. Remove exactly those instead of a
+            // module-wide dead-function sweep, which would also delete uncalled
+            // functions that were never reachable, such as the subjects of
+            // pipeline tests.
+            if !stats.consumed.is_empty() {
+                super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
+            }
+            if stats.inlined == 0 {
+                break;
+            }
+            changed = true;
         }
-        .run(gcx, module);
-        // The consumed bodies are dead now. Remove exactly those instead of a
-        // module-wide dead-function sweep, which would also delete uncalled
-        // functions that were never reachable, such as the subjects of
-        // pipeline tests.
-        if !stats.consumed.is_empty() {
-            super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
-        }
-        stats.inlined != 0
+        changed
     }
 }
 
@@ -301,20 +313,12 @@ struct MirInliner {
     /// Maximum block count for a shared callee to inline at every profitable
     /// call site. Larger shared callees inline only at their best call site.
     max_shared_callee_blocks: usize,
-    /// Whether a single call site may use the larger threshold.
-    inline_single_call: bool,
     /// Maximum number of instructions a single caller may gain from inlining
     /// multi-use callees, bounding total code growth per function.
     max_caller_inlined_instructions: usize,
-    /// Expected executions per deployment. This is supplied by Standard JSON
-    /// optimizer runs and defaults to solc's 200-run convention.
-    expected_executions_per_deployment: u64,
-    /// The cost model pricing call protocol against deposited bytes.
+    /// The cost model pricing call protocol against deposited bytes, including the expected
+    /// executions per deployment from the optimizer runs.
     target: Target,
-    /// Optional hard ceiling for the module size estimator. Normal gas-mode
-    /// profitability is governed by lifetime cost instead of this ceiling;
-    /// zero remains the explicit off switch used by size mode.
-    max_module_code_size: usize,
     /// Restricts late expansion to argument-free immutable word computations.
     immutable_leaves_only: bool,
     /// Restricts late expansion to small post-call memory wrappers.
@@ -343,7 +347,7 @@ enum InlineMode {
 enum PeakAnalysis {
     /// No estimate; phi-carrying callees stay shared.
     None,
-    /// Bounded scalar helpers with phis, for their sole call site.
+    /// Bounded helpers with phis, for their sole call site.
     Phis,
     /// Every bounded scalar helper, for loop call sites.
     Scalars,
@@ -356,15 +360,12 @@ impl Default for MirInliner {
             max_single_call_sanity_instructions: 4096,
             max_blocks: 16,
             max_shared_callee_blocks: 10,
-            inline_single_call: true,
             max_caller_inlined_instructions: 64,
-            expected_executions_per_deployment: Target::DEFAULT_EXPECTED_EXECUTIONS,
             target: Target::with(
                 solar_config::EvmVersion::default(),
                 solar_config::OptimizationMode::Gas,
                 Target::DEFAULT_EXPECTED_EXECUTIONS,
             ),
-            max_module_code_size: usize::MAX,
             immutable_leaves_only: false,
             memory_wrappers_only: false,
             frame_staging_allowed: true,
@@ -379,35 +380,12 @@ impl MirInliner {
     /// clone deposits the whole body again.
     const MAX_HOT_LEAF_CALL_SITES: usize = 8;
     /// Live words a caller may hold across an inlined body plus the body's own
-    /// peak, leaving stack-addressing headroom for operand staging.
+    /// peak, leaving stack-addressing headroom for operand staging. A hot-leaf
+    /// clone inside a loop body also keeps the loop's carried words resident
+    /// through every join it adds; at ten words, two of the Base64 decoder's four
+    /// lookups stayed calls that drained every carried word, and twelve took 15%
+    /// off decoding.
     const STACK_BUDGET: usize = 12;
-    /// The budget for hot leaves: a clone inside a loop body also keeps the
-    /// loop's carried words resident through every join it adds. It matched the
-    /// general budget once the backend carried twelve words through a loop's
-    /// joins; at ten, two of the Base64 decoder's four lookups stayed calls
-    /// that drained every carried word, and lifting it took 15% off decoding.
-    const HOT_LEAF_STACK_BUDGET: usize = 12;
-
-    /// The live-word budget for inlining at the current mode's sites.
-    const fn stack_budget(&self) -> usize {
-        match self.mode {
-            InlineMode::HotLeaves => Self::HOT_LEAF_STACK_BUDGET,
-            InlineMode::Normal
-            | InlineMode::TinyLeaves
-            | InlineMode::ConstantLeaves
-            | InlineMode::SingleUse => Self::STACK_BUDGET,
-        }
-    }
-
-    /// Creates the `-O size` inliner: a module budget of zero disables all MIR
-    /// inlining, which only ever grows emitted code on real contracts (both
-    /// multi-use duplication and the cascades that single-call inlining sets
-    /// off were measured to increase size). Lowering-time inlining is disabled
-    /// independently; this zero budget also lets the MIR inliner skip analysis.
-    #[must_use]
-    fn for_size() -> Self {
-        Self { max_module_code_size: 0, ..Self::default() }
-    }
 
     /// Creates the gas-focused leaf inliner. Shared helpers stay limited to four instructions;
     /// a modestly larger single-use leaf disappears after function DCE and can also shed both
@@ -426,24 +404,15 @@ impl MirInliner {
 
     #[must_use]
     fn for_constant_leaves() -> Self {
-        Self {
-            max_instructions: 64,
-            inline_single_call: false,
-            mode: InlineMode::ConstantLeaves,
-            ..Self::default()
-        }
+        Self { max_instructions: 64, mode: InlineMode::ConstantLeaves, ..Self::default() }
     }
 }
 
 /// Statistics for MIR-level inlining.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MirInlineStats {
-    /// Number of internal call sites considered.
-    call_sites: usize,
     /// Number of call sites inlined.
     inlined: usize,
-    /// Number of call sites skipped because the callee was not inlineable.
-    skipped: usize,
     /// Callees whose only call site was inlined; nothing calls them afterwards.
     consumed: Vec<MirFunctionId>,
 }
@@ -463,10 +432,8 @@ struct MirInlineSummary {
     has_returning_icall: bool,
     has_phi: bool,
     phi_stack_peak: Option<usize>,
-    has_external_call: bool,
-    has_storage_write: bool,
-    has_immutable_write: bool,
-    has_log: bool,
+    /// Writes storage, transient storage, or an immutable, calls or creates an account, or logs.
+    has_state_effect: bool,
     has_control_flow: bool,
     is_check_wrapper: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
@@ -484,7 +451,6 @@ struct MirInlineSummary {
     is_entry_point: bool,
     is_constructor: bool,
     is_function_pointer_dispatcher: bool,
-    has_function_selector: bool,
     is_pure: bool,
 }
 
@@ -493,16 +459,8 @@ impl MirInliner {
     fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
         self.target = Target::new(gcx);
-        self.expected_executions_per_deployment = self.target.expected_executions();
 
-        // A zero budget is an explicit off switch (used by `-O size`). Avoid
-        // summarizing the module or building its call graph when no call site
-        // can be accepted.
-        if self.max_module_code_size == 0 {
-            return stats;
-        }
-
-        let mut call_counts = self.call_counts(module);
+        let mut call_counts = call_counts(module);
         // Keep the initial candidate set stable as inlining removes call sites.
         let memory_wrappers = if self.memory_wrappers_only {
             module
@@ -521,14 +479,7 @@ impl MirInliner {
             return stats;
         }
 
-        let mut summaries = self.summarize_module(gcx, module);
-
-        // Track the estimator for explicit hard ceilings. Gas mode leaves the
-        // ceiling unlimited and decides from lifetime execution/deposit cost.
-        let mut module_code_size: usize = summaries.values().map(|s| s.estimated_code_size).sum();
-        if module_code_size >= self.max_module_code_size {
-            return stats;
-        }
+        let mut summaries = self.summarize_module(module);
 
         let call_graph = CallGraphInfo::new(module);
         let mut artifact_calls = (self.mode == InlineMode::TinyLeaves
@@ -539,9 +490,7 @@ impl MirInliner {
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
         caller_ids.sort_by_key(|caller| {
-            summaries.get(caller).is_some_and(|summary| {
-                summary.is_function_pointer_dispatcher && summary.has_function_selector
-            })
+            summaries.get(caller).is_some_and(|summary| summary.is_function_pointer_dispatcher)
         });
         for caller_id in caller_ids {
             // Leaf bodies cannot contain an inline candidate. Keep their summary for
@@ -566,11 +515,9 @@ impl MirInliner {
             while let Some(site) =
                 self.find_next_call(module, module.function(caller_id), cursor, &loop_costs)
             {
-                stats.call_sites += 1;
                 cursor = (site.block.index(), site.inst_index + 1);
 
                 let Some(summary) = summaries.get(&site.callee).copied() else {
-                    stats.skipped += 1;
                     continue;
                 };
                 let call_count = if summary.is_small_literal_return {
@@ -589,8 +536,7 @@ impl MirInliner {
                 let framed_constructor_call = summaries.get(&caller_id).is_some_and(|caller| {
                     caller.is_constructor && summary.internal_frame_size != 0
                 });
-                if module_code_size >= self.max_module_code_size
-                    || grew_too_much
+                if grew_too_much
                     || framed_constructor_call
                     || call_graph.is_recursive(site.callee)
                     || (self.immutable_leaves_only
@@ -606,7 +552,6 @@ impl MirInliner {
                         preferred_large_call_sites.get(&site.callee).copied(),
                     )
                 {
-                    stats.skipped += 1;
                     continue;
                 }
 
@@ -617,16 +562,13 @@ impl MirInliner {
                     let liveness =
                         caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
                     if surviving_call_words(caller, liveness, site).saturating_add(peak)
-                        > self.stack_budget()
+                        > Self::STACK_BUDGET
                     {
-                        stats.skipped += 1;
                         continue;
                     }
                 }
 
                 let callee = module.function(site.callee).clone();
-                let old_size =
-                    summaries.get(&caller_id).map(|s| s.estimated_code_size).unwrap_or_default();
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
@@ -641,35 +583,25 @@ impl MirInliner {
                         loop_costs = block_loop_costs(module.function(caller_id));
                     }
                     let new_summary = summarize_function(
-                        gcx,
+                        self.target,
                         module,
                         module.function(caller_id),
                         self.peak_analysis(),
                         self.objects_lowered,
                     );
-                    module_code_size = module_code_size
-                        .saturating_sub(old_size)
-                        .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
                     // Remove this call site and count the calls cloned into its caller.
-                    // The original callee remains until function DCE runs, and a callee
-                    // with a tail call is never inlined.
+                    // The original callee remains until function DCE runs.
                     if let Some(count) = call_counts.get_mut(&site.callee) {
                         *count = count.saturating_sub(1);
                     }
-                    for inst in callee.instructions() {
-                        if let InstKind::ICall { function: Callee::Function(function), .. } =
-                            callee.inst(inst).kind
-                        {
-                            *call_counts.entry(function).or_default() += 1;
-                        }
+                    for function in direct_callees(&callee) {
+                        *call_counts.entry(function).or_default() += 1;
                     }
                     if let Some(calls) = &mut artifact_calls {
                         calls.inline(caller_id, site.callee, &callee);
                     }
                     cursor = (site.block.index(), 0);
-                } else {
-                    stats.skipped += 1;
                 }
             }
         }
@@ -677,11 +609,7 @@ impl MirInliner {
         stats
     }
 
-    fn summarize_module(
-        &self,
-        gcx: Gcx<'_>,
-        module: &Module,
-    ) -> FxHashMap<MirFunctionId, MirInlineSummary> {
+    fn summarize_module(&self, module: &Module) -> FxHashMap<MirFunctionId, MirInlineSummary> {
         module
             .functions
             .iter_enumerated()
@@ -689,7 +617,7 @@ impl MirInliner {
                 (
                     id,
                     summarize_function(
-                        gcx,
+                        self.target,
                         module,
                         func,
                         self.peak_analysis(),
@@ -709,25 +637,6 @@ impl MirInliner {
                 PeakAnalysis::None
             }
         }
-    }
-
-    fn call_counts(&self, module: &Module) -> FxHashMap<MirFunctionId, usize> {
-        let mut counts = FxHashMap::default();
-        for func in module.functions.iter() {
-            for inst_id in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    func.inst(inst_id).kind
-                {
-                    *counts.entry(function).or_default() += 1;
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                    *counts.entry(*function).or_default() += 1;
-                }
-            }
-        }
-        counts
     }
 
     /// Picks one call site for each large shared callee.
@@ -828,7 +737,8 @@ impl MirInliner {
         call_count: usize,
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
-        let single_call = self.inline_single_call && call_count == 1;
+        // Constant-leaf specialization only targets shared callees.
+        let single_call = call_count == 1 && self.mode != InlineMode::ConstantLeaves;
         let bounded_phi = summary.phi_stack_peak.is_some()
             && match self.mode {
                 InlineMode::SingleUse => single_call,
@@ -862,9 +772,8 @@ impl MirInliner {
 
         // Keep shared helpers intact unless a constant function selector lets
         // later passes discard all but one dispatcher arm.
-        let can_specialize_dispatcher = summary.is_function_pointer_dispatcher
-            && summary.has_function_selector
-            && site.has_constant_function_selector;
+        let can_specialize_dispatcher =
+            summary.is_function_pointer_dispatcher && site.has_constant_function_selector;
         if caller == site.callee
             || (summary.is_function_pointer_dispatcher
                 && !single_call
@@ -940,10 +849,7 @@ impl MirInliner {
         // code-growth check below.
         if !single_call
             && site.loop_depth == 0
-            && (summary.has_storage_write
-                || summary.has_immutable_write
-                || summary.has_external_call
-                || summary.has_log)
+            && summary.has_state_effect
             && summary.estimated_code_size
                 > estimated_icall_code_size(self.target, site)
                     + estimated_internal_return_code_size(self.target, summary, site)
@@ -990,7 +896,7 @@ impl MirInliner {
             site.loop_executions
         };
         let execution_savings = u128::from(estimated_icall_savings(self.target, site, summary))
-            .saturating_mul(u128::from(self.expected_executions_per_deployment))
+            .saturating_mul(u128::from(self.target.expected_executions()))
             .saturating_mul(u128::from(loop_executions));
         execution_savings > added_deposit_cost
     }
@@ -1059,17 +965,8 @@ impl ArtifactCallCounts {
         }
         let mut result = Self { creation, runtime, counts: FxHashMap::default() };
         for (caller, func) in module.functions.iter_enumerated() {
-            for inst in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    func.inst(inst).kind
-                {
-                    result.add(caller, function);
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = block.terminator {
-                    result.add(caller, function);
-                }
+            for function in direct_callees(func) {
+                result.add(caller, function);
             }
         }
         result
@@ -1086,14 +983,19 @@ impl ArtifactCallCounts {
             counts[0] -= usize::from(self.creation.contains(caller));
             counts[1] -= usize::from(self.runtime.contains(caller));
         }
-        for inst in callee.instructions() {
-            if let InstKind::ICall { function: Callee::Function(function), .. } =
-                callee.inst(inst).kind
-            {
-                self.add(caller, function);
-            }
+        for function in direct_callees(callee) {
+            self.add(caller, function);
         }
     }
+}
+
+/// The number of direct internal calls and tail calls to each function.
+fn call_counts(module: &Module) -> FxHashMap<MirFunctionId, usize> {
+    let mut counts = FxHashMap::default();
+    for function in module.functions.iter().flat_map(direct_callees) {
+        *counts.entry(function).or_default() += 1;
+    }
+    counts
 }
 
 /// Recognizes a complete constant bytes initializer without relaxing the
@@ -1103,46 +1005,45 @@ fn is_small_literal_return(func: &Function) -> bool {
     if func.attributes.no_inline
         || func.internal_frame_size != 0
         || func.blocks.len() != 1
-        || func.return_components() != [MirType::MemPtr]
+        || func.return_components() != [MirType::MEMPTR]
     {
         return false;
     }
     let block = &func.blocks[BlockId::ENTRY];
-    let [alloc, len, rest @ ..] = block.instructions.as_slice() else { return false };
+    let [alloc, rest @ ..] = block.instructions.as_slice() else { return false };
     if func.inst(*alloc).metadata.preserves_fmp() {
         return false;
     }
-    let InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL, .. } =
-        func.inst(*alloc).kind
+    let InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL } = func.inst(*alloc).kind
     else {
         return false;
     };
     let Some(object) = func.inst_result_value(*alloc) else { return false };
-    let InstKind::SetMemoryObjectLen(value, length, MemoryObjectKind::Bytes) = func.inst(*len).kind
-    else {
-        return false;
-    };
-    if value != object
-        || !matches!(&block.terminator, Some(Terminator::Return { values }) if values.as_slice() == [object])
+    if !matches!(&block.terminator, Some(Terminator::Return { values }) if values.as_slice() == [object])
     {
         return false;
     }
-    let Some(length) = func.value_u64(length) else { return false };
-    if length > 32 || func.value_u64(size) != Some(32 + length.next_multiple_of(32)) {
-        return false;
+    let mut length = None;
+    let mut words = 0;
+    for &inst in rest {
+        if func.is_object_derivation(inst) {
+            continue;
+        }
+        let InstKind::Store(address, value, PtrLocation::Memory) = func.inst(inst).kind else {
+            return false;
+        };
+        match func.object_address(address) {
+            Some((base, 0)) if base == object && length.is_none() => {
+                length = func.value_u64(value);
+            }
+            Some((base, 32)) if base == object && func.value_u256(value).is_some() => words += 1,
+            _ => return false,
+        }
     }
-    match rest {
-        [] => length == 0,
-        [store] => matches!(func.inst(*store).kind,
-            InstKind::MemoryObjectStoreWord { object: value, offset, value: word }
-            if length != 0 && value == object && func.value_u64(offset) == Some(0)
-                && func.value_u256(word).is_some()),
-        [data, store] => matches!((&func.inst(*data).kind, &func.inst(*store).kind),
-            (InstKind::MemoryObjectData(value, MemoryObjectKind::Bytes), InstKind::MStore(ptr, word))
-            if length != 0 && *value == object && func.inst_result_value(*data) == Some(*ptr)
-                && func.value_u256(*word).is_some()),
-        _ => false,
-    }
+    let Some(length) = length else { return false };
+    length <= 32
+        && func.value_u64(size) == Some(32 + length.next_multiple_of(32))
+        && words == usize::from(length != 0)
 }
 
 /// A direct call whose callee cannot resume the caller. Keep tail-call chains
@@ -1151,7 +1052,11 @@ fn is_terminal_call(module: &Module, kind: &InstKind) -> bool {
     let InstKind::ICall { function: Callee::Function(callee), .. } = kind else {
         return false;
     };
-    let callee = module.function(*callee);
+    never_returns(module.function(*callee))
+}
+
+/// Whether every path through `callee` ends the message, as a shared revert helper does.
+fn never_returns(callee: &Function) -> bool {
     !callee.blocks.is_empty()
         && callee.blocks.iter().all(|block| {
             matches!(
@@ -1172,13 +1077,12 @@ fn is_terminal_call(module: &Module, kind: &InstKind) -> bool {
 }
 
 fn summarize_function(
-    gcx: Gcx<'_>,
+    target: Target,
     module: &Module,
     func: &Function,
     peak: PeakAnalysis,
     objects_lowered: bool,
 ) -> MirInlineSummary {
-    let target = Target::new(gcx);
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
         return_values: func.return_components().len(),
@@ -1189,7 +1093,7 @@ fn summarize_function(
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
         has_reference_return: func.return_components().iter().any(|&ty| match ty {
-            MirType::MemPtr => !objects_lowered,
+            MirType::MEMPTR => !objects_lowered,
             MirType::Slice(_) => true,
             _ => false,
         }),
@@ -1197,7 +1101,6 @@ fn summarize_function(
         is_small_literal_return: is_small_literal_return(func),
         is_check_wrapper: is_check_wrapper(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
-        has_function_selector: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
         has_loop: peak == PeakAnalysis::Scalars && has_back_edge(func),
         ..MirInlineSummary::default()
@@ -1206,7 +1109,7 @@ fn summarize_function(
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            let (inst_cost, instructions) = estimate_inst_cost(gcx, module, kind);
+            let (inst_cost, instructions) = estimate_inst_cost(target, module, func, kind);
             summary.instruction_count += instructions;
             summary.estimated_code_size += inst_cost.bytes as usize;
             match kind {
@@ -1228,13 +1131,16 @@ fn summarize_function(
                 | InstKind::StorageBytesStore(..)
                 | InstKind::StorageBytesStoreLiteral { .. }
                 | InstKind::StorageClearWords(..)
-                | InstKind::ICall {
-                    function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
-                    ..
-                }
                 | InstKind::CheckedBinary { .. }
                 | InstKind::ICall {
-                    function: Callee::Builtin(Builtin::Check { .. } | Builtin::Require(_)),
+                    function:
+                        Callee::Builtin(
+                            Builtin::CheckedAddMod
+                            | Builtin::CheckedMulMod
+                            | Builtin::Check { .. }
+                            | Builtin::Require(_)
+                            | Builtin::Transfer,
+                        ),
                     ..
                 } => {
                     summary.has_control_flow = true;
@@ -1252,29 +1158,17 @@ fn summarize_function(
                 InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
                     summary.has_control_flow = true;
                 }
-                InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => {
-                    summary.has_control_flow = true;
-                    summary.has_external_call = true;
-                }
-                InstKind::AddressCall { .. }
-                | InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. }
-                | InstKind::Call { .. }
-                | InstKind::CallCode { .. }
-                | InstKind::StaticCall { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::Create(..)
-                | InstKind::Create2(..) => {
-                    summary.has_external_call = true;
-                }
-                InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
-                InstKind::StoreImmutable(..) => summary.has_immutable_write = true,
-                InstKind::Log0(..)
-                | InstKind::Log1(..)
-                | InstKind::Log2(..)
-                | InstKind::Log3(..)
-                | InstKind::Log4(..) => summary.has_log = true,
                 _ => {}
             }
+            summary.has_state_effect |= matches!(
+                kind.effect_kind(),
+                EffectKind::StorageWrite
+                    | EffectKind::TransientWrite
+                    | EffectKind::ImmutableWrite
+                    | EffectKind::ExternalCall
+                    | EffectKind::Create
+                    | EffectKind::Log
+            );
         }
         match block.terminator.as_ref() {
             Some(term @ Terminator::Return { .. }) => {
@@ -1282,21 +1176,26 @@ fn summarize_function(
                 summary.estimated_code_size +=
                     estimate_terminator_cost(target, term).bytes as usize;
             }
-            Some(term @ Terminator::Revert { .. }) => {
+            Some(term @ (Terminator::Revert { .. } | Terminator::RevertReturndata)) => {
                 summary.estimated_code_size +=
                     estimate_terminator_cost(target, term).bytes as usize;
             }
-            Some(term @ Terminator::RevertReturndata) => {
+            // `outline-reverts` turns failure paths into tail calls to shared revert helpers.
+            // Such a jump ends the message wherever it is cloned, but a tail call to a function
+            // that returns would return from the caller instead.
+            Some(term @ Terminator::TailCall { function, .. })
+                if never_returns(module.function(*function)) =>
+            {
                 summary.estimated_code_size +=
                     estimate_terminator_cost(target, term).bytes as usize;
             }
-            Some(Terminator::Jump(_))
-            | Some(Terminator::Branch { .. })
-            | Some(Terminator::Switch { .. }) => {
+            Some(
+                term
+                @ (Terminator::Jump(_) | Terminator::Branch { .. } | Terminator::Switch { .. }),
+            ) => {
                 summary.has_control_flow = true;
                 summary.estimated_code_size +=
-                    estimate_terminator_cost(target, block.terminator.as_ref().unwrap()).bytes
-                        as usize;
+                    estimate_terminator_cost(target, term).bytes as usize;
             }
             Some(Terminator::ReturnData { .. })
             | Some(Terminator::Stop)
@@ -1307,8 +1206,25 @@ fn summarize_function(
         }
     }
 
-    if (peak == PeakAnalysis::Scalars || (peak == PeakAnalysis::Phis && summary.has_phi))
-        && summary.block_count <= 16
+    let scalar = || {
+        (!summary.has_icall
+            || (peak == PeakAnalysis::Scalars
+                && !summary.has_phi
+                && summary.return_count == 1
+                && !summary.has_returning_icall))
+            && func.instructions().all(|inst| {
+                is_terminal_call(module, &func.inst(inst).kind)
+                    || matches!(
+                        func.inst(inst).kind.effect_kind(),
+                        EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
+                    )
+            })
+    };
+    // A single-use helper's effects and calls stay at its one call site, so any loop-free body may
+    // fit the stack budget there. Loops outside the scalar class stay calls: consuming Solady's
+    // insertion sort, which swaps memory words, raised its runtime gas by up to 0.35%.
+    let single_use = || scalar() || !has_back_edge(func);
+    if summary.block_count <= 16
         && summary.instruction_count <= 112
         && summary.param_count <= 4
         && !func.params.iter().any(|ty| matches!(ty, MirType::Slice(_)))
@@ -1316,18 +1232,8 @@ fn summarize_function(
         && summary.return_count != 0
         && summary.internal_frame_size == 0
         && !summary.has_reference_return
-        && (!summary.has_icall
-            || (peak == PeakAnalysis::Scalars
-                && !summary.has_phi
-                && summary.return_count == 1
-                && !summary.has_returning_icall))
-        && func.instructions().all(|inst| {
-            is_terminal_call(module, &func.inst(inst).kind)
-                || matches!(
-                    func.inst(inst).kind.effect_kind(),
-                    EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
-                )
-        })
+        && (peak == PeakAnalysis::Scalars && scalar()
+            || peak == PeakAnalysis::Phis && summary.has_phi && single_use())
     {
         summary.phi_stack_peak = Some(scalar_stack_peak(func));
     }
@@ -1435,16 +1341,19 @@ fn is_memory_wrapper(func: &Function) -> bool {
     rest.len() <= 5
         && matches!(func.inst(*call).kind, InstKind::ICall { function: Callee::Function(_), .. })
         && rest.iter().any(|&inst| {
-            matches!(func.inst(inst).kind, InstKind::MStore(..) | InstKind::MStore8(..))
+            matches!(
+                func.inst(inst).kind,
+                InstKind::Store(.., PtrLocation::Memory) | InstKind::Store8(..)
+            )
         })
         && rest.iter().all(|&inst| {
             matches!(
                 func.inst(inst).kind,
                 InstKind::Add(..)
                     | InstKind::Sub(..)
-                    | InstKind::MLoad(..)
-                    | InstKind::MStore(..)
-                    | InstKind::MStore8(..)
+                    | InstKind::Load(_, PtrLocation::Memory)
+                    | InstKind::Store(.., PtrLocation::Memory)
+                    | InstKind::Store8(..)
             )
         })
         && matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() == 1)
@@ -1530,7 +1439,10 @@ fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
         && func.instructions().all(|inst| {
             matches!(
                 func.inst(inst).kind,
-                InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_)
+                InstKind::MakeSlice { .. }
+                    | InstKind::ExtractValue { ty: MirType::Slice(_), .. }
+                    // `msg.data` measures its slice with `calldatasize`, a fixed-cost read.
+                    | InstKind::CalldataSize
             )
         })
     {
@@ -1608,8 +1520,12 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
 /// emit priced by the target, with the number of MIR instructions the expansion produces.
 /// An operation that lowers to one opcode is priced by the target directly; immediates are
 /// left out throughout, as they are for those.
-fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, usize) {
-    let target = Target::new(gcx);
+fn estimate_inst_cost(
+    target: Target,
+    module: &Module,
+    func: &Function,
+    kind: &InstKind,
+) -> (Cost, usize) {
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
     if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
@@ -1625,71 +1541,12 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         }
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
+        | InstKind::MakeSlice { .. }
         | InstKind::IntToPtr(..)
         | InstKind::Zext(_) => Cost::ZERO,
-        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
-        InstKind::MemoryObjectData(_, kind) => {
-            if EvmMemoryLayout::object_data_offset(*kind) == 0 {
-                Cost::ZERO
-            } else {
-                seq(&[op::ADD])
-            }
-        }
-        InstKind::MemoryObjectFieldAddr { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
-                Cost::ZERO
-            } else {
-                seq(&[op::ADD])
-            }
-        }
-        InstKind::MemoryObjectElementAddr { layout, .. } => {
-            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
-            seq(&[op::MUL, op::ADD]).plus(if base { seq(&[op::ADD]) } else { Cost::ZERO })
-        }
-        InstKind::MemoryObjectLoadField { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
-                seq(&[op::MLOAD])
-            } else {
-                seq(&[op::ADD, op::MLOAD])
-            }
-        }
-        InstKind::MemoryObjectStoreField { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
-                seq(&[op::MSTORE])
-            } else {
-                seq(&[op::ADD, op::MSTORE])
-            }
-        }
-        InstKind::MemoryObjectLoadElement { layout, .. } => {
-            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
-            seq(&[op::MUL, op::ADD, op::MLOAD]).plus(if base {
-                seq(&[op::ADD])
-            } else {
-                Cost::ZERO
-            })
-        }
-        InstKind::MemoryObjectStoreElement { layout, .. } => {
-            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
-            seq(&[op::MUL, op::ADD, op::MSTORE]).plus(if base {
-                seq(&[op::ADD])
-            } else {
-                Cost::ZERO
-            })
-        }
-        InstKind::MemoryObjectLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
-        InstKind::MemoryObjectStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
-        InstKind::MemoryObjectStoreWord { .. } => seq(&[op::ADD, op::MSTORE]),
-        InstKind::MemorySliceLoadWord { .. } => seq(&[op::MLOAD]),
-        InstKind::CalldataSliceLoadWord { .. } => seq(&[op::CALLDATALOAD]),
-        InstKind::MemoryObjectCopyFromSlice { .. }
-        | InstKind::MemoryObjectCopyFromSliceAt { .. }
-        | InstKind::MemoryObjectCopy { .. } => seq(&[op::MCOPY]),
-        InstKind::MemoryObjectLen(_, _) | InstKind::Fmp | InstKind::FrameLoad { .. } => {
-            seq(&[op::MLOAD])
-        }
-        InstKind::SetMemoryObjectLen(_, _, _)
-        | InstKind::SetFmp(_)
-        | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
+        InstKind::PtrAdd(..) => seq(&[op::ADD]),
+        InstKind::Fmp | InstKind::FrameLoad { .. } => seq(&[op::MLOAD]),
+        InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
         // Bump the free-memory pointer past the allocation.
         InstKind::Alloc { .. } => seq(&[op::MLOAD, op::ADD, op::MSTORE]),
         // Reserve the buffer, store the selector, produce the slice, store every argument's
@@ -1718,12 +1575,6 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
             op::SWAP1,
         ])
         .plus(seq(&[op::CALLDATALOAD, op::DUP1, op::MSTORE]).times(layout.types.len() as u32)),
-        InstKind::StorageToMemory { layout, .. } => seq(&[op::SLOAD, op::MSTORE])
-            .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX)),
-        InstKind::MemoryToStorage { layout, .. } | InstKind::ClearStorage { layout, .. } => {
-            seq(&[op::MLOAD, op::SSTORE])
-                .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX))
-        }
         // A pushed offset into the immutables area and the store.
         InstKind::StoreImmutable(..) => seq(&[op::PUSH2, op::MSTORE]),
         InstKind::DataCopy(..) => seq(&[op::CODECOPY]),
@@ -1741,8 +1592,8 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
             let encoding = ty.immutable_encoding().expect("validated immutable declaration");
             let type_size = immutable_push_type_size(
                 encoding,
-                gcx.sess.opts.optimization,
-                gcx.sess.opts.evm_version.has_bitwise_shifting(),
+                target.optimization(),
+                target.evm_version().has_bitwise_shifting(),
             );
             let push = op::PUSH1 + (type_size.bytes() - 1);
             if type_size.bytes() == 32 {
@@ -1786,24 +1637,20 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::AbiEncodePacked { parts, .. } => {
             Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
         }
-        InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), args: parts } => {
-            Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
-        }
-        InstKind::Keccak256Bytes(_) => {
-            seq(&[op::DUP1, op::MLOAD, op::SWAP1, op::ADD, op::KECCAK256])
-        }
         InstKind::MappingSlot(..) => seq(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
-        InstKind::MappingSlotMemory(..) => seq(&[
-            op::MLOAD,
-            op::ADD,
-            op::MSTORE,
-            op::MLOAD,
-            op::ADD,
-            op::MSTORE,
-            op::ADD,
-            op::KECCAK256,
-        ]),
-        InstKind::MappingSlotCalldata(..) => seq(&[
+        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => {
+            seq(&[
+                op::MLOAD,
+                op::ADD,
+                op::MSTORE,
+                op::MLOAD,
+                op::ADD,
+                op::MSTORE,
+                op::ADD,
+                op::KECCAK256,
+            ])
+        }
+        InstKind::MappingSlotBytes(..) => seq(&[
             op::CALLDATALOAD,
             op::ADD,
             op::MSTORE,
@@ -1844,10 +1691,17 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         }
     };
     let instructions = match kind {
-        InstKind::Zext(_) | InstKind::IntToPtr(..) => 0,
+        // Casts, slice construction, and aggregate insertions and projections emit no code of their
+        // own: `lower-structs` turns struct fields into separate words.
+        InstKind::Zext(_)
+        | InstKind::IntToPtr(..)
+        | InstKind::PtrToInt(_, 256)
+        | InstKind::MakeSlice { .. }
+        | InstKind::InsertValue { .. }
+        | InstKind::ExtractValue { .. } => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
-        InstKind::MappingSlotMemory(..) => 8,
-        InstKind::MappingSlotCalldata(..) => 9,
+        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
+        InstKind::MappingSlotBytes(..) => 9,
         InstKind::StorageArrayElementSlot { .. } => 4,
         InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
         _ => 1,
@@ -2174,11 +2028,11 @@ fn inline_call_impl(
     // object_arg = inttoptr raw_arg
     // jump cloned_entry(object_arg)
     // Calls can carry raw pointer words; cloned semantic operations still require
-    // the callee's pointer parameters. Materialize the zero-cost view at the cloned entry.
+    // the callee's pointer parameters. Materialize the zero-cost cast at the cloned entry.
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
-        if ty == MirType::MemPtr && caller.value_ty(*arg) != Some(ty) {
+        if ty == MirType::MEMPTR && caller.value_ty(*arg) != Some(ty) {
             if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
                 return None;
             }
@@ -2229,7 +2083,7 @@ fn inline_call_impl(
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
-    // cloned_entry: object argument views; cloned callee body
+    // cloned_entry: object argument casts; cloned callee body
     cloner.caller.blocks[cloned_entry].instructions.splice(0..0, argument_views);
 
     // icall @callee !metadata(call) => jump cloned_entry !metadata(call)
@@ -2276,32 +2130,21 @@ fn inline_literal_call(
     let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
     let mut instructions = Vec::new();
     // object = icall @literal
-    //   => object = alloc memorybytes, size
-    //      set_memory_object_len object, length
-    //      memory_object_store_word object, 0, word
+    //   => object = alloc size
+    //      mstore object, length
+    //      mstore (ptradd object, 32), word
     for &inst in &callee.blocks[BlockId::ENTRY].instructions {
         let source = callee.inst(inst);
         let kind = cloner.clone_inst_kind(source.kind.clone())?;
         let mut instruction = Instruction::new(kind, source.result_ty);
         instruction.metadata.copy_debug_context(&source.metadata);
         if matches!(instruction.kind, InstKind::Alloc { .. }) {
-            // object = alloc memorybytes, size
-            //   => object = alloc memorybytes, size !metadata(preserves_fmp)
+            // object = alloc size
+            //   => object = alloc size !metadata(preserves_fmp)
             //
             // The inlined result escapes the call. Preserve its heap reservation even when a
             // later ABI encoding embeds the literal bytes and removes its initialization stores.
             instruction.metadata.set_preserves_fmp(true);
-        }
-        if let InstKind::MStore(ptr, value) = instruction.kind
-            && let Value::Inst(data) = cloner.caller.value(ptr)
-            && let InstKind::MemoryObjectData(object, MemoryObjectKind::Bytes) =
-                cloner.caller.inst(*data).kind
-        {
-            // mstore memory_object_data(object), word
-            //   => memory_object_store_word object, 0, word
-            let offset =
-                cloner.caller.alloc_value(Value::Immediate(Immediate::I256(Default::default())));
-            instruction.kind = InstKind::MemoryObjectStoreWord { object, offset, value };
         }
         let new_inst = if let Some(value) = callee.inst_result_value(inst) {
             let (new_inst, new_value) = cloner.caller.alloc_value_inst(instruction);
@@ -2599,7 +2442,7 @@ fn insert_return_buffer_stores(
             } else {
                 builder.internal_frame_addr(frame_offset.checked_add(offset)?)
             };
-            builder.mstore(offset, value);
+            builder.store(offset, value);
         }
         let base = if caller_is_external {
             builder.imm(EvmMemoryLayout::HEAP_START.checked_add(local_offset)?)
@@ -2614,7 +2457,7 @@ fn insert_return_buffer_stores(
     };
     let consumer_start = phi_count + instructions.len();
     caller.blocks[continuation].instructions.splice(phi_count..phi_count, instructions);
-    if return_tys.iter().all(|ty| !matches!(ty, MirType::Slice(_) | MirType::MemPtr)) {
+    if return_tys.iter().all(|ty| !matches!(*ty, MirType::Slice(_) | MirType::MEMPTR)) {
         forward_inline_return_loads(caller, continuation, consumer_start, values);
     }
     Some(())
@@ -2661,7 +2504,7 @@ fn forward_inline_return_loads(
                     offsets.insert(value, offset);
                 }
             }
-            InstKind::MLoad(address) => {
+            InstKind::Load(address, PtrLocation::Memory) => {
                 if let Some(&offset) = offsets.get(&address)
                     && offset >= 32
                     && offset % 32 == 0

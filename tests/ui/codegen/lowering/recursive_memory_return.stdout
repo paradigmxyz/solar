@@ -1,33 +1,37 @@
 // === ROOT/tests/ui/codegen/lowering/recursive_memory_return.sol:C ===
 @module C
-fn @build(arg0: i256) -> memptr [selector=0x77fc2b19, pure, abi_params=[u256], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u256, u256>]] {
+fn @build(arg0: i256) -> ptr<memory> [selector=0x77fc2b19, pure, abi_params=[uint256], abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint256, uint256>]] {
   bb0:
     v0 = eq arg0, 0
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v1, 0, 0
-    memory_object_store_field memorystruct<2>, v1, 1, 0
+    v1 = alloc 64 !metadata(preserves_fmp)
+    mstore v1, 0
+    v2 = ptradd v1, 32
+    mstore v2, 0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v3 = checked_sub u256, arg0, 1
-    v4 = icall @build, v3
-    v5 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v6 = memory_object_load_field memorystruct<2>, v4, 0
-    v7 = checked_add u256, v6, arg0
-    v8 = memory_object_load_field memorystruct<2>, v4, 1
-    v9 = checked_add u256, v8, 1
-    memory_object_store_field memorystruct<2>, v5, 0, v7
-    memory_object_store_field memorystruct<2>, v5, 1, v9
-    ret v5
+    v5 = checked_sub uint256, arg0, 1
+    v6 = icall @build, v5
+    v7 = alloc 64
+    v8 = mload v6
+    v9 = checked_add uint256, v8, arg0
+    v10 = ptradd v6, 32
+    v11 = mload v10
+    v12 = checked_add uint256, v11, 1
+    mstore v7, v9
+    v13 = ptradd v7, 32
+    mstore v13, v12
+    ret v7
   bb1:
-    v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v2, 0, 0
-    memory_object_store_field memorystruct<2>, v2, 1, 0
-    ret v2
+    v3 = alloc 64
+    mstore v3, 0
+    v4 = ptradd v3, 32
+    mstore v4, 0
+    ret v3
 }
 
-fn @mkArr(arg0: i256) -> memptr [selector=0xfb67dbf3, pure, abi_params=[u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -48,57 +52,63 @@ fn @mkArr(arg0: i256) -> memptr [selector=0xfb67dbf3, pure, abi_params=[u256], a
     v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
-    v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    set_memory_object_len memoryarray, v16, arg0
+    v16 = alloc zeroed checked v9
+    mstore v16, arg0
     jump bb1
   bb1:
     v17 = phi [bb0: arg0], [bb3: v17]
-    v18 = phi [bb0: v16], [bb3: v18]
-    v19 = phi [bb0: memptr 96], [bb3: v19]
-    v20 = phi [bb0: 0], [bb3: v26]
+    v18 = phi [bb0: ptr<memory> 96], [bb3: v18]
+    v19 = phi [bb0: v16], [bb3: v19]
+    v20 = phi [bb0: 0], [bb3: v29]
     v21 = lt v20, v17
     jumpi v21, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v18
+    ret v19
   bb4:
-    v22 = checked_mul u256, v20, 10
-    v23 = memory_object_len memoryarray, v18
+    v22 = checked_mul uint256, v20, 10
+    v23 = mload v19
     v24 = lt v20, v23
     v25 = eq v24, false
     icall panic_if<0x32>, v25
-    memory_object_store_element memoryarray<1>, v18, v20, v22
+    v26 = shl v20, 5
+    v27 = ptradd v19, v26
+    v28 = ptradd v27, 32
+    mstore v28, v22
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v26 = checked_add u256, v20, 1
+    v29 = checked_add uint256, v20, 1
     jump bb1
 }
 
-fn @fillImpl(arg0: memptr, arg1: i256) -> memptr [pure] {
+fn @fillImpl(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
+    v0 = mload arg0
     v1 = eq arg1, v0
     jumpi v1, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v2 = checked_mul u256, arg1, arg1
-    v3 = memory_object_len memoryarray, arg0
+    v2 = checked_mul uint256, arg1, arg1
+    v3 = mload arg0
     v4 = lt arg1, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    memory_object_store_element memoryarray<1>, arg0, arg1, v2
-    v6 = checked_add u256, arg1, 1
-    v7 = icall @fillImpl, arg0, v6
-    ret v7
+    v6 = shl arg1, 5
+    v7 = ptradd arg0, v6
+    v8 = ptradd v7, 32
+    mstore v8, v2
+    v9 = checked_add uint256, arg1, 1
+    v10 = icall @fillImpl, arg0, v9
+    ret v10
   bb1:
     ret arg0
 }
 
-fn @squares(arg0: i256) -> memptr [selector=0x1d1d15d4, pure, abi_params=[u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @squares(arg0: i256) -> ptr<memory> [selector=0x1d1d15d4, pure, abi_params=[uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -119,8 +129,8 @@ fn @squares(arg0: i256) -> memptr [selector=0x1d1d15d4, pure, abi_params=[u256],
     v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
-    v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    set_memory_object_len memoryarray, v16, arg0
+    v16 = alloc zeroed checked v9
+    mstore v16, arg0
     v17 = icall @fillImpl, v16, 0
     ret v17
 }

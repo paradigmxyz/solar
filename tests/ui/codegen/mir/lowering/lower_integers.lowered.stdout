@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after lower-integers) ===
   @module Integers
   @immutables
-    signed: i64
+    signed: int64
   
 - fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
 + fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
@@ -13,7 +13,7 @@
 -     v3 = sdiv v2, arg1
 -     v4 = smod v3, arg0
 -     v5 = not v4
--     v6 = sar arg1, v5
+-     v6 = sar v5, arg1
 -     ret v6
 +     v7 = add arg0, arg1
 +     v8 = and v7, 255
@@ -32,7 +32,7 @@
 +     v21 = not v20
 +     v22 = and v21, 255
 +     v23 = signextend 0, v22
-+     v24 = sar arg1, v23
++     v24 = sar v23, arg1
 +     v25 = and v24, 255
 +     ret v25
   }
@@ -40,15 +40,15 @@
 - fn @byte_width(arg0: i24, arg1: i24) -> i24 {
 + fn @byte_width(arg0: i256, arg1: i256) -> i256 {
     bb0:
--     v0 = shl arg1, arg0
--     v1 = sar arg1, v0
+-     v0 = shl arg0, arg1
+-     v1 = sar v0, arg1
 -     v2 = sext i24 v1 to i248
 -     v3 = trunc i248 v2 to i24
 -     ret v3
-+     v4 = shl arg1, arg0
++     v4 = shl arg0, arg1
 +     v5 = and v4, 0xffffff
 +     v6 = signextend 2, v5
-+     v7 = sar arg1, v6
++     v7 = sar v6, arg1
 +     v8 = and v7, 0xffffff
 +     v9 = signextend 2, v8
 +     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -261,13 +261,13 @@
   
   fn @pointer_casts(arg0: i256) {
     bb0:
-      v0 = inttoptr i256 arg0 to memptr
--     v1 = ptrtoint memptr v0 to i1
--     v2 = ptrtoint memptr v0 to i160
+      v0 = inttoptr i256 arg0 to ptr<memory>
+-     v1 = ptrtoint ptr<memory> v0 to i1
+-     v2 = ptrtoint ptr<memory> v0 to i160
 +     v6 = and arg0, 1
 +     v7 = ne v6, 0
 +     v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-      v3 = ptrtoint memptr v0 to i256
+      v3 = ptrtoint ptr<memory> v0 to i256
 -     v4 = zext i1 v1 to i256
 -     v5 = zext i160 v2 to i256
 +     v4 = zext i1 v7 to i256
@@ -299,7 +299,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after integer-cleanup) ===
   @module Integers
   @immutables
-    signed: i64
+    signed: int64
   
   fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -320,17 +320,17 @@
       v21 = not v20
       v22 = and v21, 255
       v23 = signextend 0, v22
-      v24 = sar arg1, v23
+      v24 = sar v23, arg1
       v25 = and v24, 255
       ret v25
   }
   
   fn @byte_width(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v4 = shl arg1, arg0
+      v4 = shl arg0, arg1
       v5 = and v4, 0xffffff
       v6 = signextend 2, v5
-      v7 = sar arg1, v6
+      v7 = sar v6, arg1
       v8 = and v7, 0xffffff
       v9 = signextend 2, v8
       v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -500,11 +500,11 @@
   
   fn @pointer_casts(arg0: i256) {
     bb0:
-      v0 = inttoptr i256 arg0 to memptr
+      v0 = inttoptr i256 arg0 to ptr<memory>
       v6 = and arg0, 1
       v7 = ne v6, 0
       v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-      v3 = ptrtoint memptr v0 to i256
+      v3 = ptrtoint ptr<memory> v0 to i256
       v4 = zext i1 v7 to i256
       mstore 0, v4
       mstore 32, v8
@@ -528,7 +528,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after egraph) ===
   @module Integers
   @immutables
-    signed: i64
+    signed: int64
   
   fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -549,17 +549,17 @@
       v21 = not v20
       v22 = and v21, 255
       v23 = signextend 0, v22
-      v24 = sar arg1, v23
+      v24 = sar v23, arg1
       v25 = and v24, 255
       ret v25
   }
   
   fn @byte_width(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v4 = shl arg1, arg0
+      v4 = shl arg0, arg1
       v5 = and v4, 0xffffff
       v6 = signextend 2, v5
-      v7 = sar arg1, v6
+      v7 = sar v6, arg1
       v8 = and v7, 0xffffff
       v9 = signextend 2, v8
       v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -580,13 +580,13 @@
     bb0:
 -     v4 = and 8, 0xffffff
 -     v5 = div arg0, v4
-+     v5 = shr 3, arg0
++     v5 = shr arg0, 3
       v6 = and v5, 0xffffff
 -     v7 = mod v6, v4
 -     v8 = and v7, 0xffffff
 -     v9 = mul v8, v4
 +     v7 = and v5, 7
-+     v9 = shl 3, v7
++     v9 = shl v7, 3
       v10 = and v9, 0xffffff
       ret v10
   }
@@ -731,11 +731,11 @@
   
   fn @pointer_casts(arg0: i256) {
     bb0:
-      v0 = inttoptr i256 arg0 to memptr
+      v0 = inttoptr i256 arg0 to ptr<memory>
       v6 = and arg0, 1
       v7 = ne v6, 0
       v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
--     v3 = ptrtoint memptr v0 to i256
+-     v3 = ptrtoint ptr<memory> v0 to i256
       v4 = zext i1 v7 to i256
       mstore 0, v4
       mstore 32, v8
@@ -762,7 +762,7 @@
   @module Integers
 + @phase lowered
   @immutables
-    signed: i64
+    signed: int64
   
   fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -783,17 +783,17 @@
       v21 = not v20
       v22 = and v21, 255
       v23 = signextend 0, v22
-      v24 = sar arg1, v23
+      v24 = sar v23, arg1
       v25 = and v24, 255
       ret v25
   }
   
   fn @byte_width(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v4 = shl arg1, arg0
+      v4 = shl arg0, arg1
       v5 = and v4, 0xffffff
       v6 = signextend 2, v5
-      v7 = sar arg1, v6
+      v7 = sar v6, arg1
       v8 = and v7, 0xffffff
       v9 = signextend 2, v8
       v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -810,10 +810,10 @@
   
   fn @power_of_two(arg0: i256) -> i256 {
     bb0:
-      v5 = shr 3, arg0
+      v5 = shr arg0, 3
       v6 = and v5, 0xffffff
       v7 = and v5, 7
-      v9 = shl 3, v7
+      v9 = shl v7, 3
       v10 = and v9, 0xffffff
       ret v10
   }
@@ -946,7 +946,7 @@
   
   fn @pointer_casts(arg0: i256) {
     bb0:
-      v0 = inttoptr i256 arg0 to memptr
+-     v0 = inttoptr i256 arg0 to ptr<memory>
       v6 = and arg0, 1
       v7 = ne v6, 0
       v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff

@@ -19,7 +19,7 @@ use super::{
     immutable_staging_end, index_vec, ir, op, preserves_push_width,
 };
 use crate::mir::{
-    BlockId, Callee, EffectKind, RawMemoryAccess,
+    BlockId, Callee, EffectKind, PtrLocation, RawMemoryAccess,
     analysis::{AddressInput, absolute_address_inputs},
     utils::{eval::eval_inst, u256_to_u64},
 };
@@ -959,7 +959,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut base = None;
         for (offset, &inst_id) in tail.iter().enumerate() {
             let inst = func.inst(inst_id);
-            if let InstKind::MLoad(addr) = inst.kind
+            if let InstKind::Load(addr, PtrLocation::Memory) = inst.kind
                 && func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT)
             {
                 base = Some((offset, inst_id));
@@ -988,7 +988,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         return None;
                     }
                 }
-                InstKind::MLoad(addr) if addresses.contains_key(addr) => {
+                InstKind::Load(addr, PtrLocation::Memory) if addresses.contains_key(addr) => {
                     let result = func.inst_result_value(inst_id)?;
                     visit(addresses[addr], result);
                     if extras[addresses[addr] - 1].replace(result).is_some() {
@@ -998,7 +998,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         break;
                     }
                 }
-                kind if kind.effect_kind() == EffectKind::Pure => {}
+                kind if kind.effect_kind().is_read_only() => {}
                 _ => return None,
             }
         }
@@ -1237,7 +1237,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             Value::Inst(inst_id) => match &func.inst(*inst_id).kind {
                 InstKind::Fmp | InstKind::Alloc { .. } => Some(0),
-                InstKind::MLoad(address)
+                InstKind::Load(address, PtrLocation::Memory)
                     if Self::heap_prefix_constant(func, *address, 0)
                         == Some(U256::from(EvmMemoryLayout::FMP_SLOT)) =>
                 {
@@ -1454,7 +1454,25 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         self.record_runtime_entry_reachability(call_graph, entry);
         let reachable = &self.runtime_entry_reachability[&entry];
-        let needs_free_memory = reachable.iter().any(|func_id| {
+        if !Self::functions_need_free_memory(module, call_graph, reachable.iter()) {
+            return;
+        }
+
+        let id = self.asm.new_deferred_const();
+        self.asm.emit_push_deferred(id);
+        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+        self.asm.emit_op(op::MSTORE);
+        self.runtime_free_memory_consts.insert(entry, id);
+    }
+
+    /// Whether any of `functions` reads the free memory pointer, directly or through the frame
+    /// and multi-word return conventions that allocate above it.
+    pub(in crate::backend::evm::codegen) fn functions_need_free_memory(
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        mut functions: impl Iterator<Item = FunctionId>,
+    ) -> bool {
+        functions.any(|func_id| {
             call_graph.is_recursive(func_id)
                 || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
                 || module.functions[func_id].instructions().any(|inst_id| {
@@ -1464,16 +1482,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             if module.function(function).return_components().len() > 1
                     )
                 })
-        });
-        if !needs_free_memory {
-            return;
-        }
-
-        let id = self.asm.new_deferred_const();
-        self.asm.emit_push_deferred(id);
-        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-        self.asm.emit_op(op::MSTORE);
-        self.runtime_free_memory_consts.insert(entry, id);
+        })
     }
 
     /// Records every function whose memory bounds contribute to one runtime entry.
@@ -1557,7 +1566,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{BlockId, FunctionBuilder, Instruction};
+    use crate::mir::{BlockId, FunctionBuilder, Instruction, LogTopics};
     use solar_interface::Ident;
 
     #[test]
@@ -1570,13 +1579,13 @@ mod tests {
         // mixed = (base + (-32)) - 16
         let base = builder.fmp();
         let opaque = builder.add_param(MirType::I256);
-        let pointer = builder.add_param(MirType::MemPtr);
+        let pointer = builder.add_param(MirType::MEMPTR);
         let pointer_word = builder.cast_word(pointer);
         let word = builder.imm(32);
         let pointer_prefix = builder.sub(pointer_word, word);
         // loaded_base = mload(32 + 32)
         let fmp_slot = builder.add(word, word);
-        let loaded_base = builder.mload(fmp_slot);
+        let loaded_base = builder.load(fmp_slot, PtrLocation::Memory);
         let negative_word = builder.imm(-32);
         let half_word = builder.imm(16);
         let negative_half_word = builder.imm(-16);
@@ -1604,13 +1613,13 @@ mod tests {
         // divided = (add / 32) * 32
         // mixed_alignment = (add >> 5) * 32
         let shift = builder.imm(5);
-        let quotient = builder.shr(shift, add);
-        let shifted_alignment = builder.shl(shift, quotient);
+        let quotient = builder.shr(add, shift);
+        let shifted_alignment = builder.shl(quotient, shift);
         let mixed_alignment = builder.mul(word, quotient);
         let quotient = builder.div(add, word);
         let divided_alignment = builder.mul(quotient, word);
         let commuted_divided = builder.mul(word, quotient);
-        let mixed_shift = builder.shl(shift, quotient);
+        let mixed_shift = builder.shl(quotient, shift);
         // opaque_alignment = (opaque / 32) * 32
         // mismatched = (add / 32) * 16
         let opaque_quotient = builder.div(opaque, word);
@@ -1683,20 +1692,19 @@ mod tests {
         let zero = builder.imm(0);
         let dynamic_size = builder.add_param(MirType::I256);
         let result = Some(MirType::I256);
+        let topics = |topics: &[ValueId]| LogTopics::new(topics).unwrap();
         for size in [zero, word, dynamic_size] {
             for (kind, ty) in [
                 (InstKind::Keccak256(prefix, size), result),
-                (InstKind::Log0(prefix, size), None),
-                (InstKind::Log1(prefix, size, zero), None),
-                (InstKind::Log2(prefix, size, zero, zero), None),
-                (InstKind::Log3(prefix, size, zero, zero, zero), None),
-                (InstKind::Log4(prefix, size, zero, zero, zero, zero), None),
-                (InstKind::CalldataCopy(prefix, zero, size), None),
+                (InstKind::Log { offset: prefix, size, topics: topics(&[]) }, None),
+                (InstKind::Log { offset: prefix, size, topics: topics(&[zero]) }, None),
+                (InstKind::Log { offset: prefix, size, topics: topics(&[zero; 4]) }, None),
+                (InstKind::Copy(prefix, zero, size, PtrLocation::Calldata), None),
                 (InstKind::CodeCopy(prefix, zero, size), None),
-                (InstKind::ReturnDataCopy(prefix, zero, size), None),
+                (InstKind::Copy(prefix, zero, size, PtrLocation::Returndata), None),
                 (InstKind::ExtCodeCopy(zero, prefix, zero, size), None),
-                (InstKind::MCopy(prefix, base, size), None),
-                (InstKind::MCopy(base, prefix, size), None),
+                (InstKind::Copy(prefix, base, size, PtrLocation::Memory), None),
+                (InstKind::Copy(base, prefix, size, PtrLocation::Memory), None),
                 (
                     InstKind::Call {
                         gas: zero,
@@ -1768,9 +1776,9 @@ mod tests {
             }
         }
         for (kind, ty) in [
-            (InstKind::MLoad(prefix), result),
-            (InstKind::MStore(prefix, zero), None),
-            (InstKind::MStore8(prefix, zero), None),
+            (InstKind::Load(prefix, PtrLocation::Memory), result),
+            (InstKind::Store(prefix, zero, PtrLocation::Memory), None),
+            (InstKind::Store8(prefix, zero), None),
         ] {
             let mut consumer = function.clone();
             // mload/mstore/mstore8 prefix, ...
@@ -1909,9 +1917,9 @@ mod tests {
         // return result
         builder.icall(forward, Vec::new(), MirType::I256);
         let slot = builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-        let buffer = builder.mload(slot);
+        let buffer = builder.load(slot, PtrLocation::Memory);
         let address = builder.add_u64_offset(buffer, 64);
-        let result = builder.mload(address);
+        let result = builder.load(address, PtrLocation::Memory);
         builder.ret([result]);
         let caller = module.add_function(caller);
 

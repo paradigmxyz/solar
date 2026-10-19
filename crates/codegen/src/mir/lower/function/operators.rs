@@ -65,12 +65,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         if let Some(op) = checked {
             // lhs/rhs = ptrtoint(object) when assembly supplied raw pointer bits
-            let lhs = if matches!(self.builder.func().value_ty(lhs), Some(MirType::MemPtr)) {
+            let lhs = if matches!(self.builder.func().value_ty(lhs), Some(MirType::MEMPTR)) {
                 self.builder.cast_word(lhs)
             } else {
                 lhs
             };
-            let rhs = if matches!(self.builder.func().value_ty(rhs), Some(MirType::MemPtr)) {
+            let rhs = if matches!(self.builder.func().value_ty(rhs), Some(MirType::MEMPTR)) {
                 self.builder.cast_word(rhs)
             } else {
                 rhs
@@ -168,9 +168,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             BinOpKind::And | BinOpKind::BitAnd => self.builder.and(lhs, rhs),
             BinOpKind::Or | BinOpKind::BitOr => self.builder.or(lhs, rhs),
             BinOpKind::BitXor => self.builder.xor(lhs, rhs),
-            BinOpKind::Shl => self.builder.shl(rhs, lhs),
-            BinOpKind::Shr => self.builder.shr(rhs, lhs),
-            BinOpKind::Sar => self.builder.sar(rhs, lhs),
+            BinOpKind::Shl => self.builder.shl(lhs, rhs),
+            BinOpKind::Shr => self.builder.shr(lhs, rhs),
+            BinOpKind::Sar => self.builder.sar(lhs, rhs),
             BinOpKind::Pow => {
                 if self.unchecked {
                     let result = self.builder.exp(lhs, rhs);

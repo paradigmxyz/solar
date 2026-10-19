@@ -1,0 +1,76 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/ecrecover_failure.sol:EcrecoverFailure ===
+@module EcrecoverFailure
+fn @recover() -> i160 [selector=0xce746024, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = icall ecrecover<>, 1, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+fn @recoverInvalidDirtyScratch() -> i160 [selector=0x5721fb2d, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = not 0
+    mstore 0, v0 !metadata(memory=scratch)
+    v1 = icall ecrecover<>, 0, 0, 0, 0
+    v2 = trunc i256 v1 to i160
+    ret v2
+}
+
+fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v21]
+    v1 = phi [bb0: 0x7d0], [bb3: v22]
+    v2 = lt v1, 0x1b58
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    v3 = address
+    v4 = gas
+    v5 = abi_encode [], selector 0xce74602400000000000000000000000000000000000000000000000000000000
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    v8 = zext i160 v3 to i256
+    v9 = staticcall v1, v8, v6, v7, 0, 32
+    jumpi v9, bb7, bb8
+  bb8:
+    jumpi true, bb13, bb14
+  bb14:
+    icall revert_if<empty>, true
+    invalid
+  bb13:
+    jump bb9
+  bb7:
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = add 0, 0
+    v13 = mload v12
+    v14 = shr v13, 160
+    v15 = eq v14, 0
+    v16 = eq v15, false
+    icall revert_if<empty>, v16
+    v17 = trunc i256 v13 to i160
+    v18 = ne v17, i160 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
+    jumpi v18, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v19 = checked_add uint256, v0, 1
+    jump bb12
+  bb12:
+    v20 = phi [bb10: v19], [bb11: v0]
+    jump bb9
+  bb9:
+    v21 = phi [bb12: v20], [bb13: v0]
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v22 = checked_add uint256, v1, 11
+    jump bb1
+}

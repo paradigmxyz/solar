@@ -263,6 +263,10 @@ identifiers.
 10, 100, and 1,000 iterations as separate calls after the increment/subtract setup of the
 Solidity/Solcore comparison. CI runs it in `--suite all`, including the `hot` gas profile.
 
+`openzeppelin-p256` calls the pinned library's software verifier directly, bypassing the native
+P256 precompile. It measures a valid signature, a wrong hash, a zero signature component, and an
+off-curve public key, using the library's RIP-7212 probe vector.
+
 `minimal-proxy` (`../../testdata/MinimalProxy.sol`) has a payable high-level fallback that delegates
 to an immutable implementation its constructor deploys, with assembly only to forward revert data.
 Both gas profiles measure storage writes, reads, and empty, short, and 1 KiB byte echoes through the

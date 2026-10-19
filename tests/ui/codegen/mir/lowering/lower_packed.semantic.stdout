@@ -1,31 +1,37 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (after none) ===
   @module PackedEncoding
-  fn @mixed(arg0: i16, arg1: memptr) -> memptr {
+  fn @mixed(arg0: i16, arg1: ptr<memory>) -> ptr<memory> {
     bb0:
-      v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
+      v0 = abi_encode_packed (data hex"000102", uint16 arg0, bytes arg1)
       ret v0
   }
   
   fn @hash(arg0: i16) -> i256 {
     bb0:
-      v0 = keccak256_packed (data hex"ab", i16 arg0, bytes2 0xcdef000000000000000000000000000000000000000000000000000000000000)
+      v0 = keccak256_packed (data hex"ab", int16 arg0, bytes2 0xcdef000000000000000000000000000000000000000000000000000000000000)
       ret v0
   }
   
-  fn @arrays(arg0: memptr, arg1: calldataslice) -> memptr {
+  fn @create2_salt(arg0: i256, arg1: i160, arg2: i256) -> i256 {
     bb0:
-      v0 = abi_encode_packed (array<word<i16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)
+      v0 = keccak256_packed (bytes1 arg0, address arg1, bytes32 arg2)
       ret v0
   }
   
-  fn @nested(arg0: memptr) -> memptr {
+  fn @arrays(arg0: ptr<memory>, arg1: slice<calldata>) -> ptr<memory> {
+    bb0:
+      v0 = abi_encode_packed (array<word<int16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)
+      ret v0
+  }
+  
+  fn @nested(arg0: ptr<memory>) -> ptr<memory> {
     bb0:
       v0 = abi_encode_packed (array<array<2, word<enum 3>>> memoryfixedarray<2, 1> arg0)
       ret v0
   }
   
-  fn @edge(arg0: i1, arg1: memptr, arg2: memptr) -> memptr {
+  fn @edge(arg0: i1, arg1: ptr<memory>, arg2: ptr<memory>) -> ptr<memory> {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -38,9 +44,9 @@
       ret v1
   }
   
-  fn @prefixed_array(arg0: memptr) -> memptr {
+  fn @prefixed_array(arg0: ptr<memory>) -> ptr<memory> {
     bb0:
-      v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)
+      v0 = abi_encode_packed (data hex"ab", array<word<uint8>> memoryarray<1> arg0)
       ret v0
   }
   

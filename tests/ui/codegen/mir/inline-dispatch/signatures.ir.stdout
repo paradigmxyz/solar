@@ -8,7 +8,7 @@ fn @entry() [entry] {
     jumpi v1, bb5, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     v4 = calldataload 4
     v5 = calldataload 36
     switch v3, default bb5, [0x5c36b186 => bb2, 0xcad0899b => bb3, 0xfd0d50d7 => bb4]
@@ -20,13 +20,13 @@ fn @entry() [entry] {
     v15 = gt v4, 0xffffffffffffffff
     v16 = gt v14, v10
     v17 = or v15, v16
-    v22 = or v11, v17
+    v23 = or v11, v17
     v18 = calldataload v13
     v19 = sub v10, v14
-    v20 = shr 5, v19
+    v20 = shr v19, 5
     v21 = gt v18, v20
-    v23 = or v22, v21
-    jumpi v23, bb5, bb9
+    v24 = or v23, v21
+    jumpi v24, bb5, bb9
   bb9:
     mstore 128, v18
     returndata 128, 32

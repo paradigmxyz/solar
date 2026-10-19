@@ -118,23 +118,24 @@ fn @keep_distinct_outside_operands(arg0: i256, arg1: i256) {
     stop
 }
 
-// Semantic memory layouts are payload, not operands, so blocks using different
-// fields must stay separate.
+// Element indices are operands, so blocks loading different fields must stay
+// separate.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_memory_fields{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
-fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memptr) {
+fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: ptr<memory>) {
   bb0:
     v2 = ne arg0, 0
     jumpi v2, bb1, bb2
   bb1:
-    v0 = memory_object_load_field memorystruct<2>, arg2, 0
+    v0 = mload arg2
     mstore 0, v0
     revert 0, 32
   bb2:
     v3 = ne arg1, 0
     jumpi v3, bb3, bb4
   bb3:
-    v1 = memory_object_load_field memorystruct<2>, arg2, 1
+    v9001 = ptradd arg2, 32
+    v1 = mload v9001
     mstore 0, v1
     revert 0, 32
   bb4:
@@ -162,7 +163,7 @@ fn @keep_distinct_packed_literals(arg0: i1) -> i256 {
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: {{^[ +].*}}load_storage_array enum<3>, arg1
 // CHECK: {{^[ +].*}}load_storage_array enum<2>, arg1
-fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memptr {
+fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> ptr<memory> {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -216,5 +217,20 @@ fn @keep_distinct_libraries(arg0: i1) -> i160 {
     ret v0
   bb2:
     v1 = library_address L_1
+    ret v1
+}
+
+// Fresh objects merge like any other payload: each path allocates once either way.
+// CHECK-LABEL: {{^[ +].*}}fn @merge_equal_allocations{{[( ]}}
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
+// CHECK: {{^[ +].*}}alloc zeroed checked 64
+fn @merge_equal_allocations(arg0: i1) -> ptr<memory> {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = alloc zeroed checked 64
+    ret v0
+  bb2:
+    v1 = alloc zeroed checked 64
     ret v1
 }

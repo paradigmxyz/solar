@@ -1,4 +1,4 @@
-error: cannot perform packed encoding for a literal
+error[7279]: cannot perform packed encoding for a literal
    ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_packed.sol:LL:CC
    │
 LL │         abi.encodePacked(1);

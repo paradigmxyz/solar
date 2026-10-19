@@ -19,8 +19,8 @@ contract C {
     // recursive function returning a memory struct
     // CHECK-LABEL: fn @build(
     // CHECK: icall @build,
-    // CHECK: alloc memorystruct<2>
-    // CHECK: memory_object_store_field memorystruct<2>
+    // CHECK: [[RESULT:v[0-9]+]] = alloc 64
+    // CHECK: mstore [[RESULT]], {{v[0-9]+}}
     // CHECK: ret
     function build(uint256 n) public pure returns (P memory) {
         if (n == 0) return P({x: 0, y: 0});
@@ -30,8 +30,8 @@ contract C {
 
     // public function returning a dynamic word-array (external ABI encoding)
     // CHECK-LABEL: fn @mkArr{{[( ]}}
-    // CHECK: alloc memoryarray<1>, exact, zeroed, panic
-    // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, arg0
+    // CHECK: [[ARRAY:v[0-9]+]] = alloc zeroed checked
+    // CHECK-NEXT: mstore [[ARRAY]], arg0
     // CHECK: ret
     function mkArr(uint256 n) public pure returns (uint256[] memory) {
         uint256[] memory r = new uint256[](n);
@@ -41,8 +41,15 @@ contract C {
 
     // recursive helper returning a memory array, consumed by a public function
     // CHECK-LABEL: fn @fillImpl{{[( ]}}
-    // CHECK: memory_object_store_element memoryarray<1>, arg0, arg1
-    // CHECK: [[NEXT:v[0-9]+]] = checked_add {{[ui][0-9]+}}, arg1, 1
+    // CHECK: checked_mul
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = mload arg0
+    // CHECK-NEXT: lt arg1, [[LEN]]
+    // CHECK: icall panic_if<0x32>
+    // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl arg1, 5
+    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd arg0, [[OFF1]]
+    // CHECK-NEXT: [[ELEM_32:v[0-9]+]] = ptradd [[ELEM]], 32
+    // CHECK-NEXT: mstore [[ELEM_32]],
+    // CHECK: [[NEXT:v[0-9]+]] = checked_add {{u?int[0-9]+}}, arg1, 1
     // CHECK: [[RESULT:v[0-9]+]] = icall @fillImpl, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]
     // CHECK: ret arg0
@@ -53,7 +60,7 @@ contract C {
     }
 
     // CHECK-LABEL: fn @squares{{[( ]}}
-    // CHECK: alloc memoryarray<1>, exact, zeroed, panic
+    // CHECK: alloc zeroed checked
     // CHECK: icall @fillImpl, {{v[0-9]+}}, 0
     // CHECK: ret
     function squares(uint256 n) public pure returns (uint256[] memory) {

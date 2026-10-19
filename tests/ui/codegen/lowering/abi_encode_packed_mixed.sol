@@ -6,7 +6,7 @@
 // unbumped scratch buffer; materialized encodings still use bytes objects.
 contract AbiEncodePackedMixed {
     // CHECK-LABEL: fn @fixedBytesArg{{[( ]}}
-    // CHECK: keccak256_packed (u256 arg0, u160 arg1, bytes2 {{v[0-9]+}})
+    // CHECK: keccak256_packed (uint256 arg0, uint160 arg1, bytes2 {{v[0-9]+}})
     function fixedBytesArg(uint a, address b, bytes2 c) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, b, c));
     }
@@ -18,14 +18,16 @@ contract AbiEncodePackedMixed {
     }
 
     // CHECK-LABEL: fn @materialized{{[( ]}}
-    // CHECK: abi_encode_packed (u16 arg0, bytes arg1, u8 {{v[0-9]+}})
+    // CHECK: abi_encode_packed (uint16 arg0, bytes arg1, uint8 {{v[0-9]+}})
     function materialized(uint16 a, bytes memory mid, bool b) external pure returns (bytes memory) {
         return abi.encodePacked(a, mid, b);
     }
 
     // CHECK-LABEL: fn @hashArray{{[( ]}}
     // CHECK: [[BYTES:v[0-9]+]] = abi_encode_packed (array<word> memoryarray<1> arg0)
-    // CHECK: keccak256_bytes [[BYTES]]
+    // CHECK: [[DATA:v[0-9]+]] = ptradd [[BYTES]], 32
+    // CHECK: [[LEN:v[0-9]+]] = mload [[BYTES]]
+    // CHECK: keccak256 [[DATA]], [[LEN]]
     function hashArray(bytes32[] memory values) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(values));
     }
@@ -34,7 +36,7 @@ contract AbiEncodePackedMixed {
     // preceding field must mask the sign extension before shifting, or the
     // high bits overwrite that field.
     // CHECK-LABEL: fn @signedStaticRun{{[( ]}}
-    // CHECK: keccak256_packed (u8 arg0, i16 arg1, bytes3 {{v[0-9]+}})
+    // CHECK: keccak256_packed (uint8 arg0, int16 arg1, bytes3 {{v[0-9]+}})
     function signedStaticRun(uint8 prefix, int16 value, bytes3 suffix)
         external
         pure

@@ -1,8 +1,14 @@
-error: failed to evaluate constant: unsupported expression
+error[1139]: base slot of storage layout must be a compile-time constant expression
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
    │
 LL │ contract AttachedFunction layout at 2.f() {
-   ╰╴                                    ━━━━━ evaluation of constant value failed here
+   ╰╴                                    ━━━━━
+
+error[1139]: base slot of storage layout must be a compile-time constant expression
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
+   │
+LL │ contract NotConstant layout at block.number + (ONE - 2) {}
+   ╰╴                               ━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
@@ -16,29 +22,35 @@ error[1763]: base slot of storage layout must evaluate to an integer
 LL │ contract HexStringLiteral layout at hex"616263" {}
    ╰╴                                    ━━━━━━━━━━━ found `utf8_string_literal[3]`
 
-error: rational literals are not supported
+error[1763]: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
+   │
+LL │ contract FractionalDivision layout at 3/2 {}
+   ╰╴                                      ━━━ found `rational_literal`
+
+error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
    │
 LL │ contract FractionalNumber layout at 4.2 {}
-   ╰╴                                    ━━━
+   ╰╴                                    ━━━ found `rational_literal`
 
-error: rational literals are not supported
+error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
    │
 LL │ contract LeadingFractionalNumber layout at .1 {}
-   ╰╴                                           ━━
+   ╰╴                                           ━━ found `rational_literal`
 
-error: rational literals are not supported
+error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
    │
 LL │ contract NegativeExponent layout at 42e-10 {}
-   ╰╴                                    ━━━━━━
+   ╰╴                                    ━━━━━━ found `rational_literal`
 
-error: rational literals are not supported
+error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
    │
 LL │ contract UnderscoredNegativeExponent layout at 1_7e-10 {}
-   ╰╴                                               ━━━━━━━
+   ╰╴                                               ━━━━━━━ found `rational_literal`
 
-error: aborting due to 7 previous errors
+error: aborting due to 9 previous errors
 

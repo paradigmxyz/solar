@@ -862,7 +862,6 @@ def start_anvil(rpc_url: str) -> subprocess.Popen[bytes]:
             "anvil",
             "--port",
             match.group(1),
-            "--steps-tracing",
             "--disable-code-size-limit",
             "--gas-limit",
             "100000000",

@@ -33,17 +33,17 @@ fn @shortFour() [selector=0xfb8720fc, pure, abi_params=[], abi_returns=[], abi_r
     returndata 0, 4
 }
 
-fn @emptySingle() -> i256 [selector=0x52635aa1, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptySingle() -> i256 [selector=0x52635aa1, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 32
     mstore v3, 0
     v4 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -56,21 +56,22 @@ fn @emptySingle() -> i256 [selector=0x52635aa1, abi_params=[], abi_returns=[word
   bb1:
     revert_returndata
   bb2:
-    v14 = add v5, 0
-    v15 = mload v14
-    ret v15
+    v14 = ptrtoint ptr<memory> v5 to i256
+    v15 = add v14, 0
+    v16 = mload v15
+    ret v16
 }
 
-fn @emptySingleArg() -> i256 [selector=0x44cc61d5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptySingleArg() -> i256 [selector=0x44cc61d5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 32
     mstore v3, 0
     v4 = abi_encode [word], selector 0x8308677200000000000000000000000000000000000000000000000000000000, args 0xdead
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -83,23 +84,24 @@ fn @emptySingleArg() -> i256 [selector=0x44cc61d5, abi_params=[], abi_returns=[w
   bb1:
     revert_returndata
   bb2:
-    v14 = add v5, 0
-    v15 = mload v14
-    ret v15
+    v14 = ptrtoint ptr<memory> v5 to i256
+    v15 = add v14, 0
+    v16 = mload v15
+    ret v16
 }
 
-fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     mstore 32, 43 !metadata(memory=scratch)
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 64
     mstore v3, 0
     v4 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -112,29 +114,31 @@ fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[wor
   bb1:
     revert_returndata
   bb2:
-    v14 = add v5, 0
-    v15 = mload v14
-    v16 = add v5, 32
-    v17 = mload v16
-    v18 = insert_value struct0, undef struct0, 0, v15
-    v19 = insert_value struct0, v18, 1, v17
-    v20 = extract_value struct0, v19, 0
-    v21 = extract_value struct0, v19, 1
-    v22 = insert_value struct0, undef struct0, 0, v20
-    v23 = insert_value struct0, v22, 1, v21
-    ret v23
+    v14 = ptrtoint ptr<memory> v5 to i256
+    v15 = add v14, 0
+    v16 = mload v15
+    v17 = ptrtoint ptr<memory> v5 to i256
+    v18 = add v17, 32
+    v19 = mload v18
+    v20 = insert_value struct0, undef struct0, 0, v16
+    v21 = insert_value struct0, v20, 1, v19
+    v22 = extract_value struct0, v21, 0
+    v23 = extract_value struct0, v21, 1
+    v24 = insert_value struct0, undef struct0, 0, v22
+    v25 = insert_value struct0, v24, 1, v23
+    ret v25
 }
 
-fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 128
     mstore v3, 0
     v4 = abi_encode [], selector 0xa1fca2b600000000000000000000000000000000000000000000000000000000
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -147,107 +151,105 @@ fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[wor
   bb1:
     revert_returndata
   bb2:
-    v14 = add v5, 0
-    v15 = mload v14
-    v16 = add v5, 32
-    v17 = mload v16
-    v18 = add v5, 64
+    v14 = ptrtoint ptr<memory> v5 to i256
+    v15 = add v14, 0
+    v16 = mload v15
+    v17 = ptrtoint ptr<memory> v5 to i256
+    v18 = add v17, 32
     v19 = mload v18
-    v20 = add v5, 96
-    v21 = mload v20
-    v22 = insert_value struct1, undef struct1, 0, v15
-    v23 = insert_value struct1, v22, 1, v17
-    v24 = insert_value struct1, v23, 2, v19
-    v25 = insert_value struct1, v24, 3, v21
-    v26 = extract_value struct1, v25, 0
-    v27 = extract_value struct1, v25, 1
-    v28 = extract_value struct1, v25, 2
-    v29 = extract_value struct1, v25, 3
-    v30 = insert_value struct1, undef struct1, 0, v26
-    v31 = insert_value struct1, v30, 1, v27
-    v32 = insert_value struct1, v31, 2, v28
-    v33 = insert_value struct1, v32, 3, v29
-    ret v33
+    v20 = ptrtoint ptr<memory> v5 to i256
+    v21 = add v20, 64
+    v22 = mload v21
+    v23 = ptrtoint ptr<memory> v5 to i256
+    v24 = add v23, 96
+    v25 = mload v24
+    v26 = insert_value struct1, undef struct1, 0, v16
+    v27 = insert_value struct1, v26, 1, v19
+    v28 = insert_value struct1, v27, 2, v22
+    v29 = insert_value struct1, v28, 3, v25
+    v30 = extract_value struct1, v29, 0
+    v31 = extract_value struct1, v29, 1
+    v32 = extract_value struct1, v29, 2
+    v33 = extract_value struct1, v29, 3
+    v34 = insert_value struct1, undef struct1, 0, v30
+    v35 = insert_value struct1, v34, 1, v31
+    v36 = insert_value struct1, v35, 2, v32
+    v37 = insert_value struct1, v36, 3, v33
+    ret v37
 }
 
-fn @emptyAgg() -> memptr [selector=0x06df237b, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @emptyAgg() -> ptr<memory> [selector=0x06df237b, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 64
-    v2 = address
-    v3 = alloc raw, exact, uninitialized, infallible, 64
-    v4 = fmp
-    v5 = ptrtoint memptr v4 to i256
-    v6 = add v5, 64
-    mstore v6, 0
-    v7 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = zext i160 v2 to i256
-    v11 = extcodesize v10
-    v12 = eq v11, 0
-    icall revert_if<target_contract_has_no_code>, v12
-    v13 = gas
-    v14 = sub v13, 50
-    v15 = zext i160 v2 to i256
-    v16 = call v14, v15, 0, v8, v9, v8, 64
-    jumpi v16, bb2, bb1
+    v0 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = address
+    v2 = alloc 64
+    v3 = fmp
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v4, 64
+    mstore v5, 0
+    v6 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    v9 = zext i160 v1 to i256
+    v10 = extcodesize v9
+    v11 = eq v10, 0
+    icall revert_if<target_contract_has_no_code>, v11
+    v12 = gas
+    v13 = sub v12, 50
+    v14 = zext i160 v1 to i256
+    v15 = call v13, v14, 0, v7, v8, v7, 64
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = ptrtoint memptr v3 to i256
-    mcopy v17, v8, 64
-    v18 = ptrtoint memptr v3 to i256
-    v19 = make_memory_slice v18, 64
-    v20 = abi_decode [array<2, u256>], v19
-    ret v20
+    mcopy v2, v7, 64
+    v16 = make_memory_slice v2, 64
+    v17 = abi_decode [array<2, uint256>], v16
+    ret v17
 }
 
-fn @emptyAggArg() -> memptr [selector=0x3dd9064d, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @emptyAggArg() -> ptr<memory> [selector=0x3dd9064d, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 64
-    v2 = address
-    v3 = alloc raw, exact, uninitialized, infallible, 64
-    v4 = fmp
-    v5 = ptrtoint memptr v4 to i256
-    v6 = add v5, 64
-    mstore v6, 0
-    v7 = abi_encode [word, word, word], selector 0xf5a636f000000000000000000000000000000000000000000000000000000000, args 1, 2, 3
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = zext i160 v2 to i256
-    v11 = extcodesize v10
-    v12 = eq v11, 0
-    icall revert_if<target_contract_has_no_code>, v12
-    v13 = gas
-    v14 = sub v13, 50
-    v15 = zext i160 v2 to i256
-    v16 = call v14, v15, 0, v8, v9, v8, 64
-    jumpi v16, bb2, bb1
+    v0 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = address
+    v2 = alloc 64
+    v3 = fmp
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v4, 64
+    mstore v5, 0
+    v6 = abi_encode [word, word, word], selector 0xf5a636f000000000000000000000000000000000000000000000000000000000, args 1, 2, 3
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    v9 = zext i160 v1 to i256
+    v10 = extcodesize v9
+    v11 = eq v10, 0
+    icall revert_if<target_contract_has_no_code>, v11
+    v12 = gas
+    v13 = sub v12, 50
+    v14 = zext i160 v1 to i256
+    v15 = call v13, v14, 0, v7, v8, v7, 64
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = ptrtoint memptr v3 to i256
-    mcopy v17, v8, 64
-    v18 = ptrtoint memptr v3 to i256
-    v19 = make_memory_slice v18, 64
-    v20 = abi_decode [array<2, u256>], v19
-    ret v20
+    mcopy v2, v7, 64
+    v16 = make_memory_slice v2, 64
+    v17 = abi_decode [array<2, uint256>], v16
+    ret v17
 }
 
-fn @partialSingle() -> i256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @partialSingle() -> i256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 32
     mstore v3, 0
     v4 = abi_encode [], selector 0x818f584000000000000000000000000000000000000000000000000000000000
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -260,21 +262,22 @@ fn @partialSingle() -> i256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[wo
   bb1:
     revert_returndata
   bb2:
-    v14 = add v5, 0
-    v15 = mload v14
-    ret v15
+    v14 = ptrtoint ptr<memory> v5 to i256
+    v15 = add v14, 0
+    v16 = mload v15
+    ret v16
 }
 
-fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 64
     mstore v3, 0
     v4 = abi_encode [], selector 0x80cc043300000000000000000000000000000000000000000000000000000000
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -287,54 +290,53 @@ fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[w
   bb1:
     revert_returndata
   bb2:
-    v14 = add v5, 0
-    v15 = mload v14
-    v16 = add v5, 32
-    v17 = mload v16
-    v18 = insert_value struct0, undef struct0, 0, v15
-    v19 = insert_value struct0, v18, 1, v17
-    v20 = extract_value struct0, v19, 0
-    v21 = extract_value struct0, v19, 1
-    v22 = insert_value struct0, undef struct0, 0, v20
-    v23 = insert_value struct0, v22, 1, v21
-    ret v23
+    v14 = ptrtoint ptr<memory> v5 to i256
+    v15 = add v14, 0
+    v16 = mload v15
+    v17 = ptrtoint ptr<memory> v5 to i256
+    v18 = add v17, 32
+    v19 = mload v18
+    v20 = insert_value struct0, undef struct0, 0, v16
+    v21 = insert_value struct0, v20, 1, v19
+    v22 = extract_value struct0, v21, 0
+    v23 = extract_value struct0, v21, 1
+    v24 = insert_value struct0, undef struct0, 0, v22
+    v25 = insert_value struct0, v24, 1, v23
+    ret v25
 }
 
-fn @partialAgg() -> memptr [selector=0xbf0809fa, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @partialAgg() -> ptr<memory> [selector=0xbf0809fa, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 64
-    v2 = address
-    v3 = alloc raw, exact, uninitialized, infallible, 64
-    v4 = fmp
-    v5 = ptrtoint memptr v4 to i256
-    v6 = add v5, 64
-    mstore v6, 0
-    v7 = abi_encode [], selector 0x391c2d2800000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = zext i160 v2 to i256
-    v11 = extcodesize v10
-    v12 = eq v11, 0
-    icall revert_if<target_contract_has_no_code>, v12
-    v13 = gas
-    v14 = sub v13, 50
-    v15 = zext i160 v2 to i256
-    v16 = call v14, v15, 0, v8, v9, v8, 64
-    jumpi v16, bb2, bb1
+    v0 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = address
+    v2 = alloc 64
+    v3 = fmp
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v4, 64
+    mstore v5, 0
+    v6 = abi_encode [], selector 0x391c2d2800000000000000000000000000000000000000000000000000000000
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    v9 = zext i160 v1 to i256
+    v10 = extcodesize v9
+    v11 = eq v10, 0
+    icall revert_if<target_contract_has_no_code>, v11
+    v12 = gas
+    v13 = sub v12, 50
+    v14 = zext i160 v1 to i256
+    v15 = call v13, v14, 0, v7, v8, v7, 64
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = ptrtoint memptr v3 to i256
-    mcopy v17, v8, 64
-    v18 = ptrtoint memptr v3 to i256
-    v19 = make_memory_slice v18, 64
-    v20 = abi_decode [array<2, u256>], v19
-    ret v20
+    mcopy v2, v7, 64
+    v16 = make_memory_slice v2, 64
+    v17 = abi_decode [array<2, uint256>], v16
+    ret v17
 }
 
-fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = not 0
@@ -346,12 +348,12 @@ fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[wor
     mstore v4, 0x1234
     v5 = address
     v6 = fmp
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = add v7, 128
     mstore v8, 0
     v9 = abi_encode [], selector 0xfb8720fc00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
+    v10 = extract_value slice<memory>, v9, 0
+    v11 = extract_value slice<memory>, v9, 1
     v12 = zext i160 v5 to i256
     v13 = extcodesize v12
     v14 = eq v13, 0
@@ -364,25 +366,29 @@ fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[wor
   bb1:
     revert_returndata
   bb2:
-    v19 = add v10, 0
-    v20 = mload v19
-    v21 = add v10, 32
-    v22 = mload v21
-    v23 = add v10, 64
+    v19 = ptrtoint ptr<memory> v10 to i256
+    v20 = add v19, 0
+    v21 = mload v20
+    v22 = ptrtoint ptr<memory> v10 to i256
+    v23 = add v22, 32
     v24 = mload v23
-    v25 = add v10, 96
-    v26 = mload v25
-    v27 = insert_value struct1, undef struct1, 0, v20
-    v28 = insert_value struct1, v27, 1, v22
-    v29 = insert_value struct1, v28, 2, v24
-    v30 = insert_value struct1, v29, 3, v26
-    v31 = extract_value struct1, v30, 0
-    v32 = extract_value struct1, v30, 1
-    v33 = extract_value struct1, v30, 2
-    v34 = extract_value struct1, v30, 3
-    v35 = insert_value struct1, undef struct1, 0, v31
-    v36 = insert_value struct1, v35, 1, v32
-    v37 = insert_value struct1, v36, 2, v33
-    v38 = insert_value struct1, v37, 3, v34
-    ret v38
+    v25 = ptrtoint ptr<memory> v10 to i256
+    v26 = add v25, 64
+    v27 = mload v26
+    v28 = ptrtoint ptr<memory> v10 to i256
+    v29 = add v28, 96
+    v30 = mload v29
+    v31 = insert_value struct1, undef struct1, 0, v21
+    v32 = insert_value struct1, v31, 1, v24
+    v33 = insert_value struct1, v32, 2, v27
+    v34 = insert_value struct1, v33, 3, v30
+    v35 = extract_value struct1, v34, 0
+    v36 = extract_value struct1, v34, 1
+    v37 = extract_value struct1, v34, 2
+    v38 = extract_value struct1, v34, 3
+    v39 = insert_value struct1, undef struct1, 0, v35
+    v40 = insert_value struct1, v39, 1, v36
+    v41 = insert_value struct1, v40, 2, v37
+    v42 = insert_value struct1, v41, 3, v38
+    ret v42
 }

@@ -5,19 +5,19 @@ fn @vBool(arg0: i1) -> i1 [selector=0x18a11c47, pure, abi_params=[bool], abi_ret
     ret arg0
 }
 
-fn @vUint8(arg0: i8) -> i8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @vUint8(arg0: i8) -> i8 [selector=0xd5f6949e, pure, abi_params=[uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     ret arg0
 }
 
-fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = zext i160 arg0 to i256
-    v3 = abi_encode [word<u160>], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v3 = abi_encode [word<uint160>], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args v2
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v4, v5, 0, 32
     jumpi v7, bb2, bb1
@@ -29,7 +29,7 @@ fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
-    v12 = shr 160, v11
+    v12 = shr v11, 160
     v13 = eq v12, 0
     v14 = eq v13, false
     icall revert_if<empty>, v14
@@ -37,7 +37,7 @@ fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address
     ret v15
 }
 
-fn @vAddressTarget(arg0: i160) -> i160 [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @vAddressTarget(arg0: i160) -> i160 [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     ret arg0
 }
@@ -48,8 +48,8 @@ fn @dirtyBytes1(arg0: i256) -> i256 [selector=0x92fef914, view, abi_params=[byte
     v1 = gas
     v2 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
     v3 = abi_encode [word<bytes1>], selector 0xa408523c00000000000000000000000000000000000000000000000000000000, args v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v4, v5, 0, 32
     jumpi v7, bb2, bb1
@@ -70,7 +70,7 @@ fn @bytes1Target(arg0: i256) -> i256 [selector=0xa408523c, pure, abi_params=[byt
     ret v0
 }
 
-fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -78,8 +78,8 @@ fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[u25
     v3 = eq v2, false
     icall panic_if<0x21>, v3
     v4 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args arg0
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = staticcall v1, v7, v5, v6, 0, 32
     jumpi v8, bb2, bb1
@@ -94,7 +94,7 @@ fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[u25
     ret v12
 }
 
-fn @enumTarget(arg0: i256) -> i256 [selector=0x5688f443, pure, abi_params=[enum<2, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @enumTarget(arg0: i256) -> i256 [selector=0x5688f443, pure, abi_params=[enum<2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 2
     v1 = eq v0, false

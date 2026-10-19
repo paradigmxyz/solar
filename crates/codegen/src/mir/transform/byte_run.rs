@@ -58,7 +58,8 @@
 //! backward scan a block gives.
 
 use crate::mir::{
-    EffectKind, Function, Immediate, InstId, InstKind, Module, Value, ValueId,
+    Function, Immediate, InstId, InstKind, Module, PtrLocation, Value, ValueId,
+    analysis::module_may_observe_msize,
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use alloy_primitives::U256;
@@ -80,8 +81,9 @@ impl MirPass for ByteRunLoads {
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        let observes_msize = module_may_observe_msize(module);
         run_function_pass(module, analyses, |func, analyses| {
-            let (changed, swept) = run_function(func);
+            let (changed, swept) = run_function(func, observes_msize);
             if swept && !changed {
                 analyses.note_unreported_edit();
             }
@@ -103,10 +105,10 @@ struct Leaf {
 }
 
 /// Returns whether the function changed, and whether dead instructions were swept regardless.
-fn run_function(func: &mut Function) -> (bool, bool) {
+fn run_function(func: &mut Function, observes_msize: bool) -> (bool, bool) {
     // A dead use of an extracted byte would hide the run behind a use count the
     // shape does not really have, so drop unused pure instructions first.
-    let swept = sweep_dead(func);
+    let swept = sweep_dead(func, observes_msize);
     // Both rewrites need at least two single-byte word reads.
     if func
         .instructions()
@@ -137,7 +139,7 @@ fn run_function(func: &mut Function) -> (bool, bool) {
     }
     changed |= share_reads(func);
     if changed {
-        sweep_dead(func);
+        sweep_dead(func, observes_msize);
     }
     (changed, swept)
 }
@@ -172,7 +174,7 @@ fn fuse(
         }
     }
 
-    // %result = shr(256 - 8 * run, %lowest_word)
+    // %result = shr %lowest_word, 256 - 8 * run
     let amount = 256 - 8 * run as u64;
     let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(amount))));
     let word = leaves[0].word;
@@ -235,7 +237,7 @@ fn collect(
     }
 }
 
-/// Whether an instruction extracts the low byte of an `mload`: a possible run leaf.
+/// Whether an instruction extracts the low byte of a `mload`: a possible run leaf.
 fn is_byte_leaf(func: &Function, kind: &InstKind) -> bool {
     let word = match *kind {
         InstKind::Byte(index, word) if func.value_u64(index) == Some(0) => word,
@@ -252,7 +254,7 @@ fn is_byte_leaf(func: &Function, kind: &InstKind) -> bool {
         }
         _ => return false,
     };
-    matches!(*func.value(word), Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::MLoad(_)))
+    matches!(*func.value(word), Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::Load(.., PtrLocation::Memory)))
 }
 
 /// Records one `mload` whose low byte the run combines.
@@ -264,7 +266,9 @@ fn push_leaf(
     leaves: &mut Vec<Leaf>,
 ) -> bool {
     let Value::Inst(inst) = *func.value(word) else { return false };
-    let InstKind::MLoad(address) = func.inst(inst).kind else { return false };
+    let InstKind::Load(address, PtrLocation::Memory) = func.inst(inst).kind else {
+        return false;
+    };
     // The read must be reachable from the root with no store in between. A
     // read may be shared with other users; only the interior nodes are
     // consumed, and the lowest address's read is kept.
@@ -372,7 +376,7 @@ fn byte_read(func: &Function, inst: InstId) -> Option<(Vec<ValueId>, u64, ValueI
         return None;
     }
     let Value::Inst(load) = *func.value(word) else { return None };
-    let InstKind::MLoad(address) = func.inst(load).kind else { return None };
+    let InstKind::Load(address, PtrLocation::Memory) = func.inst(load).kind else { return None };
     let (base, offset) = address_key(func, address)?;
     Some((base, offset, word))
 }
@@ -380,21 +384,16 @@ fn byte_read(func: &Function, inst: InstId) -> Option<(Vec<ValueId>, u64, ValueI
 /// Removes instructions left without users by the rewrites above.
 ///
 /// A memory read expands the EVM memory high-water mark even when its value is
-/// discarded, and a later `msize` observes that. Functions containing one keep
-/// their reads, matching the rule dead code elimination applies. Returns whether
-/// anything was removed.
-fn sweep_dead(func: &mut Function) -> bool {
-    let observes_msize =
-        func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize));
+/// discarded, and a later `msize` anywhere in the module observes that. Such
+/// modules keep their reads, matching the rule dead code elimination applies.
+/// Returns whether anything was removed.
+fn sweep_dead(func: &mut Function, observes_msize: bool) -> bool {
     let mut swept = false;
     loop {
         let uses = super::egraph::use_counts(func);
         let mut dead = FxHashSet::default();
         for inst in func.instructions() {
-            let inst_ref = func.inst(inst);
-            if inst_ref.kind.has_side_effects()
-                || (observes_msize && inst_ref.kind.effect_kind() == EffectKind::MemoryRead)
-            {
+            if func.inst(inst).must_execute(observes_msize) {
                 continue;
             }
             if let Some(result) = func.inst_result_value(inst)

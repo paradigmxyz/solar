@@ -1,64 +1,87 @@
 - // === ROOT/tests/ui/codegen/evm-ir/pack-data/high_fanout.evmir (before pack-data) ===
 + // === ROOT/tests/ui/codegen/evm-ir/pack-data/high_fanout.evmir (after pack-data) ===
   @module high_fanout
++ @data
++   literal_0: hex"0000000000000000000000000000000011112222333344445555666677778888000000000000000000000000000000009999aaaabbbbccccddddeeeeffff0000"
++ 
   bb0:
     push 128
-    push 0x11112222333344445555666677778888
-    dup 2
-    mstore
-    push 32
-    dup 2
-    add
-    push 0x9999aaaabbbbccccddddeeeeffff0000
-    swap 1
-    mstore
+-   push 0x11112222333344445555666677778888
+-   dup 2
+-   mstore
+-   push 32
+-   dup 2
+-   add
+-   push 0x9999aaaabbbbccccddddeeeeffff0000
+-   swap 1
+-   mstore
++   push 64
++   push_data literal_0
++   dup 3
++   codecopy
     stop
   bb1:
     push 256
-    push 0x11112222333344445555666677778888
-    dup 2
-    mstore
-    push 32
-    dup 2
-    add
-    push 0x9999aaaabbbbccccddddeeeeffff0000
-    swap 1
-    mstore
+-   push 0x11112222333344445555666677778888
+-   dup 2
+-   mstore
+-   push 32
+-   dup 2
+-   add
+-   push 0x9999aaaabbbbccccddddeeeeffff0000
+-   swap 1
+-   mstore
++   push 64
++   push_data literal_0
++   dup 3
++   codecopy
     stop
   bb2:
     push 384
-    push 0x11112222333344445555666677778888
-    dup 2
-    mstore
-    push 32
-    dup 2
-    add
-    push 0x9999aaaabbbbccccddddeeeeffff0000
-    swap 1
-    mstore
+-   push 0x11112222333344445555666677778888
+-   dup 2
+-   mstore
+-   push 32
+-   dup 2
+-   add
+-   push 0x9999aaaabbbbccccddddeeeeffff0000
+-   swap 1
+-   mstore
++   push 64
++   push_data literal_0
++   dup 3
++   codecopy
     stop
   bb3:
     push 512
-    push 0x11112222333344445555666677778888
-    dup 2
-    mstore
-    push 32
-    dup 2
-    add
-    push 0x9999aaaabbbbccccddddeeeeffff0000
-    swap 1
-    mstore
+-   push 0x11112222333344445555666677778888
+-   dup 2
+-   mstore
+-   push 32
+-   dup 2
+-   add
+-   push 0x9999aaaabbbbccccddddeeeeffff0000
+-   swap 1
+-   mstore
++   push 64
++   push_data literal_0
++   dup 3
++   codecopy
     stop
   bb4:
     push 640
-    push 0x11112222333344445555666677778888
-    dup 2
-    mstore
-    push 32
-    dup 2
-    add
-    push 0x9999aaaabbbbccccddddeeeeffff0000
-    swap 1
-    mstore
+-   push 0x11112222333344445555666677778888
+-   dup 2
+-   mstore
+-   push 32
+-   dup 2
+-   add
+-   push 0x9999aaaabbbbccccddddeeeeffff0000
+-   swap 1
+-   mstore
++   push 64
++   push_data literal_0
++   dup 3
++   codecopy
     stop
   

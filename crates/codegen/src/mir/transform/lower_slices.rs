@@ -2,13 +2,24 @@
 //!
 //! Slices are deliberately a higher-level MIR abstraction. The EVM backend
 //! remains word-based, so this pass expands slice parameters and call
-//! arguments, resolves `slice_ptr`/`slice_len` projections, and erases the
-//! corresponding constructors before machine lowering. SSA structs must have been lowered first;
-//! otherwise expanding a slice would invalidate the struct field's declared type.
+//! arguments, resolves `extract_value` projections of slices, and erases the
+//! corresponding constructors before machine lowering. A slice's pointer crosses a call as a word
+//! and becomes a `ptr<location>` again at its projection, so the casts cancel. SSA structs must
+//! have been lowered first; otherwise expanding a slice would invalidate the struct field's
+//! declared type.
+//!
+//! Slice-typed `select` and `phi` first split into pointer and length operations. An internal
+//! slice parameter becomes a pointer and a length word, except a calldata slice whose every caller
+//! forwards the calldata argument of an external entry or of another such parameter: that one
+//! stays a single word, the ABI head offset, and its projections read the length and data from
+//! calldata. External entries use the same head form. A returned slice whose producer is a real
+//! slice returns its pointer as the result and its length in the multi-return buffer; other slice
+//! results return one word. Each signature change shifts local frame offsets, which are checked
+//! for the whole module first, so an unrepresentable offset leaves the module unchanged.
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
-    MirType, Module, SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    MirType, Module, PtrLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
     pass::MirPass,
 };
 use solar_data_structures::{
@@ -49,20 +60,20 @@ enum ParamRepr {
     Pair,
 }
 
-/// The pointer type for a slice parameter's leading word. Returndata has no
-/// dedicated pointer type: like the result of `returndatasize`, its offset is
-/// an ordinary EVM word whose address space remains encoded by the slice type.
-pub(super) fn slice_param_ptr_type(location: SliceLocation) -> MirType {
-    match location {
-        SliceLocation::Memory => MirType::I256,
-        SliceLocation::Calldata => MirType::I256,
-        SliceLocation::Returndata => MirType::I256,
-    }
+/// Allocates an instruction of type `ty` and its result value, returning both.
+fn new_inst(func: &mut Function, kind: InstKind, ty: MirType) -> (InstId, ValueId) {
+    func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped())
 }
 
 /// Allocates a word-typed instruction and its result value, returning both.
 fn new_word_inst(func: &mut Function, kind: InstKind) -> (InstId, ValueId) {
-    func.alloc_value_inst(Instruction::new(kind, Some(MirType::I256)).with_debug_info_dropped())
+    new_inst(func, kind, MirType::I256)
+}
+
+/// Allocates a projection of field `index` of `slice`, typed by the slice's location.
+fn new_projection(func: &mut Function, slice: ValueId, index: u32) -> (InstId, ValueId) {
+    let (kind, ty) = InstKind::slice_field(func, slice, index);
+    new_inst(func, kind, ty)
 }
 
 /// Allocates a `make_slice` instruction and its slice-typed result value.
@@ -70,7 +81,7 @@ fn new_slice_inst(
     func: &mut Function,
     ptr: ValueId,
     len: ValueId,
-    location: SliceLocation,
+    location: PtrLocation,
 ) -> (InstId, ValueId) {
     func.alloc_value_inst(
         Instruction::new(
@@ -84,42 +95,23 @@ fn new_slice_inst(
 fn split_slice_phis(
     func: &mut Function,
     incoming: Vec<(BlockId, ValueId)>,
+    location: PtrLocation,
 ) -> ((InstId, ValueId), (InstId, ValueId)) {
+    let pointer_ty = MirType::Ptr(location);
     let mut ptr_incoming = Vec::with_capacity(incoming.len());
     let mut len_incoming = Vec::with_capacity(incoming.len());
     for (pred, value) in incoming {
-        let (pointer, length) = if func.value_slice_location(value).is_some() {
-            let (ptr_inst, pointer) = new_word_inst(func, InstKind::SlicePtr(value));
-            let (len_inst, length) = new_word_inst(func, InstKind::SliceLen(value));
-            func.blocks[pred].instructions.push(ptr_inst);
-            func.blocks[pred].instructions.push(len_inst);
-            (pointer, length)
-        } else {
-            let (len_inst, length) = new_word_inst(func, InstKind::MLoad(value));
-            func.blocks[pred].instructions.push(len_inst);
-            (value, length)
-        };
+        let (ptr_inst, pointer) = new_projection(func, value, MirType::SLICE_PTR_FIELD);
+        let (len_inst, length) = new_projection(func, value, MirType::SLICE_LEN_FIELD);
+        func.blocks[pred].instructions.push(ptr_inst);
+        func.blocks[pred].instructions.push(len_inst);
         ptr_incoming.push((pred, pointer));
         len_incoming.push((pred, length));
     }
     (
-        new_word_inst(func, InstKind::Phi(ptr_incoming)),
+        new_inst(func, InstKind::Phi(ptr_incoming), pointer_ty),
         new_word_inst(func, InstKind::Phi(len_incoming)),
     )
-}
-
-fn can_split_slice_incoming(
-    func: &Function,
-    incoming: &[(BlockId, ValueId)],
-    allow_memory_pointer: bool,
-) -> bool {
-    let mut has_split = false;
-    incoming.iter().all(|(_, value)| {
-        let ty = func.value_ty(*value);
-        let is_slice = matches!(ty, Some(MirType::Slice(_)));
-        has_split |= is_slice || (allow_memory_pointer && matches!(ty, Some(MirType::I256)));
-        is_slice || matches!(ty, Some(MirType::I256))
-    }) && has_split
 }
 
 impl LowerSlices {
@@ -130,77 +122,21 @@ impl LowerSlices {
         expanded: &mut Vec<ValueId>,
     ) {
         match repr {
-            ParamRepr::Word | ParamRepr::CompactCalldata => expanded.push(value),
+            ParamRepr::CompactCalldata => expanded.push(value),
+            // pointer_word = ptrtoint (extract_value value, 0) to i256
+            ParamRepr::Word if builder.func().value_slice_location(value).is_some() => {
+                let pointer = builder.slice_ptr(value);
+                expanded.push(builder.cast(pointer, MirType::I256));
+            }
+            ParamRepr::Word => expanded.push(value),
             ParamRepr::Pair => {
-                expanded.push(builder.slice_ptr(value));
+                let pointer = builder.slice_ptr(value);
+                expanded.push(builder.cast(pointer, MirType::I256));
                 expanded.push(builder.slice_len(value));
             }
         }
     }
 
-    /// Splits a pointer phi whose incoming values still mix memory objects and
-    /// logical slices. Inlining can erase the pointer type on one incoming
-    /// memory object, so the physical word types may differ. Keep the pointer
-    /// and length paths separate at the backend boundary.
-    fn lower_mixed_slice_phis(func: &mut Function) -> bool {
-        let mut replacements = FxHashMap::default();
-        let mut removed = FxHashSet::default();
-        let mut insertions = FxHashMap::default();
-        let mut projection_users: FxHashMap<ValueId, Vec<(InstId, ValueId, bool)>> =
-            FxHashMap::default();
-        for user in func.instructions() {
-            let Some(user_result) = func.inst_result_value(user) else { continue };
-            match func.inst(user).kind {
-                InstKind::SlicePtr(slice) => {
-                    projection_users.entry(slice).or_default().push((user, user_result, true));
-                }
-                InstKind::SliceLen(slice) => {
-                    projection_users.entry(slice).or_default().push((user, user_result, false));
-                }
-                _ => {}
-            }
-        }
-
-        for block_id in func.blocks.indices() {
-            let instructions = func.blocks[block_id].instructions.clone();
-            for inst_id in instructions {
-                let InstKind::Phi(incoming) = func.inst(inst_id).kind.clone() else { continue };
-                let Some(result) = func.inst_result_value(inst_id) else { continue };
-                let Some(users) = projection_users.get(&result) else { continue };
-                if !can_split_slice_incoming(func, &incoming, true) {
-                    continue;
-                }
-
-                let ((ptr_phi, pointer), (len_phi, length)) = split_slice_phis(func, incoming);
-                insertions.insert(inst_id, (ptr_phi, len_phi));
-                replacements.insert(result, pointer);
-                for &(user, user_result, is_pointer) in users {
-                    let replacement = if is_pointer { pointer } else { length };
-                    replacements.insert(user_result, replacement);
-                    removed.insert(user);
-                }
-                removed.insert(inst_id);
-            }
-        }
-
-        if insertions.is_empty() {
-            return false;
-        }
-        func.replace_uses_canonicalized(&replacements);
-        for block in func.blocks.iter_mut() {
-            let mut instructions = Vec::with_capacity(block.instructions.len());
-            for inst_id in std::mem::take(&mut block.instructions) {
-                if let Some(&(ptr_phi, len_phi)) = insertions.get(&inst_id) {
-                    instructions.push(ptr_phi);
-                    instructions.push(len_phi);
-                } else if !removed.contains(&inst_id) {
-                    instructions.push(inst_id);
-                }
-            }
-            block.instructions = instructions;
-        }
-        true
-    }
     /// Computes the shifted local-frame addresses for a signature expansion.
     ///
     /// Parsed MIR can contain arbitrary `u64` frame offsets. Collect every replacement before
@@ -231,11 +167,12 @@ impl LowerSlices {
                     && let Some(location) = func.value_slice_location(a)
                 {
                     let old = func.inst_result_value(inst_id).expect("select has a result");
-                    let (ia, pa) = new_word_inst(func, InstKind::SlicePtr(a));
-                    let (ib, pb) = new_word_inst(func, InstKind::SlicePtr(b));
-                    let (ila, la) = new_word_inst(func, InstKind::SliceLen(a));
-                    let (ilb, lb) = new_word_inst(func, InstKind::SliceLen(b));
-                    let (isp, sp) = new_word_inst(func, InstKind::Select(cond, pa, pb));
+                    let (ia, pa) = new_projection(func, a, MirType::SLICE_PTR_FIELD);
+                    let (ib, pb) = new_projection(func, b, MirType::SLICE_PTR_FIELD);
+                    let (ila, la) = new_projection(func, a, MirType::SLICE_LEN_FIELD);
+                    let (ilb, lb) = new_projection(func, b, MirType::SLICE_LEN_FIELD);
+                    let (isp, sp) =
+                        new_inst(func, InstKind::Select(cond, pa, pb), MirType::Ptr(location));
                     let (isl, sl) = new_word_inst(func, InstKind::Select(cond, la, lb));
                     let (ims, new_slice) = new_slice_inst(func, sp, sl, location);
                     out.extend([ia, ib, ila, ilb, isp, isl, ims]);
@@ -248,30 +185,26 @@ impl LowerSlices {
         }
 
         // Phis: project each incoming slice in its predecessor, phi the
-        // pointer and length words, and rebuild the slice after the phis.
+        // pointer and the length, and rebuild the slice after the phis.
         for block_id in func.blocks.indices() {
             // Collect the leading slice phis before mutating, since forming the
             // paired words allocates instructions and values.
-            let mut slice_phis = Vec::new();
-            for &inst_id in &func.blocks[block_id].instructions {
-                let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
-                let Some(location) = func
-                    .inst_result_value(inst_id)
-                    .and_then(|result| func.value_slice_location(result))
-                else {
-                    continue;
-                };
-                if can_split_slice_incoming(func, incoming, false) {
-                    slice_phis.push((inst_id, location));
-                }
-            }
+            let slice_phis = func.blocks[block_id]
+                .instructions
+                .iter()
+                .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                .filter_map(|&inst_id| {
+                    let result = func.inst_result_value(inst_id)?;
+                    Some((inst_id, func.value_slice_location(result)?))
+                })
+                .collect::<Vec<_>>();
             let mut split_map = FxHashMap::default();
             for (inst_id, location) in slice_phis {
                 let incoming = match &mut func.inst_mut(inst_id).kind {
                     InstKind::Phi(incoming) => std::mem::take(incoming),
                     _ => unreachable!(),
                 };
-                let ((ptr_phi, sp), (len_phi, sl)) = split_slice_phis(func, incoming);
+                let ((ptr_phi, sp), (len_phi, sl)) = split_slice_phis(func, incoming, location);
                 let (make, new_slice) = new_slice_inst(func, sp, sl, location);
                 let old = func.inst_result_value(inst_id).expect("phi has a result");
                 replacements.insert(old, new_slice);
@@ -374,36 +307,30 @@ impl LowerSlices {
                 let Some(MirType::Slice(location)) = instruction.result_ty else {
                     continue;
                 };
-                instruction.result_ty = Some(slice_param_ptr_type(location));
+                instruction.result_ty = Some(MirType::I256);
                 changed = true;
 
                 if signature[0] != ParamRepr::Pair {
                     continue;
                 }
 
-                let already_rebuilt = builder.func().instructions().any(|user| {
-                    matches!(builder.func().inst(user).kind, InstKind::MakeSlice { ptr, .. } if ptr == result)
-                });
-                if already_rebuilt {
-                    changed = true;
-                    continue;
-                }
-
                 let slot = builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-                let base = builder.mload(slot);
+                let base = builder.load(slot, PtrLocation::Memory);
                 let length_address = builder.add_u64_offset(base, EvmMemoryLayout::WORD_SIZE);
-                let length = builder.mload(length_address);
-                let slice = builder.make_slice(result, length, location);
-                let Value::Inst(constructor) = *builder.func().value(slice) else { unreachable!() };
+                let length = builder.load(length_address, PtrLocation::Memory);
+                // pointer = inttoptr result to ptr<location>
+                // slice = make_slice pointer, length
+                let pointer = builder.cast(result, MirType::Ptr(location));
+                let slice = builder.make_slice(pointer, length, location);
+                let Value::Inst(cast) = *builder.func().value(pointer) else { unreachable!() };
                 replacements.insert(result, slice);
-                constructors.push((constructor, result, length, location));
+                constructors.push((cast, result));
                 changed = true;
             }
         }
         func.replace_uses_canonicalized(&replacements);
-        for (constructor, pointer, length, location) in constructors {
-            func.inst_mut(constructor).kind =
-                InstKind::MakeSlice { ptr: pointer, len: length, location };
+        for (cast, word) in constructors {
+            func.inst_mut(cast).kind = InstKind::IntToPtr(word);
         }
         changed
     }
@@ -450,13 +377,12 @@ impl LowerSlices {
         for (&ty, repr) in func.return_components().iter().zip(signature) {
             match repr {
                 ParamRepr::Word | ParamRepr::CompactCalldata => match ty {
-                    MirType::Slice(location) => returns.push(slice_param_ptr_type(location)),
+                    MirType::Slice(_) => returns.push(MirType::I256),
                     _ => returns.push(ty),
                 },
                 ParamRepr::Pair => {
-                    let MirType::Slice(location) = ty else { unreachable!() };
-                    returns.push(slice_param_ptr_type(location));
-                    returns.push(MirType::I256);
+                    debug_assert!(matches!(ty, MirType::Slice(_)));
+                    returns.extend([MirType::I256; 2]);
                 }
             }
         }
@@ -485,9 +411,8 @@ impl LowerSlices {
                     new_params.push(MirType::I256);
                 }
                 ParamRepr::Pair => {
-                    let MirType::Slice(location) = ty else { unreachable!() };
-                    new_params.push(slice_param_ptr_type(location));
-                    new_params.push(MirType::I256);
+                    debug_assert!(matches!(ty, MirType::Slice(_)));
+                    new_params.extend([MirType::I256; 2]);
                 }
             }
         }
@@ -544,16 +469,18 @@ impl LowerSlices {
 
         let mut replacements = FxHashMap::default();
         let mut removed = FxHashSet::default();
-        for inst_id in builder.func().instructions() {
-            let replacement = match builder.func().inst(inst_id).kind {
-                InstKind::SlicePtr(slice) => components.get(&slice).map(|&(ptr, _)| ptr),
-                InstKind::SliceLen(slice) => components.get(&slice).map(|&(_, len)| len),
-                _ => None,
+        for inst_id in builder.func().instructions().collect::<Vec<_>>() {
+            let Some((slice, index)) = builder.func().inst(inst_id).kind.slice_projection() else {
+                continue;
             };
-            if let Some(replacement) = replacement
-                && let Some(result) = builder.func().inst_result_value(inst_id)
-            {
-                replacements.insert(result, replacement);
+            let Some(&(ptr, len)) = components.get(&slice) else { continue };
+            if index == MirType::SLICE_PTR_FIELD {
+                // extract_value slice, 0 -> inttoptr pointer_word to ptr<location>
+                builder.func_mut().inst_mut(inst_id).kind = InstKind::IntToPtr(ptr);
+                continue;
+            }
+            if let Some(result) = builder.func().inst_result_value(inst_id) {
+                replacements.insert(result, len);
                 removed.insert(inst_id);
             }
         }
@@ -577,18 +504,22 @@ impl LowerSlices {
             let mut lengths = FxHashMap::default();
             let mut pointers = FxHashMap::default();
             for inst_id in instructions {
-                let projection = match builder.func().inst(inst_id).kind {
-                    InstKind::SlicePtr(slice) => raw_heads.get(&slice).map(|&head| (head, true)),
-                    InstKind::SliceLen(slice) => raw_heads.get(&slice).map(|&head| (head, false)),
-                    _ => None,
-                };
+                let projection = builder.func().inst(inst_id).kind.slice_projection().and_then(
+                    |(slice, index)| {
+                        raw_heads.get(&slice).map(|&head| (head, index == MirType::SLICE_PTR_FIELD))
+                    },
+                );
                 if let Some((head, is_ptr)) = projection {
                     let replacement = if is_ptr {
-                        *pointers.entry(head).or_insert_with(|| builder.add_u64_offset(head, 36))
+                        // pointer = inttoptr (add head, 36) to ptr<calldata>
+                        *pointers.entry(head).or_insert_with(|| {
+                            let data = builder.add_u64_offset(head, 36);
+                            builder.cast(data, MirType::Ptr(PtrLocation::Calldata))
+                        })
                     } else {
                         *lengths.entry(head).or_insert_with(|| {
                             let len_pos = builder.add_u64_offset(head, 4);
-                            builder.calldataload(len_pos)
+                            builder.load(len_pos, PtrLocation::Calldata)
                         })
                     };
                     let result = builder
@@ -611,7 +542,7 @@ impl LowerSlices {
         let slice_args: FxHashMap<_, _> = func
             .arg_uses()
             .iter_enumerated()
-            .filter(|(index, _)| func.arg_ty(*index) == MirType::Slice(SliceLocation::Calldata))
+            .filter(|(index, _)| func.arg_ty(*index) == MirType::Slice(PtrLocation::Calldata))
             .flat_map(|(index, uses)| uses.iter().map(move |&value| (value, index)))
             .collect();
         if slice_args.is_empty() {
@@ -638,8 +569,7 @@ impl LowerSlices {
             .iter_enumerated()
             .flat_map(|(function, func)| {
                 func.params.iter_enumerated().filter_map(move |(index, ty)| {
-                    matches!(ty, MirType::Slice(SliceLocation::Calldata))
-                        .then_some((function, index))
+                    matches!(ty, MirType::Slice(PtrLocation::Calldata)).then_some((function, index))
                 })
             })
             .collect();
@@ -668,7 +598,7 @@ impl LowerSlices {
                         let is_compact = match caller.value(arg) {
                             Value::Arg(source)
                                 if caller.arg_ty(*source)
-                                    == MirType::Slice(SliceLocation::Calldata) =>
+                                    == MirType::Slice(PtrLocation::Calldata) =>
                             {
                                 caller.selector.is_some() || compact.contains(&(caller_id, *source))
                             }
@@ -704,41 +634,24 @@ impl LowerSlices {
                 InstKind::MakeSlice { ptr, len, .. } => {
                     components.insert(result, (ptr, len, inst));
                 }
-                InstKind::SlicePtr(slice) => {
-                    projections.insert(result, (slice, inst, true));
+                ref kind => {
+                    if let Some((slice, index)) = kind.slice_projection() {
+                        projections
+                            .insert(result, (slice, inst, index == MirType::SLICE_PTR_FIELD));
+                    }
                 }
-                InstKind::SliceLen(slice) => {
-                    projections.insert(result, (slice, inst, false));
-                }
-                _ => {}
             }
         }
 
-        // Inlining can substitute an already-materialized memory object for a
-        // logical calldata slice parameter. Once memory objects are lowered,
-        // the projections must use the physical object representation.
         for &(slice, inst, is_ptr) in projections.values() {
-            let Some(ty) = func.value_ty(slice) else { continue };
             if let Value::Undef(MirType::Slice(location)) = *func.value(slice) {
-                // slice_ptr(undef slice) -> undef pointer
-                // slice_len(undef slice) -> undef u256
-                let ty = if is_ptr { slice_param_ptr_type(location) } else { MirType::I256 };
+                // extract_value undef, 0 -> undef pointer
+                // extract_value undef, 1 -> undef i256
+                let ty = MirType::slice_fields(location)[usize::from(!is_ptr)];
                 let value = func.alloc_value(Value::Undef(ty));
                 let result = func.inst_result_value(inst).expect("slice projection has a result");
                 replacements.insert(result, value);
                 removed.insert(inst);
-                continue;
-            }
-            let physical_object = matches!(ty, MirType::I256);
-            let physical_pointer = matches!(ty, MirType::I256);
-            let physical_word = matches!(ty, MirType::I256)
-                && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::MLoad(_)));
-            if physical_word || (physical_pointer && is_ptr) {
-                let result = func.inst_result_value(inst).expect("slice projection has a result");
-                replacements.insert(result, slice);
-                removed.insert(inst);
-            } else if physical_object {
-                func.inst_mut(inst).kind = InstKind::MLoad(slice);
             }
         }
         if components.is_empty() {
@@ -811,9 +724,7 @@ impl LowerSlices {
                     .params
                     .iter_enumerated()
                     .map(|(index, ty)| match ty {
-                        MirType::Slice(SliceLocation::Calldata)
-                            if compact.contains(&(id, index)) =>
-                        {
+                        MirType::Slice(PtrLocation::Calldata) if compact.contains(&(id, index)) => {
                             ParamRepr::CompactCalldata
                         }
                         MirType::Slice(_) => ParamRepr::Pair,
@@ -859,7 +770,6 @@ impl LowerSlices {
             }
             changed |= Self::lower_params(func, &signatures[&id]);
             changed |= Self::split_slice_aggregates(func);
-            changed |= Self::lower_mixed_slice_phis(func);
             while Self::lower_projections(func) {
                 changed = true;
             }
