@@ -763,6 +763,11 @@ impl<'gcx> Gcx<'gcx> {
         self.natspec_contract_in_source((name, source))
     }
 
+    /// Returns the `@custom:solar-*` tags that document `item`.
+    pub fn solar_tags(self, item: hir::ItemId) -> crate::natspec::SolarTags {
+        crate::natspec::solar_tags(self, item)
+    }
+
     /// Returns the resolved NatSpec doc comments for the given doc ID.
     ///
     /// This preserves the flat representation used by compiler outputs. Use [`Gcx::natspec_view`]

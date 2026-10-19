@@ -4,7 +4,7 @@ use crate::{
 };
 use solar_ast as ast;
 use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
-use solar_interface::{Ident, Span, Symbol, error_code, kw};
+use solar_interface::{Ident, Span, Symbol, error_code, kw, sym};
 use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -327,6 +327,11 @@ impl<'gcx> Resolver<'gcx> {
                     | NatSpecKind::Dev
                     | NatSpecKind::Custom { .. }
                     | NatSpecKind::Internal { .. } => {
+                        if let NatSpecKind::Custom { name } = natspec.kind
+                            && let Some(tag) = SolarTag::from_custom(name.name)
+                        {
+                            self.check_solar_tag(tag, item_id, docs, tag_span);
+                        }
                         local_tags.push(*natspec);
                     }
                     NatSpecKind::Title => {
@@ -538,6 +543,51 @@ impl<'gcx> Resolver<'gcx> {
     }
 
     #[cold]
+    /// Reports a `solar-` tag on an item it cannot document, or beside its opposite.
+    fn check_solar_tag(
+        &self,
+        tag: SolarTag,
+        item_id: hir::ItemId,
+        docs: &[ast::DocComment<'gcx>],
+        tag_span: Span,
+    ) {
+        let dcx = self.gcx.dcx();
+        match tag {
+            SolarTag::Inline | SolarTag::NoInline => {
+                let reached_internally = match item_id {
+                    hir::ItemId::Function(id) => {
+                        let function = self.gcx.hir.function(id);
+                        function.kind == hir::FunctionKind::Function
+                            && function.body.is_some()
+                            && function.visibility != hir::Visibility::External
+                    }
+                    _ => false,
+                };
+                if !reached_internally {
+                    dcx.err(format!(
+                        "`@custom:{}` must document a function that internal calls reach",
+                        tag.name()
+                    ))
+                    .span(tag_span)
+                    .help("put it on an internal, private or public function with a body")
+                    .emit();
+                    return;
+                }
+                let opposite =
+                    if tag == SolarTag::Inline { SolarTag::NoInline } else { SolarTag::Inline };
+                let both = docs.iter().flat_map(|doc| doc.natspec.iter()).any(|natspec| {
+                    matches!(natspec.kind, ast::NatSpecKind::Custom { name }
+                        if SolarTag::from_custom(name.name) == Some(opposite))
+                });
+                if both && tag == SolarTag::Inline {
+                    dcx.err("a function cannot be both `@custom:solar-inline` and `@custom:solar-noinline`")
+                        .span(tag_span)
+                        .emit();
+                }
+            }
+        }
+    }
+
     fn emit_forbidden_tag_warning(&self, tag_name: &str, tag_span: Span, item_id: hir::ItemId) {
         let item_desc = self.gcx.hir.item(item_id).description();
         self.gcx
@@ -815,4 +865,59 @@ impl<'gcx> Resolver<'gcx> {
         let ty = ty.as_externally_callable_function(false, self.gcx);
         if let TyKind::Fn(fn_ty) = ty.kind { Some(fn_ty.parameters) } else { None }
     }
+}
+
+/// A `@custom:solar-*` tag this compiler checks and relies on, which other compilers read as
+/// documentation. A tag never changes what the code does: it states a requirement on how this
+/// compiler builds it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SolarTag {
+    /// `@custom:solar-inline`: every internal call of the function is inlined where inlining is
+    /// legal, whatever it costs.
+    Inline,
+    /// `@custom:solar-noinline`: no internal call of the function is inlined.
+    NoInline,
+}
+
+impl SolarTag {
+    /// Classifies a custom tag by its name.
+    pub(crate) fn from_custom(name: Symbol) -> Option<Self> {
+        match name {
+            sym::solar_dash_inline => Some(Self::Inline),
+            sym::solar_dash_noinline => Some(Self::NoInline),
+            _ => None,
+        }
+    }
+
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Inline => "solar-inline",
+            Self::NoInline => "solar-noinline",
+        }
+    }
+}
+
+/// The `@custom:solar-*` tags that document an item.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SolarTags {
+    /// `@custom:solar-inline`.
+    pub inline: bool,
+    /// `@custom:solar-noinline`.
+    pub noinline: bool,
+}
+
+/// Returns the `@custom:solar-*` tags of `item`'s own documentation.
+pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
+    let mut tags = SolarTags::default();
+    let doc = gcx.hir.item(item).doc();
+    for natspec in gcx.natspec_doc_comments(doc) {
+        if let ast::NatSpecKind::Custom { name } = natspec.kind {
+            match SolarTag::from_custom(name.name) {
+                Some(SolarTag::Inline) => tags.inline = true,
+                Some(SolarTag::NoInline) => tags.noinline = true,
+                None => {}
+            }
+        }
+    }
+    tags
 }
