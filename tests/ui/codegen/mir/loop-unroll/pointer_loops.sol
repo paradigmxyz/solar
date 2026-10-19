@@ -29,17 +29,15 @@ contract PointerLoops {
     // The hex digits of `raw`, written as Solady's `toHexStringNoPrefix` does.
     // CHECK-LABEL: fn @toHex()
     // CHECK: mstore 15, 0x30313233343536373839616263646566
-    // CHECK: [[LEFT:v[0-9]+]] = sub {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK-NEXT: [[BIT:v[0-9]+]] = and [[LEFT]], 1
+    // CHECK-NEXT: [[START:v[0-9]+]] = add {{v[0-9]+}}, 32
+    // CHECK: [[BIT:v[0-9]+]] = and {{v[0-9]+}}, 1
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
     // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, [[ENTER:bb[0-9]+]]
     // CHECK: [[ENTER]]:
-    // CHECK-NEXT: [[IN:v[0-9]+]] = phi
-    // CHECK-NEXT: [[OUT:v[0-9]+]] = phi [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK: [[OUT:v[0-9]+]] = phi {{\[}}{{bb[0-9]+}}: [[START]]], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK: jump [[HEADER:bb[0-9]+]]
     // CHECK-NEXT: [[HEADER]]:
-    // CHECK-NEXT: {{v[0-9]+}} = phi {{\[}}[[ENTER]]: [[IN]]],
-    // CHECK-NEXT: [[O:v[0-9]+]] = phi {{\[}}[[ENTER]]: [[OUT]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
+    // CHECK: [[O:v[0-9]+]] = phi {{\[}}[[ENTER]]: [[OUT]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
     // The second copy writes at constant offsets from the pair's first output
     // pointer, and the pair advances it by four once.
     // CHECK: {{v[0-9]+}} = add [[O]], 3

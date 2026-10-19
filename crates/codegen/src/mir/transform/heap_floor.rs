@@ -96,9 +96,9 @@
 //! whole in each internal caller that reads it as a pointer. See CODEGEN-010.
 
 use crate::mir::{
-    AbiType, ArgIdx, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionId,
-    Immediate, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module,
-    PtrLocation, RawMemoryAccess, RawMemorySize, Terminator, Value, ValueId,
+    AbiType, ArgIdx, BlockId, Callee, CheckedOp, EffectKind, Function, FunctionId, Immediate,
+    InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module, PtrLocation,
+    RawMemoryAccess, RawMemorySize, Terminator, Value, ValueId,
     analysis::{AddressInput, absolute_address_inputs},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -488,7 +488,7 @@ fn slot_bytes(start: u64, size: u64) -> SlotBytes {
 /// checks that revert with scratch data, and accesses to frames, storage slots, and memory that
 /// already exists never do; allocations, encodings, and the other builtins may.
 fn lowered_reads_pointer(kind: &InstKind) -> bool {
-    kind.op_def().effect != EffectKind::Pure
+    kind.effect_kind() != EffectKind::Pure
         && !matches!(
             kind,
             InstKind::FrameLoad { .. }
@@ -501,12 +501,6 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
                 | InstKind::StorageArrayDataSlot(..)
                 | InstKind::StorageArrayElementSlot { .. }
                 | InstKind::StoreImmutable(..)
-                | InstKind::ICall {
-                    function: Callee::Builtin(
-                        Builtin::Check { .. } | Builtin::CheckedAddMod | Builtin::CheckedMulMod
-                    ),
-                    ..
-                }
         )
 }
 
@@ -1349,7 +1343,7 @@ impl<'a> PointerUses<'a> {
         slot_bytes(start, size.unwrap_or(u64::MAX)) & !written != 0
     }
 
-    /// Returns whether an operation that reads or writes memory objects may read a byte of the slot
+    /// Returns whether an operation with effects may read a byte of the slot
     /// that still holds the stored word, through an object or a memory slice it takes. Its extent
     /// is unknown, so any object `may_read_slot` cannot place above the slot may; a store into an
     /// object counts too, as the bytes it writes are unknown. An address at an index the program
@@ -1360,7 +1354,8 @@ impl<'a> PointerUses<'a> {
         kind: &InstKind,
         written: SlotBytes,
     ) -> bool {
-        if !matches!(kind.op_def().effect, EffectKind::MemoryRead | EffectKind::MemoryWrite) {
+        // Calls, builtins, and opaque operations may read their objects as well.
+        if kind.effect_kind() == EffectKind::Pure {
             return false;
         }
         let func = &self.module.functions[func_id];

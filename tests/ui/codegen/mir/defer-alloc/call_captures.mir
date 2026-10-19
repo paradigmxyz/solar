@@ -1,13 +1,12 @@
-//@compile-flags: -Zmir-pipeline=storage-promotion,static-alloc
-//@filecheck: --match-full-lines
-@module StaticAllocCallCaptures
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocCallCaptures
 
 // A callee that returns the pointer it receives lets the caller keep an alias
 // to the object, so the allocation must stay dynamic.
-// CHECK-LABEL: + // === {{.*}} (after static-alloc) ===
 // CHECK:   fn @returning_caller{{.*}}
 // CHECK-NEXT:     bb0:
-// CHECK-NEXT:       v0 = alloc 32
+// CHECK-NEXT: {{.*}}v0 = alloc 32{{$}}
 fn @returning_caller() -> i256 [selector=0x01020304] {
   bb0:
     v6 = alloc 32
@@ -20,7 +19,7 @@ fn @returning_caller() -> i256 [selector=0x01020304] {
 // Bitwise identities of the pointer capture it too.
 // CHECK:   fn @masking_caller{{.*}}
 // CHECK-NEXT:     bb0:
-// CHECK-NEXT:       v0 = alloc 32
+// CHECK-NEXT: {{.*}}v0 = alloc 32{{$}}
 fn @masking_caller() -> i256 [selector=0x01020305] {
   bb0:
     v7 = alloc 32
@@ -31,10 +30,11 @@ fn @masking_caller() -> i256 [selector=0x01020305] {
 }
 
 // A callee that only dereferences the pointer does not capture it, so the
-// object gets a static placement.
+// object is deferred to static placement.
 // CHECK:   fn @dereferencing_caller{{.*}}
 // CHECK-NEXT:     bb0:
-// CHECK-NEXT: -     v0 = alloc 32
+// CHECK-NEXT: - {{.*}}v0 = alloc 32
+// CHECK-NEXT: + {{.*}}v0 = alloc 32 !metadata(deferred_alloc)
 fn @dereferencing_caller() -> i256 [selector=0x01020306] {
   bb0:
     v8 = alloc 32
@@ -59,23 +59,4 @@ fn @dereferences(arg0: i256) -> i256 {
   bb0:
     v0 = mload arg0
     ret v0
-}
-
-// Storage promotion gives another entry a 32-byte frame, providing the shadow
-// region used by the explicit static-allocation pass.
-fn @reserve_frame() [selector=0x01020308] {
-  bb0:
-    sstore 0, 1
-    jump bb1
-  bb1:
-    jumpi true, bb2, bb4
-  bb2:
-    v0 = sload 0
-    v1 = add v0, 1
-    sstore 0, v1
-    jump bb3
-  bb3:
-    jump bb1
-  bb4:
-    stop
 }
