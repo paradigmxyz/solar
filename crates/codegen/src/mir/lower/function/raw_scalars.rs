@@ -474,11 +474,15 @@ impl LoweringState {
             if let Some(id) = base.ctor {
                 let _ = exposure.visit_nested_function(id);
             }
+            for modifier in base.linearized_bases_args.iter().flatten() {
+                let _ = exposure.visit_modifier(modifier);
+            }
             for id in base.variables() {
                 let variable = gcx.hir.variable(id);
                 if variable.is_state_variable()
                     && let Some(initializer) = variable.initializer
                 {
+                    let _ = exposure.visit_expr(initializer);
                     // An immutable stores the raw bits of its initializer.
                     if variable.is_immutable() {
                         exposure.connect(&[id], initializer);

@@ -1,0 +1,138 @@
+// === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_fixed_bytes_constructor.sol:Base ===
+@module Base
+fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[bytes4, bytes4]] {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    v0 = icall @compare, arg1
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = not 255
+    v3 = and v1, v2
+    v4 = zext i1 v0 to i256
+    v5 = and v4, 255
+    v6 = or v3, v5
+    sstore 1, v6 !metadata(storage=slot(1))
+    ret
+}
+
+fn @compare(arg0: i256) -> i1 [pure] {
+  bb0:
+    v0 = eq arg0, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+// === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_fixed_bytes_constructor.sol:DirtyFixedBytesConstructor ===
+@module DirtyFixedBytesConstructor
+fn @viaPointer() -> i1 [selector=0x9d6249be, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = shr v0, 8
+    v2 = trunc i256 v1 to i8
+    v3 = ne v2, i8 0
+    ret v3
+}
+
+fn @forwardedRaw() -> i256 [selector=0x65f94e9e, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
+}
+
+fn @modifierRaw() -> i256 [selector=0xcf558cea, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @dirty, 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = icall @identity, v0
+    v2 = icall @dirty, 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    sstore 0, v1 !metadata(storage=slot(0))
+    v3 = icall @compare, v2
+    v4 = sload 1 !metadata(storage=slot(1))
+    v5 = not 255
+    v6 = and v4, v5
+    v7 = zext i1 v3 to i256
+    v8 = and v7, 255
+    v9 = or v6, v8
+    sstore 1, v9 !metadata(storage=slot(1))
+    jump bb1
+  bb1:
+    v10 = icall @dirty, 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = icall @pointer, v10
+    v12 = shl 255, 8
+    v13 = sload 1 !metadata(storage=slot(1))
+    v14 = not v12
+    v15 = and v13, v14
+    v16 = zext i1 v11 to i256
+    v17 = and v16, 255
+    v18 = shl v17, 8
+    v19 = or v15, v18
+    sstore 1, v19 !metadata(storage=slot(1))
+    v20 = icall @dirty, 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v21 = icall @identity, v20
+    v22 = icall @rawBits, v21
+    sstore 2, v22 !metadata(storage=slot(2))
+    v23 = icall @dirty, 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    sstore 3, v23 !metadata(storage=slot(3))
+    jump bb3
+  bb3:
+    jump bb2
+  bb2:
+    ret
+}
+
+fn @baseRaw() -> i256 [selector=0xdb5790ed, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @cleanedBase() -> i1 [selector=0x0c836e8e, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = trunc i256 v0 to i8
+    v2 = ne v1, i8 0
+    ret v2
+}
+
+fn @pointer(arg0: i256) -> i1 [pure] {
+  bb0:
+    v0 = icall @internal_dispatcher_p_bytes4_r_bool, 4, arg0
+    ret v0
+}
+
+fn @dirty(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @identity(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @rawBits(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @compare(arg0: i256) -> i1 [pure] {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = eq v0, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @internal_dispatcher_p_bytes4_r_bool(arg0: i256, arg1: i256) -> i1 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 4
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @compare, arg1
+    ret v1
+}

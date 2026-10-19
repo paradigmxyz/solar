@@ -125,7 +125,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     this.storage_refs.insert(parameter, access);
                 } else {
                     let value = this.lower_typed_expr(argument, parameter_ty)?;
-                    let value = this.normalize_dirty_scalar(value, parameter_ty);
+                    let value = this.clean_unexposed_scalar(parameter, value);
                     let value = this.materialize_scalar_carrier(parameter, value, argument.span)?;
                     this.values.insert(parameter, value);
                 }
