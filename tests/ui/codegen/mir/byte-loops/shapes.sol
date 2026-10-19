@@ -22,6 +22,10 @@
 //@ run-call: down 0x0102030405, 9, 9, 0 => 0x0102030405
 //@ run-call: sliceCalldata 0x0a0b0c0d0e, 1, 3 => 0x0b0c0d
 //@ run-call-fail: sliceCalldata 0x0a0b0c0d0e, 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: fresh 0x0102030405, 1, 3 => 0x00020304
+//@ run-call-fail: fresh 0x0102030405, 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: viaHelper 0x0102030405, 2, 3 => 0x030405
+//@ run-call-fail: viaHelper 0x0102030405, 2, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
 // A gather from calldata is one `calldataload`.
 // CHECK-LABEL: fn @fromCalldata(
@@ -56,6 +60,19 @@
 // CHECK-LABEL: fn @sliceCalldata(
 // CHECK-NOT: mstore8
 // CHECK: calldatacopy
+
+// A fresh destination's checks compare with the length its allocation stored, and the copy
+// needs no overlap guard.
+// CHECK-LABEL: fn @fresh(
+// CHECK-NOT: mstore8
+// CHECK: mcopy
+// CHECK-NOT: mstore8
+
+// A `@custom:solar-inline` helper meets the caller's fresh destination before this pass runs.
+// CHECK-LABEL: fn @viaHelper(
+// CHECK-NOT: mstore8
+// CHECK: mcopy
+// CHECK-NOT: mstore8
 
 contract Test {
     function fromCalldata(bytes calldata b, uint256 offset) external pure returns (bytes32 result) {
@@ -102,6 +119,25 @@ contract Test {
         result = new bytes(count);
         for (uint256 k; k < count; ++k) {
             result[k] = b[offset + k];
+        }
+    }
+
+    function fresh(bytes memory src, uint256 from, uint256 count) external pure returns (bytes memory out) {
+        out = new bytes(count + 1);
+        for (uint256 k; k < count; ++k) {
+            out[1 + k] = src[from + k];
+        }
+    }
+
+    function viaHelper(bytes memory src, uint256 from, uint256 count) external pure returns (bytes memory out) {
+        out = new bytes(count);
+        _copy(out, 0, src, from, count);
+    }
+
+    /// @custom:solar-inline
+    function _copy(bytes memory dst, uint256 at, bytes memory src, uint256 from, uint256 count) private pure {
+        for (uint256 k; k < count; ++k) {
+            dst[at + k] = src[from + k];
         }
     }
 }
