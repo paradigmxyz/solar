@@ -2,7 +2,7 @@
 @module PublicBody
 @phase lowered
 @immutables
-  _start: u256
+  _start: uint256
 
 fn @constructor(arg0: i256) [abi_wrapper, constructor] {
   bb0:
@@ -43,7 +43,7 @@ fn @entry() [entry] {
     jumpi v1, bb4, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb4, [0xbe9a6555 => bb2, 0xfea5657c => bb3]
   bb3:
     tail_call @vested

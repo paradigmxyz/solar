@@ -3,9 +3,9 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=inline,cfg-simplify,dce
 @module ImmutableLeaves
 @immutables
-  start: u64
-  duration: u64
-  initial: u256
+  start: uint64
+  duration: uint64
+  initial: uint256
 
 fn @entry() -> i256 [selector=1] {
   bb0:

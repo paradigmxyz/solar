@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_dynamic.sol:AbiCalldataFixedDynamic ===
 @module AbiCalldataFixedDynamic
-fn @lengths(arg0: slice<calldata>) -> i256 [selector=0xe718a709, pure, abi_params=[array<2, bytes>], abi_returns=[word], abi_return_params=[u256]] {
+fn @lengths(arg0: slice<calldata>) -> i256 [selector=0xe718a709, pure, abi_params=[array<2, bytes>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 0, v0
@@ -66,6 +66,6 @@ fn @lengths(arg0: slice<calldata>) -> i256 [selector=0xe718a709, pure, abi_param
     v51 = inttoptr i256 v48 to ptr<calldata>
     v52 = make_calldata_slice v51, v45
     v53 = extract_value slice<calldata>, v52, 1
-    v54 = checked_add u256, v26, v53
+    v54 = checked_add uint256, v26, v53
     ret v54
 }

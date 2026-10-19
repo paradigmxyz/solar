@@ -27,7 +27,7 @@ fn @sub() [selector=0x00000002, pure, abi_wrapper] {
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
-    v1 = shr 224, v0
+    v1 = shr v0, 224
     switch v1, default bb3, [1 => bb1, 2 => bb2]
   bb1:
     tail_call @add

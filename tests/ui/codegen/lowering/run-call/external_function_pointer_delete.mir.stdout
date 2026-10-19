@@ -9,7 +9,7 @@ fn @clear() -> i1 [selector=0x52efea6e, abi_params=[], abi_returns=[word<bool>],
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0x3fa4f245
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = not 0xffffffffffffffffffffffffffffffffffffffffffffffff

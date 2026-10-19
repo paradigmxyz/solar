@@ -3,7 +3,7 @@
   @module WordCursors
   fn @words(arg0: ptr<memory>) -> slice<memory> {
     bb0:
--     v0 = abi_encode [memory_array<word<u8>>], args arg0
+-     v0 = abi_encode [memory_array<word<uint8>>], args arg0
 -     ret v0
 +     v1 = fmp
 +     v2 = ptrtoint ptr<memory> v1 to i256
@@ -60,7 +60,7 @@
       v6 = mload arg0
       mstore v3, v6
 -     v7 = mul v6, 32
-+     v7 = shl 5, v6
++     v7 = shl v6, 5
       v8 = add v3, 32
       v9 = ptradd arg0, 32
       v10 = add v8, v7
@@ -107,7 +107,7 @@
       mstore v1, 32
       v6 = mload arg0
       mstore v3, v6
--     v7 = shl 5, v6
+-     v7 = shl v6, 5
       v8 = add v3, 32
       v9 = ptradd arg0, 32
 -     v10 = add v8, v7

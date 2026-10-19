@@ -102,18 +102,9 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
         // Keep reverse edges even when cleanup removes a call: stale edges only
         // cause a redundant visit, and function IDs stay stable through block cleanup.
         let mut callers = index_vec![Vec::new(); module.functions.len()];
-        for (caller, func) in module.iter_functions() {
-            for inst in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(callee), .. } =
-                    func.inst(inst).kind
-                {
-                    callers[callee].push(caller);
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = block.terminator {
-                    callers[function].push(caller);
-                }
+        for caller in module.functions.indices() {
+            for callee in call_graph.callees(caller) {
+                callers[callee].push(caller);
             }
         }
         let mut worklist = Vec::new();

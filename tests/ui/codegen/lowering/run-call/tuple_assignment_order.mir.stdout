@@ -4,16 +4,16 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
-fn @shadowInitializer(arg0: i256, arg1: i256) -> struct0 [selector=0x3c961c96, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shadowInitializer(arg0: i256, arg1: i256) -> struct0 [selector=0x3c961c96, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
-    v0 = checked_add u256, arg1, 1
-    v1 = checked_add u256, arg0, 2
+    v0 = checked_add uint256, arg1, 1
+    v1 = checked_add uint256, arg0, 2
     v2 = insert_value struct0, undef struct0, 0, v0
     v3 = insert_value struct0, v2, 1, v1
     ret v3
 }
 
-fn @shadowCallInitializer(arg0: i256, arg1: i256) -> struct0 [selector=0xc65ccea1, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shadowCallInitializer(arg0: i256, arg1: i256) -> struct0 [selector=0xc65ccea1, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @pair, arg1, arg0
     v1 = extract_value struct0, v0, 0
@@ -30,14 +30,14 @@ fn @pair(arg0: i256, arg1: i256) -> struct0 [pure] {
     ret v1
 }
 
-fn @swap() -> struct0 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @swap() -> struct0 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 2
     v1 = insert_value struct0, v0, 1, 1
     ret v1
 }
 
-fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     memory_zero v0, 96
@@ -80,7 +80,7 @@ fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[],
     ret v25
 }
 
-fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @setCursor, 1
     v1 = icall @setCursor, 2
@@ -95,7 +95,7 @@ fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_re
     ret v6
 }
 
-fn @repeatedCallTarget() -> i256 [selector=0xbf139358, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @repeatedCallTarget() -> i256 [selector=0xbf139358, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @threeValues
     v1 = extract_value struct1, v0, 0
@@ -104,7 +104,7 @@ fn @repeatedCallTarget() -> i256 [selector=0xbf139358, pure, abi_params=[], abi_
     ret v1
 }
 
-fn @sideEffectfulTargets() -> struct1 [selector=0x1a1f53e1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @sideEffectfulTargets() -> struct1 [selector=0x1a1f53e1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -116,10 +116,10 @@ fn @sideEffectfulTargets() -> struct1 [selector=0x1a1f53e1, abi_params=[], abi_r
     v5 = lt v4, 2
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = shl 5, v4
+    v7 = shl v4, 5
     v8 = ptradd v0, v7
     mstore v8, 2
-    v9 = shl 5, v1
+    v9 = shl v1, 5
     v10 = ptradd v0, v9
     mstore v10, 1
     v11 = lt 0, 2
@@ -146,7 +146,7 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v2 = eq v1, 1
     v3 = sub 0, v1
     v4 = or 127, v3
-    v5 = shr 1, v0
+    v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = eq v7, false
@@ -156,7 +156,7 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     jump bb3
   bb1:
     v9 = storage_array_data_slot 3
-    v10 = shr 5, 0
+    v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
   bb3:
@@ -169,7 +169,7 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v17 = eq v16, 1
     v18 = sub 0, v16
     v19 = or 127, v18
-    v20 = shr 1, v15
+    v20 = shr v15, 1
     v21 = and v20, v19
     v22 = lt 1, v21
     v23 = eq v22, false
@@ -179,7 +179,7 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     jump bb6
   bb4:
     v24 = storage_array_data_slot 3
-    v25 = shr 5, 1
+    v25 = shr 1, 5
     v26 = add v24, v25
     jump bb6
   bb6:
@@ -187,23 +187,23 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v28 = and 1, 31
     v29 = sub 31, v28
     v30 = mul v29, 8
-    v31 = shl v30, 255
+    v31 = shl 255, v30
     v32 = sload v27 !metadata(storage=symbolic(v27))
     v33 = not v31
     v34 = and v32, v33
-    v35 = shr 248, 0x6200000000000000000000000000000000000000000000000000000000000000
+    v35 = shr 0x6200000000000000000000000000000000000000000000000000000000000000, 248
     v36 = and v35, 255
-    v37 = shl v30, v36
+    v37 = shl v36, v30
     v38 = or v34, v37
     sstore v27, v38 !metadata(storage=symbolic(v27))
     v39 = mul v14, 8
-    v40 = shl v39, 255
+    v40 = shl 255, v39
     v41 = sload v12 !metadata(storage=symbolic(v12))
     v42 = not v40
     v43 = and v41, v42
-    v44 = shr 248, 0x6100000000000000000000000000000000000000000000000000000000000000
+    v44 = shr 0x6100000000000000000000000000000000000000000000000000000000000000, 248
     v45 = and v44, 255
-    v46 = shl v39, v45
+    v46 = shl v45, v39
     v47 = or v43, v46
     sstore v12, v47 !metadata(storage=symbolic(v12))
     v48 = sload 3 !metadata(storage=slot(3))
@@ -212,7 +212,7 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v50 = eq v49, 1
     v51 = sub 0, v49
     v52 = or 127, v51
-    v53 = shr 1, v48
+    v53 = shr v48, 1
     v54 = and v53, v52
     v55 = lt 0, v54
     v56 = eq v55, false
@@ -222,7 +222,7 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     jump bb9
   bb7:
     v57 = storage_array_data_slot 3
-    v58 = shr 5, 0
+    v58 = shr 0, 5
     v59 = add v57, v58
     jump bb9
   bb9:
@@ -231,15 +231,15 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v62 = sub 31, v61
     v63 = sload v60 !metadata(storage=symbolic(v60))
     v64 = mul v62, 8
-    v65 = shr v64, v63
-    v66 = shl 248, v65
+    v65 = shr v63, v64
+    v66 = shl v65, 248
     v67 = sload 3 !metadata(storage=slot(3))
     validate_storage_bytes v67
     v68 = and v67, 1
     v69 = eq v68, 1
     v70 = sub 0, v68
     v71 = or 127, v70
-    v72 = shr 1, v67
+    v72 = shr v67, 1
     v73 = and v72, v71
     v74 = lt 1, v73
     v75 = eq v74, false
@@ -249,7 +249,7 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     jump bb12
   bb10:
     v76 = storage_array_data_slot 3
-    v77 = shr 5, 1
+    v77 = shr 1, 5
     v78 = add v76, v77
     jump bb12
   bb12:
@@ -258,8 +258,8 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v81 = sub 31, v80
     v82 = sload v79 !metadata(storage=symbolic(v79))
     v83 = mul v81, 8
-    v84 = shr v83, v82
-    v85 = shl 248, v84
+    v84 = shr v82, v83
+    v85 = shl v84, 248
     v86 = insert_value struct0, undef struct0, 0, v66
     v87 = insert_value struct0, v86, 1, v85
     ret v87
@@ -275,7 +275,7 @@ fn @nextIndex() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = checked_add u256, v1, 1
+    v2 = checked_add uint256, v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
     ret v0
 }

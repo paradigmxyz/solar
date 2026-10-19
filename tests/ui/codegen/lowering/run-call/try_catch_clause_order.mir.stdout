@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_clause_order.sol:C ===
 @module C
-fn @boom(arg0: i256) -> i256 [selector=0xb443a085, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @boom(arg0: i256) -> i256 [selector=0xb443a085, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -22,14 +22,14 @@ fn @boom(arg0: i256) -> i256 [selector=0xb443a085, pure, abi_params=[u256], abi_
     icall revert_if<empty>, true
     invalid
   bb4:
-    v2 = checked_div u256, 1, 0
+    v2 = checked_div uint256, 1, 0
     ret v2
   bb1:
     icall require<short_string>, false, 4, 0x6e6f706500000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -48,7 +48,7 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
     v18 = mload v17
-    v19 = shr 224, v18
+    v19 = shr v18, 224
     v20 = eq v19, 0x8c379a0
     jumpi v20, bb4, bb5
   bb5:
@@ -95,7 +95,7 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
     ret 0
 }
 
-fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -114,7 +114,7 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
     v18 = mload v17
-    v19 = shr 224, v18
+    v19 = shr v18, 224
     v20 = eq v19, 0x8c379a0
     jumpi v20, bb4, bb5
   bb5:
@@ -161,7 +161,7 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
     ret 0
 }
 
-fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -180,7 +180,7 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[u256],
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
     v18 = mload v17
-    v19 = shr 224, v18
+    v19 = shr v18, 224
     v20 = eq v19, 0x4e487b71
     v21 = lt v16, 36
     v22 = eq v21, false

@@ -1,40 +1,53 @@
-//! Lower semantic ABI encoding operations to memory and slice operations.
+//! ABI encode lowering: expand each semantic `abi_encode` into memory stores and copies.
 //!
-//! After the main optimization pipeline, expand each `abi_encode` from its ABI
-//! layout into head stores and dynamic-tail copies, reusing outlined helpers when
-//! supplied by the lowering plan. Literal objects are kept until their projections
-//! can be folded. Generated stores inherit the encoding operation's source context;
-//! any block split moves the original terminator and its metadata together.
-//! Bytes results keep their allocation point because source code can observe the FMP bump.
-//! Dynamic encoding writes at the free-memory pointer before reserving its final extent. That
-//! reservation must stay at the same address even if later folding makes its size constant.
-//! Constructor-reachable encoders stay inline because their output is not reserved
-//! until encoding finishes, and a dynamic call frame would overlap that output.
-//! Dynamic tuples are written at the current heap frontier before their size is
-//! known. Their final reservation must retain that exact address even if later
-//! simplification makes the size constant; static placement would detach the
-//! result from the stores that already initialized it.
-//! Tuples with known literal byte tails can instead reserve their full output
-//! before encoding, keeping stores tied to the allocated base. This is limited
-//! to nonempty payloads: empty tails already have a short encoder, and moving
-//! their reservation earlier can increase stack setup around external calls.
-//! Word-cleanup loops use a guarded do-while with a destination cursor and fixed
-//! source displacement, returning the final cursor instead of retaining a
-//! separate tail. The original count controls iteration even if addresses wrap;
-//! loads, cleanup checks, and stores remain in their original order. Small
-//! constant allocations retain the counted loop because rotation's extra entry
-//! guard and exit phi can grow short encodings in callers with live arguments.
-//! Byte tails zero their final padded word before writing the length header.
-//! For an empty tail these addresses coincide, and the header store restores its
-//! length. This removes a branch without touching memory beyond the encoded tail.
-//! Size mode retains the guarded padding store: its encoder tails share better
-//! in the machine outlining pipeline on large ABI-heavy contracts.
-//! A terminal external return of a freshly allocated full-word array or byte
-//! string is encoded in place. Moving its payload forward by one word makes
-//! room for the ABI tuple offset and reuses the object's length word, avoiding
-//! a second allocation. A module-wide plan selects those sites before shared
-//! tuple helpers are built, so locally cheaper terminal encodings do not leave
-//! an unused shared body.
+//! The pass runs after the main optimization pipeline, once `lower-abi` has
+//! turned external returns into `abi_encode` operations, and before aggregate,
+//! memory-object, and allocation lowering. It writes each layout's heads and
+//! dynamic tails with typed memory and slice operations. Generated
+//! instructions inherit the encoding's source context, and a block split moves
+//! the original terminator with its metadata.
+//!
+//! Placement. A static layout reserves its output first and stores into it. A
+//! dynamic layout writes at the free-memory pointer, then reserves the encoded
+//! extent with `preserves_fmp`, so that reservation keeps its address even
+//! after later folding makes its size constant. `Scratch` encodings stage at
+//! the free-memory pointer without reserving. `Bytes` results keep their
+//! allocation point because source code can observe the pointer bump. A tuple
+//! whose only dynamic values are literal byte strings has a known size, so it
+//! reserves its output before encoding; empty literal tails keep the general
+//! path, whose short encoder needs less stack setup around external calls.
+//!
+//! Literal objects. A `bytes memory` argument allocated and initialized with
+//! constant words in the encoding's block, with no intervening opaque memory
+//! access, encodes as immediate stores, and its now unused allocation is
+//! removed. The candidates are proven on the original IR, before encoding
+//! emits its own raw accesses.
+//!
+//! Element loops. Full-word memory arrays and calldata word arrays copy as one
+//! block. Memory words that need cleanup use a guarded do-while over a
+//! destination cursor with a fixed source displacement. The original count
+//! controls iteration even if addresses wrap, and loads, cleanup checks, and
+//! stores keep their order. Allocations of at most one element keep a counted
+//! loop, whose rotation would add an entry guard and an exit phi. Byte tails
+//! zero their last padded word before writing the length header, which needs
+//! no branch even for an empty tail; size mode keeps the guarded store,
+//! because those tails share better under machine outlining.
+//!
+//! In-place returns. Under the gas and size objectives, a terminal external
+//! return of a fresh full-word array or byte string that is not a literal
+//! object encodes over the object itself: the payload moves forward one word
+//! to make room for the tuple offset and the length word is reused, so no
+//! second allocation is made. A module-wide plan selects those sites before
+//! helpers are counted.
+//!
+//! Shared helpers. Encodings of one shape at two or more sites can call one
+//! `encode_abi_tuple` helper when the cost model ranks the call protocol below
+//! the expanded copies, which in practice happens under the size objective.
+//! Memory arrays whose element loop appears at two or more sites share an
+//! `encode_abi_array` helper, built inner layouts first. Functions reachable
+//! from a constructor always encode inline: a constructor call frame is
+//! allocated at the free-memory pointer, where an outlined encoder would still
+//! be writing its unreserved output.
 
 use crate::{
     mir::{
@@ -44,7 +57,7 @@ use crate::{
         analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
         transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
     },
-    target::{Cost, Target},
+    target::Target,
 };
 
 use alloy_primitives::U256;
@@ -224,18 +237,10 @@ fn synthesize_tuple_helpers(
             builder.set_return_type(result_ty);
             builder.ret([encoded]);
         }
-        let params = function.params.len();
-        let body = target.code_estimate(&function);
+        let body_bytes = target.code_estimate(&function).bytes;
         let sites = u32::try_from(sites).unwrap_or(u32::MAX);
-        // The encoding runs at every site in both shapes; the call protocol is the price of
-        // sharing it, the copies of the body the price of expanding it.
-        let frame_words = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE
-            + params as u64
-            + 1;
-        let call = target.icall(params, 1, frame_words);
-        let ret = target.internal_return(params, 1);
-        let with_helper = Cost::new(0, body.bytes).plus(ret).plus(call.times(sites));
-        let expanded = Cost::new(0, body.bytes.saturating_mul(sites));
+        let (with_helper, expanded) =
+            target.helper_sharing(body_bytes, function.params.len(), 1, sites);
         if target.cmp(with_helper, expanded).is_lt() {
             shared.push((key, function));
         }
@@ -552,7 +557,7 @@ fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
 /// Returns functions whose successful exits return a freshly allocated object.
 /// Internal-call results propagate freshness to thin wrappers. Reverting paths
 /// do not affect the proof.
-pub(super) fn fresh_object_returning_functions(module: &Module) -> DenseBitSet<FunctionId> {
+fn fresh_object_returning_functions(module: &Module) -> DenseBitSet<FunctionId> {
     let mut fresh = DenseBitSet::new_empty(module.functions.len());
     loop {
         let mut changed = false;
@@ -589,12 +594,6 @@ fn return_values_are_fresh(
     let Value::Inst(inst) = func.value(*value) else { return false };
     match func.inst(*inst).kind {
         InstKind::Alloc { .. } => true,
-        InstKind::Load(address, PtrLocation::Memory)
-            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite) =>
-        {
-            true
-        }
         InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
             fresh.contains(function)
         }
@@ -638,7 +637,7 @@ fn encode_dynamic_return_in_place(
     let source = builder.memory_data(*object);
     let bytes = if is_array {
         let five = builder.imm(5);
-        builder.shl(five, length)
+        builder.shl(length, five)
     } else {
         let thirty_one = builder.imm(31);
         let rounded = builder.add(length, thirty_one);
@@ -918,7 +917,7 @@ fn encode_static_impl(
         AbiType::Function => {
             let value = if source == AbiValueSource::Scalar {
                 let shift = builder.imm(64);
-                builder.shl(shift, value)
+                builder.shl(value, shift)
             } else {
                 AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
                     .expect("function words always require cleanup")

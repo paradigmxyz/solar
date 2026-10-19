@@ -16,11 +16,13 @@
 //! CFG and word cleanup can simplify the copied comparisons. Calls already in
 //! guard diamonds are excluded so repeated runs do not duplicate their guards.
 
-use crate::mir::{
-    BlockId, EffectKind, Function, InstKind, Instruction, MirType, Module, Terminator, Value,
-    ValueId, analysis::CfgInfo,
+use crate::{
+    mir::{
+        BlockId, EffectKind, Function, InstKind, Instruction, MirType, Module, Terminator, Value,
+        ValueId, analysis::CfgInfo,
+    },
+    target::Target,
 };
-use crate::target::Target;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 struct Guard {

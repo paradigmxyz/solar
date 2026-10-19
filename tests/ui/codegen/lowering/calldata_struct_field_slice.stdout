@@ -19,13 +19,13 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     v6 = gt v3, v5
     v7 = sub v1, v4
     v8 = lt v7, 256
-    v61 = or v6, v8
+    v62 = or v6, v8
     v19 = add v4, 64
     v20 = calldatasize
     v21 = sub v20, v19
     v22 = slt v21, 32
-    v62 = or v61, v22
-    jumpi v62, bb1, bb4
+    v63 = or v62, v22
+    jumpi v63, bb1, bb4
   bb4:
     v27 = calldataload v19
     v28 = add v4, v27
@@ -37,38 +37,40 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
   bb5:
     v33 = calldataload v28
     v34 = calldatasize
-    v35 = gt v33, 0xffffffffffffffff
-    v36 = add v28, 32
-    v37 = sub v34, v33
-    v38 = sgt v36, v37
-    v63 = or v35, v38
-    jumpi v63, bb1, bb6
+    v35 = shr v33, 64
+    v37 = add v28, 32
+    v38 = sub v34, v33
+    v39 = sgt v37, v38
+    v64 = zext i1 v39 to i256
+    v65 = or v35, v64
+    v66 = ne v65, 0
+    jumpi v66, bb1, bb6
   bb6:
-    v40 = lt v33, 20
-    jumpi v40, bb3, bb2
+    v41 = lt v33, 20
+    jumpi v41, bb3, bb2
   bb2:
     v23 = calldatasize
     v24 = sub v23, v19
     v25 = slt v24, 32
     jumpi v25, bb1, bb7
   bb7:
-    v41 = calldatasize
-    v42 = sub v41, v4
-    v43 = sub v42, 31
-    v44 = slt v27, v43
-    jumpi v44, bb8, bb1
+    v42 = calldatasize
+    v43 = sub v42, v4
+    v44 = sub v43, 31
+    v45 = slt v27, v44
+    jumpi v45, bb8, bb1
   bb8:
-    v45 = calldatasize
-    v46 = sub v45, v33
-    v47 = sgt v36, v46
-    jumpi v47, bb1, bb9
+    v46 = calldatasize
+    v47 = sub v46, v33
+    v48 = sgt v37, v47
+    jumpi v48, bb1, bb9
   bb9:
-    v52 = calldataload v36
-    v58 = and v52, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v59 = shr 96, v58
+    v53 = calldataload v37
+    v59 = and v53, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    v60 = shr v59, 96
     jump bb3
   bb3:
-    v26 = phi [bb6: 0], [bb9: v59]
+    v26 = phi [bb6: 0], [bb9: v60]
     mstore 128, v26
     returndata 128, 32
   bb1:
@@ -84,13 +86,13 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v6 = gt v3, v5
     v7 = sub v1, v4
     v8 = lt v7, 256
-    v65 = or v6, v8
+    v67 = or v6, v8
     v18 = add v4, 64
     v19 = calldatasize
     v20 = sub v19, v18
     v21 = slt v20, 32
-    v66 = or v65, v21
-    jumpi v66, bb1, bb4
+    v68 = or v67, v21
+    jumpi v68, bb1, bb4
   bb4:
     v26 = calldataload v18
     v27 = add v4, v26
@@ -102,50 +104,52 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
   bb5:
     v32 = calldataload v27
     v33 = calldatasize
-    v34 = gt v32, 0xffffffffffffffff
-    v35 = add v27, 32
-    v36 = sub v33, v32
-    v37 = sgt v35, v36
-    v67 = or v34, v37
-    jumpi v67, bb1, bb6
+    v34 = shr v32, 64
+    v36 = add v27, 32
+    v37 = sub v33, v32
+    v38 = sgt v36, v37
+    v69 = zext i1 v38 to i256
+    v70 = or v34, v69
+    v71 = ne v70, 0
+    jumpi v71, bb1, bb6
   bb6:
-    v39 = lt v32, 20
-    jumpi v39, bb3, bb2
+    v40 = lt v32, 20
+    jumpi v40, bb3, bb2
   bb2:
     v22 = calldatasize
     v23 = sub v22, v18
     v24 = slt v23, 32
     jumpi v24, bb1, bb7
   bb7:
-    v40 = calldatasize
-    v41 = sub v40, v4
-    v42 = sub v41, 31
-    v43 = slt v26, v42
-    jumpi v43, bb8, bb1
+    v41 = calldatasize
+    v42 = sub v41, v4
+    v43 = sub v42, 31
+    v44 = slt v26, v43
+    jumpi v44, bb8, bb1
   bb8:
-    v44 = calldatasize
-    v45 = sub v44, v32
-    v46 = sgt v35, v45
-    v47 = sub v32, 20
-    v49 = add v35, 20
-    v51 = calldatasize
-    v53 = sub v51, v47
-    v55 = sgt v49, v53
-    v68 = or v46, v55
-    jumpi v68, bb1, bb9
+    v45 = calldatasize
+    v46 = sub v45, v32
+    v47 = sgt v36, v46
+    v48 = sub v32, 20
+    v50 = add v36, 20
+    v52 = calldatasize
+    v55 = sub v52, v48
+    v57 = sgt v50, v55
+    v72 = or v47, v57
+    jumpi v72, bb1, bb9
   bb9:
-    v56 = add v47, 63
-    v57 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v58 = mload 64
-    v60 = add v58, v57
-    mstore 64, v60
-    mstore v58, v47
-    v62 = add v58, 32
-    calldatacopy v62, v49, v47
-    v63 = keccak256 v62, v47
+    v58 = add v48, 63
+    v59 = and v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v60 = mload 64
+    v62 = add v60, v59
+    mstore 64, v62
+    mstore v60, v48
+    v64 = add v60, 32
+    calldatacopy v64, v50, v48
+    v65 = keccak256 v64, v48
     jump bb3
   bb3:
-    v25 = phi [bb6: 0], [bb9: v63]
+    v25 = phi [bb6: 0], [bb9: v65]
     mstore 128, v25
     returndata 128, 32
   bb1:
@@ -154,39 +158,42 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
 
 fn @midWord.2() [selector=0xbb6106d2, abi_wrapper, pure] {
   bb0:
-    v38 = calldatasize
-    v40 = calldataload 4
-    v41 = add v40, 4
-    v42 = sub v38, 4
-    v43 = gt v40, v42
-    v44 = sub v38, v41
-    v45 = lt v44, 256
-    v53 = or v43, v45
-    v3 = add v41, 96
+    v40 = calldatasize
+    v42 = calldataload 4
+    v43 = add v42, 4
+    v44 = sub v40, 4
+    v45 = gt v42, v44
+    v46 = sub v40, v43
+    v47 = lt v46, 256
+    v55 = or v45, v47
+    v3 = add v43, 96
     v4 = calldatasize
     v5 = sub v4, v3
     v6 = slt v5, 32
-    v54 = or v53, v6
-    jumpi v54, bb1, bb2
+    v56 = or v55, v6
+    jumpi v56, bb1, bb2
   bb2:
     v7 = calldataload v3
-    v8 = add v41, v7
+    v8 = add v43, v7
     v9 = calldatasize
-    v10 = sub v9, v41
+    v10 = sub v9, v43
     v11 = sub v10, 31
     v12 = slt v7, v11
     jumpi v12, bb3, bb1
   bb3:
     v13 = calldataload v8
     v14 = calldatasize
-    v15 = gt v13, 0xffffffffffffffff
+    v38 = shr v13, 64
     v16 = add v8, 32
     v17 = sub v14, v13
     v18 = sgt v16, v17
-    v55 = or v15, v18
+    v57 = zext i1 v18 to i256
+    v58 = or v38, v57
     v23 = lt v13, 32
-    v56 = or v55, v23
-    jumpi v56, bb1, bb4
+    v60 = zext i1 v23 to i256
+    v61 = or v58, v60
+    v62 = ne v61, 0
+    jumpi v62, bb1, bb4
   bb4:
     v27 = calldataload v16
     mstore 128, v27
@@ -206,7 +213,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     switch v7, default bb1, [0x1af91295 => bb3, 0x9850c81b => bb4, 0xbb6106d2 => bb5]
   bb5:
     tail_call @midWord.2

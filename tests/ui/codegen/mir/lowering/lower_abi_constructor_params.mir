@@ -18,18 +18,18 @@
 // CHECK: + [[INNER:v[0-9]+]] = alloc 64
 // CHECK: + [[INNER_INDEX:v[0-9]+]] = phi
 // CHECK: + {{v[0-9]+}} = lt [[INNER_INDEX]], 2
-// CHECK: + [[OFF1:v[0-9]+]] = shl 5, [[OUTER_INDEX]]
+// CHECK: + [[OFF1:v[0-9]+]] = shl [[OUTER_INDEX]], 5
 // CHECK-NEXT: + [[OUTER_ELEM:v[0-9]+]] = ptradd [[OUTER]], [[OFF1]]
 // CHECK-NEXT: + [[INNER_PTR:v[0-9]+]] = ptrtoint ptr<memory> [[INNER]] to i256
 // CHECK-NEXT: + mstore [[OUTER_ELEM]], [[INNER_PTR]]
 // CHECK: + {{v[0-9]+}} = mul [[INNER_INDEX]], 32
 // CHECK: + [[WORD:v[0-9]+]] = mload
-// CHECK-NEXT: + [[OFF2:v[0-9]+]] = shl 5, [[INNER_INDEX]]
+// CHECK-NEXT: + [[OFF2:v[0-9]+]] = shl [[INNER_INDEX]], 5
 // CHECK-NEXT: + [[INNER_ELEM:v[0-9]+]] = ptradd [[INNER]], [[OFF2]]
 // CHECK-NEXT: + mstore [[INNER_ELEM]], [[WORD]]
 @module LowerAbiConstructorParams
 
-fn @constructor(arg0: ptr<memory>, arg1: i256) [abi_params=[array<2, array<2, u256>>, u256]] {
+fn @constructor(arg0: ptr<memory>, arg1: i256) [abi_params=[array<2, array<2, uint256>>, uint256]] {
   bb0:
     v4 = ptradd arg0, 32
     v0 = mload v4

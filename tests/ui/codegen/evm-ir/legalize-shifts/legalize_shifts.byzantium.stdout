@@ -3,16 +3,14 @@
   @module module
   bb0:
     push 7
-    push 1
+-   push 1
 -   shl
 +   push 2
-+   exp
 +   mul
     push 7
-    push 1
+-   push 1
 -   shr
 +   push 2
-+   exp
 +   swap 1
 +   div
     push 7

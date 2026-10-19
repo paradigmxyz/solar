@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_identity_conversion.sol:ArrayIdentityConversion ===
 @module ArrayIdentityConversion
-fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -27,14 +27,14 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
     v21 = mload v20
     v22 = trunc i256 v21 to i32
     v23 = zext i32 v22 to i256
-    v24 = checked_add u256, v15, v23
+    v24 = checked_add uint256, v15, v23
     ret v24
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32
     mstore v4, 0
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd v0, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v3 to i256
@@ -43,7 +43,7 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
     jump bb1
 }
 
-fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -75,7 +75,7 @@ fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[wo
     mstore v3, 0
     v4 = ptradd v3, 32
     mstore v4, 0
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd v0, v5
     v7 = ptradd v6, 32
     v8 = ptrtoint ptr<memory> v3 to i256
@@ -84,7 +84,7 @@ fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[wo
     jump bb1
 }
 
-fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
@@ -113,7 +113,7 @@ fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[
     mstore v3, 0
     v4 = ptradd v3, 32
     mstore v4, 0
-    v5 = shl 5, v1
+    v5 = shl v1, 5
     v6 = ptradd v0, v5
     v7 = ptrtoint ptr<memory> v3 to i256
     mstore v6, v7
@@ -121,7 +121,7 @@ fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[
     jump bb1
 }
 
-fn @calldataLength(arg0: slice<calldata>) -> i256 [selector=0x52782626, pure, abi_params=[array<_, tuple<u32, i128>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @calldataLength(arg0: slice<calldata>) -> i256 [selector=0x52782626, pure, abi_params=[array<_, tuple<uint32, int128>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     ret v0

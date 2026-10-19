@@ -11,7 +11,7 @@ fn @fallback() [fallback, payable] {
   EmptyRuntime_runtime_code_0: runtime_code "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
   EmptyRuntime_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
 
-fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize EmptyRuntime_runtime_code_0
     v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned

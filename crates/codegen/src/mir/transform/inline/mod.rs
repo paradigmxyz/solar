@@ -55,7 +55,7 @@ use crate::{
         StorageAlias, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, CallGraphInfo, Liveness, LocalSummaryCache, LoopAnalyzer,
-            MemoryCallSummaries,
+            MemoryCallSummaries, direct_callees,
         },
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
@@ -733,19 +733,6 @@ fn call_counts(module: &Module) -> FxHashMap<MirFunctionId, usize> {
     counts
 }
 
-/// The targets of every direct internal call and tail call in `func`.
-fn direct_callees(func: &Function) -> impl Iterator<Item = MirFunctionId> + '_ {
-    let calls = func.instructions().filter_map(|inst| match func.inst(inst).kind {
-        InstKind::ICall { function: Callee::Function(function), .. } => Some(function),
-        _ => None,
-    });
-    let tail_calls = func.blocks.iter().filter_map(|block| match block.terminator {
-        Some(Terminator::TailCall { function, .. }) => Some(function),
-        _ => None,
-    });
-    calls.chain(tail_calls)
-}
-
 /// Recognizes a complete constant bytes initializer without relaxing the
 /// general reference-return guard. Inlining preserves the allocation and every
 /// store at the call site; separate calls still produce separate objects.
@@ -1287,12 +1274,6 @@ fn estimate_inst_cost(
             op::SWAP1,
         ])
         .plus(seq(&[op::CALLDATALOAD, op::DUP1, op::MSTORE]).times(layout.types.len() as u32)),
-        InstKind::StorageToMemory { layout, .. } => seq(&[op::SLOAD, op::MSTORE])
-            .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX)),
-        InstKind::MemoryToStorage { layout, .. } | InstKind::ClearStorage { layout, .. } => {
-            seq(&[op::MLOAD, op::SSTORE])
-                .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX))
-        }
         // A pushed offset into the immutables area and the store.
         InstKind::StoreImmutable(..) => seq(&[op::PUSH2, op::MSTORE]),
         InstKind::DataCopy(..) => seq(&[op::CODECOPY]),

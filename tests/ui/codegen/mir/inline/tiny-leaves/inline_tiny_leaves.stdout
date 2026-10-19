@@ -78,7 +78,7 @@
   
   fn @decode_dynamic(arg0: ptr<memory>) -> ptr<memory> {
     bb0:
-      v0 = abi_decode [array<_, u256>], arg0
+      v0 = abi_decode [array<_, uint256>], arg0
       ret v0
   }
   
