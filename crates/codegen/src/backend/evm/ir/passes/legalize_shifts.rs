@@ -1,14 +1,22 @@
 //! Legalize opcodes that older EVM targets lack.
 //!
 //! Before Constantinople, this pass expands `SHL`, `SHR`, and `SAR` into arithmetic and physical
-//! stack operations with the same signedness and operand order. Before Byzantium, it replaces
-//! `REVERT` with `INVALID`, the closest available terminating behavior. Newer targets skip the
-//! pass entirely.
+//! stack operations with the same signedness and operand order. `SHL` and `SHR` become a
+//! multiplication or division by `2**shift`; when a literal push supplies the shift, the pass
+//! pushes the factor itself instead of computing it with `EXP` if the cost model prefers the wider
+//! push. Shifts of 256 or more fold to a zero factor, which matches the wrapped `EXP` result.
+//! Before Byzantium, it replaces `REVERT` with `INVALID`, the closest available terminating
+//! behavior. Newer targets skip the pass entirely.
+//!
+//! Codegen runs this pass after the whole EVM IR pipeline, so no peephole sees its output.
 
 use super::EvmPass;
-use crate::backend::evm::{
-    ir::{Instruction, Module, TerminatorKind},
-    op,
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Module, TerminatorKind},
+        op,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_sema::Gcx;
@@ -37,6 +45,7 @@ pub(in crate::backend) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> 
         return false;
     }
 
+    let target = Target::new(gcx);
     let mut changed = false;
     for block in &mut module.blocks {
         let mut instructions = Vec::with_capacity(block.instructions.len());
@@ -44,33 +53,18 @@ pub(in crate::backend) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> 
             let metadata = inst.metadata.clone();
             let start = instructions.len();
             match inst.opcode {
-                op::SHL if legalize_shifts => {
-                    instructions.extend([
-                        Instruction::push_value(U256::from(2)),
-                        Instruction::opcode(op::EXP),
-                        Instruction::opcode(op::MUL),
-                    ]);
-                    changed = true;
+                op::SHL | op::SHR if legalize_shifts => {
+                    append_shift(target, &mut instructions, inst.opcode == op::SHR);
                 }
-                op::SHR if legalize_shifts => {
-                    instructions.extend([
-                        Instruction::push_value(U256::from(2)),
-                        Instruction::opcode(op::EXP),
-                        Instruction::stack_op(op::StackOp::Swap(1)),
-                        Instruction::opcode(op::DIV),
-                    ]);
-                    changed = true;
+                op::SAR if legalize_shifts => append_sar(&mut instructions),
+                _ => {
+                    instructions.push(inst);
+                    continue;
                 }
-                op::SAR if legalize_shifts => {
-                    append_sar(&mut instructions);
-                    changed = true;
-                }
-                _ => instructions.push(inst),
             }
-            if instructions.len() > start + 1 {
-                for replacement in &mut instructions[start..] {
-                    replacement.metadata.copy_source_debug_from(&metadata);
-                }
+            changed = true;
+            for replacement in &mut instructions[start..] {
+                replacement.metadata.copy_source_debug_from(&metadata);
             }
         }
         block.instructions = instructions;
@@ -83,6 +77,38 @@ pub(in crate::backend) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> 
         }
     }
     changed
+}
+
+/// Replaces `shl(shift, value)` with `value * 2**shift` and `shr(shift, value)` with
+/// `value / 2**shift`, folding a literal shift push into the factor when that is cheaper.
+fn append_shift(target: Target, out: &mut Vec<Instruction>, shr: bool) {
+    let two = U256::from(2);
+    let factor = out.last().and_then(Instruction::concrete_immediate).and_then(|shift| {
+        let factor =
+            if shift < U256::from(256) { U256::ONE << shift.to::<usize>() } else { U256::ZERO };
+        let folded = target.opcode(op::push(factor.byte_len().max(1) as u8));
+        let computed = target.push(shift)
+            + target.push(two)
+            + target.opcode_with_immediates(op::EXP, &[Some(two), Some(shift)]);
+        target.cmp_lifetime(folded, computed).is_le().then_some(factor)
+    });
+    match factor {
+        // push 2**shift
+        Some(factor) => {
+            out.last_mut().unwrap().replace_preserving_metadata(Instruction::push_value(factor))
+        }
+        // push 2
+        // exp
+        None => out.extend([Instruction::push_value(two), Instruction::opcode(op::EXP)]),
+    }
+    if shr {
+        // swap1
+        // div
+        out.extend([Instruction::stack_op(op::StackOp::Swap(1)), Instruction::opcode(op::DIV)]);
+    } else {
+        // mul
+        out.push(Instruction::opcode(op::MUL));
+    }
 }
 
 /// Replaces `sar(shift, value)` with unsigned division of the value or its complement.

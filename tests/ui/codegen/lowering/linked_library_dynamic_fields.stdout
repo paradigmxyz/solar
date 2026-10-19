@@ -15,10 +15,10 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb21 [cold]:
+bb23 [cold]:
   push 65
-  jump bb24
-bb24 [cold]:
+  jump bb26
+bb26 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -89,7 +89,7 @@ bb1:
   push 0x7fffffffffffffe
   dup 2
   gt
-  push bb21
+  push bb23
   jumpi
   push 1
   dup 2
@@ -97,8 +97,8 @@ bb1:
   push 5
   shl
   push bb8
-  jump bb23
-bb23:
+  jump bb25
+bb25:
   push 64
   mload
   swap 2
@@ -114,7 +114,7 @@ bb23:
   dup 3
   gt
   or
-  push bb21
+  push bb23
   jumpi
   push 64
   mstore
@@ -177,13 +177,13 @@ bb8 [continuation]:
   dup 2
   dup 2
   lt
-  push bb21
+  push bb23
   jumpi
   push 31
   not
   and
   push bb12
-  jump bb23
+  jump bb25
 bb12 [continuation]:
   dup 2
   dup 2
@@ -235,38 +235,25 @@ bb12 [continuation]:
   push 32
   dup 3
   add
-  swap 1
-  push 2
-  push 64
-  shl
-  dup 2
-  gt
-  push 2
-  push 64
-  shl
-  dup 3
-  swap 1
-  sub
-  mul
-  add
-  push 5
-  shl
-  swap 1
-  swap 2
-  add
-  push 32
-  add
   push 0
-  swap 6
+  swap 7
   pop
   swap 1
   swap 2
   swap 3
   swap 4
   swap 5
+  swap 6
   jump bb15
 bb19 [loop]:
-  dup 3
+  dup 4
+  mload
+  dup 2
+  lt
+  iszero
+  push bb21
+  jumpi
+  dup 2
   mload
   swap 1
   push 1
@@ -281,29 +268,30 @@ bb19 [loop]:
   eq
   iszero
   swap 2
-  dup 7
+  dup 8
   add
-  swap 4
+  swap 3
   push 32
   add
-  swap 6
-  dup 5
+  swap 7
+  dup 4
   lt
   swap 1
   swap 2
   or
-  swap 5
-  swap 3
-  swap 5
-  push bb20
+  swap 6
+  swap 2
+  swap 6
+  push bb22
   jumpi
   jump bb15
 bb15 [loop]:
+  dup 3
   dup 2
-  dup 4
-  sub
+  lt
   push bb19
   jumpi
+  pop
   pop
   pop
   pop
@@ -314,14 +302,14 @@ bb15 [loop]:
   swap 1
   push 0x4189374bc6a7ef9db22d0e5604189374bc6a7ef9db22d0e5604189374bc6a7
   lt
-  push bb20
+  push bb22
   jumpi
   dup 2
   add
   swap 1
   dup 2
   lt
-  push bb20
+  push bb22
   jumpi
   swap 1
   push 0
@@ -340,9 +328,12 @@ bb15 [loop]:
   push 32
   push 128
   return
-bb20 [cold]:
+bb22 [cold]:
   push 17
-  jump bb24
+  jump bb26
+bb21 [cold]:
+  push 50
+  jump bb26
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module C_runtime
 bb0:

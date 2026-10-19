@@ -1,0 +1,97 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=pack-data
+// Literal-store runs need not follow the lowering's store shape: stores may
+// come in any order, address absolute memory, store single bytes, compute
+// their words from constants, and leave address words on the stack.
+@module store_shapes
+
+// Stores out of address order.
+bb0:
+  push 128
+  push 0x2222222222222222222222222222222222222222222222222222222222222222
+  push 32
+  dup 3
+  add
+  mstore
+  push 0x1111111111111111111111111111111111111111111111111111111111111111
+  dup 2
+  mstore
+  stop
+
+// Stores to absolute addresses.
+bb1:
+  push 0x3333333333333333333333333333333333333333333333333333333333333333
+  push 0
+  mstore
+  push 0x4444444444444444444444444444444444444444444444444444444444444444
+  push 32
+  mstore
+  push 0x5555555555555555555555555555555555555555555555555555555555555555
+  push 64
+  mstore
+  stop
+
+// Single bytes and a word computed from constants.
+bb2:
+  push 128
+  push 0x5555555555555555555555555555555555555555555555555555555555555555
+  dup 2
+  mstore
+  push 0x6666666666666666666666666666666666666666666666666666666666666666
+  push 32
+  dup 3
+  add
+  mstore
+  push 0x77
+  push 64
+  dup 3
+  add
+  mstore8
+  push 0x88
+  push 65
+  dup 3
+  add
+  mstore8
+  push 0x5566778899aabbccddeeff00112233445566778899aabbccddeeff
+  push 40
+  shl
+  push 66
+  dup 3
+  add
+  mstore
+  stop
+
+// The run leaves an address word on the stack for later code.
+bb3:
+  push 128
+  push 0x8888888888888888888888888888888888888888888888888888888888888888
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x9999999999999999999999999999999999999999999999999999999999999999
+  dup 2
+  mstore
+  push 0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  push 32
+  dup 3
+  add
+  mstore
+  pop
+  pop
+  stop
+
+// A gap between stores keeps them: a copy would overwrite the gap.
+bb4:
+  push 128
+  push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  dup 2
+  mstore
+  push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  push 64
+  dup 3
+  add
+  mstore
+  stop

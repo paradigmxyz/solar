@@ -1,6 +1,6 @@
-//@ compile-flags: -Zevm-ir-pipeline=constant-data
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
 //@ filecheck:
-@module ObservableData
+@module ObservableLayout
 
 // CHECK-LABEL: bb0:
 // CHECK: codesize

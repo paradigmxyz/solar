@@ -196,6 +196,12 @@ impl Terminator {
         }
     }
 
+    /// Returns whether this terminator reverts the current call frame.
+    #[must_use]
+    pub(crate) const fn reverts(&self) -> bool {
+        matches!(self, Self::Revert { .. } | Self::RevertReturndata | Self::Invalid)
+    }
+
     /// Visits the value operands of this terminator without allocating.
     pub(crate) fn visit_operands(&self, mut visit: impl FnMut(ValueId)) {
         match self {

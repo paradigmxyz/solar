@@ -53,7 +53,7 @@ impl EvmPass for LoopLayout {
         if !gcx.sess.opts.optimization.is_gas() {
             return false;
         }
-        BlockLayout.run_pass(gcx, module) | place_loop_latches(gcx, module)
+        BlockLayout.run_pass(gcx, module) | place_loop_latches(module)
     }
 }
 
@@ -146,7 +146,7 @@ fn backedge_weights(
 /// Gives a loop's latch the fallthrough currently owned by its one-time preheader.
 /// An adjacent header/latch pair also qualifies when the header's physical
 /// terminator leaves no fallthrough into the latch.
-fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn place_loop_latches(module: &mut Module) -> bool {
     let mut order = module.blocks.indices().collect::<Vec<_>>();
     // Position of each block in `order`.
     let mut positions = (0..order.len()).collect::<IndexVec<BlockId, _>>();
@@ -214,8 +214,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 let weights = backedge_weights(module, &mut branches, header, &body);
                 let before = weights.get(&preheader).copied().unwrap_or(0);
                 let after = weights.get(&latch).copied().unwrap_or(0);
-                let price = u128::from(Target::new(gcx).opcode(op::JUMP).gas);
-                after != 0 && u128::from(after) * price > u128::from(before) * price * 2
+                after != 0 && u128::from(after) > u128::from(before) * 2
             } else {
                 true
             };
