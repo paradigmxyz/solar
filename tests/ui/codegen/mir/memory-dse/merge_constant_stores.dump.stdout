@@ -1,0 +1,136 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/merge_constant_stores.sol:MergeConstantStores ===
+@module MergeConstantStores
+@phase lowered
+@types
+  struct0: {i256, i256}
+
+fn @prefix() [selector=0x75dadb32, abi_wrapper, pure] {
+  bb0:
+    v34 = icall @alloc, 64
+    v27 = add v34, 32
+    mstore v27, 0x3078000000000000000000000000000000000000000000000000000000000000
+    v22 = add v27, 32
+    mstore v22, 0
+    v31 = add v34, 64
+    mcopy v31, v27, 2
+    mstore v34, 32
+    mstore v27, 2
+    returndata v34, 96
+}
+
+fn @hexPrefix() [selector=0xbb67265e, abi_wrapper, pure] {
+  bb0:
+    v30 = calldatasize
+    v31 = lt v30, 36
+    jumpi v31, bb1, bb2
+  bb2:
+    v57 = icall @alloc, 64
+    v46 = add v57, 32
+    mstore v46, 0x3078000000000000000000000000000000000000000000000000000000000000
+    v58 = and arg0, 255
+    v50 = add v57, 34
+    mstore8 v50, v58
+    v59 = byte 30, arg0
+    v52 = add v57, 35
+    mstore8 v52, v59
+    v41 = add v46, 32
+    mstore v41, 0
+    v54 = add v57, 64
+    mcopy v54, v46, 4
+    mstore v57, 32
+    mstore v46, 4
+    returndata v57, 96
+  bb1:
+    revert 0, 0
+}
+
+fn @unknownWindow() [selector=0xf747ede1, abi_wrapper, pure] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, arg0
+    mstore8 128, 48
+    mstore8 129, 120
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @readBetween() [selector=0x31cde8cd, abi_wrapper, pure] {
+  bb0:
+    mstore 128, 0
+    mstore8 128, 48
+    v0 = mload 128
+    mstore 160, v0
+    mstore8 129, 120
+    returndata 128, 64
+}
+
+fn @overwriteByte() [selector=0x6c636b39, abi_wrapper, pure] {
+  bb0:
+    mstore 128, 0x203000000000000000000000000000000000000000000000000000000000000
+    returndata 128, 32
+}
+
+fn @straddle() [selector=0x59e4b010, abi_wrapper, pure] {
+  bb0:
+    mstore 128, 0
+    mstore 160, 0
+    mstore 144, 0x3078000000000000000000000000000000000000000000000000000000000000
+    returndata 128, 64
+}
+
+fn @gap() [selector=0x6c32c0a6, abi_wrapper, pure] {
+  bb0:
+    mstore 128, 0
+    mstore 160, 0
+    mstore8 128, 48
+    mstore8 160, 120
+    returndata 128, 64
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb9, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb9, [0x31cde8cd => bb2, 0x59e4b010 => bb3, 0x6c32c0a6 => bb4, 0x6c636b39 => bb5, 0x75dadb32 => bb6, 0xbb67265e => bb7, 0xf747ede1 => bb8]
+  bb8:
+    tail_call @unknownWindow
+  bb7:
+    tail_call @hexPrefix
+  bb6:
+    tail_call @prefix
+  bb5:
+    tail_call @overwriteByte
+  bb4:
+    tail_call @gap
+  bb3:
+    tail_call @straddle
+  bb2:
+    tail_call @readBetween
+  bb9:
+    revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}

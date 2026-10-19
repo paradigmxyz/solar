@@ -1,0 +1,116 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/merge_constant_stores.sol:MergeConstantStores ===
+@module MergeConstantStores
+@types
+  struct0: {i256, i256}
+
+fn @prefix() -> ptr<memory> [selector=0x75dadb32, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = not 31
+    v1 = and 65, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 2
+    v3 = mload v2
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = byte 0, 0x3000000000000000000000000000000000000000000000000000000000000000
+    v7 = ptradd v2, 32
+    mstore8 v7, v6
+    v8 = mload v2
+    v9 = lt 1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = byte 0, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v12 = ptradd v2, 33
+    mstore8 v12, v11
+    ret v2
+}
+
+fn @hexPrefix(arg0: i256) -> ptr<memory> [selector=0xbb67265e, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = not 31
+    v1 = and 67, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 4
+    v3 = mload v2
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = byte 0, 0x3000000000000000000000000000000000000000000000000000000000000000
+    v7 = ptradd v2, 32
+    mstore8 v7, v6
+    v8 = mload v2
+    v9 = lt 1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = byte 0, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v12 = ptradd v2, 33
+    mstore8 v12, v11
+    v13 = trunc i256 arg0 to i8
+    v14 = zext i8 v13 to i256
+    v15 = shl v14, 248
+    v16 = mload v2
+    v17 = lt 2, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = byte 0, v15
+    v20 = ptradd v2, 34
+    mstore8 v20, v19
+    v21 = shr arg0, 8
+    v22 = trunc i256 v21 to i8
+    v23 = zext i8 v22 to i256
+    v24 = shl v23, 248
+    v25 = mload v2
+    v26 = lt 3, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = byte 0, v24
+    v29 = ptradd v2, 35
+    mstore8 v29, v28
+    ret v2
+}
+
+fn @unknownWindow(arg0: i256) [selector=0xf747ede1, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    mstore 128, arg0
+    mstore8 128, 48
+    mstore8 129, 120
+    returndata 128, 32
+}
+
+fn @readBetween() [selector=0x31cde8cd, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
+  bb0:
+    mstore 128, 0
+    mstore8 128, 48
+    v0 = mload 128
+    mstore 160, v0
+    mstore8 129, 120
+    returndata 128, 64
+}
+
+fn @overwriteByte() [selector=0x6c636b39, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    mstore 128, 0
+    mstore8 128, 1
+    mstore8 128, 2
+    mstore8 129, 3
+    returndata 128, 32
+}
+
+fn @straddle() [selector=0x59e4b010, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
+  bb0:
+    mstore 128, 0
+    mstore 160, 0
+    mstore8 144, 48
+    mstore8 145, 120
+    returndata 128, 64
+}
+
+fn @gap() [selector=0x6c32c0a6, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
+  bb0:
+    mstore 128, 0
+    mstore 160, 0
+    mstore8 128, 48
+    mstore8 160, 120
+    returndata 128, 64
+}

@@ -32,6 +32,21 @@
 //!   as `mstore` and the operand already exists. Deliberate limits: it needs one later store at the
 //!   next byte, not the union of several later overwrites; it leaves a store whose only surviving
 //!   byte is the last; and it leaves a store whose word another block also stores to.
+//! - Constant store merging: within a block, a run of constant `mstore8`s that nothing reading or
+//!   writing memory, or observing `msize` or gas, separates, and whose stores fall in the 32 bytes
+//!   after the run's lowest store, becomes one `mstore` of those bytes laid over the known contents
+//!   of the window. The block tracks the words that constant `mstore`s and `memory_zero` fills
+//!   define, so a window needs every byte known at the start of the run, and may straddle two known
+//!   words. The merge applies only when `mstore` and the pushed word cost less than the byte
+//!   stores, their pushes and the addresses that die with them, ranked by the target model. The
+//!   window lies in memory the known words already expanded and no instruction observes the stores
+//!   in between, so the size and every observable state stay the same. This is the store chain of
+//!   GCC's store-merging pass, which ends a chain at any statement that may read or clobber it and
+//!   lets a preceding store that zeroes the group pad it (`bzero_first`); here the known words play
+//!   the zeroing store, and byte values that are not constants stay separate, since masking and
+//!   shifting them costs what the merge saves. LLVM's `mergeConsecutiveStores` needs adjacent
+//!   stores that supply every byte. Deliberate limits: runs end at block boundaries, and a window
+//!   with unknown bytes that are only dead is not merged.
 //! - Write-only deferred allocations: a deferred allocation whose pointer only ever addresses
 //!   stores, as a decoded struct does once forwarding has replaced the reads of its used fields,
 //!   loses those stores. Static placement already keeps every other way to reach its words out of
@@ -53,16 +68,21 @@
 //! allocation lowering removes fills that only become explicit there, before memory-zero lowering
 //! turns them into copies or loops.
 
-use crate::mir::{
-    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, MirType, Module,
-    PtrLocation, Terminator, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
-        MemoryAddress, MemoryBase, MemoryLocation, module_may_observe_msize,
+use crate::{
+    backend::evm::op,
+    mir::{
+        BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, MirType, Module,
+        PtrLocation, Terminator, Value, ValueId,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
+            MemoryAddress, MemoryBase, MemoryLocation, module_may_observe_msize,
+        },
+        memory::EvmMemoryLayout,
+        pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+        transform::egraph,
+        utils as mir_utils,
     },
-    memory::EvmMemoryLayout,
-    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
-    utils as mir_utils,
+    target::{Cost, Target},
 };
 use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
@@ -86,7 +106,7 @@ impl MirPass for MemoryDse {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
@@ -97,6 +117,7 @@ impl MirPass for MemoryDse {
             }
         }
         let observes_msize = module_may_observe_msize(module);
+        let target = Target::new(gcx);
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,
@@ -106,6 +127,7 @@ impl MirPass for MemoryDse {
                     Rc::clone(analyses.alias()),
                     Rc::clone(analyses.cfg()),
                     observes_msize,
+                    target,
                 )
                 .run_to_fixpoint(func)
                     != 0
@@ -138,6 +160,8 @@ struct MemoryStoreEliminator {
     alias: Rc<AliasAnalysis>,
     /// Whether any function in the module reads `msize`; see [`module_may_observe_msize`].
     observes_msize: bool,
+    /// Prices the choice between equivalent store sequences.
+    target: Target,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -398,6 +422,33 @@ impl<T> SlotMap<T> {
     }
 }
 
+impl SlotMap<U256> {
+    /// Returns the 32 bytes at `start` when the stored slots cover every one of them.
+    fn window(&self, start: MemAddrKey) -> Option<U256> {
+        let (region, base) = (start.0.region, start.0.base);
+        let buckets = match Self::alloc_site(base) {
+            Some(site) => self.by_alloc.get(&site)?.as_slice(),
+            None => self.unindexed.as_slice(),
+        };
+        let bucket = buckets.iter().find(|b| b.region == region && b.base == base)?;
+        let first = start.0.offset;
+        let end = first.checked_add(32)?;
+        let mut bytes = [0u8; 32];
+        let mut covered = 0u32;
+        for (&slot, word) in bucket.slots.range(first.saturating_sub(31)..end) {
+            for (index, &byte) in word.to_be_bytes::<32>().iter().enumerate() {
+                let Some(at) = (slot + index as u64).checked_sub(first).filter(|&at| at < 32)
+                else {
+                    continue;
+                };
+                bytes[at as usize] = byte;
+                covered |= 1 << at;
+            }
+        }
+        (covered == u32::MAX).then(|| U256::from_be_bytes(bytes))
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct ImmutableCopyKey {
     len: u64,
@@ -409,6 +460,23 @@ struct CachedImmutableCopy {
     block: BlockId,
     index: usize,
     value: ValueId,
+}
+
+/// A byte store of a constant in a run of constant stores.
+struct RunStore {
+    inst: InstId,
+    addr: ValueId,
+    key: MemAddrKey,
+    value: U256,
+}
+
+/// A group of byte stores that one word store replaces.
+struct StoreMerge {
+    /// The last store of the group, which becomes the word store.
+    last: InstId,
+    /// The address of the group's lowest store.
+    addr: ValueId,
+    word: U256,
 }
 
 struct BlockScratch {
@@ -460,8 +528,13 @@ impl BlockScratch {
 
 impl MemoryStoreEliminator {
     /// Creates a new memory optimization pass.
-    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>, observes_msize: bool) -> Self {
-        Self { cfg, eliminated_count: 0, alias, observes_msize }
+    fn new(
+        alias: Rc<AliasAnalysis>,
+        cfg: Rc<CfgInfo>,
+        observes_msize: bool,
+        target: Target,
+    ) -> Self {
+        Self { cfg, eliminated_count: 0, alias, observes_msize, target }
     }
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
@@ -843,8 +916,13 @@ impl MemoryStoreEliminator {
         let mut memory_writes = 0;
         let mut has_load = false;
         let mut has_keccak = false;
+        let mut constant_byte_stores = 0;
         for &inst_id in &func.blocks[block_id].instructions {
             match func.inst(inst_id).kind {
+                InstKind::Store8(_, value) if func.value_u256(value).is_some() => {
+                    constant_byte_stores += 1;
+                    memory_writes += 1;
+                }
                 InstKind::Store(.., PtrLocation::Memory) => {
                     mstores += 1;
                     memory_writes += 1;
@@ -862,6 +940,9 @@ impl MemoryStoreEliminator {
             }
         }
 
+        if constant_byte_stores >= 2 {
+            self.merge_constant_stores(func, block_id, scratch);
+        }
         if has_keccak && mstores != 0 {
             self.fold_constant_keccak(func, block_id, scratch);
         }
@@ -1632,6 +1713,10 @@ impl MemoryStoreEliminator {
         }
     }
 
+    fn same_base(a: MemAddrKey, b: MemAddrKey) -> bool {
+        a.0.region == b.0.region && a.0.base == b.0.base
+    }
+
     fn offset_mem_addr_key(key: MemAddrKey, add: u64) -> Option<MemAddrKey> {
         key.0.checked_add(add).map(MemAddrKey)
     }
@@ -1821,5 +1906,231 @@ impl MemoryStoreEliminator {
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|&inst| !dead.contains(inst));
         }
+    }
+
+    /// Replaces runs of constant byte stores into known constant memory with word stores.
+    ///
+    /// Tracks the constant words the block stores and zero-fills. A run is a sequence of constant
+    /// `mstore8`s that no instruction reading or writing memory, or observing `msize` or gas,
+    /// separates. The stores of a run that fall in the 32 bytes after its lowest store become one
+    /// `mstore` of the known window with those bytes applied, when every window byte is known at
+    /// the start of the run and the word store is cheaper. The window already lies in expanded
+    /// memory and nothing observes the memory between the stores, so neither the size nor any
+    /// observable state changes.
+    fn merge_constant_stores(
+        &mut self,
+        func: &mut Function,
+        block_id: BlockId,
+        scratch: &mut BlockScratch,
+    ) {
+        scratch.stored_words.clear();
+        scratch.dead.clear();
+        let mut run = Vec::<RunStore>::new();
+        let mut uses = None;
+        let mut merges = Vec::new();
+
+        for index in 0..func.blocks[block_id].instructions.len() {
+            let inst_id = func.blocks[block_id].instructions[index];
+            let kind = &func.inst(inst_id).kind;
+            if let InstKind::Store8(addr, value) = kind
+                && let Some(value) = func.value_u256(*value)
+                && let Some(key) = self.mem_addr_key(func, *addr, 1)
+            {
+                if run.first().is_some_and(|first| !Self::same_base(first.key, key)) {
+                    self.merge_store_run(func, &mut run, scratch, &mut uses, &mut merges);
+                }
+                run.push(RunStore { inst: inst_id, addr: *addr, key, value });
+                continue;
+            }
+            if self.is_memory_or_gas_observer(func, inst_id) {
+                self.merge_store_run(func, &mut run, scratch, &mut uses, &mut merges);
+            }
+            match kind {
+                InstKind::Store(addr, value, PtrLocation::Memory) => {
+                    let Some(key) = self.mem_addr_key(func, *addr, 32) else {
+                        scratch.stored_words.clear();
+                        continue;
+                    };
+                    scratch.stored_words.invalidate(key, 32);
+                    if let Some(value) = func.value_u256(*value) {
+                        scratch.stored_words.insert(key, value);
+                    }
+                }
+                InstKind::Store8(addr, _) => {
+                    if let Some(key) = self.mem_addr_key(func, *addr, 1) {
+                        scratch.stored_words.invalidate(key, 1);
+                    } else {
+                        scratch.stored_words.clear();
+                    }
+                }
+                InstKind::MemoryZero(dest, size) => {
+                    self.record_zero_fill(func, &mut scratch.stored_words, *dest, *size);
+                }
+                _ if self.can_mutate_memory(func, inst_id) => scratch.stored_words.clear(),
+                _ => {}
+            }
+        }
+        self.merge_store_run(func, &mut run, scratch, &mut uses, &mut merges);
+
+        for merge in &merges {
+            // mstore8 a, c0; ...; mstore8 a + n, cn -> mstore a, word
+            let word = func.alloc_value(Value::Immediate(Immediate::I256(merge.word)));
+            func.inst_mut(merge.last).replace_kind(InstKind::Store(
+                merge.addr,
+                word,
+                PtrLocation::Memory,
+            ));
+        }
+        if scratch.dead.is_empty() {
+            return;
+        }
+        func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
+    }
+
+    /// Records the whole words a constant-size zero fill writes, and forgets what it overwrites.
+    fn record_zero_fill(
+        &self,
+        func: &Function,
+        stored_words: &mut SlotMap<U256>,
+        dest: ValueId,
+        size: ValueId,
+    ) {
+        let Some(size) = func.value_u64(size).filter(|&size| size <= 4096) else {
+            stored_words.clear();
+            return;
+        };
+        let Some(base) = self.mem_addr_key(func, dest, size) else {
+            stored_words.clear();
+            return;
+        };
+        stored_words.invalidate(base, size);
+        for offset in (0..size / 32 * 32).step_by(32) {
+            if let Some(key) = Self::offset_mem_addr_key(base, offset) {
+                stored_words.insert(key, U256::ZERO);
+            }
+        }
+    }
+
+    /// Merges the profitable groups of a run of constant byte stores and applies the run's writes
+    /// to the known words.
+    ///
+    /// The run addresses one base. Its lowest store starts a 32-byte window, and the stores inside
+    /// the window merge when the known words cover it; the sweep continues after the window, or at
+    /// the next store when the window does not merge. Each window reads the state at the start of
+    /// the run, before any store of the run applies. Dynamic allocations stay apart, since their
+    /// addresses may name different instances.
+    fn merge_store_run(
+        &mut self,
+        func: &Function,
+        run: &mut Vec<RunStore>,
+        scratch: &mut BlockScratch,
+        uses: &mut Option<IndexVec<ValueId, u32>>,
+        merges: &mut Vec<StoreMerge>,
+    ) {
+        let mut windows = Vec::new();
+        if run
+            .first()
+            .is_some_and(|first| !matches!(first.key.0.base, MemoryBase::DynamicAllocation(_)))
+        {
+            // Run indices ascend with program order.
+            let mut by_offset = (0..run.len()).collect::<Vec<_>>();
+            by_offset.sort_by_key(|&index| run[index].key.0.offset);
+            let mut start = 0;
+            while start < by_offset.len() {
+                let lowest = by_offset[start];
+                let end = run[lowest].key.0.offset.saturating_add(32);
+                let mut group = by_offset[start..]
+                    .iter()
+                    .copied()
+                    .take_while(|&index| run[index].key.0.offset < end)
+                    .collect::<Vec<_>>();
+                group.sort_unstable();
+                let Some(window) =
+                    self.merged_window(func, run, &group, lowest, &scratch.stored_words, uses)
+                else {
+                    start += 1;
+                    continue;
+                };
+                start += group.len();
+                windows.push(window);
+                let last = run[*group.last().unwrap()].inst;
+                for &index in &group {
+                    if run[index].inst != last {
+                        scratch.dead.insert(run[index].inst);
+                    }
+                }
+                self.eliminated_count += group.len();
+                merges.push(StoreMerge { last, addr: run[lowest].addr, word: window.1 });
+            }
+        }
+
+        for store in run.drain(..) {
+            scratch.stored_words.invalidate(store.key, 1);
+        }
+        for (key, word) in windows {
+            scratch.stored_words.insert(key, word);
+        }
+    }
+
+    /// Returns the window start and its word after `group`'s stores, when the known words cover
+    /// the window and one word store is cheaper than the group's byte stores. The word store
+    /// takes the address of the `lowest` store; the other addresses die with their stores when
+    /// nothing else uses them, and count in the byte stores' cost.
+    fn merged_window(
+        &self,
+        func: &Function,
+        run: &[RunStore],
+        group: &[usize],
+        lowest: usize,
+        known: &SlotMap<U256>,
+        uses: &mut Option<IndexVec<ValueId, u32>>,
+    ) -> Option<(MemAddrKey, U256)> {
+        if group.len() < 2 {
+            return None;
+        }
+        let first = run[lowest].key;
+        let mut bytes = known.window(first)?.to_be_bytes::<32>();
+        for &index in group {
+            let at = run[index].key.0.offset - first.0.offset;
+            bytes[at as usize] = run[index].value.as_limbs()[0] as u8;
+        }
+        let word = U256::from_be_bytes(bytes);
+        let merged = self.target.opcode(op::MSTORE) + self.target.push(word);
+        let separate = group
+            .iter()
+            .map(|&index| {
+                let store = self.target.opcode(op::MSTORE8) + self.target.push(run[index].value);
+                if index == lowest {
+                    store
+                } else {
+                    store + self.dead_address_cost(func, run[index].addr, uses)
+                }
+            })
+            .sum();
+        self.target.cmp_lifetime(merged, separate).is_lt().then_some((first, word))
+    }
+
+    /// Returns the cost of materializing the address of a store that dies: a constant, or a
+    /// `base + constant` that no other instruction uses.
+    fn dead_address_cost(
+        &self,
+        func: &Function,
+        addr: ValueId,
+        uses: &mut Option<IndexVec<ValueId, u32>>,
+    ) -> Cost {
+        if let Some(addr) = func.value_u256(addr) {
+            return self.target.push(addr);
+        }
+        let Value::Inst(inst) = func.value(addr) else { return Cost::ZERO };
+        let (InstKind::Add(a, b) | InstKind::PtrAdd(a, b)) = func.inst(*inst).kind else {
+            return Cost::ZERO;
+        };
+        let Some(offset) = func.value_u256(a).or_else(|| func.value_u256(b)) else {
+            return Cost::ZERO;
+        };
+        if uses.get_or_insert_with(|| egraph::use_counts(func))[addr] != 1 {
+            return Cost::ZERO;
+        }
+        self.target.dup() + self.target.push(offset) + self.target.opcode(op::ADD)
     }
 }
