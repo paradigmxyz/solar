@@ -10,14 +10,6 @@
 ;; Requires: cond is boolean.
 (rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.Eq cond (imm_bool false)))
 
-;; select(c, 1, e) => c | e.
-;; Requires: c, e are boolean.
-(rule (rewrite (Op.Select (and c (bool_value)) (one) (and e (bool_value)))) (Op.Or c e))
-
-;; select(c, t, 0) => c & t.
-;; Requires: c, t are boolean.
-(rule (rewrite (Op.Select (and c (bool_value)) (and t (bool_value)) (zero))) (Op.And c t))
-
 ;; select((x == y), x, y) => y.
 (rule 10 (simplify (Op.Select (eq x y) x y)) y)
 

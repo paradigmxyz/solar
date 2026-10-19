@@ -2,11 +2,11 @@
 //@filecheck:
 @module BooleanSelects
 
-// The last join of `a == 1 || a == 2` merges `true` with the second test, so it
-// becomes a select that `egraph` rewrites to `or`, instead of `e + c * (true - e)`.
+// The last join of `a == 1 || a == 2` merges `true` with the second test, so
+// it becomes one `or` instead of `e + c * (true - e)`.
 // CHECK-LABEL: {{^[ +].*}}fn @short_circuit_or{{[( ]}}
 // CHECK: - jumpi
-// CHECK: + {{v[0-9]+}} = select [[C:v[0-9]+]], true, [[E:v[0-9]+]]
+// CHECK: + {{v[0-9]+}} = or [[C:v[0-9]+]], [[E:v[0-9]+]]
 // CHECK-NOT: {{^[ +].*}}mul
 // CHECK-NOT: {{^[ +].*}}phi
 fn @short_circuit_or(arg0: i256) -> i1 {
@@ -25,7 +25,7 @@ fn @short_circuit_or(arg0: i256) -> i1 {
 // CHECK-LABEL: {{^[ +].*}}fn @true_on_else{{[( ]}}
 // CHECK: - jumpi
 // CHECK: + [[N:v[0-9]+]] = eq {{v[0-9]+}}, false
-// CHECK: + {{v[0-9]+}} = select [[N]], true, {{v[0-9]+}}
+// CHECK: + {{v[0-9]+}} = or [[N]], {{v[0-9]+}}
 // CHECK-NOT: {{^[ +].*}}mul
 fn @true_on_else(arg0: i256) -> i1 {
   bb0:
@@ -39,11 +39,10 @@ fn @true_on_else(arg0: i256) -> i1 {
     ret v2
 }
 
-// `a < 10 && a > 3` keeps its product price but becomes a select for `egraph` to
-// rewrite to `and`, needing no multiplication.
+// `a < 10 && a > 3` keeps its product shape but needs no multiplication.
 // CHECK-LABEL: {{^[ +].*}}fn @short_circuit_and{{[( ]}}
 // CHECK: - jumpi
-// CHECK: + {{v[0-9]+}} = select {{v[0-9]+}}, {{v[0-9]+}}, false
+// CHECK: + {{v[0-9]+}} = and {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK-NOT: {{^[ +].*}}mul
 // CHECK-NOT: {{^[ +].*}}phi
 fn @short_circuit_and(arg0: i256) -> i1 {

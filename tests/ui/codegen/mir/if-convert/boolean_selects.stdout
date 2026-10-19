@@ -11,7 +11,8 @@
 -   bb2:
 -     v2 = phi [bb0: true], [bb1: v1]
 -     ret v2
-+     v3 = select v0, true, v1
++     v3 = or v0, v1
++     v4 = zext i1 v3 to i256
 +     ret v3
   }
   
@@ -26,7 +27,8 @@
 -     v2 = phi [bb0: true], [bb1: v1]
 -     ret v2
 +     v3 = eq v0, false
-+     v4 = select v3, true, v1
++     v4 = or v3, v1
++     v5 = zext i1 v4 to i256
 +     ret v4
   }
   
@@ -40,7 +42,8 @@
 -   bb2:
 -     v2 = phi [bb0: false], [bb1: v1]
 -     ret v2
-+     v3 = select v0, v1, false
++     v3 = and v0, v1
++     v4 = zext i1 v3 to i256
 +     ret v3
   }
   
