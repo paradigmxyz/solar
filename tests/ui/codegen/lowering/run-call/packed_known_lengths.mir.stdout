@@ -16,7 +16,7 @@ fn @concat(arg0: ptr<memory>) -> ptr<memory> [selector=0x6bc8a252, pure, abi_par
     ret v5
 }
 
-fn @cut(arg0: i256) -> ptr<memory> [selector=0x09260db7, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @cut(arg0: i256) -> ptr<memory> [selector=0x09260db7, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gt arg0, 33
     v1 = eq v0, false
