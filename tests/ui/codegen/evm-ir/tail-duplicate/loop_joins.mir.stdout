@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/evm-ir/tail-duplicate/loop_joins.sol:LoopJoins ===
 @module LoopJoins
-fn @count(arg0: ptr<memory>) -> i256 [selector=0xbbc992b8, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @count(arg0: ptr<memory>) -> i256 [selector=0xbbc992b8, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -23,7 +23,7 @@ fn @count(arg0: ptr<memory>) -> i256 [selector=0xbbc992b8, pure, abi_params=[byt
     v9 = ptradd v8, 32
     v10 = mload v9
     v11 = byte 0, v10
-    v12 = shl 248, v11
+    v12 = shl v11, 248
     v13 = lt v12, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v13, bb7, bb8
   bb8:
@@ -78,12 +78,12 @@ fn @count(arg0: ptr<memory>) -> i256 [selector=0xbbc992b8, pure, abi_params=[byt
     jump bb1
 }
 
-fn @countThree(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) -> i256 [selector=0x74a52680, pure, abi_params=[bytes, bytes, bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @countThree(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) -> i256 [selector=0x74a52680, pure, abi_params=[bytes, bytes, bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @count, arg0
     v1 = icall @count, arg1
-    v2 = checked_add u256, v0, v1
+    v2 = checked_add uint256, v0, v1
     v3 = icall @count, arg2
-    v4 = checked_add u256, v2, v3
+    v4 = checked_add uint256, v2, v3
     ret v4
 }
