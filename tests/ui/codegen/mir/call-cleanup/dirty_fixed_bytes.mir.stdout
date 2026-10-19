@@ -1,0 +1,142 @@
+// === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_fixed_bytes.sol:DirtyFixedBytes ===
+@module DirtyFixedBytes
+fn @dirty(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @cleaned(arg0: i256) -> i1 [selector=0x9ff790e3, pure, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @dirty, arg0
+    v1 = icall @compare, v0
+    ret v1
+}
+
+fn @compare(arg0: i256) -> i1 [pure] {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = eq v0, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @raw(arg0: i256) -> i256 [selector=0x4c0b039e, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = icall @dirty, arg0
+    v1 = icall @rawBits, v0
+    ret v1
+}
+
+fn @rawBits(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @viaPointer(arg0: i256) -> i1 [selector=0x4a13be09, pure, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @dirty, arg0
+    v1 = icall @internal_dispatcher_p_bytes4_r_bool, 4, v0
+    ret v1
+}
+
+fn @dirtyViaPointer(arg0: i256) -> i1 [selector=0x96275387, pure, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @internal_dispatcher_p_bytes32_r_bytes4, 2, arg0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = eq v1, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v2
+}
+
+fn @viaModifier(arg0: i256) -> i256 [selector=0x80e5e9e0, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @dirty, arg0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = eq v1, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    ret 1
+}
+
+fn @isMagic(arg0: i256) -> i1 [selector=0xafd72071, pure, abi_params=[bytes4], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = eq v0, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @viaPublic(arg0: i256) -> i1 [selector=0xd52367c1, pure, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @dirty, arg0
+    v1 = icall @isMagic, v0
+    ret v1
+}
+
+fn @dirtyReturn(arg0: i256) -> i1 [selector=0x4100714c, pure, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @dirty, arg0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = eq v1, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v2
+}
+
+fn @forwarded(arg0: i256) -> i1 [selector=0xebf5e12c, pure, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @dirty, arg0
+    v1 = icall @identity, v0
+    v2 = icall @compare, v1
+    ret v2
+}
+
+fn @identity(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @forwardedRaw(arg0: i256) -> i256 [selector=0x3bbb4b70, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = icall @dirty, arg0
+    v1 = icall @identity, v0
+    v2 = icall @rawBits, v1
+    ret v2
+}
+
+fn @operator(arg0: i256) -> i1 [selector=0x7e338b0c, pure, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @dirty, arg0
+    v1 = icall @eq, v0, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @eq(arg0: i256, arg1: i256) -> i1 [pure] {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = eq v0, arg1
+    ret v1
+}
+
+fn @internal_dispatcher_p_bytes4_r_bool(arg0: i256, arg1: i256) -> i1 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 4
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @compare, arg1
+    ret v1
+}
+
+fn @internal_dispatcher_p_bytes32_r_bytes4(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 2
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @dirty, arg1
+    ret v1
+}

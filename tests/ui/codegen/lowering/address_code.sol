@@ -26,8 +26,8 @@ contract AddressCode {
     }
 
     // CHECK-LABEL: fn @addressFromBytes20{{[( ]}}
-    // CHECK: [[CLEAN:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    // CHECK: shr [[CLEAN]], 96
+    // CHECK: [[WORD:v[0-9]+]] = shr arg0, 96
+    // CHECK: trunc i256 [[WORD]] to i160
     function addressFromBytes20(bytes20 value) external pure returns (address) {
         return address(value);
     }

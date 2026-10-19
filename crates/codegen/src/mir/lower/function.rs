@@ -102,6 +102,10 @@ pub(super) struct LoweringState {
     /// DO NOT ADD OTHER HELPER MAPS. USE THIS ONE ONLY.
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
     raw_scalars: FxHashSet<VariableId>,
+    /// Functions an internal function pointer call can reach.
+    dispatched: FxHashSet<hir::FunctionId>,
+    /// Whether a function an internal function pointer call can reach returns raw bits.
+    dispatched_returns_dirty: bool,
     raw_pointer_types: FxHashSet<MirType>,
 }
 
@@ -166,7 +170,7 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.is_getter = hir_function.is_getter();
-    lowerer.bind_signature(hir_function);
+    lowerer.bind_signature(id, hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
             return context.report_unsupported(hir_function.span, "free constructor");

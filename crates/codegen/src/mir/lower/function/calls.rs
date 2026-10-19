@@ -95,10 +95,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let values = values
             .iter()
             .zip(function.parameters)
-            .map(|(&value, &parameter)| self.materialize_scalar_carrier(parameter, value, span))
+            .map(|(&value, &parameter)| {
+                self.materialize_argument_carrier(function_id, parameter, value, span)
+            })
             .collect::<Option<Vec<_>>>()?;
         let result = self.builder.icall(mir_id, values, result_ty);
-        self.dirty_values.insert(result);
+        if self.cx.state.returns_dirty_values(self.cx.gcx, function_id) {
+            self.dirty_values.insert(result);
+        }
         Some(result)
     }
 
@@ -511,7 +515,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(dispatcher, function, args)
         let result = self.builder.icall(dispatcher, values, result_ty);
-        self.dirty_values.insert(result);
+        if self.cx.state.pointer_call_returns_dirty(expr.id) {
+            self.dirty_values.insert(result);
+        }
         Some(CallResult::Value(result))
     }
 
@@ -829,7 +835,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 self.lower_typed_expr(receiver, parameter_ty)?
             };
-            values.push(self.materialize_scalar_carrier(
+            values.push(self.materialize_argument_carrier(
+                function_id,
                 function.parameters[0],
                 value,
                 receiver.span,
@@ -852,7 +859,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     this.lower_typed_expr(argument, parameter_ty)?
                 };
-                this.materialize_scalar_carrier(parameter, value, argument.span)
+                this.materialize_argument_carrier(function_id, parameter, value, argument.span)
             },
         )?;
         values.extend(arguments);
@@ -875,7 +882,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(function, call_args)
         let result = self.builder.icall(mir_id, values, result_ty);
-        self.dirty_values.insert(result);
+        if self.cx.state.returns_dirty_values(self.cx.gcx, function_id) {
+            self.dirty_values.insert(result);
+        }
         Some(CallResult::Value(result))
     }
 

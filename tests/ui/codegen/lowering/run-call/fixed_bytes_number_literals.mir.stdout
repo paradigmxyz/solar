@@ -2,11 +2,10 @@
 @module Probe
 fn @probe(arg0: i256) -> i256 [selector=0x14beb1ca, pure, abi_params=[bytes4], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v1 = shr v0, 224
-    v2 = trunc i256 v1 to i32
-    v3 = zext i32 v2 to i256
-    ret v3
+    v0 = shr arg0, 224
+    v1 = trunc i256 v0 to i32
+    v2 = zext i32 v1 to i256
+    ret v2
 }
 
 fn @constructor() [constructor] {

@@ -69,9 +69,15 @@ the branch condition type.
 
 Source bindings exposed to inline assembly use explicit `i256` carriers where
 raw upper bits must survive copies and internal calls. Typed Solidity uses
-convert these carriers to their native types. ABI and memory layout metadata
-retain signedness and storage widths independently of SSA types. Layout
-metadata spells scalars with Solidity names, `uintN`, `intN`, `bool`, `address`,
+convert these carriers to their native types. Only those bindings can hold bits
+above their type: callers clean a dirty argument before it reaches any other
+parameter, and a function cleans a dirty value before it returns it through any
+other return binding. ABI decoding validates external and constructor
+parameters. A function reachable through an internal function pointer keeps
+dirty parameters, because its dispatcher passes arguments through unchanged.
+ABI and memory layout metadata retain signedness and storage widths
+independently of SSA types. Layout metadata spells scalars with Solidity names,
+`uintN`, `intN`, `bool`, `address`,
 `bytesN`, and `function`, as in `checked_add int64`, `abi_params=[uint8]`, or
 an `@immutables` entry `owner: address`; only SSA types use `iN`.
 

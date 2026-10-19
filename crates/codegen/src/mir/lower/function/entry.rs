@@ -3,7 +3,8 @@
 use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
-    pub(super) fn bind_signature(&mut self, function: &hir::Function<'_>) {
+    pub(super) fn bind_signature(&mut self, id: hir::FunctionId, function: &hir::Function<'_>) {
+        let takes_dirty_arguments = self.cx.state.takes_dirty_arguments(id);
         self.parameters.extend_from_slice(function.parameters);
         for &param in function.parameters {
             let ty = self.cx.gcx.type_of_item(param.into());
@@ -19,7 +20,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             } else {
                 self.values.insert(param, value);
-                if ty.is_value_type() && self.builder.func().value_ty(value) == Some(MirType::I256)
+                if ty.is_value_type()
+                    && self.builder.func().value_ty(value) == Some(MirType::I256)
+                    && (takes_dirty_arguments || self.cx.state.raw_scalars.contains(&param))
                 {
                     self.dirty_values.insert(value);
                 }
@@ -143,7 +146,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if Self::is_storage_parameter(parameter_ty) {
                         return Some(this.require_storage_access(argument)?.slot);
                     }
-                    this.lower_typed_expr(argument, parameter_ty)
+                    let value = this.lower_typed_expr(argument, parameter_ty)?;
+                    Some(this.clean_unexposed_scalar(constructor.parameters[index], value))
                 },
             )?;
             // Later bases may name an earlier base's parameters in their own
@@ -272,7 +276,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
-                values.push(self.materialize_scalar_carrier(
+                values.push(self.materialize_return_carrier(
                     id,
                     value,
                     self.cx.gcx.hir.variable(id).span,

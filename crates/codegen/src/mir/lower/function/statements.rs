@@ -246,7 +246,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 if ty.is_ref_at(DataLocation::Storage) {
                                     Some(value)
                                 } else {
-                                    self.materialize_scalar_carrier(id, value, stmt.span)
+                                    self.materialize_return_carrier(id, value, stmt.span)
                                 }
                             })
                             .collect::<Option<Vec<_>>>()?;

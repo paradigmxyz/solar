@@ -31,8 +31,7 @@ contract NarrowBitwiseNot {
     }
 
     // CHECK-LABEL: fn @notBytes1{{[( ]}}
-    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    // CHECK: [[NOT:v[0-9]+]] = not [[VALUE]]
+    // CHECK: [[NOT:v[0-9]+]] = not arg0
     // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[NOT]], 0xff00000000000000000000000000000000000000000000000000000000000000
     // CHECK-NEXT: ret [[CLEAN]]
     function notBytes1(bytes1 value) external pure returns (bytes1) {
@@ -40,8 +39,7 @@ contract NarrowBitwiseNot {
     }
 
     // CHECK-LABEL: fn @notBytes2{{[( ]}}
-    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
-    // CHECK: [[NOT:v[0-9]+]] = not [[VALUE]]
+    // CHECK: [[NOT:v[0-9]+]] = not arg0
     // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[NOT]], 0xffff000000000000000000000000000000000000000000000000000000000000
     // CHECK-NEXT: ret [[CLEAN]]
     function notBytes2(bytes2 value) external pure returns (bytes2) {

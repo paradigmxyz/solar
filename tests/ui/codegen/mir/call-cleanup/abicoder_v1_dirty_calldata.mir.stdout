@@ -1,0 +1,13 @@
+// === ROOT/tests/ui/codegen/mir/call-cleanup/abicoder_v1_dirty_calldata.sol:AbicoderV1DirtyCalldata ===
+@module AbicoderV1DirtyCalldata
+fn @isMagic(arg0: i256) -> i1 [selector=0xafd72071, pure, abi_params=[bytes4], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq arg0, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @isSeven(arg0: i8) -> i1 [selector=0x0148adbd, pure, abi_params=[uint8], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq arg0, i8 7
+    ret v0
+}

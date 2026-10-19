@@ -31,28 +31,23 @@ fn @compareElement(arg0: ptr<memory>) -> i1 [selector=0x6c07068b, pure, abi_para
 
 fn @narrow(arg0: i256) -> i256 [selector=0xb6234141, pure, abi_params=[bytes4], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
   bb0:
-    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v1 = and v0, 0xffff000000000000000000000000000000000000000000000000000000000000
-    ret v1
+    v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    ret v0
 }
 
 fn @toIntegers(arg0: i256, arg1: i256) -> struct0 [selector=0x1987d9f5, pure, abi_params=[bytes16, bytes20], abi_returns=[word<uint128>, word<int128>, word<uint160>, word<uint160>], abi_return_params=[uint128, int128, uint160, address]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v1 = shr v0, 128
-    v2 = trunc i256 v1 to i128
-    v3 = and arg0, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v4 = shr v3, 128
-    v5 = trunc i256 v4 to i128
-    v6 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v7 = shr v6, 96
-    v8 = trunc i256 v7 to i160
-    v9 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v10 = shr v9, 96
-    v11 = trunc i256 v10 to i160
-    v12 = insert_value struct0, undef struct0, 0, v2
-    v13 = insert_value struct0, v12, 1, v5
-    v14 = insert_value struct0, v13, 2, v8
-    v15 = insert_value struct0, v14, 3, v11
-    ret v15
+    v0 = shr arg0, 128
+    v1 = trunc i256 v0 to i128
+    v2 = shr arg0, 128
+    v3 = trunc i256 v2 to i128
+    v4 = shr arg1, 96
+    v5 = trunc i256 v4 to i160
+    v6 = shr arg1, 96
+    v7 = trunc i256 v6 to i160
+    v8 = insert_value struct0, undef struct0, 0, v1
+    v9 = insert_value struct0, v8, 1, v3
+    v10 = insert_value struct0, v9, 2, v5
+    v11 = insert_value struct0, v10, 3, v7
+    ret v11
 }

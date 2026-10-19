@@ -135,27 +135,27 @@ fn @pushValue(arg0: i256) [selector=0x0217b939, abi_params=[bytes1], abi_returns
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
   bb1:
-    v26 = eq v6, 31
-    jumpi v26, bb3, bb4
+    v25 = eq v6, 31
+    jumpi v25, bb3, bb4
   bb4:
-    v32 = add v0, 2
-    v33 = sub 31, v6
-    v34 = mul v33, 8
-    v35 = shl 255, v34
-    v36 = not v35
-    v37 = and v32, v36
-    v38 = byte 0, arg0
-    v39 = shl v38, v34
-    v40 = or v37, v39
-    sstore 0, v40 !metadata(storage=slot(0))
+    v31 = add v0, 2
+    v32 = sub 31, v6
+    v33 = mul v32, 8
+    v34 = shl 255, v33
+    v35 = not v34
+    v36 = and v31, v35
+    v37 = byte 0, arg0
+    v38 = shl v37, v33
+    v39 = or v36, v38
+    sstore 0, v39 !metadata(storage=slot(0))
     jump bb5
   bb3:
-    v27 = storage_array_data_slot 0
-    v28 = not 255
-    v29 = and v0, v28
-    v30 = byte 0, arg0
-    v31 = or v29, v30
-    sstore v27, v31 !metadata(storage=symbolic(v27))
+    v26 = storage_array_data_slot 0
+    v27 = not 255
+    v28 = and v0, v27
+    v29 = byte 0, arg0
+    v30 = or v28, v29
+    sstore v26, v30 !metadata(storage=symbolic(v26))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
   bb2:
@@ -166,17 +166,16 @@ fn @pushValue(arg0: i256) [selector=0x0217b939, abi_params=[bytes1], abi_returns
     v13 = add v11, v12
     v14 = and v6, 31
     v15 = sub 31, v14
-    v16 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v17 = mul v15, 8
-    v18 = shl 255, v17
-    v19 = sload v13 !metadata(storage=symbolic(v13))
-    v20 = not v18
-    v21 = and v19, v20
-    v22 = shr v16, 248
-    v23 = and v22, 255
-    v24 = shl v23, v17
-    v25 = or v21, v24
-    sstore v13, v25 !metadata(storage=symbolic(v13))
+    v16 = mul v15, 8
+    v17 = shl 255, v16
+    v18 = sload v13 !metadata(storage=symbolic(v13))
+    v19 = not v17
+    v20 = and v18, v19
+    v21 = shr arg0, 248
+    v22 = and v21, 255
+    v23 = shl v22, v16
+    v24 = or v20, v23
+    sstore v13, v24 !metadata(storage=symbolic(v13))
     jump bb5
   bb5:
     ret

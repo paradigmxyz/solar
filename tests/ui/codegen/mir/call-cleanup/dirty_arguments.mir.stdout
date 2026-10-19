@@ -22,11 +22,9 @@ fn @rawReturn(arg0: i256) -> i256 [pure] {
 fn @compareReturns(arg0: i256, arg1: i256) -> i1 [selector=0xf3b43d04, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @canonicalReturn, arg0
-    v1 = ne v0, false
-    v2 = icall @canonicalReturn, arg1
-    v3 = ne v2, false
-    v4 = eq v1, v3
-    ret v4
+    v1 = icall @canonicalReturn, arg1
+    v2 = eq v0, v1
+    ret v2
 }
 
 fn @canonicalReturn(arg0: i256) -> i1 [pure] {

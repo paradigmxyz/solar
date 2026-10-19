@@ -24,6 +24,14 @@
 //! exposed, and the parameters and returns of every exposed function are
 //! tainted. These rules feed each other and iterate to a fixpoint.
 //!
+//! Only raw bindings can hold bits above their type's width. Callers clean a dirty argument
+//! before it reaches any other parameter, and a function cleans a dirty value before it returns
+//! it through any other return binding, like LLVM's `zeroext` on parameters and returns. ABI
+//! decoding validates the parameters of external functions and constructors. The exceptions are
+//! the functions an internal function pointer call can reach: their dispatcher passes arguments
+//! through unchanged, so their parameters stay dirty, and a pointer call's results stay dirty
+//! when any function it can reach returns raw bits or assembly retyped the pointer.
+//!
 //! NOTE: Pointers reach this graph only through bindings. Assembly that writes
 //! a pointer into memory or storage through an address it computed, rather
 //! than through a reference binding, is not tracked.
@@ -544,6 +552,7 @@ impl LoweringState {
                 break;
             }
         }
+        self.dispatched = exposure.indirect_callees.values().flatten().copied().collect();
         self.pointer_registry.assembly_exposed = exposed;
         self.pointer_registry.assembly_calls = calls;
 
@@ -554,6 +563,27 @@ impl LoweringState {
             .filter(|ty| ty.integer_bits().is_some())
             .collect();
         self.raw_scalars = exposure.raw;
+        self.dispatched_returns_dirty = self
+            .dispatched
+            .iter()
+            .chain(&self.pointer_registry.assembly_exposed)
+            .any(|&id| self.returns_dirty_values(gcx, id));
+    }
+
+    /// Returns whether a call to this function can see arguments the caller did not clean.
+    pub(super) fn takes_dirty_arguments(&self, id: hir::FunctionId) -> bool {
+        self.dispatched.contains(&id) || self.pointer_registry.assembly_exposed.contains(&id)
+    }
+
+    /// Returns whether a call to this function can return a value with bits above its type.
+    pub(super) fn returns_dirty_values(&self, gcx: Gcx<'_>, id: hir::FunctionId) -> bool {
+        gcx.hir.function(id).returns.iter().any(|ret| self.raw_scalars.contains(ret))
+    }
+
+    /// Returns whether an internal function pointer call can return a value with bits above its
+    /// type: a target returns raw bits, or assembly retyped the pointer.
+    pub(super) fn pointer_call_returns_dirty(&self, call: hir::ExprId) -> bool {
+        self.dispatched_returns_dirty || self.pointer_registry.assembly_calls.contains(&call)
     }
 
     pub(super) fn pointer_carrier(&self, ty: MirType) -> MirType {
@@ -588,6 +618,38 @@ impl LoweringState {
 }
 
 impl FunctionLowerer<'_, '_> {
+    /// Cleans a dirty `value` bound to `id` unless `id` is raw and keeps the caller's bits.
+    ///
+    /// Narrow carriers clean when they truncate, so only a word carrier needs a mask.
+    pub(super) fn clean_unexposed_scalar(&mut self, id: VariableId, value: ValueId) -> ValueId {
+        let ty = self.cx.gcx.type_of_item(id.into());
+        if ty.is_value_type()
+            && self.cx.state.scalar_carrier(self.cx.gcx, id) == MirType::I256
+            && !self.cx.state.raw_scalars.contains(&id)
+        {
+            self.normalize_dirty_scalar(value, ty)
+        } else {
+            value
+        }
+    }
+
+    /// Materializes an argument, cleaning it unless the callee takes dirty arguments or the
+    /// parameter is raw.
+    pub(super) fn materialize_argument_carrier(
+        &mut self,
+        function: hir::FunctionId,
+        parameter: VariableId,
+        value: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        let value = if self.cx.state.takes_dirty_arguments(function) {
+            value
+        } else {
+            self.clean_unexposed_scalar(parameter, value)
+        };
+        self.materialize_scalar_carrier(parameter, value, span)
+    }
+
     pub(super) fn materialize_raw_scalar(&mut self, id: VariableId, value: ValueId) -> ValueId {
         if !self.cx.state.raw_scalars.contains(&id) {
             return value;
@@ -598,6 +660,17 @@ impl FunctionLowerer<'_, '_> {
         } else {
             value
         }
+    }
+
+    /// Materializes a returned value, cleaning it unless its return binding is raw.
+    pub(super) fn materialize_return_carrier(
+        &mut self,
+        id: VariableId,
+        value: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        let value = self.clean_unexposed_scalar(id, value);
+        self.materialize_scalar_carrier(id, value, span)
     }
 
     pub(super) fn materialize_scalar_carrier(
