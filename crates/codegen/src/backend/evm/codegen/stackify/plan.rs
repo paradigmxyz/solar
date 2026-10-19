@@ -98,6 +98,14 @@ impl Sim {
     }
 }
 
+/// A consumer whose deeper operands are copied before the chain computing its top operand.
+struct Preplacement {
+    consumer: usize,
+    pre: Operands,
+    /// A plan that copies other words at this offset into the window; it wins ties.
+    rival: Option<(usize, Operands)>,
+}
+
 /// Longest instruction chain before a consumer considered for copying its deeper operands first.
 const MAX_PREPLACEMENT_WINDOW: usize = 16;
 
@@ -674,6 +682,7 @@ impl<'a> Planner<'a> {
             })
             .collect();
         let windows = self.preplacement_windows(&planned);
+        let mut placed = FxHashSet::default();
         for (position, &inst) in planned.iter().enumerate() {
             if let Some(value) = constant
                 && func.inst(inst).kind.operands().contains(&value)
@@ -688,23 +697,38 @@ impl<'a> Planner<'a> {
             {
                 self.branch_phi_prep(sim, block, then_block, else_block)?;
             }
-            for (consumer, pre) in windows.get(&position).into_iter().flatten() {
+            for Preplacement { consumer, pre, rival } in
+                windows.get(&position).into_iter().flatten()
+            {
                 // Copy a consumer's deeper operands before the expression computing its top
                 // operand starts, when planning that expression and the consumer gets cheaper.
+                if placed.contains(consumer) {
+                    continue;
+                }
                 let window = &planned[position..=*consumer];
                 let plain = self
                     .plain_prefix(sim, block, &planned, position, window.len(), &uses)
                     .get(window.len() - 1)
                     .map(|step| step.price);
                 // A copy cannot pay for itself once its plan costs as much as the plain one.
-                let placed = self.trial(sim, block, window, &mut uses, pre, plain);
-                if let Some(placed) = placed
-                    && plain.is_none_or(|plain| self.target.cmp(placed, plain).is_lt())
-                {
-                    for &value in pre {
-                        self.copy(sim, value)?;
-                    }
+                let Some(price) = self.trial(sim, block, window, &mut uses, 0, pre, plain) else {
+                    continue;
+                };
+                if plain.is_some_and(|plain| !self.target.cmp(price, plain).is_lt()) {
+                    continue;
                 }
+                // The rival copies the words later, and wins ties.
+                if let Some((offset, rival_pre)) = rival
+                    && let Some(rival_price) =
+                        self.trial(sim, block, window, &mut uses, *offset, rival_pre, plain)
+                    && self.target.cmp(rival_price, price).is_le()
+                {
+                    continue;
+                }
+                for &value in pre {
+                    self.copy(sim, value)?;
+                }
+                placed.insert(*consumer);
             }
             self.plan_inst_inner(sim, block, inst, &uses)?;
             uses.consume(&func.inst(inst).kind.operands());
@@ -777,7 +801,8 @@ impl<'a> Planner<'a> {
             if self.stack_op(&mut swapped, StackOp::Swap(depth as u8)).is_err() {
                 continue;
             }
-            if let Some(cost) = self.trial(&swapped, block, &rest[..=end], uses, &[], Some(plain))
+            if let Some(cost) =
+                self.trial(&swapped, block, &rest[..=end], uses, 0, &[], Some(plain))
                 && self.target.cmp(cost, plain).is_lt()
                 && best.is_none_or(|(best, _)| self.target.cmp(cost, best).is_lt())
             {
@@ -795,24 +820,28 @@ impl<'a> Planner<'a> {
         StackCosts::POP.plus(self.target.opcode(op::SWAP1))
     }
 
-    /// Prices planning `window` after copying `pre`, or `None` when it cannot be planned or
-    /// its cost reaches `bound`.
+    /// Prices planning `window` after copying `pre` before its instruction at `offset`, or
+    /// `None` when it cannot be planned or its cost reaches `bound`.
+    #[allow(clippy::too_many_arguments)]
     fn trial(
         &self,
         sim: &Sim,
         block: BlockId,
         window: &[InstId],
         uses: &mut Uses,
+        offset: usize,
         pre: &[ValueId],
         bound: Option<Cost>,
     ) -> Option<Cost> {
         let mut sim = sim.fork();
-        for &value in pre {
-            self.copy(&mut sim, value).ok()?;
-        }
         // Plan on the caller's counts and give back what the window consumed.
         let mut planned = 0;
-        for &inst in window {
+        for (index, &inst) in window.iter().enumerate() {
+            if index == offset {
+                for &value in pre {
+                    self.copy(&mut sim, value).ok()?;
+                }
+            }
             if self.plan_inst_inner(&mut sim, block, inst, uses).is_err()
                 || bound.is_some_and(|bound| !self.target.cmp(sim.cost, bound).is_lt())
             {
@@ -893,7 +922,7 @@ impl<'a> Planner<'a> {
     /// Finds, for instructions whose topmost computed operand comes from a chain of single-use
     /// instructions in this block, the start of that chain and the deeper operands that are
     /// pushed or copied anyway. Keyed by the chain's first position.
-    fn preplacement_windows(&self, planned: &[InstId]) -> FxHashMap<usize, Vec<(usize, Operands)>> {
+    fn preplacement_windows(&self, planned: &[InstId]) -> FxHashMap<usize, Vec<Preplacement>> {
         let func = self.func;
         let mut def_position = FxHashMap::default();
         for (position, &inst) in planned.iter().enumerate() {
@@ -901,7 +930,7 @@ impl<'a> Planner<'a> {
                 def_position.insert(result, position);
             }
         }
-        let mut windows = FxHashMap::<usize, Vec<(usize, Operands)>>::default();
+        let mut windows = FxHashMap::<usize, Vec<Preplacement>>::default();
         for (consumer, &inst) in planned.iter().enumerate() {
             let kind = &func.inst(inst).kind;
             if matches!(
@@ -925,27 +954,65 @@ impl<'a> Planner<'a> {
                 continue;
             }
             let Some(&def) = def_position.get(&value) else { continue };
-            // The chain: single-use producers feeding the value within this block.
-            let mut start = def;
-            let mut work = vec![def];
-            while let Some(position) = work.pop() {
-                start = start.min(position);
-                for operand in func.inst(planned[position]).kind.operands() {
-                    if self.use_counts[operand] == 1
-                        && let Some(&producer) = def_position.get(&operand)
-                        && producer < position
-                    {
-                        work.push(producer);
+            // The chain: single-use producers feeding the roots within this block, as the
+            // position of its first instruction.
+            let first = |roots: &[usize]| {
+                let mut work = roots.to_vec();
+                let mut start = work[0];
+                while let Some(position) = work.pop() {
+                    start = start.min(position);
+                    for operand in func.inst(planned[position]).kind.operands() {
+                        if self.use_counts[operand] == 1
+                            && let Some(&producer) = def_position.get(&operand)
+                            && producer < position
+                        {
+                            work.push(producer);
+                        }
                     }
                 }
-            }
-            // Copied values must exist before the chain starts.
-            let available = |value: &ValueId| {
-                self.is_fresh(*value)
-                    || def_position.get(value).is_none_or(|&position| position < start)
+                start
             };
-            if consumer - start <= MAX_PREPLACEMENT_WINDOW && pre.iter().all(available) {
-                windows.entry(start).or_default().push((consumer, pre));
+            // Copied values must exist before the chain starts.
+            let available = |operand: &ValueId, start: usize| {
+                self.is_fresh(*operand)
+                    || def_position.get(operand).is_none_or(|&position| position < start)
+            };
+            let start = first(&[def]);
+            let copied = (consumer - start <= MAX_PREPLACEMENT_WINDOW
+                && pre.iter().all(|operand| available(operand, start)))
+            .then_some((start, pre.clone()));
+            // A deeper operand that single-use instructions compute right before the chain
+            // can run with it, after the pushes below it, instead of being copied. The plan
+            // that copies it stays the rival.
+            let computed: SmallVec<[usize; 2]> = pre
+                .iter()
+                .filter(|&&operand| !self.is_fresh(operand) && self.use_counts[operand] == 1)
+                .filter_map(|operand| def_position.get(operand).copied())
+                .collect();
+            if !computed.is_empty() {
+                let roots = [&[def][..], &computed].concat();
+                let start = first(&roots);
+                let rest: Operands = pre
+                    .iter()
+                    .copied()
+                    .filter(|operand| {
+                        def_position.get(operand).is_none_or(|at| !computed.contains(at))
+                    })
+                    .collect();
+                if !rest.is_empty()
+                    && consumer - start <= MAX_PREPLACEMENT_WINDOW
+                    && rest.iter().all(|operand| available(operand, start))
+                {
+                    let rival = copied.clone().map(|(at, pre)| (at - start, pre));
+                    windows.entry(start).or_default().push(Preplacement {
+                        consumer,
+                        pre: rest,
+                        rival,
+                    });
+                }
+            }
+            if let Some((start, pre)) = copied {
+                windows.entry(start).or_default().push(Preplacement { consumer, pre, rival: None });
             }
         }
         windows
