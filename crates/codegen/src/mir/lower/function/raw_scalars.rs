@@ -340,7 +340,11 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
     }
 
     fn visit_modifier(&mut self, modifier: &'gcx hir::Modifier<'gcx>) -> ControlFlow<Never> {
-        if let Some(id) = self.gcx.resolve_modifier_target(self.contract, modifier) {
+        // A base constructor call names the contract, not its constructor.
+        let target = self.gcx.resolve_modifier_target(self.contract, modifier).or_else(|| {
+            modifier.id.as_contract().and_then(|base| self.gcx.hir.contract(base).ctor)
+        });
+        if let Some(id) = target {
             let function = self.gcx.hir.function(id);
             for (&parameter, argument) in function.parameters.iter().zip(modifier.args.exprs()) {
                 self.connect(&[parameter], argument);
