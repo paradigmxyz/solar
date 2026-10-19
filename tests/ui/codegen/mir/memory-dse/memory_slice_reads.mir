@@ -13,7 +13,7 @@ fn @copy_reads_slice_range(arg0: ptr<memory>) {
     v2 = add v1, 32
     mcopy v2, 128, 32
     mstore 0, 8
-    stop
+    ret
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy_at_reads_slice_range{{[( ]}}
@@ -29,7 +29,7 @@ fn @copy_at_reads_slice_range(arg0: ptr<memory>, arg1: i256) {
     v3 = add v2, arg1
     mcopy v3, 128, 32
     mstore 0, 8
-    stop
+    ret
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy_keeps_read_store{{[( ]}}
@@ -42,7 +42,7 @@ fn @copy_keeps_read_store(arg0: ptr<memory>) {
     v2 = add v1, 32
     mcopy v2, 0, 32
     mstore 0, 8
-    stop
+    ret
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy_unknown_slice{{[( ]}}
@@ -59,5 +59,5 @@ fn @copy_unknown_slice(arg0: ptr<memory>, arg1: slice<memory>) {
     v4 = extract_value slice<memory>, arg1, 1
     mcopy v2, v3, v4
     mstore 0, 8
-    stop
+    ret
 }

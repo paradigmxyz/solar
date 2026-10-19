@@ -1,30 +1,49 @@
-//! Local dead memory optimization.
+//! Dead memory-store elimination and store-to-load forwarding.
 //!
-//! This pass removes full-word `mstore` instructions that are overwritten by a
-//! later full-word `mstore` to the same exact address within the same basic
-//! block, before any operation can observe memory or gas. It also removes small
-//! word-sized zero fills and calldata copies when every word is overwritten.
-//! Returndata copies remain because their source bounds check can revert.
-//! The pass forwards same-block `mload` instructions from the latest exact-address
-//! `mstore` when no intervening operation can mutate memory. Across a unique predecessor
-//! edge, equal constant stores can be removed only while no overlapping
-//! 32-byte write has invalidated the remembered word. Gas and memory-size
-//! observations act as barriers to memory elimination. Allocation-based keys require
-//! the complete access range to fit; wider accesses may overlap adjacent allocations.
-//! A deferred allocation whose pointer only ever addresses stores, as a decoded struct
-//! does once forwarding has replaced the reads of its used fields, loses those stores:
-//! static placement already keeps every other way to reach its words out of the
-//! function.
+//! Each round of the pass runs these rewrites until none applies:
 //!
-//! A final `-Ogas` run after allocation lowering removes fills that only become explicit
-//! there, before memory-zero lowering turns them into copies or loops.
+//! - Immutable copies: a 32-byte `codecopy` from a constant offset of the code tail followed by an
+//!   `mload` of the same word, as assembly reading clone arguments does, reuses the word an
+//!   identical dominating copy loaded and becomes an `mstore` of it.
+//! - Frame stores: a store to an internal-frame word that no instruction or terminator of the
+//!   function can read is removed, unless the function makes internal calls or observes gas, or any
+//!   function in the module reads `msize`: internal calls share memory, so a caller could observe
+//!   the lower memory expansion.
+//! - Within each block: `keccak256` over words that constant stores fully define folds to its hash;
+//!   an `mload` reads the value of the latest store to the same canonical word; a store of the
+//!   value the word already holds is removed; and a backward scan removes a full-word store that a
+//!   later full-word store, `memory_zero`, or copy into a constant range overwrites before any
+//!   read, `msize`, or gas observation; a small word-sized zero fill or calldata copy whose every
+//!   word such a write overwrites goes too. Returndata copies stay because their source bounds
+//!   check can revert. Reads over constant ranges, such as hashes, logs, and call inputs, only keep
+//!   the words they cover.
+//! - Write-only deferred allocations: a deferred allocation whose pointer only ever addresses
+//!   stores, as a decoded struct does once forwarding has replaced the reads of its used fields,
+//!   loses those stores. Static placement already keeps every other way to reach its words out of
+//!   the function.
+//! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
+//!   removed, and a store that the single jump successor overwrites first, with no memory or gas
+//!   observer in between, is removed.
+//! - Across the CFG: a backward liveness dataflow over constant, word-aligned addresses removes a
+//!   full-word store that no path reads before overwriting it. A symbolic or unbounded read, a
+//!   call, a return to the caller, and a tail call make all memory live; revert and return data
+//!   keep only the words they cover, and halts such as `stop` keep none.
+//!
+//! Keys come from alias analysis, which canonicalizes an address as a base plus a constant offset.
+//! Allocation-based keys require the complete access range to fit; wider accesses may overlap
+//! adjacent allocations. Every other instruction is classified through its shared ModRef effects:
+//! a possible write invalidates the remembered words it may overlap, and only the explicit writes
+//! above count as definite overwrites. The pass runs late in semantic optimization and again in
+//! lowering, after ABI and aggregate lowering expose word stores. A final `-Ogas` run after
+//! allocation lowering removes fills that only become explicit there, before memory-zero lowering
+//! turns them into copies or loops.
 
 use crate::mir::{
     BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, Module, PtrLocation,
     Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
-        MemoryAddress, MemoryBase, MemoryLocation,
+        MemoryAddress, MemoryBase, MemoryLocation, module_may_observe_msize,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -62,47 +81,48 @@ impl MirPass for MemoryDse {
                 selected.insert(func_id);
             }
         }
+        let observes_msize = module_may_observe_msize(module);
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,
             &selected,
             |func, analyses| {
-                let mut eliminator = MemoryStoreEliminator::new();
-                eliminator.alias = Some(Rc::clone(analyses.alias()));
-                eliminator.cfg = Some(Rc::clone(analyses.cfg()));
-                eliminator.run_to_fixpoint(func) != 0
+                MemoryStoreEliminator::new(
+                    Rc::clone(analyses.alias()),
+                    Rc::clone(analyses.cfg()),
+                    observes_msize,
+                )
+                .run_to_fixpoint(func)
+                    != 0
             },
         )
     }
 }
 
-/// Returns whether the function contains a memory write this pass can remove
-/// or forward from.
+/// Returns whether the function contains a store or fill this pass can remove or forward from, or
+/// an immutable copy it can reuse: every rewrite starts from one of them.
 fn has_memory_writes(func: &Function) -> bool {
     func.instructions().any(|inst_id| {
         matches!(
             func.inst(inst_id).kind,
             InstKind::Store(.., PtrLocation::Memory)
                 | InstKind::Store8(..)
-                | InstKind::MemoryZero(_, _)
-                | InstKind::Copy(..)
-                | InstKind::DataCopy(_, _, _)
-                | InstKind::CodeCopy(_, _, _)
-                | InstKind::ExtCodeCopy(..)
-                | InstKind::AbiEncode { .. }
-                | InstKind::AbiDecode { .. }
+                | InstKind::CodeCopy(..)
+                | InstKind::MemoryZero(..)
+                | InstKind::Copy(.., PtrLocation::Calldata)
         )
     })
 }
 
 /// Local dead memory optimization.
-#[derive(Debug, Default)]
 struct MemoryStoreEliminator {
     /// Shared CFG snapshot for memory liveness and immutable-copy reuse.
-    cfg: Option<Rc<CfgInfo>>,
+    cfg: Rc<CfgInfo>,
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
-    alias: Option<Rc<AliasAnalysis>>,
+    alias: Rc<AliasAnalysis>,
+    /// Whether any function in the module reads `msize`; see [`module_may_observe_msize`].
+    observes_msize: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -403,16 +423,15 @@ impl BlockScratch {
 
 impl MemoryStoreEliminator {
     /// Creates a new memory optimization pass.
-    fn new() -> Self {
-        Self::default()
+    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>, observes_msize: bool) -> Self {
+        Self { cfg, eliminated_count: 0, alias, observes_msize }
     }
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
 
-        // Both store elimination and store-to-load forwarding need at least
-        // one memory write to act on; functions without any skip the whole
-        // scan and never build the alias snapshot.
+        // Every rewrite needs a store or an immutable copy to act on; functions without one skip
+        // the whole scan and never build the alias snapshot.
         if !has_memory_writes(func) {
             return 0;
         }
@@ -420,10 +439,6 @@ impl MemoryStoreEliminator {
         // Reuse one provenance snapshot across fixpoint iterations: removing
         // stores keeps the allocation facts conservative, so only the
         // value-address memo is dropped per iteration.
-        if self.alias.is_none() {
-            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
-        }
-
         self.reuse_redundant_immutable_copies(func);
         self.alias().clear_cached_addresses();
         self.remove_unused_internal_frame_stores(func);
@@ -445,7 +460,7 @@ impl MemoryStoreEliminator {
     }
 
     fn alias(&self) -> &AliasAnalysis {
-        self.alias.as_ref().expect("memory DSE alias snapshot is initialized")
+        &self.alias
     }
 
     /// Removes full-word stores to a constant, word-aligned address that no
@@ -484,7 +499,7 @@ impl MemoryStoreEliminator {
         // while touching each block only when one of its successors actually
         // moved. Postorder puts successors before predecessors, which is the
         // direction information flows here.
-        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
+        let cfg = &*self.cfg;
         let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
         let mut worklist = cfg.rpo().iter().rev().copied().collect::<VecDeque<_>>();
         self.eliminated_count += mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
@@ -550,17 +565,19 @@ impl MemoryStoreEliminator {
                 Self::mark_read(func, &mut live, *offset, *size);
             }
             // A `return` value may be a memory pointer the caller dereferences,
-            // a tail call forwards memory to its callee, and a halt observes
-            // nothing but is rare — keep all memory live rather than reason
-            // about escape. `jump`/`branch`/`switch` read no memory; their
-            // successors already contribute liveness via `live_out`.
-            Some(Terminator::Return { .. })
-            | Some(Terminator::TailCall { .. })
-            | Some(Terminator::RevertReturndata)
+            // and a tail call forwards memory to its callee: keep all memory live
+            // rather than reason about escape.
+            Some(Terminator::Return { .. }) | Some(Terminator::TailCall { .. }) => {
+                live = MemLive::All
+            }
+            // Halts end the call and discard its memory without reading it.
+            // `jump`/`branch`/`switch` read no memory; their successors already
+            // contribute liveness via `live_out`.
+            Some(Terminator::RevertReturndata)
             | Some(Terminator::Stop)
             | Some(Terminator::Invalid)
-            | Some(Terminator::SelfDestruct { .. }) => live = MemLive::All,
-            Some(Terminator::Jump(_))
+            | Some(Terminator::SelfDestruct { .. })
+            | Some(Terminator::Jump(_))
             | Some(Terminator::Branch { .. })
             | Some(Terminator::Switch { .. })
             | None => {}
@@ -651,9 +668,7 @@ impl MemoryStoreEliminator {
             if eliminated == 0 {
                 break;
             }
-            if let Some(alias) = &self.alias {
-                alias.clear_cached_addresses();
-            }
+            self.alias.clear_cached_addresses();
             total += eliminated;
         }
         total
@@ -670,7 +685,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
+        let cfg = &*self.cfg;
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -795,15 +810,6 @@ impl MemoryStoreEliminator {
                     mstores += 1;
                     memory_writes += 1;
                 }
-                InstKind::MemoryZero(_, _)
-                | InstKind::Copy(_, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
-                | InstKind::DataCopy(_, _, _)
-                | InstKind::CodeCopy(_, _, _)
-                | InstKind::ExtCodeCopy(..) => memory_writes += 1,
-                InstKind::SetFmp(_)
-                | InstKind::Alloc { .. }
-                | InstKind::AbiEncode { .. }
-                | InstKind::AbiDecode { .. } => memory_writes += 1,
                 InstKind::Load(_, PtrLocation::Memory) => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ if self
@@ -1529,15 +1535,16 @@ impl MemoryStoreEliminator {
     }
 
     fn has_frame_observer(&self, func: &Function) -> bool {
-        func.instructions().any(|inst_id| {
-            let effects = self.alias().instruction_mod_ref(func, inst_id);
-            effects.observes_gas()
-                || effects.observes_memory_size()
-                || matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::ICall { function: Callee::Function(_), .. }
-                )
-        })
+        self.observes_msize
+            || func.instructions().any(|inst_id| {
+                let effects = self.alias().instruction_mod_ref(func, inst_id);
+                effects.observes_gas()
+                    || effects.observes_memory_size()
+                    || matches!(
+                        func.inst(inst_id).kind,
+                        InstKind::ICall { function: Callee::Function(_), .. }
+                    )
+            })
     }
 
     fn internal_frame_read_ranges(&self, func: &Function) -> Option<Vec<(u64, u64)>> {
@@ -1621,8 +1628,8 @@ impl MemoryStoreEliminator {
         if allocations.is_empty() || self.alias().may_observe_msize(func) {
             return;
         }
-        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
-        let gas = GasObservations::new(func, &cfg, self.alias());
+        let cfg = &*self.cfg;
+        let gas = GasObservations::new(func, cfg, self.alias());
         if func.instructions().any(|inst| gas.observes(inst)) {
             return;
         }

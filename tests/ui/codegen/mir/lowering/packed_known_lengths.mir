@@ -1,0 +1,59 @@
+//@ compile-flags: -Zmir-pipeline=lower-builtins
+//@ filecheck:
+@module PackedKnownLengths
+@data
+  payload_0: hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"
+
+// CHECK-LABEL: fn @known(
+// CHECK-NOT: mload v0
+// CHECK: + [[FIRST:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 33
+// CHECK-NOT: mload v3
+// CHECK: + [[SECOND:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 2
+// CHECK: + mcopy {{.*}}!metadata(memory=heap, disjoint)
+// CHECK: + mcopy {{.*}}!metadata(memory=heap, disjoint)
+// CHECK: + ret
+fn @known() -> ptr<memory> {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 33
+    v1 = ptradd v0, 64
+    mstore v1, 0
+    v2 = ptradd v0, 32
+    datacopy payload_0, v2, 33
+    v3 = alloc 64 !metadata(preserves_fmp)
+    mstore v3, 2
+    v4 = ptradd v3, 32
+    mstore v4, 0x2223000000000000000000000000000000000000000000000000000000000000
+    v5 = abi_encode_packed (bytes v0, bytes v3)
+    ret v5
+}
+
+// CHECK-LABEL: fn @clobbered(
+// CHECK: + [[LENGTH:v[0-9]+]] = mload v0
+// CHECK: + {{v[0-9]+}} = make_memory_slice {{v[0-9]+}}, [[LENGTH]]
+// CHECK-NOT: disjoint
+// CHECK: + ret
+fn @clobbered(arg0: i256, arg1: i256) -> ptr<memory> {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 0x0100000000000000000000000000000000000000000000000000000000000000
+    mstore arg0, arg1
+    v2 = abi_encode_packed (bytes v0, data hex"22")
+    ret v2
+}
+
+// CHECK-LABEL: fn @frame_eligible(
+// CHECK: + {{v[0-9]+}} = make_memory_slice {{v[0-9]+}}, 1
+// CHECK-NOT: disjoint
+// CHECK: + ret
+fn @frame_eligible() -> ptr<memory> {
+  bb0:
+    v0 = alloc 64
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 0x0100000000000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode_packed (bytes v0, data hex"22")
+    ret v2
+}

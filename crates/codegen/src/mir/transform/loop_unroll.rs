@@ -219,7 +219,7 @@ impl MirPass for LoopUnroll {
         let cold = cold_functions(module);
         let returns = return_bounds(module);
         run_function_pass(module, analyses, |func, _| {
-            unroll_function(func, &cold, &returns, target)
+            unroll_function(func, &cold, &returns, &target)
         })
     }
 }
@@ -328,7 +328,7 @@ fn unroll_function(
     func: &mut Function,
     cold: &DenseBitSet<FunctionId>,
     returns: &FxHashMap<FunctionId, U256>,
-    target: Target,
+    target: &Target,
 ) -> bool {
     let mut changed = false;
     let mut done = FxHashSet::default();
@@ -620,7 +620,7 @@ fn plan(
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
     returns: &FxHashMap<FunctionId, U256>,
-    target: Target,
+    target: &Target,
 ) -> Option<Unroll> {
     if !target.copies_loops() {
         return None;
@@ -863,7 +863,7 @@ fn lifetime_saving(
     factor: u32,
     trips: u64,
     step: U256,
-    target: Target,
+    target: &Target,
 ) -> i128 {
     let compare = match main_test {
         MainTest::AheadBelow(_) => op::LT,
@@ -985,7 +985,7 @@ fn plan_peel(
     loops: &LoopInfo,
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
-    target: Target,
+    target: &Target,
 ) -> Option<Peel> {
     if !target.copies_loops() {
         return None;
@@ -1044,7 +1044,7 @@ fn plan_full(
     loops: &LoopInfo,
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
-    target: Target,
+    target: &Target,
 ) -> Option<Full> {
     if !target.copies_loops() {
         return None;
