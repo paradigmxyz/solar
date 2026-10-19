@@ -6,53 +6,61 @@
 //!
 //! ```solidity
 //! for (uint256 k; k < 32; ++k) word |= bytes32(b[offset + k]) >> (8 * k); // gather
-//! for (uint256 k; k < 32; ++k) b[offset + k] = word[k];                   // scatter
-//! for (uint256 k; k < count; ++k) out[k] = b[offset + k];                 // copy into `out`
+//! for (uint256 k; k < n; ++k) b[offset + k] = word[k];                    // scatter
+//! for (uint256 k; k < n; ++k) out[outOffset + k] = b[offset + k];         // copy
 //! ```
 //!
-//! Each iteration checks its index, reads a whole word to extract one byte, or writes one byte,
-//! so a 32-byte word costs about two thousand gas. This pass replaces such a loop with one range
-//! check and the word operation it spells: `mload` and a mask for a gather of `N <= 32` bytes,
-//! `mstore` (or a read-modify-write of the leading `N` bytes) for a scatter, and `mcopy` for a
-//! copy into a buffer allocated in the same function.
+//! Each iteration checks its indices, reads a whole word to extract one byte, or writes one
+//! byte, so a 32-byte word costs about two thousand gas. This pass replaces such a loop with one
+//! range check and the word operation it spells: `mload` (or `calldataload`) and a mask for a
+//! gather, `mstore` or a masked read-modify-write for a scatter, and `mcopy` (or
+//! `calldatacopy`) for a copy.
 //!
 //! # Recognition
 //!
 //! A loop qualifies when it is a canonical counted loop: a preheader, one exit, a header holding
-//! only phis and `k < bound`, a counter `k` that starts at zero and steps by one, and a body of
-//! straight-line blocks. The body must consist of exactly the pattern's instructions plus pure
-//! instructions whose results nothing outside the loop reads. Every instruction that may fail or
-//! write is part of the pattern:
+//! only phis and `k < bound` for a loop-invariant bound, a counter `k` that starts at zero and
+//! steps by one, and a body of straight-line blocks. The body must consist of exactly the
+//! pattern's instructions plus pure instructions whose results nothing outside the loop reads.
+//! Every instruction that may fail or write is part of the pattern:
 //!
-//! - the index `offset + k` (`checked_add`, or `k` itself), and the bounds check
-//!   `panic_if_zero<0x32> (lt index, length)` with `length = mload object`;
-//! - a gather's `byte 0` of the word at `object + 32 + index`, shifted into place by `8 * k` and
-//!   ORed into an accumulator phi that starts at zero, with optional masks that keep every gathered
-//!   byte;
-//! - a scatter's `mstore8` of `byte k, value` for a loop-invariant `value`, with an optional bounds
-//!   check on `k` that the header test already implies;
-//! - a copy's `mstore8` of a gathered byte into a second object, whose index check may be the
+//! - each access's index `offset + k` (`checked_add`, or `k` itself) and its bounds check
+//!   `panic_if_zero<0x32> (lt index, length)`, where the length is `mload object` for a memory
+//!   object and the slice's length field for a calldata slice;
+//! - a gather's `byte 0` of the word at the indexed byte, shifted into place by `8 * k` and ORed
+//!   into an accumulator phi that starts at zero, with optional masks that keep the leading bytes
+//!   of a `bytesN` result;
+//! - a scatter's `mstore8` of `byte k, value` for a loop-invariant `value`, whose index check on
+//!   `k` against the width of `value` is either a literal or the header test;
+//! - a copy's `mstore8` of a gathered byte into a memory object, whose index check may be the
 //!   header test itself when the destination's length is the bound.
 //!
 //! # Safety
 //!
-//! The original loop panics with `Panic(0x32)` exactly when some `k < bound` has
-//! `offset + k >= length`, and before any other failure: an index `offset + k` can only overflow
-//! after the earlier index `length - offset`, or `offset` itself, already failed its bounds check,
-//! because a length is below `2^256`. The replacement therefore raises the same panic exactly
-//! when `bound > 0` and `bound > length` or `offset > length - bound`, and so for every object a
-//! copy touches. A panic reverts the call frame, so the bytes a failing loop wrote before it
-//! panicked were never observable.
+//! Every check a matched loop runs raises `Panic(0x32)`, and the loop fails exactly when some
+//! `k < bound` has an index at or past its buffer's length, or `k` at or past the width of a
+//! scattered value. Within an iteration an index `offset + k` is computed with a checked
+//! addition before its bounds check, but that addition can only overflow at a `k` beyond
+//! `length - offset`, where an earlier iteration's bounds check already failed: a length is
+//! below `2^256`. A gather's shift `8 * k` can only overflow after `2^253` iterations, which the
+//! bounds check or gas ends first. So the first failure is always `Panic(0x32)`, and the
+//! replacement raises it exactly when the bound is not zero and the bound exceeds the length or
+//! the offset exceeds the length minus the bound, for every buffer, or a scatter's bound
+//! exceeds its value's width. A panic reverts the call frame, so the bytes a failing loop wrote
+//! before it panicked were never observable.
 //!
 //! The word read starts at the lowest byte the loop read and ends inside the last word the loop
 //! read, so it touches no memory the loop did not. A scatter below 32 bytes reads and rewrites
-//! the word after its last byte, and a copy's `mcopy` reads and writes exactly the copied
+//! the bytes after the ones it writes, and a copy's `mcopy` reads and writes exactly the copied
 //! ranges; memory expansion can differ, which only `msize` sees. A
-//! loop's own stores can neither reach the length word of the object they write, which lies
-//! below the checked range, nor feed a gather, which stores nothing. A copy is only rewritten
-//! when its destination is a fresh allocation and its source a function argument: the
-//! allocation lies above every object that existed on entry, so the two ranges are disjoint
-//! and the byte order of the original loop cannot matter.
+//! loop's own stores never reach a length word, which lies below every checked range, or feed
+//! a gather, which stores nothing.
+//!
+//! A forward byte copy equals `mcopy` unless its destination starts strictly inside its source
+//! range, where the loop copies bytes it already wrote. A calldata source, or a source and a
+//! destination that are distinct allocations or an argument and a fresh allocation, cannot
+//! overlap. Other copies test the addresses at run time and fall back to the original loop
+//! when the destination leads into the source.
 //!
 //! # Place in the pipeline
 //!
@@ -61,18 +69,18 @@
 //! spells a word access shrinks to a few instructions before callers decide to inline it. Both
 //! optimization objectives run it: the result is smaller and cheaper.
 //!
-//! Not handled yet: copies between two arguments, which need a runtime overlap check; copies
-//! that run downwards; and loops that fill, compare or gather into an integer with left shifts.
+//! Not handled yet: copies that run downwards, and loops that fill, compare or gather into an
+//! integer with left shifts.
 //!
 //! NOTE: The replacement summarizes every iteration of the loop, so its instructions carry no
 //! source location rather than an arbitrary iteration's checkpoint.
 
 use crate::mir::{
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionBuilder, InstId,
-    InstKind, Module, PanicCode, PtrLocation, RevertKind, Terminator, Value, ValueId,
+    InstKind, MirType, Module, PanicCode, PtrLocation, RevertKind, Terminator, Value, ValueId,
     analysis::{Loop, LoopAnalyzer},
     pass::{MirPass, ModuleAnalyses, run_function_pass},
-    utils::{fold_terminator_to_jump, invalidate_unreachable_block},
+    utils::{fold_terminator_to_jump, invalidate_unreachable_block, rebuild_predecessors},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -126,21 +134,46 @@ struct Counted {
     insts: Vec<InstId>,
 }
 
+impl Counted {
+    /// The bound, when it is a literal.
+    fn literal_bound(&self, func: &Function) -> Option<u64> {
+        func.value_u64(self.bound)
+    }
+}
+
+/// A `bytes` buffer that a loop reads or writes one byte of per iteration.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Buffer {
+    /// A `bytes memory` object: its length word, then its data.
+    Memory(ValueId),
+    /// A `bytes calldata` slice.
+    Calldata(ValueId),
+}
+
+/// The byte at `offset + k` of a buffer.
+struct Access {
+    buffer: Buffer,
+    offset: Option<ValueId>,
+}
+
+/// How a copy's ranges relate.
+enum Overlap {
+    /// The ranges cannot overlap.
+    Disjoint,
+    /// The ranges are tested at run time, keeping the loop for a destination that leads into
+    /// its source.
+    Guarded,
+}
+
 enum Shape {
-    /// `bound` bytes of `object` from `offset`, left-aligned into the accumulator `result`.
-    Gather { object: ValueId, offset: Option<ValueId>, width: u64, result: ValueId },
-    /// The leading `bound` bytes of `value` written into `object` from `offset`.
-    Scatter { object: ValueId, offset: Option<ValueId>, width: u64, value: ValueId },
-    /// `bound` bytes of `src` from `src_offset` written into the fresh `dst` from `dst_offset`.
-    Copy {
-        src: ValueId,
-        src_offset: Option<ValueId>,
-        dst: ValueId,
-        dst_offset: Option<ValueId>,
-        /// Whether the destination index needs its own range check: it does not when the header
-        /// test is that check.
-        dst_checked: bool,
-    },
+    /// The leading bytes of a buffer from an offset, left-aligned into the accumulator `result`;
+    /// `width` is the most bytes the result type holds.
+    Gather { access: Access, width: u64, result: ValueId },
+    /// The leading bytes of `value` written into a memory object; `width` is the most bytes the
+    /// value's index check admits.
+    Scatter { access: Access, value: ValueId, width: u64 },
+    /// Bytes of a buffer written into a memory object.
+    Copy { src: Access, dst: Access, dst_checked: bool, overlap: Overlap },
 }
 
 struct Plan {
@@ -162,6 +195,17 @@ fn plan(func: &Function, l: &Loop) -> Option<Plan> {
     }
     if escapes(func, l, lp.test) {
         return None;
+    }
+    if let Shape::Copy { overlap: Overlap::Guarded, .. } = shape {
+        // The fast path joins the loop's exit, which must not distinguish its predecessors.
+        if func.blocks[lp.exit]
+            .instructions
+            .iter()
+            .any(|&i| matches!(func.inst(i).kind, InstKind::Phi(_)))
+            || escapes(func, l, lp.counter)
+        {
+            return None;
+        }
     }
     Some(Plan { lp, shape })
 }
@@ -217,12 +261,12 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
         }
         let value = func.inst_result_value(phi)?;
         if value == counter {
-            counter_phi = Some((phi, incoming.clone()));
+            counter_phi = Some(incoming.clone());
         } else {
             other.push((value, phi));
         }
     }
-    let (_, incoming) = counter_phi?;
+    let incoming = counter_phi?;
     let init = incoming.iter().find(|(b, _)| *b == preheader)?.1;
     let next = incoming.iter().find(|(b, _)| b == latch)?.1;
     if func.value_u64(init) != Some(0) {
@@ -296,14 +340,16 @@ fn index(
     defined_outside(func, l, offset).then_some((Some(offset), Some(inst)))
 }
 
-/// Matches the byte address `object + idx + 32` in either association. Returns the object, the
-/// index value, and the address instructions.
-fn byte_address(
+/// Matches the memory byte address `object + idx + 32` in either association. Returns the
+/// object, the index value, and the address instructions.
+fn memory_address(
     func: &Function,
     lp: &Counted,
     ptr: ValueId,
 ) -> Option<(ValueId, ValueId, [InstId; 2])> {
-    let (outer, &InstKind::PtrAdd(inner_ptr, last)) = body_def(func, lp, ptr)? else { return None };
+    let (outer, &InstKind::PtrAdd(inner_ptr, last)) = body_def(func, lp, ptr)? else {
+        return None;
+    };
     let (inner, &InstKind::PtrAdd(object, first)) = body_def(func, lp, inner_ptr)? else {
         return None;
     };
@@ -317,13 +363,41 @@ fn byte_address(
     Some((object, idx, [outer, inner]))
 }
 
-/// Finds the body's range check of `idx` against `object`'s length.
+/// Matches the calldata byte address `ptrtoint(slice.ptr) + idx`. Returns the slice, the index
+/// value, and the address instructions.
+fn calldata_address(
+    func: &Function,
+    lp: &Counted,
+    address: ValueId,
+) -> Option<(ValueId, ValueId, Vec<InstId>)> {
+    let (add, &InstKind::Add(a, b)) = body_def(func, lp, address)? else { return None };
+    for (base, idx) in [(a, b), (b, a)] {
+        let Some((cast, &InstKind::PtrToInt(ptr, 256))) = body_def(func, lp, base) else {
+            continue;
+        };
+        let Some((field, &InstKind::ExtractValue { aggregate, index, .. })) =
+            body_def(func, lp, ptr)
+        else {
+            continue;
+        };
+        if index == MirType::SLICE_PTR_FIELD && is_calldata_slice(func, aggregate) {
+            return Some((aggregate, idx, vec![add, cast, field]));
+        }
+    }
+    None
+}
+
+fn is_calldata_slice(func: &Function, value: ValueId) -> bool {
+    matches!(func.value_ty(value), Some(MirType::Slice(PtrLocation::Calldata)))
+}
+
+/// Finds the body's range check of `idx` against the buffer's length.
 fn bounds_check(
     func: &Function,
     lp: &Counted,
-    object: ValueId,
+    buffer: Buffer,
     idx: ValueId,
-) -> Option<[InstId; 3]> {
+) -> Option<Vec<InstId>> {
     lp.insts.iter().find_map(|&inst| {
         let condition = array_check(func, inst)?;
         let (cmp, &InstKind::Lt(a, len)) = body_def(func, lp, condition)? else { return None };
@@ -331,10 +405,17 @@ fn bounds_check(
             return None;
         }
         let Value::Inst(len_inst) = *func.value(len) else { return None };
-        if func.inst(len_inst).kind != InstKind::Load(object, PtrLocation::Memory) {
-            return None;
-        }
-        Some([inst, cmp, len_inst])
+        let matches = match buffer {
+            Buffer::Memory(object) => {
+                func.inst(len_inst).kind == InstKind::Load(object, PtrLocation::Memory)
+            }
+            Buffer::Calldata(slice) => matches!(
+                func.inst(len_inst).kind,
+                InstKind::ExtractValue { aggregate, index, .. }
+                    if aggregate == slice && index == MirType::SLICE_LEN_FIELD
+            ),
+        };
+        matches.then(|| vec![inst, cmp, len_inst])
     })
 }
 
@@ -355,44 +436,81 @@ fn array_check(func: &Function, inst: InstId) -> Option<ValueId> {
     Some(condition)
 }
 
-/// Matches `byte 0, mload(object + idx + 32)`: one byte of a `bytes` object, read through its
-/// own word. Returns the object, the index and the instructions.
+/// Matches `byte 0` of the word at one byte of a memory object or a calldata slice, indexed by
+/// `offset + k` and range checked. Returns the access and its instructions.
 fn byte_read(
     func: &Function,
+    l: &Loop,
     lp: &Counted,
     value: ValueId,
-) -> Option<(ValueId, ValueId, Vec<InstId>)> {
+) -> Option<(Access, Vec<InstId>)> {
     let (byte_inst, &InstKind::Byte(position, word)) = body_def(func, lp, value)? else {
         return None;
     };
     if func.value_u64(position) != Some(0) {
         return None;
     }
-    let (load, &InstKind::Load(ptr, PtrLocation::Memory)) = body_def(func, lp, word)? else {
-        return None;
+    let mut used = vec![byte_inst];
+    let (buffer, idx) = match body_def(func, lp, word)? {
+        (load, &InstKind::Load(ptr, PtrLocation::Memory)) => {
+            let (object, idx, address) = memory_address(func, lp, ptr)?;
+            used.push(load);
+            used.extend(address);
+            (Buffer::Memory(object), idx)
+        }
+        (load, &InstKind::Load(address, PtrLocation::Calldata)) => {
+            let (slice, idx, address) = calldata_address(func, lp, address)?;
+            used.push(load);
+            used.extend(address);
+            (Buffer::Calldata(slice), idx)
+        }
+        _ => return None,
     };
-    let (object, idx, address) = byte_address(func, lp, ptr)?;
-    Some((object, idx, vec![byte_inst, load, address[0], address[1]]))
+    let access = checked_access(func, l, lp, buffer, idx, &mut used)?;
+    Some((access, used))
 }
 
-/// Accepts `and value, mask` when the mask keeps every one of the `width` leading bytes.
+/// Matches the index and bounds check of an access to `buffer` at `idx`.
+fn checked_access(
+    func: &Function,
+    l: &Loop,
+    lp: &Counted,
+    buffer: Buffer,
+    idx: ValueId,
+    used: &mut Vec<InstId>,
+) -> Option<Access> {
+    let (Buffer::Memory(object) | Buffer::Calldata(object)) = buffer;
+    if !defined_outside(func, l, object) {
+        return None;
+    }
+    let (offset, index_inst) = index(func, l, lp, idx)?;
+    used.extend(index_inst);
+    used.extend(bounds_check(func, lp, buffer, idx)?);
+    Some(Access { buffer, offset })
+}
+
+/// Accepts `and value, mask` when the mask keeps the leading bytes of a word. Returns the
+/// operand and the number of leading bytes the mask keeps, or 32 without a mask.
 fn strip_mask(
     func: &Function,
     lp: &Counted,
     value: ValueId,
-    width: u64,
     used: &mut Vec<InstId>,
-) -> ValueId {
+) -> (ValueId, u64) {
     if let Some((inst, &InstKind::And(a, b))) = body_def(func, lp, value) {
-        let keep = top_bytes(width);
         for (operand, mask) in [(a, b), (b, a)] {
-            if func.value_u256(mask).is_some_and(|mask| mask & keep == keep) {
+            if let Some(width) = func.value_u256(mask).and_then(leading_bytes) {
                 used.push(inst);
-                return operand;
+                return (operand, width);
             }
         }
     }
-    value
+    (value, 32)
+}
+
+/// The number of leading bytes a mask keeps, when it keeps exactly a run of leading bytes.
+fn leading_bytes(mask: U256) -> Option<u64> {
+    (1..=32).find(|&width| mask == top_bytes(width))
 }
 
 /// The mask of the leading `width` bytes of a word.
@@ -401,7 +519,6 @@ fn top_bytes(width: u64) -> U256 {
 }
 
 fn gather(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
-    let width = func.value_u64(lp.bound).filter(|w| (1..=32).contains(w))?;
     let [(result, phi)] = lp.phis.as_slice() else { return None };
     let InstKind::Phi(incoming) = &func.inst(*phi).kind else { return None };
     let init = incoming.iter().find(|(b, _)| *b == lp.preheader)?.1;
@@ -411,7 +528,7 @@ fn gather(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     }
     let mut used = vec![lp.step];
     // next = [and] (or result, part)
-    let combined = strip_mask(func, lp, next, width, &mut used);
+    let (combined, outer_width) = strip_mask(func, lp, next, &mut used);
     let (or_inst, &InstKind::Or(a, b)) = body_def(func, lp, combined)? else { return None };
     used.push(or_inst);
     let part = if a == *result {
@@ -422,7 +539,11 @@ fn gather(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
         return None;
     };
     // part = [and] shr (shl byte, 248), 8 * k
-    let part = strip_mask(func, lp, part, width, &mut used);
+    let (part, inner_width) = strip_mask(func, lp, part, &mut used);
+    let width = outer_width.min(inner_width);
+    if lp.literal_bound(func).is_some_and(|bound| bound == 0 || bound > width) {
+        return None;
+    }
     let (shr_inst, &InstKind::Shr(shift, high)) = body_def(func, lp, part)? else { return None };
     used.push(shr_inst);
     used.extend(byte_scale(func, lp, shift)?);
@@ -431,17 +552,10 @@ fn gather(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
         return None;
     }
     used.push(shl_inst);
-    let (object, idx, read) = byte_read(func, lp, byte)?;
+    let (access, read) = byte_read(func, l, lp, byte)?;
     used.extend(read);
-    if !defined_outside(func, l, object) {
-        return None;
-    }
-    let (offset, index_inst) = index(func, l, lp, idx)?;
-    used.extend(index_inst);
-    used.extend(bounds_check(func, lp, object, idx)?);
     only_pattern_effects(func, lp, &used).then_some(Shape::Gather {
-        object,
-        offset,
+        access,
         width,
         result: *result,
     })
@@ -468,14 +582,11 @@ fn byte_scale(func: &Function, lp: &Counted, shift: ValueId) -> Option<Option<In
 }
 
 fn scatter(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
-    let width = func.value_u64(lp.bound).filter(|w| (1..=32).contains(w))?;
     if !lp.phis.is_empty() {
         return None;
     }
     let mut used = vec![lp.step];
-    let mut stores =
-        lp.insts.iter().filter(|&&inst| matches!(func.inst(inst).kind, InstKind::Store8(..)));
-    let (&store, None) = (stores.next()?, stores.next()) else { return None };
+    let store = single_store(func, lp)?;
     let InstKind::Store8(ptr, byte) = func.inst(store).kind else { return None };
     used.push(store);
     let (byte_inst, &InstKind::Byte(position, value)) = body_def(func, lp, byte)? else {
@@ -485,34 +596,50 @@ fn scatter(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
         return None;
     }
     used.push(byte_inst);
-    let (object, idx, address) = byte_address(func, lp, ptr)?;
+    let (object, idx, address) = memory_address(func, lp, ptr)?;
     used.extend(address);
-    if !defined_outside(func, l, object) {
+    let access = checked_access(func, l, lp, Buffer::Memory(object), idx, &mut used)?;
+    // `value[k]` checks `k` against the width of `value`: a literal, or the header test when the
+    // bound is that width. A loop without that check writes `byte k`, zero past the word, for every
+    // `k`, so only a literal bound up to a word can do without it.
+    let mut width = None;
+    for inst in lp.insts.iter().copied() {
+        let Some(condition) = array_check(func, inst) else { continue };
+        if used.contains(&inst) {
+            continue;
+        }
+        let checked = if condition == lp.test {
+            lp.literal_bound(func)?
+        } else {
+            let Some((cmp, &InstKind::Lt(k, limit))) = body_def(func, lp, condition) else {
+                return None;
+            };
+            used.push(cmp);
+            if k != lp.counter {
+                return None;
+            }
+            func.value_u64(limit)?
+        };
+        width = Some(width.map_or(checked, |w: u64| w.min(checked)));
+        used.push(inst);
+    }
+    let width = match (width, lp.literal_bound(func)) {
+        (Some(width), _) => width.min(32),
+        (None, Some(_)) => 32,
+        (None, None) => return None,
+    };
+    if width == 0 || lp.literal_bound(func).is_some_and(|bound| bound == 0 || bound > width) {
         return None;
     }
-    let (offset, index_inst) = index(func, l, lp, idx)?;
-    used.extend(index_inst);
-    used.extend(bounds_check(func, lp, object, idx)?);
-    // `value[k]` checks `k` against the width of `value`, which the header test implies.
-    used.extend(implied_checks(func, lp, width));
-    only_pattern_effects(func, lp, &used).then_some(Shape::Scatter { object, offset, width, value })
+    only_pattern_effects(func, lp, &used).then_some(Shape::Scatter { access, value, width })
 }
 
-/// Range checks in the body that the header test `k < bound` implies: the test itself, or
-/// `k < m` for a literal `m >= bound`.
-fn implied_checks(func: &Function, lp: &Counted, bound: u64) -> Vec<InstId> {
-    lp.insts
-        .iter()
-        .copied()
-        .filter(|&inst| {
-            array_check(func, inst).is_some_and(|condition| {
-                condition == lp.test
-                    || matches!(body_def(func, lp, condition),
-                        Some((_, &InstKind::Lt(k, m)))
-                            if k == lp.counter && func.value_u64(m).is_some_and(|m| m >= bound))
-            })
-        })
-        .collect()
+/// The body's only `mstore8`.
+fn single_store(func: &Function, lp: &Counted) -> Option<InstId> {
+    let mut stores =
+        lp.insts.iter().filter(|&&inst| matches!(func.inst(inst).kind, InstKind::Store8(..)));
+    let (&store, None) = (stores.next()?, stores.next()) else { return None };
+    Some(store)
 }
 
 fn copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
@@ -520,54 +647,53 @@ fn copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
         return None;
     }
     let mut used = vec![lp.step];
-    let mut stores =
-        lp.insts.iter().filter(|&&inst| matches!(func.inst(inst).kind, InstKind::Store8(..)));
-    let (&store, None) = (stores.next()?, stores.next()) else { return None };
+    let store = single_store(func, lp)?;
     let InstKind::Store8(dst_ptr, byte) = func.inst(store).kind else { return None };
     used.push(store);
-    let (src, src_idx, read) = byte_read(func, lp, byte)?;
+    let (src, read) = byte_read(func, l, lp, byte)?;
     used.extend(read);
-    let (dst, dst_idx, address) = byte_address(func, lp, dst_ptr)?;
+    let (dst, dst_idx, address) = memory_address(func, lp, dst_ptr)?;
     used.extend(address);
-    if !defined_outside(func, l, src) || !defined_outside(func, l, dst) {
+    if !defined_outside(func, l, dst) {
         return None;
     }
-    // The destination is fresh and the source an argument, so the ranges cannot overlap.
-    if !is_fresh_allocation(func, dst) || !matches!(func.value(src), Value::Arg(..)) {
-        return None;
-    }
-    let (src_offset, src_index) = index(func, l, lp, src_idx)?;
-    used.extend(src_index);
-    used.extend(bounds_check(func, lp, src, src_idx)?);
     let (dst_offset, dst_index) = index(func, l, lp, dst_idx)?;
     used.extend(dst_index);
-    let dst_checked = match bounds_check(func, lp, dst, dst_idx) {
+    let dst_checked = match bounds_check(func, lp, Buffer::Memory(dst), dst_idx) {
         Some(check) => {
             used.extend(check);
             true
         }
         None if dst_offset.is_none() => {
             // `out[k]` checked against `out.length`, already known to equal the bound.
-            let implied = implied_checks(func, lp, u64::MAX);
-            if implied.is_empty() {
-                return None;
-            }
-            used.extend(implied);
+            let check =
+                lp.insts.iter().copied().find(|&inst| {
+                    !used.contains(&inst) && array_check(func, inst) == Some(lp.test)
+                })?;
+            used.push(check);
             false
         }
         None => return None,
     };
+    let overlap = match src.buffer {
+        Buffer::Calldata(_) => Overlap::Disjoint,
+        Buffer::Memory(object) if disjoint_objects(func, object, dst) => Overlap::Disjoint,
+        Buffer::Memory(_) => Overlap::Guarded,
+    };
     only_pattern_effects(func, lp, &used).then_some(Shape::Copy {
         src,
-        src_offset,
-        dst,
-        dst_offset,
+        dst: Access { buffer: Buffer::Memory(dst), offset: dst_offset },
         dst_checked,
+        overlap,
     })
 }
 
-fn is_fresh_allocation(func: &Function, value: ValueId) -> bool {
-    matches!(*func.value(value), Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::Alloc { .. }))
+/// Whether two memory objects are provably distinct allocations, or an argument and an
+/// allocation made in this function, which lies above every object that existed on entry.
+fn disjoint_objects(func: &Function, a: ValueId, b: ValueId) -> bool {
+    let fresh = |v| matches!(*func.value(v), Value::Inst(i) if matches!(func.inst(i).kind, InstKind::Alloc { .. }));
+    let argument = |v| matches!(func.value(v), Value::Arg(..));
+    a != b && ((fresh(a) && (fresh(b) || argument(b))) || (fresh(b) && argument(a)))
 }
 
 /// Whether every body instruction that may fail or write belongs to the pattern.
@@ -581,55 +707,97 @@ fn rewrite(func: &mut Function, plan: Plan) {
     let mut replacements = FxHashMap::default();
     // The counter leaves the loop equal to its bound.
     replacements.insert(lp.counter, lp.bound);
+    let literal = lp.literal_bound(func);
     let mut builder = FunctionBuilder::new_semantic(func);
     builder.switch_to_block(lp.preheader);
     match shape {
-        Shape::Gather { object, offset, width, result } => {
-            // bad = width > len || offset > len - width; panic_if bad, 0x32
-            // word = mload (object + offset + 32); value = and word, top(width)
-            let bound = builder.imm(width);
-            let fails = range_fails(&mut builder, object, offset, bound, false);
+        Shape::Gather { access, width, result } => {
+            // panic_if (bound != 0 && range does not fit), 0x32
+            // word = load (buffer data + offset); value = and word, top(min(bound, width))
+            let fails = range_fails(&mut builder, &access, lp.bound, literal.is_none());
             builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
-            let address = data_address(&mut builder, object, offset);
-            let mut value = builder.load(address, PtrLocation::Memory);
-            if width < 32 {
-                let mask = builder.imm(top_bytes(width));
-                value = builder.and(value, mask);
-            }
+            let word = load_word(&mut builder, &access);
+            let mask = leading_mask(&mut builder, lp.bound, literal, width);
+            let value = match mask {
+                Some(mask) => builder.and(word, mask),
+                None => word,
+            };
             replacements.insert(result, value);
         }
-        Shape::Scatter { object, offset, width, value } => {
-            // bad = width > len || offset > len - width; panic_if bad, 0x32
-            // mstore (object + offset + 32), value
-            // or, below a word: mstore address, or (and (mload address), ~top), (and value, top)
-            let bound = builder.imm(width);
-            let fails = range_fails(&mut builder, object, offset, bound, false);
+        Shape::Scatter { access, value, width } => {
+            // panic_if (bound != 0 && (range does not fit || bound > width)), 0x32
+            // mstore address, value
+            // or, below a word: mstore address, or (and (mload address), ~mask), (and value, mask)
+            let mut fails = range_fails(&mut builder, &access, lp.bound, literal.is_none());
+            if literal.is_none() {
+                // A dynamic bound always comes with the value's index check.
+                let limit = builder.imm(width);
+                let wide = builder.gt(lp.bound, limit);
+                fails = builder.or(fails, wide);
+            }
             builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
-            let address = data_address(&mut builder, object, offset);
-            let stored = if width < 32 {
-                let keep = builder.imm(!top_bytes(width));
-                let take = builder.imm(top_bytes(width));
-                let old = builder.load(address, PtrLocation::Memory);
-                let old = builder.and(old, keep);
-                let new = builder.and(value, take);
-                builder.or(old, new)
-            } else {
-                value
+            let address = memory_data_address(&mut builder, &access);
+            let stored = match leading_mask(&mut builder, lp.bound, literal, 32) {
+                Some(mask) => {
+                    let keep = builder.not(mask);
+                    let old = builder.load(address, PtrLocation::Memory);
+                    let old = builder.and(old, keep);
+                    let new = builder.and(value, mask);
+                    builder.or(old, new)
+                }
+                None => value,
             };
             builder.store(address, stored);
         }
-        Shape::Copy { src, src_offset, dst, dst_offset, dst_checked } => {
-            // bad = bound != 0 && (src range fails || dst range fails); panic_if bad, 0x32
-            // mcopy (dst + dst_offset + 32), (src + src_offset + 32), bound
-            let mut fails = range_fails(&mut builder, src, src_offset, lp.bound, true);
+        Shape::Copy { src, dst, dst_checked, overlap } => {
+            let fast = match overlap {
+                Overlap::Disjoint => None,
+                Overlap::Guarded => {
+                    // from = src data + offset; to = dst data + offset
+                    // ahead = from < to && to < from + bound
+                    // branch ahead, header, fast
+                    let from = memory_data_address(&mut builder, &src);
+                    let to = memory_data_address(&mut builder, &dst);
+                    let from = builder.cast(from, MirType::I256);
+                    let to = builder.cast(to, MirType::I256);
+                    let end = builder.add(from, lp.bound);
+                    let after = builder.lt(from, to);
+                    let inside = builder.lt(to, end);
+                    let ahead = builder.and(after, inside);
+                    let fast = builder.create_block();
+                    builder.branch(ahead, lp.header, fast);
+                    builder.switch_to_block(fast);
+                    Some(fast)
+                }
+            };
+            // panic_if (bound != 0 && (src range does not fit || dst range does not fit)), 0x32
+            // mcopy|calldatacopy dst data + offset, src data + offset, bound
+            let mut fails = range_fails(&mut builder, &src, lp.bound, false);
             if dst_checked {
-                let dst_fails = range_fails(&mut builder, dst, dst_offset, lp.bound, true);
+                let dst_fails = range_fails(&mut builder, &dst, lp.bound, false);
                 fails = builder.or(fails, dst_fails);
             }
+            if literal.is_none_or(|bound| bound == 0) {
+                let nonzero = builder.ne_zero(lp.bound);
+                fails = builder.and(fails, nonzero);
+            }
             builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
-            let to = data_address(&mut builder, dst, dst_offset);
-            let from = data_address(&mut builder, src, src_offset);
-            builder.copy(to, from, lp.bound, PtrLocation::Memory);
+            let to = memory_data_address(&mut builder, &dst);
+            let (from, location) = match src.buffer {
+                Buffer::Memory(_) => (memory_data_address(&mut builder, &src), PtrLocation::Memory),
+                Buffer::Calldata(slice) => {
+                    let from = calldata_data_address(&mut builder, slice, src.offset);
+                    (from, PtrLocation::Calldata)
+                }
+            };
+            builder.copy(to, from, lp.bound, location);
+            if fast.is_some() {
+                // fast: ...; jump exit
+                // The loop stays for a destination that leads into its source.
+                builder.jump(lp.exit);
+                rebuild_predecessors(func);
+                return;
+            }
         }
     }
     func.replace_uses(&replacements);
@@ -641,21 +809,23 @@ fn rewrite(func: &mut Function, plan: Plan) {
     func.blocks[lp.header].instructions.clear();
 }
 
-/// Emits whether `count` bytes from `offset` do not fit in `object`: `count > len || offset >
-/// len - count`, and with `nonempty` only when `count != 0`.
+/// Emits whether `count` bytes from the access's offset do not fit in its buffer:
+/// `count > len || offset > len - count`, and with `nonempty` only when `count != 0`.
 fn range_fails(
     builder: &mut FunctionBuilder<'_>,
-    object: ValueId,
-    offset: Option<ValueId>,
+    access: &Access,
     count: ValueId,
     nonempty: bool,
 ) -> ValueId {
-    // len = mload object
-    // short = lt len, count
-    let len = builder.load(object, PtrLocation::Memory);
+    // len = mload object | slice.len
+    // fails = lt len, count
+    let len = match access.buffer {
+        Buffer::Memory(object) => builder.load(object, PtrLocation::Memory),
+        Buffer::Calldata(slice) => builder.slice_len(slice),
+    };
     let mut fails = builder.lt(len, count);
-    if let Some(offset) = offset {
-        // room = sub len, count; past = gt offset, room; fails = or short, past
+    if let Some(offset) = access.offset {
+        // room = sub len, count; past = gt offset, room; fails = or fails, past
         let room = builder.sub(len, count);
         let past = builder.gt(offset, room);
         fails = builder.or(fails, past);
@@ -668,18 +838,70 @@ fn range_fails(
     fails
 }
 
-/// Emits `object + offset + 32`, the address of the byte at `offset`.
-fn data_address(
-    builder: &mut FunctionBuilder<'_>,
-    object: ValueId,
-    offset: Option<ValueId>,
-) -> ValueId {
-    let base = match offset {
+/// Emits the word at the access's first byte.
+fn load_word(builder: &mut FunctionBuilder<'_>, access: &Access) -> ValueId {
+    match access.buffer {
+        Buffer::Memory(_) => {
+            // word = mload (object + offset + 32)
+            let address = memory_data_address(builder, access);
+            builder.load(address, PtrLocation::Memory)
+        }
+        Buffer::Calldata(slice) => {
+            // word = calldataload (ptrtoint slice.ptr + offset)
+            let address = calldata_data_address(builder, slice, access.offset);
+            builder.load(address, PtrLocation::Calldata)
+        }
+    }
+}
+
+/// Emits `object + offset + 32`, the address of a memory access's first byte.
+fn memory_data_address(builder: &mut FunctionBuilder<'_>, access: &Access) -> ValueId {
+    let (Buffer::Memory(object) | Buffer::Calldata(object)) = access.buffer;
+    // base = ptradd object, offset; address = ptradd base, 32
+    let base = match access.offset {
         Some(offset) => builder.ptradd(object, offset),
         None => object,
     };
     let header = builder.imm(32);
     builder.ptradd(base, header)
+}
+
+/// Emits `ptrtoint slice.ptr + offset`, the calldata address of a slice access's first byte.
+fn calldata_data_address(
+    builder: &mut FunctionBuilder<'_>,
+    slice: ValueId,
+    offset: Option<ValueId>,
+) -> ValueId {
+    // base = ptrtoint (slice.ptr); address = add base, offset
+    let ptr = builder.slice_ptr(slice);
+    let base = builder.cast(ptr, MirType::I256);
+    match offset {
+        Some(offset) => builder.add(base, offset),
+        None => base,
+    }
+}
+
+/// Emits the mask of the leading `min(count, width)` bytes, or `None` for a whole word.
+fn leading_mask(
+    builder: &mut FunctionBuilder<'_>,
+    count: ValueId,
+    literal: Option<u64>,
+    width: u64,
+) -> Option<ValueId> {
+    if let Some(count) = literal {
+        let bytes = count.min(width);
+        return (bytes < 32).then(|| builder.imm(top_bytes(bytes)));
+    }
+    // bytes = select (lt count, width), count, width
+    // mask = not (shr (not 0), (shl bytes, 3))
+    let limit = builder.imm(width);
+    let short = builder.lt(count, limit);
+    let bytes = builder.select(short, count, limit);
+    let three = builder.imm(3);
+    let bits = builder.shl(bytes, three);
+    let all = builder.imm(U256::MAX);
+    let low = builder.shr(all, bits);
+    Some(builder.not(low))
 }
 
 fn defined_outside(func: &Function, l: &Loop, value: ValueId) -> bool {
