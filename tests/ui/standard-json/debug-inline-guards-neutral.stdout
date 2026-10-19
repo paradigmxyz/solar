@@ -21,8 +21,8 @@
       "A": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760c18060165f395ff35b5f5ffd34603f575f3560e01c80631118b8791460a2578063a444f5e903603f5760a060405260243610603f576004355f5b600881106043575f5460805260206080f35b5f5ffd5b818114609b57818114609b575f54600101801560af575f55604051606081016040526040815260200181815282602082015260407fb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc91a15b600101602d565b5f5b80603f5760010160a4565b6011602052634e487b715f526024601cfd",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;"
+            "object": "34600d5760c18060115f395ff35b5f5ffd34603f575f3560e01c80631118b8791460a2578063a444f5e903603f5760a060405260243610603f576004355f5b600881106043575f5460805260206080f35b5f5ffd5b818114609b57818114609b575f54600101801560af575f55604051606081016040526040815260200181815282602082015260407fb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc91a15b600101602d565b5f5b80603f5760010160a4565b6011602052634e487b715f526024601cfd",
+            "sourceMap": ":::-:0;;;;;;;;;;;;;"
           },
           "deployedBytecode": {
             "object": "34603f575f3560e01c80631118b8791460a2578063a444f5e903603f5760a060405260243610603f576004355f5b600881106043575f5460805260206080f35b5f5ffd5b818114609b57818114609b575f54600101801560af575f55604051606081016040526040815260200181815282602082015260407fb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc91a15b600101602d565b5f5b80603f5760010160a4565b6011602052634e487b715f526024601cfd",
@@ -33,7 +33,7 @@
       "B": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760c18060165f395ff35b5f5ffd34603f575f3560e01c80631118b8791460a2578063a444f5e903603f5760a060405260243610603f576004355f5b600881106043575f5460805260206080f35b5f5ffd5b818114609b57818114609b575f54600101801560af575f55604051606081016040526040815260200181815282602082015260407fb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc91a15b600101602d565b5f5b80603f5760010160a4565b6011602052634e487b715f526024601cfd",
+            "object": "34600d5760c18060115f395ff35b5f5ffd34603f575f3560e01c80631118b8791460a2578063a444f5e903603f5760a060405260243610603f576004355f5b600881106043575f5460805260206080f35b5f5ffd5b818114609b57818114609b575f54600101801560af575f55604051606081016040526040815260200181815282602082015260407fb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc91a15b600101602d565b5f5b80603f5760010160a4565b6011602052634e487b715f526024601cfd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -55,50 +55,26 @@
                 {
                   "offset": 0,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0xc0"
-                    ]
-                  }
-                },
-                {
-                  "offset": 2,
-                  "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x40"
-                    ]
-                  }
-                },
-                {
-                  "offset": 4,
-                  "operation": {
-                    "mnemonic": "MSTORE"
-                  }
-                },
-                {
-                  "offset": 5,
-                  "operation": {
                     "mnemonic": "CALLVALUE"
                   }
                 },
                 {
-                  "offset": 6,
+                  "offset": 1,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x12"
+                      "0x0d"
                     ]
                   }
                 },
                 {
-                  "offset": 8,
+                  "offset": 3,
                   "operation": {
                     "mnemonic": "JUMPI"
                   }
                 },
                 {
-                  "offset": 9,
+                  "offset": 4,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -107,18 +83,48 @@
                   }
                 },
                 {
-                  "offset": 11,
+                  "offset": 6,
                   "operation": {
                     "mnemonic": "DUP1"
                   }
                 },
                 {
-                  "offset": 12,
+                  "offset": 7,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x16"
+                      "0x11"
                     ]
+                  }
+                },
+                {
+                  "offset": 9,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 10,
+                  "operation": {
+                    "mnemonic": "CODECOPY"
+                  }
+                },
+                {
+                  "offset": 11,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 12,
+                  "operation": {
+                    "mnemonic": "RETURN"
+                  }
+                },
+                {
+                  "offset": 13,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
                   }
                 },
                 {
@@ -130,41 +136,11 @@
                 {
                   "offset": 15,
                   "operation": {
-                    "mnemonic": "CODECOPY"
+                    "mnemonic": "PUSH0"
                   }
                 },
                 {
                   "offset": 16,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 17,
-                  "operation": {
-                    "mnemonic": "RETURN"
-                  }
-                },
-                {
-                  "offset": 18,
-                  "operation": {
-                    "mnemonic": "JUMPDEST"
-                  }
-                },
-                {
-                  "offset": 19,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 20,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 21,
                   "operation": {
                     "mnemonic": "REVERT"
                   }
@@ -1799,7 +1775,7 @@
       "C": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760c18060165f395ff35b5f5ffd34603f575f3560e01c80631118b8791460a2578063a444f5e903603f5760a060405260243610603f576004355f5b600881106043575f5460805260206080f35b5f5ffd5b818114609b57818114609b575f54600101801560af575f55604051606081016040526040815260200181815282602082015260407fb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc91a15b600101602d565b5f5b80603f5760010160a4565b6011602052634e487b715f526024601cfd"
+            "object": "34600d5760c18060115f395ff35b5f5ffd34603f575f3560e01c80631118b8791460a2578063a444f5e903603f5760a060405260243610603f576004355f5b600881106043575f5460805260206080f35b5f5ffd5b818114609b57818114609b575f54600101801560af575f55604051606081016040526040815260200181815282602082015260407fb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc91a15b600101602d565b5f5b80603f5760010160a4565b6011602052634e487b715f526024601cfd"
           },
           "deployedBytecode": {
             "object": "34603f575f3560e01c80631118b8791460a2578063a444f5e903603f5760a060405260243610603f576004355f5b600881106043575f5460805260206080f35b5f5ffd5b818114609b57818114609b575f54600101801560af575f55604051606081016040526040815260200181815282602082015260407fb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc91a15b600101602d565b5f5b80603f5760010160a4565b6011602052634e487b715f526024601cfd"
