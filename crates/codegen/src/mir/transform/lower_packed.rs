@@ -11,6 +11,9 @@
 //! Bytes results retain their FMP bump at the encoding point even when their size becomes constant.
 //! Known local byte lengths stay constant through expansion without duplicating their payloads.
 //! Recovery requires a same-block allocation and header store, and rejects unknown memory writes.
+//! When all parts have bounded lengths and byte sources retain heap allocations, their copies
+//! into the fresh output are disjoint. Unknown lengths and frame-eligible sources keep alias
+//! checks.
 
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder,
@@ -22,7 +25,7 @@ use alloy_primitives::{Bytes, U256};
 enum PackedPiece {
     Bytes(Bytes),
     Static { value: ValueId, length: u64, fixed_bytes: bool, signed: bool },
-    Dynamic { source: ValueId, length: ValueId },
+    Dynamic { source: ValueId, length: ValueId, bounded_heap: bool },
     Array { value: ValueId, length: ValueId, element: AbiType, source: PackedArraySource },
 }
 
@@ -69,9 +72,12 @@ impl PackedEncoder<'_, '_> {
                     )
                 }
                 PackedPart::Bytes(value) => {
-                    let source = if let Some(length) =
-                        known_byte_length(self.builder.func(), value, self.builder.current_block())
-                    {
+                    let known_length =
+                        known_byte_length(self.builder.func(), value, self.builder.current_block());
+                    let bounded_heap = known_length.is_some()
+                        && matches!(self.builder.func().value(value), Value::Inst(inst)
+                            if self.builder.func().inst(*inst).metadata.preserves_fmp());
+                    let source = if let Some(length) = known_length {
                         // source = make_memory_slice (memory_data value), length
                         let length = self.builder.imm(length);
                         let data = self.builder.memory_data(value);
@@ -80,7 +86,7 @@ impl PackedEncoder<'_, '_> {
                         self.builder.memory_view(value)
                     };
                     let length = self.builder.slice_len(source);
-                    (PackedPiece::Dynamic { source, length }, length)
+                    (PackedPiece::Dynamic { source, length, bounded_heap }, length)
                 }
                 PackedPart::Array { value, element, source } => {
                     let length = match source {
@@ -107,6 +113,11 @@ impl PackedEncoder<'_, '_> {
     }
 
     fn encode(&mut self, pieces: Vec<PackedPiece>, total: ValueId) -> ValueId {
+        let bounded = pieces.iter().all(|piece| match piece {
+            PackedPiece::Bytes(_) | PackedPiece::Static { .. } => true,
+            PackedPiece::Dynamic { bounded_heap, .. } => *bounded_heap,
+            PackedPiece::Array { .. } => false,
+        });
         let word_aligned = pieces.iter().all(|piece| match piece {
             PackedPiece::Bytes(bytes) => bytes.len().is_multiple_of(32),
             PackedPiece::Static { length, .. } => length.is_multiple_of(32),
@@ -156,9 +167,22 @@ impl PackedEncoder<'_, '_> {
                         offset = self.add_folded(offset, length);
                     }
                 }
-                PackedPiece::Dynamic { source, length } => {
-                    // copy(source, output + offset)
-                    self.builder.memory_copy_from_slice_at(output, offset, *source);
+                PackedPiece::Dynamic { source, length, .. } => {
+                    if bounded {
+                        // data = memory_data output
+                        // dest = ptradd data, offset
+                        // source_ptr = extract_value source, 0
+                        // mcopy dest, source_ptr, length !disjoint
+                        let data = self.builder.memory_data(output);
+                        let dest = self.builder.ptradd(data, offset);
+                        let source_ptr = self.builder.slice_ptr(*source);
+                        let copy =
+                            self.builder.copy_heap(dest, source_ptr, *length, PtrLocation::Memory);
+                        self.builder.func_mut().inst_mut(copy).metadata.set_disjoint(true);
+                    } else {
+                        // copy(source, output + offset)
+                        self.builder.memory_copy_from_slice_at(output, offset, *source);
+                    }
                     offset = self.add_folded(offset, *length);
                 }
                 PackedPiece::Array { value, length, element, source } => {
@@ -238,7 +262,7 @@ impl PackedEncoder<'_, '_> {
                         offset = offset.checked_add(u64::try_from(chunk.len()).ok()?)?;
                     }
                 }
-                PackedPiece::Dynamic { source, length } => {
+                PackedPiece::Dynamic { source, length, .. } => {
                     // copy(source, cursor + offset)
                     let dest = self.packed_scratch_offset(cursor, offset);
                     let location = self.builder.func().value_slice_location(*source)?;
