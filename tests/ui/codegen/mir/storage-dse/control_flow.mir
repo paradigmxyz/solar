@@ -26,6 +26,20 @@ fn @one_path_reads(arg0: i1) -> i256 {
     ret 0
 }
 
+fn @one_path_reads_after_alias(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    sstore 0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    sstore arg1, 5
+    v0 = sload 0
+    sstore 0, 2
+    ret v0
+  bb2:
+    sstore 0, 3
+    ret 0
+}
+
 fn @loop_exit_observes(arg0: i1) {
   bb0:
     sstore 0, 1
