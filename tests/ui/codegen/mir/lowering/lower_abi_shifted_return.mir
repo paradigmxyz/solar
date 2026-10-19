@@ -1,0 +1,20 @@
+//@compile-flags: -O gas -Zmir-pipeline=lower-abi
+// The callee returns a pointer one byte past the word it stored clean, so the
+// word the encoder reads is dirty and the `uint8` mask stays.
+@module ShiftedReturn
+
+fn @shifted() -> ptr<memory> {
+  bb0:
+    v0 = alloc checked 32
+    mstore v0, 1
+    v1 = alloc checked 32
+    mstore v1, 0
+    v2 = ptradd v0, 1
+    ret v2
+}
+
+fn @get() -> ptr<memory> [selector=0x01020304, abi_returns=[array<1, word<uint8>>], abi_return_params=[array<1, uint8>]] {
+  bb0:
+    v0 = icall @shifted
+    ret v0
+}

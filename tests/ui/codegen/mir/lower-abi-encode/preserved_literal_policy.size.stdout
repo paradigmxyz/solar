@@ -1,0 +1,83 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_policy.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_policy.mir (after lower-abi-encode) ===
+  @module PreservedLiteralPolicy
+  fn @reserved() -> slice<memory> {
+    bb0:
+      v0 = alloc 96 !metadata(preserves_fmp)
+      mstore v0, 48
+      v1 = ptradd v0, 32
+      mstore v1, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+      v2 = ptradd v0, 64
+      mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+-     v3 = abi_encode [memory_bytes], args v0
+-     ret v3
++     v4 = fmp
++     v5 = ptrtoint ptr<memory> v4 to i256
++     v6 = add v5, 32
++     v7 = ptrtoint ptr<memory> v4 to i256
++     v8 = sub v6, v7
++     mstore v4, v8
++     v9 = mload v0
++     mstore v6, v9
++     v10 = not 31
++     v11 = add v9, 31
++     v12 = and v11, v10
++     v13 = add v6, 32
++     v14 = eq v12, 0
++     jumpi v14, bb2, bb1
++   bb1:
++     v15 = add v6, v12
++     mstore v15, 0
++     jump bb2
++   bb2:
++     v16 = ptradd v0, 32
++     v17 = add v13, v12
++     mcopy v13, v16, v9 !metadata(memory=heap, disjoint)
++     v18 = ptrtoint ptr<memory> v4 to i256
++     v19 = sub v17, v18
++     v20 = add v19, 0
++     v21 = add v19, 0
++     v22 = alloc v21 !metadata(preserves_fmp)
++     v23 = make_memory_slice v22, v20
++     ret v23
+  }
+  
+  fn @scratch() -> slice<memory> {
+    bb0:
+      v0 = alloc 96 !metadata(preserves_fmp)
+      mstore v0, 48
+      v1 = ptradd v0, 32
+      mstore v1, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+      v2 = ptradd v0, 64
+      mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+-     v3 = abi_encode [memory_bytes], scratch, args v0
+-     ret v3
++     v4 = fmp
++     v5 = ptrtoint ptr<memory> v4 to i256
++     v6 = add v5, 32
++     v7 = ptrtoint ptr<memory> v4 to i256
++     v8 = sub v6, v7
++     mstore v4, v8
++     v9 = mload v0
++     mstore v6, v9
++     v10 = not 31
++     v11 = add v9, 31
++     v12 = and v11, v10
++     v13 = add v6, 32
++     v14 = eq v12, 0
++     jumpi v14, bb2, bb1
++   bb1:
++     v15 = add v6, v12
++     mstore v15, 0
++     jump bb2
++   bb2:
++     v16 = ptradd v0, 32
++     v17 = add v13, v12
++     mcopy v13, v16, v9 !metadata(memory=heap, disjoint)
++     v18 = ptrtoint ptr<memory> v4 to i256
++     v19 = sub v17, v18
++     v20 = add v19, 0
++     v21 = make_memory_slice v4, v20
++     ret v21
+  }
+  

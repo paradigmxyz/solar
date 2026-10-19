@@ -1033,7 +1033,6 @@ symbols! {
         checked_pow,
         checked_rem,
         checked_sub,
-        cleanup_return,
         clear_recursive_storage,
         clear_storage_words,
         code,

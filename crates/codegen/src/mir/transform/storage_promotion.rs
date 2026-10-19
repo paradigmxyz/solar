@@ -8,8 +8,9 @@
 //! - promote only exact storage aliases that are loop-invariant
 //! - promote multiple slots only when they are pairwise provably disjoint
 //! - reject loops with calls, storage accesses the rewrite cannot update, or non-isolated exits
-//! - skip functions that observe memory size, including through callees, because temporaries can
-//!   expand memory even when the loop body never executes.
+//! - skip modules where any function reads `msize`, because temporaries can expand memory even when
+//!   the loop body never executes, and internal calls share memory: before `lower-abi`, an external
+//!   function can still have internal callers.
 //! - use shared read/write effects to detect storage traffic inside semantic operations
 //! - flush dirty promoted values before any clean observable exit
 //! - skip the flush on revert exits: `revert`/`invalid` roll back every storage write of the frame,
@@ -21,7 +22,7 @@
 use crate::mir::{
     BlockId, Callee, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType,
     Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
-    analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer, may_observe_msize},
+    analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer, module_may_observe_msize},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -43,11 +44,10 @@ impl MirPass for StorageScalarPromotion {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let summaries = analyses.call_summaries(module);
+        if module_may_observe_msize(module) {
+            return false;
+        }
         run_function_pass(module, analyses, |func, analyses| {
-            if may_observe_msize(func, Some(&summaries)) {
-                return false;
-            }
             let mut promoter = StorageScalarPromoter::new();
             let stats = promoter.run(func);
             let changed = stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0;
@@ -298,10 +298,7 @@ impl StorageScalarPromoter {
     /// Returns true if the exit block ends by rolling back all storage writes
     /// of the frame, which makes skipping the promoted-value flush sound.
     fn exit_rolls_back(&self, func: &Function, exit: BlockId) -> bool {
-        matches!(
-            func.blocks[exit].terminator,
-            Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
-        )
+        func.blocks[exit].terminator.as_ref().is_some_and(Terminator::reverts)
     }
 
     /// A rollback exit must not contain calls (a callee could observe the
@@ -907,6 +904,18 @@ impl StorageScalarPromoter {
         }
     }
 
+    // NOTE: The temporary is an absolute address in the entry's local region, and `lower-abi`
+    // copies it into `f.body` when the entry has internal callers. It still cannot overwrite a
+    // live word there:
+    // - Every entry places its spill area, and the shared region of static helper frames, above
+    //   each constant low-memory range in the functions it reaches, so above this address too.
+    // - The other words of an entry's local region are its own temporaries, live only inside the
+    //   call-free loops promoted here, and the inliner's return staging buffers, read right after
+    //   the inlined return. Neither is live across a call to `f.body`, and promoted loops get no
+    //   code inlined later because they had no calls to inline.
+    // - No inliner after this pass takes a callee with a frame: all check `internal_frame_size` or
+    //   need a single block, which a promoted loop never is. So the address never moves into a
+    //   caller whose frame rebasing, which rewrites only `internal_frame_addr`, would miss it.
     fn allocate_temp_addr(&self, func: &mut Function) -> ValueId {
         let frame_offset = func.internal_frame_size.max(func.external_static_return_size);
         let temp_addr = EvmMemoryLayout::HEAP_START + frame_offset;

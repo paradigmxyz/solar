@@ -796,13 +796,7 @@ pub(crate) fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let mut returning = DenseBitSet::new_empty(func.blocks.len());
     let mut worklist = Vec::new();
     for (block_id, block) in func.blocks.iter_enumerated() {
-        if block.terminator.as_ref().is_none_or(|term| {
-            !term.has_successors()
-                && !matches!(
-                    term,
-                    Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
-                )
-        }) {
+        if block.terminator.as_ref().is_none_or(|term| !term.has_successors() && !term.reverts()) {
             returning.insert(block_id);
             worklist.push(block_id);
         }

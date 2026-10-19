@@ -31,11 +31,7 @@
 //! doing it in MIR can turn a shareable run into two smaller inline copies that
 //! occupy more bytes overall. Matching is bounded to 24 instructions per tail.
 
-use super::{
-    EvmPass,
-    compact_pushes::{immediate_materialization_cost, materialize_immediate},
-    utils::MachineInstKey,
-};
+use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, TerminatorKind},
     op,
@@ -447,7 +443,7 @@ impl Edit {
 }
 
 fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
-    debug_assert!(raw_opcode(inst).is_some());
+    debug_assert!(inst.as_evm_opcode().is_some());
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::opcode(opcode);
     inst.metadata = metadata;
@@ -457,15 +453,6 @@ fn overwrite_stack_op(inst: &mut Instruction, stack_op: op::StackOp) {
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::stack_op(stack_op);
     inst.metadata = metadata;
-}
-
-/// Returns the byte length and static gas of the selected materialization of `value`.
-pub(super) fn materialization_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
-    immediate_materialization_cost(evm_version, value)
-}
-
-fn raw_opcode(inst: &Instruction) -> Option<u8> {
-    inst.as_evm_opcode()
 }
 
 fn is_block_push(inst: &Instruction) -> bool {
@@ -486,10 +473,10 @@ impl fmt::Display for InstructionSequence<'_> {
                 write!(f, "push {value:#x}")?;
             } else if inst.is_encoded_push() {
                 f.write_str("push_ref")?;
-            } else if let Some(mnemonic) = op::mnemonic(inst.opcode) {
+            } else if let Some(mnemonic) = inst.as_evm_opcode().and_then(op::mnemonic) {
                 f.write_str(mnemonic)?;
             } else {
-                write!(f, "0x{:02x}", inst.opcode)?;
+                write!(f, "{}", inst.mnemonic())?;
             }
         }
         Ok(())

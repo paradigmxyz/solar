@@ -50,6 +50,23 @@ bb2 [stack=2]:
   add
   stop
 
+// A revert whose shared tail sits behind a direct jump still only aborts.
+// CHECK-LABEL: {{^[ +].*}}bb7 [stack=2]:
+// CHECK: dup 1
+// CHECK-NEXT: push bb8
+// CHECK-NEXT: jumpi
+// CHECK-NOT: {{^[ +] .*swap}}
+// CHECK: stop
+bb7 [stack=2]:
+  swap 1
+  dup 2
+  push bb8
+  jumpi
+  swap 1
+  push 1
+  add
+  stop
+
 bb3 [cold]:
   push 0
   push 0
@@ -73,3 +90,14 @@ bb5 [cold]:
 
 bb6:
   stop
+
+bb8 [cold]:
+  push 17
+  push 4
+  mstore
+  jump bb9
+
+bb9 [cold]:
+  push 36
+  push 0
+  revert

@@ -1,0 +1,69 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=inline,cfg-simplify
+//@[size] compile-flags: -Osize -Zmir-pipeline=inline,cfg-simplify
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
+//@[size] filecheck: --check-prefixes=CHECK,SIZE
+@module CastForwarder
+
+// Widening an argument before the call emits no code, so in gas mode callers reach the shared body
+// directly. Size mode keeps shared forwarders, whose clones outweigh the call they remove.
+// CHECK-LABEL: fn @caller
+// GAS: - {{.*}}icall @contains, arg0
+// GAS: + {{.*}} = zext i160 arg0 to i256
+// GAS: + {{.*}} = icall @inner_contains, {{.*}}
+// SIZE-NEXT: bb0:
+// SIZE-NEXT: v0 = icall @contains, arg0
+fn @caller(arg0: i160) -> i1 {
+  bb0:
+    v0 = icall @contains, arg0
+    ret v0
+}
+
+// CHECK-LABEL: fn @other
+// GAS: - {{.*}}icall @contains, arg0
+// GAS: + {{.*}} = icall @inner_contains, {{.*}}
+// SIZE-NEXT: bb0:
+// SIZE-NEXT: v0 = icall @contains, arg0
+fn @other(arg0: i160) -> i1 {
+  bb0:
+    v0 = icall @contains, arg0
+    ret v0
+}
+
+fn @contains(arg0: i160) -> i1 {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = icall @inner_contains, v0
+    ret v1
+}
+
+// The branched callee must stay shared rather than becoming a tiny leaf.
+fn @inner_contains(arg0: i256) -> i1 {
+  bb0:
+    v0 = sload arg0
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    ret v1
+  bb2:
+    revert 0, 0
+}
+
+// Narrowing emits a mask, so the wrapper is not transparent.
+// CHECK-LABEL: fn @trunc_caller
+// CHECK-NOT: - {{.*}}icall @trunc_wrapper
+fn @trunc_caller(arg0: i256) -> i1 {
+  bb0:
+    v0 = icall @trunc_wrapper, arg0
+    v1 = icall @trunc_wrapper, arg0
+    v2 = and v0, v1
+    ret v2
+}
+
+fn @trunc_wrapper(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = icall @inner_contains, v1
+    ret v2
+}
