@@ -63,8 +63,10 @@ fn main() -> anyhow::Result<()> {
             } else {
                 cmd!(sh, "cargo nextest run")
             };
+            // Blessing without a suite covers every tester mode; the upstream solc modes never
+            // write expectations.
             if bless && test_name.is_none() {
-                cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", "ui");
+                cmd = cmd.args(INT_FLAGS);
             }
             if let Some(mode) = mode {
                 cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", mode);

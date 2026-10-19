@@ -50,7 +50,7 @@ contracts extracted from the pinned OpenZeppelin and Solady project inputs. Its 
 upstream commits are documented in the shared project archive
 [`testdata/projects/`](../testdata/projects/) and in
 [`benches/runtime/`](runtime/README.md).
-A `heavy` suite additionally compiles nine vendored whole-project inputs end to end; they take
+A `heavy` suite additionally compiles ten vendored whole-project inputs end to end; they take
 from seconds to minutes on solc, participate only in the compilation-time table, and skip size,
 gas, and runtime comparisons.
 The runtime harness and its tests are in [`runtime/`](runtime/).
