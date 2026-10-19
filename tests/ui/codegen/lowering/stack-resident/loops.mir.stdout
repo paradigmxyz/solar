@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack-resident/loops.sol:Loops ===
 @module Loops
-fn @scaled(arg0: i256, arg1: i256) -> i256 [selector=0xf59f8596, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @scaled(arg0: i256, arg1: i256) -> i256 [selector=0xf59f8596, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -48,8 +48,8 @@ fn @ascii(arg0: ptr<memory>) -> i1 [selector=0x6f11c5d5, pure, abi_params=[bytes
     v9 = ptradd v8, 32
     v10 = mload v9
     v11 = byte 0, v10
-    v12 = shl 248, v11
-    v13 = shr 248, v12
+    v12 = shl v11, 248
+    v13 = shr v12, 248
     v14 = trunc i256 v13 to i8
     v15 = gt v14, i8 127
     jumpi v15, bb7, bb8
@@ -60,13 +60,13 @@ fn @ascii(arg0: ptr<memory>) -> i1 [selector=0x6f11c5d5, pure, abi_params=[bytes
   bb6:
     jump bb3
   bb3:
-    v16 = checked_add u256, v2, 1
+    v16 = checked_add uint256, v2, 1
     jump bb1
   bb7:
     ret false
 }
 
-fn @factorial(arg0: i256) -> i256 [selector=0x83714834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @factorial(arg0: i256) -> i256 [selector=0x83714834, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -81,11 +81,11 @@ fn @factorial(arg0: i256) -> i256 [selector=0x83714834, pure, abi_params=[u256],
   bb2:
     ret v1
   bb4:
-    v5 = checked_mul u256, v1, v2
+    v5 = checked_mul uint256, v1, v2
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v6 = checked_add u256, v2, 1
+    v6 = checked_add uint256, v2, 1
     jump bb1
 }

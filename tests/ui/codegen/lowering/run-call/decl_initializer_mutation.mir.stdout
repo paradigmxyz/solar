@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/decl_initializer_mutation.sol:DeclInitializerMutation ===
 @module DeclInitializerMutation
-fn @countLoop() -> i256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @countLoop() -> i256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -13,14 +13,14 @@ fn @countLoop() -> i256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[
   bb2:
     ret v0
   bb3:
-    v3 = checked_add u256, v1, 1
-    v4 = checked_add u256, v0, v1
+    v3 = checked_add uint256, v1, 1
+    v4 = checked_add uint256, v0, v1
     jump bb5
   bb5:
     jump bb1
 }
 
-fn @sumIndexed() -> i256 [selector=0x4130978a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @sumIndexed() -> i256 [selector=0x4130978a, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96
     mstore v0, 7
@@ -40,27 +40,27 @@ fn @sumIndexed() -> i256 [selector=0x4130978a, pure, abi_params=[], abi_returns=
   bb2:
     ret v3
   bb3:
-    v7 = checked_add u256, v5, 1
+    v7 = checked_add uint256, v5, 1
     v8 = lt v5, 3
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = shl 5, v5
+    v10 = shl v5, 5
     v11 = ptradd v4, v10
     v12 = mload v11
-    v13 = checked_add u256, v3, v12
+    v13 = checked_add uint256, v3, v12
     jump bb5
   bb5:
     jump bb1
 }
 
-fn @multiDecl() -> i256 [selector=0x71fe0bed, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @multiDecl() -> i256 [selector=0x71fe0bed, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, 3, 1
-    v1 = checked_add u256, 3, v0
+    v0 = checked_add uint256, 3, 1
+    v1 = checked_add uint256, 3, v0
     ret v1
 }
 
-fn @asmUse() -> i256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @asmUse() -> i256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -73,7 +73,7 @@ fn @asmUse() -> i256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[wor
   bb2:
     ret v0
   bb3:
-    v3 = checked_add u256, v1, 1
+    v3 = checked_add uint256, v1, 1
     v4 = mul v1, 2
     v5 = add v0, v4
     jump bb5
@@ -81,7 +81,7 @@ fn @asmUse() -> i256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[wor
     jump bb1
 }
 
-fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 160
     mstore v0, 4
@@ -96,44 +96,44 @@ fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_re
   bb4:
     jump bb2
   bb2:
-    v14 = checked_mul u256, v3, 100
+    v14 = checked_mul uint256, v3, 100
     v15 = mload v2
     v16 = lt 0, v15
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = ptradd v2, 32
     v19 = mload v18
-    v20 = checked_add u256, v14, v19
+    v20 = checked_add uint256, v14, v19
     v21 = mload v2
     v22 = lt 1, v21
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = ptradd v2, 64
     v25 = mload v24
-    v26 = checked_add u256, v20, v25
+    v26 = checked_add uint256, v20, v25
     v27 = mload v2
     v28 = lt 2, v27
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v2, 96
     v31 = mload v30
-    v32 = checked_add u256, v26, v31
+    v32 = checked_add uint256, v26, v31
     v33 = mload v2
     v34 = lt 3, v33
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = ptradd v2, 128
     v37 = mload v36
-    v38 = checked_add u256, v32, v37
+    v38 = checked_add uint256, v32, v37
     ret v38
   bb3:
-    v6 = checked_add u256, v3, 1
-    v7 = checked_add u256, v3, 1
+    v6 = checked_add uint256, v3, 1
+    v7 = checked_add uint256, v3, 1
     v8 = mload v2
     v9 = lt v3, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = shl 5, v3
+    v11 = shl v3, 5
     v12 = ptradd v2, v11
     v13 = ptradd v12, 32
     mstore v13, v6
@@ -142,7 +142,7 @@ fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_re
     jump bb1
 }
 
-fn @branchScopeLoop(arg0: i1, arg1: i256) -> i256 [selector=0x4a889218, pure, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @branchScopeLoop(arg0: i1, arg1: i256) -> i256 [selector=0x4a889218, pure, abi_params=[bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -164,11 +164,11 @@ fn @branchScopeLoop(arg0: i1, arg1: i256) -> i256 [selector=0x4a889218, pure, ab
   bb5:
     ret v3
   bb7:
-    v6 = checked_add u256, v3, v4
+    v6 = checked_add uint256, v3, v4
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v7 = checked_add u256, v4, 1
+    v7 = checked_add uint256, v4, 1
     jump bb4
 }

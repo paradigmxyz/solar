@@ -46,7 +46,7 @@ use super::{
     },
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Metadata, Module, PushValue, Terminator, TerminatorKind},
+    ir::{Block, BlockId, Instruction, Metadata, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -388,7 +388,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         {
             let target = *then_block;
             let metadata = metadata.clone();
-            let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
+            let mut pop = Instruction::stack_op(op::StackOp::Pop);
             pop.metadata.copy_source_debug_from(&metadata);
             block.instructions.push(pop);
             let mut terminator = Terminator::new(TerminatorKind::Jump(target));
@@ -407,7 +407,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         {
             let metadata = jumpi.metadata.clone();
             block.instructions.truncate(block.instructions.len() - 2);
-            let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
+            let mut pop = Instruction::stack_op(op::StackOp::Pop);
             pop.metadata.copy_source_debug_from(&metadata);
             block.instructions.push(pop);
             changed = true;
@@ -558,7 +558,7 @@ pub(super) fn is_direct_jump_label(block: &Block, at: usize) -> bool {
             && block
                 .terminator
                 .as_ref()
-                .is_some_and(|term| matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))))
+                .is_some_and(|term| term.kind == TerminatorKind::Op(op::JUMP)))
 }
 
 // PUSH target; jump head; head: JUMPI -> a direct use of target
@@ -570,7 +570,7 @@ fn is_direct_jump_label_through_head(
     block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
         || (at + 1 == block.instructions.len()
             && block.terminator.as_ref().is_some_and(|term| match term.kind {
-                TerminatorKind::Op(op::JUMP | op::JUMPI) => true,
+                TerminatorKind::Op(op::JUMP) => true,
                 TerminatorKind::Jump(target) => jump_heads.contains(target),
                 _ => false,
             }))

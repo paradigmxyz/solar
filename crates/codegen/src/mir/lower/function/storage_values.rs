@@ -35,7 +35,7 @@ fn packed_storage_array_position(
     let per_slot = u64::from(32 / bytes);
     if per_slot.is_power_of_two() {
         let slot_shift = builder.imm(u64::from(per_slot.trailing_zeros()));
-        let slot_index = builder.shr(slot_shift, index);
+        let slot_index = builder.shr(index, slot_shift);
         let slot_mask = builder.imm(per_slot - 1);
         let index_in_slot = builder.and(index, slot_mask);
         (slot_index, index_in_slot)
@@ -736,12 +736,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let bits = self.builder.imm(8);
         let shift = self.builder.mul(free_bytes, bits);
         let byte_mask = self.builder.imm(0xff);
-        let shifted_mask = self.builder.shl(shift, byte_mask);
+        let shifted_mask = self.builder.shl(byte_mask, shift);
         let keep_mask = self.builder.not(shifted_mask);
         let cleared = self.builder.and(grown, keep_mask);
         let zero = self.builder.imm(0);
         let byte = self.builder.byte(zero, value);
-        let shifted = self.builder.shl(shift, byte);
+        let shifted = self.builder.shl(byte, shift);
         let header = self.builder.or(cleared, shifted);
         self.builder.sstore(slot, header);
         self.builder.jump(merge_block);
@@ -1530,7 +1530,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let element_bits = self.builder.imm(u64::from(size.bits()));
                 let used_bits = self.builder.mul(remainder, element_bits);
                 let one = self.builder.imm(1);
-                let high_bit = self.builder.shl(used_bits, one);
+                let high_bit = self.builder.shl(one, used_bits);
                 let mask = self.builder.sub(high_bit, one);
                 self.clear_unused_packed_array_elements(slot, slot_index, mask);
                 self.builder.jump(merge_block);
@@ -1848,7 +1848,7 @@ fn long_storage_bytes_byte_slot(
     // word_slot = storage_array_data_slot(slot) + index / 32
     let data_slot = builder.storage_array_data_slot(slot);
     let word_shift = builder.imm(5);
-    let word_index = builder.shr(word_shift, index);
+    let word_index = builder.shr(index, word_shift);
     builder.add(data_slot, word_index)
 }
 

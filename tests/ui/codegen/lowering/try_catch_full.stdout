@@ -19,22 +19,19 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb2:
     v58 = returndatasize
     v59 = add v58, 63
-    v60 = lt v59, v58
-    jumpi v60, bb8, bb10
-  bb10:
     v62 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v210 = mload 64 !metadata(memory=scratch)
-    v211 = add v210, v62
-    mstore 64, v211 !metadata(memory=scratch)
-    mstore v210, v58
-    v184 = add v210, 32
-    returndatacopy v184, 0, v58
-    v21 = mload v184
-    v22 = shr 224, v21
+    v205 = mload 64 !metadata(memory=scratch)
+    v206 = add v205, v62
+    mstore 64, v206 !metadata(memory=scratch)
+    mstore v205, v58
+    v176 = add v205, 32
+    returndatacopy v176, 0, v58
+    v21 = mload v176
+    v22 = shr v21, 224
     v23 = eq v22, 0x8c379a0
     jumpi v23, bb3, bb5
   bb3:
-    v25 = icall @try_decode_error_message, v184, v58
+    v25 = icall @try_decode_error_message, v176, v58
     jumpi v25, bb4, bb5
   bb5:
     v34 = eq v22, 0x4e487b71
@@ -42,12 +39,37 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v37 = and v34, v36
     jumpi v37, bb6, bb7
   bb7:
-    v206 = mload 64 !metadata(memory=scratch)
-    v130 = add v206, 64
-    mstore v206, 3
-    v132 = add v206, 32
+    v211 = mload 64 !metadata(memory=scratch)
+    v149 = add v211, 64
+    mstore v211, 3
+    v151 = add v211, 32
+    mstore v151, 64
+    v154 = mload v205
+    v156 = add v154, 31
+    v157 = and v156, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v158 = add v149, 32
+    v159 = add v149, v157
+    mstore v159, 0
+    mstore v149, v154
+    v161 = add v158, v157
+    mcopy v158, v176, v154 !metadata(disjoint)
+    v163 = sub v161, v211
+    returndata v211, v163
+  bb6:
+    v182 = add v205, 36
+    v40 = mload v182
+    v208 = mload 64 !metadata(memory=scratch)
+    v209 = add v208, 64
+    mstore 64, v209 !metadata(memory=scratch)
+    mstore v208, 32
+    v184 = add v208, 32
+    mstore v184, v40
+    v210 = mload 64 !metadata(memory=scratch)
+    v130 = add v210, 64
+    mstore v210, 2
+    v132 = add v210, 32
     mstore v132, 64
-    v135 = mload v210
+    v135 = mload v208
     v137 = add v135, 31
     v138 = and v137, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v139 = add v130, 32
@@ -56,43 +78,49 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v130, v135
     v142 = add v139, v138
     mcopy v139, v184, v135 !metadata(disjoint)
-    v144 = sub v142, v206
-    returndata v206, v144
-  bb6:
-    v176 = add v210, 36
-    v40 = mload v176
-    v203 = mload 64 !metadata(memory=scratch)
-    v204 = add v203, 64
-    mstore 64, v204 !metadata(memory=scratch)
-    mstore v203, 32
-    v178 = add v203, 32
-    mstore v178, v40
-    v205 = mload 64 !metadata(memory=scratch)
-    v111 = add v205, 64
-    mstore v205, 2
-    v113 = add v205, 32
-    mstore v113, 64
-    v116 = mload v203
-    v118 = add v116, 31
-    v119 = and v118, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v120 = add v111, 32
-    v121 = add v111, v119
-    mstore v121, 0
-    mstore v111, v116
-    v123 = add v120, v119
-    mcopy v120, v178, v116 !metadata(disjoint)
-    v125 = sub v123, v205
-    returndata v205, v125
+    v144 = sub v142, v210
+    returndata v210, v144
   bb4:
     v29 = sub v58, 4
-    v172 = add v210, 36
-    v68 = icall @decode_aggregate.4, v172, v29
+    v178 = add v205, 36
+    v69 = icall @decode_aggregate.4, v178, v29
+    v207 = mload 64 !metadata(memory=scratch)
+    v109 = add v207, 64
+    mstore v207, 1
+    v111 = add v207, 32
+    mstore v111, 64
+    v114 = mload v69
+    v116 = add v114, 31
+    v117 = and v116, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v118 = add v109, 32
+    v119 = add v109, v117
+    mstore v119, 0
+    mstore v109, v114
+    v121 = add v118, v117
+    v180 = add v69, 32
+    mcopy v118, v180, v114 !metadata(memory=heap, disjoint)
+    v123 = sub v121, v207
+    returndata v207, v123
+  bb1:
+    v48 = returndatasize
+    v49 = add v48, 63
+    v52 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v202 = mload 64 !metadata(memory=scratch)
-    v90 = add v202, 64
-    mstore v202, 1
-    v92 = add v202, 32
+    v203 = add v202, v52
+    mstore 64, v203 !metadata(memory=scratch)
+    mstore v202, v48
+    v172 = add v202, 32
+    returndatacopy v172, 0, v48
+    v166 = icall @decode_aggregate.5, v202
+    v170 = mload 32 !metadata(memory=scratch)
+    v168 = add v170, 32
+    v169 = mload v168
+    v204 = mload 64 !metadata(memory=scratch)
+    v90 = add v204, 64
+    mstore v204, v166
+    v92 = add v204, 32
     mstore v92, 64
-    v95 = mload v68
+    v95 = mload v169
     v97 = add v95, 31
     v98 = and v97, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v99 = add v90, 32
@@ -100,46 +128,10 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v100, 0
     mstore v90, v95
     v102 = add v99, v98
-    v174 = add v68, 32
+    v174 = add v169, 32
     mcopy v99, v174, v95 !metadata(memory=heap, disjoint)
-    v104 = sub v102, v202
-    returndata v202, v104
-  bb1:
-    v48 = returndatasize
-    v49 = add v48, 63
-    v50 = lt v49, v48
-    jumpi v50, bb8, bb9
-  bb9:
-    v52 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v207 = mload 64 !metadata(memory=scratch)
-    v208 = add v207, v52
-    mstore 64, v208 !metadata(memory=scratch)
-    mstore v207, v48
-    v180 = add v207, 32
-    returndatacopy v180, 0, v48
-    v166 = icall @decode_aggregate.5, v207
-    v170 = mload 32 !metadata(memory=scratch)
-    v168 = add v170, 32
-    v169 = mload v168
-    v209 = mload 64 !metadata(memory=scratch)
-    v149 = add v209, 64
-    mstore v209, v166
-    v151 = add v209, 32
-    mstore v151, 64
-    v154 = mload v169
-    v156 = add v154, 31
-    v157 = and v156, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v158 = add v149, 32
-    v159 = add v149, v157
-    mstore v159, 0
-    mstore v149, v154
-    v161 = add v158, v157
-    v182 = add v169, 32
-    mcopy v158, v182, v154 !metadata(memory=heap, disjoint)
-    v163 = sub v161, v209
-    returndata v209, v163
-  bb8:
-    tail_call @revert_stub
+    v104 = sub v102, v204
+    returndata v204, v104
 }
 
 fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
@@ -157,51 +149,43 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb2:
     v41 = returndatasize
     v42 = add v41, 63
-    v43 = lt v42, v41
-    jumpi v43, bb7, bb9
-  bb9:
     v45 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v81 = mload 64 !metadata(memory=scratch)
     v82 = add v81, v45
     mstore 64, v82 !metadata(memory=scratch)
     mstore v81, v41
-    v70 = add v81, 32
-    returndatacopy v70, 0, v41
-    v19 = mload v70
-    v20 = shr 224, v19
+    v68 = add v81, 32
+    returndatacopy v68, 0, v41
+    v19 = mload v68
+    v20 = shr v19, 224
     v21 = eq v20, 0x8c379a0
     jumpi v21, bb4, bb6
   bb4:
-    v23 = icall @try_decode_error_message, v70, v41
+    v23 = icall @try_decode_error_message, v68, v41
     jumpi v23, bb5, bb6
   bb6:
-    revert v70, v41
+    revert v68, v41
   bb5:
     v27 = sub v41, 4
-    v66 = add v81, 36
-    v51 = icall @decode_aggregate.4, v66, v27
+    v70 = add v81, 36
+    v52 = icall @decode_aggregate.4, v70, v27
     jump bb3
   bb1:
     v31 = returndatasize
     v32 = add v31, 63
-    v33 = lt v32, v31
-    jumpi v33, bb7, bb8
-  bb8:
     v35 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v79 = mload 64 !metadata(memory=scratch)
     v80 = add v79, v35
     mstore 64, v80 !metadata(memory=scratch)
     mstore v79, v31
-    v68 = add v79, 32
-    returndatacopy v68, 0, v31
+    v66 = add v79, 32
+    returndatacopy v66, 0, v31
     v61 = icall @decode_aggregate.5, v79
     jump bb3
   bb3:
-    v30 = phi [bb8: v61], [bb5: 1]
+    v30 = phi [bb1: v61], [bb5: 1]
     mstore 128, v30
     returndata 128, 32
-  bb7:
-    tail_call @revert_stub
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
@@ -227,13 +211,6 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     ret v16
   bb3:
     ret false
-}
-
-fn @revert_stub() {
-  bb0:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
@@ -325,7 +302,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     switch v7, default bb1, [0xd7fadfb => bb3, 0xd17b272f => bb4]
   bb4:
     tail_call @full

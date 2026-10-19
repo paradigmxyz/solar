@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_local.sol:DeleteMemoryLocal ===
 @module DeleteMemoryLocal
-fn @length(arg0: i1) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @length(arg0: i1) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -23,7 +23,7 @@ fn @length(arg0: i1) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], abi_
     ret v7
 }
 
-fn @lengthAfterDirtyScratch() -> i256 [selector=0x0b1ce329, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @lengthAfterDirtyScratch() -> i256 [selector=0x0b1ce329, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1

@@ -1,0 +1,79 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.mir (after memory-dse) ===
+  @module OverwrittenRanges
+  fn @remove_allocation_fill() -> ptr<memory> {
+    bb0:
+      v0 = alloc 64
+-     memory_zero v0, 64
+      mstore v0, 7
+      v1 = ptradd v0, 32
+      mstore v1, 9
+      ret v0
+  }
+  
+  fn @remove_unaligned_copy() {
+    bb0:
+-     calldatacopy 257, 0, 64
+      mstore 257, 7
+      mstore 289, 9
+      returndata 257, 64
+  }
+  
+  fn @keep_partial_overwrite() {
+    bb0:
+      calldatacopy 256, 0, 64
+      mstore 256, 7
+      returndata 256, 64
+  }
+  
+  fn @keep_dynamic_length(arg0: i256) {
+    bb0:
+      calldatacopy 256, 0, arg0
+      mstore 256, 7
+      mstore 288, 9
+      returndata 256, 64
+  }
+  
+  fn @keep_read_fill() -> i256 {
+    bb0:
+      calldatacopy 256, 0, 64
+      v0 = keccak256 287, 2
+      mstore 256, 7
+      mstore 288, 9
+      ret v0
+  }
+  
+  fn @keep_gas_observer() -> i256 {
+    bb0:
+      memory_zero 256, 64
+      mstore 256, 7
+      v0 = gas
+      mstore 288, 9
+      ret v0
+  }
+  
+  fn @keep_expansion_observer() -> i256 {
+    bb0:
+      calldatacopy 256, 0, 64
+      mstore 256, 7
+      v0 = msize
+      mstore 288, 9
+      ret v0
+  }
+  
+  fn @keep_returndata_bounds_check() {
+    bb0:
+      returndatacopy 256, 0, 64
+      mstore 256, 7
+      mstore 288, 9
+      returndata 256, 64
+  }
+  
+  fn @keep_empty_copy_before_gas() -> i256 {
+    bb0:
+      calldatacopy 256, 0, 0
+      v0 = gas
+      mstore 256, 7
+      ret v0
+  }
+  

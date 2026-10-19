@@ -248,7 +248,7 @@ fn @different_offsets(arg0: i256, arg1: i256, arg2: i256) -> struct0 [return_abi
 // CHECK: ret 0x12345678, 120
 fn @masked_left_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
   bb0:
-    v0 = shl 32, arg0
+    v0 = shl arg0, 32
     v1 = or v0, 305419896
     v2 = and v1, 0xffffffff
     v3 = or 305419896, v0
@@ -260,7 +260,7 @@ fn @masked_left_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
 // CHECK: ret 0x1200000000000000000000000000000000000000000000000000000000000000
 fn @masked_right_shift(arg0: i256) -> i256 {
   bb0:
-    v0 = shr 8, arg0
+    v0 = shr arg0, 8
     v1 = or v0, 0x1200000000000000000000000000000000000000000000000000000000000001
     v2 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
     ret v2
@@ -270,7 +270,7 @@ fn @masked_right_shift(arg0: i256) -> i256 {
 // CHECK: ret 2
 fn @masked_constant_covers_bits(arg0: i256) -> i256 {
   bb0:
-    v0 = shl 1, arg0
+    v0 = shl arg0, 1
     v1 = or v0, 2
     v2 = and v1, 2
     ret v2
@@ -280,13 +280,13 @@ fn @masked_constant_covers_bits(arg0: i256) -> i256 {
 // CHECK: ret 7, 9, 11
 fn @masked_shift_boundaries(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
-    v0 = shl 255, arg0
+    v0 = shl arg0, 255
     v1 = or v0, 7
     v2 = and v1, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v3 = shl 256, arg0
+    v3 = shl arg0, 256
     v4 = or v3, 9
     v5 = and v4, 255
-    v6 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+    v6 = shr arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v7 = or v6, 11
     v8 = and v7, 255
     ret v2, v5, v8
@@ -296,19 +296,19 @@ fn @masked_shift_boundaries(arg0: i256) -> struct2 [return_abi=[i256, i256, i256
 // CHECK: {{^[ +].*}}ret v2, v5, v8, v11, v14
 fn @masked_unknown_bits(arg0: i256, arg1: i256) -> struct4 [return_abi=[i256, i256, i256, i256, i256]] {
   bb0:
-    v0 = shl 31, arg0
+    v0 = shl arg0, 31
     v1 = or v0, 7
     v2 = and v1, 0xffffffff
-    v3 = shr 7, arg0
+    v3 = shr arg0, 7
     v4 = or v3, 1
     v5 = and v4, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v6 = sar 8, arg0
+    v6 = sar arg0, 8
     v7 = or v6, 1
     v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v9 = shl arg1, arg0
+    v9 = shl arg0, arg1
     v10 = or v9, 7
     v11 = and v10, 255
-    v12 = shl 0, arg0
+    v12 = shl arg0, 0
     v13 = or v12, 1
     v14 = and v13, 2
     ret v2, v5, v8, v11, v14
@@ -322,12 +322,12 @@ fn @unshift_address() -> struct0 [return_abi=[i256, i256]] {
   bb0:
     v18 = address
     v0 = zext i160 v18 to i256
-    v1 = shl 32, v0
+    v1 = shl v0, 32
     v2 = or v1, 0x12345678
-    v3 = shr 32, v2
-    v4 = shl 96, v0
+    v3 = shr v2, 32
+    v4 = shl v0, 96
     v5 = or 7, v4
-    v6 = shr 96, v5
+    v6 = shr v5, 96
     ret v3, v6
 }
 
@@ -337,18 +337,18 @@ fn @keep_lossy_address_shifts(arg0: i256) -> struct3 [return_abi=[i256, i256, i2
   bb0:
     v19 = address
     v0 = zext i160 v19 to i256
-    v1 = shl 97, v0
+    v1 = shl v0, 97
     v2 = or v1, 7
-    v3 = shr 97, v2
-    v4 = shl 32, arg0
+    v3 = shr v2, 97
+    v4 = shl arg0, 32
     v5 = or v4, 7
-    v6 = shr 32, v5
-    v7 = shl 32, v0
+    v6 = shr v5, 32
+    v7 = shl v0, 32
     v8 = or v7, 0x100000000
-    v9 = shr 32, v8
-    v10 = shl 32, v0
+    v9 = shr v8, 32
+    v10 = shl v0, 32
     v11 = or v10, 7
-    v12 = shr 31, v11
+    v12 = shr v11, 31
     ret v3, v6, v9, v12
 }
 
@@ -378,48 +378,48 @@ fn @keep_distinct_bases(arg0: i256, arg1: i256) -> i256 {
 }
 
 // CHECK-LABEL: @nested_shifts
-// CHECK: + [[LEFT:v[0-9]+]] = shl 8, arg0
-// CHECK: + [[RIGHT:v[0-9]+]] = shr 8, arg0
-// CHECK: + [[SIGNED:v[0-9]+]] = sar 8, arg0
+// CHECK: + [[LEFT:v[0-9]+]] = shl arg0, 8
+// CHECK: + [[RIGHT:v[0-9]+]] = shr arg0, 8
+// CHECK: + [[SIGNED:v[0-9]+]] = sar arg0, 8
 // CHECK: {{^[ +].*}}ret [[LEFT]], [[RIGHT]], [[SIGNED]]
 fn @nested_shifts(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
-    v0 = shl 3, arg0
-    v1 = shl 5, v0
-    v2 = shr 3, arg0
-    v3 = shr 5, v2
-    v4 = sar 3, arg0
-    v5 = sar 5, v4
+    v0 = shl arg0, 3
+    v1 = shl v0, 5
+    v2 = shr arg0, 3
+    v3 = shr v2, 5
+    v4 = sar arg0, 3
+    v5 = sar v4, 5
     ret v1, v3, v5
 }
 
 // CHECK-LABEL: @nested_shift_limits
-// CHECK: + [[SIGN:v[0-9]+]] = sar 255, arg0
+// CHECK: + [[SIGN:v[0-9]+]] = sar arg0, 255
 // CHECK: + ret 0, 0, [[SIGN]]
 fn @nested_shift_limits(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
-    v0 = shl 128, arg0
-    v1 = shl 128, v0
-    v2 = shr 255, arg0
-    v3 = shr 1, v2
-    v4 = sar 1, arg0
-    v5 = sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v4
+    v0 = shl arg0, 128
+    v1 = shl v0, 128
+    v2 = shr arg0, 255
+    v3 = shr v2, 1
+    v4 = sar arg0, 1
+    v5 = sar v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v1, v3, v5
 }
 
 // CHECK-LABEL: @mixed_and_variable_shifts
-// CHECK: {{^[ +].*}}v1 = shr 5, v0
-// CHECK: {{^[ +].*}}v3 = shr 3, v2
-// CHECK: {{^[ +].*}}v5 = shl arg1, v4
+// CHECK: {{^[ +].*}}v1 = shr v0, 5
+// CHECK: {{^[ +].*}}v3 = shr v2, 3
+// CHECK: {{^[ +].*}}v5 = shl v4, arg1
 // CHECK: {{^[ +].*}}ret v1, v3, v5
 fn @mixed_and_variable_shifts(arg0: i256, arg1: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
-    v0 = shl 3, arg0
-    v1 = shr 5, v0
-    v2 = sar 5, arg0
-    v3 = shr 3, v2
-    v4 = shl 5, arg0
-    v5 = shl arg1, v4
+    v0 = shl arg0, 3
+    v1 = shr v0, 5
+    v2 = sar arg0, 5
+    v3 = shr v2, 3
+    v4 = shl arg0, 5
+    v5 = shl v4, arg1
     ret v1, v3, v5
 }
 

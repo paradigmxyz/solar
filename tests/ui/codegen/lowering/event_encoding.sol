@@ -56,7 +56,7 @@ contract EventEncoding {
 
     // CHECK-LABEL: fn @emitIndexedExternalFunction
     // CHECK: [[POINTER:v[0-9]+]] = or
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl 64, [[POINTER]]
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[POINTER]], 64
     // CHECK: log 0, 0, {{[^,]+}}, [[SHIFTED]]
     function emitIndexedExternalFunction() external {
         emit IndexedExternalFunction(this.target);

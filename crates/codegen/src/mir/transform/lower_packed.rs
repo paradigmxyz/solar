@@ -3,7 +3,8 @@
 //! Scalars write their packed width; array leaves occupy full, cleaned ABI words. The encoder
 //! computes dynamic lengths only after argument evaluation, then emits copies or nested array
 //! loops. Hash-only encodings use the existing scratch policy when the shape permits it. Literal
-//! bytes and adjacent narrow scalars can share a word store without merging signed high bits.
+//! bytes and adjacent narrow scalars, fixed bytes included, can share a word store without merging
+//! signed high bits or the low bytes of a fixed-bytes word.
 //! Encodings made entirely of whole words need no allocation-size rounding. As in solc, part
 //! lengths and offsets add without overflow checks; the size rounding still checks. Array loops use
 //! plain element-offset arithmetic: their index is below the length whose total extent was checked.
@@ -171,7 +172,7 @@ impl PackedEncoder<'_, '_> {
                         *value
                     } else {
                         let shift = self.builder.imm((32 - *length) * 8);
-                        self.builder.shl(shift, *value)
+                        self.builder.shl(*value, shift)
                     };
                     self.builder.memory_store_word(output, offset, value);
                     let length = self.builder.imm(*length);
@@ -253,7 +254,7 @@ impl PackedEncoder<'_, '_> {
                         *value
                     } else {
                         let shift = self.builder.imm((32 - *length) * 8);
-                        self.builder.shl(shift, *value)
+                        self.builder.shl(*value, shift)
                     };
                     let dest = self.packed_scratch_offset(cursor.or(base), offset);
                     self.builder.store(dest, value);
@@ -440,7 +441,7 @@ impl PackedEncoder<'_, '_> {
                     length += piece_length;
                     consumed += 1;
                 }
-                PackedPiece::Static { value, length: piece_length, fixed_bytes: false, signed }
+                PackedPiece::Static { value, length: piece_length, fixed_bytes, signed }
                     if *piece_length < 32 =>
                 {
                     if *piece_length == 0 {
@@ -451,7 +452,7 @@ impl PackedEncoder<'_, '_> {
                         break;
                     }
                     let shift = (32 - length - *piece_length) * 8;
-                    terms.push((*value, shift, *piece_length, *signed));
+                    terms.push((*value, shift, *piece_length, *signed, *fixed_bytes));
                     length += *piece_length;
                     consumed += 1;
                 }
@@ -464,13 +465,25 @@ impl PackedEncoder<'_, '_> {
         }
 
         let mut value = self.builder.imm(constant);
-        for (term, shift, size, signed) in terms {
+        for (term, shift, size, signed, fixed_bytes) in terms {
+            if fixed_bytes {
+                // word |= (term & high_width_mask) >> (256 - shift - width)
+                let bits = u16::try_from(size * 8).unwrap();
+                let term = AbiWordValidator::LeftAligned(bits).cleanup(self.builder, term);
+                let right = 256 - shift - size * 8;
+                let term = if right == 0 {
+                    term
+                } else {
+                    let right = self.builder.imm(right);
+                    self.builder.shr(term, right)
+                };
+                value = self.builder.or(value, term);
+                continue;
+            }
             // word |= (term & width_mask_if_signed) << shift
             let term = if signed {
-                let mask = self
-                    .builder
-                    .imm((U256::from(1) << usize::try_from(size * 8).unwrap()) - U256::from(1));
-                self.builder.and(term, mask)
+                let bits = u16::try_from(size * 8).unwrap();
+                AbiWordValidator::Unsigned(bits).cleanup(self.builder, term)
             } else {
                 term
             };
@@ -478,7 +491,7 @@ impl PackedEncoder<'_, '_> {
                 term
             } else {
                 let shift = self.builder.imm(shift);
-                self.builder.shl(shift, term)
+                self.builder.shl(term, shift)
             };
             value = self.builder.or(value, term);
         }

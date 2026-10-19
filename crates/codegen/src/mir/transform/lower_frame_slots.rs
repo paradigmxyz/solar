@@ -1,7 +1,20 @@
-//! Lower semantic mutable-local frame slots to physical memory operations.
+//! Lower semantic frame-slot loads and stores to physical memory operations.
+//!
+//! `frame_load` and `frame_store` name a word or slice slot by its offset within one of three
+//! frames. External entries keep their mutable locals at a fixed address from the heap start.
+//! Internal functions address theirs through `internal_frame_addr`, past the frame header and the
+//! function's argument and return words, so the backend's frame layout decides the final address.
+//! A multi-return result reads the buffer pointer from its reserved slot. A slice slot holds two
+//! words, its pointer and then its length, and becomes two loads or stores around a
+//! `make_slice` or slice projections for `lower-slices` to fold; multi-return buffers hold only
+//! words.
+//!
+//! The pass runs after ABI, dispatch, and struct lowering, once signatures and the argument count
+//! that internal frame offsets depend on are final, and before mapping-slot and memory-object
+//! lowering.
 
 use crate::mir::{
-    FrameMode, FrameSlotKind, Function, FunctionBuilder, InstKind, MirPhase, Module, PtrLocation,
+    FrameMode, FrameSlotKind, Function, FunctionBuilder, InstKind, Module, PtrLocation,
     memory::EvmMemoryLayout, pass::MirPass,
 };
 use solar_data_structures::map::FxHashMap;
@@ -25,9 +38,6 @@ impl MirPass for LowerFrameSlots {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        if module.phase() == MirPhase::Lowered {
-            return false;
-        }
         let mut changed = false;
         for func in &mut module.functions {
             changed |= lower_function(func);

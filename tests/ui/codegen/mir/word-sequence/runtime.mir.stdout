@@ -6,7 +6,7 @@
   struct2: {i256, i256, i256}
   struct3: {i256, i256}
 
-fn @selectFactored(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xdc62154a, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @selectFactored(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xdc62154a, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -61,7 +61,7 @@ fn @selectFactored(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xdc
     ret v19
 }
 
-fn @arithmetic(arg0: i256, arg1: i256) -> struct1 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @arithmetic(arg0: i256, arg1: i256) -> struct1 [selector=0x6cbb5ae3, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = or arg0, arg1
     v1 = and arg0, arg1
@@ -82,7 +82,7 @@ fn @arithmetic(arg0: i256, arg1: i256) -> struct1 [selector=0x6cbb5ae3, pure, ab
     ret v15
 }
 
-fn @factored(arg0: i256, arg1: i256, arg2: i256) -> struct2 [selector=0x0d5dfa8f, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @factored(arg0: i256, arg1: i256, arg2: i256) -> struct2 [selector=0x0d5dfa8f, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = and arg1, arg2
     v1 = and arg0, arg2
@@ -99,13 +99,13 @@ fn @factored(arg0: i256, arg1: i256, arg2: i256) -> struct2 [selector=0x0d5dfa8f
     ret v11
 }
 
-fn @packed(arg0: i256) -> struct2 [selector=0x977eca9c, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @packed(arg0: i256) -> struct2 [selector=0x977eca9c, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
-    v0 = shr 160, arg0
+    v0 = shr arg0, 160
     v1 = and v0, 255
-    v2 = shr 248, arg0
+    v2 = shr arg0, 248
     v3 = and v2, 255
-    v4 = shr 256, arg0
+    v4 = shr arg0, 256
     v5 = and v4, 255
     v6 = insert_value struct2, undef struct2, 0, v1
     v7 = insert_value struct2, v6, 1, v3
@@ -113,26 +113,26 @@ fn @packed(arg0: i256) -> struct2 [selector=0x977eca9c, pure, abi_params=[u256],
     ret v8
 }
 
-fn @shifts(arg0: i256, arg1: i256, arg2: i256) -> struct3 [selector=0x21fb8819, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shifts(arg0: i256, arg1: i256, arg2: i256) -> struct3 [selector=0x21fb8819, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
-    v0 = shl arg2, arg1
-    v1 = shl arg2, arg0
+    v0 = shl arg1, arg2
+    v1 = shl arg0, arg2
     v2 = or v1, v0
-    v3 = sar arg2, arg1
-    v4 = sar arg2, arg0
+    v3 = sar arg1, arg2
+    v4 = sar arg0, arg2
     v5 = xor v4, v3
     v6 = insert_value struct3, undef struct3, 0, v2
     v7 = insert_value struct3, v6, 1, v5
     ret v7
 }
 
-fn @boundary(arg0: i256) -> i1 [selector=0xa2c54a38, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @boundary(arg0: i256) -> i1 [selector=0xa2c54a38, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = lt arg0, 0x10000000000000000000000000000000000000000
     ret v0
 }
 
-fn @shared(arg0: i256, arg1: i256) -> struct2 [selector=0xa03ce1ed, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @shared(arg0: i256, arg1: i256) -> struct2 [selector=0xa03ce1ed, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = not arg0
     v1 = not arg1
@@ -143,10 +143,10 @@ fn @shared(arg0: i256, arg1: i256) -> struct2 [selector=0xa03ce1ed, pure, abi_pa
     ret v5
 }
 
-fn @checkedSum(arg0: i256, arg1: i256) -> i256 [selector=0x8c44f114, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkedSum(arg0: i256, arg1: i256) -> i256 [selector=0x8c44f114, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, arg1
     v1 = or arg0, arg1
-    v2 = checked_add u256, v0, v1
+    v2 = checked_add uint256, v0, v1
     ret v2
 }

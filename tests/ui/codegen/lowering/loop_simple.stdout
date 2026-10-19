@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/loop_simple.sol:LoopSimple ===
 @module LoopSimple
-fn @sum_to(arg0: i256) -> i256 [selector=0xab225c69, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sum_to(arg0: i256) -> i256 [selector=0xab225c69, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -15,11 +15,11 @@ fn @sum_to(arg0: i256) -> i256 [selector=0xab225c69, pure, abi_params=[u256], ab
   bb2:
     ret v2
   bb4:
-    v5 = checked_add u256, v2, v3
+    v5 = checked_add uint256, v2, v3
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v6 = checked_add u256, v3, 1
+    v6 = checked_add uint256, v3, 1
     jump bb1
 }

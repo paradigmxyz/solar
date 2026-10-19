@@ -19,14 +19,17 @@ use super::{
     compact_pushes::selected_len,
     utils::{is_terminal_boundary, remap_block_order},
 };
-use crate::backend::{
-    assembler::assembly::{
-        estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound,
+use crate::{
+    backend::{
+        assembler::assembly::{
+            estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound,
+        },
+        evm::{
+            ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
+            op,
+        },
     },
-    evm::{
-        ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
-        op,
-    },
+    target::Target,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
@@ -340,14 +343,16 @@ fn estimated_block_size_up_to(
 }
 
 fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
+    let target = Target::new(gcx);
     if let Some(size) = inst.immutable_type_size() {
-        1 + usize::from(size.bytes())
+        target.opcode(op::push(size.bytes())).bytes as usize
     } else if inst.is_encoded_push() {
         match &inst.value {
             Some(PushValue::Immediate(value)) => selected_len(gcx, *value),
-            Some(PushValue::Library(_)) => 21,
-            Some(PushValue::Block(_)) => 3,
-            Some(PushValue::Data(_)) => 4,
+            Some(PushValue::Library(_)) => target.opcode(op::PUSH20).bytes as usize,
+            Some(PushValue::Block(_)) => target.label_push().bytes as usize,
+            // Data follows the code, so assume its offsets need a third byte.
+            Some(PushValue::Data(_)) => target.opcode(op::PUSH3).bytes as usize,
             Some(PushValue::DataSize(size)) => selected_len(gcx, size.bound()),
             _ => 1,
         }
@@ -366,16 +371,19 @@ fn estimated_terminator_size(
     next: Option<BlockId>,
     code_follows: bool,
 ) -> usize {
+    let model = Target::new(gcx);
+    let jump = (model.label_push() + model.opcode(op::JUMP)).bytes as usize;
+    let branch = (model.label_push() + model.opcode(op::JUMPI)).bytes as usize;
     match kind {
-        TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * 4,
+        TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * jump,
         TerminatorKind::Op(op::STOP) => usize::from(next.is_some() || code_follows),
         TerminatorKind::JumpI { then_block, else_block } => {
             if Some(*else_block) == next {
-                4
+                branch
             } else if Some(*then_block) == next {
-                5
+                model.opcode(op::ISZERO).bytes as usize + branch
             } else {
-                8
+                branch + jump
             }
         }
         TerminatorKind::IndexedJump(targets) => {
@@ -389,7 +397,7 @@ fn estimated_terminator_size(
                 gcx.sess.opts.optimization.is_size(),
             )
         }
-        TerminatorKind::Op(_) => 1,
+        TerminatorKind::Op(opcode) => model.opcode(*opcode).bytes as usize,
     }
 }
 

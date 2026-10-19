@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_zeroed_allocation.sol:MemoryZeroedAllocation ===
 @module MemoryZeroedAllocation
-fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -27,14 +27,14 @@ fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_
     v18 = lt arg1, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = shl 5, arg1
+    v20 = shl arg1, 5
     v21 = ptradd v16, v20
     v22 = ptradd v21, 32
     v23 = mload v22
     ret v23
 }
 
-fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x9abd415d, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x9abd415d, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -81,7 +81,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v57 = lt v25, v56
     v58 = eq v57, false
     icall panic_if<0x32>, v58
-    v59 = shl 5, v25
+    v59 = shl v25, 5
     v60 = ptradd v28, v59
     v61 = ptradd v60, 32
     v62 = mload v61, ptr<memory>
@@ -89,7 +89,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v64 = lt v26, v63
     v65 = eq v64, false
     icall panic_if<0x32>, v65
-    v66 = shl 5, v26
+    v66 = shl v26, 5
     v67 = ptradd v62, v66
     v68 = ptradd v67, 32
     v69 = mload v68
@@ -121,7 +121,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     v51 = ptrtoint ptr<memory> v47 to i256
-    v52 = shl 5, v29
+    v52 = shl v29, 5
     v53 = ptradd v28, v52
     v54 = ptradd v53, 32
     mstore v54, v51
@@ -129,10 +129,10 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
   bb9:
     jump bb6
   bb6:
-    v55 = checked_add u256, v29, 1
+    v55 = checked_add uint256, v29, 1
     jump bb4
   bb2:
-    v19 = shl 5, v17
+    v19 = shl v17, 5
     v20 = ptradd v16, v19
     v21 = ptradd v20, 32
     mstore v21, 96
@@ -140,20 +140,20 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     jump bb1
 }
 
-fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     memory_zero v0, 96
     v1 = lt arg0, 3
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = shl 5, arg0
+    v3 = shl arg0, 5
     v4 = ptradd v0, v3
     v5 = mload v4
     ret v5
 }
 
-fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -186,7 +186,7 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v26 = lt arg1, v25
     v27 = eq v26, false
     icall panic_if<0x32>, v27
-    v28 = shl 5, arg1
+    v28 = shl arg1, 5
     v29 = ptradd v16, v28
     v30 = ptradd v29, 32
     v31 = mload v30, ptr<memory>
@@ -198,7 +198,7 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
   bb2:
     v19 = alloc 128 !metadata(preserves_fmp)
     memory_zero v19, 128
-    v20 = shl 5, v17
+    v20 = shl v17, 5
     v21 = ptradd v16, v20
     v22 = ptradd v21, 32
     v23 = ptrtoint ptr<memory> v19 to i256

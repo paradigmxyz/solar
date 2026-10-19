@@ -11,7 +11,7 @@ fn @getDest() -> i256 [pure] {
     ret 5
 }
 
-fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @getSource
     v1 = icall @getDest
@@ -87,7 +87,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v106 = add v102, v105
     v107 = add v106, 1
     v108 = sload v107 !metadata(storage=offset(v106, 1))
-    v109 = checked_add u256, v98, v108
+    v109 = checked_add uint256, v98, v108
     v110 = lt 0, 1
     v111 = eq v110, false
     icall panic_if<0x32>, v111
@@ -100,13 +100,13 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v117 = add v113, v116
     v118 = add v117, 2
     v119 = sload v118 !metadata(storage=offset(v117, 2))
-    v120 = checked_add u256, v109, v119
-    v121 = checked_add u256, v84, v120
+    v120 = checked_add uint256, v109, v119
+    v121 = checked_add uint256, v84, v120
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v122 = checked_add u256, v86, 1
+    v122 = checked_add uint256, v86, 1
     jump bb16
   bb11:
     v60 = mul v58, 3
@@ -132,7 +132,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     sstore v80, v82 !metadata(storage=offset(v61, 2))
     jump bb15
   bb13:
-    v63 = shl 5, v58
+    v63 = shl v58, 5
     v64 = ptradd v40, v63
     v65 = mload v64
     v66 = mload v65
@@ -164,19 +164,19 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v52 = ptradd v45, 64
     mstore v52, v51
     v53 = ptrtoint ptr<memory> v45 to i256
-    v54 = shl 5, v41
+    v54 = shl v41, 5
     v55 = ptradd v40, v54
     mstore v55, v53
     v56 = add v41, 1
     jump bb7
   bb4:
     v7 = alloc 96
-    v8 = checked_mul u256, v3, 3
-    v9 = checked_add u256, v8, 1
-    v10 = checked_mul u256, v3, 3
-    v11 = checked_add u256, v10, 2
-    v12 = checked_mul u256, v3, 3
-    v13 = checked_add u256, v12, 3
+    v8 = checked_mul uint256, v3, 3
+    v9 = checked_add uint256, v8, 1
+    v10 = checked_mul uint256, v3, 3
+    v11 = checked_add uint256, v10, 2
+    v12 = checked_mul uint256, v3, 3
+    v13 = checked_add uint256, v12, 3
     mstore v7, v9
     v14 = ptradd v7, 32
     mstore v14, v11
@@ -206,6 +206,6 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
   bb6:
     jump bb3
   bb3:
-    v31 = checked_add u256, v3, 1
+    v31 = checked_add uint256, v3, 1
     jump bb1
 }

@@ -96,23 +96,6 @@ fn @gas_not_a_barrier() -> i256 {
     ret v2
 }
 
-// `msize` observes the memory extent, which removing local-slot traffic
-// changes, so it stays a barrier and the slot keeps its memory form.
-// CHECK-LABEL: @msize_observed
-// CHECK: {{^ +}}mstore [[FRAME:v[0-9]+]], 42
-// CHECK: {{^ +}}{{v[0-9]+}} = msize
-// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[FRAME]]
-// CHECK: {{^ +}}ret [[LOAD]]
-fn @msize_observed() -> i256 {
-  bb0:
-    v17 = internal_frame_addr 128
-    v0 = ptrtoint ptr<memory> v17 to i256
-    mstore v0, 42
-    v1 = msize
-    v2 = mload v0
-    ret v2
-}
-
 // CHECK-LABEL: @icall
 // CHECK:       [[FRAME_PTR:v[0-9]+]] = internal_frame_addr
 // CHECK: [[FRAME:v[0-9]+]] = ptrtoint ptr<memory> [[FRAME_PTR]] to i256

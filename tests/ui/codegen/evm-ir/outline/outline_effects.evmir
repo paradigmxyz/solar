@@ -1,0 +1,91 @@
+//@compile-flags: -Osize -Zevm-ir-pipeline=outline
+@module module
+
+// Hashing, storage reads, logs, and memory copies and writes run the same in a shared body, so
+// all three copies of this run share one.
+bb0:
+  push 0x20
+  push 0
+  keccak256
+  push 1
+  sload
+  push 0
+  push 0
+  log2
+  push 0x40
+  push 0
+  push 0
+  calldatacopy
+  push 0xff
+  push 0x40
+  mstore8
+  jump bb1
+bb1:
+  push 0x20
+  push 0
+  keccak256
+  push 1
+  sload
+  push 0
+  push 0
+  log2
+  push 0x40
+  push 0
+  push 0
+  calldatacopy
+  push 0xff
+  push 0x40
+  mstore8
+  jump bb2
+bb2:
+  push 0x20
+  push 0
+  keccak256
+  push 1
+  sload
+  push 0
+  push 0
+  log2
+  push 0x40
+  push 0
+  push 0
+  calldatacopy
+  push 0xff
+  push 0x40
+  mstore8
+  jump bb3
+
+// `SSTORE` and `GAS` depend on the gas left, so the runs between them are too short to share.
+bb3:
+  push 0x11
+  push 0x22
+  sstore
+  gas
+  push 0x33
+  mstore
+  push 0x44
+  push 0x55
+  sstore
+  jump bb4
+bb4:
+  push 0x11
+  push 0x22
+  sstore
+  gas
+  push 0x33
+  mstore
+  push 0x44
+  push 0x55
+  sstore
+  jump bb5
+bb5:
+  push 0x11
+  push 0x22
+  sstore
+  gas
+  push 0x33
+  mstore
+  push 0x44
+  push 0x55
+  sstore
+  stop

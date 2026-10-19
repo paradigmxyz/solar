@@ -7,29 +7,29 @@ fn @m(arg0: i256, arg1: i256) -> i256 [pure] {
 
 fn @s(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = checked_add u256, arg0, arg1
+    v0 = checked_add uint256, arg0, arg1
     ret v0
 }
 
-fn @foo() -> i256 [selector=0xc2985578, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @foo() -> i256 [selector=0xc2985578, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 6
 }
 
-fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0xc2985578
     v4 = address
     v5 = zext i160 v4 to i256
-    v6 = shl 32, v5
+    v6 = shl v5, 32
     v7 = or v6, 0xc2985578
     v8 = icall @internal_dispatcher_p_function_function_r_function, 1, v3, v7
     v9 = and v8, 0xffffffff
-    v10 = shl 224, v9
-    v11 = shr 32, v8
+    v10 = shl v9, 224
+    v11 = shr v8, 32
     v12 = gas
     v13 = abi_encode [], selector v10
     v14 = extract_value slice<memory>, v13, 0
@@ -44,8 +44,8 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
-    v21 = icall @internal_dispatcher_p_u256_u256_r_u256, 2, 5, 1
-    v22 = checked_add u256, v20, v21
+    v21 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, 2, 5, 1
+    v22 = checked_add uint256, v20, v21
     ret v22
 }
 
@@ -61,7 +61,7 @@ fn @internal_dispatcher_p_function_function_r_function(arg0: i256, arg1: i256, a
     ret v1
 }
 
-fn @internal_dispatcher_p_u256_u256_r_u256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

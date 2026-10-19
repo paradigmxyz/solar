@@ -12,8 +12,8 @@
     bb5:
       ret v1
     bb2:
-      v3 = shl 5, v0
-      v4 = shr 5, v3
+      v3 = shl v0, 5
+      v4 = shr v3, 5
       v5 = ne v4, v0
 -     jumpi v5, bb4, bb3
 +     jump bb3
@@ -28,8 +28,8 @@
   
   fn @unbounded_index(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl 5, arg1
-      v1 = shr 5, v0
+      v0 = shl arg1, 5
+      v1 = shr v0, 5
       v2 = ne v1, arg1
       jumpi v2, bb2, bb1
     bb1:
@@ -50,8 +50,8 @@
     bb5:
       ret v0
     bb2:
-      v2 = shl 5, v0
-      v3 = shr 4, v2
+      v2 = shl v0, 5
+      v3 = shr v2, 4
       v4 = ne v3, v0
       jumpi v4, bb4, bb3
     bb3:
@@ -63,8 +63,8 @@
   
   fn @narrow_round_trip(arg0: i8) -> i256 {
     bb0:
-      v0 = shl i8 1, arg0
-      v1 = shr i8 1, v0
+      v0 = shl arg0, i8 1
+      v1 = shr v0, i8 1
       v2 = ne v1, arg0
       jumpi v2, bb2, bb1
     bb1:

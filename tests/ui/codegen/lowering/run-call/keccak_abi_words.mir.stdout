@@ -1,23 +1,23 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/keccak_abi_words.sol:KeccakAbiWords ===
 @module KeccakAbiWords
-fn @words(arg0: i256, arg1: i256) -> i1 [selector=0xa5a43888, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @words(arg0: i256, arg1: i256) -> i1 [selector=0xa5a43888, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = keccak256_packed (u256 arg0, u256 arg1)
-    v1 = keccak256_packed (u256 arg0, u256 arg1)
+    v0 = keccak256_packed (uint256 arg0, uint256 arg1)
+    v1 = keccak256_packed (uint256 arg0, uint256 arg1)
     v2 = eq v0, v1
     ret v2
 }
 
-fn @mixed(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0x8e902cd6, pure, abi_params=[i8, bytes4, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @mixed(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0x8e902cd6, pure, abi_params=[int8, bytes4, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = trunc i256 arg0 to i8
     v1 = sext i8 v0 to i256
     v2 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v3 = keccak256_packed (u256 v1, u256 v2)
+    v3 = keccak256_packed (uint256 v1, uint256 v2)
     v4 = trunc i256 arg0 to i8
     v5 = sext i8 v4 to i256
     v6 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v7 = keccak256_packed (i256 v5, bytes32 v6)
+    v7 = keccak256_packed (int256 v5, bytes32 v6)
     v8 = eq v3, v7
     jumpi v8, bb1, bb2
   bb2:
@@ -25,7 +25,7 @@ fn @mixed(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0x8e902cd6, pure, 
   bb1:
     v9 = ne arg2, 0
     v10 = zext i1 v9 to i256
-    v11 = keccak256_packed (u256 v10)
+    v11 = keccak256_packed (uint256 v10)
     v12 = ne arg2, 0
     jumpi v12, bb4, bb5
   bb5:
@@ -35,7 +35,7 @@ fn @mixed(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0x8e902cd6, pure, 
   bb6:
     v13 = phi [bb4: i8 1], [bb5: i8 0]
     v14 = zext i8 v13 to i256
-    v15 = keccak256_packed (u256 v14)
+    v15 = keccak256_packed (uint256 v14)
     v16 = eq v11, v15
     jump bb3
   bb3:
@@ -54,7 +54,7 @@ fn @ordered() -> i1 [selector=0xfda8b909, abi_params=[], abi_returns=[word<bool>
   bb0:
     v0 = icall @next
     v1 = icall @next
-    v2 = keccak256_packed (u256 v0, u256 v1)
+    v2 = keccak256_packed (uint256 v0, uint256 v1)
     v3 = eq v2, 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
     jumpi v3, bb1, bb2
   bb2:
@@ -71,7 +71,7 @@ fn @ordered() -> i1 [selector=0xfda8b909, abi_params=[], abi_returns=[word<bool>
 fn @next() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     ret v1
 }

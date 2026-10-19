@@ -113,13 +113,9 @@ bb26 [cold]:
   revert
 bb6:
   push 192
+  dup 1
   push 64
   mstore
-  push 0
-  push 160
-  mstore
-  push 64
-  mload
   push 256
   dup 2
   add
@@ -166,20 +162,16 @@ bb6:
   jumpi
   push 0
   mload
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb18:
   push 224
+  dup 1
   push 64
   mstore
-  push 0
-  push 160
-  mstore
-  push 64
-  mload
   push 256
   dup 2
   add
@@ -197,9 +189,6 @@ bb18:
   iszero
   push bb26
   jumpi
-  push 0
-  push 192
-  mstore
   push 64
   mload
   push 256
@@ -286,10 +275,10 @@ bb18:
   lt
   push bb27
   jumpi
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb27 [cold]:
   push 17

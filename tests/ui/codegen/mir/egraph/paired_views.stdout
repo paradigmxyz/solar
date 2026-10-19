@@ -28,7 +28,7 @@
   
   fn @left_aligned_byte(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 248, arg0
+      v0 = shl arg0, 248
 -     v1 = byte 0, v0
 +     v1 = and arg0, 255
       ret v1
@@ -36,7 +36,7 @@
   
   fn @other_byte(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 240, arg0
+      v0 = shl arg0, 240
 -     v1 = byte 0, v0
 +     v1 = byte 30, arg0
       ret v1
@@ -76,14 +76,14 @@
   
   fn @left_aligned_byte(arg0: i256) -> i256 {
     bb0:
--     v0 = shl 248, arg0
+-     v0 = shl arg0, 248
       v1 = and arg0, 255
       ret v1
   }
   
   fn @other_byte(arg0: i256) -> i256 {
     bb0:
--     v0 = shl 240, arg0
+-     v0 = shl arg0, 240
       v1 = byte 30, arg0
       ret v1
   }

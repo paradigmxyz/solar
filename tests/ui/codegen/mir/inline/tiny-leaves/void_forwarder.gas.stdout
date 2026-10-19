@@ -1,0 +1,221 @@
+- // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/void_forwarder.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/void_forwarder.mir (after inline) ===
+  @module VoidForwarder
+  fn @caller(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     icall @forward_void, arg0, arg1, 7
++     jump bb2
++   bb2:
++     icall @sink, arg1, arg0, 7
++     jump bb1
++   bb1:
+      v0 = sload 0
+      ret v0
+  }
+  
+  fn @other(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     icall @forward_void, arg1, arg0, 9
++     jump bb2
++   bb2:
++     icall @sink, arg0, arg1, 9
++     jump bb1
++   bb1:
+      v0 = sload 0
+      ret v0
+  }
+  
+- fn @forward_void(arg0: i256, arg1: i256, arg2: i256) {
+-   bb0:
+-     icall @sink, arg1, arg0, arg2
+-     ret
+- }
+- 
+  fn @explicit_return(arg0: i256, arg1: i256) {
+    bb0:
+-     icall @forward_return, arg0, arg1
+-     ret
+- }
+- 
+- fn @forward_return(arg0: i256, arg1: i256) {
+-   bb0:
++     jump bb2
++   bb2:
+      icall @sink, arg0, arg1, 9
++     jump bb1
++   bb1:
+      ret
+  }
+  
+  fn @sink(arg0: i256, arg1: i256, arg2: i256) {
+    bb0:
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      sstore 0, arg1
+      sstore 1, arg2
+      ret
+  }
+  
+  fn @discard_caller(arg0: i256) {
+    bb0:
+-     icall @discard, arg0
+-     ret
+- }
+- 
+- fn @discard(arg0: i256) {
+-   bb0:
+-     v0 = icall @value_sink, arg0
+-     ret
+- }
+- 
+- fn @value_sink(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = ne arg0, 0
+-     jumpi v0, bb1, bb2
++     jump bb2
+    bb2:
++     jump bb4
++   bb4:
++     v1 = ne arg0, 0
++     jumpi v1, bb5, bb6
++   bb6:
+      revert 0, 0
+-   bb1:
++   bb5:
+      sstore 0, arg0
+-     ret arg0
++     jump bb3
++   bb3:
++     v2 = phi [bb5: arg0]
++     jump bb1
++   bb1:
++     ret
+  }
+  
+  fn @effect_caller(arg0: i256, arg1: i256) {
+    bb0:
+-     icall @effect, arg0, arg1
+-     ret
+- }
+- 
+- fn @effect(arg0: i256, arg1: i256) {
+-   bb0:
++     jump bb2
++   bb2:
+      icall @sink, arg0, arg1, 11
+      sstore 2, arg0
++     jump bb1
++   bb1:
+      ret
+  }
+  
+  fn @shared_extra_caller(arg0: i256, arg1: i256) {
+    bb0:
+      icall @shared_extra, arg0, arg1
+      icall @shared_extra, arg1, arg0
+      ret
+  }
+  
+  fn @shared_extra(arg0: i256, arg1: i256) {
+    bb0:
+      icall @sink, arg0, arg1, 13
+      ret
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/void_forwarder.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/void_forwarder.mir (after cfg-simplify) ===
+  @module VoidForwarder
+  fn @caller(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     jump bb2
+-   bb2:
+      icall @sink, arg1, arg0, 7
+-     jump bb1
+-   bb1:
+      v0 = sload 0
+      ret v0
+  }
+  
+  fn @other(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     jump bb2
+-   bb2:
+      icall @sink, arg0, arg1, 9
+-     jump bb1
+-   bb1:
+      v0 = sload 0
+      ret v0
+  }
+  
+  fn @explicit_return(arg0: i256, arg1: i256) {
+    bb0:
+-     jump bb2
+-   bb2:
+      icall @sink, arg0, arg1, 9
+-     jump bb1
+-   bb1:
+      ret
+  }
+  
+  fn @sink(arg0: i256, arg1: i256, arg2: i256) {
+    bb0:
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      sstore 0, arg1
+      sstore 1, arg2
+      ret
+  }
+  
+  fn @discard_caller(arg0: i256) {
+    bb0:
+-     jump bb2
+-   bb2:
+-     jump bb4
+-   bb4:
+      v1 = ne arg0, 0
+-     jumpi v1, bb5, bb6
+-   bb6:
++     jumpi v1, bb1, bb2
++   bb2:
+      revert 0, 0
+-   bb5:
+-     sstore 0, arg0
+-     jump bb3
+-   bb3:
+-     v2 = phi [bb5: arg0]
+-     jump bb1
+    bb1:
++     sstore 0, arg0
+      ret
+  }
+  
+  fn @effect_caller(arg0: i256, arg1: i256) {
+    bb0:
+-     jump bb2
+-   bb2:
+      icall @sink, arg0, arg1, 11
+      sstore 2, arg0
+-     jump bb1
+-   bb1:
+      ret
+  }
+  
+  fn @shared_extra_caller(arg0: i256, arg1: i256) {
+    bb0:
+      icall @shared_extra, arg0, arg1
+      icall @shared_extra, arg1, arg0
+      ret
+  }
+  
+  fn @shared_extra(arg0: i256, arg1: i256) {
+    bb0:
+      icall @sink, arg0, arg1, 13
+      ret
+  }
+  
