@@ -56,6 +56,10 @@
 //! similarly bypass single-use truncation/extension pairs around their 160-bit address operand.
 //! Both casts must belong to the call block, and every other call operand stays unchanged.
 //!
+//! Operands that an effectful opcode reads only partly, such as the value of `mstore8`, drop
+//! operations that touch only the bits it ignores (see `demanded`). The rewrite replaces the
+//! instruction's operand, so other users of the masked value keep it.
+//!
 //! Memory-key mapping hashes also share dominating definitions in uncalled
 //! semantic ABI entries where fresh decoded keys stay below scratch and no path
 //! observes scratch writes. The whole-function proof rejects raw memory access,
@@ -86,6 +90,7 @@ use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::rc::Rc;
 
+mod demanded;
 mod isle;
 pub(super) use isle::{is_bool_value, max_bits_with_args};
 
@@ -426,6 +431,7 @@ impl<'a> Builder<'a> {
         self.visit(BlockId::ENTRY);
         self.materialize();
         self.rewrite_terminators();
+        self.changed += demanded::simplify_demanded_operands(self.func);
         self.changed
     }
 

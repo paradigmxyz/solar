@@ -101,7 +101,9 @@ while a displaced operand stays live elsewhere. Without the stack term,
 rewrites after memory lowering extend live ranges the stack scheduler spills
 and measure as a loss. The pass also merges phis, deletes zero-byte copies,
 rewrites branches on boolean zero tests, and runs again after memory
-lowering. Extend it with rules in `isle/mir/egraph/`, bounds in `max_bits`,
+lowering. A final step replaces an effectful instruction's operand with a cheaper value that agrees
+on the bits the opcode reads, per `input_bits` in `backend/evm/op.rs`: `mstore8(p, and(x, 255))`
+becomes `mstore8(p, x)`. Extend it with rules in `isle/mir/egraph/`, bounds in `max_bits`,
 and stack-traffic terms in `Costs::node`. Opcode prices belong in the gas
 schedule; the pass never prices or matches instructions itself.
 

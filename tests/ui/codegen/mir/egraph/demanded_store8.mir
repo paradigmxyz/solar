@@ -1,0 +1,138 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=egraph,dce
+//@ filecheck:
+@module DemandedStore8
+
+@types
+  struct0: {i256, i256}
+
+// CHECK-LABEL: demanded_store8.mir (after dce)
+
+// CHECK-LABEL: fn @and_byte(
+// CHECK: mstore8 arg0, arg1
+// CHECK-NOT: and
+fn @and_byte(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = and arg1, 255
+    mstore8 arg0, v0
+    ret
+}
+
+// CHECK-LABEL: fn @and_wider(
+// CHECK: mstore8 arg0, arg1
+// CHECK-NOT: and
+fn @and_wider(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = and arg1, 0xffff
+    mstore8 arg0, v0
+    ret
+}
+
+// CHECK-LABEL: fn @byte_31(
+// CHECK: mstore8 arg0, arg1
+// CHECK-NOT: byte
+fn @byte_31(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = byte 31, arg1
+    mstore8 arg0, v0
+    ret
+}
+
+// CHECK-LABEL: fn @sign_extended(
+// CHECK: mstore8 arg0, arg1
+// CHECK-NOT: signextend
+fn @sign_extended(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = signextend 0, arg1
+    mstore8 arg0, v0
+    ret
+}
+
+// CHECK-LABEL: fn @shifted_mask(
+// CHECK: [[SHIFTED:v[0-9]+]] = shr arg1, 8
+// CHECK: mstore8 arg0, [[SHIFTED]]
+// CHECK-NOT: and
+fn @shifted_mask(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = and arg1, 0xff00
+    v1 = shr v0, 8
+    mstore8 arg0, v1
+    ret
+}
+
+// CHECK-LABEL: fn @zero_low_byte(
+// CHECK: mstore8 arg0, 0
+// CHECK-NOT: shl
+fn @zero_low_byte(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = shl arg1, 8
+    mstore8 arg0, v0
+    ret
+}
+
+// CHECK-LABEL: fn @zero_mask(
+// CHECK: mstore8 arg0, 0
+// CHECK-NOT: and
+fn @zero_mask(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = and arg1, 0xff00
+    mstore8 arg0, v0
+    ret
+}
+
+// The mask has another user and so does its operand, so only the store operand changes.
+// CHECK-LABEL: fn @shared_mask(
+// CHECK: [[MASK:v[0-9]+]] = and arg1, 255
+// CHECK: mstore8 arg0, arg1
+// CHECK: ret [[MASK]], arg1
+fn @shared_mask(arg0: ptr<memory>, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
+  bb0:
+    v0 = and arg1, 255
+    mstore8 arg0, v0
+    ret v0, arg1
+}
+
+// Storing the unmasked value would keep it live next to the shared mask.
+// CHECK-LABEL: fn @shared_mask_dying_operand(
+// CHECK: [[MASK:v[0-9]+]] = and arg1, 255
+// CHECK: mstore8 arg0, [[MASK]]
+fn @shared_mask_dying_operand(arg0: ptr<memory>, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg1, 255
+    mstore8 arg0, v0
+    ret v0
+}
+
+// The shift has another user, so its operand keeps the mask.
+// CHECK-LABEL: fn @shared_shift(
+// CHECK: [[MASK:v[0-9]+]] = and arg1, 0xff00
+// CHECK: [[SHIFTED:v[0-9]+]] = shr [[MASK]], 8
+// CHECK: mstore8 arg0, [[SHIFTED]]
+fn @shared_shift(arg0: ptr<memory>, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg1, 0xff00
+    v1 = shr v0, 8
+    mstore8 arg0, v1
+    ret v1
+}
+
+// A mask that drops demanded bits stays.
+// CHECK-LABEL: fn @narrow_mask(
+// CHECK: [[MASK:v[0-9]+]] = and arg1, 15
+// CHECK: mstore8 arg0, [[MASK]]
+fn @narrow_mask(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = and arg1, 15
+    mstore8 arg0, v0
+    ret
+}
+
+// A shift that moves demanded bits out of the byte stays.
+// CHECK-LABEL: fn @shifted_byte(
+// CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, 4
+// CHECK: mstore8 arg0, [[SHIFTED]]
+fn @shifted_byte(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = shl arg1, 4
+    mstore8 arg0, v0
+    ret
+}

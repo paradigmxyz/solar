@@ -1,0 +1,192 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/demanded_store8.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/demanded_store8.mir (after egraph) ===
+  @module DemandedStore8
+  @types
+    struct0: {i256, i256}
+  
+  fn @and_byte(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = and arg1, 255
+-     mstore8 arg0, v0
++     mstore8 arg0, arg1
+      ret
+  }
+  
+  fn @and_wider(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = and arg1, 0xffff
+-     mstore8 arg0, v0
++     mstore8 arg0, arg1
+      ret
+  }
+  
+  fn @byte_31(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = byte 31, arg1
+-     mstore8 arg0, v0
++     mstore8 arg0, arg1
+      ret
+  }
+  
+  fn @sign_extended(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = signextend 0, arg1
+-     mstore8 arg0, v0
++     mstore8 arg0, arg1
+      ret
+  }
+  
+  fn @shifted_mask(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = and arg1, 0xff00
+-     v1 = shr v0, 8
++     v1 = shr arg1, 8
+      mstore8 arg0, v1
+      ret
+  }
+  
+  fn @zero_low_byte(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = shl arg1, 8
+-     mstore8 arg0, v0
++     mstore8 arg0, 0
+      ret
+  }
+  
+  fn @zero_mask(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = and arg1, 0xff00
+-     mstore8 arg0, v0
++     mstore8 arg0, 0
+      ret
+  }
+  
+  fn @shared_mask(arg0: ptr<memory>, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
+    bb0:
+      v0 = and arg1, 255
+-     mstore8 arg0, v0
++     mstore8 arg0, arg1
+      ret v0, arg1
+  }
+  
+  fn @shared_mask_dying_operand(arg0: ptr<memory>, arg1: i256) -> i256 {
+    bb0:
+      v0 = and arg1, 255
+      mstore8 arg0, v0
+      ret v0
+  }
+  
+  fn @shared_shift(arg0: ptr<memory>, arg1: i256) -> i256 {
+    bb0:
+      v0 = and arg1, 0xff00
+      v1 = shr v0, 8
+      mstore8 arg0, v1
+      ret v1
+  }
+  
+  fn @narrow_mask(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = and arg1, 15
+      mstore8 arg0, v0
+      ret
+  }
+  
+  fn @shifted_byte(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = shl arg1, 4
+      mstore8 arg0, v0
+      ret
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/egraph/demanded_store8.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/demanded_store8.mir (after dce) ===
+  @module DemandedStore8
+  @types
+    struct0: {i256, i256}
+  
+  fn @and_byte(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+-     v0 = and arg1, 255
+      mstore8 arg0, arg1
+      ret
+  }
+  
+  fn @and_wider(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+-     v0 = and arg1, 0xffff
+      mstore8 arg0, arg1
+      ret
+  }
+  
+  fn @byte_31(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+-     v0 = byte 31, arg1
+      mstore8 arg0, arg1
+      ret
+  }
+  
+  fn @sign_extended(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+-     v0 = signextend 0, arg1
+      mstore8 arg0, arg1
+      ret
+  }
+  
+  fn @shifted_mask(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+-     v0 = and arg1, 0xff00
+      v1 = shr arg1, 8
+      mstore8 arg0, v1
+      ret
+  }
+  
+  fn @zero_low_byte(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+-     v0 = shl arg1, 8
+      mstore8 arg0, 0
+      ret
+  }
+  
+  fn @zero_mask(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+-     v0 = and arg1, 0xff00
+      mstore8 arg0, 0
+      ret
+  }
+  
+  fn @shared_mask(arg0: ptr<memory>, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
+    bb0:
+      v0 = and arg1, 255
+      mstore8 arg0, arg1
+      ret v0, arg1
+  }
+  
+  fn @shared_mask_dying_operand(arg0: ptr<memory>, arg1: i256) -> i256 {
+    bb0:
+      v0 = and arg1, 255
+      mstore8 arg0, v0
+      ret v0
+  }
+  
+  fn @shared_shift(arg0: ptr<memory>, arg1: i256) -> i256 {
+    bb0:
+      v0 = and arg1, 0xff00
+      v1 = shr v0, 8
+      mstore8 arg0, v1
+      ret v1
+  }
+  
+  fn @narrow_mask(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = and arg1, 15
+      mstore8 arg0, v0
+      ret
+  }
+  
+  fn @shifted_byte(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = shl arg1, 4
+      mstore8 arg0, v0
+      ret
+  }
+  

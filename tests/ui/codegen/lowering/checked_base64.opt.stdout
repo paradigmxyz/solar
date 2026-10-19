@@ -555,10 +555,9 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v129 = lt v225, v35
     jumpi v129, bb21, bb22
   bb21:
-    v294 = and v103, 255
     v267 = add v289, v225
     v268 = add v267, 32
-    mstore8 v268, v294
+    mstore8 v268, v103
     jump bb22
   bb22:
     v229 = add v47, 3
