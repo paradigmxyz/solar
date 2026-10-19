@@ -77,6 +77,20 @@ fn @shared(arg0: i256) -> struct0 [selector=0x727ee1fa, pure, abi_params=[uint25
     ret v4
 }
 
+fn @sharedAboveShift(arg0: i256) -> struct0 [selector=0xb377deb4, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore v0, 0
+    v1 = and arg0, 0xf0f
+    v2 = shl v1, 4
+    v3 = and v2, 0xfff
+    mstore8 v0, v3
+    v4 = mload v0
+    v5 = insert_value struct0, undef struct0, 0, v4
+    v6 = insert_value struct0, v5, 1, v3
+    ret v6
+}
+
 fn @lowNibble(arg0: i256) -> i256 [selector=0x3d59ef7c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

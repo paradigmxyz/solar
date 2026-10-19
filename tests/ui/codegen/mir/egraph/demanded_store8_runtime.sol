@@ -9,6 +9,8 @@
 //@ run-call: shiftedLeft 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 //@ run-call: shared 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff12ab => 0xab00000000000000000000000000000000000000000000000000000000000000, 0xab
 //@ run-call: shared 0x1ff => 0xff00000000000000000000000000000000000000000000000000000000000000, 0xff
+//@ run-call: sharedAboveShift 0xff => 0xf000000000000000000000000000000000000000000000000000000000000000, 0xf0
+//@ run-call: sharedAboveShift 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xf000000000000000000000000000000000000000000000000000000000000000, 0xf0
 //@ run-call: lowNibble 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x0f00000000000000000000000000000000000000000000000000000000000000
 //@ run-call: soliditySlice 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff34 => 0x34
 contract DemandedStore8 {
@@ -72,6 +74,16 @@ contract DemandedStore8 {
             mstore(p, 0)
             mask := and(x, 0xff)
             mstore8(p, mask)
+            word := mload(p)
+        }
+    }
+
+    function sharedAboveShift(uint256 x) external pure returns (bytes32 word, uint256 low) {
+        assembly {
+            let p := mload(0x40)
+            mstore(p, 0)
+            low := and(shl(4, and(x, 0xf0f)), 0xfff)
+            mstore8(p, low)
             word := mload(p)
         }
     }

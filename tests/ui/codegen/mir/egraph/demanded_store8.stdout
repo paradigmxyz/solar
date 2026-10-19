@@ -98,6 +98,16 @@
       ret
   }
   
+  fn @shared_above_shift(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>) {
+    bb0:
+      v0 = and arg1, 0xf0f
+      v1 = shl v0, 4
+      v2 = and v1, 0xfff
+      mstore8 arg0, v2
+      mstore arg2, v2
+      ret
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/egraph/demanded_store8.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/demanded_store8.mir (after dce) ===
   @module DemandedStore8
@@ -187,6 +197,16 @@
     bb0:
       v0 = shl arg1, 4
       mstore8 arg0, v0
+      ret
+  }
+  
+  fn @shared_above_shift(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>) {
+    bb0:
+      v0 = and arg1, 0xf0f
+      v1 = shl v0, 4
+      v2 = and v1, 0xfff
+      mstore8 arg0, v2
+      mstore arg2, v2
       ret
   }
   

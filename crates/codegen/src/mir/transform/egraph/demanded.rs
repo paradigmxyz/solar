@@ -1,10 +1,11 @@
 //! Demanded-bits simplification of effectful operands.
 //!
-//! Some opcodes read only the low bits of an operand: `MSTORE8` stores the low 8 bits of its value.
-//! The opcode table declares these widths as `input_bits`. A
-//! value can have other users that need every bit, so the e-graph cannot rewrite the value itself.
-//! This step instead replaces the operand of the effectful instruction with a cheaper value that
-//! agrees on the demanded bits.
+//! Some opcodes read only the low bits of an operand: `MSTORE8` stores the low 8 bits of its
+//! value. The opcode table declares these widths as `input_bits`. A value can have other users
+//! that need every bit, so the e-graph cannot rewrite the value itself. This step instead
+//! replaces the operand of the effectful instruction with a cheaper value that agrees on the
+//! demanded bits. It is an analysis over operand chains with use-count conditions, which ISLE
+//! rules on one instruction cannot express.
 //!
 //! Starting from the demanded mask of an operand, it walks the operand's definition:
 //!
@@ -13,8 +14,8 @@
 //!   sign-extended width.
 //! - `shl(k, x)` is zero when the demanded bits lie below `k`.
 //! - `shl(k, x)` and `shr(k, x)` demand `mask >> k` and `mask << k` of `x`. The walk rewrites `x`
-//!   inside the shift only when the shift has no other user, since the rewrite changes the shift's
-//!   result outside the demanded bits.
+//!   inside the shift only when every value from the operand down to the shift has one user, since
+//!   the rewrite changes the shift's result outside the demanded bits.
 //!
 //! A masked value with other users is replaced only when the unmasked value has other users too:
 //! otherwise the store would keep both values live, which costs more stack traffic than the mask.
@@ -58,7 +59,7 @@ pub(super) fn simplify_demanded_operands(func: &mut Function) -> usize {
             }
             let uses = uses.get_or_insert_with(|| super::use_counts(func));
             let demanded = (U256::ONE << bits) - U256::ONE;
-            let simplified = simplify(func, uses, operand, demanded);
+            let simplified = simplify(func, uses, operand, demanded, true, MAX_DEPTH, &mut changed);
             // A shared operand stays live, so storing the unmasked value would keep both live
             // unless the unmasked value has other users.
             let keeps_two_live = uses[operand] > 1
@@ -68,6 +69,14 @@ pub(super) fn simplify_demanded_operands(func: &mut Function) -> usize {
                 // inst(.., operand, ..) => inst(.., simplified, ..)
                 replace_operand(func, uses, inst_id, index, simplified);
                 changed += 1;
+                tracing::trace!(
+                    target: super::TRACE_TARGET,
+                    function = %func.name,
+                    action = "demanded_operand",
+                    ?inst_id,
+                    index,
+                    "mir_egraph"
+                );
             }
         }
     }
@@ -84,15 +93,24 @@ enum Step {
     Stop,
 }
 
-/// Returns a value that agrees with `value` on the bits in `demanded`.
+/// Returns a value that agrees with `value` on the bits in `demanded`, following at most `depth`
+/// definitions.
+///
+/// `exclusive` holds while every value from the demanded operand down to `value` has one user.
+/// Only then may a shift on the path change in place, since no other instruction reads its
+/// result through the values above it. Each in-place edit adds to `changed`.
 fn simplify(
     func: &mut Function,
     uses: &mut IndexVec<ValueId, u32>,
     mut value: ValueId,
     demanded: U256,
+    mut exclusive: bool,
+    depth: u32,
+    changed: &mut usize,
 ) -> ValueId {
     let ty = func.value_ty(value);
-    for _ in 0..MAX_DEPTH {
+    for remaining in (0..depth).rev() {
+        exclusive &= uses[value] == 1;
         let Value::Inst(def) = *func.value(value) else { break };
         let step = match func.inst(def).kind {
             InstKind::And(a, b) => match (func.value_u256(a), func.value_u256(b)) {
@@ -119,7 +137,9 @@ fn simplify(
                 Some(count) if fits(demanded, count.to::<usize>()) => Step::Zero,
                 Some(count) => {
                     let inner = demanded >> count.to::<usize>();
-                    simplify_inner(func, uses, def, value, operand, inner);
+                    if exclusive {
+                        simplify_shifted(func, uses, def, operand, inner, remaining, changed);
+                    }
                     Step::Stop
                 }
                 None => Step::Stop,
@@ -128,7 +148,9 @@ fn simplify(
                 Some(count) if count >= U256::from(256) => Step::Zero,
                 Some(count) => {
                     let inner = demanded << count.to::<usize>();
-                    simplify_inner(func, uses, def, value, operand, inner);
+                    if exclusive {
+                        simplify_shifted(func, uses, def, operand, inner, remaining, changed);
+                    }
                     Step::Stop
                 }
                 None => Step::Stop,
@@ -148,23 +170,21 @@ fn simplify(
     value
 }
 
-/// Replaces the shifted operand of the shift `def` computing `value`, when only the `demanded`
-/// bits of the operand matter and no other instruction reads the shift.
-fn simplify_inner(
+/// Replaces the shifted operand of the shift `def`, when only the `demanded` bits of it matter.
+fn simplify_shifted(
     func: &mut Function,
     uses: &mut IndexVec<ValueId, u32>,
     def: InstId,
-    value: ValueId,
     operand: ValueId,
     demanded: U256,
+    depth: u32,
+    changed: &mut usize,
 ) {
-    if uses[value] != 1 {
-        return;
-    }
-    let simplified = simplify(func, uses, operand, demanded);
+    let simplified = simplify(func, uses, operand, demanded, true, depth, changed);
     if simplified != operand {
         // shift(count, operand) => shift(count, simplified)
         replace_operand(func, uses, def, 1, simplified);
+        *changed += 1;
     }
 }
 

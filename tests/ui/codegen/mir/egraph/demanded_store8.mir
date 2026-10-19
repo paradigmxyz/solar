@@ -136,3 +136,20 @@ fn @shifted_byte(arg0: ptr<memory>, arg1: i256) {
     mstore8 arg0, v0
     ret
 }
+
+// A value above the shift has another user, so the shift keeps its mask.
+// CHECK-LABEL: fn @shared_above_shift(
+// CHECK: [[MASK:v[0-9]+]] = and arg1, 0xf0f
+// CHECK: [[SHIFTED:v[0-9]+]] = shl [[MASK]], 4
+// CHECK: [[LOW:v[0-9]+]] = and [[SHIFTED]], 0xfff
+// CHECK: mstore8 arg0, [[LOW]]
+// CHECK: mstore arg2, [[LOW]]
+fn @shared_above_shift(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>) {
+  bb0:
+    v0 = and arg1, 0xf0f
+    v1 = shl v0, 4
+    v2 = and v1, 0xfff
+    mstore8 arg0, v2
+    mstore arg2, v2
+    ret
+}
