@@ -68,6 +68,11 @@ fn main() -> anyhow::Result<()> {
             }
             if let Some(mode) = mode {
                 cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", mode);
+                // Without `--no-capture`, nextest reports the harness as a single test instead of
+                // the harness's own `test result:` line with the real count.
+                if !bless && rest.is_empty() {
+                    cmd = cmd.arg("--no-capture");
+                }
             } else if let Some(t) = &test_name {
                 cmd = cmd.arg(t);
             }
