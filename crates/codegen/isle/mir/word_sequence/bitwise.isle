@@ -481,8 +481,8 @@
 ;; Requires: m is a constant that keeps every bit from s up, m == MAX << s.
 (rule (sequence_rewrite (Op.And x (iconst m)))
       (if-let true (late_word_sequence))
+      (if-let s (power_of_two_shift (u256_add (u256_xor m (u256_max)) (u256 1))))
       (if-let true (unshared_mask m))
       (if-let true (compared_mask x m))
-      (if-let s (power_of_two_shift (u256_add (u256_xor m (u256_max)) (u256 1))))
       (if-let count (imm s))
       (if-let low (make (Op.Shr count x))) (sequence (Op.Shl count low)))
