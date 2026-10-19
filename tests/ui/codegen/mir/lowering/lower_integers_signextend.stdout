@@ -23,3 +23,21 @@
 +     ret v4
   }
   
+- fn @cross_block(arg0: i8, arg1: i8, arg2: i1) -> i1 {
++ fn @cross_block(arg0: i256, arg1: i256, arg2: i1) -> i1 {
+    bb0:
+-     v0 = mul arg0, arg1
++     v2 = mul arg0, arg1
++     v3 = and v2, 255
+      jumpi arg2, bb1, bb2
+    bb2:
+      ret arg2
+    bb1:
+-     v1 = slt v0, arg1
+-     ret v1
++     v4 = signextend 0, v2
++     v5 = signextend 0, arg1
++     v6 = slt v4, v5
++     ret v6
+  }
+  

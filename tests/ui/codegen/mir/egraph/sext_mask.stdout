@@ -22,6 +22,17 @@
 +     ret v1, v3, v5, v3
   }
   
+  fn @byte_30_width(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
+    bb0:
+      v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v1 = signextend 30, v0
++     v1 = signextend 30, arg0
+      v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v3 = signextend 30, v2
+-     ret v1, v3
++     ret v1, v2
+  }
+  
   fn @keeps_holed_masks(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
     bb0:
       v0 = and arg0, 0xff00ff

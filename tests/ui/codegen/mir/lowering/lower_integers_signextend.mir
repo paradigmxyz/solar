@@ -26,3 +26,20 @@ fn @narrow_result_sext(arg0: i8, arg1: i8) -> i256 {
     v1 = sext i8 v0 to i256
     ret v1
 }
+
+// A later block sign-extends a value cleaned in a dominating block, in a signed comparison too.
+// CHECK-LABEL: {{^[ +].*}}fn @cross_block{{[( ]}}
+// CHECK: {{^[ +].*}}[[M:v[0-9]+]] = mul arg0, arg1
+// CHECK: {{^[ +].*}}[[C:v[0-9]+]] = and [[M]], 255
+// CHECK: {{^[ +].*}}[[S:v[0-9]+]] = signextend 0, [[M]]
+// CHECK: {{^[ +].*}}= slt [[S]], {{v[0-9]+}}
+fn @cross_block(arg0: i8, arg1: i8, arg2: i1) -> i1 {
+  bb0:
+    v0 = mul arg0, arg1
+    jumpi arg2, bb1, bb2
+  bb1:
+    v1 = slt v0, arg1
+    ret v1
+  bb2:
+    ret arg2
+}

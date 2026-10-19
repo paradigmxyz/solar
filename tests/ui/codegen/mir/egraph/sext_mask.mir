@@ -26,6 +26,21 @@ fn @drops_wide_masks(arg0: i256) -> struct0 [return_abi=[i256, i256, i256, i256]
     ret v2, v4, v6, v8
 }
 
+// The mask must cover the sign byte: byte 30 reads 248 bits, so a 248-bit mask goes. A 240-bit
+// mask is narrower than the sign byte, so it stays and the sign bit is known clear.
+// CHECK-LABEL: {{^[ +].*}}fn @byte_30_width{{[( ]}}
+// CHECK: {{^[ +].*}}[[A:v[0-9]+]] = signextend 30, arg0
+// CHECK: {{^[ +].*}}[[N:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}ret [[A]], [[N]]
+fn @byte_30_width(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
+  bb0:
+    v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = signextend 30, v1
+    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = signextend 30, v3
+    ret v2, v4
+}
+
 // A mask with a hole changes the result and stays.
 // CHECK-LABEL: {{^[ +].*}}fn @keeps_holed_masks{{[( ]}}
 // CHECK: {{^[ +].*}}[[M1:v[0-9]+]] = and arg0, 0xff00ff
