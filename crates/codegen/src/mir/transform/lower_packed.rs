@@ -205,6 +205,17 @@ impl PackedEncoder<'_, '_> {
             }
             index += 1;
         }
+        if !word_aligned {
+            // Clear the word after the encoding, as solc's final copy does: the
+            // bytes past its end in the last word read as zero padding, which
+            // code that reads whole words of the result, such as assembly,
+            // relies on. A bytes or calldata copy writes no further than its
+            // length, so the copied parts would otherwise leave the
+            // allocation's earlier contents there.
+            // mstore(output + 32 + total, 0)
+            let zero = self.builder.imm(0);
+            self.builder.memory_store_word(output, offset, zero);
+        }
         output
     }
 
