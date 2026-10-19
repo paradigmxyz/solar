@@ -26,7 +26,8 @@
 //!
 //! - each access's index `offset + k` (`checked_add`, or `k` itself) and its bounds check
 //!   `panic_if_zero<0x32> (lt index, length)`, where the length is `mload object` for a memory
-//!   object and the slice's length field for a calldata slice;
+//!   object, or the length a fresh allocation stored once load forwarding has replaced that load,
+//!   and the slice's length field for a calldata slice;
 //! - a gather's `byte 0` of the word at the indexed byte, shifted into place by `8 * k` and ORed
 //!   into an accumulator phi that starts at zero, with optional masks that keep the leading bytes
 //!   of a `bytesN` result;
@@ -46,8 +47,10 @@
 //! bounds check or gas ends first. So the first failure is always `Panic(0x32)`, and the
 //! replacement raises it exactly when the bound is not zero and the bound exceeds the length or
 //! the offset exceeds the length minus the bound, for every buffer, or a scatter's bound
-//! exceeds its value's width. A panic reverts the call frame, so the bytes a failing loop wrote
-//! before it panicked were never observable.
+//! exceeds its value's width. A length the checks read from before the loop is the value the
+//! replacement compares with, so the two fail on the same inputs whatever that value is. A panic
+//! reverts the call frame, so the bytes a failing loop wrote before it panicked were never
+//! observable.
 //!
 //! The word read starts at the lowest byte the loop read and ends inside the last word the loop
 //! read, so it touches no memory the loop did not. A scatter below 32 bytes reads and rewrites
@@ -65,9 +68,12 @@
 //! # Place in the pipeline
 //!
 //! The pass runs on semantic MIR right after `loop-canonicalize`, where checks are still single
-//! instructions and object identities are explicit, and before the inliner, so a helper that
-//! spells a word access shrinks to a few instructions before callers decide to inline it. Both
-//! optimization objectives run it: the result is smaller and cheaper.
+//! instructions and object identities are explicit. `inline-tagged` has already cloned the
+//! `@custom:solar-inline` helpers, so their loops see the callers' objects: a copy into a buffer
+//! the caller just allocated needs no overlap guard. The pass runs before the cost-based
+//! inliner, so any other helper that spells a word access shrinks to a few instructions before
+//! callers decide to inline it. Both optimization objectives run it: the result is smaller and
+//! cheaper.
 //!
 //! A copy may also run downwards, from `offset + bound - 1` to `offset`, as a memmove toward
 //! higher addresses is written. Its first iteration touches the highest indices, so it alone
@@ -163,6 +169,9 @@ enum Buffer {
 struct Access {
     buffer: Buffer,
     offset: Option<ValueId>,
+    /// The length the loop's check compares with, when it is a value from before the loop
+    /// rather than a load of the length word.
+    len: Option<ValueId>,
 }
 
 /// How a copy's ranges relate.
@@ -444,18 +453,26 @@ fn is_calldata_slice(func: &Function, value: ValueId) -> bool {
     matches!(func.value_ty(value), Some(MirType::Slice(PtrLocation::Calldata)))
 }
 
-/// Finds the body's range check of `idx` against the buffer's length.
+/// Finds the body's range check of `idx` against the buffer's length. Returns the check's
+/// instructions and, for a length from before the loop, that length.
 fn bounds_check(
     func: &Function,
+    l: &Loop,
     lp: &Counted,
     buffer: Buffer,
     idx: ValueId,
-) -> Option<Vec<InstId>> {
+) -> Option<(Vec<InstId>, Option<ValueId>)> {
     lp.insts.iter().find_map(|&inst| {
         let condition = array_check(func, inst)?;
         let (cmp, &InstKind::Lt(a, len)) = body_def(func, lp, condition)? else { return None };
         if a != idx {
             return None;
+        }
+        if let Buffer::Memory(object) = buffer
+            && stored_length(func, object) == Some(len)
+            && defined_outside(func, l, len)
+        {
+            return Some((vec![inst, cmp], Some(len)));
         }
         let Value::Inst(len_inst) = *func.value(len) else { return None };
         let matches = match buffer {
@@ -468,7 +485,21 @@ fn bounds_check(
                     if aggregate == slice && index == MirType::SLICE_LEN_FIELD
             ),
         };
-        matches.then(|| vec![inst, cmp, len_inst])
+        matches.then(|| (vec![inst, cmp, len_inst], None))
+    })
+}
+
+/// The length a fresh allocation's block first stores into its length word, as `new bytes(n)`
+/// does. Load forwarding gives the object's checks that value in place of the length load.
+fn stored_length(func: &Function, object: ValueId) -> Option<ValueId> {
+    let Value::Inst(alloc) = *func.value(object) else { return None };
+    if !matches!(func.inst(alloc).kind, InstKind::Alloc { .. }) {
+        return None;
+    }
+    let block = func.blocks.iter().find(|block| block.instructions.contains(&alloc))?;
+    block.instructions.iter().find_map(|&inst| match func.inst(inst).kind {
+        InstKind::Store(ptr, len, PtrLocation::Memory) if ptr == object => Some(len),
+        _ => None,
     })
 }
 
@@ -538,8 +569,9 @@ fn checked_access(
     }
     let (offset, index_insts) = index(func, l, lp, idx)?;
     used.extend(index_insts);
-    used.extend(bounds_check(func, lp, buffer, idx)?);
-    Some(Access { buffer, offset })
+    let (check, len) = bounds_check(func, l, lp, buffer, idx)?;
+    used.extend(check);
+    Some(Access { buffer, offset, len })
 }
 
 /// Accepts `and value, mask` when the mask keeps the leading bytes of a word. Returns the
@@ -712,9 +744,11 @@ fn copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     }
     let (dst_offset, dst_index) = index(func, l, lp, dst_idx)?;
     used.extend(dst_index);
-    let dst_checked = match bounds_check(func, lp, Buffer::Memory(dst), dst_idx) {
-        Some(check) => {
+    let mut dst_len = None;
+    let dst_checked = match bounds_check(func, l, lp, Buffer::Memory(dst), dst_idx) {
+        Some((check, len)) => {
             used.extend(check);
+            dst_len = len;
             true
         }
         None if dst_offset.is_none() && !lp.descending => {
@@ -735,7 +769,7 @@ fn copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     };
     only_pattern_effects(func, lp, &used).then_some(Shape::Copy {
         src,
-        dst: Access { buffer: Buffer::Memory(dst), offset: dst_offset },
+        dst: Access { buffer: Buffer::Memory(dst), offset: dst_offset, len: dst_len },
         dst_checked,
         overlap,
     })
@@ -917,8 +951,11 @@ fn range_fails(
     fails
 }
 
-/// Emits the length of the access's buffer.
+/// Emits the length of the access's buffer, or returns the one the loop compared with.
 fn buffer_len(builder: &mut FunctionBuilder<'_>, access: &Access) -> ValueId {
+    if let Some(len) = access.len {
+        return len;
+    }
     match access.buffer {
         // len = mload object
         Buffer::Memory(object) => builder.load(object, PtrLocation::Memory),
