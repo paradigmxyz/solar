@@ -76,3 +76,36 @@ fn @cheap_memory(arg0: i1, arg1: i1) -> i256 {
   bb4:
     ret 99
 }
+
+// Splitting the first join's edge rebuilds alias analysis, which keeps the call
+// summaries: the storage-free call does not kill the second join's key.
+// CHECK-LABEL: fn @split_then_call
+// CHECK: + {{v[0-9]+}} = phi [bb1: v0], [{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + [[JOIN:v[0-9]+]] = phi [bb3: v2], [bb4: v3]
+// CHECK: + ret [[JOIN]]
+fn @split_then_call(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = sload 0
+    jump bb2
+  bb2:
+    v1 = sload 0
+    jumpi arg1, bb3, bb4
+  bb3:
+    v2 = sload 1
+    icall @storage_free
+    jump bb5
+  bb4:
+    v3 = sload 1
+    jump bb5
+  bb5:
+    v4 = sload 1
+    v5 = add v1, v4
+    ret v4
+}
+
+fn @storage_free() {
+  bb0:
+    ret
+}

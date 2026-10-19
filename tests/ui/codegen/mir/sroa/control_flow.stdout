@@ -72,16 +72,6 @@
 +     ret v6
   }
   
-  fn @observe_size() -> i256 {
-    bb0:
-      v0 = alloc 32
-      v1 = ptrtoint ptr<memory> v0 to i256
-      memory_zero v1, 32
-      mstore v0, 7
-      v2 = msize
-      ret v2
-  }
-  
   fn @outside_object() -> i256 {
     bb0:
       v0 = alloc 32
@@ -144,16 +134,6 @@
     bb2:
       v6 = phi [bb0: 0], [bb1: arg1]
       ret v6
-  }
-  
-  fn @observe_size() -> i256 {
-    bb0:
-      v0 = alloc 32
-      v1 = ptrtoint ptr<memory> v0 to i256
-      memory_zero v1, 32
-      mstore v0, 7
-      v2 = msize
-      ret v2
   }
   
   fn @outside_object() -> i256 {

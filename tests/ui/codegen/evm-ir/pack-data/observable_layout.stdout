@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/evm-ir/constant-data/observable_data.evmir (before constant-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/constant-data/observable_data.evmir (after constant-data) ===
-  @module ObservableData
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/observable_layout.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/observable_layout.evmir (after pack-data) ===
+  @module ObservableLayout
   bb0:
     codesize
     pop

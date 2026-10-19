@@ -1,0 +1,104 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/store_shapes.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/store_shapes.evmir (after pack-data) ===
+  @module store_shapes
++ @data
++   literal_0: hex"11111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222"
++   literal_1: hex"333333333333333333333333333333333333333333333333333333333333333344444444444444444444444444444444444444444444444444444444444444445555555555555555555555555555555555555555555555555555555555555555"
++   literal_2: hex"88888888888888888888888888888888888888888888888888888888888888889999999999999999999999999999999999999999999999999999999999999999cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
++   literal_3: hex"5555555555555555555555555555555555555555555555555555555555555555666666666666666666666666666666666666666666666666666666666666666677885566778899aabbccddeeff00112233445566778899aabbccddeeff0000000000"
++ 
+  bb0:
+    push 128
+-   push 0x2222222222222222222222222222222222222222222222222222222222222222
+-   push 32
++   push 64
++   push_data literal_0
+    dup 3
+-   add
+-   mstore
+-   push 0x1111111111111111111111111111111111111111111111111111111111111111
+-   dup 2
+-   mstore
++   codecopy
+    stop
+  bb1:
+-   push 0x3333333333333333333333333333333333333333333333333333333333333333
++   push 96
++   push_data literal_1
+    push 0
+-   mstore
+-   push 0x4444444444444444444444444444444444444444444444444444444444444444
+-   push 32
+-   mstore
+-   push 0x5555555555555555555555555555555555555555555555555555555555555555
+-   push 64
+-   mstore
++   codecopy
+    stop
+  bb2:
+    push 128
+-   push 0x5555555555555555555555555555555555555555555555555555555555555555
+-   dup 2
+-   mstore
+-   push 0x6666666666666666666666666666666666666666666666666666666666666666
+-   push 32
++   push 98
++   push_data literal_3
+    dup 3
+-   add
+-   mstore
+-   push 119
+-   push 64
+-   dup 3
+-   add
+-   mstore8
+-   push 136
+-   push 65
+-   dup 3
+-   add
+-   mstore8
+-   push 0x5566778899aabbccddeeff00112233445566778899aabbccddeeff
+-   push 40
+-   shl
+-   push 66
+-   dup 3
+-   add
+-   mstore
++   codecopy
+    stop
+  bb3:
++   push 96
++   push_data literal_2
+    push 128
+-   push 0x8888888888888888888888888888888888888888888888888888888888888888
+-   dup 2
+-   mstore
+-   push 32
+-   dup 2
+-   add
+-   push 0x9999999999999999999999999999999999999999999999999999999999999999
+-   dup 2
+-   mstore
+-   push 0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+-   push 32
+-   dup 3
+-   add
+-   mstore
++   codecopy
++   push 128
++   push 160
+    pop
+    pop
+    stop
+  bb4:
+    push 128
+    push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    dup 2
+    mstore
+    push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    push 64
+    dup 3
+    add
+    mstore
+    stop
+  

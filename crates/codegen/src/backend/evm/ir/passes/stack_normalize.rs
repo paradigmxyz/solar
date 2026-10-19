@@ -31,8 +31,16 @@
 //! native `EXCHANGE`, and may use it wherever it is cheaper. Besides resynthesis, it folds each
 //! cycle through the top that leaves the top in place, `SWAPa SWAPb ... SWAPa`, into one
 //! `EXCHANGE a, b` per inner swap when that improves the lowered cost.
+//!
+//! The separate `stack-dedup` pass follows the values of each run of pushes and stack operations
+//! that contains a `DUP`, treating every push as a new value, and deletes a `SWAP` or `EXCHANGE`
+//! whose two words hold the same value. It runs once after `stack-reschedule`, whose schedules
+//! can leave such swaps.
 
-use super::EvmPass;
+use super::{
+    EvmPass,
+    utils::{SymbolicStackOp, symbolic_stack_op},
+};
 use crate::{
     backend::evm::{
         codegen::{StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops},
@@ -491,17 +499,4 @@ fn find_redundant_permutations(
             SymbolicStackOp::Physical(op) => stack.apply(op),
         }
     }
-}
-
-#[derive(Clone, Copy)]
-enum SymbolicStackOp {
-    Push,
-    Physical(StackOp),
-}
-
-fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
-    if inst.is_encoded_push() {
-        return Some(SymbolicStackOp::Push);
-    }
-    inst.as_stack_op().map(SymbolicStackOp::Physical)
 }

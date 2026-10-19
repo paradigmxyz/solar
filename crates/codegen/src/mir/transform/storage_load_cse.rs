@@ -4,7 +4,9 @@
 //! no intervening storage write may alias the loaded slot. Exact stores also
 //! forward their full word to subsequent loads. This exposes packed field
 //! updates as word expressions, allowing storage DSE to remove intermediate
-//! writes while retaining every preserved bit. Calls and possible aliases
+//! writes while retaining every preserved bit. A load whose earlier load of the
+//! same slot is no longer used stays and replaces it in the cache, so forwarding
+//! never extends a loaded value's lifetime. Calls and possible aliases
 //! invalidate both load and store facts. After a `gas` read, storage accesses
 //! remain explicit so a later `gas` read observes their cost and warmness
 //! effects, including observations in predecessor blocks and transitive callees.
@@ -45,8 +47,8 @@ impl MirPass for StorageLoadCse {
             analyses,
             &selected,
             |func, analyses| {
-                let mut cse = StorageLoadCseCx::new();
-                cse.alias = Some(Rc::clone(analyses.alias()));
+                let mut cse =
+                    StorageLoadCseCx::new(Rc::clone(analyses.alias()), Rc::clone(analyses.cfg()));
                 let changed = cse.run_to_fixpoint(func) != 0;
                 if cse.annotated_aliases {
                     analyses.note_unreported_edit();
@@ -58,11 +60,12 @@ impl MirPass for StorageLoadCse {
 }
 
 /// Local storage load CSE pass.
-#[derive(Debug, Default)]
 struct StorageLoadCseCx {
     /// Number of storage loads eliminated.
     eliminated_count: usize,
-    alias: Option<Rc<AliasAnalysis>>,
+    alias: Rc<AliasAnalysis>,
+    /// The pass rewrites operands and removes loads only, so one CFG snapshot serves every round.
+    cfg: Rc<CfgInfo>,
     /// Whether storage-alias annotation changed metadata, which is not reported as a change.
     annotated_aliases: bool,
 }
@@ -85,24 +88,21 @@ impl RunState {
 
 impl StorageLoadCseCx {
     /// Creates a new storage-load CSE pass.
-    fn new() -> Self {
-        Self::default()
+    fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>) -> Self {
+        Self { eliminated_count: 0, alias, cfg, annotated_aliases: false }
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         self.annotated_aliases |=
             func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
-        if self.alias.is_none() {
-            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
-        }
 
         // Liveness is only needed when a load meets an earlier load of the same slot.
         let liveness = OnceCell::new();
         state.replacements.clear();
         state.dead.clear();
 
-        let gas = GasObservations::new(func, &CfgInfo::new(func), self.alias.as_ref().unwrap());
+        let gas = GasObservations::new(func, &self.cfg, &self.alias);
         for block_id in func.blocks.indices() {
             state.cached_loads.clear();
             self.process_block(func, block_id, &liveness, &gas, state);
@@ -142,7 +142,7 @@ impl StorageLoadCseCx {
         gas: &GasObservations,
         state: &mut RunState,
     ) {
-        let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
+        let aa = &*self.alias;
         let mut gas_observed = gas.at_entry(block_id);
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
             match &func.inst(inst_id).kind {
