@@ -342,7 +342,7 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
             let is_branch_only =
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
             let mut best = None;
-            for recipe in isle::alternatives(func, &seen, &op, target, late) {
+            for recipe in isle::alternatives(func, &original, &seen, &op, target, late) {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {
                     // Nothing changed before the first count; this block is detached.

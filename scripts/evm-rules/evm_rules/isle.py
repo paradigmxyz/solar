@@ -522,6 +522,8 @@ class Context:
             "push_not_larger",
             "optimize_for_size",
             "late_word_sequence",
+            "unshared_mask",
+            "compared_mask",
         ):
             # In particular, different ValueIds must NOT imply different word values.
             self.contracts.add(f"{name}: structural/fork condition is overapproximated")
