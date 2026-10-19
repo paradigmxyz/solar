@@ -8,7 +8,7 @@ use eyre::{Result, eyre};
 use regex::bytes::Regex;
 use std::{
     ffi::{OsStr, OsString},
-    io::{self, Write},
+    io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::OnceLock,
@@ -29,6 +29,7 @@ mod codegen_matrix;
 mod errors;
 #[cfg(test)]
 mod foundry;
+mod quiet;
 mod run_call;
 mod solc;
 mod standard_json;
@@ -52,8 +53,8 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     }
 
     // Condense output if not explicitly requested.
-    let requested_pretty = || std::env::args().any(|x| x.contains("--format"));
-    if matches!(args.format, ui_test::Format::Pretty) && !requested_pretty() {
+    let requested_format = std::env::args().any(|x| x.contains("--format"));
+    if matches!(args.format, ui_test::Format::Pretty) && !requested_format {
         args.format = ui_test::Format::Terse;
     }
 
@@ -84,7 +85,14 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     let tmp_dir = &*Box::leak(tmp_dir.path().to_path_buf().into_boxed_path());
     let configs = modes.iter().copied().map(|mode| config(cmd, &args, mode)).collect();
 
-    let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
+    // Without a terminal there is no progress bar, only one `ok` line per test: print just the
+    // failures and the summary instead.
+    let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> =
+        if !requested_format && !io::stdout().is_terminal() {
+            Box::new(quiet::Quiet::new())
+        } else {
+            args.format.into()
+        };
     let gha_name = if modes.len() == 1 { modes[0].to_string() } else { "ui-tests".to_string() };
     let gha_emitter = ui_test::status_emitter::Gha { name: gha_name, group: true };
     let status_emitter = (text_emitter, gha_emitter);
