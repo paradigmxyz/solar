@@ -1,0 +1,28 @@
+//@compile-flags: -Zmir-pipeline=lower-integers
+//@filecheck:
+@module IntegerSignExtend
+
+// `signextend` reads only the low bytes of its operand, so a sign extension of a truncation or of
+// a narrow result starts from the word before `lower-integers` masks it.
+// CHECK-LABEL: {{^[ +].*}}fn @trunc_sext{{[( ]}}
+// CHECK: {{^[ +].*}}[[T:v[0-9]+]] = and arg0, 0xffffff
+// CHECK: {{^[ +].*}}[[S:v[0-9]+]] = signextend 2, arg0
+// CHECK: {{^[ +].*}}ret [[S]]
+fn @trunc_sext(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i24
+    v1 = sext i24 v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @narrow_result_sext{{[( ]}}
+// CHECK: {{^[ +].*}}[[M:v[0-9]+]] = mul arg0, arg1
+// CHECK: {{^[ +].*}}[[C:v[0-9]+]] = and [[M]], 255
+// CHECK: {{^[ +].*}}[[S:v[0-9]+]] = signextend 0, [[M]]
+// CHECK: {{^[ +].*}}ret [[S]]
+fn @narrow_result_sext(arg0: i8, arg1: i8) -> i256 {
+  bb0:
+    v0 = mul arg0, arg1
+    v1 = sext i8 v0 to i256
+    ret v1
+}
