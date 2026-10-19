@@ -174,7 +174,7 @@ fn @entry() [entry] {
     jumpi v1, bb12, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb12, [0xd00d797 => bb2, 0x1b3012a3 => bb3, 0x38f844b9 => bb4, 0x4c092794 => bb5, 0x672c8259 => bb6, 0x6ec059cd => bb7, 0x73d4a13a => bb8, 0xb9ad073e => bb9, 0xe1910fda => bb10, 0xe5a3e763 => bb11]
   bb11:
     tail_call @subsliceHash
@@ -460,10 +460,27 @@ bb30:
   push 32
   dup 2
   add
-  push bb34
-  jump bb32
-bb32:
   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  dup 1
+  dup 3
+  mstore
+  push 64
+  dup 4
+  add
+  mstore
+  push 64
+  dup 2
+  push 96
+  dup 5
+  add
+  mcopy
+  push 32
+  dup 2
+  push 160
+  dup 5
+  add
+  mcopy
+  pop
   swap 1
   jump
 bb22:
@@ -508,28 +525,3 @@ bb26:
   mstore
   push bb23
   jump bb30
-bb33 [continuation]:
-  push 64
-  dup 4
-  add
-  mstore
-  push 64
-  dup 2
-  push 96
-  dup 5
-  add
-  mcopy
-  push 32
-  dup 2
-  push 160
-  dup 5
-  add
-  mcopy
-  pop
-  swap 1
-  jump
-bb34 [continuation]:
-  dup 2
-  mstore
-  push bb33
-  jump bb32

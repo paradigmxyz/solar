@@ -3,10 +3,10 @@
 @types
   struct0: {i256, i256, i256, i256, i256, i256}
 
-fn @six(arg0: ptr<memory>) -> struct0 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @six(arg0: ptr<memory>) -> struct0 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mload arg0
-    v1 = checked_add u256, v0, 4
+    v1 = checked_add uint256, v0, 4
     v2 = insert_value struct0, undef struct0, 0, v1
     v3 = insert_value struct0, v2, 1, 1
     v4 = insert_value struct0, v3, 2, 2
@@ -16,10 +16,10 @@ fn @six(arg0: ptr<memory>) -> struct0 [selector=0xb84d18fb, pure, abi_params=[by
     ret v7
 }
 
-fn @sixString(arg0: ptr<memory>) -> struct0 [selector=0xa52f51f1, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @sixString(arg0: ptr<memory>) -> struct0 [selector=0xa52f51f1, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mload arg0
-    v1 = checked_add u256, v0, 4
+    v1 = checked_add uint256, v0, 4
     v2 = insert_value struct0, undef struct0, 0, v1
     v3 = insert_value struct0, v2, 1, 1
     v4 = insert_value struct0, v3, 2, 2
@@ -37,7 +37,7 @@ fn @sixString(arg0: ptr<memory>) -> struct0 [selector=0xa52f51f1, pure, abi_para
 @data
   WideCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_dynamic_argument_expansion.sol:WideCallee"
 
-fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize WideCallee_creation_code_0
@@ -105,11 +105,11 @@ fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word],
     v50 = extract_value struct0, v46, 3
     v51 = extract_value struct0, v46, 4
     v52 = extract_value struct0, v46, 5
-    v53 = checked_add u256, v47, v52
+    v53 = checked_add uint256, v47, v52
     ret v53
 }
 
-fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize WideCallee_creation_code_0
@@ -170,14 +170,14 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
     v38 = ptrtoint ptr<memory> v14 to i256
     v39 = add v38, 160
     v40 = mload v39
-    v41 = checked_add u256, v25, v40
+    v41 = checked_add uint256, v25, v40
     jump bb5
   bb5:
     v42 = phi [bb3: v41], [bb6: 7]
     ret v42
 }
 
-fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize WideCallee_creation_code_0
@@ -245,6 +245,6 @@ fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
     v50 = extract_value struct0, v46, 3
     v51 = extract_value struct0, v46, 4
     v52 = extract_value struct0, v46, 5
-    v53 = checked_add u256, v47, v52
+    v53 = checked_add uint256, v47, v52
     ret v53
 }

@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_carry_rejected_shapes.sol:LoopCarryRejectedShapes ===
 @module LoopCarryRejectedShapes
-fn @counter() -> i256 [selector=0x61bc221a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @counter() -> i256 [selector=0x61bc221a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @sumEvens(arg0: i256) -> i256 [selector=0x0c4376eb, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sumEvens(arg0: i256) -> i256 [selector=0x0c4376eb, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -20,15 +20,15 @@ fn @sumEvens(arg0: i256) -> i256 [selector=0x0c4376eb, abi_params=[u256], abi_re
   bb2:
     ret v1
   bb4:
-    v4 = checked_rem u256, v2, 2
+    v4 = checked_rem uint256, v2, 2
     v5 = eq v4, 0
     jumpi v5, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v6 = checked_add u256, v1, v2
+    v6 = checked_add uint256, v1, v2
     v7 = sload 0 !metadata(storage=slot(0))
-    v8 = checked_add u256, v7, 1
+    v8 = checked_add uint256, v7, 1
     sstore 0, v8 !metadata(storage=slot(0))
     jump bb9
   bb9:
@@ -37,11 +37,11 @@ fn @sumEvens(arg0: i256) -> i256 [selector=0x0c4376eb, abi_params=[u256], abi_re
   bb6:
     jump bb3
   bb3:
-    v10 = checked_add u256, v2, 1
+    v10 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @countdown(arg0: i256, arg1: i256) -> i256 [selector=0x8275b13a, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @countdown(arg0: i256, arg1: i256) -> i256 [selector=0x8275b13a, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -49,13 +49,13 @@ fn @countdown(arg0: i256, arg1: i256) -> i256 [selector=0x8275b13a, pure, abi_pa
     v1 = phi [bb0: arg1], [bb7: v1]
     v2 = phi [bb0: 0], [bb7: v4]
     v3 = phi [bb0: arg0], [bb7: v6]
-    v4 = checked_add u256, v2, v3
+    v4 = checked_add uint256, v2, v3
     v5 = eq v3, 0
     jumpi v5, bb4, bb5
   bb5:
     jump bb6
   bb6:
-    v6 = checked_sub u256, v3, 1
+    v6 = checked_sub uint256, v3, 1
     jump bb3
   bb3:
     jumpi true, bb7, bb8
@@ -67,13 +67,13 @@ fn @countdown(arg0: i256, arg1: i256) -> i256 [selector=0x8275b13a, pure, abi_pa
     jump bb2
   bb2:
     v7 = phi [bb4: v3], [bb8: v6]
-    v8 = checked_add u256, v4, v1
+    v8 = checked_add uint256, v4, v1
     ret v8
   bb9:
     invalid
 }
 
-fn @firstAbove(arg0: i256) -> i256 [selector=0x0d7505f6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @firstAbove(arg0: i256) -> i256 [selector=0x0d7505f6, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -87,7 +87,7 @@ fn @firstAbove(arg0: i256) -> i256 [selector=0x0d7505f6, pure, abi_params=[u256]
   bb2:
     ret v1
   bb3:
-    v4 = checked_add u256, v1, 1
+    v4 = checked_add uint256, v1, 1
     jump bb5
   bb5:
     jump bb1

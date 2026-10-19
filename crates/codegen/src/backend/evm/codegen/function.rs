@@ -137,20 +137,19 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// reachable exits all abort.
     fn block_aborts(&self, func: &Function, block_id: BlockId) -> bool {
         let block = &func.blocks[block_id];
-        matches!(
-            block.terminator,
-            Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
-        ) || matches!(
-            block.terminator,
-            Some(Terminator::TailCall { function, .. })
-                if self.cold_functions.contains(function)
-        ) || block.instructions.iter().any(|&inst_id| {
-            matches!(
-                func.inst(inst_id).kind,
-                InstKind::ICall { function: Callee::Function(function), .. }
+        block.terminator.as_ref().is_some_and(Terminator::reverts)
+            || matches!(
+                block.terminator,
+                Some(Terminator::TailCall { function, .. })
                     if self.cold_functions.contains(function)
             )
-        })
+            || block.instructions.iter().any(|&inst_id| {
+                matches!(
+                    func.inst(inst_id).kind,
+                    InstKind::ICall { function: Callee::Function(function), .. }
+                        if self.cold_functions.contains(function)
+                )
+            })
     }
 
     pub(super) fn block_is_cold(&self, block_id: BlockId) -> bool {

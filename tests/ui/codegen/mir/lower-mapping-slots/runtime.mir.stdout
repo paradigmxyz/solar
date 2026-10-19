@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/runtime.sol:SlotHashRuntime ===
 @module SlotHashRuntime
-fn @words(arg0: i256) -> i256 [selector=0x884fc838, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @words(arg0: i256) -> i256 [selector=0x884fc838, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot 17, 0
     sstore v0, 7 !metadata(storage=symbolic(v0))
@@ -18,16 +18,16 @@ fn @words(arg0: i256) -> i256 [selector=0x884fc838, abi_params=[u256], abi_retur
   bb4:
     v5 = mapping_slot 17, 0
     v6 = sload v5 !metadata(storage=symbolic(v5))
-    v7 = checked_add u256, v2, v6
+    v7 = checked_add uint256, v2, v6
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v8 = checked_add u256, v3, 1
+    v8 = checked_add uint256, v3, 1
     jump bb1
 }
 
-fn @bits(arg0: i8, arg1: i8) -> i256 [selector=0x3fbe8cdc, pure, abi_params=[u8, u8], abi_returns=[word], abi_return_params=[u256]] {
+fn @bits(arg0: i8, arg1: i8) -> i256 [selector=0x3fbe8cdc, pure, abi_params=[uint8, uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = xor arg0, arg1
     v1 = zext i8 v0 to i256

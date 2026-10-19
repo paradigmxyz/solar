@@ -9,13 +9,13 @@ fn @memoryEncode() -> ptr<memory> [selector=0xe39243fb, pure, abi_params=[], abi
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
-    v1 = shl 32, 0
+    v1 = shl 0, 32
     v2 = or v1, 0xd4b83992
     v3 = mload v0
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = shl 64, v2
+    v6 = shl v2, 64
     v7 = ptradd v0, 32
     mstore v7, v6
     v8 = abi_encode_packed (array<function> memoryarray<1> v0)
@@ -65,13 +65,13 @@ fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi
     v26 = ptrtoint ptr<calldata> v1 to i256
     v27 = add v26, v25
     v28 = calldataload v27
-    v29 = shl 192, v28
+    v29 = shl v28, 192
     v30 = eq v29, 0
     v31 = eq v30, false
     icall revert_if<empty>, v31
-    v32 = shr 64, v28
-    v33 = shl 64, v32
-    v34 = shl 5, v23
+    v32 = shr v28, 64
+    v33 = shl v32, 64
+    v34 = shl v23, 5
     v35 = ptradd v22, v34
     v36 = ptradd v35, 32
     mstore v36, v33

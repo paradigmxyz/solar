@@ -12,7 +12,7 @@ fn @entry() [entry] {
     jumpi v5, bb1, bb2
   bb2:
     v6 = calldataload 0
-    v7 = shr 224, v6
+    v7 = shr v6, 224
     v8 = calldataload 4
     v9 = calldataload 36
     switch v7, default bb1, [0x867025b4 => bb3, 0xb77153be => bb4, 0xc77230d0 => bb5]
@@ -25,12 +25,12 @@ fn @entry() [entry] {
     v58 = or v56, v57
     v66 = calldataload v54
     v67 = sub v52, v55
-    v68 = shr 5, v67
+    v68 = shr v67, 5
     v69 = gt v66, v68
     v114 = or v58, v69
     jumpi v114, bb1, bb22
   bb22:
-    v74 = shl 5, v66
+    v74 = shl v66, 5
     v75 = add v55, v74
     v109 = and v66, 1
     v110 = ne v109, 0
@@ -67,7 +67,7 @@ fn @entry() [entry] {
   bb21:
     v98 = phi [bb20: v72], [bb29: v55], [bb19: v73]
     v76 = sub v98, v55
-    v77 = shr 5, v76
+    v77 = shr v76, 5
     mstore 128, v77
     returndata 128, 32
   bb4:
@@ -79,7 +79,7 @@ fn @entry() [entry] {
     v37 = or v35, v36
     v46 = calldataload v33
     v47 = sub v31, v34
-    v48 = shr 5, v47
+    v48 = shr v47, 5
     v49 = gt v46, v48
     v113 = or v37, v49
     jumpi v113, bb1, bb16
@@ -93,7 +93,7 @@ fn @entry() [entry] {
     v40 = lt v38, v9
     jumpi v40, bb15, bb12
   bb15:
-    v42 = shl 5, v38
+    v42 = shl v38, 5
     v43 = add v34, v42
     v44 = calldataload v43
     v45 = eq v44, 0
@@ -113,12 +113,12 @@ fn @entry() [entry] {
     v16 = or v14, v15
     v25 = calldataload v12
     v26 = sub v10, v13
-    v27 = shr 5, v26
+    v27 = shr v26, 5
     v28 = gt v25, v27
     v112 = or v16, v28
     jumpi v112, bb1, bb10
   bb10:
-    v80 = shl 5, v25
+    v80 = shl v25, 5
     v81 = add v13, v80
     v95 = and v25, 1
     v96 = ne v95, 0
@@ -152,7 +152,7 @@ fn @entry() [entry] {
   bb23:
     v84 = phi [bb9: v78], [bb25: v13], [bb8: v79]
     v82 = sub v84, v13
-    v83 = shr 5, v82
+    v83 = shr v82, 5
     jump bb7
   bb7:
     v19 = phi [bb23: v83], [bb6: v25]

@@ -1,0 +1,15 @@
+//@compile-flags: -Zevm-ir-pipeline=reorder-pushes --evm-version amsterdam
+//@filecheck:
+@module ReorderSlotnum
+
+// `SLOTNUM` reads the block's slot like `NUMBER`, so a later push moves before it.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 10
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: +   slotnum
+bb0:
+  slotnum
+  push 10
+  swap 1
+  sub
+  stop

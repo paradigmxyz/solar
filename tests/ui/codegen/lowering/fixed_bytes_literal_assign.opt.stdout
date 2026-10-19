@@ -24,7 +24,7 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
   bb2:
     v11 = mload v21
     v12 = byte 0, v11
-    v13 = shl 248, v12
+    v13 = shl v12, 248
     mstore 128, v13
     returndata 128, 32
   bb3:
@@ -37,7 +37,7 @@ fn @store() [selector=0x975057e7, abi_wrapper] {
     v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v5 = or v2, 45
     sstore 0, v5 !metadata(storage=slot(0))
-    v7 = shl 248, v5
+    v7 = shl v5, 248
     mstore 128, v7
     returndata 128, 32
 }
@@ -49,7 +49,7 @@ fn @entry() [entry] {
     jumpi v1, bb4, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb4, [0x7f603a02 => bb2, 0x975057e7 => bb3]
   bb3:
     tail_call @store

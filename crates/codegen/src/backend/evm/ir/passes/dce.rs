@@ -108,14 +108,10 @@ fn halting_terminal_tail_range(
     Some(start..operands)
 }
 
-const fn halting_stack_io(kind: &TerminatorKind) -> Option<(u8, u8)> {
-    let TerminatorKind::Op(
-        opcode @ (op::STOP | op::INVALID | op::RETURN | op::REVERT | op::SELFDESTRUCT),
-    ) = *kind
-    else {
-        return None;
-    };
-    op::stack_io(opcode)
+/// The stack effect of a terminal opcode that halts, which every one but a computed `JUMP` does.
+fn halting_stack_io(kind: &TerminatorKind) -> Option<(u8, u8)> {
+    let TerminatorKind::Op(opcode) = *kind else { return None };
+    (opcode != op::JUMP).then(|| op::stack_io(opcode)).flatten()
 }
 
 fn discardable_tail_start(instructions: &[Instruction]) -> Option<usize> {

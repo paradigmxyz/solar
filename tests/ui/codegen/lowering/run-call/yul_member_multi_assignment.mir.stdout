@@ -8,7 +8,7 @@
   struct4: {i256, ptr<memory>}
   struct5: {i160, i256}
 
-fn @array(arg0: slice<calldata>) -> struct0 [selector=0x1335b639, pure, abi_params=[array<_, u256>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @array(arg0: slice<calldata>) -> struct0 [selector=0x1335b639, pure, abi_params=[array<_, uint256>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -44,7 +44,7 @@ fn @array(arg0: slice<calldata>) -> struct0 [selector=0x1335b639, pure, abi_para
     ret v28
 }
 
-fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi_params=[bytes], abi_returns=[word, word, memory_bytes], abi_return_params=[u256, u256, bytes]] {
+fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi_params=[bytes], abi_returns=[word, word, memory_bytes], abi_return_params=[uint256, uint256, bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -86,7 +86,7 @@ fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi
     ret v31
 }
 
-fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, abi_params=[bytes], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, abi_params=[bytes], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -126,7 +126,7 @@ fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, ab
     ret v29
 }
 
-fn @returned(arg0: slice<calldata>) -> slice<calldata> [selector=0x39dbde69, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @returned(arg0: slice<calldata>) -> slice<calldata> [selector=0x39dbde69, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -143,7 +143,7 @@ fn @returned(arg0: slice<calldata>) -> slice<calldata> [selector=0x39dbde69, pur
     ret v11
 }
 
-fn @reversed(arg0: slice<calldata>) -> struct1 [selector=0xed6a1217, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @reversed(arg0: slice<calldata>) -> struct1 [selector=0xed6a1217, pure, abi_params=[array<_, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -170,7 +170,7 @@ fn @reversed(arg0: slice<calldata>) -> struct1 [selector=0xed6a1217, pure, abi_p
     ret v20
 }
 
-fn @slot() -> i256 [selector=0x1a88bc66, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @slot() -> i256 [selector=0x1a88bc66, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -190,15 +190,15 @@ fn @slot() -> i256 [selector=0x1a88bc66, abi_params=[], abi_returns=[word], abi_
     v11 = storage_array_data_slot v7
     v12 = add v11, 0
     v13 = sload v12 !metadata(storage=symbolic(v11))
-    v14 = checked_add u256, v13, v6
+    v14 = checked_add uint256, v13, v6
     ret v14
 }
 
-fn @functionPointer() -> struct5 [selector=0xbd108928, view, abi_params=[], abi_returns=[word<u160>, word<bytes4>], abi_return_params=[address, bytes4]] {
+fn @functionPointer() -> struct5 [selector=0xbd108928, view, abi_params=[], abi_returns=[word<uint160>, word<bytes4>], abi_return_params=[address, bytes4]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 32, v1
+    v2 = shl v1, 32
     v3 = or v2, 0x1a88bc66
     v4 = icall @get.13
     v5 = extract_value struct1, v4, 0
@@ -208,14 +208,14 @@ fn @functionPointer() -> struct5 [selector=0xbd108928, view, abi_params=[], abi_
     v9 = and v3, v8
     v10 = or v9, v7
     v11 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = shl 32, v11
+    v12 = shl v11, 32
     v13 = and v10, 0xffffffff
     v14 = or v12, v13
-    v15 = shr 32, v14
+    v15 = shr v14, 32
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
     v17 = trunc i256 v16 to i160
     v18 = and v14, 0xffffffff
-    v19 = shl 224, v18
+    v19 = shl v18, 224
     v20 = insert_value struct5, undef struct5, 0, v17
     v21 = insert_value struct5, v20, 1, v19
     ret v21

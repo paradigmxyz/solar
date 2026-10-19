@@ -262,7 +262,7 @@
 -     jumpi v2, bb3, bb1
 +     jump bb1
     bb1:
-      v3 = shr 8, arg1
+      v3 = shr arg1, 8
       v4 = and v3, 0xffff
       v5 = add v1, v4
       v6 = lt v5, v1

@@ -153,3 +153,46 @@
 +     ret v4
   }
   
+  fn @cast_predecessors(arg0: i256, arg1: i1) -> i160 {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb2:
+      v1 = trunc i256 arg0 to i8
++     v3 = trunc i256 arg0 to i160
+      jump bb3
+    bb1:
+      v0 = trunc i256 arg0 to i160
+      jump bb3
+    bb3:
+-     v2 = trunc i256 arg0 to i160
+-     ret v2
++     v4 = phi [bb1: v0], [bb2: v3]
++     ret v4
+  }
+  
+  fn @free_cast_stays(arg0: i1, arg1: i1) -> i256 {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v0 = zext i1 arg0 to i256
+      jump bb3
+    bb3:
+      v1 = zext i1 arg0 to i256
+      ret v1
+  }
+  
+  fn @immediate_operand_order(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v0 = sub 7, arg0
+      jump bb3
+    bb3:
+      v1 = sub arg0, 7
+      ret v1
+  }
+  

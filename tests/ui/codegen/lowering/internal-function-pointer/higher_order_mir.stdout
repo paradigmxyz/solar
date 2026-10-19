@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/higher_order_mir.sol:HigherOrderFunctionPointer ===
 @module HigherOrderFunctionPointer
-fn @higher0() -> i256 [selector=0x2762f104, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @higher0() -> i256 [selector=0x2762f104, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
 }
@@ -20,12 +20,12 @@ fn @higher3() -> i256 [pure] {
     ret 3
 }
 
-fn @callReturned() -> i256 [selector=0x0ae2f92f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callReturned() -> i256 [selector=0x0ae2f92f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @internal_dispatcher_p_none_r_function, 4
     v1 = icall @internal_dispatcher_p_none_r_function, v0
     v2 = icall @internal_dispatcher_p_none_r_function, v1
-    v3 = icall @internal_dispatcher_p_none_r_u256, v2
+    v3 = icall @internal_dispatcher_p_none_r_uint256, v2
     ret v3
 }
 
@@ -53,7 +53,7 @@ fn @internal_dispatcher_p_none_r_function(arg0: i256) -> i256 [function_pointer_
     ret v1
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2

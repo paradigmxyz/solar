@@ -10,7 +10,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bytes2]] {
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = not 0xffff
     v3 = and v1, v2
-    v4 = shr 240, v0
+    v4 = shr v0, 240
     v5 = and v4, 0xffff
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
@@ -34,7 +34,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v4 = eq v3, 1
     v5 = sub 0, v3
     v6 = or 127, v5
-    v7 = shr 1, v2
+    v7 = shr v2, 1
     v8 = and v7, v6
     v9 = lt v8, 0x10000000000000000
     v10 = eq v9, false
@@ -48,11 +48,11 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v33 = add v2, 2
     v34 = sub 31, v8
     v35 = mul v34, 8
-    v36 = shl v35, 255
+    v36 = shl 255, v35
     v37 = not v36
     v38 = and v33, v37
     v39 = byte 0, 0x500000000000000000000000000000000000000000000000000000000000000
-    v40 = shl v35, v39
+    v40 = shl v39, v35
     v41 = or v38, v40
     sstore 1, v41 !metadata(storage=slot(1))
     jump bb5
@@ -69,18 +69,18 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v12 = add v2, 2
     sstore 1, v12 !metadata(storage=slot(1))
     v13 = storage_array_data_slot 1
-    v14 = shr 5, v8
+    v14 = shr v8, 5
     v15 = add v13, v14
     v16 = and v8, 31
     v17 = sub 31, v16
     v18 = mul v17, 8
-    v19 = shl v18, 255
+    v19 = shl 255, v18
     v20 = sload v15 !metadata(storage=symbolic(v15))
     v21 = not v19
     v22 = and v20, v21
-    v23 = shr 248, 0x500000000000000000000000000000000000000000000000000000000000000
+    v23 = shr 0x500000000000000000000000000000000000000000000000000000000000000, 248
     v24 = and v23, 255
-    v25 = shl v18, v24
+    v25 = shl v24, v18
     v26 = or v22, v25
     sstore v15, v26 !metadata(storage=symbolic(v15))
     jump bb5
@@ -95,21 +95,21 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v48 = mod v42, 32
     v49 = mul v48, 1
     v50 = mul v49, 8
-    v51 = shl v50, 255
+    v51 = shl 255, v50
     v52 = sload v47 !metadata(storage=symbolic(v47))
     v53 = not v51
     v54 = and v52, v53
-    v55 = shr 248, 0x500000000000000000000000000000000000000000000000000000000000000
+    v55 = shr 0x500000000000000000000000000000000000000000000000000000000000000, 248
     v56 = and v55, 255
-    v57 = shl v50, v56
+    v57 = shl v56, v50
     v58 = or v54, v57
     sstore v47, v58 !metadata(storage=symbolic(v47))
     sstore 2, v44 !metadata(storage=slot(2))
     v59 = sload 0 !metadata(storage=slot(0))
-    v60 = shr 16, v59
-    v61 = shl 248, v60
+    v60 = shr v59, 16
+    v61 = shl v60, 248
     v62 = sload 0 !metadata(storage=slot(0))
-    v63 = shl 240, v62
+    v63 = shl v62, 240
     v64 = icall @internalIdentity, 0x500000000000000000000000000000000000000000000000000000000000000
     v65 = icall @identity, 0x1234000000000000000000000000000000000000000000000000000000000000
     v66 = mload v0
@@ -134,7 +134,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     icall revert_if<tuple_data_too_short>, v80
     v81 = add 0, 0
     v82 = mload v81
-    v83 = shl 8, v82
+    v83 = shl v82, 8
     v84 = eq v83, 0
     v85 = eq v84, false
     icall revert_if<empty>, v85
@@ -144,7 +144,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v88 = eq v87, 1
     v89 = sub 0, v87
     v90 = or 127, v89
-    v91 = shr 1, v86
+    v91 = shr v86, 1
     v92 = and v91, v90
     v93 = lt 0, v92
     v94 = eq v93, false
@@ -154,7 +154,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     jump bb10
   bb8:
     v95 = storage_array_data_slot 1
-    v96 = shr 5, 0
+    v96 = shr 0, 5
     v97 = add v95, v96
     jump bb10
   bb10:
@@ -163,8 +163,8 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v100 = sub 31, v99
     v101 = sload v98 !metadata(storage=symbolic(v98))
     v102 = mul v100, 8
-    v103 = shr v102, v101
-    v104 = shl 248, v103
+    v103 = shr v101, v102
+    v104 = shl v103, 248
     v105 = sload 2 !metadata(storage=slot(2))
     v106 = lt 0, v105
     v107 = eq v106, false
@@ -176,8 +176,8 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v112 = mul v111, 1
     v113 = sload v110 !metadata(storage=symbolic(v110))
     v114 = mul v112, 8
-    v115 = shr v114, v113
-    v116 = shl 248, v115
+    v115 = shr v113, v114
+    v116 = shl v115, 248
     v117 = insert_value struct0, undef struct0, 0, v61
     v118 = insert_value struct0, v117, 1, v63
     v119 = insert_value struct0, v118, 2, v64
@@ -192,18 +192,18 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
 
 fn @throughModifier() -> i256 [selector=0x6b6c6d94, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = shl 24, 255
+    v0 = shl 255, 24
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = not v0
     v3 = and v1, v2
-    v4 = shr 248, 0x500000000000000000000000000000000000000000000000000000000000000
+    v4 = shr 0x500000000000000000000000000000000000000000000000000000000000000, 248
     v5 = and v4, 255
-    v6 = shl 24, v5
+    v6 = shl v5, 24
     v7 = or v3, v6
     sstore 0, v7 !metadata(storage=slot(0))
     v8 = sload 0 !metadata(storage=slot(0))
-    v9 = shr 24, v8
-    v10 = shl 248, v9
+    v9 = shr v8, 24
+    v10 = shl v9, 248
     jump bb2
   bb2:
     jump bb1
@@ -231,19 +231,19 @@ fn @constructor() [constructor] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffff
     v2 = and v0, v1
-    v3 = shr 240, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v3 = shr 0x1234000000000000000000000000000000000000000000000000000000000000, 240
     v4 = and v3, 0xffff
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v6 = shl 16, 255
+    v6 = shl 255, 16
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = not v6
     v9 = and v7, v8
-    v10 = shr 248, 0x500000000000000000000000000000000000000000000000000000000000000
+    v10 = shr 0x500000000000000000000000000000000000000000000000000000000000000, 248
     v11 = and v10, 255
-    v12 = shl 16, v11
+    v12 = shl v11, 16
     v13 = or v9, v12
     sstore 0, v13 !metadata(storage=slot(0))
     ret

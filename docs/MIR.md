@@ -32,10 +32,10 @@ lowering emits it only for addresses inside the object, so alias analysis
 places an access at a runtime offset at or after `p`, and assembly's raw
 arithmetic uses `add` on words instead. A fixed array or struct has no length
 word, so field or element `i` is the word at `ptradd v0, 32 * i`, and at
-`ptradd v0, shl 5, i` for a runtime index. A dynamic memory object (`bytes`,
+`ptradd v0, shl i, 5` for a runtime index. A dynamic memory object (`bytes`,
 `string`, `T[] memory`) is a `ptr<memory>` to its length word, which assembly can
 read and rewrite: `mload v0` reads the length, the payload starts at `ptradd v0, 32`, and
-element `i` of a word array is the word 32 bytes past `ptradd v0, shl 5, i`.
+element `i` of a word array is the word 32 bytes past `ptradd v0, shl i, 5`.
 Where a slice value is needed, `make_memory_slice` pairs the payload pointer
 with the length; `extract_value` projects its pointer (field 0) and length
 (field 1) as it projects struct fields, and calldata and returndata slices work
@@ -70,7 +70,10 @@ the branch condition type.
 Source bindings exposed to inline assembly use explicit `i256` carriers where
 raw upper bits must survive copies and internal calls. Typed Solidity uses
 convert these carriers to their native types. ABI and memory layout metadata
-retain signedness and storage widths independently of SSA types.
+retain signedness and storage widths independently of SSA types. Layout
+metadata spells scalars with Solidity names, `uintN`, `intN`, `bool`, `address`,
+`bytesN`, and `function`, as in `checked_add int64`, `abi_params=[uint8]`, or
+an `@immutables` entry `owner: address`; only SSA types use `iN`.
 
 Every `i1` is zero or one. Branches and select conditions require `i1`;
 compare a word with zero using `eq value, 0` or `ne value, 0` before branching.
@@ -104,8 +107,9 @@ This includes loop phis.
 Mixed narrow-integer/`i256` joins widen the narrow input without normalizing the word.
 Logical operations convert those words to
 canonical booleans. This keeps the MIR invariant without changing the bits
-that source assembly can observe. Immutable encodings may shrink only when
-every assignment proves that all stored bits fit the shorter encoding.
+that source assembly can observe. Other immutables keep their source layout,
+so an `address` immutable loads as `i160`. Immutable encodings may shrink only
+when every assignment proves that all stored bits fit the shorter encoding.
 
 ## Phase model
 
@@ -179,10 +183,10 @@ only static specialization data; runtime values never live in the callee.
 Specializations print in angle brackets, including empty `<>` for fixed targets.
 Return signatures come from the callee. Expansion adds no runtime call overhead.
 
-ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
-allocations, checked arithmetic, packed encoding, and precompiles follow this
-approach. `lower-arithmetic` expands checked word operations and exponentiation
-loops. Loop analysis recognizes checked unsigned word recurrences and affine
+ABI encoding/decoding, memory-object accesses, abstract allocations, checked
+arithmetic, packed encoding, and precompiles follow this approach.
+`lower-arithmetic` expands checked word operations and exponentiation loops.
+Loop analysis recognizes checked unsigned word recurrences and affine
 expressions without removing their checks. When a checked update must stay live,
 strength reduction adds at most one scaled address counter; extra plain-add or
 per-field counters can cost more than the arithmetic they replace. LICM also checks

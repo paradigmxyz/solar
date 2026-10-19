@@ -13,6 +13,7 @@
 //! remain intact. Entry targets and current fallthrough edges are excluded because their transfer
 //! may cost fewer bytes. The rewrite removes transfer gas independently of execution frequency and
 //! does not depend on debug metadata. It runs after sharing, which can create these tiny tails.
+//! The default pipeline cleans up stack identities exposed by the copied return.
 
 use super::{EvmPass, utils::is_split_point};
 use crate::{
@@ -58,9 +59,6 @@ impl EvmPass for InlineReturns {
             let tail = &module.blocks[callee];
             let Some(term) = &tail.terminator else { continue };
             let TerminatorKind::Op(opcode) = term.kind else { continue };
-            if !op::is_terminal(opcode) {
-                continue;
-            }
             let size = tail.instructions.iter().try_fold(target.opcode(opcode).bytes, |n, inst| {
                 let bytes = if inst.is_encoded_push() {
                     target.push(inst.concrete_immediate()?).bytes

@@ -170,13 +170,9 @@ bb8 [cold]:
   revert
 bb10:
   push 192
+  dup 1
   push 64
   mstore
-  push 0
-  push 160
-  mstore
-  push 64
-  mload
   push 256
   dup 2
   add
@@ -223,8 +219,8 @@ bb10:
   swap 1
   extcodehash
   eq
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return

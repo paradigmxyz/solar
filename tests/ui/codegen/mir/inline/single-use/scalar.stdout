@@ -1,0 +1,147 @@
+- // === ROOT/tests/ui/codegen/mir/inline/single-use/scalar.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/single-use/scalar.mir (after inline) ===
+  @module ScalarSingleUse
+  fn @entry(arg0: i256) -> i256 {
+    bb0:
+-     v0 = icall @once, arg0
+-     v1 = icall @shared, v0
+-     v2 = icall @shared, v1
+-     ret v2
++     jump bb2
++   bb2:
++     v3 = lt arg0, 10
++     jumpi v3, bb3, bb4
++   bb4:
++     v5 = sub arg0, 3
++     jump bb1
++   bb3:
++     v4 = add arg0, 7
++     jump bb1
++   bb1:
++     v6 = phi [bb3: v4], [bb4: v5]
++     jump bb6
++   bb6:
++     v7 = mul v6, 3
++     jump bb5
++   bb5:
++     v8 = phi [bb6: v7]
++     jump bb8
++   bb8:
++     v9 = mul v8, 3
++     jump bb7
++   bb7:
++     v10 = phi [bb8: v9]
++     ret v10
+  }
+  
+- fn @once(arg0: i256) -> i256 {
++ fn @reference_caller(arg0: i256) -> i256 {
+    bb0:
+-     v0 = lt arg0, 10
+-     jumpi v0, bb1, bb2
++     jump bb2
+    bb2:
+-     v2 = sub arg0, 3
+-     ret v2
++     jump bb1
+    bb1:
+-     v1 = add arg0, 7
++     v1 = phi [bb2: arg0]
+      ret v1
+  }
+  
+- fn @shared(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = mul arg0, 3
+-     ret v0
+- }
+- 
+- fn @reference_caller(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = icall @reference, arg0
+-     ret v0
+- }
+- 
+- fn @reference(arg0: i256) -> i256 {
+-   bb0:
+-     ret arg0
+- }
+- 
+  fn @tail_caller(arg0: i256) -> i256 {
+    bb0:
+      tail_call @tail_shared, arg0
+  }
+  
+  fn @call_caller(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @tail_shared, arg0
+      ret v0
+  }
+  
+  fn @tail_shared(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 10
+      jumpi v0, bb1, bb2
+    bb2:
+      v2 = sub arg0, 3
+      ret v2
+    bb1:
+      v1 = add arg0, 7
+      ret v1
+  }
+  
+  fn @guarded_caller(arg0: i256) -> i256 {
+    bb0:
+-     v0 = icall @guarded, arg0
+-     ret v0
+- }
+- 
+- fn @guarded(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = gt arg0, 10
+-     jumpi v0, bb1, bb2
++     jump bb2
+    bb2:
+-     v1 = add arg0, 7
+-     ret v1
++     v1 = gt arg0, 10
++     jumpi v1, bb3, bb4
++   bb4:
++     v2 = add arg0, 7
++     jump bb1
+    bb1:
++     v3 = phi [bb4: v2]
++     ret v3
++   bb3:
+      tail_call @panic
+  }
+  
+  fn @panic() {
+    bb0:
+      mstore 32, 17
+      mstore 0, 0x4e487b71
+      revert 28, 36
+  }
+  
+  fn @forward_caller(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @forward, arg0
+      ret v0
+  }
+  
+  fn @forward(arg0: i256) -> i256 {
+    bb0:
+      v0 = gt arg0, 10
+      jumpi v0, bb1, bb2
+    bb2:
+      ret arg0
+    bb1:
+      tail_call @returning, arg0
+  }
+  
+  fn @returning(arg0: i256) -> i256 {
+    bb0:
+      v0 = sub arg0, 10
+      ret v0
+  }
+  

@@ -3,10 +3,14 @@
   @module LegalizeShiftDebugSpans
   bb0:
     push 7
-    push 1
+-   push 1
 -   shl !metadata(span=30..40)
-+   push 2 !metadata(span=30..40)
-+   exp !metadata(span=30..40)
++   push 2
 +   mul !metadata(span=30..40)
+    calldatasize
+-   shl !metadata(span=50..60)
++   push 2 !metadata(span=50..60)
++   exp !metadata(span=50..60)
++   mul !metadata(span=50..60)
     stop
   

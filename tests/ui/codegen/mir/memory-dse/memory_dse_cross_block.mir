@@ -44,3 +44,19 @@ fn @keep_store_into_multi_pred_successor(arg0: i1) -> i256 {
     v4 = mload 128
     ret v4
 }
+
+// A halt discards memory without reading it, so a store that reaches only a
+// `stop` or an overwrite is dead.
+// CHECK-LABEL: {{^[ +].*}}fn @remove_store_before_stop{{[( ]}}
+// CHECK: - mstore 0, 1
+// CHECK: {{^[ +].*}}mstore 0, 2
+fn @remove_store_before_stop(arg0: i1) {
+  bb0:
+    mstore 0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    stop
+  bb2:
+    mstore 0, 2
+    revert 0, 32
+}

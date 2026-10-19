@@ -17,8 +17,9 @@
 //! The pass walks the dominator tree. On entry to a block with a unique
 //! predecessor ending in a two-way branch, it records what the branch
 //! condition implies on that edge: value ranges refined by constants
-//! (`x < C` => `x` in `[0, C-1]`) and relational predicates between SSA
-//! values (`!(a < b)` => `b <= a`). Facts attach to SSA values, which are
+//! (`x < C` => `x` in `[0, C-1]`, and `x >> k == 0` => `x` in `[0, 2^k - 1]`)
+//! and relational predicates between SSA values (`!(a < b)` => `b <= a`).
+//! Facts attach to SSA values, which are
 //! never redefined, so a fact derived on a dominating edge holds in every
 //! dominated block. Branch conditions are then evaluated against the
 //! recorded facts with checked 256-bit arithmetic; a condition that is
@@ -31,7 +32,11 @@
 //! when their width and sign semantics preserve the bounded values. Semantic checks use the same
 //! facts in instruction order: a passing check refines all later execution, and a proven passing
 //! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
-//! check on one conditional path cannot justify removing a check on another.
+//! check on one conditional path cannot justify removing a check on another. Semantic unsigned
+//! `checked_binary` operations become plain ones the same way: a sum or product the operand
+//! ranges keep within the type, a difference whose operands are ordered, and a quotient or
+//! remainder by a divisor above zero.
+//! Opcode result widths also bound environment values, including returndata lengths.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -103,7 +108,7 @@
 //! words keep their declared width. Narrow SSA loads extend back to their original
 //! types; existing word-carrier loads already satisfy the integer layout contract.
 //! This exposes facts hidden behind getter calls during the ordinary earlier check passes.
-
+//!
 //! The `late-check-elim` adapter revisits conditions unified by CSE after memory
 //! lowering. Gas mode only removes redundant failure edges from blocks on a CFG
 //! cycle: repeated checks repay their removal each iteration, while other changes can disrupt
@@ -113,18 +118,24 @@
 //! fixed-point range propagation to the earlier check passes. Size mode retains
 //! the full forward analysis. Both use the existing conservative proof logic.
 //! Integer cleanup reuses the dominator walk after integer legalization to remove masks
-//! whose inputs already fit, without running the forward fixed-point analysis.
+//! whose inputs already fit, without running the forward fixed-point analysis. A word
+//! widened back from its own nonzero test, `zext(v != 0)`, counts as a one-bit mask, so a
+//! boolean that ABI decoding checked keeps its word instead of normalizing it again.
+//! It also uses runtime immutable bounds, since legalization can introduce masks after the
+//! earlier immutable pass. Constructor-reachable functions retain their full-word semantics.
+//! Late immutable mask removal can prevent outlining small getters, so use it only for gas.
 //! Run late check elimination after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
 
 use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
+    backend::evm::op,
     mir::{
-        BlockId, Builtin, Callee, EffectKind, Function, FunctionBuilder, FunctionId,
-        ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator, TypeSize,
-        Value, ValueId, ValueLayout,
+        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
+        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
+        TypeSize, Value, ValueId, ValueLayout,
         analysis::{
-            CallGraphInfo, CfgInfo,
+            CallGraphInfo, CfgInfo, aborts, cold_functions,
             integers::{integer_bits, integer_mask, integer_max},
         },
         immutable::immutable_push_type_size,
@@ -165,7 +176,8 @@ impl MirPass for CheckElim {
     }
 }
 
-/// Removes integer masks whose input range is proved by dominating branches.
+/// Removes integer masks and boolean renormalizations proved redundant by branches or
+/// runtime immutable widths.
 pub(crate) struct IntegerCleanup;
 
 impl MirPass for IntegerCleanup {
@@ -175,24 +187,28 @@ impl MirPass for IntegerCleanup {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            if !func
-                .blocks
-                .iter()
-                .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
-                || !func
-                    .instructions()
-                    .any(|id| low_mask_input(func, &func.inst(id).kind).is_some())
+        let cleanup = |func: &mut Function, immutable_ranges: Option<&FxHashMap<_, _>>| {
+            if (immutable_ranges.is_none()
+                && !func
+                    .blocks
+                    .iter()
+                    .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. }))))
+                || !func.instructions().any(|id| {
+                    let kind = &func.inst(id).kind;
+                    low_mask_input(func, kind).is_some()
+                        || widened_nonzero_test(func, kind).is_some()
+                })
             {
                 return false;
             }
             let cfg = CfgInfo::new(func);
             let removed = invalidate_unreachable_blocks(func, cfg.reachable());
-            let mut eliminator = CheckEliminator { collect_masks: true, ..Default::default() };
+            let mut eliminator =
+                CheckEliminator { collect_masks: true, immutable_ranges, ..Default::default() };
             let facts = index_vec![Facts::default(); func.blocks.len()];
             let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
             if eliminator.redundant_masks.is_empty() {
@@ -209,7 +225,24 @@ impl MirPass for IntegerCleanup {
                 block.instructions.retain(|&id| !dead.contains(id));
             }
             true
-        })
+        };
+        let bounds = if gcx.sess.opts.optimization.is_gas() {
+            runtime_immutable_bounds(module, gcx)
+        } else {
+            FxHashMap::default()
+        };
+        if bounds.is_empty() {
+            return run_function_pass(module, analyses, |func, _| cleanup(func, None));
+        }
+        let runtime = runtime_only_functions(module);
+        let mut others = DenseBitSet::new_filled(module.functions.len());
+        others.subtract(&runtime);
+        let mut changed = run_selected_function_pass(module, analyses, &runtime, |func, _| {
+            cleanup(func, Some(&bounds))
+        });
+        changed |=
+            run_selected_function_pass(module, analyses, &others, |func, _| cleanup(func, None));
+        changed
     }
 }
 
@@ -227,39 +260,25 @@ impl MirPass for LateCheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let reverting = module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(id, func)| {
-                leads_to_revert(func, BlockId::ENTRY, &FxHashSet::default()).then_some(id)
-            })
-            .collect::<FxHashSet<_>>();
+        let cold = cold_functions(module);
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
             let selected =
                 gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg().cyclic_blocks());
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
-            // Only folds of selected branches with a reverting arm are kept, so without one
-            // and without a check to remove, the elimination cannot change anything.
+            // Only folds of selected branches with a reverting arm are kept, and `lower-checks`
+            // has already expanded every check, so without such a branch the elimination
+            // cannot change anything.
             if let Some(selected) = selected
-                && !func.instructions().any(|inst| {
-                    matches!(
-                        func.inst(inst).kind,
-                        InstKind::ICall {
-                            function: Callee::Builtin(Builtin::Check { .. } | Builtin::Require(_)),
-                            ..
-                        }
-                    )
-                })
                 && !selected.iter().any(|block| {
                     let Some(Terminator::Branch { then_block, else_block, .. }) =
                         func.blocks[block].terminator
                     else {
                         return false;
                     };
-                    leads_to_revert(func, then_block, &reverting)
-                        || leads_to_revert(func, else_block, &reverting)
+                    leads_to_revert(func, then_block, &cold)
+                        || leads_to_revert(func, else_block, &cold)
                 })
             {
                 return false;
@@ -267,7 +286,7 @@ impl MirPass for LateCheckElim {
             let mut eliminator = CheckEliminator::new(None);
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             let changed =
-                eliminator.run_in_blocks(func, selected.map(|blocks| (blocks, &reverting))) != 0;
+                eliminator.run_in_blocks(func, selected.map(|blocks| (blocks, &cold))) != 0;
             if changed {
                 // branch proven_condition, checked, panic => jump checked
                 // Remove unreachable panic blocks and merge the successful continuation.
@@ -278,17 +297,17 @@ impl MirPass for LateCheckElim {
     }
 }
 
-/// Recognizes short unconditional failure paths, including outlined revert helpers.
+/// Recognizes short unconditional failure paths: a chain of jumps to a block that aborts,
+/// including through outlined revert helpers and other functions that never return.
 /// This only selects profitable candidates; range analysis proves the edge unreachable.
-fn leads_to_revert(func: &Function, mut block: BlockId, reverting: &FxHashSet<FunctionId>) -> bool {
+fn leads_to_revert(func: &Function, mut block: BlockId, cold: &DenseBitSet<FunctionId>) -> bool {
     // Bound classification work and leave cycles or longer paths unclassified.
     for _ in 0..8 {
-        match func.blocks[block].terminator {
-            Some(Terminator::Revert { .. } | Terminator::RevertReturndata) => return true,
-            Some(Terminator::TailCall { function, .. }) => return reverting.contains(&function),
-            Some(Terminator::Jump(next)) => block = next,
-            _ => return false,
+        if aborts(func, block, cold) {
+            return true;
         }
+        let Some(Terminator::Jump(next)) = func.blocks[block].terminator else { return false };
+        block = next;
     }
     false
 }
@@ -308,23 +327,7 @@ impl MirPass for ImmutableCheckElim {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let narrowed = narrow_immutable_layouts(module);
-        let bounds = module
-            .iter_immutables()
-            .filter_map(|(id, immutable)| {
-                let encoding @ ImmutableEncoding::Unsigned(_) =
-                    immutable.ty.immutable_encoding()?
-                else {
-                    return None;
-                };
-                let width = immutable_push_type_size(
-                    encoding,
-                    gcx.sess.opts.optimization,
-                    gcx.sess.opts.evm_version.has_bitwise_shifting(),
-                )
-                .bits();
-                (width < 256).then(|| (id, Range::new(U256::ZERO, U256::MAX >> (256 - width))))
-            })
-            .collect::<FxHashMap<_, _>>();
+        let bounds = runtime_immutable_bounds(module, gcx);
         if bounds.is_empty() {
             return narrowed;
         }
@@ -348,7 +351,10 @@ impl MirPass for ImmutableCheckElim {
 /// Shrinks unsigned encodings only when every assignment preserves all stored bits.
 /// Narrow loads extend back to their original result types so existing uses remain well-typed.
 fn narrow_immutable_layouts(module: &mut Module) -> bool {
-    let can_narrow = |ty| matches!(ty, ValueLayout::UInt(size) if size.bits() > 8);
+    let can_narrow = |ty| {
+        matches!(ty, ValueLayout::Address)
+            || matches!(ty, ValueLayout::UInt(size) if size.bits() > 8)
+    };
     if !module.iter_immutables().any(|(_, immutable)| can_narrow(immutable.ty)) {
         return false;
     }
@@ -372,7 +378,7 @@ fn narrow_immutable_layouts(module: &mut Module) -> bool {
     let mut types = FxHashMap::default();
     for (id, bits) in widths {
         let bits = bits.max(1).div_ceil(8) * 8;
-        if let ValueLayout::UInt(size) = module.immutable(id).ty
+        if let Some(size) = module.immutable(id).ty.type_size()
             && bits < u32::from(size.bits())
         {
             module.immutable_mut(id).ty = ValueLayout::UInt(TypeSize::new_int_bits(bits as u16));
@@ -439,6 +445,28 @@ fn runtime_only_functions(module: &Module) -> DenseBitSet<FunctionId> {
     }
     runtime.subtract(&constructor);
     runtime
+}
+
+fn runtime_immutable_bounds(
+    module: &Module,
+    gcx: solar_sema::Gcx<'_>,
+) -> FxHashMap<ImmutableId, Range> {
+    module
+        .iter_immutables()
+        .filter_map(|(id, immutable)| {
+            let encoding @ ImmutableEncoding::Unsigned(_) = immutable.ty.immutable_encoding()?
+            else {
+                return None;
+            };
+            let width = immutable_push_type_size(
+                encoding,
+                gcx.sess.opts.optimization,
+                gcx.sess.opts.evm_version.has_bitwise_shifting(),
+            )
+            .bits();
+            (width < 256).then(|| (id, Range::new(U256::ZERO, U256::MAX >> (256 - width))))
+        })
+        .collect()
 }
 
 /// Maximum recursion depth when evaluating value ranges and conditions.
@@ -577,6 +605,8 @@ struct CheckEliminator<'a> {
     cfg: Option<Rc<CfgInfo>>,
     collect_masks: bool,
     redundant_masks: Vec<(InstId, ValueId)>,
+    /// Semantic checked operations proven not to fail, with the plain operation each becomes.
+    unfailing: Vec<(InstId, InstKind)>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -622,7 +652,7 @@ impl<'a> CheckEliminator<'a> {
     fn run_in_blocks(
         &mut self,
         func: &mut Function,
-        selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
+        selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
     ) -> usize {
         self.stats = CheckElimStats::default();
         self.strict_lower_bounds = None;
@@ -640,7 +670,7 @@ impl<'a> CheckEliminator<'a> {
                 matches!(
                     func.inst(inst).kind,
                     InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
-                )
+                ) || checked_operands(&func.inst(inst).kind).is_some()
             })
         }) {
             return 0;
@@ -708,8 +738,13 @@ impl<'a> CheckEliminator<'a> {
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() && checks.is_empty() && reductions.is_empty() {
+        let unfailing = std::mem::take(&mut self.unfailing);
+        if folds.is_empty() && checks.is_empty() && reductions.is_empty() && unfailing.is_empty() {
             return removed;
+        }
+        // checked_op a, b that cannot fail -> op a, b
+        for (id, kind) in &unfailing {
+            func.inst_mut(*id).replace_kind(kind.clone());
         }
         // branch proven_condition, keep, discard => jump keep
         for &(block, keep) in &folds {
@@ -731,6 +766,7 @@ impl<'a> CheckEliminator<'a> {
         self.stats.branches_folded = folds.len();
         self.stats.checks_removed = checks.count();
         self.stats.conditions_reduced = reductions.len();
+        self.stats.checks_removed += unfailing.len();
         removed
             + self.stats.branches_folded
             + self.stats.checks_removed
@@ -750,7 +786,7 @@ impl<'a> CheckEliminator<'a> {
         facts: &IndexVec<BlockId, Facts>,
         candidates: &[MonotonePhi],
         proven: &mut Vec<MonotonePhi>,
-        selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
+        selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
     ) -> Folds {
         enum Walk {
             Enter(BlockId),
@@ -760,6 +796,7 @@ impl<'a> CheckEliminator<'a> {
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut reductions = Vec::new();
+        self.unfailing.clear();
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
         while let Some(item) = stack.pop() {
@@ -824,23 +861,29 @@ impl<'a> CheckEliminator<'a> {
                             }
                             self.assume(func, condition, passing, MAX_DEPTH);
                         }
+                        if !self.collect_masks
+                            && selected.is_none()
+                            && let Some(kind) = self.unfailing_kind(func, &func.inst(id).kind)
+                        {
+                            self.unfailing.push((id, kind));
+                        }
                     }
 
                     if !self.collect_masks
                         && let Some(Terminator::Branch { condition, then_block, else_block }) =
                             func.blocks[block].terminator.as_ref()
                         && then_block != else_block
-                        && selected.is_none_or(|(selected, reverting)| {
+                        && selected.is_none_or(|(selected, cold)| {
                             selected.contains(block)
-                                && (leads_to_revert(func, *then_block, reverting)
-                                    || leads_to_revert(func, *else_block, reverting))
+                                && (leads_to_revert(func, *then_block, cold)
+                                    || leads_to_revert(func, *else_block, cold))
                         })
                     {
                         match self.eval_truth(func, *condition, MAX_DEPTH) {
                             Some(truth)
-                                if selected.is_none_or(|(_, reverting)| {
+                                if selected.is_none_or(|(_, cold)| {
                                     let discarded = if truth { *else_block } else { *then_block };
-                                    leads_to_revert(func, discarded, reverting)
+                                    leads_to_revert(func, discarded, cold)
                                 }) =>
                             {
                                 folds.push((block, if truth { *then_block } else { *else_block }));
@@ -883,6 +926,29 @@ impl<'a> CheckEliminator<'a> {
         } else {
             None
         }
+    }
+
+    /// The plain operation a semantic unsigned checked operation becomes when the current scope
+    /// proves it cannot fail: a sum or product within its type, a difference that does not
+    /// underflow, or a quotient or remainder by a nonzero divisor.
+    fn unfailing_kind(&mut self, func: &Function, kind: &InstKind) -> Option<InstKind> {
+        let (op, bits, lhs, rhs) = checked_operands(kind)?;
+        let max = integer_mask(u32::from(bits));
+        let (ra, rb) = (self.range_of(func, lhs, MAX_DEPTH), self.range_of(func, rhs, MAX_DEPTH));
+        let unfailing = match op {
+            CheckedOp::Add => ra.hi.checked_add(rb.hi).is_some_and(|hi| hi <= max),
+            CheckedOp::Mul => ra.hi.checked_mul(rb.hi).is_some_and(|hi| hi <= max),
+            CheckedOp::Sub => self.eval_lt(func, lhs, rhs, MAX_DEPTH) == Some(false),
+            CheckedOp::Div | CheckedOp::Rem => rb.lo > U256::ZERO,
+            _ => false,
+        };
+        unfailing.then(|| match op {
+            CheckedOp::Add => InstKind::Add(lhs, rhs),
+            CheckedOp::Mul => InstKind::Mul(lhs, rhs),
+            CheckedOp::Sub => InstKind::Sub(lhs, rhs),
+            CheckedOp::Div => InstKind::Div(lhs, rhs),
+            _ => InstKind::Mod(lhs, rhs),
+        })
     }
 
     /// Decides in the current scope whether a monotone phi's update cannot
@@ -1064,7 +1130,8 @@ impl<'a> CheckEliminator<'a> {
 
     fn redundant_mask(&mut self, func: &Function, id: InstId) -> Option<ValueId> {
         let inst = func.inst(id);
-        let (value, mask) = low_mask_input(func, &inst.kind)?;
+        let (value, mask) = low_mask_input(func, &inst.kind)
+            .or_else(|| widened_nonzero_test(func, &inst.kind).map(|value| (value, U256::ONE)))?;
         (self.range_of(func, value, MAX_DEPTH).hi <= mask
             && inst.result_ty == func.value_ty(value)
             && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure))
@@ -1102,6 +1169,19 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Or(a, b) if !truth => {
                 self.assume(func, a, false, depth);
                 self.assume(func, b, false, depth);
+            }
+            // `x >> k` is zero iff `x < 2^k`, the range test word-sequence prefers.
+            InstKind::Shr(shift, x)
+                if let Some(shift) = const_of(func, shift)
+                    && shift > U256::ZERO
+                    && shift < U256::from(256) =>
+            {
+                let bound = U256::from(1) << shift.to::<usize>();
+                if truth {
+                    self.narrow(x, Range::new(bound, U256::MAX));
+                } else {
+                    self.narrow(x, Range::new(U256::ZERO, bound - U256::from(1)));
+                }
             }
             _ => {}
         }
@@ -1634,7 +1714,9 @@ impl<'a> CheckEliminator<'a> {
                         .union(self.range_of(func, else_value, depth)),
                 }
             }
-            _ => Range::FULL,
+            _ => kind.evm_opcode().and_then(op::definition).map_or(Range::FULL, |def| {
+                Range::new(U256::ZERO, integer_mask(u32::from(def.result_bits)))
+            }),
         };
         // Both bounds are sound, so their intersection is too. An empty
         // intersection means this point is dynamically unreachable; keep the
@@ -1869,7 +1951,7 @@ impl<'a> CheckEliminator<'a> {
         if let Some(truth) = self.eval_muldiv_roundtrip(func, b, a, depth) {
             return Some(truth);
         }
-        // Its doubling form `eq (shr 1, (add x, x)), x` holds iff `x + x` did not wrap.
+        // Its doubling form `eq (shr (add x, x), 1), x` holds iff `x + x` did not wrap.
         for (shifted, expected) in [(a, b), (b, a)] {
             if let Some(&InstKind::Shr(count, sum)) = inst_kind(func, shifted)
                 && const_of(func, count) == Some(U256::from(1))
@@ -1879,7 +1961,7 @@ impl<'a> CheckEliminator<'a> {
                 return Some(true);
             }
         }
-        // A product by `2^k` tests `eq (shr k, (shl k, x)), x`, which holds iff the left
+        // A product by `2^k` tests `eq (shr (shl x, k), k), x`, which holds iff the left
         // shift kept every bit of `x` within its width, as a calldata element offset `i * 32`
         // does for `i < length` once decoding bounded the length.
         for (shifted, expected) in [(a, b), (b, a)] {
@@ -1996,10 +2078,12 @@ fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
         .collect::<Vec<_>>();
     for &block in cfg.rpo() {
         for &inst in &func.blocks[block].instructions {
-            if let InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), args } =
-                &func.inst(inst).kind
+            let kind = &func.inst(inst).kind;
+            if let InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), args } = kind
             {
                 pending.push(args[0]);
+            } else if let Some((_, _, lhs, rhs)) = checked_operands(kind) {
+                pending.extend([lhs, rhs]);
             }
         }
     }
@@ -2288,6 +2372,13 @@ fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
     (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
 }
 
+/// The word `v` of `zext(v != 0)`, which is `v` itself whenever `v` is 0 or 1, as a
+/// boolean that ABI decoding already checked is.
+fn widened_nonzero_test(func: &Function, kind: &InstKind) -> Option<ValueId> {
+    let InstKind::Zext(test) = *kind else { return None };
+    inst_kind(func, test)?.nonzero_test_operand(func)
+}
+
 /// The values a header phi `p = phi [pre: initial], [latch: next]` can take when every value
 /// `next` can be, through phis and selects inside the loop, is `p` itself or `p + c` for a
 /// constant `c`, as a counter that only some iterations advance is: within the target's trip
@@ -2387,4 +2478,16 @@ fn values_equal(func: &Function, a: ValueId, b: ValueId) -> bool {
         (Some(a), Some(b)) => a == b,
         _ => false,
     }
+}
+
+/// The operation, width, and operands of a semantic unsigned checked operation that
+/// `check-elim` can prove does not fail.
+fn checked_operands(kind: &InstKind) -> Option<(CheckedOp, u16, ValueId, ValueId)> {
+    let InstKind::CheckedBinary { op, arithmetic: ArithmeticKind::Unsigned(bits), lhs, rhs } =
+        *kind
+    else {
+        return None;
+    };
+    matches!(op, CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul | CheckedOp::Div | CheckedOp::Rem)
+        .then_some((op, bits, lhs, rhs))
 }

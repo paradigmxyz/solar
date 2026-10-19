@@ -20,7 +20,7 @@
   fn @cheapest_node(arg0: i256) -> i256 {
     bb0:
 -     v0 = mul arg0, 8
-+     v0 = shl 3, arg0
++     v0 = shl arg0, 3
       v1 = add arg0, 4
 -     v2 = add v1, 5
 +     v2 = add arg0, 9
