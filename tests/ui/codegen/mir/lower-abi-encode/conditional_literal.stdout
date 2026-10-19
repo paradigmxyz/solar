@@ -35,12 +35,10 @@
 +     v18 = ptrtoint ptr<memory> v5 to i256
 +     v19 = sub v17, v18
 +     v20 = add v19, 0
-+     v21 = add v20, 31
-+     v22 = not 31
-+     v23 = and v21, v22
-+     v24 = alloc v23 !metadata(preserves_fmp)
-+     v25 = make_memory_slice v24, v20
-+     ret v25
++     v21 = add v19, 0
++     v22 = alloc v21 !metadata(preserves_fmp)
++     v23 = make_memory_slice v22, v20
++     ret v23
   }
   
   fn @overlapping(arg0: i256) -> slice<memory> {
@@ -77,12 +75,10 @@
 +     v20 = ptrtoint ptr<memory> v7 to i256
 +     v21 = sub v19, v20
 +     v22 = add v21, 0
-+     v23 = add v22, 31
-+     v24 = not 31
-+     v25 = and v23, v24
-+     v26 = alloc v25 !metadata(preserves_fmp)
-+     v27 = make_memory_slice v26, v22
-+     ret v27
++     v23 = add v21, 0
++     v24 = alloc v23 !metadata(preserves_fmp)
++     v25 = make_memory_slice v24, v22
++     ret v25
   }
   
   fn @preserved() -> slice<memory> {
@@ -94,31 +90,20 @@
       mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
 -     v3 = abi_encode [memory_bytes], args v0
 -     ret v3
-+     v4 = fmp
++     v4 = alloc 96
 +     v5 = ptrtoint ptr<memory> v4 to i256
 +     v6 = add v5, 32
 +     v7 = ptrtoint ptr<memory> v4 to i256
 +     v8 = sub v6, v7
 +     mstore v4, v8
-+     v9 = mload v0
-+     v10 = not 31
-+     v11 = add v9, 31
-+     v12 = and v11, v10
-+     v13 = add v6, 32
-+     v14 = add v6, v12
-+     mstore v14, 0
-+     mstore v6, v9
-+     v15 = ptradd v0, 32
-+     v16 = add v13, v12
-+     mcopy v13, v15, v9 !metadata(memory=heap, disjoint)
-+     v17 = ptrtoint ptr<memory> v4 to i256
-+     v18 = sub v16, v17
-+     v19 = add v18, 0
-+     v20 = add v19, 31
-+     v21 = not 31
-+     v22 = and v20, v21
-+     v23 = alloc v22 !metadata(preserves_fmp)
-+     v24 = make_memory_slice v23, v19
-+     ret v24
++     mstore v6, 1
++     v9 = add v6, 32
++     v10 = add v9, 0
++     mstore v10, 0x3100000000000000000000000000000000000000000000000000000000000000
++     v11 = add v9, 32
++     v12 = ptrtoint ptr<memory> v4 to i256
++     v13 = sub v11, v12
++     v14 = make_memory_slice v4, 96
++     ret v14
   }
   

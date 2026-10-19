@@ -34,7 +34,7 @@ use solar_ast::StateMutability;
 
 const MAX_DISPATCH_INSTRUCTIONS: usize = 512;
 
-pub(super) fn inline_dispatch(module: &mut Module, target: Target) -> bool {
+pub(super) fn inline_dispatch(module: &mut Module, target: &Target) -> bool {
     let Some(entry_id) = module.dispatch_entry() else { return false };
     if module.is_library
         || module

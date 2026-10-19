@@ -43,7 +43,7 @@ pub(super) fn alternatives(
     func: &Function,
     seen: &FxHashSet<InstId>,
     op: &Op,
-    target: Target,
+    target: &Target,
     late: bool,
 ) -> Vec<Recipe> {
     let mut result = Vec::new();
@@ -68,7 +68,7 @@ pub(super) fn alternatives(
 struct Context<'a> {
     func: &'a Function,
     seen: &'a FxHashSet<InstId>,
-    target: Target,
+    target: &'a Target,
     scalar_ty: MirType,
     late: bool,
     temporaries: FxHashMap<ValueId, Temporary>,

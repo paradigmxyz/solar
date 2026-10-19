@@ -24,6 +24,7 @@ pub(crate) mod load_pre;
 pub(crate) mod loop_canonicalize;
 pub(crate) mod loop_exit_remat;
 pub(crate) mod loop_opt;
+pub(crate) mod loop_reduce;
 pub(crate) mod loop_split;
 pub(crate) mod loop_unroll;
 pub(crate) mod lower_abi;

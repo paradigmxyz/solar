@@ -31,7 +31,7 @@ struct Guard {
     returns_if: bool,
 }
 
-pub(super) fn inline_guards(module: &mut Module, target: Target) -> bool {
+pub(super) fn inline_guards(module: &mut Module, target: &Target) -> bool {
     if !target.optimization().is_gas() {
         return false;
     }
@@ -80,7 +80,7 @@ pub(super) fn inline_guards(module: &mut Module, target: Target) -> bool {
     changed
 }
 
-fn profitable(target: Target, guard: &Guard) -> bool {
+fn profitable(target: &Target, guard: &Guard) -> bool {
     let prefix = target.block_code_estimate(&guard.function, BlockId::ENTRY);
     let protocol = target.icall(guard.function.params.len(), 0, 0)
         + target.internal_return(guard.function.params.len(), 0);

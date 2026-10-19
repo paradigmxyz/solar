@@ -9,6 +9,12 @@ fn @words(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
+fn @small(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_array uint8, arg0
+    ret v0
+}
+
 fn @signed(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array int24, arg0
