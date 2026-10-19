@@ -28,6 +28,7 @@ pub(crate) mod loop_opt;
 pub(crate) mod loop_reduce;
 pub(crate) mod loop_split;
 pub(crate) mod loop_unroll;
+pub(crate) mod loop_version;
 pub(crate) mod lower_abi;
 pub(crate) mod lower_abi_encode;
 pub(crate) mod lower_alloc;
