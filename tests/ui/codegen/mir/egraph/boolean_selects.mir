@@ -1,0 +1,30 @@
+//@compile-flags: -Zmir-pipeline=egraph
+//@filecheck:
+@module BooleanSelects
+
+// CHECK-LABEL: {{^[ +].*}}fn @select_true{{[( ]}}
+// CHECK: + {{v[0-9]+}} = or arg0, arg1
+// CHECK-NOT: {{^[ +].*}}select
+fn @select_true(arg0: i1, arg1: i1) -> i1 {
+  bb0:
+    v0 = select arg0, true, arg1
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @select_false{{[( ]}}
+// CHECK: + {{v[0-9]+}} = and arg0, arg1
+// CHECK-NOT: {{^[ +].*}}select
+fn @select_false(arg0: i1, arg1: i1) -> i1 {
+  bb0:
+    v0 = select arg0, arg1, false
+    ret v0
+}
+
+// A word on the other arm is not a boolean, so `or` would keep its high bits.
+// CHECK-LABEL: {{^[ +].*}}fn @select_word{{[( ]}}
+// CHECK-NOT: {{^[+].*}} = or
+fn @select_word(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    v0 = select arg0, 1, arg1
+    ret v0
+}

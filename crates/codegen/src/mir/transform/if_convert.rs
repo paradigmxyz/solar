@@ -20,9 +20,10 @@
 //! - a literal chosen over a select the condition implies, `x < a ? A : (x < b ? B : C)` with `a <=
 //!   b`, becomes `C + [x < b] * (B - C) + [x < a] * (A - B)`, so a ladder of literal selections on
 //!   one value collapses one level at a time;
-//! - a boolean merged with `true`, `c ? true : e` and `c ? t : true`, becomes `c | e` and `!c | t`,
-//!   the shape a chain of `||` operands leaves at its last join;
-//! - a boolean merged with `false`, `c ? t : false` or `c ? false : e`, becomes an `and`; and
+//! - a boolean merged with a boolean literal, such as the `c ? true : e` a chain of `||` operands
+//!   leaves at its last join, becomes a `select` with the literal moved to the `true` arm for
+//!   `true` or the `false` arm for `false`, negating the condition if needed; the `egraph` pass
+//!   then rewrites it to `c | e` or `c & t`; and
 //! - any other pair becomes `f + c * (t - f)`.
 //!
 //! Conditions are canonical booleans and cast to words before arithmetic.
@@ -119,7 +120,8 @@ enum SelectForm {
     /// `else + c * (then - else)`, with the difference folded when both are
     /// literals.
     General(Option<U256>),
-    /// A boolean merged with `true`: `c | e`, or `!c | t` when `else` is the literal.
+    /// A boolean merged with `true`: `select c, true, e`, or `select !c, true, t` when `else` is
+    /// the literal.
     Or { negated: bool },
 }
 
@@ -393,8 +395,8 @@ fn select_cost(func: &Function, target: &Target, select: &Select) -> Cost {
         }
         match derived {
             // c * t
-            // NOTE: A boolean product is emitted as `and` but keeps this price, so it converts
-            // exactly the sites it converted as a multiplication.
+            // NOTE: A boolean product becomes a select that `egraph` rewrites to `and`, but keeps
+            // this price, so it converts exactly the sites it converted as a multiplication.
             Derivation::FromZero => cost.plus(literal(scaled_value)),
             // e op c * k
             Derivation::Add(amount) => cost.plus(literal(amount)).plus(target.opcode(op::ADD)),
@@ -416,7 +418,7 @@ fn select_cost(func: &Function, target: &Target, select: &Select) -> Cost {
             .plus(target.push(delta))
             .plus(target.opcode(op::ADD))
             .plus(literal(select.else_value)),
-        // c | e, or !c | t
+        // c | e, or !c | t, after `egraph` rewrites the select
         SelectForm::Or { negated } => {
             let cost = target.opcode(op::OR);
             if negated { cost.plus(target.opcode(op::ISZERO)) } else { cost }
@@ -530,15 +532,16 @@ fn select_value(
             let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::I256));
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
-        // c ? true : e => c | e
+        // select c, true, e
         SelectForm::Or { negated: false } => {
-            append(func, block, InstKind::Or(condition, else_value), ty)
+            append(func, block, InstKind::Select(condition, then_value, else_value), ty)
         }
-        // c ? t : true => (c == 0) | t
+        // negated = eq c, 0
+        // select negated, true, t
         SelectForm::Or { negated: true } => {
             let zero = literal(func, U256::ZERO);
             let negated = append(func, block, InstKind::Eq(condition, zero), Some(MirType::I1));
-            append(func, block, InstKind::Or(negated, then_value), ty)
+            append(func, block, InstKind::Select(negated, else_value, then_value), ty)
         }
         // c ? t : f => f + c * (t - f)
         SelectForm::General(delta) => {
@@ -593,9 +596,9 @@ fn scaled_select(
         append(func, block, InstKind::Mul(condition, amount), Some(MirType::I256))
     };
     match derived {
-        // c ? t : false => c & t
+        // select c, t, false
         Derivation::FromZero if ty == Some(MirType::I1) => {
-            append(func, block, InstKind::And(condition, then_value), ty)
+            append(func, block, InstKind::Select(condition, then_value, else_value), ty)
         }
         // c ? t : 0 => c * t
         Derivation::FromZero => append(func, block, InstKind::Mul(condition, then_value), ty),
