@@ -1,0 +1,91 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/narrow_overwritten_store.sol:NarrowOverwrittenStore ===
+@module NarrowOverwrittenStore
+@phase lowered
+@types
+  struct0: {i256, i256}
+
+fn @hashU8() [selector=0xe99643f7, abi_wrapper, pure] {
+  bb0:
+    v6 = calldataload 4
+    v7 = shr v6, 8
+    v4 = calldatasize
+    v5 = lt v4, 68
+    v11 = zext i1 v5 to i256
+    v12 = or v11, v7
+    v13 = ne v12, 0
+    jumpi v13, bb1, bb2
+  bb2:
+    mstore8 0, arg0
+    mstore 1, arg1
+    v3 = keccak256 0, 33 !metadata(memory=scratch)
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @hashConst() [selector=0x227e2968, abi_wrapper, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 36
+    jumpi v3, bb1, bb2
+  bb2:
+    mstore8 128, 97
+    mstore 129, arg0
+    v1 = keccak256 128, 33
+    mstore 128, v1
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @tailRead() [selector=0x8c0dcc20, abi_wrapper, pure] {
+  bb0:
+    v4 = calldatasize
+    v5 = lt v4, 68
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 160, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = shl arg0, 248
+    mstore 128, v2
+    v3 = mload 129
+    mstore 192, v3
+    mstore 129, arg1
+    returndata 192, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @literal() [selector=0x41d012fd, abi_wrapper, pure] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, 0x6100000000000000000000000000000000000000000000000000000000000000
+    mstore 160, arg0
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x227e2968 => bb2, 0x41d012fd => bb3, 0x8c0dcc20 => bb4, 0xe99643f7 => bb5]
+  bb5:
+    tail_call @hashU8
+  bb4:
+    tail_call @tailRead
+  bb3:
+    tail_call @literal
+  bb2:
+    tail_call @hashConst
+  bb6:
+    revert 0, 0
+}
