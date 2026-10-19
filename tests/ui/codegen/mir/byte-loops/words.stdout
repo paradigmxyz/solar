@@ -88,41 +88,41 @@ fn @store32() [selector=0xd264c25a, abi_wrapper, pure] {
 
 fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
   bb0:
-    v32 = calldataload 68
-    v33 = shl v32, 16
-    v30 = calldatasize
-    v31 = lt v30, 100
-    v61 = zext i1 v31 to i256
-    v62 = or v61, v33
-    v63 = ne v62, 0
-    jumpi v63, bb3, bb4
+    v33 = calldataload 68
+    v34 = shl v33, 16
+    v31 = calldatasize
+    v32 = lt v31, 100
+    v62 = zext i1 v32 to i256
+    v63 = or v62, v34
+    v64 = ne v63, 0
+    jumpi v64, bb3, bb4
   bb4:
-    v35 = icall @decode_calldata_type
-    v18 = mload v35
+    v36 = icall @decode_calldata_type
+    v18 = mload v36
     v19 = lt v18, 2
     v20 = sub v18, 2
     v21 = gt arg1, v20
     v22 = or v19, v21
     jumpi v22, bb1, bb2
   bb2:
-    v53 = add v35, arg1
-    v54 = add v53, 32
-    v26 = mload v54
-    v49 = xor v26, arg2
-    v50 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v29 = xor arg2, v50
-    mstore v54, v29
-    v56 = add v35, 32
-    v41 = add v18, 31
-    v43 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v45 = add v56, v43
-    mstore v45, 0
-    v58 = add v35, 64
-    mcopy v58, v56, v18
-    mstore v35, 32
-    mstore v56, v18
-    v47 = add v43, 64
-    returndata v35, v47
+    v54 = add v36, arg1
+    v55 = add v54, 32
+    v27 = mload v55
+    v50 = xor v27, arg2
+    v51 = and v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v30 = xor arg2, v51
+    mstore v55, v30
+    v57 = add v36, 32
+    v42 = add v18, 31
+    v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v46 = add v57, v44
+    mstore v46, 0
+    v59 = add v36, 64
+    mcopy v59, v57, v18
+    mstore v36, 32
+    mstore v57, v18
+    v48 = add v44, 64
+    returndata v36, v48
   bb1:
     tail_call @revert_stub
   bb3:
