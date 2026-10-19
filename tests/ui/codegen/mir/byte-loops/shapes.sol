@@ -25,6 +25,10 @@
 //@ run-call: fresh 0x0102030405, 1, 3 => 0x00020304
 //@ run-call-fail: fresh 0x0102030405, 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: viaHelper 0x0102030405, 2, 3 => 0x030405
+//@ run-call: zeroSome 0x0102030405060708090a, 2 => 0x0102000000000000000a
+//@ run-call-fail: zeroSome 0x0102030405060708, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: fillSome 0x0102030405, 0x61 => 0x6161616105
+//@ run-call-fail: fillSome 0x010203, 0x61 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call-fail: viaHelper 0x0102030405, 2, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
 // A gather from calldata is one `calldataload`.
@@ -73,6 +77,17 @@
 // CHECK-NOT: mstore8
 // CHECK: mcopy
 // CHECK-NOT: mstore8
+
+// A constant byte fills the range with one masked word store.
+// CHECK-LABEL: fn @zeroSome(
+// CHECK-NOT: mstore8
+// CHECK: mstore
+
+// So does a byte the loop does not vary.
+// CHECK-LABEL: fn @fillSome(
+// CHECK-NOT: mstore8
+// CHECK: mul
+// CHECK: mstore
 
 contract Test {
     function fromCalldata(bytes calldata b, uint256 offset) external pure returns (bytes32 result) {
@@ -132,6 +147,20 @@ contract Test {
     function viaHelper(bytes memory src, uint256 from, uint256 count) external pure returns (bytes memory out) {
         out = new bytes(count);
         _copy(out, 0, src, from, count);
+    }
+
+    function zeroSome(bytes memory b, uint256 offset) external pure returns (bytes memory) {
+        for (uint256 k; k < 7; ++k) {
+            b[offset + k] = 0;
+        }
+        return b;
+    }
+
+    function fillSome(bytes memory b, bytes1 c) external pure returns (bytes memory) {
+        for (uint256 k; k < 4; ++k) {
+            b[k] = c;
+        }
+        return b;
     }
 
     /// @custom:solar-inline

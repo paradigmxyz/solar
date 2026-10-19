@@ -32,7 +32,9 @@
 //!   into an accumulator phi that starts at zero, with optional masks that keep the leading bytes
 //!   of a `bytesN` result;
 //! - a scatter's `mstore8` of `byte k, value` for a loop-invariant `value`, whose index check on
-//!   `k` against the width of `value` is either a literal or the header test;
+//!   `k` against the width of `value` is either a literal or the header test, or a fill's `mstore8`
+//!   of a byte the loop does not vary, such as the constant `value[k]` folds to for a constant
+//!   `value`, over at most a word;
 //! - a copy's `mstore8` of a gathered byte into a memory object, whose index check may be the
 //!   header test itself when the destination's length is the bound.
 //!
@@ -82,7 +84,8 @@
 //! source's checks before the destination's. A downward loop equals `mcopy` unless its source
 //! starts strictly inside the destination range, which the run-time test checks instead.
 //!
-//! Not handled yet: loops that fill, compare or gather into an integer with left shifts.
+//! Not handled yet: fills longer than a word, and loops that compare or gather into an integer
+//! with left shifts.
 //!
 //! NOTE: The replacement summarizes every iteration of the loop, so its instructions carry no
 //! source location rather than an arbitrary iteration's checkpoint.
@@ -96,6 +99,9 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
+
+/// One in the low bit of every byte, which spreads a byte over a word.
+const LANES_01: U256 = U256::from_limbs([0x0101_0101_0101_0101; 4]);
 
 /// Replaces counted byte loops with word loads, word stores and copies.
 pub(crate) struct ByteLoops;
@@ -187,11 +193,21 @@ enum Shape {
     /// The leading bytes of a buffer from an offset, left-aligned into the accumulator `result`;
     /// `width` is the most bytes the result type holds.
     Gather { access: Access, width: u64, result: ValueId },
-    /// The leading bytes of `value` written into a memory object; `width` is the most bytes the
-    /// value's index check admits.
-    Scatter { access: Access, value: ValueId, width: u64 },
+    /// Bytes written into a memory object; `width` is the most bytes the value's index check
+    /// admits.
+    Scatter { access: Access, stored: Scattered, width: u64 },
     /// Bytes of a buffer written into a memory object.
     Copy { src: Access, dst: Access, dst_checked: bool, overlap: Overlap },
+}
+
+/// What a scatter writes.
+#[derive(Clone, Copy)]
+enum Scattered {
+    /// `byte k, value`: the leading bytes of `value`, in order.
+    Word(ValueId),
+    /// `byte position, value` for a `position` from before the loop, or without a position the
+    /// low byte of `value`: one byte at every index.
+    Fill(Option<ValueId>, ValueId),
 }
 
 struct Plan {
@@ -674,13 +690,25 @@ fn scatter(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     let store = single_store(func, lp)?;
     let InstKind::Store8(ptr, byte) = func.inst(store).kind else { return None };
     used.push(store);
-    let (byte_inst, &InstKind::Byte(position, value)) = body_def(func, lp, byte)? else {
-        return None;
+    // `byte k, value` writes the bytes of `value` in order. A byte the loop does not vary, as
+    // `value[k]` folds to for a constant `value` or `b[k] = c` stores for a `bytes1 c`, fills
+    // every index.
+    let stored = match body_def(func, lp, byte) {
+        Some((byte_inst, &InstKind::Byte(position, value)))
+            if position == lp.counter && defined_outside(func, l, value) =>
+        {
+            used.push(byte_inst);
+            Scattered::Word(value)
+        }
+        Some((byte_inst, &InstKind::Byte(position, value)))
+            if defined_outside(func, l, position) && defined_outside(func, l, value) =>
+        {
+            used.push(byte_inst);
+            Scattered::Fill(Some(position), value)
+        }
+        None if defined_outside(func, l, byte) => Scattered::Fill(None, byte),
+        _ => return None,
     };
-    if position != lp.counter || !defined_outside(func, l, value) {
-        return None;
-    }
-    used.push(byte_inst);
     let (object, idx, address) = memory_address(func, lp, ptr)?;
     used.extend(address);
     let access = checked_access(func, l, lp, Buffer::Memory(object), idx, &mut used)?;
@@ -716,7 +744,7 @@ fn scatter(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     if width == 0 || lp.literal_bound(func).is_some_and(|bound| bound == 0 || bound > width) {
         return None;
     }
-    only_pattern_effects(func, lp, &used).then_some(Shape::Scatter { access, value, width })
+    only_pattern_effects(func, lp, &used).then_some(Shape::Scatter { access, stored, width })
 }
 
 /// The body's only `mstore8`.
@@ -811,10 +839,30 @@ fn rewrite(func: &mut Function, plan: Plan) {
             };
             replacements.insert(result, value);
         }
-        Shape::Scatter { access, value, width } => {
+        Shape::Scatter { access, stored, width } => {
+            // fill: value = mul (byte position, value | and value, 0xff), 0x0101...01
             // panic_if (bound != 0 && (range does not fit || bound > width)), 0x32
             // mstore address, value
             // or, below a word: mstore address, or (and (mload address), ~mask), (and value, mask)
+            let value = match stored {
+                Scattered::Word(value) => value,
+                Scattered::Fill(None, value)
+                    if let Some(byte) = builder.func().value_u256(value) =>
+                {
+                    builder.imm((byte & U256::from(0xff)) * LANES_01)
+                }
+                Scattered::Fill(position, value) => {
+                    let byte = match position {
+                        Some(position) => builder.byte(position, value),
+                        None => {
+                            let low = builder.imm(0xff);
+                            builder.and(value, low)
+                        }
+                    };
+                    let lanes = builder.imm(LANES_01);
+                    builder.mul(byte, lanes)
+                }
+            };
             let mut fails = range_fails(&mut builder, &access, lp.bound, literal.is_none());
             if literal.is_none() {
                 // A dynamic bound always comes with the value's index check.
