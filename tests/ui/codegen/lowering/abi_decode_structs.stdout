@@ -31,12 +31,10 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb4:
     v44 = add v16, 64
     mstore v44, v26
-    v7 = ne v26, 0
     v1 = mload v16
     mstore 128, v1
     mstore 160, v20
-    v36 = zext i1 v7 to i256
-    mstore 192, v36
+    mstore 192, v26
     returndata 128, 96
   bb1:
     revert 0, 0

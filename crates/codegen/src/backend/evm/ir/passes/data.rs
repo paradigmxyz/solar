@@ -131,7 +131,7 @@ impl Rewrite {
 
     /// Whether this saves at least as much as `other` under the objective, compared without
     /// signed costs: `other.old + self.new <= self.old + other.new`.
-    fn saves_at_least(&self, other: &Self, target: Target) -> bool {
+    fn saves_at_least(&self, other: &Self, target: &Target) -> bool {
         target.cmp(other.old + self.new, self.old + other.new).is_le()
     }
 }
@@ -233,7 +233,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
             prepared.extend(
                 rewrites
                     .into_iter()
-                    .filter(|rewrite| is_profitable(target, rewrite.saving()))
+                    .filter(|rewrite| is_profitable(&target, rewrite.saving()))
                     .map(|rewrite| PreparedRewrite { rewrite, data: None }),
             );
             continue;
@@ -249,12 +249,12 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
                 continue;
             };
             let contained_improvement = rewrite_improvement(contained_rewrites, 0);
-            if is_profitable(target, contained_improvement) {
+            if is_profitable(&target, contained_improvement) {
                 improvement.add(contained_improvement);
                 absorbed.push((index, offset));
             }
         }
-        if !is_profitable(target, improvement) {
+        if !is_profitable(&target, improvement) {
             rejected.push((data, rewrites));
             continue;
         }
@@ -308,7 +308,7 @@ fn prepare_rewrites(prepared: &mut Vec<PreparedRewrite>, rewrites: Vec<Rewrite>,
 /// and ends at the same place wins when it saves at least as much: leading instructions that the
 /// copy would only rebuild add nothing.
 fn find_run(
-    target: Target,
+    target: &Target,
     block: BlockId,
     instructions: &[Instruction],
     start: usize,
@@ -365,7 +365,7 @@ struct RunEnd {
 /// and `MSTORE8`s from `start`, and returns the longest prefix whose stores fill one contiguous
 /// range and whose final stack a copy can rebuild.
 fn scan_run(
-    target: Target,
+    target: &Target,
     block: BlockId,
     instructions: &[Instruction],
     start: usize,
@@ -552,7 +552,7 @@ fn copy_tail(
 }
 
 /// The cost of an instruction in a copy replacement, or `None` when the target lacks it.
-fn instruction_cost(target: Target, inst: &Instruction) -> Option<Cost> {
+fn instruction_cost(target: &Target, inst: &Instruction) -> Option<Cost> {
     if let Some(value) = inst.concrete_immediate() {
         return Some(target.push(value));
     }
@@ -570,7 +570,7 @@ fn rewrite_improvement(rewrites: &[Rewrite], additional_bytes: isize) -> Improve
     improvement
 }
 
-fn is_profitable(target: Target, improvement: Improvement) -> bool {
+fn is_profitable(target: &Target, improvement: Improvement) -> bool {
     // Static sites have no execution-frequency estimate, so never buy gas by
     // growing code for a copy that may stay cold.
     target.improves(improvement.runtime_gas, improvement.bytes)
@@ -765,7 +765,7 @@ fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, R
             next_run_start = 0;
         }
         if index >= next_run_start
-            && let Some((data, rewrite)) = find_run(target, block_id, instructions, index)
+            && let Some((data, rewrite)) = find_run(&target, block_id, instructions, index)
         {
             next_run_start = rewrite.end;
             groups.entry(data).or_default().push(rewrite);

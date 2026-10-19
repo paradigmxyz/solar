@@ -104,7 +104,7 @@ impl MirPass for LowerMCopy {
         }
         let mut helpers = FxHashMap::default();
         for (shape, count) in counts {
-            if let Some(helper) = shared_copy_helper(target, shape, count) {
+            if let Some(helper) = shared_copy_helper(&target, shape, count) {
                 helpers.insert(shape, module.add_function(helper));
             }
         }
@@ -169,7 +169,7 @@ fn copy_sites(
 
 /// Builds the helper for `sites` copies of one shape when the objective ranks
 /// calling it above expanding the loop at every site.
-fn shared_copy_helper(target: Target, shape: CopyShape, sites: u32) -> Option<Function> {
+fn shared_copy_helper(target: &Target, shape: CopyShape, sites: u32) -> Option<Function> {
     if sites < 2 {
         return None;
     }

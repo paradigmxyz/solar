@@ -158,13 +158,15 @@ impl MirPass for Egraph {
             module,
             analyses,
             &flat,
-            |func, _| Builder::new(func, target, None).run() != 0,
+            |func, _| Builder::new(func, &target, None).run() != 0,
         );
         changed |= run_selected_function_pass_cached::<CfgEgraph>(
             module,
             analyses,
             &with_cfg,
-            |func, analyses| Builder::new(func, target, Some(Rc::clone(analyses.cfg()))).run() != 0,
+            |func, analyses| {
+                Builder::new(func, &target, Some(Rc::clone(analyses.cfg()))).run() != 0
+            },
         );
         // Eligibility depends on module-wide callers, so do not cache it by body alone.
         changed |= run_selected_function_pass(
@@ -172,7 +174,7 @@ impl MirPass for Egraph {
             analyses,
             &fresh_mapping_entries,
             |func, analyses| {
-                let mut builder = Builder::new(func, target, Some(Rc::clone(analyses.cfg())));
+                let mut builder = Builder::new(func, &target, Some(Rc::clone(analyses.cfg())));
                 builder.fresh_mapping_arguments = true;
                 builder.run() != 0
             },
@@ -352,7 +354,7 @@ impl Nodes {
 
 struct Builder<'a> {
     func: &'a mut Function,
-    target: Target,
+    target: &'a Target,
     cfg: Option<Rc<CfgInfo>>,
     fresh_mapping_arguments: bool,
     /// One identity for equal immediates, so nodes over them compare equal.
@@ -388,7 +390,7 @@ struct Builder<'a> {
 }
 
 impl<'a> Builder<'a> {
-    fn new(func: &'a mut Function, target: Target, cfg: Option<Rc<CfgInfo>>) -> Self {
+    fn new(func: &'a mut Function, target: &'a Target, cfg: Option<Rc<CfgInfo>>) -> Self {
         let dead = DenseBitSet::new_empty(func.num_insts());
         let num_insts = func.instructions().count();
         let (max_nodes, max_operand_views) = search_limits(num_insts);
@@ -1414,7 +1416,7 @@ fn zero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
 /// Cost evaluation over the classes of one function under the target model.
 struct Costs<'a> {
     func: &'a Function,
-    target: Target,
+    target: &'a Target,
     classes: &'a IndexVec<ValueId, Option<Class>>,
     uses: &'a IndexVec<ValueId, u32>,
     /// Cheapest cost per class, memoized.
@@ -1516,23 +1518,23 @@ impl Costs<'_> {
 
 /// A cost ordered under the target objective.
 #[derive(Clone, Copy)]
-struct CostKey(Target, Cost);
+struct CostKey<'a>(&'a Target, Cost);
 
-impl PartialEq for CostKey {
+impl PartialEq for CostKey<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == std::cmp::Ordering::Equal
     }
 }
 
-impl Eq for CostKey {}
+impl Eq for CostKey<'_> {}
 
-impl PartialOrd for CostKey {
+impl PartialOrd for CostKey<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for CostKey {
+impl Ord for CostKey<'_> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(self.1, other.1)
     }

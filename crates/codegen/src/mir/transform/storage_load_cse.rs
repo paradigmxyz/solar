@@ -1,7 +1,10 @@
 //! Local storage-load forwarding.
 //!
 //! This pass removes redundant `sload` instructions on straight-line paths when
-//! no intervening storage write may alias the loaded slot. Exact stores also
+//! no intervening storage write may alias the loaded slot. A path continues
+//! into a successor that has no other predecessor, so facts flow through
+//! extended basic blocks in reverse postorder, as when inlining leaves a callee's
+//! read in its own block after the caller's write; joins start empty. Exact stores also
 //! forward their full word to subsequent loads. This exposes packed field
 //! updates as word expressions, allowing storage DSE to remove intermediate
 //! writes while retaining every preserved bit. A load whose earlier load of the
@@ -73,8 +76,10 @@ struct StorageLoadCseCx {
 struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
-    cached_loads: FxHashMap<StorageAlias, (ValueId, bool)>,
+    cached_loads: StorageFacts,
 }
+
+type StorageFacts = FxHashMap<StorageAlias, (ValueId, bool)>;
 
 impl RunState {
     fn new(func: &Function) -> Self {
@@ -102,10 +107,34 @@ impl StorageLoadCseCx {
         state.replacements.clear();
         state.dead.clear();
 
-        let gas = GasObservations::new(func, &self.cfg, &self.alias);
-        for block_id in func.blocks.indices() {
-            state.cached_loads.clear();
+        let cfg = Rc::clone(&self.cfg);
+        let gas = GasObservations::new(func, &cfg, &self.alias);
+        // A block entered only from one predecessor starts with the facts that predecessor ends
+        // with: no terminator that continues to a successor touches storage. Reverse postorder
+        // visits that predecessor first; every other block starts empty. Each exit is kept with
+        // the number of successors still waiting for it, and the last one takes it.
+        let mut exits = FxHashMap::<BlockId, (usize, StorageFacts)>::default();
+        for &block_id in cfg.rpo() {
+            state.cached_loads = match cfg.predecessors(block_id) {
+                &[pred] => match exits.get_mut(&pred) {
+                    Some((1, _)) => exits.remove(&pred).unwrap().1,
+                    Some((waiting, facts)) => {
+                        *waiting -= 1;
+                        facts.clone()
+                    }
+                    None => StorageFacts::default(),
+                },
+                _ => StorageFacts::default(),
+            };
             self.process_block(func, block_id, &liveness, &gas, state);
+            let waiting = cfg
+                .successors(block_id)
+                .iter()
+                .filter(|&&successor| cfg.predecessors(successor).len() == 1)
+                .count();
+            if waiting != 0 {
+                exits.insert(block_id, (waiting, std::mem::take(&mut state.cached_loads)));
+            }
         }
 
         if !state.replacements.is_empty() {

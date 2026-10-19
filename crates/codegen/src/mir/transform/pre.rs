@@ -63,7 +63,7 @@ impl MirPass for Pre {
     ) -> bool {
         let target = Target::new(gcx);
         run_function_pass(module, analyses, |func, _| {
-            PartialRedundancyEliminator::new(target).run(func).total() != 0
+            PartialRedundancyEliminator::new(&target).run(func).total() != 0
         })
     }
 }
@@ -88,8 +88,8 @@ impl PreStats {
 
 /// Partial redundancy eliminator for pure expressions.
 #[derive(Debug)]
-struct PartialRedundancyEliminator {
-    target: Target,
+struct PartialRedundancyEliminator<'a> {
+    target: &'a Target,
     stats: PreStats,
 }
 
@@ -119,9 +119,9 @@ struct PreCandidate {
     insertions: Vec<(BlockId, InstKind)>,
 }
 
-impl PartialRedundancyEliminator {
+impl<'a> PartialRedundancyEliminator<'a> {
     /// Creates a new PRE pass.
-    fn new(target: Target) -> Self {
+    fn new(target: &'a Target) -> Self {
         Self { target, stats: PreStats::default() }
     }
 

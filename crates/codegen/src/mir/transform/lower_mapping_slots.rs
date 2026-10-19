@@ -67,18 +67,18 @@ impl MirPass for LowerMappingSlots {
                     let count = result.and_then(|value| uses.get(value).copied()).unwrap_or(1);
                     let replacement = match builder.func().inst(inst_id).kind {
                         InstKind::MappingSlot(key, slot) => {
-                            lower_fixed_slot_hash(&mut builder, target, &[key, slot], count)
+                            lower_fixed_slot_hash(&mut builder, &target, &[key, slot], count)
                         }
                         InstKind::MappingSlotBytes(key, slot) => {
                             lower_bytes_mapping_slot(&mut builder, key, slot)
                         }
                         InstKind::StorageArrayDataSlot(slot) => {
-                            lower_fixed_slot_hash(&mut builder, target, &[slot], count)
+                            lower_fixed_slot_hash(&mut builder, &target, &[slot], count)
                         }
                         InstKind::StorageArrayElementSlot { slot, index, element_slots } => {
                             lower_storage_array_element_slot(
                                 &mut builder,
-                                target,
+                                &target,
                                 slot,
                                 index,
                                 element_slots,
@@ -104,7 +104,7 @@ impl MirPass for LowerMappingSlots {
 
 fn lower_fixed_slot_hash(
     builder: &mut FunctionBuilder<'_>,
-    target: Target,
+    target: &Target,
     words: &[ValueId],
     uses: u32,
 ) -> crate::mir::ValueId {
@@ -146,7 +146,7 @@ fn lower_fixed_slot_hash(
 
 fn lower_storage_array_element_slot(
     builder: &mut FunctionBuilder<'_>,
-    target: Target,
+    target: &Target,
     slot: crate::mir::ValueId,
     index: crate::mir::ValueId,
     element_slots: u64,
