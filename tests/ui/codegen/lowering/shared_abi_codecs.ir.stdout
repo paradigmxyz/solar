@@ -246,9 +246,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb9:
     v32 = calldataload v28
     v34 = add v177, v32
-    v35 = calldatasize
-    v37 = sub v35, v177
-    v38 = sub v37, 31
+    v38 = sub v12, 31
     v39 = slt v32, v38
     jumpi v39, bb10, bb6
   bb10:

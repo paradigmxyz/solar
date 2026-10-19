@@ -191,10 +191,7 @@ fn @lengths() [selector=0xb7a3bd0f, abi_wrapper, pure] {
   bb4:
     v31 = calldataload v27
     v33 = add v86, v31
-    v34 = calldatasize
-    v36 = sub v34, v86
-    v37 = sub v36, 31
-    v38 = slt v31, v37
+    v38 = slt v31, v12
     jumpi v38, bb5, bb1
   bb5:
     v40 = calldataload v33
@@ -217,10 +214,7 @@ fn @lengths() [selector=0xb7a3bd0f, abi_wrapper, pure] {
   bb6:
     v56 = calldataload v52
     v58 = add v86, v56
-    v59 = calldatasize
-    v61 = sub v59, v86
-    v62 = sub v61, 31
-    v63 = slt v56, v62
+    v63 = slt v56, v12
     jumpi v63, bb7, bb1
   bb7:
     v65 = calldataload v58

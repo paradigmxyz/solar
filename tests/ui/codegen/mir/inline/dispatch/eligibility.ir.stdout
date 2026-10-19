@@ -138,9 +138,7 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v40 = gt v36, v39
     v60 = or v34, v40
     v2 = shl v36, 5
-    v9 = calldatasize
-    v11 = sub v9, v31
-    v12 = slt v11, v2
+    v12 = slt v38, v2
     v61 = or v60, v12
     jumpi v61, bb1, bb2
   bb2:
