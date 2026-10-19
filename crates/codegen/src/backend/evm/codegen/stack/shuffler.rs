@@ -9,6 +9,10 @@
 //! but drains the existing frontier, preserving targets that were discovered before the cap.
 //! Physical runs with unique values use a direct deletion-order and permutation solver, which
 //! avoids a wider graph search for the SWAP/POP cleanup sequences seen in generated code.
+//! A placement solver competes with it: it pops a surplus word on top and swaps a kept word on
+//! top straight into its final position, so one swap can both place a word and expose a surplus
+//! one. It wins when many surplus words lie between kept ones, beyond the deletion search's
+//! bound on enumerated removals.
 //!
 //! ## Algorithm overview
 //!
@@ -123,7 +127,21 @@ pub(crate) fn resynthesize_physical_ops(
         .enumerate()
         .all(|(depth, &same)| usize::from(same) == depth);
     let permutation = distinct
-        .then(|| synthesize_unique_layout(source.as_slice(), target, evm_version))
+        .then(|| {
+            let removal = synthesize_unique_layout(source.as_slice(), target, evm_version);
+            let placement = synthesize_unique_placement(source.as_slice(), target)
+                .filter(|ops| ops.iter().all(|op| op.lowering(evm_version).is_some()));
+            match (removal, placement) {
+                (Some(removal), Some(placement))
+                    if lowered_stack_cost(&placement, evm_version)
+                        < lowered_stack_cost(&removal, evm_version) =>
+                {
+                    Some(placement)
+                }
+                (removal @ Some(_), _) => removal,
+                (None, placement) => placement,
+            }
+        })
         .flatten();
     if !evm_version.has_extended_stack_ops() && permutation.is_some() {
         return permutation;
@@ -314,6 +332,51 @@ fn synthesize_unique_permutation(
         ops.push(StackOp::Swap(cycle as u8));
         current.swap(0, cycle);
     }
+}
+
+/// Removes and places words in one pass: a surplus word on top is popped, and a kept word on
+/// top swaps into its final position, bringing that position's word up next. Unlike the
+/// removal search, which removes every surplus word before ordering, a single swap can then
+/// both place a kept word and expose a surplus one, which pays off when many surplus words lie
+/// between kept ones. `source` and `target` list distinct words from the top.
+fn synthesize_unique_placement(source: &[ValueId], target: &[ValueId]) -> Option<Vec<StackOp>> {
+    let n = target.len();
+    if source.len() < n {
+        return None;
+    }
+    // Positions count from the bottom, which the pops leave in place.
+    let mut stack = source.iter().rev().copied().collect::<SmallVec<[ValueId; 16]>>();
+    let target = target.iter().rev().copied().collect::<SmallVec<[ValueId; 16]>>();
+    // Copies need `DUP`s, which this never emits.
+    if target
+        .iter()
+        .enumerate()
+        .any(|(i, value)| !stack.contains(value) || target[..i].contains(value))
+    {
+        return None;
+    }
+    let mut ops = Vec::new();
+    for _ in 0..4 * source.len() + 4 {
+        if stack == target {
+            return Some(ops);
+        }
+        let top = stack.len() - 1;
+        let depth = match target.iter().position(|&value| value == stack[top]) {
+            // A surplus word on top leaves.
+            None => {
+                ops.push(StackOp::Pop);
+                stack.pop();
+                continue;
+            }
+            // A kept word goes home and brings the word there up.
+            Some(home) if home != top => top - home,
+            // The top is home, so the stack has its final height: open the next cycle.
+            Some(_) => top - (0..top).find(|&i| stack[i] != target[i])?,
+        };
+        ops.push(StackOp::Swap(u8::try_from(depth).ok()?));
+        stack.swap(top, top - depth);
+    }
+    None
 }
 
 /// The stack shuffler transforms a source stack layout to a target layout.
@@ -743,6 +806,41 @@ mod tests {
                     actual.apply(op);
                 }
                 assert_eq!(actual.as_slice(), target.as_slice());
+            }
+        }
+    }
+
+    /// Every ordered selection of distinct words is reached by popping and placing.
+    #[test]
+    fn placement_reaches_every_selection() {
+        fn selections(words: &[ValueId], len: usize) -> Vec<Vec<ValueId>> {
+            if len == 0 {
+                return vec![Vec::new()];
+            }
+            let mut result = Vec::new();
+            for shorter in selections(words, len - 1) {
+                for &word in words {
+                    if !shorter.contains(&word) {
+                        let mut selection = shorter.clone();
+                        selection.push(word);
+                        result.push(selection);
+                    }
+                }
+            }
+            result
+        }
+        for depth in 1..=6 {
+            let source = (0..depth).map(ValueId::from_usize).collect::<Vec<_>>();
+            for len in 0..=depth {
+                for target in selections(&source, len) {
+                    let ops = synthesize_unique_placement(&source, &target)
+                        .unwrap_or_else(|| panic!("no placement from {source:?} to {target:?}"));
+                    let mut actual = StackModel::from_top_to_bottom(source.iter().copied());
+                    for &op in &ops {
+                        actual.apply(op);
+                    }
+                    assert_eq!(actual.as_slice(), target.as_slice(), "{ops:?}");
+                }
             }
         }
     }

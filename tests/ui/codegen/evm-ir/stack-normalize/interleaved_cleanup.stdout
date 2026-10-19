@@ -1,0 +1,48 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/interleaved_cleanup.evmir (before stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/interleaved_cleanup.evmir (after stack-normalize) ===
+  @module InterleavedCleanup
+  bb0:
+    push 0
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    push 8
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    push 15
+    pop
+    pop
+    pop
+    pop
+-   swap 2
++   swap 7
+    pop
+-   swap 3
++   swap 7
+    pop
+-   swap 3
+    pop
+-   swap 3
++   swap 6
++   swap 7
+    pop
+-   swap 3
+    pop
+-   swap 3
+    pop
+-   swap 4
+    pop
+-   swap 1
+-   swap 3
+-   swap 2
+-   swap 3
+    stop
+  
