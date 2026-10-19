@@ -14,7 +14,8 @@
 //! byte, so a 32-byte word costs about two thousand gas. This pass replaces such a loop with one
 //! range check and the word operation it spells: `mload` (or `calldataload`) and a mask for a
 //! gather, `mstore` or a masked read-modify-write for a scatter, and `mcopy` (or
-//! `calldatacopy`) for a copy.
+//! `calldatacopy`) for a copy. A copy of word elements between memory arrays,
+//! `out[outOffset + k] = a[offset + k]`, is the same `mcopy` of 32 bytes per element.
 //!
 //! # Recognition
 //!
@@ -36,7 +37,10 @@
 //!   of a byte the loop does not vary, such as the constant `value[k]` folds to for a constant
 //!   `value`, over at most a word;
 //! - a copy's `mstore8` of a gathered byte into a memory object, whose index check may be the
-//!   header test itself when the destination's length is the bound.
+//!   header test itself when the destination's length is the bound;
+//! - a word copy's `mstore` of an `mload`, both at `object + (index << 5) + 32` of word arrays,
+//!   counting up, with the same checks as a byte copy. The ranges, offsets and lengths are then
+//!   counted in elements, and the copied bytes are 32 per element.
 //!
 //! # Safety
 //!
@@ -171,13 +175,15 @@ enum Buffer {
     Calldata(ValueId),
 }
 
-/// The byte at `offset + k` of a buffer.
+/// The element at `offset + k` of a buffer: a byte, or with a `shift` of five a word.
 struct Access {
     buffer: Buffer,
     offset: Option<ValueId>,
     /// The length the loop's check compares with, when it is a value from before the loop
     /// rather than a load of the length word.
     len: Option<ValueId>,
+    /// The element size as a power of two: zero for bytes, five for words.
+    shift: u8,
 }
 
 /// How a copy's ranges relate.
@@ -220,7 +226,10 @@ fn plan(func: &Function, l: &Loop) -> Option<Plan> {
     let shape = if lp.descending {
         copy(func, l, &lp)?
     } else {
-        gather(func, l, &lp).or_else(|| scatter(func, l, &lp)).or_else(|| copy(func, l, &lp))?
+        gather(func, l, &lp)
+            .or_else(|| scatter(func, l, &lp))
+            .or_else(|| copy(func, l, &lp))
+            .or_else(|| word_copy(func, l, &lp))?
     };
     // Values computed in the body die with the loop, so nothing after it may read them.
     for &inst in &lp.insts {
@@ -587,7 +596,7 @@ fn checked_access(
     used.extend(index_insts);
     let (check, len) = bounds_check(func, l, lp, buffer, idx)?;
     used.extend(check);
-    Some(Access { buffer, offset, len })
+    Some(Access { buffer, offset, len, shift: 0 })
 }
 
 /// Accepts `and value, mask` when the mask keeps the leading bytes of a word. Returns the
@@ -797,7 +806,87 @@ fn copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     };
     only_pattern_effects(func, lp, &used).then_some(Shape::Copy {
         src,
-        dst: Access { buffer: Buffer::Memory(dst), offset: dst_offset, len: dst_len },
+        dst: Access { buffer: Buffer::Memory(dst), offset: dst_offset, len: dst_len, shift: 0 },
+        dst_checked,
+        overlap,
+    })
+}
+
+/// Matches the memory word address `object + (idx << 5) + 32`. Returns the object, the index
+/// value, and the address instructions.
+fn word_address(
+    func: &Function,
+    lp: &Counted,
+    ptr: ValueId,
+) -> Option<(ValueId, ValueId, [InstId; 3])> {
+    let (outer, &InstKind::PtrAdd(inner_ptr, header)) = body_def(func, lp, ptr)? else {
+        return None;
+    };
+    if func.value_u64(header) != Some(32) {
+        return None;
+    }
+    let (inner, &InstKind::PtrAdd(object, offset)) = body_def(func, lp, inner_ptr)? else {
+        return None;
+    };
+    let (shl, &InstKind::Shl(shift, idx)) = body_def(func, lp, offset)? else { return None };
+    (func.value_u64(shift) == Some(5)).then_some((object, idx, [outer, inner, shl]))
+}
+
+/// Matches `dst[dstOffset + k] = src[srcOffset + k]` over arrays of words, counting up.
+fn word_copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
+    if !lp.phis.is_empty() || lp.descending {
+        return None;
+    }
+    let mut used = vec![lp.step];
+    let mut stores = lp.insts.iter().filter(|&&inst| {
+        matches!(
+            func.inst(inst).kind,
+            InstKind::Store(.., PtrLocation::Memory) | InstKind::Store8(..)
+        )
+    });
+    let (&store, None) = (stores.next()?, stores.next()) else { return None };
+    let InstKind::Store(dst_ptr, value, PtrLocation::Memory) = func.inst(store).kind else {
+        return None;
+    };
+    used.push(store);
+    let (load, &InstKind::Load(src_ptr, PtrLocation::Memory)) = body_def(func, lp, value)? else {
+        return None;
+    };
+    used.push(load);
+    let (src_object, src_idx, address) = word_address(func, lp, src_ptr)?;
+    used.extend(address);
+    let mut src = checked_access(func, l, lp, Buffer::Memory(src_object), src_idx, &mut used)?;
+    src.shift = 5;
+    let (dst, dst_idx, address) = word_address(func, lp, dst_ptr)?;
+    used.extend(address);
+    if !defined_outside(func, l, dst) {
+        return None;
+    }
+    let (dst_offset, dst_index) = index(func, l, lp, dst_idx)?;
+    used.extend(dst_index);
+    let mut dst_len = None;
+    let dst_checked = match bounds_check(func, l, lp, Buffer::Memory(dst), dst_idx) {
+        Some((check, len)) => {
+            used.extend(check);
+            dst_len = len;
+            true
+        }
+        None if dst_offset.is_none() => {
+            // `out[k]` checked against `out.length`, already known to equal the bound.
+            let check =
+                lp.insts.iter().copied().find(|&inst| {
+                    !used.contains(&inst) && array_check(func, inst) == Some(lp.test)
+                })?;
+            used.push(check);
+            false
+        }
+        None => return None,
+    };
+    let overlap =
+        if disjoint_objects(func, src_object, dst) { Overlap::Disjoint } else { Overlap::Guarded };
+    only_pattern_effects(func, lp, &used).then_some(Shape::Copy {
+        src,
+        dst: Access { buffer: Buffer::Memory(dst), offset: dst_offset, len: dst_len, shift: 5 },
         dst_checked,
         overlap,
     })
@@ -885,6 +974,8 @@ fn rewrite(func: &mut Function, plan: Plan) {
             builder.store(address, stored);
         }
         Shape::Copy { src, dst, dst_checked, overlap } => {
+            // size = shl bound, shift
+            let size = scaled(&mut builder, lp.bound, src.shift);
             let fast = match overlap {
                 Overlap::Disjoint => None,
                 Overlap::Guarded => {
@@ -899,7 +990,7 @@ fn rewrite(func: &mut Function, plan: Plan) {
                     // inside the destination range:
                     // behind = to < from && from < to + bound
                     let (lead, trail) = if lp.descending { (to, from) } else { (from, to) };
-                    let end = builder.add(lead, lp.bound);
+                    let end = builder.add(lead, size);
                     let after = builder.lt(lead, trail);
                     let inside = builder.lt(trail, end);
                     let ahead = builder.and(after, inside);
@@ -954,7 +1045,7 @@ fn rewrite(func: &mut Function, plan: Plan) {
                     (from, PtrLocation::Calldata)
                 }
             };
-            builder.copy(to, from, lp.bound, location);
+            builder.copy(to, from, size, location);
             if fast.is_some() {
                 // fast: ...; jump exit
                 // The loop stays for a destination that leads into its source.
@@ -1028,16 +1119,29 @@ fn load_word(builder: &mut FunctionBuilder<'_>, access: &Access) -> ValueId {
     }
 }
 
-/// Emits `object + offset + 32`, the address of a memory access's first byte.
+/// Emits `object + (offset << shift) + 32`, the address of a memory access's first byte.
 fn memory_data_address(builder: &mut FunctionBuilder<'_>, access: &Access) -> ValueId {
     let (Buffer::Memory(object) | Buffer::Calldata(object)) = access.buffer;
-    // base = ptradd object, offset; address = ptradd base, 32
+    // base = ptradd object, (shl offset, shift); address = ptradd base, 32
     let base = match access.offset {
-        Some(offset) => builder.ptradd(object, offset),
+        Some(offset) => {
+            let offset = scaled(builder, offset, access.shift);
+            builder.ptradd(object, offset)
+        }
         None => object,
     };
     let header = builder.imm(32);
     builder.ptradd(base, header)
+}
+
+/// Emits `count << shift`, the bytes of `count` elements.
+fn scaled(builder: &mut FunctionBuilder<'_>, count: ValueId, shift: u8) -> ValueId {
+    if shift == 0 {
+        return count;
+    }
+    // bytes = shl count, shift
+    let shift = builder.imm(u64::from(shift));
+    builder.shl(count, shift)
 }
 
 /// Emits `ptrtoint slice.ptr + offset`, the calldata address of a slice access's first byte.

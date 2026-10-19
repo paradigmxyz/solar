@@ -26,6 +26,12 @@
 //@ run-call-fail: fresh 0x0102030405, 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: viaHelper 0x0102030405, 2, 3 => 0x030405
 //@ run-call: zeroSome 0x0102030405060708090a, 2 => 0x0102000000000000000a
+//@ run-call: copyWords [5, 6, 7], 1 => [6, 7]
+//@ run-call: copyWords [5], 0 => [5]
+//@ run-call-fail: copyWords [5, 6], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: withinWords [1, 2, 3, 4], 0, 1, 3 => [1, 1, 1, 1]
+//@ run-call: withinWords [1, 2, 3, 4], 1, 0, 3 => [2, 3, 4, 4]
+//@ run-call-fail: withinWords [1, 2, 3, 4], 2, 0, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call-fail: zeroSome 0x0102030405060708, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: fillSome 0x0102030405, 0x61 => 0x6161616105
 //@ run-call-fail: fillSome 0x010203, 0x61 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
@@ -88,6 +94,15 @@
 // CHECK-NOT: mstore8
 // CHECK: mul
 // CHECK: mstore
+
+// A copy of word elements into a fresh array is one `mcopy` of 32 bytes per element.
+// CHECK-LABEL: fn @copyWords(
+// CHECK: mcopy
+// CHECK: mcopy
+
+// Within one array, the copy keeps the loop for a destination that leads into the source.
+// CHECK-LABEL: fn @withinWords(
+// CHECK: mcopy
 
 contract Test {
     function fromCalldata(bytes calldata b, uint256 offset) external pure returns (bytes32 result) {
@@ -161,6 +176,25 @@ contract Test {
             b[k] = c;
         }
         return b;
+    }
+
+    function copyWords(uint256[] memory a, uint256 from) external pure returns (uint256[] memory c) {
+        uint256 n = a.length - from;
+        c = new uint256[](n);
+        for (uint256 i; i < n; ++i) {
+            c[i] = a[from + i];
+        }
+    }
+
+    function withinWords(uint256[] memory a, uint256 from, uint256 to, uint256 count)
+        external
+        pure
+        returns (uint256[] memory)
+    {
+        for (uint256 i; i < count; ++i) {
+            a[to + i] = a[from + i];
+        }
+        return a;
     }
 
     /// @custom:solar-inline
