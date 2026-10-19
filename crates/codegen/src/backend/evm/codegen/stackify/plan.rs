@@ -837,10 +837,8 @@ impl<'a> Planner<'a> {
         // Plan on the caller's counts and give back what the window consumed.
         let mut planned = 0;
         for (index, &inst) in window.iter().enumerate() {
-            if index == offset {
-                for &value in pre {
-                    self.copy(&mut sim, value).ok()?;
-                }
+            if index == offset && pre.iter().any(|&value| self.copy(&mut sim, value).is_err()) {
+                break;
             }
             if self.plan_inst_inner(&mut sim, block, inst, uses).is_err()
                 || bound.is_some_and(|bound| !self.target.cmp(sim.cost, bound).is_lt())
@@ -999,7 +997,9 @@ impl<'a> Planner<'a> {
                         def_position.get(operand).is_none_or(|at| !computed.contains(at))
                     })
                     .collect();
+                // The computed words must sit above the copied ones, as they are pushed last.
                 if !rest.is_empty()
+                    && pre.starts_with(&rest)
                     && consumer - start <= MAX_PREPLACEMENT_WINDOW
                     && rest.iter().all(|operand| available(operand, start))
                 {
