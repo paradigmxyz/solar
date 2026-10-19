@@ -27,8 +27,9 @@
 //!
 //! - each access's index `offset + k` (`checked_add`, or `k` itself) and its bounds check
 //!   `panic_if_zero<0x32> (lt index, length)`, where the length is `mload object` for a memory
-//!   object, or the length a fresh allocation stored once load forwarding has replaced that load,
-//!   and the slice's length field for a calldata slice;
+//!   object, the same load hoisted before the loop (behind trivial phis of enclosing loops), or the
+//!   length a fresh allocation stored once load forwarding has replaced that load, and the slice's
+//!   length field for a calldata slice;
 //! - a gather's `byte 0` of the word at the indexed byte, shifted into place by `8 * k` and ORed
 //!   into an accumulator phi that starts at zero, with optional masks that keep the leading bytes
 //!   of a `bytesN` result;
@@ -494,10 +495,16 @@ fn bounds_check(
             return None;
         }
         if let Buffer::Memory(object) = buffer
-            && stored_length(func, object) == Some(len)
             && defined_outside(func, l, len)
         {
-            return Some((vec![inst, cmp], Some(len)));
+            // A length from before the loop: one an allocation stored, or a load of the length
+            // word that the loop passes hoisted, possibly behind trivial loop phis.
+            let source = through_trivial_phis(func, len);
+            let loaded = matches!(*func.value(source), Value::Inst(load)
+                if func.inst(load).kind == InstKind::Load(object, PtrLocation::Memory));
+            if loaded || stored_length(func, object) == Some(source) {
+                return Some((vec![inst, cmp], Some(len)));
+            }
         }
         let Value::Inst(len_inst) = *func.value(len) else { return None };
         let matches = match buffer {
@@ -512,6 +519,22 @@ fn bounds_check(
         };
         matches.then(|| (vec![inst, cmp, len_inst], None))
     })
+}
+
+/// The value `value` stands for once phis whose inputs are only themselves and one other value
+/// are looked through.
+fn through_trivial_phis(func: &Function, mut value: ValueId) -> ValueId {
+    for _ in 0..8 {
+        let Value::Inst(inst) = *func.value(value) else { break };
+        let InstKind::Phi(incoming) = &func.inst(inst).kind else { break };
+        let mut others = incoming.iter().map(|&(_, input)| input).filter(|&input| input != value);
+        let Some(first) = others.next() else { break };
+        if others.any(|other| other != first) {
+            break;
+        }
+        value = first;
+    }
+    value
 }
 
 /// The length a fresh allocation's block first stores into its length word, as `new bytes(n)`
