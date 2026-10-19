@@ -51,6 +51,7 @@ cast block-number --rpc-url http://127.0.0.1:8545 >/dev/null
 
 fandango() {
   PYTHONHASHSEED=1 uv tool run --quiet --python "$(cat .python-version)" \
+    --exclude-newer "7 days" \
     --from "fandango-fuzzer==${fandango_version}" \
     fandango "$@"
 }

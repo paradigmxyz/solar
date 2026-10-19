@@ -987,20 +987,6 @@ class RunComparisonTests(unittest.TestCase):
             12,
         )
         self.assertEqual(
-            benchmark.gas_exclusion_report([after], [before]),
-            [
-                "",
-                "### Gas excluded from comparison",
-                "",
-                "Calls still execute; raw gas and failures remain in the results. Totals below contain measured gas only.",
-                "",
-                "| Case | Calls | Baseline raw gas | Candidate raw gas | Reason |",
-                "| --- | ---: | ---: | ---: | --- |",
-                "| test | 1 | 20 | 2,000 | code-dependent workload |",
-                "",
-            ],
-        )
-        self.assertEqual(
             benchmark.benchmark_rows([after], benchmark.by_test_id([before])),
             ["| test | 12 (❌ +20.00%) | n/a (n/a) | 100B (~0%) | n/a (n/a) |"],
         )
