@@ -1,0 +1,260 @@
+// === ROOT/tests/ui/codegen/mir/byte-loops/words.sol:Test ===
+@module Test
+@phase lowered
+fn @load32() [selector=0xa3352e1e, abi_wrapper, pure] {
+  bb0:
+    v27 = calldatasize
+    v28 = lt v27, 68
+    jumpi v28, bb3, bb4
+  bb4:
+    v29 = icall @decode_calldata_type
+    v18 = mload v29
+    v19 = lt v18, 32
+    v20 = sub v18, 32
+    v21 = gt arg1, v20
+    v22 = or v19, v21
+    jumpi v22, bb1, bb2
+  bb2:
+    v33 = add v29, arg1
+    v34 = add v33, 32
+    v26 = mload v34
+    mstore 128, v26
+    returndata 128, 32
+  bb1:
+    tail_call @revert_stub
+  bb3:
+    revert 0, 0
+}
+
+fn @load4() [selector=0x199c2cd1, abi_wrapper, pure] {
+  bb0:
+    v30 = calldatasize
+    v31 = lt v30, 68
+    jumpi v31, bb3, bb4
+  bb4:
+    v32 = icall @decode_calldata_type
+    v20 = mload v32
+    v21 = lt v20, 4
+    v22 = sub v20, 4
+    v23 = gt arg1, v22
+    v24 = or v21, v23
+    jumpi v24, bb1, bb2
+  bb2:
+    v36 = add v32, arg1
+    v37 = add v36, 32
+    v28 = mload v37
+    v29 = and v28, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, v29
+    returndata 128, 32
+  bb1:
+    tail_call @revert_stub
+  bb3:
+    revert 0, 0
+}
+
+fn @store32() [selector=0xd264c25a, abi_wrapper, pure] {
+  bb0:
+    v26 = calldatasize
+    v27 = lt v26, 100
+    jumpi v27, bb3, bb4
+  bb4:
+    v28 = icall @decode_calldata_type
+    v18 = mload v28
+    v19 = lt v18, 32
+    v20 = sub v18, 32
+    v21 = gt arg1, v20
+    v22 = or v19, v21
+    jumpi v22, bb1, bb2
+  bb2:
+    v43 = add v28, arg1
+    v44 = add v43, 32
+    mstore v44, arg2
+    v46 = add v28, 32
+    v34 = add v18, 31
+    v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v38 = add v46, v36
+    mstore v38, 0
+    v48 = add v28, 64
+    mcopy v48, v46, v18
+    mstore v28, 32
+    mstore v46, v18
+    v40 = add v36, 64
+    returndata v28, v40
+  bb1:
+    tail_call @revert_stub
+  bb3:
+    revert 0, 0
+}
+
+fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
+  bb0:
+    v32 = calldataload 68
+    v33 = shl v32, 16
+    v30 = calldatasize
+    v31 = lt v30, 100
+    v61 = zext i1 v31 to i256
+    v62 = or v61, v33
+    v63 = ne v62, 0
+    jumpi v63, bb3, bb4
+  bb4:
+    v35 = icall @decode_calldata_type
+    v18 = mload v35
+    v19 = lt v18, 2
+    v20 = sub v18, 2
+    v21 = gt arg1, v20
+    v22 = or v19, v21
+    jumpi v22, bb1, bb2
+  bb2:
+    v53 = add v35, arg1
+    v54 = add v53, 32
+    v26 = mload v54
+    v49 = xor v26, arg2
+    v50 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v29 = xor arg2, v50
+    mstore v54, v29
+    v56 = add v35, 32
+    v41 = add v18, 31
+    v43 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v45 = add v56, v43
+    mstore v45, 0
+    v58 = add v35, 64
+    mcopy v58, v56, v18
+    mstore v35, 32
+    mstore v56, v18
+    v47 = add v43, 64
+    returndata v35, v47
+  bb1:
+    tail_call @revert_stub
+  bb3:
+    revert 0, 0
+}
+
+fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
+  bb0:
+    v40 = calldatasize
+    v41 = lt v40, 100
+    jumpi v41, bb5, bb6
+  bb6:
+    v42 = icall @decode_calldata_type
+    v0 = add arg2, 63
+    v1 = lt v0, arg2
+    jumpi v1, bb1, bb2
+  bb2:
+    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v66 = icall @alloc, v3
+    v68 = calldatasize
+    calldatacopy v66, v68, v3
+    mstore v66, arg2
+    v27 = mload v42
+    v28 = lt v27, arg2
+    v29 = sub v27, arg2
+    v30 = gt arg1, v29
+    v31 = or v28, v30
+    v33 = ne arg2, 0
+    v36 = and v31, v33
+    jumpi v36, bb3, bb4
+  bb4:
+    v57 = add v66, 32
+    v59 = add v42, arg1
+    v60 = add v59, 32
+    mcopy v57, v60, arg2
+    v48 = add arg2, 31
+    v50 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v52 = add v57, v50
+    mstore v52, 0
+    v62 = add v66, 64
+    mcopy v62, v57, arg2
+    mstore v66, 32
+    mstore v57, arg2
+    v54 = add v50, 64
+    returndata v66, v54
+  bb3:
+    tail_call @revert_stub
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    revert 0, 0
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_type() -> i256 [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload 4
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v8 = calldataload v2
+    v10 = add v8, 63
+    v11 = lt v10, v8
+    jumpi v11, bb3, bb4
+  bb4:
+    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = icall @alloc, v13
+    mstore v26, v8
+    v15 = sub v0, v3
+    v16 = gt v8, v15
+    jumpi v16, bb1, bb5
+  bb5:
+    v23 = add v26, 32
+    calldatacopy v23, v3, v8
+    ret v26
+  bb3:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb7, [0x199c2cd1 => bb2, 0xa3352e1e => bb3, 0xd264c25a => bb4, 0xe0041396 => bb5, 0xe9ebf0b0 => bb6]
+  bb6:
+    tail_call @store2
+  bb5:
+    tail_call @slice
+  bb4:
+    tail_call @store32
+  bb3:
+    tail_call @load32
+  bb2:
+    tail_call @load4
+  bb7:
+    revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
