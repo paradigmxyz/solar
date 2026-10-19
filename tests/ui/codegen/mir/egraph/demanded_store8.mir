@@ -153,3 +153,41 @@ fn @shared_above_shift(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>) {
     mstore arg2, v2
     ret
 }
+
+// Bits above the byte do not matter to the store.
+// CHECK-LABEL: fn @or_high_bits(
+// CHECK: mstore8 arg0, arg1
+// CHECK-NOT: or
+fn @or_high_bits(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = or arg1, 0x100
+    mstore8 arg0, v0
+    ret
+}
+
+// An or that sets demanded bits stays.
+// CHECK-LABEL: fn @or_low_bits(
+// CHECK: [[OR:v[0-9]+]] = or arg1, 1
+// CHECK: mstore8 arg0, [[OR]]
+fn @or_low_bits(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = or arg1, 1
+    mstore8 arg0, v0
+    ret
+}
+
+// A shared value in the middle of the chain would stay live next to its unmasked operand.
+// CHECK-LABEL: fn @mid_shared(
+// CHECK: [[MASK:v[0-9]+]] = and {{v[0-9]+}}, 0xffff
+// CHECK: [[BYTE:v[0-9]+]] = byte 31, [[MASK]]
+// CHECK: mstore8 arg0, [[BYTE]]
+// CHECK: mstore arg2, [[MASK]]
+fn @mid_shared(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>) {
+  bb0:
+    v0 = add arg1, 1
+    v1 = and v0, 0xffff
+    v2 = byte 31, v1
+    mstore8 arg0, v2
+    mstore arg2, v1
+    ret
+}

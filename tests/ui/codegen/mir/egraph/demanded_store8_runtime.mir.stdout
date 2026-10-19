@@ -91,6 +91,16 @@ fn @sharedAboveShift(arg0: i256) -> struct0 [selector=0xb377deb4, pure, abi_para
     ret v6
 }
 
+fn @orHigh(arg0: i256) -> i256 [selector=0x8ff22013, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore v0, 0
+    v1 = or arg0, 256
+    mstore8 v0, v1
+    v2 = mload v0
+    ret v2
+}
+
 fn @lowNibble(arg0: i256) -> i256 [selector=0x3d59ef7c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

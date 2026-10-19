@@ -108,6 +108,31 @@
       ret
   }
   
+  fn @or_high_bits(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = or arg1, 256
+-     mstore8 arg0, v0
++     mstore8 arg0, arg1
+      ret
+  }
+  
+  fn @or_low_bits(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = or arg1, 1
+      mstore8 arg0, v0
+      ret
+  }
+  
+  fn @mid_shared(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>) {
+    bb0:
+      v0 = add arg1, 1
+      v1 = and v0, 0xffff
+      v2 = byte 31, v1
+      mstore8 arg0, v2
+      mstore arg2, v1
+      ret
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/egraph/demanded_store8.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/demanded_store8.mir (after dce) ===
   @module DemandedStore8
@@ -207,6 +232,30 @@
       v2 = and v1, 0xfff
       mstore8 arg0, v2
       mstore arg2, v2
+      ret
+  }
+  
+  fn @or_high_bits(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+-     v0 = or arg1, 256
+      mstore8 arg0, arg1
+      ret
+  }
+  
+  fn @or_low_bits(arg0: ptr<memory>, arg1: i256) {
+    bb0:
+      v0 = or arg1, 1
+      mstore8 arg0, v0
+      ret
+  }
+  
+  fn @mid_shared(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>) {
+    bb0:
+      v0 = add arg1, 1
+      v1 = and v0, 0xffff
+      v2 = byte 31, v1
+      mstore8 arg0, v2
+      mstore arg2, v1
       ret
   }
   

@@ -11,6 +11,8 @@
 //@ run-call: shared 0x1ff => 0xff00000000000000000000000000000000000000000000000000000000000000, 0xff
 //@ run-call: sharedAboveShift 0xff => 0xf000000000000000000000000000000000000000000000000000000000000000, 0xf0
 //@ run-call: sharedAboveShift 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xf000000000000000000000000000000000000000000000000000000000000000, 0xf0
+//@ run-call: orHigh 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9a => 0x9a00000000000000000000000000000000000000000000000000000000000000
+//@ run-call: orHigh 0 => 0x0000000000000000000000000000000000000000000000000000000000000000
 //@ run-call: lowNibble 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x0f00000000000000000000000000000000000000000000000000000000000000
 //@ run-call: soliditySlice 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff34 => 0x34
 contract DemandedStore8 {
@@ -84,6 +86,15 @@ contract DemandedStore8 {
             mstore(p, 0)
             low := and(shl(4, and(x, 0xf0f)), 0xfff)
             mstore8(p, low)
+            word := mload(p)
+        }
+    }
+
+    function orHigh(uint256 x) external pure returns (bytes32 word) {
+        assembly {
+            let p := mload(0x40)
+            mstore(p, 0)
+            mstore8(p, or(x, 0x100))
             word := mload(p)
         }
     }
