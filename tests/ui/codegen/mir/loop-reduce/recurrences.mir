@@ -3,7 +3,7 @@
 @module Recurrences
 
 // CHECK-LABEL: {{^[ +].*}}fn @sum{{[( ]}}
-// CHECK: + [[HALF:v[0-9]+]] = shr 1, arg2
+// CHECK: + [[HALF:v[0-9]+]] = shr arg2, 1
 // CHECK: + [[PREV:v[0-9]+]] = sub arg2, 1
 // CHECK: + [[ODD:v[0-9]+]] = or [[PREV]], 1
 // CHECK: + [[TRI:v[0-9]+]] = mul [[HALF]], [[ODD]]

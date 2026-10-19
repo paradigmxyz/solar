@@ -198,13 +198,13 @@ fn rewrite(func: &mut Function, plan: ClosedForm) {
         // delta = mul n, step
         let mut delta = builder.mul(plan.count, step);
         if let Some(source) = source {
-            // half = shr 1, n
+            // half = shr n, 1
             // previous = sub n, 1
             // odd = or previous, 1
             // triangular = mul half, odd
             let triangular = *triangular.get_or_insert_with(|| {
                 let one = builder.imm(1);
-                let half = builder.shr(one, plan.count);
+                let half = builder.shr(plan.count, one);
                 let previous = builder.sub(plan.count, one);
                 let odd = builder.or(previous, one);
                 builder.mul(half, odd)

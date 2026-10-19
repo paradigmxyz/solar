@@ -4,7 +4,7 @@
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
 
-fn @sum(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x11859fd0, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @sum(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x11859fd0, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -37,7 +37,7 @@ fn @sum(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x1
     jump bb1
 }
 
-fn @descending(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [selector=0x1db526ee, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @descending(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [selector=0x1db526ee, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -69,7 +69,7 @@ fn @descending(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [selec
     jump bb1
 }
 
-fn @linear(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa6405d9e, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @linear(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa6405d9e, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -94,7 +94,7 @@ fn @linear(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa6405d9e, pur
     jump bb1
 }
 
-fn @checked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa1baf9de, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @checked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa1baf9de, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -110,16 +110,16 @@ fn @checked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa1baf9de, pu
   bb2:
     ret v0
   bb4:
-    v6 = checked_add u256, v0, v1
+    v6 = checked_add uint256, v0, v1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v4, 1
+    v7 = checked_add uint256, v4, 1
     jump bb1
 }
 
-fn @checkedConstant(arg0: i256) -> i256 [selector=0x8ad06283, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkedConstant(arg0: i256) -> i256 [selector=0x8ad06283, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
@@ -133,11 +133,11 @@ fn @checkedConstant(arg0: i256) -> i256 [selector=0x8ad06283, pure, abi_params=[
   bb2:
     ret v1
   bb4:
-    v4 = checked_add u256, v1, 2
+    v4 = checked_add uint256, v1, 2
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v5 = checked_add u256, v2, 1
+    v5 = checked_add uint256, v2, 1
     jump bb1
 }

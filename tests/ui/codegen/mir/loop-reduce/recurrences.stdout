@@ -4,7 +4,7 @@
   fn @sum(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
 +     v7 = mul arg2, arg1
-+     v8 = shr 1, arg2
++     v8 = shr arg2, 1
 +     v9 = sub arg2, 1
 +     v10 = or v9, 1
 +     v11 = mul v8, v10
