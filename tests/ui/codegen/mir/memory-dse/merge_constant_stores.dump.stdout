@@ -91,30 +91,49 @@ fn @gap() [selector=0x6c32c0a6, abi_wrapper, pure] {
     returndata 128, 64
 }
 
+fn @twoWindows() [selector=0x03fd47ee, abi_wrapper, pure] {
+  bb0:
+    mstore 128, 0x102000000000000000000000000000000000000000000000000000000000000
+    mstore 160, 0x304000000000000000000000000000000000000000000000000000000000000
+    returndata 128, 64
+}
+
+fn @highAddress() [selector=0xe68983c4, abi_wrapper, pure] {
+  bb0:
+    mstore 0xffffffffffffffeb, 0
+    mstore 0xffffffffffffffcb, 0
+    mstore 0xffffffffffffffd7, 0x102000000000000000000000000000000000000000000000000000000000000
+    stop
+}
+
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb9, bb1
+    jumpi v1, bb11, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb9, [0x31cde8cd => bb2, 0x59e4b010 => bb3, 0x6c32c0a6 => bb4, 0x6c636b39 => bb5, 0x75dadb32 => bb6, 0xbb67265e => bb7, 0xf747ede1 => bb8]
-  bb8:
+    switch v3, default bb11, [0x3fd47ee => bb2, 0x31cde8cd => bb3, 0x59e4b010 => bb4, 0x6c32c0a6 => bb5, 0x6c636b39 => bb6, 0x75dadb32 => bb7, 0xbb67265e => bb8, 0xe68983c4 => bb9, 0xf747ede1 => bb10]
+  bb10:
     tail_call @unknownWindow
-  bb7:
-    tail_call @hexPrefix
-  bb6:
-    tail_call @prefix
-  bb5:
-    tail_call @overwriteByte
-  bb4:
-    tail_call @gap
-  bb3:
-    tail_call @straddle
-  bb2:
-    tail_call @readBetween
   bb9:
+    tail_call @highAddress
+  bb8:
+    tail_call @hexPrefix
+  bb7:
+    tail_call @prefix
+  bb6:
+    tail_call @overwriteByte
+  bb5:
+    tail_call @gap
+  bb4:
+    tail_call @straddle
+  bb3:
+    tail_call @readBetween
+  bb2:
+    tail_call @twoWindows
+  bb11:
     revert 0, 0
 }
 

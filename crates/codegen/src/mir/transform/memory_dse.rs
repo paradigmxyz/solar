@@ -437,7 +437,10 @@ impl SlotMap<U256> {
         let mut covered = 0u32;
         for (&slot, word) in bucket.slots.range(first.saturating_sub(31)..end) {
             for (index, &byte) in word.to_be_bytes::<32>().iter().enumerate() {
-                let Some(at) = (slot + index as u64).checked_sub(first).filter(|&at| at < 32)
+                let Some(at) = slot
+                    .checked_add(index as u64)
+                    .and_then(|at| at.checked_sub(first))
+                    .filter(|&at| at < 32)
                 else {
                     continue;
                 };
@@ -1713,10 +1716,6 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn same_base(a: MemAddrKey, b: MemAddrKey) -> bool {
-        a.0.region == b.0.region && a.0.base == b.0.base
-    }
-
     fn offset_mem_addr_key(key: MemAddrKey, add: u64) -> Option<MemAddrKey> {
         key.0.checked_add(add).map(MemAddrKey)
     }
@@ -1912,11 +1911,11 @@ impl MemoryStoreEliminator {
     ///
     /// Tracks the constant words the block stores and zero-fills. A run is a sequence of constant
     /// `mstore8`s that no instruction reading or writing memory, or observing `msize` or gas,
-    /// separates. The stores of a run that fall in the 32 bytes after its lowest store become one
-    /// `mstore` of the known window with those bytes applied, when every window byte is known at
-    /// the start of the run and the word store is cheaper. The window already lies in expanded
-    /// memory and nothing observes the memory between the stores, so neither the size nor any
-    /// observable state changes.
+    /// separates. The stores of a run that fall in a 32-byte window starting at one of its stores
+    /// become one `mstore` of the known window with those bytes applied, when every window byte
+    /// is known at the start of the run and the word store is cheaper. The window already lies in
+    /// expanded memory and nothing observes the memory between the stores, so neither the size
+    /// nor any observable state changes.
     fn merge_constant_stores(
         &mut self,
         func: &mut Function,
@@ -2045,22 +2044,22 @@ impl MemoryStoreEliminator {
                     .take_while(|&index| run[index].key.0.offset < end)
                     .collect::<Vec<_>>();
                 group.sort_unstable();
-                let Some(window) =
+                let Some(word) =
                     self.merged_window(func, run, &group, lowest, &scratch.stored_words, uses)
                 else {
                     start += 1;
                     continue;
                 };
                 start += group.len();
-                windows.push(window);
+                windows.push((run[lowest].key, word));
                 let last = run[*group.last().unwrap()].inst;
                 for &index in &group {
                     if run[index].inst != last {
                         scratch.dead.insert(run[index].inst);
                     }
                 }
-                self.eliminated_count += group.len();
-                merges.push(StoreMerge { last, addr: run[lowest].addr, word: window.1 });
+                self.eliminated_count += group.len() - 1;
+                merges.push(StoreMerge { last, addr: run[lowest].addr, word });
             }
         }
 
@@ -2072,10 +2071,10 @@ impl MemoryStoreEliminator {
         }
     }
 
-    /// Returns the window start and its word after `group`'s stores, when the known words cover
-    /// the window and one word store is cheaper than the group's byte stores. The word store
-    /// takes the address of the `lowest` store; the other addresses die with their stores when
-    /// nothing else uses them, and count in the byte stores' cost.
+    /// Returns the word of the window at the `lowest` store after `group`'s stores, when the known
+    /// words cover the window and one word store is cheaper than the group's byte stores. The word
+    /// store takes the address of the `lowest` store; the other addresses die with their stores
+    /// when nothing else uses them, and count in the byte stores' cost.
     fn merged_window(
         &self,
         func: &Function,
@@ -2084,7 +2083,7 @@ impl MemoryStoreEliminator {
         lowest: usize,
         known: &SlotMap<U256>,
         uses: &mut Option<IndexVec<ValueId, u32>>,
-    ) -> Option<(MemAddrKey, U256)> {
+    ) -> Option<U256> {
         if group.len() < 2 {
             return None;
         }
@@ -2107,7 +2106,7 @@ impl MemoryStoreEliminator {
                 }
             })
             .sum();
-        self.target.cmp_lifetime(merged, separate).is_lt().then_some((first, word))
+        self.target.cmp_lifetime(merged, separate).is_lt().then_some(word)
     }
 
     /// Returns the cost of materializing the address of a store that dies: a constant, or a
@@ -2132,5 +2131,9 @@ impl MemoryStoreEliminator {
             return Cost::ZERO;
         }
         self.target.dup() + self.target.push(offset) + self.target.opcode(op::ADD)
+    }
+
+    fn same_base(a: MemAddrKey, b: MemAddrKey) -> bool {
+        a.0.region == b.0.region && a.0.base == b.0.base
     }
 }

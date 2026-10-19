@@ -114,3 +114,23 @@ fn @gap() [selector=0x6c32c0a6, pure, abi_params=[], abi_returns=[word, word], a
     mstore8 160, 120
     returndata 128, 64
 }
+
+fn @twoWindows() [selector=0x03fd47ee, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
+  bb0:
+    mstore 128, 0
+    mstore 160, 0
+    mstore8 128, 1
+    mstore8 129, 2
+    mstore8 160, 3
+    mstore8 161, 4
+    returndata 128, 64
+}
+
+fn @highAddress() [selector=0xe68983c4, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    mstore 0xffffffffffffffeb, 0
+    mstore 0xffffffffffffffcb, 0
+    mstore8 0xffffffffffffffd7, 1
+    mstore8 0xffffffffffffffd8, 2
+    ret
+}

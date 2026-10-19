@@ -7,6 +7,8 @@
 //@ run-call: readBetween() => 0x3078000000000000000000000000000000000000000000000000000000000000, 0x3000000000000000000000000000000000000000000000000000000000000000
 //@ run-call: overwriteByte() => 0x0203000000000000000000000000000000000000000000000000000000000000
 //@ run-call: straddle() => 0x0000000000000000000000000000000030780000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: twoWindows() => 0x0102000000000000000000000000000000000000000000000000000000000000, 0x0304000000000000000000000000000000000000000000000000000000000000
+//@ run-call-fail: highAddress()
 //@ run-call: gap() => 0x3000000000000000000000000000000000000000000000000000000000000000, 0x7800000000000000000000000000000000000000000000000000000000000000
 
 contract MergeConstantStores {
@@ -102,6 +104,33 @@ contract MergeConstantStores {
             mstore8(0x80, 0x30)
             mstore8(0xa0, 0x78)
             return(0x80, 64)
+        }
+    }
+
+    // Two windows in one run merge independently, each from the state at the start of the run.
+    // CHECK-LABEL: fn @twoWindows
+    // CHECK-NOT: mstore8
+    // CHECK: mstore 128, 0x102000000000000000000000000000000000000000000000000000000000000
+    // CHECK: mstore 160, 0x304000000000000000000000000000000000000000000000000000000000000
+    function twoWindows() external pure returns (bytes32, bytes32) {
+        assembly {
+            mstore(0x80, 0)
+            mstore(0xa0, 0)
+            mstore8(0x80, 1)
+            mstore8(0x81, 2)
+            mstore8(0xa0, 3)
+            mstore8(0xa1, 4)
+            return(0x80, 64)
+        }
+    }
+
+    // Slots next to the end of the address space must not overflow the window arithmetic.
+    function highAddress() external pure {
+        assembly {
+            mstore(0xffffffffffffffeb, 0)
+            mstore(0xffffffffffffffcb, 0)
+            mstore8(0xffffffffffffffd7, 1)
+            mstore8(0xffffffffffffffd8, 2)
         }
     }
 }
