@@ -50,7 +50,7 @@ mod generated {
 pub(super) struct RuleContext<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
-    target: Option<Target>,
+    target: Option<&'a Target>,
     /// Original block of the root, for rules that must not extend cross-block dependencies.
     block: Option<BlockId>,
     /// Pre-pass use counts for profitability guards, when available.
@@ -75,7 +75,7 @@ impl<'a> RuleContext<'a> {
     }
 
     /// Supplies the session cost model for conservative materialization guards.
-    pub(super) fn with_target(mut self, target: Target) -> Self {
+    pub(super) fn with_target(mut self, target: &'a Target) -> Self {
         self.target = Some(target);
         self
     }

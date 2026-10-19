@@ -8,7 +8,7 @@
       v1 = add v0, 32
       mcopy v1, 128, 32
       mstore 0, 8
-      stop
+      ret
   }
   
   fn @copy_at_reads_slice_range(arg0: ptr<memory>, arg1: i256) {
@@ -19,7 +19,7 @@
       v2 = add v1, arg1
       mcopy v2, 128, 32
       mstore 0, 8
-      stop
+      ret
   }
   
   fn @copy_keeps_read_store(arg0: ptr<memory>) {
@@ -29,7 +29,7 @@
       v1 = add v0, 32
       mcopy v1, 0, 32
       mstore 0, 8
-      stop
+      ret
   }
   
   fn @copy_unknown_slice(arg0: ptr<memory>, arg1: slice<memory>) {
@@ -41,6 +41,6 @@
       v3 = extract_value slice<memory>, arg1, 1
       mcopy v1, v2, v3
       mstore 0, 8
-      stop
+      ret
   }
   

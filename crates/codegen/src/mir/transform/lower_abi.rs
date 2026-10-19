@@ -19,7 +19,10 @@
 //! The wrapper keeps argument materialization lazy so values used after a
 //! branch can still be rematerialized instead of spilled. Dynamic return
 //! encoding becomes a semantic `abi_encode_scratch` operation here and lowers later;
-//! static returns use the fixed low-memory return buffer directly. Internal
+//! static returns use the fixed low-memory return buffer directly. A returned memory
+//! aggregate is encoded as it is when its return layout gives every narrow word a
+//! validator: the encoder then cleans each word it reads from memory, so no cleaned copy
+//! precedes it. Internal
 //! call sites that targeted a wrapped function are retargeted to its extracted
 //! raw-return body, so internal calls to public functions keep their convention.
 //!
@@ -141,7 +144,6 @@ fn mark_abi_wrappers(module: &mut Module) -> bool {
 struct LowerAbiCx {
     aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
     calldata_slice_helper: Option<FunctionId>,
-    return_cleanup_helpers: FxHashMap<AbiParamType, FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
     validated_abi_arguments: super::call_cleanup::ArgumentBits,
     has_bitwise_shifting: bool,
@@ -276,11 +278,8 @@ impl LowerAbiCx {
 
         self.synthesize_shared_calldata_slice_helpers(module, &targets);
         self.synthesize_shared_aggregate_type_helpers(module, &targets);
-        if gas_mode {
-            self.synthesize_shared_return_cleanup_helpers(module, &targets);
-        }
         let canonical_return_calls = if gas_mode {
-            find_canonical_return_calls(module, &targets, &self.return_cleanup_helpers)
+            find_canonical_return_calls(module, &targets)
         } else {
             FxHashSet::default()
         };
@@ -430,7 +429,6 @@ impl LowerAbiCx {
         static_bytes_return: Option<StaticBytesReturn>,
         decoded_params: &[Option<ValueId>],
     ) {
-        let cleanup_helpers = &self.return_cleanup_helpers;
         let has_bitwise_shifting = self.has_bitwise_shifting;
         let revert_strings = self.revert_strings;
         let Some(mut layout) = func.abi_returns.take() else { return };
@@ -466,7 +464,7 @@ impl LowerAbiCx {
         } else {
             FxHashMap::default()
         };
-        // An array already holding ABI-validated words needs neither the cleanup helper
+        // An array already holding ABI-validated words needs neither a cleaned copy
         // nor the encoder's per-element copy: the array this wrapper decoded when element
         // cleanup proved that nothing widens it, or one a call returned with that proof.
         // Strip the element cleanup from the layout so the encoder copies the payload once.
@@ -494,12 +492,11 @@ impl LowerAbiCx {
                     canonical_returns.insert(index);
                 }
             }
-            canonical_returns.retain(|&index| {
-                std::sync::Arc::make_mut(&mut layout)
-                    .types
-                    .get_mut(index)
-                    .is_some_and(strip_array_element_cleanup)
-            });
+            for &index in &canonical_returns {
+                if let Some(ty) = std::sync::Arc::make_mut(&mut layout).types.get_mut(index) {
+                    strip_array_element_cleanup(ty);
+                }
+            }
         }
         if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
             // Static return data occupies the low-memory ABI buffer. Keep the
@@ -549,38 +546,25 @@ impl LowerAbiCx {
                             has_bitwise_shifting,
                         );
                     }
-                    if canonical_returns.contains(&index) {
+                    // The encoder cleans each word it reads from a memory aggregate, so a
+                    // cleaned copy would only clean every word twice.
+                    if canonical_returns.contains(&index)
+                        || (!ty.is_scalar_word()
+                            && builder.func().value_ty(value) == Some(MirType::MEMPTR)
+                            && layout
+                                .types
+                                .get(index)
+                                .is_some_and(|abi| encoder_cleans_return(abi, &ty)))
+                    {
                         return value;
                     }
-                    if let Some(&helper) = cleanup_helpers.get(&ty)
-                        && builder.func().value_ty(value) == Some(ty.mir_type())
-                    {
-                        if is_canonical_return_call(
-                            builder.func(),
-                            block_id,
-                            &ty,
-                            value,
-                            canonical_calls,
-                        ) || is_canonical_return_value(
-                            builder.func(),
-                            &ty,
-                            value,
-                            input_params,
-                            ReturnValueSource::Scalar,
-                        ) {
-                            value
-                        } else {
-                            builder.icall(helper, vec![value], ty.mir_type())
-                        }
-                    } else {
-                        canonicalize_return_value(
-                            &mut builder,
-                            &ty,
-                            value,
-                            input_params,
-                            ReturnValueSource::Scalar,
-                        )
-                    }
+                    canonicalize_return_value(
+                        &mut builder,
+                        &ty,
+                        value,
+                        input_params,
+                        ReturnValueSource::Scalar,
+                    )
                 })
                 .collect::<Vec<_>>()
                 .into_boxed_slice();
@@ -852,46 +836,6 @@ impl LowerAbiCx {
         if count >= 2 {
             self.calldata_slice_helper = Some(self.synthesize_calldata_slice_helper(module));
         }
-    }
-
-    fn synthesize_shared_return_cleanup_helpers(
-        &mut self,
-        module: &mut Module,
-        targets: &[FunctionId],
-    ) {
-        let mut counts = FxHashMap::<AbiParamType, usize>::default();
-        for &id in targets {
-            let Some(layout) = module.function(id).abi_return_params.as_ref() else { continue };
-            for ty in &layout.types {
-                if !ty.is_scalar_word() && ty.needs_return_cleanup() {
-                    *counts.entry(ty.clone()).or_default() += 1;
-                }
-            }
-        }
-        for (ty, count) in counts {
-            if count < 2 {
-                continue;
-            }
-            let helper = self.synthesize_return_cleanup_helper(module, &ty);
-            self.return_cleanup_helpers.insert(ty, helper);
-        }
-    }
-
-    fn synthesize_return_cleanup_helper(
-        &self,
-        module: &mut Module,
-        ty: &AbiParamType,
-    ) -> FunctionId {
-        let mut function = Function::new(Ident::with_dummy_span(sym::cleanup_return));
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
-            let value = builder.add_param(ty.mir_type());
-            builder.set_return_type(ty.mir_type());
-            let value =
-                canonicalize_return_value(&mut builder, ty, value, None, ReturnValueSource::Scalar);
-            builder.ret([value]);
-        }
-        module.add_function(function)
     }
 
     fn synthesize_calldata_slice_helper(&self, module: &mut Module) -> FunctionId {
@@ -2901,7 +2845,6 @@ fn can_encode_live_returns(module: &Module, func: &Function) -> bool {
 fn find_canonical_return_calls(
     module: &Module,
     targets: &[FunctionId],
-    cleanup_helpers: &FxHashMap<AbiParamType, FunctionId>,
 ) -> FxHashSet<(FunctionId, AbiParamType)> {
     let mut candidates = FxHashSet::default();
     for &id in targets {
@@ -2912,7 +2855,8 @@ fn find_canonical_return_calls(
             for (&value, ty) in values.iter().zip(&layout.types) {
                 // Lowering types a returned array as the raw pointer it is, so a proved
                 // element width stands in for the exact type match.
-                if cleanup_helpers.contains_key(ty)
+                if !ty.is_scalar_word()
+                    && ty.needs_return_cleanup()
                     && let Value::Inst(inst) = func.value(value)
                     && let InstKind::ICall { function: Callee::Function(function), .. } =
                         func.inst(*inst).kind
@@ -3045,7 +2989,7 @@ fn is_canonical_return_value_inner(
     visiting: &mut FxHashSet<ValueId>,
     calls: &mut CanonicalCallProof<'_>,
 ) -> bool {
-    let value = if ty.is_scalar_word() { value } else { pointer_alias_root(func, value) };
+    let value = if ty.is_scalar_word() { value } else { returned_object_root(func, value) };
     if !ty.needs_return_cleanup()
         || (source == ReturnValueSource::Scalar
             && reuses_validated_input(func, value, input_params, ty))
@@ -3138,6 +3082,22 @@ fn pointer_alias_root(func: &Function, mut value: ValueId) -> ValueId {
     // A malformed cyclic definition must not make the proof loop forever.
     for _ in 0..func.num_values() {
         let Value::Inst(inst) = func.value(value) else { break };
+        let Some(input) = lossless_pointer_cast(func, *inst) else { break };
+        value = input;
+    }
+    value
+}
+
+/// Follows only conversions that keep the address, so the proof checks the words the
+/// encoding reads; unlike [`pointer_alias_root`] it stops at a nonzero offset.
+fn returned_object_root(func: &Function, mut value: ValueId) -> ValueId {
+    for _ in 0..func.num_values() {
+        let Value::Inst(inst) = func.value(value) else { break };
+        if let InstKind::PtrAdd(_, offset) = func.inst(*inst).kind
+            && func.value_u64(offset) != Some(0)
+        {
+            break;
+        }
         let Some(input) = lossless_pointer_cast(func, *inst) else { break };
         value = input;
     }
@@ -3345,19 +3305,7 @@ fn pointer_only_returned(func: &Function, value: ValueId) -> bool {
     })
 }
 
-fn is_canonical_return_call(
-    func: &Function,
-    block: BlockId,
-    ty: &AbiParamType,
-    value: ValueId,
-    canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
-) -> bool {
-    func.blocks[block].terminator.is_none()
-        && returns_proved_call(func, block, ty, value, canonical_calls)
-}
-
 /// Whether `value` is the result of this block's final call, proved canonical for `ty`.
-/// Unlike [`is_canonical_return_call`] this holds before the return terminator is taken.
 fn returns_proved_call(
     func: &Function,
     block: BlockId,
@@ -3623,18 +3571,14 @@ fn is_canonical_decoded_array(
 }
 
 /// Drops the per-element cleanup from a memory word array's encoding, leaving one payload
-/// copy. Returns whether the layout had such a cleanup to drop.
-fn strip_array_element_cleanup(ty: &mut AbiType) -> bool {
-    let (AbiType::DynamicArray { element, location: PtrLocation::Memory }
-    | AbiType::FixedArray { element, .. }) = ty
-    else {
-        return false;
-    };
-    if !matches!(**element, AbiType::Word(Some(_))) {
-        return false;
+/// copy.
+fn strip_array_element_cleanup(ty: &mut AbiType) {
+    if let AbiType::DynamicArray { element, location: PtrLocation::Memory }
+    | AbiType::FixedArray { element, .. } = ty
+        && let AbiType::Word(validator @ Some(_)) = &mut **element
+    {
+        *validator = None;
     }
-    **element = AbiType::Word(None);
-    true
 }
 
 /// Whether `object` is an array parameter whose words element cleanup proved
@@ -3763,6 +3707,32 @@ fn canonicalize_return_value(
             });
             output
         }
+    }
+}
+
+/// Whether encoding a memory value of shape `ty` with `abi` cleans every word that
+/// [`AbiParamType::needs_return_cleanup`] requires. Source layouts always carry the
+/// validators; a hand-written layout may not, and then needs a cleaned copy.
+fn encoder_cleans_return(abi: &AbiType, ty: &AbiParamType) -> bool {
+    if !ty.needs_return_cleanup() {
+        return true;
+    }
+    match (abi, ty) {
+        (AbiType::Word(Some(validator)), _) => ty.word_validator() == Some(*validator),
+        (AbiType::Function, AbiParamType::Scalar(crate::mir::ValueLayout::Function)) => true,
+        (AbiType::Tuple(fields), AbiParamType::Tuple(tys)) => {
+            fields.len() == tys.len()
+                && fields.iter().zip(tys).all(|(abi, ty)| encoder_cleans_return(abi, ty))
+        }
+        (
+            AbiType::FixedArray { element, len },
+            AbiParamType::FixedArray { element: ty, len: ty_len },
+        ) => len == ty_len && encoder_cleans_return(element, ty),
+        (
+            AbiType::DynamicArray { element, location: PtrLocation::Memory },
+            AbiParamType::DynamicArray(ty),
+        ) => encoder_cleans_return(element, ty),
+        _ => false,
     }
 }
 
