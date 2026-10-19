@@ -12,8 +12,10 @@ run one discovered project.
 
 Arguments after a UI-mode suite name (`ui`, `mir`, `evm-ir`, `standard-json`,
 `solc-solidity`, `solc-yul`) filter tests by path substring, as in
-`cargo uitest tests/ui/typeck` or `cargo uibless tests/ui/typeck`. Filtered runs
-use `cargo test`, since nextest would read the filters as test names.
+`cargo tq ui tests/ui/typeck` or `cargo bless ui tests/ui/typeck`. Filtered runs
+use `cargo test`, since nextest would read the filters as test names. `cargo t`
+runs every suite and `cargo bless` blesses every UI-mode suite, including
+standard JSON.
 
 ## Runtime directives
 
