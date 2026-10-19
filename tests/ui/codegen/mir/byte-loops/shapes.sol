@@ -15,6 +15,11 @@
 //@ run-call-fail: within 0x0102030405, 3, 0, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: between 0x0102030405, 0xaaaaaaaaaa, 1, 3 => 0xaa020304aa
 //@ run-call-fail: between 0x0102030405, 0xaaaaaa, 1, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: down 0x0102030405, 0, 1, 3 => 0x0101020305
+//@ run-call: down 0x0102030405, 1, 0, 3 => 0x0404040405
+//@ run-call-fail: down 0x0102030405, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: down 0x0102030405, 3, 0, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: down 0x0102030405, 9, 9, 0 => 0x0102030405
 //@ run-call: sliceCalldata 0x0a0b0c0d0e, 1, 3 => 0x0b0c0d
 //@ run-call-fail: sliceCalldata 0x0a0b0c0d0e, 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
@@ -41,6 +46,11 @@
 // A copy between two arguments takes the same guard.
 // CHECK-LABEL: fn @between(
 // CHECK: mcopy
+
+// A downward copy keeps the loop for a source that starts inside the destination.
+// CHECK-LABEL: fn @down(
+// CHECK: mcopy
+// CHECK: mstore8
 
 // A copy out of calldata is one `calldatacopy`.
 // CHECK-LABEL: fn @sliceCalldata(
@@ -79,6 +89,13 @@ contract Test {
             dst[offset + k] = src[offset + k];
         }
         return dst;
+    }
+
+    function down(bytes memory b, uint256 from, uint256 to, uint256 count) external pure returns (bytes memory) {
+        for (uint256 k = count; k > 0; --k) {
+            b[to + k - 1] = b[from + k - 1];
+        }
+        return b;
     }
 
     function sliceCalldata(bytes calldata b, uint256 offset, uint256 count) external pure returns (bytes memory result) {
