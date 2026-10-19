@@ -200,15 +200,6 @@ impl GasTier {
         }
     }
 
-    /// Dynamic gas of a tier priced the same on every EVM version, usable in
-    /// constants.
-    pub(crate) const fn fixed_dynamic_gas(self) -> u32 {
-        match self {
-            Self::Exp => panic!("tier is priced per EVM version"),
-            _ => self.dynamic_gas(EvmVersion::Homestead),
-        }
-    }
-
     /// The stack argument that sizes the dynamic work: the exponent of
     /// `EXP`, the byte length of a hash or a log, the last argument of a copy.
     const fn sizing_argument(self, arguments: usize) -> Option<usize> {

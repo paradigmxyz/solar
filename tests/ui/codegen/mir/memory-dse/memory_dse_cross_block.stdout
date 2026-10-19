@@ -37,3 +37,14 @@
 +     ret 2
   }
   
+  fn @remove_store_before_stop(arg0: i1) {
+    bb0:
+-     mstore 0, 1
+      jumpi arg0, bb1, bb2
+    bb2:
+      mstore 0, 2
+      revert 0, 32
+    bb1:
+      stop
+  }
+  
