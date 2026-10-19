@@ -6,7 +6,7 @@ fn @getArray() -> i256 [pure] {
     ret v0
 }
 
-fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @getArray
     v1 = alloc 96
@@ -53,12 +53,12 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     icall panic_if<0x32>, v29
     v30 = add v27, v17
     v31 = sload v30 !metadata(storage=symbolic(v30))
-    v32 = checked_add u256, v16, v31
+    v32 = checked_add uint256, v16, v31
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v33 = checked_add u256, v17, 1
+    v33 = checked_add uint256, v17, 1
     jump bb7
   bb2:
     v10 = add v7, v8
@@ -68,7 +68,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb6
   bb4:
-    v12 = shl 5, v8
+    v12 = shl v8, 5
     v13 = ptradd v1, v12
     v14 = mload v13
     sstore v10, v14 !metadata(storage=symbolic(v10))

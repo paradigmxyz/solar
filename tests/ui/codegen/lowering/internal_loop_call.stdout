@@ -14,16 +14,16 @@ fn @sumTo(arg0: i256) -> i256 [pure] {
   bb2:
     ret v1
   bb4:
-    v4 = checked_add u256, v1, v2
+    v4 = checked_add uint256, v1, v2
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v5 = checked_add u256, v2, 1
+    v5 = checked_add uint256, v2, 1
     jump bb1
 }
 
-fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @sumTo, arg0
     ret v0

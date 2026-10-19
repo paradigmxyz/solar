@@ -18,7 +18,7 @@ fn @f() [selector=0x26121ff0, abi_params=[], abi_returns=[], abi_return_params=[
     jump bb10
   bb10:
     v3 = sload 0 !metadata(storage=slot(0))
-    v4 = checked_add u256, v3, 1
+    v4 = checked_add uint256, v3, 1
     sstore 0, v4 !metadata(storage=slot(0))
     jump bb11
   bb11:
@@ -26,7 +26,7 @@ fn @f() [selector=0x26121ff0, abi_params=[], abi_returns=[], abi_return_params=[
   bb7:
     jump bb4
   bb4:
-    v5 = checked_add u256, v0, 1
+    v5 = checked_add uint256, v0, 1
     jump bb2
   bb8:
     jump bb1
@@ -34,7 +34,7 @@ fn @f() [selector=0x26121ff0, abi_params=[], abi_returns=[], abi_return_params=[
     ret
 }
 
-fn @fAndRead() -> i256 [selector=0x4e03d23b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fAndRead() -> i256 [selector=0x4e03d23b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @f
     v0 = sload 0 !metadata(storage=slot(0))

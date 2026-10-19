@@ -2,8 +2,8 @@
 //@filecheck:
 @module ScalarSimplification
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_arithmetic{{[( ]}}
-// CHECK: {{^[ +].*}}[[SHIFTED:v[0-9]+]] = shl 5, arg0
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = shr 3, [[SHIFTED]]
+// CHECK: {{^[ +].*}}[[SHIFTED:v[0-9]+]] = shl arg0, 5
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = shr [[SHIFTED]], 3
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = and arg0, 15
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mul arg0, arg0
 @types
@@ -99,8 +99,8 @@ fn @complete_word_identities(arg0: i256, arg1: i1) -> struct4 [return_abi=[i256,
     v6 = lt 0, v12
     v13 = zext i1 arg1 to i256
     v7 = gt v13, 0
-    v8 = shl 256, arg0
-    v9 = shr 300, arg0
+    v8 = shl arg0, 256
+    v9 = shr arg0, 300
     v10 = byte 32, arg0
     v11 = signextend 32, arg0
     ret v2, v3, v5, v6, v7, v8, v9, v10, v11
@@ -177,9 +177,9 @@ fn @fold_constant_ops() -> struct1 [return_abi=[i256, i256, i256, i256, i256, i2
     v14 = and 255, 15
     v15 = or 16, 1
     v16 = xor 15, 3
-    v17 = shl 8, 1
-    v18 = shr 4, 256
-    v19 = sar 1, v8
+    v17 = shl 1, 8
+    v18 = shr 256, 4
+    v19 = sar v8, 1
     v20 = byte 31, 255
     v21 = signextend 0, 255
     v22 = addmod 5, 7, 10
@@ -200,16 +200,16 @@ fn @fold_clz_constants() -> struct0 [return_abi=[i256, i256, i256, i256, i256]] 
 }
 
 // CHECK-LABEL: fn @checked_constants
-// CHECK: {{^[ +].*}}checked_add u8, i8 255, i8 1
-// CHECK: {{^[ +].*}}checked_div i8, i8 128, i8 255
-// CHECK: {{^[ +].*}}checked_div u256, 1, 0
+// CHECK: {{^[ +].*}}checked_add uint8, i8 255, i8 1
+// CHECK: {{^[ +].*}}checked_div int8, i8 128, i8 255
+// CHECK: {{^[ +].*}}checked_div uint256, 1, 0
 // CHECK: {{^[ +].*}}ret i8 243
 fn @checked_constants() -> i8 {
   bb0:
-    v0 = checked_add u8, i8 255, i8 1
-    v1 = checked_div i8, i8 128, i8 255
-    v2 = checked_div u256, 1, 0
-    v3 = checked_pow u8, i8 3, 5
+    v0 = checked_add uint8, i8 255, i8 1
+    v1 = checked_div int8, i8 128, i8 255
+    v2 = checked_div uint256, 1, 0
+    v3 = checked_pow uint8, i8 3, 5
     ret v3
 }
 
@@ -217,7 +217,7 @@ fn @checked_constants() -> i8 {
 // CHECK: {{^[ +].*}}ret i8 128
 fn @wrapping_signed_division() -> i8 {
   bb0:
-    v0 = wrapping_div i8, i8 128, i8 255
+    v0 = wrapping_div int8, i8 128, i8 255
     ret v0
 }
 
@@ -718,26 +718,26 @@ fn @bool_mask(arg0: i1) -> i1 {
 // CHECK-LABEL: fn @narrow_shift_roundtrip
 // CHECK: {{^[ +].*}}[[LEFT:v[0-9]+]] = add arg0, arg0
 // CHECK: {{^[ +].*}}[[TAGGED:v[0-9]+]] = or [[LEFT]], i{{[0-9]+}} 1
-// CHECK: {{^[ +].*}}[[RIGHT:v[0-9]+]] = shr i8 1, [[TAGGED]]
+// CHECK: {{^[ +].*}}[[RIGHT:v[0-9]+]] = shr [[TAGGED]], i8 1
 // CHECK: {{^[ +].*}}ret [[RIGHT]]
 fn @narrow_shift_roundtrip(arg0: i8) -> i8 {
   bb0:
-    v0 = shl i8 1, arg0
+    v0 = shl arg0, i8 1
     v1 = or v0, i8 1
-    v2 = shr i8 1, v1
+    v2 = shr v1, i8 1
     ret v2
 }
 
 // CHECK-LABEL: fn @address_shift_roundtrip
 // CHECK: {{^[ +].*}}[[LEFT:v[0-9]+]] = add arg0, arg0
 // CHECK: {{^[ +].*}}[[TAGGED:v[0-9]+]] = or [[LEFT]], i{{[0-9]+}} 1
-// CHECK: {{^[ +].*}}[[RIGHT:v[0-9]+]] = shr i160 1, [[TAGGED]]
+// CHECK: {{^[ +].*}}[[RIGHT:v[0-9]+]] = shr [[TAGGED]], i160 1
 // CHECK: {{^[ +].*}}ret [[RIGHT]]
 fn @address_shift_roundtrip(arg0: i160) -> i160 {
   bb0:
-    v0 = shl i160 1, arg0
+    v0 = shl arg0, i160 1
     v1 = or v0, i160 1
-    v2 = shr i160 1, v1
+    v2 = shr v1, i160 1
     ret v2
 }
 
@@ -745,9 +745,9 @@ fn @address_shift_roundtrip(arg0: i160) -> i160 {
 // CHECK: {{^[ +].*}}ret i8 0
 fn @saturated_narrow_shift_roundtrip(arg0: i8) -> i8 {
   bb0:
-    v0 = shl i8 8, arg0
+    v0 = shl arg0, i8 8
     v1 = or v0, i8 1
-    v2 = shr i8 8, v1
+    v2 = shr v1, i8 8
     ret v2
 }
 
@@ -757,9 +757,9 @@ fn @saturated_narrow_shift_roundtrip(arg0: i8) -> i8 {
 fn @safe_shift_roundtrip(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 255
-    v1 = shl 248, v0
+    v1 = shl v0, 248
     v2 = or v1, 1
-    v3 = shr 248, v2
+    v3 = shr v2, 248
     ret v3
 }
 
@@ -769,9 +769,9 @@ fn @safe_shift_roundtrip(arg0: i256) -> i256 {
 fn @safe_narrow_shift_roundtrip(arg0: i8) -> i8 {
   bb0:
     v0 = and arg0, i8 127
-    v1 = shl i8 1, v0
+    v1 = shl v0, i8 1
     v2 = or v1, i8 1
-    v3 = shr i8 1, v2
+    v3 = shr v2, i8 1
     ret v3
 }
 

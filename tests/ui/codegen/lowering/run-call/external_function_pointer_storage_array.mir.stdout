@@ -74,23 +74,23 @@ fn @storeCalldata(arg0: slice<calldata>) [selector=0x6aabe1c4, abi_params=[array
   bb11:
     ret
   bb10:
-    v59 = shl 5, v57
+    v59 = shl v57, 5
     v60 = ptradd v22, v59
     v61 = ptradd v60, 32
     v62 = mload v61
-    v63 = shr 64, v62
+    v63 = shr v62, 64
     v64 = storage_array_data_slot 1
     v65 = div v57, 1
     v66 = add v64, v65
     v67 = mod v57, 1
     v68 = mul v67, 24
     v69 = mul v68, 8
-    v70 = shl v69, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v70 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v69
     v71 = sload v66 !metadata(storage=symbolic(v66))
     v72 = not v70
     v73 = and v71, v72
     v74 = and v63, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v75 = shl v69, v74
+    v75 = shl v74, v69
     v76 = or v73, v75
     sstore v66, v76 !metadata(storage=symbolic(v66))
     v77 = add v57, 1
@@ -102,12 +102,12 @@ fn @storeCalldata(arg0: slice<calldata>) [selector=0x6aabe1c4, abi_params=[array
     v46 = mod v41, 1
     v47 = mul v46, 24
     v48 = mul v47, 8
-    v49 = shl v48, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v49 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v48
     v50 = sload v45 !metadata(storage=symbolic(v45))
     v51 = not v49
     v52 = and v50, v51
     v53 = and 0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v54 = shl v48, v53
+    v54 = shl v53, v48
     v55 = or v52, v54
     sstore v45, v55 !metadata(storage=symbolic(v45))
     v56 = add v41, 1
@@ -117,13 +117,13 @@ fn @storeCalldata(arg0: slice<calldata>) [selector=0x6aabe1c4, abi_params=[array
     v26 = ptrtoint ptr<calldata> v1 to i256
     v27 = add v26, v25
     v28 = calldataload v27
-    v29 = shl 192, v28
+    v29 = shl v28, 192
     v30 = eq v29, 0
     v31 = eq v30, false
     icall revert_if<empty>, v31
-    v32 = shr 64, v28
-    v33 = shl 64, v32
-    v34 = shl 5, v23
+    v32 = shr v28, 64
+    v33 = shl v32, 64
+    v34 = shl v23, 5
     v35 = ptradd v22, v34
     v36 = ptradd v35, 32
     mstore v36, v33
@@ -137,24 +137,24 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     mstore v0, 2
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
+    v3 = shl v2, 32
     v4 = or v3, 0xdbe671f
     v5 = mload v0
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = shl 64, v4
+    v8 = shl v4, 64
     v9 = ptradd v0, 32
     mstore v9, v8
     v10 = address
     v11 = zext i160 v10 to i256
-    v12 = shl 32, v11
+    v12 = shl v11, 32
     v13 = or v12, 0x4df7e3d0
     v14 = mload v0
     v15 = lt 1, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = shl 64, v13
+    v17 = shl v13, 64
     v18 = ptradd v0, 64
     mstore v18, v17
     v19 = mload v0
@@ -188,12 +188,12 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v66 = mul v65, 24
     v67 = sload v64 !metadata(storage=symbolic(v64))
     v68 = mul v66, 8
-    v69 = shr v68, v67
+    v69 = shr v67, v68
     v70 = trunc i256 v69 to i192
     v71 = zext i192 v70 to i256
     v72 = and v71, 0xffffffff
-    v73 = shl 224, v72
-    v74 = shr 32, v71
+    v73 = shl v72, 224
+    v74 = shr v71, 32
     v75 = gas
     v76 = abi_encode [], selector v73
     v77 = extract_value slice<memory>, v76, 0
@@ -217,12 +217,12 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v89 = mul v88, 24
     v90 = sload v87 !metadata(storage=symbolic(v87))
     v91 = mul v89, 8
-    v92 = shr v91, v90
+    v92 = shr v90, v91
     v93 = trunc i256 v92 to i192
     v94 = zext i192 v93 to i256
     v95 = and v94, 0xffffffff
-    v96 = shl 224, v95
-    v97 = shr 32, v94
+    v96 = shl v95, 224
+    v97 = shr v94, 32
     v98 = gas
     v99 = abi_encode [], selector v96
     v100 = extract_value slice<memory>, v99, 0
@@ -261,12 +261,12 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v122 = mul v121, 24
     v123 = sload v120 !metadata(storage=symbolic(v120))
     v124 = mul v122, 8
-    v125 = shr v124, v123
+    v125 = shr v123, v124
     v126 = trunc i256 v125 to i192
     v127 = zext i192 v126 to i256
     v128 = and v127, 0xffffffff
-    v129 = shl 224, v128
-    v130 = shr 32, v127
+    v129 = shl v128, 224
+    v130 = shr v127, 32
     v131 = gas
     v132 = abi_encode [], selector v129
     v133 = extract_value slice<memory>, v132, 0
@@ -290,12 +290,12 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v145 = mul v144, 24
     v146 = sload v143 !metadata(storage=symbolic(v143))
     v147 = mul v145, 8
-    v148 = shr v147, v146
+    v148 = shr v146, v147
     v149 = trunc i256 v148 to i192
     v150 = zext i192 v149 to i256
     v151 = and v150, 0xffffffff
-    v152 = shl 224, v151
-    v153 = shr 32, v150
+    v152 = shl v151, 224
+    v153 = shr v150, 32
     v154 = gas
     v155 = abi_encode [], selector v152
     v156 = extract_value slice<memory>, v155, 0
@@ -368,12 +368,12 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v244 = mul v243, 24
     v245 = sload v242 !metadata(storage=symbolic(v242))
     v246 = mul v244, 8
-    v247 = shr v246, v245
+    v247 = shr v245, v246
     v248 = trunc i256 v247 to i192
     v249 = zext i192 v248 to i256
     v250 = and v249, 0xffffffff
-    v251 = shl 224, v250
-    v252 = shr 32, v249
+    v251 = shl v250, 224
+    v252 = shr v249, 32
     v253 = gas
     v254 = abi_encode [], selector v251
     v255 = extract_value slice<memory>, v254, 0
@@ -397,12 +397,12 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v267 = mul v266, 24
     v268 = sload v265 !metadata(storage=symbolic(v265))
     v269 = mul v267, 8
-    v270 = shr v269, v268
+    v270 = shr v268, v269
     v271 = trunc i256 v270 to i192
     v272 = zext i192 v271 to i256
     v273 = and v272, 0xffffffff
-    v274 = shl 224, v273
-    v275 = shr 32, v272
+    v274 = shl v273, 224
+    v275 = shr v272, 32
     v276 = gas
     v277 = abi_encode [], selector v274
     v278 = extract_value slice<memory>, v277, 0
@@ -418,23 +418,23 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v283 = load_storage_bytes 0
     ret v283
   bb28:
-    v218 = shl 5, v216
+    v218 = shl v216, 5
     v219 = ptradd v178, v218
     v220 = ptradd v219, 32
     v221 = mload v220
-    v222 = shr 64, v221
+    v222 = shr v221, 64
     v223 = storage_array_data_slot 2
     v224 = div v216, 1
     v225 = add v223, v224
     v226 = mod v216, 1
     v227 = mul v226, 24
     v228 = mul v227, 8
-    v229 = shl v228, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v229 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v228
     v230 = sload v225 !metadata(storage=symbolic(v225))
     v231 = not v229
     v232 = and v230, v231
     v233 = and v222, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v234 = shl v228, v233
+    v234 = shl v233, v228
     v235 = or v232, v234
     sstore v225, v235 !metadata(storage=symbolic(v225))
     v236 = add v216, 1
@@ -446,12 +446,12 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v205 = mod v200, 1
     v206 = mul v205, 24
     v207 = mul v206, 8
-    v208 = shl v207, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v208 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v207
     v209 = sload v204 !metadata(storage=symbolic(v204))
     v210 = not v208
     v211 = and v209, v210
     v212 = and 0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v213 = shl v207, v212
+    v213 = shl v212, v207
     v214 = or v211, v213
     sstore v204, v214 !metadata(storage=symbolic(v204))
     v215 = add v200, 1
@@ -464,34 +464,34 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v185 = mul v184, 24
     v186 = sload v183 !metadata(storage=symbolic(v183))
     v187 = mul v185, 8
-    v188 = shr v187, v186
+    v188 = shr v186, v187
     v189 = trunc i256 v188 to i192
     v190 = zext i192 v189 to i256
-    v191 = shl 64, v190
-    v192 = shl 5, v179
+    v191 = shl v190, 64
+    v192 = shl v179, 5
     v193 = ptradd v178, v192
     v194 = ptradd v193, 32
     mstore v194, v191
     v195 = add v179, 1
     jump bb19
   bb7:
-    v40 = shl 5, v38
+    v40 = shl v38, 5
     v41 = ptradd v0, v40
     v42 = ptradd v41, 32
     v43 = mload v42
-    v44 = shr 64, v43
+    v44 = shr v43, 64
     v45 = storage_array_data_slot 1
     v46 = div v38, 1
     v47 = add v45, v46
     v48 = mod v38, 1
     v49 = mul v48, 24
     v50 = mul v49, 8
-    v51 = shl v50, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v51 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v50
     v52 = sload v47 !metadata(storage=symbolic(v47))
     v53 = not v51
     v54 = and v52, v53
     v55 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v56 = shl v50, v55
+    v56 = shl v55, v50
     v57 = or v54, v56
     sstore v47, v57 !metadata(storage=symbolic(v47))
     v58 = add v38, 1
@@ -503,12 +503,12 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v27 = mod v22, 1
     v28 = mul v27, 24
     v29 = mul v28, 8
-    v30 = shl v29, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v30 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v29
     v31 = sload v26 !metadata(storage=symbolic(v26))
     v32 = not v30
     v33 = and v31, v32
     v34 = and 0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v35 = shl v29, v34
+    v35 = shl v34, v29
     v36 = or v33, v35
     sstore v26, v36 !metadata(storage=symbolic(v26))
     v37 = add v22, 1

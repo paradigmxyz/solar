@@ -337,7 +337,7 @@
   
   fn @hoisted(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl 3, arg1
+      v0 = shl arg1, 3
       jump bb1
     bb1:
       v1 = phi [bb0: 0], [bb2: v6]
@@ -355,7 +355,7 @@
   
   fn @hoisted_limit(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl 3, arg1
+      v0 = shl arg1, 3
 -     jump bb1
 +     jump bb6
 +   bb6:
@@ -573,7 +573,7 @@
 +     v6 = phi [bb0: arg0]
 +     v7 = phi [bb0: 0]
 +     v18 = sub arg1, v6
-+     v19 = shr 5, v18
++     v19 = shr v18, 5
 +     v20 = and v19, 1
 +     v21 = ne v20, 0
 +     jumpi v21, bb5, bb8
@@ -611,7 +611,7 @@
   
   fn @word_scan_to_end(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl 5, arg1
+      v0 = shl arg1, 5
       v1 = add arg0, v0
 +     jump bb4
 +   bb4:
@@ -723,7 +723,7 @@
 +     v6 = phi [bb0: arg0]
 +     v7 = phi [bb0: 0]
 +     v18 = sub arg1, v6
-+     v19 = shr 5, v18
++     v19 = shr v18, 5
 +     v20 = and v19, 1
 +     v21 = ne v20, 0
 +     jumpi v21, bb5, bb8
@@ -911,7 +911,7 @@
 +   bb4:
 +     v5 = phi [bb0: arg0]
 +     v6 = phi [bb0: 0]
-+     v15 = shr 1, v5
++     v15 = shr v5, 1
 +     v16 = and v15, 1
 +     v17 = ne v16, 0
 +     jumpi v17, bb5, bb8
@@ -1072,7 +1072,7 @@
   
   fn @variant_test(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl 3, arg1
+      v0 = shl arg1, 3
       jump bb1
     bb1:
       v1 = phi [bb0: 0], [bb3: v7]
@@ -1116,7 +1116,7 @@
   
   fn @reversed(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl 3, arg1
+      v0 = shl arg1, 3
 +     v6 = sub 0, arg0
       jump bb1
     bb1:
@@ -1140,7 +1140,7 @@
 +   bb7:
 +     v8 = phi [bb0: arg0]
 +     v18 = sub arg1, v8
-+     v19 = shr 5, v18
++     v19 = shr v18, 5
 +     v20 = and v19, 1
 +     v21 = ne v20, 0
 +     jumpi v21, bb8, bb13
@@ -1193,7 +1193,7 @@
 +   bb6:
 +     v7 = phi [bb0: arg0]
 +     v17 = sub arg1, v7
-+     v18 = shr 5, v17
++     v18 = shr v17, 5
 +     v19 = and v18, 1
 +     v20 = ne v19, 0
 +     jumpi v20, bb7, bb12

@@ -2,8 +2,8 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/gvn_loadimmutable.mir (after egraph) ===
   @module GvnLoadImmutable
   @immutables
-    first: u256
-    second: u256
+    first: uint256
+    second: uint256
   
   fn @same_immutable_stays() -> i256 {
     bb0:

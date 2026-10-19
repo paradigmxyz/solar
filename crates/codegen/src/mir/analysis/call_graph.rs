@@ -54,7 +54,7 @@ impl CallGraphInfo {
         }
 
         for (func_id, func) in module.functions.iter_enumerated() {
-            if Self::is_entry_function(func) {
+            if func.is_external_entry() {
                 entry_functions.insert(func_id);
             }
 
@@ -134,28 +134,10 @@ impl CallGraphInfo {
         function_count: usize,
     ) -> DenseBitSet<FunctionId> {
         let mut callees = DenseBitSet::new_empty(function_count);
-        for inst_id in func.instructions() {
-            if let InstKind::ICall { function: Callee::Function(function), .. } =
-                func.inst(inst_id).kind
-            {
-                callees.insert(function);
-            }
-        }
-        // Tail calls transfer control to another function body: for
-        // reachability and recursion purposes they are call edges.
-        for block in func.blocks.iter() {
-            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                callees.insert(*function);
-            }
+        for function in direct_callees(func) {
+            callees.insert(function);
         }
         callees
-    }
-
-    fn is_entry_function(func: &Function) -> bool {
-        func.selector.is_some()
-            || func.attributes.is_constructor
-            || func.attributes.is_fallback
-            || func.attributes.is_receive
     }
 
     fn reachable_from_roots_in_graph(
@@ -253,4 +235,20 @@ impl CallGraphInfo {
         }
         recursive
     }
+}
+
+/// Returns the functions `func` calls directly, then those it tail-calls, with repeats.
+///
+/// Tail calls transfer control to another function body: for reachability and recursion
+/// purposes they are call edges.
+pub(crate) fn direct_callees(func: &Function) -> impl Iterator<Item = FunctionId> + '_ {
+    let calls = func.instructions().filter_map(|inst| match func.inst(inst).kind {
+        InstKind::ICall { function: Callee::Function(function), .. } => Some(function),
+        _ => None,
+    });
+    let tail_calls = func.blocks.iter().filter_map(|block| match block.terminator {
+        Some(Terminator::TailCall { function, .. }) => Some(function),
+        _ => None,
+    });
+    calls.chain(tail_calls)
 }

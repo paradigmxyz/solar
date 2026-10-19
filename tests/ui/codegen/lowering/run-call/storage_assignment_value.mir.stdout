@@ -4,7 +4,7 @@
   struct0: {ptr<memory>, i256}
   struct1: {ptr<memory>, ptr<memory>, i256}
 
-fn @assignmentValue() -> struct0 [selector=0x454887fb, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
+fn @assignmentValue() -> struct0 [selector=0x454887fb, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = icall @accessState
@@ -17,7 +17,7 @@ fn @assignmentValue() -> struct0 [selector=0x454887fb, abi_params=[], abi_return
     ret v6
 }
 
-fn @assignmentLength() -> i256 [selector=0xbe0b35b4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @assignmentLength() -> i256 [selector=0xbe0b35b4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 4
@@ -31,7 +31,7 @@ fn @assignmentLength() -> i256 [selector=0xbe0b35b4, abi_params=[], abi_returns=
     v5 = eq v4, 1
     v6 = sub 0, v4
     v7 = or 127, v6
-    v8 = shr 1, v3
+    v8 = shr v3, 1
     v9 = and v8, v7
     ret v9
 }
@@ -77,7 +77,7 @@ fn @assignmentStorage() -> ptr<memory> [selector=0x8d892c90, abi_params=[], abi_
     ret v3
 }
 
-fn @assignmentChain() -> struct1 [selector=0xe732390f, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word], abi_return_params=[bytes, bytes, u256]] {
+fn @assignmentChain() -> struct1 [selector=0xe732390f, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word], abi_return_params=[bytes, bytes, uint256]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = ptrtoint ptr<memory> v0 to i256
@@ -98,7 +98,7 @@ fn @assignmentChain() -> struct1 [selector=0xe732390f, abi_params=[], abi_return
 fn @accessState() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     sstore 1, v1 !metadata(storage=slot(1))
     store_storage_bytes_literal 0, hex"62"
     ret 0

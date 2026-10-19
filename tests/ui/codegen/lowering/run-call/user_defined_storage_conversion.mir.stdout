@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/user_defined_storage_conversion.sol:UserDefinedStorageConversion ===
 @module UserDefinedStorageConversion
-fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_params=[tuple<uint8, uint16, bytes2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
@@ -10,7 +10,7 @@ fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_param
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 128
     v6 = calldataload v0
-    v7 = shr 8, v6
+    v7 = shr v6, 8
     v8 = eq v7, 0
     v9 = eq v8, false
     icall revert_if<empty>, v9
@@ -18,7 +18,7 @@ fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_param
     v10 = ptrtoint ptr<calldata> v0 to i256
     v11 = add v10, 32
     v12 = calldataload v11
-    v13 = shr 16, v12
+    v13 = shr v12, 16
     v14 = eq v13, 0
     v15 = eq v14, false
     icall revert_if<empty>, v15
@@ -27,7 +27,7 @@ fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_param
     v17 = ptrtoint ptr<calldata> v0 to i256
     v18 = add v17, 64
     v19 = calldataload v18
-    v20 = shl 16, v19
+    v20 = shl v19, 16
     v21 = eq v20, 0
     v22 = eq v21, false
     icall revert_if<empty>, v22
@@ -36,7 +36,7 @@ fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_param
     v24 = ptrtoint ptr<calldata> v0 to i256
     v25 = add v24, 96
     v26 = calldataload v25
-    v27 = shr 8, v26
+    v27 = shr v26, 8
     v28 = eq v27, 0
     v29 = eq v28, false
     icall revert_if<empty>, v29
@@ -51,62 +51,62 @@ fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_param
     sstore 0, v36 !metadata(storage=slot(0))
     v37 = ptradd v5, 32
     v38 = mload v37
-    v39 = shl 8, 0xffff
+    v39 = shl 0xffff, 8
     v40 = sload 0 !metadata(storage=slot(0))
     v41 = not v39
     v42 = and v40, v41
     v43 = and v38, 0xffff
-    v44 = shl 8, v43
+    v44 = shl v43, 8
     v45 = or v42, v44
     sstore 0, v45 !metadata(storage=slot(0))
     v46 = ptradd v5, 64
     v47 = mload v46
-    v48 = shl 24, 0xffff
+    v48 = shl 0xffff, 24
     v49 = sload 0 !metadata(storage=slot(0))
     v50 = not v48
     v51 = and v49, v50
-    v52 = shr 240, v47
+    v52 = shr v47, 240
     v53 = and v52, 0xffff
-    v54 = shl 24, v53
+    v54 = shl v53, 24
     v55 = or v51, v54
     sstore 0, v55 !metadata(storage=slot(0))
     v56 = ptradd v5, 96
     v57 = mload v56
-    v58 = shl 40, 255
+    v58 = shl 255, 40
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = not v58
     v61 = and v59, v60
     v62 = and v57, 255
-    v63 = shl 40, v62
+    v63 = shl v62, 40
     v64 = or v61, v63
     sstore 0, v64 !metadata(storage=slot(0))
     v65 = sload 0 !metadata(storage=slot(0))
     v66 = trunc i256 v65 to i8
     v67 = zext i8 v66 to i256
-    v68 = checked_mul u256, v67, 0x3e8
+    v68 = checked_mul uint256, v67, 0x3e8
     v69 = sload 0 !metadata(storage=slot(0))
-    v70 = shr 8, v69
+    v70 = shr v69, 8
     v71 = trunc i256 v70 to i16
     v72 = zext i16 v71 to i256
-    v73 = checked_mul u256, v72, 100
-    v74 = checked_add u256, v68, v73
+    v73 = checked_mul uint256, v72, 100
+    v74 = checked_add uint256, v68, v73
     v75 = sload 0 !metadata(storage=slot(0))
-    v76 = shr 24, v75
-    v77 = shl 240, v76
+    v76 = shr v75, 24
+    v77 = shl v76, 240
     v78 = and v77, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v79 = shr 248, v78
+    v79 = shr v78, 248
     v80 = trunc i256 v79 to i8
     v81 = zext i8 v80 to i256
-    v82 = checked_add u256, v74, v81
+    v82 = checked_add uint256, v74, v81
     v83 = sload 0 !metadata(storage=slot(0))
-    v84 = shr 40, v83
+    v84 = shr v83, 40
     v85 = trunc i256 v84 to i8
     v86 = zext i8 v85 to i256
-    v87 = checked_add u256, v82, v86
+    v87 = checked_add uint256, v82, v86
     ret v87
 }
 
-fn @storeMemory(arg0: ptr<memory>) -> i256 [selector=0xdb1ba0ba, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @storeMemory(arg0: ptr<memory>) -> i256 [selector=0xdb1ba0ba, abi_params=[tuple<uint8, uint16, bytes2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -117,62 +117,62 @@ fn @storeMemory(arg0: ptr<memory>) -> i256 [selector=0xdb1ba0ba, abi_params=[tup
     sstore 0, v5 !metadata(storage=slot(0))
     v6 = ptradd arg0, 32
     v7 = mload v6
-    v8 = shl 8, 0xffff
+    v8 = shl 0xffff, 8
     v9 = sload 0 !metadata(storage=slot(0))
     v10 = not v8
     v11 = and v9, v10
     v12 = and v7, 0xffff
-    v13 = shl 8, v12
+    v13 = shl v12, 8
     v14 = or v11, v13
     sstore 0, v14 !metadata(storage=slot(0))
     v15 = ptradd arg0, 64
     v16 = mload v15
-    v17 = shl 24, 0xffff
+    v17 = shl 0xffff, 24
     v18 = sload 0 !metadata(storage=slot(0))
     v19 = not v17
     v20 = and v18, v19
-    v21 = shr 240, v16
+    v21 = shr v16, 240
     v22 = and v21, 0xffff
-    v23 = shl 24, v22
+    v23 = shl v22, 24
     v24 = or v20, v23
     sstore 0, v24 !metadata(storage=slot(0))
     v25 = ptradd arg0, 96
     v26 = mload v25
-    v27 = shl 40, 255
+    v27 = shl 255, 40
     v28 = sload 0 !metadata(storage=slot(0))
     v29 = not v27
     v30 = and v28, v29
     v31 = and v26, 255
-    v32 = shl 40, v31
+    v32 = shl v31, 40
     v33 = or v30, v32
     sstore 0, v33 !metadata(storage=slot(0))
     v34 = sload 0 !metadata(storage=slot(0))
     v35 = trunc i256 v34 to i8
     v36 = zext i8 v35 to i256
-    v37 = checked_mul u256, v36, 0x3e8
+    v37 = checked_mul uint256, v36, 0x3e8
     v38 = sload 0 !metadata(storage=slot(0))
-    v39 = shr 8, v38
+    v39 = shr v38, 8
     v40 = trunc i256 v39 to i16
     v41 = zext i16 v40 to i256
-    v42 = checked_mul u256, v41, 100
-    v43 = checked_add u256, v37, v42
+    v42 = checked_mul uint256, v41, 100
+    v43 = checked_add uint256, v37, v42
     v44 = sload 0 !metadata(storage=slot(0))
-    v45 = shr 24, v44
-    v46 = shl 240, v45
+    v45 = shr v44, 24
+    v46 = shl v45, 240
     v47 = and v46, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v48 = shr 248, v47
+    v48 = shr v47, 248
     v49 = trunc i256 v48 to i8
     v50 = zext i8 v49 to i256
-    v51 = checked_add u256, v43, v50
+    v51 = checked_add uint256, v43, v50
     v52 = sload 0 !metadata(storage=slot(0))
-    v53 = shr 40, v52
+    v53 = shr v52, 40
     v54 = trunc i256 v53 to i8
     v55 = zext i8 v54 to i256
-    v56 = checked_add u256, v51, v55
+    v56 = checked_add uint256, v51, v55
     ret v56
 }
 
-fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[array<_, u16>], abi_returns=[word], abi_return_params=[u256]] {
+fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[array<_, uint16>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -228,13 +228,13 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     v56 = lt v55, v36
     jumpi v56, bb10, bb11
   bb11:
-    v75 = shr 4, v36
+    v75 = shr v36, 4
     v76 = and v36, 15
     v77 = eq v76, 0
     jumpi v77, bb13, bb12
   bb12:
     v78 = mul v76, 16
-    v79 = shl v78, 1
+    v79 = shl 1, v78
     v80 = sub v79, 1
     v81 = storage_array_data_slot 1
     v82 = add v81, v75
@@ -254,12 +254,12 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     v92 = mul v91, 2
     v93 = sload v90 !metadata(storage=symbolic(v90))
     v94 = mul v92, 8
-    v95 = shr v94, v93
+    v95 = shr v93, v94
     v96 = trunc i256 v95 to i16
     v97 = zext i16 v96 to i256
     ret v97
   bb10:
-    v57 = shl 5, v55
+    v57 = shl v55, 5
     v58 = ptradd v22, v57
     v59 = ptradd v58, 32
     v60 = mload v59
@@ -269,12 +269,12 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     v64 = mod v55, 16
     v65 = mul v64, 2
     v66 = mul v65, 8
-    v67 = shl v66, 0xffff
+    v67 = shl 0xffff, v66
     v68 = sload v63 !metadata(storage=symbolic(v63))
     v69 = not v67
     v70 = and v68, v69
     v71 = and v60, 0xffff
-    v72 = shl v66, v71
+    v72 = shl v71, v66
     v73 = or v70, v72
     sstore v63, v73 !metadata(storage=symbolic(v63))
     v74 = add v55, 1
@@ -286,12 +286,12 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     v44 = mod v39, 16
     v45 = mul v44, 2
     v46 = mul v45, 8
-    v47 = shl v46, 0xffff
+    v47 = shl 0xffff, v46
     v48 = sload v43 !metadata(storage=symbolic(v43))
     v49 = not v47
     v50 = and v48, v49
     v51 = and 0, 0xffff
-    v52 = shl v46, v51
+    v52 = shl v51, v46
     v53 = or v50, v52
     sstore v43, v53 !metadata(storage=symbolic(v43))
     v54 = add v39, 1
@@ -301,11 +301,11 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     v26 = ptrtoint ptr<calldata> v1 to i256
     v27 = add v26, v25
     v28 = calldataload v27
-    v29 = shr 16, v28
+    v29 = shr v28, 16
     v30 = eq v29, 0
     v31 = eq v30, false
     icall revert_if<empty>, v31
-    v32 = shl 5, v23
+    v32 = shl v23, 5
     v33 = ptradd v22, v32
     v34 = ptradd v33, 32
     mstore v34, v28
@@ -313,7 +313,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     jump bb1
 }
 
-fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[array<_, bytes2>], abi_returns=[word], abi_return_params=[u256]] {
+fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[array<_, bytes2>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -369,13 +369,13 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     v57 = lt v56, v36
     jumpi v57, bb10, bb11
   bb11:
-    v77 = shr 4, v36
+    v77 = shr v36, 4
     v78 = and v36, 15
     v79 = eq v78, 0
     jumpi v79, bb13, bb12
   bb12:
     v80 = mul v78, 16
-    v81 = shl v80, 1
+    v81 = shl 1, v80
     v82 = sub v81, 1
     v83 = storage_array_data_slot 2
     v84 = add v83, v77
@@ -395,15 +395,15 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     v94 = mul v93, 2
     v95 = sload v92 !metadata(storage=symbolic(v92))
     v96 = mul v94, 8
-    v97 = shr v96, v95
-    v98 = shl 240, v97
+    v97 = shr v95, v96
+    v98 = shl v97, 240
     v99 = and v98, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v100 = shr 248, v99
+    v100 = shr v99, 248
     v101 = trunc i256 v100 to i8
     v102 = zext i8 v101 to i256
     ret v102
   bb10:
-    v58 = shl 5, v56
+    v58 = shl v56, 5
     v59 = ptradd v22, v58
     v60 = ptradd v59, 32
     v61 = mload v60
@@ -413,13 +413,13 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     v65 = mod v56, 16
     v66 = mul v65, 2
     v67 = mul v66, 8
-    v68 = shl v67, 0xffff
+    v68 = shl 0xffff, v67
     v69 = sload v64 !metadata(storage=symbolic(v64))
     v70 = not v68
     v71 = and v69, v70
-    v72 = shr 240, v61
+    v72 = shr v61, 240
     v73 = and v72, 0xffff
-    v74 = shl v67, v73
+    v74 = shl v73, v67
     v75 = or v71, v74
     sstore v64, v75 !metadata(storage=symbolic(v64))
     v76 = add v56, 1
@@ -431,13 +431,13 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     v44 = mod v39, 16
     v45 = mul v44, 2
     v46 = mul v45, 8
-    v47 = shl v46, 0xffff
+    v47 = shl 0xffff, v46
     v48 = sload v43 !metadata(storage=symbolic(v43))
     v49 = not v47
     v50 = and v48, v49
-    v51 = shr 240, 0
+    v51 = shr 0, 240
     v52 = and v51, 0xffff
-    v53 = shl v46, v52
+    v53 = shl v52, v46
     v54 = or v50, v53
     sstore v43, v54 !metadata(storage=symbolic(v43))
     v55 = add v39, 1
@@ -447,11 +447,11 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     v26 = ptrtoint ptr<calldata> v1 to i256
     v27 = add v26, v25
     v28 = calldataload v27
-    v29 = shl 16, v28
+    v29 = shl v28, 16
     v30 = eq v29, 0
     v31 = eq v30, false
     icall revert_if<empty>, v31
-    v32 = shl 5, v23
+    v32 = shl v23, 5
     v33 = ptradd v22, v32
     v34 = ptradd v33, 32
     mstore v34, v28

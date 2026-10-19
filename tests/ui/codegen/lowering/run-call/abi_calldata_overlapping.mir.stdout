@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_overlapping.sol:AbiCalldataOverlapping ===
 @module AbiCalldataOverlapping
-fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -60,7 +60,7 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     icall panic_if<0x32>, v84
     v85 = ptradd v81, 64
     v86 = mload v85
-    v87 = checked_add u256, v76, v86
+    v87 = checked_add uint256, v76, v86
     ret v87
   bb2:
     v25 = mul v23, 32
@@ -109,7 +109,7 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     v61 = extract_value slice<calldata>, v58, 1
     calldatacopy v59, v60, v61
     v62 = ptrtoint ptr<memory> v56 to i256
-    v63 = shl 5, v23
+    v63 = shl v23, 5
     v64 = ptradd v22, v63
     v65 = ptradd v64, 32
     mstore v65, v62
@@ -117,7 +117,7 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     jump bb1
 }
 
-fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -203,7 +203,7 @@ fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_
     v61 = extract_value slice<calldata>, v58, 1
     calldatacopy v59, v60, v61
     v62 = ptrtoint ptr<memory> v56 to i256
-    v63 = shl 5, v23
+    v63 = shl v23, 5
     v64 = ptradd v22, v63
     v65 = ptradd v64, 32
     mstore v65, v62

@@ -30,7 +30,7 @@ fn @xor_complements(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + {{v[0-9]+}} = and arg0, 255
 fn @left_aligned_byte(arg0: i256) -> i256 {
   bb0:
-    v0 = shl 248, arg0
+    v0 = shl arg0, 248
     v1 = byte 0, v0
     ret v1
 }
@@ -38,7 +38,7 @@ fn @left_aligned_byte(arg0: i256) -> i256 {
 // A different extraction position cannot use the low-byte identity.
 fn @other_byte(arg0: i256) -> i256 {
   bb0:
-    v0 = shl 240, arg0
+    v0 = shl arg0, 240
     v1 = byte 0, v0
     ret v1
 }

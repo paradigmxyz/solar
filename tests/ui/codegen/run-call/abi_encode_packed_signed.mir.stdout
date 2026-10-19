@@ -3,7 +3,7 @@
 fn @failSigned() [selector=0x1cd12672, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sext i8 255 to i256
-    icall require<custom_error [word<i8>]>, false, 0x3f3cc61800000000000000000000000000000000000000000000000000000000, v0
+    icall require<custom_error [word<int8>]>, false, 0x3f3cc61800000000000000000000000000000000000000000000000000000000, v0
     invalid
 }
 
@@ -29,17 +29,17 @@ fn @signedError() -> i1 [selector=0x09d01655, abi_params=[], abi_returns=[word<b
     ret v10
 }
 
-fn @identity(arg0: i8) -> i8 [selector=0x87209429, pure, abi_params=[i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @identity(arg0: i8) -> i8 [selector=0x87209429, pure, abi_params=[int8], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
     ret arg0
 }
 
-fn @signedCall(arg0: i8) -> i8 [selector=0x036e241f, view, abi_params=[i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @signedCall(arg0: i8) -> i8 [selector=0x036e241f, view, abi_params=[int8], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = sext i8 arg0 to i256
-    v3 = abi_encode [word<i8>], selector 0x8720942900000000000000000000000000000000000000000000000000000000, args v2
+    v3 = abi_encode [word<int8>], selector 0x8720942900000000000000000000000000000000000000000000000000000000, args v2
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v0 to i256
@@ -61,27 +61,27 @@ fn @signedCall(arg0: i8) -> i8 [selector=0x036e241f, view, abi_params=[i8], abi_
     ret v15
 }
 
-fn @signedWord(arg0: i8) -> i256 [selector=0x1b01a17f, pure, abi_params=[i8], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedWord(arg0: i8) -> i256 [selector=0x1b01a17f, pure, abi_params=[int8], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sext i8 arg0 to i256
-    v1 = abi_encode [word<i8>], object, args v0
+    v1 = abi_encode [word<int8>], object, args v0
     v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 32
     v4 = mload v3
     ret v4
 }
 
-fn @signedUserWord() -> i256 [selector=0xf36510a8, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedUserWord() -> i256 [selector=0xf36510a8, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sext i16 0xffff to i256
-    v1 = abi_encode [word<i16>], object, args v0
+    v1 = abi_encode [word<int16>], object, args v0
     v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 32
     v4 = mload v3
     ret v4
 }
 
-fn @signedUserMemory() -> i256 [selector=0xe8190462, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedUserMemory() -> i256 [selector=0xe8190462, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -131,7 +131,7 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
     v28 = sext i232 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff to i256
     v29 = sext i240 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff to i256
     v30 = sext i248 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff to i256
-    v31 = abi_encode [word<i8>, word<i16>, word<i24>, word<i32>, word<i40>, word<i48>, word<i56>, word<i64>, word<i72>, word<i80>, word<i88>, word<i96>, word<i104>, word<i112>, word<i120>, word<i128>, word<i136>, word<i144>, word<i152>, word<i160>, word<i168>, word<i176>, word<i184>, word<i192>, word<i200>, word<i208>, word<i216>, word<i224>, word<i232>, word<i240>, word<i248>, word], object, args v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v31 = abi_encode [word<int8>, word<int16>, word<int24>, word<int32>, word<int40>, word<int48>, word<int56>, word<int64>, word<int72>, word<int80>, word<int88>, word<int96>, word<int104>, word<int112>, word<int120>, word<int128>, word<int136>, word<int144>, word<int152>, word<int160>, word<int168>, word<int176>, word<int184>, word<int192>, word<int200>, word<int208>, word<int216>, word<int224>, word<int232>, word<int240>, word<int248>, word], object, args v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb1
   bb1:
     v32 = phi [bb0: 0], [bb3: v32]
@@ -153,7 +153,7 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
     v41 = ptradd v40, 32
     v42 = mload v41
     v43 = byte 0, v42
-    v44 = shl 248, v43
+    v44 = shl v43, 248
     v45 = ne v44, 0xff00000000000000000000000000000000000000000000000000000000000000
     jumpi v45, bb7, bb8
   bb8:
@@ -163,15 +163,15 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
   bb6:
     jump bb3
   bb3:
-    v46 = checked_add u256, v34, 1
+    v46 = checked_add uint256, v34, 1
     jump bb1
   bb7:
     ret false
 }
 
-fn @firstByteInt8(arg0: i8, arg1: i8) -> i256 [selector=0xdf400c36, pure, abi_params=[u8, i8], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @firstByteInt8(arg0: i8, arg1: i8) -> i256 [selector=0xdf400c36, pure, abi_params=[uint8, int8], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = abi_encode_packed (u8 arg0, i8 arg1)
+    v0 = abi_encode_packed (uint8 arg0, int8 arg1)
     v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
@@ -179,13 +179,13 @@ fn @firstByteInt8(arg0: i8, arg1: i8) -> i256 [selector=0xdf400c36, pure, abi_pa
     v4 = ptradd v0, 32
     v5 = mload v4
     v6 = byte 0, v5
-    v7 = shl 248, v6
+    v7 = shl v6, 248
     ret v7
 }
 
-fn @firstByteInt16(arg0: i8, arg1: i16) -> i256 [selector=0x3ed4619b, pure, abi_params=[u8, i16], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @firstByteInt16(arg0: i8, arg1: i16) -> i256 [selector=0x3ed4619b, pure, abi_params=[uint8, int16], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = abi_encode_packed (u8 arg0, i16 arg1)
+    v0 = abi_encode_packed (uint8 arg0, int16 arg1)
     v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
@@ -193,13 +193,13 @@ fn @firstByteInt16(arg0: i8, arg1: i16) -> i256 [selector=0x3ed4619b, pure, abi_
     v4 = ptradd v0, 32
     v5 = mload v4
     v6 = byte 0, v5
-    v7 = shl 248, v6
+    v7 = shl v6, 248
     ret v7
 }
 
-fn @firstByteInt32(arg0: i8, arg1: i32) -> i256 [selector=0x538ea5fe, pure, abi_params=[u8, i32], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @firstByteInt32(arg0: i8, arg1: i32) -> i256 [selector=0x538ea5fe, pure, abi_params=[uint8, int32], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = abi_encode_packed (u8 arg0, i32 arg1)
+    v0 = abi_encode_packed (uint8 arg0, int32 arg1)
     v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
@@ -207,13 +207,13 @@ fn @firstByteInt32(arg0: i8, arg1: i32) -> i256 [selector=0x538ea5fe, pure, abi_
     v4 = ptradd v0, 32
     v5 = mload v4
     v6 = byte 0, v5
-    v7 = shl 248, v6
+    v7 = shl v6, 248
     ret v7
 }
 
 fn @firstByteSigned16() -> i256 [selector=0x951569ca, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = abi_encode_packed (u8 i8 0, i16 i16 0xffff)
+    v0 = abi_encode_packed (uint8 i8 0, int16 i16 0xffff)
     v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
@@ -221,21 +221,21 @@ fn @firstByteSigned16() -> i256 [selector=0x951569ca, pure, abi_params=[], abi_r
     v4 = ptradd v0, 32
     v5 = mload v4
     v6 = byte 0, v5
-    v7 = shl 248, v6
+    v7 = shl v6, 248
     ret v7
 }
 
-fn @packedHash(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0x4ef47d0a, pure, abi_params=[u8, i16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @packedHash(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0x4ef47d0a, pure, abi_params=[uint8, int16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_packed (u8 arg0, i16 arg1, bytes3 v0)
+    v1 = keccak256_packed (uint8 arg0, int16 arg1, bytes3 v0)
     ret v1
 }
 
-fn @packedHashLocal(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0x63ba958c, pure, abi_params=[u8, i16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @packedHashLocal(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0x63ba958c, pure, abi_params=[uint8, int16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_packed (u8 arg0, i16 arg1, bytes3 v0)
+    v1 = keccak256_packed (uint8 arg0, int16 arg1, bytes3 v0)
     ret v1
 }
 
@@ -269,7 +269,7 @@ fn @mutatedInput() -> ptr<memory> [selector=0x7d98764f, pure, abi_params=[], abi
     v1 = ptradd v0, 32
     mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000
     v2 = icall @shorten, v0
-    v3 = abi_encode_packed (bytes v0, u8 v2)
+    v3 = abi_encode_packed (bytes v0, uint8 v2)
     ret v3
 }
 

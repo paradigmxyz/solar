@@ -27,14 +27,14 @@ struct Params {
 contract CalldataStructMemberIndex {
     // A struct element strides by its head size (four words), not by one.
     // CDSMI-LABEL: fn @plain
-    // CDSMI: shl 7, arg1
+    // CDSMI: shl arg1, 7
     function plain(Item[] calldata items, uint256 i) external pure returns (uint256) {
         return items[i].amount;
     }
 
     // The member uses its four-word ABI head stride.
     // CDSMI-LABEL: fn @member
-    // CDSMI: shl 7, arg1
+    // CDSMI: shl arg1, 7
     // CDSMI: calldataload
     function member(Params calldata p, uint256 i) external pure returns (uint256) {
         return p.items[i].amount;
@@ -42,7 +42,7 @@ contract CalldataStructMemberIndex {
 
     // A word element still loads inline from `data + i * 32`.
     // CDSMI-LABEL: fn @word
-    // CDSMI-NOT: shl 7, arg1
+    // CDSMI-NOT: shl arg1, 7
     function word(Params calldata p, uint256 i) external pure returns (uint256) {
         return p.words[i];
     }

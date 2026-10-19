@@ -12,11 +12,13 @@
 //! together before mutation, including full-object zero fills. The allocation
 //! stays in place. Full-width pointer casts retain the same object identity;
 //! escapes, narrowing casts, dynamic indices and partial/unknown accesses reject promotion.
+//! Modules where any function reads `msize` are skipped: internal calls share memory, so a caller
+//! or callee could observe the lower memory expansion.
 //! Run before memory-object lowering, while `ptradd` keeps object offsets explicit.
 
 use crate::mir::{
     BlockId, Function, Immediate, InstKind, Module, PtrLocation, Value, ValueId,
-    analysis::{AliasAnalysis, CfgInfo, Location, LocationSize},
+    analysis::{AliasAnalysis, CfgInfo, Location, LocationSize, module_may_observe_msize},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
     transform::frame_promotion::{SlotAccessInfo, promote_object_slots},
@@ -38,6 +40,11 @@ impl MirPass for Sroa {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        // Removing an object's stores can lower memory expansion, which `msize` in any
+        // function can observe: internal calls share memory.
+        if module_may_observe_msize(module) {
+            return false;
+        }
         run_function_pass_with_alias(module, analyses, |func, analyses| {
             SroaCx::default().run(func, analyses.alias())
         })
@@ -64,9 +71,7 @@ impl SroaCx {
                 }
             }
         }
-        if allocs.is_empty()
-            || func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
-        {
+        if allocs.is_empty() {
             return false;
         }
 

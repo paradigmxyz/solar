@@ -179,3 +179,86 @@
       ret
   }
   
+  fn @remove_before_revert_path(arg0: i1) {
+    bb0:
+-     sstore 0, 1
+      jumpi arg0, bb1, bb2
+    bb2:
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      stop
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @keep_store_read_before_revert(arg0: i1) {
+    bb0:
+-     sstore 0, 1
++     sstore 0, 1 !metadata(storage=slot(0))
+      jumpi arg0, bb1, bb2
+    bb2:
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      stop
+    bb1:
+-     v0 = sload 0
++     v0 = sload 0 !metadata(storage=slot(0))
+      mstore 0, v0
+      revert 0, 32
+  }
+  
+  fn @remove_before_reverting_tail_call(arg0: i1) {
+    bb0:
+-     sstore 0, 1
+      jumpi arg0, bb1, bb2
+    bb2:
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      stop
+    bb1:
+      tail_call @fail
+  }
+  
+  fn @keep_before_reading_tail_call(arg0: i1) {
+    bb0:
+-     sstore 0, 1
++     sstore 0, 1 !metadata(storage=slot(0))
+      jumpi arg0, bb1, bb2
+    bb2:
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      stop
+    bb1:
+      tail_call @fail_with_slot
+  }
+  
+  fn @keep_before_tail_call_that_may_stop() {
+    bb0:
+-     sstore 0, 42
++     sstore 0, 42 !metadata(storage=slot(0))
+      tail_call @stop_then_revert
+  }
+  
+  fn @fail() {
+    bb0:
+      revert 0, 0
+  }
+  
+  fn @stop_then_revert() {
+    bb0:
+      icall @stop_now
+      revert 0, 0
+  }
+  
+  fn @stop_now() {
+    bb0:
+      stop
+  }
+  
+  fn @fail_with_slot() {
+    bb0:
+      v0 = sload 0
+      mstore 0, v0
+      revert 0, 32
+  }
+  

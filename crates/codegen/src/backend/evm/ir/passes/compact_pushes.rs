@@ -16,12 +16,9 @@
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
 
 use super::EvmPass;
-use crate::{
-    backend::evm::{
-        ir::{Instruction, Metadata, Module},
-        op::{self, WORD_BYTES},
-    },
-    target::GasTier,
+use crate::backend::evm::{
+    ir::{Instruction, Metadata, Module},
+    op::{self, WORD_BYTES},
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -40,8 +37,6 @@ impl EvmPass for CompactPushes {
 }
 const EVM_WORD_BITS: usize = WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
-const BASE_GAS: usize = GasTier::Base.fixed_gas() as usize;
-const VERY_LOW_GAS: usize = GasTier::VeryLow.fixed_gas() as usize;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
@@ -157,10 +152,7 @@ impl ImmediateMaterialization {
                     op::stack_io(opcode).expect("compact immediate recipes use known EVM opcodes");
                 depth = depth - usize::from(inputs) + usize::from(outputs);
                 metrics.encoded_len += 1;
-                metrics.static_gas += match opcode {
-                    op::NOT | op::SHL | op::SHR => VERY_LOW_GAS,
-                    _ => unreachable!("compact immediate recipes use very-low-gas opcodes"),
-                };
+                metrics.static_gas += fixed_gas(opcode);
             }
         });
         debug_assert_eq!(depth, 1);
@@ -288,8 +280,16 @@ pub(crate) fn immediate_materialization_cost(
 pub(crate) fn literal_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
     (
         fixed_push_len(evm_version, push_width(evm_version, value)),
-        if value.is_zero() && evm_version.has_push0() { BASE_GAS } else { VERY_LOW_GAS },
+        fixed_gas(if value.is_zero() && evm_version.has_push0() { op::PUSH0 } else { op::PUSH1 }),
     )
+}
+
+/// The static gas of a recipe opcode, which no EVM version changes.
+const fn fixed_gas(opcode: u8) -> usize {
+    match op::definition(opcode) {
+        Some(definition) => definition.gas.fixed_gas() as usize,
+        None => panic!("compact immediate recipes use known opcodes"),
+    }
 }
 
 fn fixed_push_len(evm_version: EvmVersion, width: u8) -> usize {

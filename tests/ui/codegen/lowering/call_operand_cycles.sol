@@ -11,7 +11,7 @@
 // CHECK: jumpi
 // CHECK-NEXT: push 0
 // CHECK-NEXT: swap 3
-// CHECK-NEXT: swap 5
+// CHECK-NEXT: swap 6
 // CHECK-NEXT: push 0
 // CHECK-NEXT: push 0
 // CHECK-NEXT: swap 4

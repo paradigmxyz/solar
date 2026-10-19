@@ -37,7 +37,7 @@ contract ExternalStaticAggregateReturn {
     // CHECK: alloc 64
     // CHECK-NOT: slice_copy
     // CHECK: [[DATA:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 64
-    // CHECK: abi_decode [tuple<u256, u256>], [[DATA]]
+    // CHECK: abi_decode [tuple<uint256, uint256>], [[DATA]]
     // OPT-LABEL: fn @structReturn{{[( ]}}
     // OPT: [[FMP:v[0-9]+]] = mload 64
     // OPT: add [[FMP]], 128
@@ -54,7 +54,7 @@ contract ExternalStaticAggregateReturn {
     // CHECK: alloc 96
     // CHECK-NOT: slice_copy
     // CHECK: [[DATA:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 96
-    // CHECK: abi_decode [array<3, u256>], [[DATA]]
+    // CHECK: abi_decode [array<3, uint256>], [[DATA]]
     function arrayReturn(uint256 x) external view returns (uint256) {
         uint256[3] memory a = this.makeArray(x);
         return a[0] + a[1] + a[2];
@@ -64,7 +64,7 @@ contract ExternalStaticAggregateReturn {
     // CHECK: alloc 64
     // CHECK-NOT: returndata_bytes
     // CHECK: [[DATA:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 64
-    // CHECK: abi_decode [tuple<u256, u256>], [[DATA]]
+    // CHECK: abi_decode [tuple<uint256, uint256>], [[DATA]]
     function tryStructReturn(uint256 x) external view returns (uint256) {
         try this.makeStruct(x) returns (S memory s) {
             return s.a + s.b;

@@ -65,7 +65,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // value = address(receiver) << 32 | selector(function)
             let address = self.lower_expr(receiver)?;
             let address_shift = self.builder.imm(32);
-            let address = self.builder.shl(address_shift, address);
+            let address = self.builder.shl(address, address_shift);
             let selector = self.cx.gcx.function_selector(function_id).0;
             let selector = self.builder.imm(U256::from_be_slice(&selector));
             return Some(self.builder.or(address, selector));
@@ -213,7 +213,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return value;
         };
         let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
-        self.builder.shl(shift, value)
+        self.builder.shl(value, shift)
     }
 
     pub(super) fn peel_bytes_conversion<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b> {
@@ -240,28 +240,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some((callee, args, _)) = expr.as_call()
                 && let hir::CallArgsKind::Unnamed([inner]) = args.kind
                 && peel(expr, callee)
-                && self.is_type_conversion(callee)
+                && is_type_conversion(self.cx.gcx, callee)
             {
                 expr = inner;
             } else {
                 return expr;
             }
         }
-    }
-
-    /// Returns whether calling `callee` converts its argument to another type.
-    pub(super) fn is_type_conversion(&self, callee: &hir::Expr<'_>) -> bool {
-        let gcx = self.cx.gcx;
-        matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
-            || gcx.resolved_expr(callee).is_some_and(|res| {
-                matches!(
-                    res,
-                    hir::Res::Item(
-                        hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_)
-                    )
-                )
-            })
-            || gcx.type_of_expr(callee.id).is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)))
     }
 
     /// Lowers a use of a constant to its value, which constant evaluation computes once.
@@ -328,4 +313,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             value => Some(self.builder.imm(value.as_word()?)),
         }
     }
+}
+
+/// Returns whether calling `callee` converts its argument to another type.
+pub(super) fn is_type_conversion(gcx: Gcx<'_>, callee: &hir::Expr<'_>) -> bool {
+    matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
+        || gcx.resolved_expr(callee).is_some_and(|res| {
+            matches!(
+                res,
+                hir::Res::Item(
+                    hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_)
+                )
+            )
+        })
+        || gcx.type_of_expr(callee.id).is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)))
 }

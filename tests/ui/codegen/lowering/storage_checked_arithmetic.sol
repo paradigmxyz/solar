@@ -55,7 +55,7 @@ contract StorageCheckedArithmetic {
     // CHECK: [[KEY:v[0-9]+]] = zext i160 arg0 to i256
     // CHECK: [[BASE:v[0-9]+]] = mapping_slot [[KEY]], 1
     // CHECK: [[WORD:v[0-9]+]] = sload [[BASE]]
-    // CHECK: [[SHIFTED:v[0-9]+]] = shr 128, [[WORD]]
+    // CHECK: [[SHIFTED:v[0-9]+]] = shr [[WORD]], 128
     // CHECK: [[OLD:v[0-9]+]] = signextend 0, [[SHIFTED]]
     // CHECK: [[NARROW:v[0-9]+]] = trunc i256 [[OLD]] to i8
     // CHECK: [[LHS:v[0-9]+]] = sext i8 [[NARROW]] to i256
@@ -67,7 +67,7 @@ contract StorageCheckedArithmetic {
     // CHECK: not {{v[0-9]+}}
     // CHECK: and {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: and {{v[0-9]+}}, 255
-    // CHECK: shl 128, {{v[0-9]+}}
+    // CHECK: shl {{v[0-9]+}}, 128
     // CHECK: or {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: sstore {{v[0-9]+}}, {{v[0-9]+}}
     function storage_struct_signed_sub(address owner, int8 amount) public {
