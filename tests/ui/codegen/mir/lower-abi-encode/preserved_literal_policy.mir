@@ -1,0 +1,46 @@
+//@ revisions: legacy native size
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@[legacy] compile-flags: -Ogas --evm-version paris
+//@[legacy] filecheck: --check-prefixes=CHECK,FOLD
+//@[native] compile-flags: -Ogas --evm-version cancun
+//@[native] filecheck: --check-prefixes=CHECK,COPY
+//@[size] compile-flags: -Osize --evm-version paris
+//@[size] filecheck: --check-prefixes=CHECK,COPY
+@module PreservedLiteralPolicy
+
+// CHECK-LABEL: (after lower-abi-encode)
+// CHECK: fn @reserved
+// CHECK: alloc 96 !metadata(preserves_fmp)
+// FOLD-NOT: mcopy
+// FOLD: + mstore {{v[0-9]+}}, 48
+// FOLD-NOT: mcopy
+// FOLD: + ret
+// COPY: + [[LEN:v[0-9]+]] = mload v0
+// COPY: + mcopy {{v[0-9]+}}, {{v[0-9]+}}, [[LEN]]
+fn @reserved() -> slice<memory> {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 48
+    v1 = ptradd v0, 32
+    mstore v1, 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v2 = ptradd v0, 64
+    mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+    v3 = abi_encode [memory_bytes], args v0
+    ret v3
+}
+
+// CHECK: fn @scratch
+// CHECK: alloc 96 !metadata(preserves_fmp)
+// CHECK: + [[LEN:v[0-9]+]] = mload v0
+// CHECK: + mcopy {{v[0-9]+}}, {{v[0-9]+}}, [[LEN]]
+fn @scratch() -> slice<memory> {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 48
+    v1 = ptradd v0, 32
+    mstore v1, 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v2 = ptradd v0, 64
+    mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+    v3 = abi_encode [memory_bytes], scratch, args v0
+    ret v3
+}
