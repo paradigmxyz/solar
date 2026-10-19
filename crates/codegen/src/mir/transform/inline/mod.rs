@@ -34,7 +34,10 @@
 //!
 //! A callee documented `@custom:solar-inline` skips every profitability test, the stack
 //! estimate below included: each call where cloning is legal is cloned.
-//! `@custom:solar-noinline` marks a function no-inline.
+//! `@custom:solar-noinline` marks a function no-inline. The `inline-tagged` variant clones only
+//! such callees, and runs first in the semantic pipeline: a helper that spells a word operation
+//! as a byte loop then meets the caller's objects, so `byte-loops` can tell a fresh destination
+//! from an argument, and constant arguments reach the loop bounds.
 //!
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate
 //! allocation semantics keep the call. A tail call to a helper that never returns,
@@ -76,15 +79,20 @@ use solar_sema::Gcx;
 mod dispatch;
 mod guards;
 
-/// One inlining policy, before and after physical memory lowering.
+/// One inlining policy, before and after physical memory lowering, and its
+/// `@custom:solar-inline` subset.
 pub(crate) enum Inline {
     Semantic,
     Physical,
+    Tagged,
 }
 
 impl MirPass for Inline {
     fn name(&self) -> &'static str {
-        "inline"
+        match self {
+            Self::Semantic | Self::Physical => "inline",
+            Self::Tagged => "inline-tagged",
+        }
     }
 
     fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
@@ -99,6 +107,11 @@ impl MirPass for Inline {
     ) -> bool {
         let target = Target::new(gcx);
         let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
+        let tagged_only = matches!(self, Self::Tagged);
+        if tagged_only && !module.functions.iter().any(|function| function.attributes.always_inline)
+        {
+            return false;
+        }
         let mut changed = false;
         for _ in 0..4 {
             let calls = analyses.fresh_call_summaries(module);
@@ -107,7 +120,8 @@ impl MirPass for Inline {
             } else {
                 DenseBitSet::new_empty(module.functions.len())
             };
-            let stats = MirInliner { target, physical, calls, straight_line }.run(module);
+            let stats =
+                MirInliner { target, physical, tagged_only, calls, straight_line }.run(module);
             for &caller in &stats.modified {
                 analyses.invalidate_local_summary(caller);
             }
@@ -123,7 +137,7 @@ impl MirPass for Inline {
             changed = true;
         }
         let mut edited_later = false;
-        if physical {
+        if physical && !tagged_only {
             edited_later = guards::inline_guards(module, &target);
             if dispatch::inline_dispatch(module, &target) {
                 let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
@@ -163,6 +177,8 @@ impl MirPass for SpecializeFunctionPointers {
 struct MirInliner {
     target: Target,
     physical: bool,
+    /// Clone only `@custom:solar-inline` callees.
+    tagged_only: bool,
     calls: MemoryCallSummaries,
     /// The creation-only functions that run a bounded number of times, whose code the creation
     /// model prices.
@@ -510,6 +526,9 @@ impl MirInliner {
         // `@custom:solar-inline` asks for every legal clone, whatever it costs, the spills a
         // body with phis may add included.
         let always = module.function(site.callee).attributes.always_inline;
+        if self.tagged_only && !always {
+            return false;
+        }
         if caller == site.callee
             || (summary.is_function_pointer_dispatcher
                 && !single_call

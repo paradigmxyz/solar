@@ -36,6 +36,7 @@ pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_pass
 /// All known MIR passes exposed by `-Zmir-pipeline`.
 static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline::Semantic,
+    &inline::Inline::Tagged,
     &if_convert::IfConvert,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
@@ -185,6 +186,9 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // memory passes. Only the phis: merging blocks this early hides the
     // short-circuit shapes jump threading recognizes after check elimination.
     &cfg_simplify::SimplifyTrivialPhis,
+    // `@custom:solar-inline` helpers join their callers before any pass reads
+    // a loop, an object, or a bound through the call.
+    &inline::Inline::Tagged,
     // Early frame scalarization improves size but can increase hot-path gas.
     &SizeOnly::new(cfg_simplify::CfgSimplify),
     &SizeOnly::new(frame_promotion::FrameSlotPromotion),

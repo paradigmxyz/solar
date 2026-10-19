@@ -1,6 +1,7 @@
 time: <TIME>	MIR TimePasses heap-floor changed=false
 time: <TIME>	MIR TimePasses function-dce changed=false
 time: <TIME>	MIR TimePasses simplify-phis changed=false
+time: <TIME>	MIR TimePasses inline-tagged changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false
 time: <TIME>	MIR TimePasses frame-slot-promotion changed=false
 time: <TIME>	MIR TimePasses sroa changed=false
