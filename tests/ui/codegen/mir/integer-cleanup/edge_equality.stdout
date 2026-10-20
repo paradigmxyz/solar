@@ -1,0 +1,15 @@
+- // === ROOT/tests/ui/codegen/mir/integer-cleanup/edge_equality.mir (before integer-cleanup) ===
++ // === ROOT/tests/ui/codegen/mir/integer-cleanup/edge_equality.mir (after integer-cleanup) ===
+  @module EdgeEquality
+  fn @padded(arg0: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 64
+      jumpi v0, bb2, bb1
+    bb1:
+-     v1 = add arg0, 31
++     v1 = add 64, 31
+      ret v1
+    bb2:
+      revert 0, 0
+  }
+  

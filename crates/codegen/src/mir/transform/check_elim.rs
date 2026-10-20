@@ -38,6 +38,18 @@
 //! remainder by a divisor above zero.
 //! Opcode result widths also bound environment values, including returndata lengths.
 //!
+//! The same edge facts propagate equalities, as GVN's `propagateEquality` does: where a unique
+//! predecessor proves `x == C` for an immediate `C` (the true edge of `eq x, C`, the false edge of
+//! `ne x, C`, or a passed check of one), instructions the edge dominates read `C` in place of `x`.
+//! `check-elim` and `integer-cleanup` run it. A guarded length then makes the round-up, copy size,
+//! and encoder size arithmetic below it constant for `sccp` and `egraph`, which a range alone
+//! would not rewrite. An instruction takes the constant for every operand proven equal when that
+//! makes it evaluate, the way `sccp` will, chaining through the values it folds. Otherwise it
+//! takes it only for a value that at least two instructions below the edge read: the constant
+//! replaces a stack slot and a `DUP` at each read, but at a single read it costs what the value
+//! does and only makes sites that were identical, such as inlined copies of one guard body, differ
+//! for the tail merging after this pass. Phi operands and terminators keep their values.
+//!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
 //! ranges are evaluated in their incoming edge contexts. All states start at
@@ -142,7 +154,7 @@ use crate::{
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
         },
-        utils::{fold_terminator_to_jump, invalidate_unreachable_blocks},
+        utils::{IndexLists, eval, fold_terminator_to_jump, invalidate_unreachable_blocks},
     },
     target::Target,
 };
@@ -171,6 +183,7 @@ impl MirPass for CheckElim {
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
             let mut eliminator = CheckEliminator::new(None);
+            eliminator.propagate_equalities = true;
             eliminator.run(func) != 0
         })
     }
@@ -201,18 +214,24 @@ impl MirPass for IntegerCleanup {
                     let kind = &func.inst(id).kind;
                     low_mask_input(func, kind).is_some()
                         || widened_nonzero_test(func, kind).is_some()
+                        || compares_with_immediate(func, kind)
                 })
             {
                 return false;
             }
             let cfg = CfgInfo::new(func);
             let removed = invalidate_unreachable_blocks(func, cfg.reachable());
-            let mut eliminator =
-                CheckEliminator { collect_masks: true, immutable_ranges, ..Default::default() };
+            let mut eliminator = CheckEliminator {
+                collect_masks: true,
+                propagate_equalities: true,
+                immutable_ranges,
+                ..Default::default()
+            };
             let facts = index_vec![Facts::default(); func.blocks.len()];
             let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
+            let propagated = eliminator.apply_equalities(func) != 0;
             if eliminator.redundant_masks.is_empty() {
-                return removed != 0;
+                return removed != 0 || propagated;
             }
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -596,6 +615,17 @@ impl MonotonePhi {
 /// one operand, as a dominator walk decides them.
 type Folds = (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>, Vec<(BlockId, ValueId)>);
 
+/// Operands of one instruction and the constants they equal.
+type Replacements = SmallVec<[(ValueId, ValueId); 2]>;
+
+/// A value proven equal to an immediate by the edge into `block`.
+struct Equality {
+    constant: ValueId,
+    block: BlockId,
+    /// Whether at least two instructions below `block` read the value, once asked.
+    repeated: Option<bool>,
+}
+
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
 struct CheckEliminator<'a> {
@@ -605,6 +635,20 @@ struct CheckEliminator<'a> {
     cfg: Option<Rc<CfgInfo>>,
     collect_masks: bool,
     redundant_masks: Vec<(InstId, ValueId)>,
+    /// Whether to record constants that dominating branches prove equal to a value.
+    propagate_equalities: bool,
+    /// Values proven equal to a constant in the current scope.
+    equalities: FxHashMap<ValueId, Equality>,
+    equality_undo: Vec<ValueId>,
+    /// The block whose entry or checks the walk is recording facts for.
+    scope: Option<BlockId>,
+    /// Blocks of the instructions reading each value, built on the first query.
+    readers: Option<IndexLists<ValueId, BlockId>>,
+    /// Constants of the pure values that the equalities in scope fold, as `lower-integers` and
+    /// `sccp` will evaluate them.
+    folded: FxHashMap<ValueId, U256>,
+    /// Instructions that read an equal value, with the operands that become its constant.
+    equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
     unfailing: Vec<(InstId, InstKind)>,
     /// Statistics from the last run.
@@ -739,9 +783,15 @@ impl<'a> CheckEliminator<'a> {
         self.relation_undo.clear();
 
         let unfailing = std::mem::take(&mut self.unfailing);
-        if folds.is_empty() && checks.is_empty() && reductions.is_empty() && unfailing.is_empty() {
+        if folds.is_empty()
+            && checks.is_empty()
+            && reductions.is_empty()
+            && unfailing.is_empty()
+            && self.equality_uses.is_empty()
+        {
             return removed;
         }
+        let propagated = self.apply_equalities(func);
         // checked_op a, b that cannot fail -> op a, b
         for (id, kind) in &unfailing {
             func.inst_mut(*id).replace_kind(kind.clone());
@@ -771,6 +821,7 @@ impl<'a> CheckEliminator<'a> {
             + self.stats.branches_folded
             + self.stats.checks_removed
             + self.stats.conditions_reduced
+            + propagated
     }
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds, proven
@@ -790,18 +841,25 @@ impl<'a> CheckEliminator<'a> {
     ) -> Folds {
         enum Walk {
             Enter(BlockId),
-            Exit { range_mark: usize, relation_mark: usize },
+            Exit { range_mark: usize, relation_mark: usize, equality_mark: usize },
         }
 
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut reductions = Vec::new();
         self.unfailing.clear();
+        self.equality_uses.clear();
+        self.folded.clear();
+        self.readers = None;
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
         while let Some(item) = stack.pop() {
             match item {
-                Walk::Exit { range_mark, relation_mark } => {
+                Walk::Exit { range_mark, relation_mark, equality_mark } => {
+                    while self.equality_undo.len() > equality_mark {
+                        let value = self.equality_undo.pop().expect("checked len");
+                        self.equalities.remove(&value);
+                    }
                     while self.range_undo.len() > range_mark {
                         let (value, old) = self.range_undo.pop().expect("checked len");
                         match old {
@@ -821,8 +879,10 @@ impl<'a> CheckEliminator<'a> {
                     stack.push(Walk::Exit {
                         range_mark: self.range_undo.len(),
                         relation_mark: self.relation_undo.len(),
+                        equality_mark: self.equality_undo.len(),
                     });
 
+                    self.scope = Some(block);
                     for (&value, &range) in &facts[block].ranges {
                         self.narrow(value, range);
                     }
@@ -839,6 +899,9 @@ impl<'a> CheckEliminator<'a> {
                     }
 
                     for &id in &func.blocks[block].instructions {
+                        if !self.equalities.is_empty() {
+                            self.propagate_equalities_into(func, cfg, id);
+                        }
                         if self.collect_masks
                             && let Some(value) = self.redundant_mask(func, id)
                         {
@@ -1251,6 +1314,8 @@ impl<'a> CheckEliminator<'a> {
         let (x, y) = ordered(a, b);
         if truth {
             self.add_relation(Relation::Eq(x, y));
+            self.record_equality(func, a, b);
+            self.record_equality(func, b, a);
             let range = self.range_of(func, a, depth);
             self.narrow(b, range);
             let range = self.range_of(func, b, depth);
@@ -1260,6 +1325,95 @@ impl<'a> CheckEliminator<'a> {
             self.exclude_boundary(func, a, b, depth);
             self.exclude_boundary(func, b, a, depth);
         }
+    }
+
+    /// Records that `value` equals `constant` in the current scope, when `constant` is an
+    /// immediate. Operands of `eq`, `ne`, `sub`, and `xor` share one type.
+    fn record_equality(&mut self, func: &Function, value: ValueId, constant: ValueId) {
+        if self.propagate_equalities
+            && func.value_u256(constant).is_some()
+            && func.value_u256(value).is_none()
+            && let Some(block) = self.scope
+            && self.equalities.insert(value, Equality { constant, block, repeated: None }).is_none()
+        {
+            self.equality_undo.push(value);
+        }
+    }
+
+    /// Substitutes proven constants for operands of `id`, as the module docs describe.
+    fn propagate_equalities_into(&mut self, func: &Function, cfg: &CfgInfo, id: InstId) {
+        let kind = &func.inst(id).kind;
+        let mut operands = SmallVec::<[ValueId; 4]>::new();
+        kind.visit_operands(|operand| operands.push(operand));
+        if matches!(kind, InstKind::Phi(_))
+            || !operands.iter().any(|operand| {
+                self.equalities.contains_key(operand) || self.folded.contains_key(operand)
+            })
+        {
+            return;
+        }
+        let mut replaced = Replacements::new();
+        let result = eval::eval_typed_inst(func, kind, |operand| {
+            if let Some(value) =
+                func.value_u256(operand).or_else(|| self.folded.get(&operand).copied())
+            {
+                Ok(value)
+            } else if let Some(equality) = self.equalities.get(&operand) {
+                replaced.push((operand, equality.constant));
+                Ok(func.value_u256(equality.constant).expect("equalities hold immediates"))
+            } else {
+                Err(())
+            }
+        });
+        if let Ok(Some(value)) = result {
+            self.folded.insert(
+                func.inst_result_value(id).expect("evaluated instructions have results"),
+                value,
+            );
+        } else {
+            replaced.clear();
+            for operand in operands {
+                if self.is_repeated(func, cfg, operand) {
+                    replaced.push((operand, self.equalities[&operand].constant));
+                }
+            }
+        }
+        if !replaced.is_empty() {
+            self.equality_uses.push((id, replaced));
+        }
+    }
+
+    /// Whether `value` equals a constant that at least two instructions below its edge read.
+    fn is_repeated(&mut self, func: &Function, cfg: &CfgInfo, value: ValueId) -> bool {
+        let Some(equality) = self.equalities.get(&value) else { return false };
+        if let Some(repeated) = equality.repeated {
+            return repeated;
+        }
+        let block = equality.block;
+        let readers = self.readers.get_or_insert_with(|| value_readers(func));
+        let repeated = readers
+            .get(value)
+            .iter()
+            .filter(|&&reader| cfg.dominators().dominates(block, reader))
+            .nth(1)
+            .is_some();
+        self.equalities.get_mut(&value).expect("checked above").repeated = Some(repeated);
+        repeated
+    }
+
+    /// Replaces the recorded operands by their constants. Returns the number of
+    /// instructions changed.
+    fn apply_equalities(&mut self, func: &mut Function) -> usize {
+        let uses = std::mem::take(&mut self.equality_uses);
+        for (id, replaced) in &uses {
+            // operand -> constant it equals
+            func.inst_mut(*id).rewrite_operands(|operand| {
+                if let Some(&(_, constant)) = replaced.iter().find(|&&(from, _)| from == *operand) {
+                    *operand = constant;
+                }
+            });
+        }
+        uses.len()
     }
 
     /// Given `a != b` with `b` a known singleton at a boundary of `a`'s
@@ -2059,6 +2213,20 @@ impl<'a> CheckEliminator<'a> {
     }
 }
 
+/// The blocks of the instructions reading each value, phis aside.
+fn value_readers(func: &Function) -> IndexLists<ValueId, BlockId> {
+    let mut pairs = Vec::new();
+    for (block, body) in func.blocks.iter_enumerated() {
+        for &id in &body.instructions {
+            let kind = &func.inst(id).kind;
+            if !matches!(kind, InstKind::Phi(_)) {
+                kind.visit_operands(|operand| pairs.push((operand, block)));
+            }
+        }
+    }
+    IndexLists::new(func.num_values(), pairs.iter().copied())
+}
+
 /// Values whose ranges can affect a branch, closed over all SSA operands.
 /// Phi inputs keep loop-carried dependencies in the set. Memory and call
 /// operands are included conservatively even when range evaluation stops there.
@@ -2370,6 +2538,12 @@ fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
         .map(|mask| (a, mask))
         .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
     (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
+}
+
+/// An `eq` or `ne` of a value with an immediate, whose edges prove the value a constant.
+fn compares_with_immediate(func: &Function, kind: &InstKind) -> bool {
+    matches!(*kind, InstKind::Eq(a, b) | InstKind::Ne(a, b)
+        if func.value_u256(a).is_some() != func.value_u256(b).is_some())
 }
 
 /// The word `v` of `zext(v != 0)`, which is `v` itself whenever `v` is 0 or 1, as a

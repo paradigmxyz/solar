@@ -1,0 +1,19 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=integer-cleanup
+//@ filecheck:
+@module EdgeEquality
+
+// After integer lowering unifies the length reads, a guard that proves the
+// length leaves its round-up arithmetic constant.
+// CHECK-LABEL: fn @padded
+// CHECK: - v1 = add arg0, 31
+// CHECK-NEXT: + v1 = add 64, 31
+fn @padded(arg0: i256) -> i256 {
+  bb0:
+    v0 = ne arg0, 64
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = add arg0, 31
+    ret v1
+  bb2:
+    revert 0, 0
+}
