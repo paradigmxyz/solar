@@ -72,8 +72,9 @@ impl MirPass for IfConvert {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, _| if_convert_function(func, &target))
+        run_function_pass(module, analyses, |func, analyses| {
+            if_convert_function(func, &analyses.target(gcx))
+        })
     }
 }
 

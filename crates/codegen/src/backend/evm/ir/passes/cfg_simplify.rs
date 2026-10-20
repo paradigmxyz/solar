@@ -164,6 +164,7 @@ fn rotate_loop_exits(module: &mut Module, references: &mut IndexVec<BlockId, usi
         let block = &mut module.blocks[header];
         let mut exit = Block::new(label);
         exit.metadata.hotness = block.metadata.hotness;
+        exit.metadata.repeats = block.metadata.repeats;
         exit.instructions = block.instructions.split_off(index + 3);
         exit.terminator = block.terminator.take();
         let removed = block.instructions.remove(index);
@@ -653,6 +654,7 @@ fn coalesce_blocks(
                 }
             }
             module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
+            module.blocks[predecessor].metadata.repeats |= module.blocks[target].metadata.repeats;
             module.blocks[predecessor].instructions.append(&mut instructions);
             module.blocks[predecessor].terminator = terminator;
             retained.remove(target);

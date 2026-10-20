@@ -1,0 +1,187 @@
+// === ROOT/tests/ui/codegen/mir/inline/constructor_shared_helper.sol:ConstructorSharedHelper ===
+@module ConstructorSharedHelper
+@phase lowered
+@types
+  struct0: {i256, i256}
+
+fn @constructor() [abi_wrapper, constructor] {
+  bb0:
+    v1 = callvalue
+    v2 = ne v1, 0
+    jumpi v2, bb2, bb1
+  bb1:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v3 = and v0, 1
+    v4 = eq v3, 1
+    v5 = sub 0, v3
+    v6 = or v5, 127
+    v7 = shr v0, 1
+    v8 = and v7, v6
+    v9 = lt v8, 32
+    v10 = eq v4, v9
+    jumpi v10, bb3, bb4
+  bb4:
+    v11 = gt v8, 3
+    v12 = and v4, v11
+    jumpi v12, bb5, bb6
+  bb5:
+    v13 = add v8, 31
+    v14 = shr v13, 5
+    icall @clear_storage_words, 0, 0, v14
+    jump bb6
+  bb6:
+    sstore 0, 0x102030000000000000000000000000000000000000000000000000000000006 !metadata(storage=slot(0))
+    ret
+  bb3:
+    tail_call @revert_stub.6
+  bb2:
+    revert 0, 0
+}
+
+fn @f() [selector=0x26121ff0, abi_wrapper] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v64 = and v0, 1
+    v65 = eq v64, 1
+    v66 = sub 0, v64
+    v67 = or v66, 127
+    v68 = shr v0, 1
+    v69 = and v68, v67
+    v70 = lt v69, 32
+    v71 = eq v65, v70
+    jumpi v71, bb7, bb8
+  bb8:
+    v7 = add v69, 31
+    v8 = shr v7, 5
+    jumpi v65, bb1, bb2
+  bb1:
+    mstore 0, 0 !metadata(memory=scratch)
+    v118 = sub 0, v8
+    jump bb9
+  bb9:
+    v74 = phi [bb1: v118], [bb10: v77]
+    v75 = phi [bb1: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563], [bb10: v78]
+    v76 = ne v74, 0
+    jumpi v76, bb10, bb2
+  bb2:
+    sstore 0, 0 !metadata(storage=slot(0))
+    sstore 0, 0x102030000000000000000000000000000000000000000000000000000000006 !metadata(storage=slot(0))
+    v26 = sload 0 !metadata(storage=slot(0))
+    v32 = or v26, 0xff00000000000000000000000000000000000000000000000000000000000000
+    sstore 0, v32 !metadata(storage=slot(0))
+    v33 = sload 0 !metadata(storage=slot(0))
+    v88 = and v33, 1
+    v89 = eq v88, 1
+    v90 = sub 0, v88
+    v91 = or v90, 127
+    v92 = shr v33, 1
+    v93 = and v92, v91
+    v94 = lt v93, 32
+    v95 = eq v89, v94
+    jumpi v95, bb7, bb11
+  bb11:
+    v40 = gt v93, 0
+    jumpi v40, bb6, bb5
+  bb5:
+    tail_call @revert_stub.5
+  bb6:
+    jumpi v89, bb3, bb4
+  bb3:
+    jump bb4
+  bb4:
+    v45 = phi [bb3: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563], [bb6: 0]
+    v48 = sload v45 !metadata(storage=symbolic(v45))
+    v50 = shr v48, 248
+    mstore 0, v50
+    mstore 32, v93 !metadata(memory=scratch)
+    returndata 0, 64
+  bb10:
+    sstore v75, 0 !metadata(storage=symbolic(v75))
+    v77 = add v74, 1
+    v78 = add v75, 1
+    jump bb9
+  bb7:
+    tail_call @revert_stub.6
+}
+
+fn @g() [selector=0xe2179b8e, abi_wrapper, view] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v22 = and v0, 1
+    v23 = eq v22, 1
+    v24 = sub 0, v22
+    v25 = or v24, 127
+    v26 = shr v0, 1
+    v27 = and v26, v25
+    v28 = lt v27, 32
+    v29 = eq v23, v28
+    jumpi v29, bb5, bb6
+  bb6:
+    v7 = gt v27, 1
+    jumpi v7, bb4, bb3
+  bb3:
+    tail_call @revert_stub.5
+  bb4:
+    jumpi v23, bb1, bb2
+  bb1:
+    jump bb2
+  bb2:
+    v12 = phi [bb1: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563], [bb4: 0]
+    v15 = sload v12 !metadata(storage=symbolic(v12))
+    v19 = byte 1, v15
+    mstore 0, v19
+    returndata 0, 32
+  bb5:
+    tail_call @revert_stub.6
+}
+
+fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    v7 = keccak256 0, 32 !metadata(memory=scratch)
+    v1 = add v7, arg1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: arg1], [bb2: v5]
+    v3 = phi [bb0: v1], [bb2: v6]
+    v4 = lt v2, arg2
+    jumpi v4, bb2, bb3
+  bb3:
+    ret
+  bb2:
+    sstore v3, 0 !metadata(storage=symbolic(v3))
+    v5 = add v2, 1
+    v6 = add v3, 1
+    jump bb1
+}
+
+fn @revert_stub.5() {
+  bb0:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @revert_stub.6() {
+  bb0:
+    mstore 32, 34 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x26121ff0 => bb2, 0xe2179b8e => bb3]
+  bb3:
+    tail_call @g
+  bb2:
+    tail_call @f
+  bb4:
+    revert 0, 0
+}
