@@ -36,12 +36,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             // pointer on the heap.
             if let Some(size) = func.value_u64(size)
                 && (size == 0
-                    || inputs[dest] != AddressInput::Other
-                    || !Self::is_chosen_by_input(
-                        func,
-                        dest,
-                        &mut DenseBitSet::new_empty(func.num_values()),
-                    ))
+                    || match inputs[dest] {
+                        AddressInput::Calldata => true,
+                        AddressInput::Constant => !Self::constant_leaves(func, dest).is_empty(),
+                        AddressInput::Other => !Self::is_chosen_by_input(
+                            func,
+                            dest,
+                            &mut DenseBitSet::new_empty(func.num_values()),
+                        ),
+                    })
             {
                 return None;
             }

@@ -1403,7 +1403,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::Or(lhs, rhs) => combine(*lhs, *rhs, |lhs, rhs| Some(lhs | rhs)),
             InstKind::Xor(lhs, rhs) => combine(*lhs, *rhs, |lhs, rhs| Some(lhs ^ rhs)),
             InstKind::Shl(shift, value) => combine(*shift, *value, |shift, value| {
-                u32::try_from(shift).ok().and_then(|shift| value.checked_shl(shift))
+                u32::try_from(shift)
+                    .ok()
+                    .filter(|&shift| value.leading_zeros() >= shift)
+                    .and_then(|shift| value.checked_shl(shift))
             }),
             InstKind::Shr(shift, value) => combine(*shift, *value, |shift, value| {
                 Some(
