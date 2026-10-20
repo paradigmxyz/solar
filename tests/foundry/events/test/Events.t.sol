@@ -140,4 +140,41 @@ contract EventsTest {
         (uint256 first, uint256 second) = abi.decode(logs[0].data, (uint256, uint256));
         require(first == 2 && second == 1);
     }
+
+    function test_EmitThreeWords() public {
+        vm.recordLogs();
+        events.emitThreeWords(1, type(uint256).max, 3);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 1);
+        require(logs[0].topics[0] == keccak256("ThreeWords(uint256,uint256,uint256)"));
+        require(logs[0].data.length == 96);
+        (uint256 first, uint256 second, uint256 third) =
+            abi.decode(logs[0].data, (uint256, uint256, uint256));
+        require(first == 1 && second == type(uint256).max && third == 3);
+    }
+
+    function test_EmitDynamicData() public {
+        bytes memory data = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122";
+        vm.recordLogs();
+        events.emitDynamicData(7, data, 9);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 2);
+        require(logs[0].topics[1] == bytes32(uint256(7)));
+        (bytes memory loggedData, string memory text, uint256 count) =
+            abi.decode(logs[0].data, (bytes, string, uint256));
+        require(keccak256(loggedData) == keccak256(data));
+        require(
+            keccak256(bytes(text))
+                == keccak256("a literal string that is longer than a single word")
+        );
+        require(count == 9);
+    }
+
+    function test_EmitDynamicDataThenAllocate() public {
+        bytes memory data = hex"010203";
+        bytes memory result = events.emitDynamicDataThenAllocate(data);
+        require(keccak256(result) == keccak256(hex"010203aa"));
+    }
 }

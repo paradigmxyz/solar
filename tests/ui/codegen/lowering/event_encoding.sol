@@ -12,7 +12,7 @@ contract EventEncoding {
     event NamedEvent(uint256 a, uint256 b);
 
     // CHECK-LABEL: fn @emitArray
-    // CHECK: [[ARRAY_ENCODED:v[0-9]+]] = abi_encode [array<2, word>], args
+    // CHECK: [[ARRAY_ENCODED:v[0-9]+]] = abi_encode [array<2, word>], scratch, args
     // CHECK: [[ARRAY_PTR:v[0-9]+]] = extract_value slice<memory>, [[ARRAY_ENCODED]], 0
     // CHECK: [[ARRAY_LEN:v[0-9]+]] = extract_value slice<memory>, [[ARRAY_ENCODED]], 1
     // CHECK: log [[ARRAY_PTR]], [[ARRAY_LEN]], 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4

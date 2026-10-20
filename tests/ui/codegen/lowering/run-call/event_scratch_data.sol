@@ -1,11 +1,9 @@
 //@ codegen-matrix: standard
 //@ run-call: keepsHeap 5, 6 => 1
 //@ run-call: aliased => 1
-//@ run-call: threeWords 5 => 5
 
 // Static event data of at most two words is encoded in scratch memory: the
-// allocation behind it and the free memory pointer stay unchanged. Three words
-// keep the encoded buffer.
+// allocation behind it and the free memory pointer stay unchanged.
 contract EventScratchData {
     struct Pair {
         uint256 first;
@@ -13,7 +11,6 @@ contract EventScratchData {
     }
 
     event Two(uint256 a, uint256 b);
-    event Three(uint256 a, uint256 b, uint256 c);
 
     function keepsHeap(uint256 a, uint256 b) external returns (uint256 ok) {
         uint256[2] memory buffer = [uint256(0x11), 0x22];
@@ -40,10 +37,5 @@ contract EventScratchData {
         }
         emit Two(pair.second, pair.first);
         second = pair.second;
-    }
-
-    function threeWords(uint256 a) external returns (uint256) {
-        emit Three(a, a + 1, a + 2);
-        return a;
     }
 }

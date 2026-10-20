@@ -123,4 +123,21 @@ contract Events {
         }
         emit TwoWords(pair.second, pair.first);
     }
+
+    event ThreeWords(uint256 first, uint256 second, uint256 third);
+    event DynamicData(uint256 indexed id, bytes data, string text, uint256 count);
+
+    function emitThreeWords(uint256 first, uint256 second, uint256 third) public {
+        emit ThreeWords(first, second, third);
+    }
+
+    function emitDynamicData(uint256 id, bytes memory data, uint256 count) public {
+        emit DynamicData(id, data, "a literal string that is longer than a single word", count);
+    }
+
+    // Staging event data past the free memory pointer leaves later allocations intact.
+    function emitDynamicDataThenAllocate(bytes memory data) public returns (bytes memory) {
+        emit DynamicData(1, data, "text", 2);
+        return abi.encodePacked(data, uint8(0xaa));
+    }
 }

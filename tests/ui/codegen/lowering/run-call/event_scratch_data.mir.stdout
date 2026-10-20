@@ -66,14 +66,3 @@ fn @aliased() -> i256 [selector=0x1d15e393, abi_params=[], abi_returns=[word], a
     v6 = mload v5
     ret v6
 }
-
-fn @threeWords(arg0: i256) -> i256 [selector=0x72877259, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = checked_add uint256, arg0, 1
-    v1 = checked_add uint256, arg0, 2
-    v2 = abi_encode [word, word, word], args arg0, v0, v1
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    log v3, v4, 0xd3d2405dd719b971a7f9b4e0a312db1f22d361f171f71c9870c715833392b52b
-    ret arg0
-}
