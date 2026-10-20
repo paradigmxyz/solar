@@ -27,10 +27,10 @@
 //! Literal bytes with observable allocations can still fold into encoder
 //! stores, in slice and scratch encodings alike; their original allocations
 //! and initialization remain for later observers. A revert or return of a
-//! scratch encoding of words and one literal, with nothing between them, has
-//! no observer, so the literal's allocation goes too rather than repeating the
-//! payload as stores beside the folded copy. This is limited to gas-mode
-//! encodings before Cancun.
+//! scratch encoding of words and one literal, with only pure instructions
+//! between them, has no observer, so the literal's allocation goes too rather
+//! than repeating the payload as stores beside the folded copy. This is
+//! limited to gas-mode encodings before Cancun.
 //! NOTE: Duplicating preserved payloads can grow native-MCOPY encoders and
 //! size-mode copies; keep their copies until their full code shape is priced.
 //!
