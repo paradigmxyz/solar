@@ -212,6 +212,10 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // compare against one bound.
     &cse::Cse,
     &load_pre::LoadPre::All,
+    // Forwarded loads fold the checks of a helper that only fails, such as
+    // `new uint256[](0)[0]`; end them, and the calls to it, before element
+    // cleanup bounds the values that reach stores.
+    &cfg_simplify::NoreturnCalls,
     // Element reads of arrays that only ever hold canonical words drop their
     // type masks while the accesses are still semantic and calls explicit.
     &element_cleanup::ElementCleanup,

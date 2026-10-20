@@ -63,3 +63,25 @@
       ret arg0
   }
   
+  fn @out_of_bounds() -> i256 {
+    bb0:
+      v0 = gt 0, 0
+      icall panic_if_zero<0x32>, v0
+-     ret 0
++     invalid
+  }
+  
+  fn @calls_out_of_bounds() -> i256 {
+    bb0:
+      v0 = icall @out_of_bounds
+-     ret v0
++     invalid
+  }
+  
+  fn @checked(arg0: i256) -> i256 {
+    bb0:
+      v0 = gt arg0, 0
+      icall panic_if_zero<0x32>, v0
+      ret arg0
+  }
+  
