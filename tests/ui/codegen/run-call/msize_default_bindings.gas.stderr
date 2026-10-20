@@ -1,4 +1,4 @@
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_default_bindings.sol:LL:CC
    │
 LL │             let freemem := msize()
@@ -6,7 +6,7 @@ LL │             let freemem := msize()
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_default_bindings.sol:LL:CC
    │
 LL │             p := msize()
@@ -14,7 +14,7 @@ LL │             p := msize()
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_default_bindings.sol:LL:CC
    │
 LL │         r := add(msize(), add(x, y))
@@ -22,7 +22,7 @@ LL │         r := add(msize(), add(x, y))
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_default_bindings.sol:LL:CC
    │
 LL │                 q := msize()
@@ -30,7 +30,7 @@ LL │                 q := msize()
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_default_bindings.sol:LL:CC
    │
 LL │             seen := msize()
