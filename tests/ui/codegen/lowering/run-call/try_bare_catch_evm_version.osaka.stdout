@@ -49,26 +49,20 @@ fn @fail() [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word], abi
 
 fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize TryCallee_creation_code_0
-    v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy TryCallee_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
+    v4 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = call v9, v10, 0, 28, 4, 0, 32
-    jumpi v11, bb3, bb4
+    v5 = zext i160 v2 to i256
+    v6 = call v4, v5, 0, 28, 4, 0, 32
+    jumpi v6, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -77,41 +71,35 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
   bb6:
     jump bb5
   bb3:
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
     jump bb5
   bb5:
-    v16 = phi [bb3: v15], [bb6: 7]
-    ret v16
+    v11 = phi [bb3: v10], [bb6: 7]
+    ret v11
 }
 
 fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize TryCallee_creation_code_0
-    v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy TryCallee_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
-    v10 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = call v9, v13, 0, v11, v12, v11, 64
-    jumpi v14, bb3, bb4
+    v4 = gas
+    v5 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    v8 = zext i160 v2 to i256
+    v9 = call v4, v8, 0, v6, v7, v6, 64
+    jumpi v9, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -120,47 +108,41 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
   bb6:
     jump bb5
   bb3:
-    v15 = returndatasize
-    v16 = lt v15, 64
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = ptrtoint ptr<memory> v11 to i256
-    v18 = add v17, 0
-    v19 = mload v18
-    v20 = ptrtoint ptr<memory> v11 to i256
-    v21 = add v20, 32
-    v22 = mload v21
-    v23 = checked_add uint256, v19, v22
+    v10 = returndatasize
+    v11 = lt v10, 64
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = ptrtoint ptr<memory> v6 to i256
+    v13 = add v12, 0
+    v14 = mload v13
+    v15 = ptrtoint ptr<memory> v6 to i256
+    v16 = add v15, 32
+    v17 = mload v16
+    v18 = checked_add uint256, v14, v17
     jump bb5
   bb5:
-    v24 = phi [bb3: v23], [bb6: 7]
-    ret v24
+    v19 = phi [bb3: v18], [bb6: 7]
+    ret v19
 }
 
 fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize TryCallee_creation_code_0
-    v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy TryCallee_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
-    v10 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = alloc 64
-    v14 = zext i160 v7 to i256
-    v15 = call v9, v14, 0, v11, v12, v13, 64
-    jumpi v15, bb3, bb4
+    v4 = gas
+    v5 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    v8 = alloc 64
+    v9 = zext i160 v2 to i256
+    v10 = call v4, v9, 0, v6, v7, v8, 64
+    jumpi v10, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -169,53 +151,47 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb6:
     jump bb5
   bb3:
-    v16 = returndatasize
-    v17 = lt v16, 64
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = make_memory_slice v13, 64
-    v19 = abi_decode [array<2, uint256>], v18
-    v20 = lt 0, 2
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = mload v19
-    v23 = lt 1, 2
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v19, 32
-    v26 = mload v25
-    v27 = checked_add uint256, v22, v26
+    v11 = returndatasize
+    v12 = lt v11, 64
+    icall revert_if<tuple_data_too_short>, v12
+    v13 = make_memory_slice v8, 64
+    v14 = abi_decode [array<2, uint256>], v13
+    v15 = lt 0, 2
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = mload v14
+    v18 = lt 1, 2
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptradd v14, 32
+    v21 = mload v20
+    v22 = checked_add uint256, v17, v21
     jump bb5
   bb5:
-    v28 = phi [bb3: v27], [bb6: 7]
-    ret v28
+    v23 = phi [bb3: v22], [bb6: 7]
+    ret v23
 }
 
 fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize TryCallee_creation_code_0
-    v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy TryCallee_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
+    v4 = gas
     mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = extcodesize v10
-    v12 = eq v11, 0
-    icall revert_if<target_contract_has_no_code>, v12
-    v13 = zext i160 v7 to i256
-    v14 = call v9, v13, 0, 28, 4, 0, 0
-    jumpi v14, bb3, bb4
+    v5 = zext i160 v2 to i256
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = zext i160 v2 to i256
+    v9 = call v4, v8, 0, 28, 4, 0, 0
+    jumpi v9, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -226,32 +202,26 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
   bb3:
     jump bb5
   bb5:
-    v15 = phi [bb3: 1], [bb6: 7]
-    ret v15
+    v10 = phi [bb3: 1], [bb6: 7]
+    ret v10
 }
 
 fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize TryCallee_creation_code_0
-    v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy TryCallee_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
+    v4 = gas
     mstore 0, 0xa9cc4718 !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = call v9, v10, 1, 28, 4, 0, 32
-    jumpi v11, bb3, bb4
+    v5 = zext i160 v2 to i256
+    v6 = call v4, v5, 1, 28, 4, 0, 32
+    jumpi v6, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -260,45 +230,39 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
   bb6:
     jump bb5
   bb3:
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
     jump bb5
   bb5:
-    v16 = phi [bb3: v15], [bb6: 7]
-    ret v16
+    v11 = phi [bb3: v10], [bb6: 7]
+    ret v11
 }
 
 fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize TryCallee_creation_code_0
-    v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy TryCallee_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = zext i160 v7 to i256
-    v10 = shl v9, 32
-    v11 = or v10, 0x3fa4f245
-    v12 = and v11, 0xffffffff
-    v13 = shl v12, 224
-    v14 = shr v11, 32
-    v15 = gas
-    v16 = shr v13, 224
-    mstore 0, v16 !metadata(memory=scratch)
-    v17 = call v15, v14, 0, 28, 4, 0, 32
-    jumpi v17, bb3, bb4
+    v4 = zext i160 v2 to i256
+    v5 = shl v4, 32
+    v6 = or v5, 0x3fa4f245
+    v7 = and v6, 0xffffffff
+    v8 = shl v7, 224
+    v9 = shr v6, 32
+    v10 = gas
+    v11 = shr v8, 224
+    mstore 0, v11 !metadata(memory=scratch)
+    v12 = call v10, v9, 0, 28, 4, 0, 32
+    jumpi v12, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -307,31 +271,25 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb6:
     jump bb5
   bb3:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = mload v15
     jump bb5
   bb5:
-    v22 = phi [bb3: v21], [bb6: 7]
-    ret v22
+    v17 = phi [bb3: v16], [bb6: 7]
+    ret v17
 }
 
 fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize TryCallee_creation_code_0
-    v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy TryCallee_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb1, bb2
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -342,8 +300,8 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
   bb1:
     jump bb3
   bb3:
-    v9 = phi [bb1: 1], [bb4: 7]
-    ret v9
+    v4 = phi [bb1: 1], [bb4: 7]
+    ret v4
 }
 
 fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

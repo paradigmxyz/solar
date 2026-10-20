@@ -58,6 +58,7 @@ contract WideCalls {
     // From EIP-150 on the forwarded gas is capped instead of rejected, so neither the reserve nor
     // the touch is needed.
     // TANGERINE-LABEL: fn @plainCall
+    // TANGERINE: create
     // TANGERINE-NOT: = fmp
     // TANGERINE: [[GAS:v[0-9]+]] = gas
     // TANGERINE: call [[GAS]],
