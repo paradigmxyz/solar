@@ -1238,6 +1238,8 @@ symbols! {
         slot,
         solar_dash_inline: "solar-inline",
         solar_dash_noinline: "solar-noinline",
+        solar_dash_safe: "solar-safe",
+        solar_dash_trusted: "solar-trusted",
         solidity,
         span,
         spans,

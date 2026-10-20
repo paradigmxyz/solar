@@ -1,0 +1,53 @@
+error: `@custom:solar-inline` must document a function that internal calls reach
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-inline
+   │              ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on an internal, private or public function with a body
+
+error: unknown tag `@custom:solar-scratch`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-safe`, and `@custom:solar-trusted`
+
+error: unknown tag `@custom:solar-saef`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │ /// @custom:solar-saef
+   │      ━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-safe`, and `@custom:solar-trusted`
+
+error: unknown tag `@custom:solar-view`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-view
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-safe`, and `@custom:solar-trusted`
+
+error: `@custom:solar-safe` must document a contract or a library
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-safe
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
+
+error: `@custom:solar-trusted` must document a function, a modifier, a contract, or a library
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-trusted
+   │          ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the reviewed code a `@custom:solar-safe` contract runs
+
+error: aborting due to 6 previous errors
+
