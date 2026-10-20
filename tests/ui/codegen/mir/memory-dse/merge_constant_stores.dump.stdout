@@ -106,19 +106,29 @@ fn @highAddress() [selector=0xe68983c4, abi_wrapper, pure] {
     stop
 }
 
+fn @farBytes() [selector=0xc0360847, abi_wrapper, pure] {
+  bb0:
+    mstore 128, 0
+    mstore8 128, 48
+    mstore8 159, 120
+    returndata 128, 32
+}
+
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb11, bb1
+    jumpi v1, bb12, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb11, [0x3fd47ee => bb2, 0x31cde8cd => bb3, 0x59e4b010 => bb4, 0x6c32c0a6 => bb5, 0x6c636b39 => bb6, 0x75dadb32 => bb7, 0xbb67265e => bb8, 0xe68983c4 => bb9, 0xf747ede1 => bb10]
-  bb10:
+    switch v3, default bb12, [0x3fd47ee => bb2, 0x31cde8cd => bb3, 0x59e4b010 => bb4, 0x6c32c0a6 => bb5, 0x6c636b39 => bb6, 0x75dadb32 => bb7, 0xbb67265e => bb8, 0xc0360847 => bb9, 0xe68983c4 => bb10, 0xf747ede1 => bb11]
+  bb11:
     tail_call @unknownWindow
-  bb9:
+  bb10:
     tail_call @highAddress
+  bb9:
+    tail_call @farBytes
   bb8:
     tail_call @hexPrefix
   bb7:
@@ -133,7 +143,7 @@ fn @entry() [entry] {
     tail_call @readBetween
   bb2:
     tail_call @twoWindows
-  bb11:
+  bb12:
     revert 0, 0
 }
 

@@ -134,3 +134,11 @@ fn @highAddress() [selector=0xe68983c4, pure, abi_params=[], abi_returns=[], abi
     mstore8 0xffffffffffffffd8, 2
     ret
 }
+
+fn @farBytes() [selector=0xc0360847, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    mstore 128, 0
+    mstore8 128, 48
+    mstore8 159, 120
+    returndata 128, 32
+}

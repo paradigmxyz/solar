@@ -8,6 +8,7 @@
 //@ run-call: overwriteByte() => 0x0203000000000000000000000000000000000000000000000000000000000000
 //@ run-call: straddle() => 0x0000000000000000000000000000000030780000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000
 //@ run-call: twoWindows() => 0x0102000000000000000000000000000000000000000000000000000000000000, 0x0304000000000000000000000000000000000000000000000000000000000000
+//@ run-call: farBytes() => 0x3000000000000000000000000000000000000000000000000000000000000078
 //@ run-call-fail: highAddress()
 //@ run-call: gap() => 0x3000000000000000000000000000000000000000000000000000000000000000, 0x7800000000000000000000000000000000000000000000000000000000000000
 
@@ -131,6 +132,19 @@ contract MergeConstantStores {
             mstore(0xffffffffffffffcb, 0)
             mstore8(0xffffffffffffffd7, 1)
             mstore8(0xffffffffffffffd8, 2)
+        }
+    }
+
+    // The word would need a full 32-byte push, which costs more than the two byte stores.
+    // CHECK-LABEL: fn @farBytes
+    // CHECK: mstore8 128, 48
+    // CHECK: mstore8 159, 120
+    function farBytes() external pure returns (bytes32) {
+        assembly {
+            mstore(0x80, 0)
+            mstore8(0x80, 0x30)
+            mstore8(0x9f, 0x78)
+            return(0x80, 32)
         }
     }
 }
