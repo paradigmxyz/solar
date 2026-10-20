@@ -58,7 +58,7 @@ contract TryBareCatch {
     // HOMESTEAD: [[OK:v[0-9]+]] = call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 32
     // HOMESTEAD: jumpi [[OK]]
     // OSAKA-LABEL: fn @live
-    // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 32
+    // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, 28, 4, 0, 32
     // OSAKA: jumpi [[OK]]
     // OSAKA-NOT: returndata_bytes
     // OSAKA: {{(^|[^a-z_])}}mload
@@ -165,7 +165,7 @@ contract TryBareCatch {
     // HOMESTEAD: extcodesize
     // OSAKA-LABEL: fn @noCodeNoReturn
     // OSAKA-NOT: extcodesize
-    // OSAKA: abi_encode
+    // OSAKA: mstore 0, {{.*}}
     // OSAKA: extcodesize
     function noCodeNoReturn() external returns (uint256 r) {
         try TryTarget(address(0)).noop() {

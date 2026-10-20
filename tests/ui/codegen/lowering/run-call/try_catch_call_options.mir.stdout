@@ -42,16 +42,14 @@ fn @highLevelGas() -> i1 [selector=0x480be654, abi_params=[], abi_returns=[word<
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
+    mstore 0, 0x5c36b186 !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = extcodesize v3
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = zext i160 v1 to i256
-    v7 = extcodesize v6
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = zext i160 v1 to i256
-    v10 = call 0, v9, 0, v4, v5, 0, 0
-    jumpi v10, bb1, bb2
+    v7 = call 0, v6, 0, 28, 4, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -77,16 +75,14 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
+    mstore 0, 0xa9cc4718 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
     v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = staticcall v1, v8, v3, v4, 0, 0
-    jumpi v9, bb1, bb2
+    v6 = staticcall v1, v5, 28, 4, 0, 0
+    jumpi v6, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -94,11 +90,11 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     invalid
   bb4:
     returndatacopy 0, 0, 32 !metadata(memory=scratch)
-    v10 = mload 0 !metadata(memory=scratch)
+    v7 = mload 0 !metadata(memory=scratch)
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v11 = phi [bb1: 0], [bb4: v10]
-    ret v11
+    v8 = phi [bb1: 0], [bb4: v7]
+    ret v8
 }

@@ -214,27 +214,25 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0x986597e500000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = staticcall v9, v13, v11, v12, 0, 32
-    jumpi v14, bb4, bb3
+    mstore 0, 0x986597e5 !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = staticcall v9, v10, 28, 4, 0, 32
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    v19 = shr v18, 160
-    v20 = eq v19, 0
-    v21 = eq v20, false
-    icall revert_if<empty>, v21
-    v22 = trunc i256 v18 to i160
-    v23 = eq v22, i160 0xffffffffffffffffffffffffffffffffffffffff
-    icall require<short_string>, v23, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
+    v12 = returndatasize
+    v13 = lt v12, 32
+    icall revert_if<tuple_data_too_short>, v13
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = shr v15, 160
+    v17 = eq v16, 0
+    v18 = eq v17, false
+    icall revert_if<empty>, v18
+    v19 = trunc i256 v15 to i160
+    v20 = eq v19, i160 0xffffffffffffffffffffffffffffffffffffffff
+    icall require<short_string>, v20, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -256,17 +254,15 @@ fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word],
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = staticcall v9, v13, v11, v12, 0, 0
-    jumpi v14, bb4, bb3
+    mstore 0, 0xa39e7bc !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = staticcall v9, v10, 28, 4, 0, 0
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v15 = icall returndata_bytes<>
-    v16 = abi_decode [bytes], v15
-    v17 = mload v16
-    ret v17
+    v12 = icall returndata_bytes<>
+    v13 = abi_decode [bytes], v12
+    v14 = mload v13
+    ret v14
 }
