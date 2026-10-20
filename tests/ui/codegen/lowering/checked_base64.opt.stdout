@@ -591,7 +591,6 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v284 = or v282, v283
     jumpi v284, bb45, bb44
   bb44:
-    mstore 64, v281 !metadata(memory=scratch)
     mstore v280, 0
     ret v280
   bb45:

@@ -138,11 +138,7 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v71 = or v46, v56
     jumpi v71, bb1, bb9
   bb9:
-    v57 = add v47, 63
-    v58 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v59 = mload 64
-    v61 = add v59, v58
-    mstore 64, v61
     mstore v59, v47
     v63 = add v59, 32
     calldatacopy v63, v49, v47

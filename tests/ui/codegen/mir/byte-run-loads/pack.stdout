@@ -105,7 +105,6 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v30 = or v28, v29
     jumpi v30, bb3, bb6
   bb6:
-    mstore 64, v27 !metadata(memory=scratch)
     mstore v26, v8
     v15 = sub v0, v3
     v16 = gt v8, v15

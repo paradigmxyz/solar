@@ -43,11 +43,16 @@
 //!   the free memory pointer bounds that address from below through constant offsets, as the heap
 //!   and the frames lie above the scratch space and the free memory pointer, and all memory
 //!   otherwise: a runtime index past a length that assembly forged can wrap a read around to low
-//!   memory. An internal call keeps what its callee's memory summary may read, and a call or tail
-//!   call to a function that never returns and calls nothing, as a shared revert helper is, keeps
-//!   what that function reads before writing. A return to the caller and any other tail call keep
-//!   all memory; revert and return data keep only the words they cover, and halts such as `stop`
-//!   keep none.
+//!   memory. The pointer an internal call returns is bounded the same way when every return of the
+//!   callee is. An internal call keeps what its callee's memory summary may read, and a call or
+//!   tail call to a function that never returns and calls nothing, as a shared revert helper is,
+//!   keeps what that function reads before writing. A return keeps what the callers may read right
+//!   after their calls when the module shows every call site, joined over them to a fixpoint, so a
+//!   helper that returns a fresh string to a wrapper that only encodes it loses its scratch stores
+//!   and its free memory pointer bump. External entries, functions nothing calls, and functions
+//!   with several results, whose tail the backend passes back through memory, keep all memory at
+//!   their returns, as does any other tail call; revert and return data keep only the words they
+//!   cover, and halts such as `stop` keep none.
 //!
 //! Keys come from alias analysis, which canonicalizes an address as a base plus a constant offset.
 //! Allocation-based keys require the complete access range to fit; wider accesses may overlap
@@ -59,11 +64,11 @@
 //! turns them into copies or loops.
 
 use crate::mir::{
-    BasicBlock, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryRegion,
-    MirType, Module, PtrLocation, Terminator, Value, ValueId,
+    BasicBlock, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MangledSymbol,
+    MemoryRegion, MirType, Module, PtrLocation, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
-        MemoryAddress, MemoryBase, MemoryLocation,
+        MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -103,6 +108,8 @@ impl MirPass for MemoryDse {
             }
         }
         let terminal = Arc::new(terminal_liveness(module));
+        let summaries = analyses.call_summaries(module);
+        let returns = Arc::new(return_facts(module, &summaries, &terminal));
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,
@@ -110,6 +117,7 @@ impl MirPass for MemoryDse {
             |func, analyses| {
                 MemoryStoreEliminator::new(Rc::clone(analyses.alias()), Rc::clone(analyses.cfg()))
                     .with_terminal(Arc::clone(&terminal))
+                    .with_returns(Arc::clone(&returns))
                     .run_to_fixpoint(func)
                     != 0
             },
@@ -150,6 +158,163 @@ fn terminal_liveness(module: &Module) -> FxHashMap<FunctionId, MemLive> {
     terminal
 }
 
+/// What callers read once a call returns, and where the pointers functions return point; see
+/// [`return_facts`].
+#[derive(Default)]
+struct ReturnFacts {
+    /// For each function whose every call site the module shows, the memory live after any of
+    /// them. The returns of every other function keep all memory live.
+    live: FxHashMap<MangledSymbol, MemLive>,
+    /// The least address the single value each function returns can hold.
+    bounds: FxHashMap<FunctionId, u64>,
+}
+
+/// Bounds of the iterations that join the memory live after calls into their callees' returns.
+/// Each round only grows the sets; a module that still changes after this many keeps all memory
+/// live at every return.
+const RETURN_LIVENESS_ROUNDS: usize = 8;
+
+/// Computes [`ReturnFacts`].
+///
+/// A function's result is bounded once every `ret` returns a value that
+/// [`AliasAnalysis::read_lower_bound`] bounds and every tail call that can return reaches a
+/// function whose result is bounded, so a caller's read through a returned heap pointer keeps
+/// only the heap. The memory live at a function's returns joins, over its call sites, what each
+/// caller keeps live right after the call, and for a tail call what the caller's own returns
+/// keep. It starts empty and grows to a fixpoint, as recursion feeds a function's returns back
+/// into its own call sites. External entries, the dispatcher, functions no instruction calls,
+/// and functions with several results, whose tail the backend passes back through memory, keep
+/// all memory live.
+fn return_facts(
+    module: &Module,
+    summaries: &Arc<MemoryCallSummaries>,
+    terminal: &Arc<FxHashMap<FunctionId, MemLive>>,
+) -> ReturnFacts {
+    let mut facts = ReturnFacts::default();
+    // A tail call to a function that never returns hands back no result.
+    let returning = module.returning_functions();
+    // Callees first: a bound found once never changes, so the loop ends after a round that
+    // finds none.
+    loop {
+        let mut found = Vec::new();
+        for (id, func) in module.functions.iter_enumerated() {
+            if facts.bounds.contains_key(&id) || func.return_components().len() != 1 {
+                continue;
+            }
+            let call = |function: FunctionId| facts.bounds.get(&function).copied();
+            let mut bound = Some(u64::MAX);
+            let mut returns = false;
+            for block in &func.blocks {
+                let returned = match &block.terminator {
+                    Some(Terminator::Return { values }) => values
+                        .first()
+                        .and_then(|&value| AliasAnalysis::read_lower_bound(func, value, &call)),
+                    Some(Terminator::TailCall { function, .. })
+                        if returning.contains(*function) =>
+                    {
+                        call(*function)
+                    }
+                    None => None,
+                    Some(_) => continue,
+                };
+                returns = true;
+                bound = bound.zip(returned).map(|(bound, returned)| bound.min(returned));
+            }
+            if returns && let Some(bound) = bound {
+                found.push((id, bound));
+            }
+        }
+        if found.is_empty() {
+            break;
+        }
+        facts.bounds.extend(found);
+    }
+
+    let mut calls = index_vec![Vec::new(); module.functions.len()];
+    let mut tails = index_vec![Vec::new(); module.functions.len()];
+    for (caller, func) in module.functions.iter_enumerated() {
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst in &block.instructions {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
+                {
+                    calls[callee].push((caller, block_id, inst));
+                }
+            }
+            if let Some(Terminator::TailCall { function, .. }) = block.terminator {
+                tails[function].push(caller);
+            }
+        }
+    }
+    // The pass finds a function's facts by its name, so a shared name keeps all memory live.
+    let mut names = FxHashMap::default();
+    for (id, func) in module.functions.iter_enumerated() {
+        names.entry(func.name).and_modify(|unique| *unique = None).or_insert(Some(id));
+    }
+    let mut tracked = DenseBitSet::new_empty(module.functions.len());
+    for (id, func) in module.functions.iter_enumerated() {
+        if !func.blocks.is_empty()
+            && !func.is_external_entry()
+            && module.dispatch_entry() != Some(id)
+            && func.return_components().len() <= 1
+            && !(calls[id].is_empty() && tails[id].is_empty())
+            && names[&func.name] == Some(id)
+        {
+            tracked.insert(id);
+        }
+    }
+    // The call sites of tracked functions, by caller.
+    let mut sites = FxHashMap::<FunctionId, Vec<_>>::default();
+    for callee in tracked.iter() {
+        for &(caller, block, inst) in &calls[callee] {
+            sites.entry(caller).or_default().push((callee, block, inst));
+        }
+    }
+
+    let mut live = FxHashMap::default();
+    for id in tracked.iter() {
+        live.insert(id, MemLive::empty());
+    }
+    for _ in 0..RETURN_LIVENESS_ROUNDS {
+        let snapshot = Arc::new(ReturnFacts {
+            live: live
+                .iter()
+                .map(|(&id, live)| (module.functions[id].name, live.clone()))
+                .collect(),
+            bounds: facts.bounds.clone(),
+        });
+        let mut next = live.clone();
+        for (&caller, sites) in &sites {
+            let func = &module.functions[caller];
+            let eliminator = MemoryStoreEliminator::new(
+                Rc::new(AliasAnalysis::empty_with_summaries(Arc::clone(summaries))),
+                Rc::new(CfgInfo::new(func)),
+            )
+            .with_terminal(Arc::clone(terminal))
+            .with_returns(Arc::clone(&snapshot));
+            let live_in = eliminator.liveness(func);
+            for &(callee, block, inst) in sites {
+                if eliminator.cfg.is_reachable(block) {
+                    let after = eliminator.live_after(func, block, inst, &live_in);
+                    next.get_mut(&callee).expect("tracked callee").join(&after);
+                }
+            }
+        }
+        for callee in tracked.iter() {
+            for &caller in &tails[callee] {
+                let returned = live.get(&caller).cloned().unwrap_or_else(MemLive::all);
+                next.get_mut(&callee).expect("tracked callee").join(&returned);
+            }
+        }
+        if next == live {
+            facts.live = snapshot.live.clone();
+            return facts;
+        }
+        live = next;
+    }
+    facts
+}
+
 /// Returns whether the function contains a store or fill this pass can remove or forward from, or
 /// an immutable copy it can reuse: every rewrite starts from one of them.
 fn has_memory_writes(func: &Function) -> bool {
@@ -174,6 +339,8 @@ struct MemoryStoreEliminator {
     alias: Rc<AliasAnalysis>,
     /// The memory functions that never return read first; see [`terminal_liveness`].
     terminal: Arc<FxHashMap<FunctionId, MemLive>>,
+    /// What callers read once calls return; see [`return_facts`].
+    returns: Arc<ReturnFacts>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -512,12 +679,19 @@ impl BlockScratch {
 impl MemoryStoreEliminator {
     /// Creates a new memory optimization pass.
     fn new(alias: Rc<AliasAnalysis>, cfg: Rc<CfgInfo>) -> Self {
-        Self { cfg, eliminated_count: 0, alias, terminal: Arc::default() }
+        Self { cfg, eliminated_count: 0, alias, terminal: Arc::default(), returns: Arc::default() }
     }
 
     /// Uses the memory functions that never return read first at calls to them.
     fn with_terminal(mut self, terminal: Arc<FxHashMap<FunctionId, MemLive>>) -> Self {
         self.terminal = terminal;
+        self
+    }
+
+    /// Uses what callers read once calls return at returns, and the bounds of returned pointers
+    /// at reads through them.
+    fn with_returns(mut self, returns: Arc<ReturnFacts>) -> Self {
+        self.returns = returns;
         self
     }
 
@@ -569,11 +743,11 @@ impl MemoryStoreEliminator {
     ///
     /// Soundness rests on modelling every way a stored value can still be read:
     /// an in-range constant read (`mload`/keccak/log/`returndata`/`revert`)
-    /// keeps its slots live; anything that could observe or forward arbitrary
-    /// memory — a symbolic address, a non-constant range, a call, a `return`
-    /// (whose value may be a memory pointer the caller dereferences), a tail
-    /// call — widens to all-memory-live, which only ever keeps a
-    /// store, never drops a live one.
+    /// keeps its slots live; a read of unknown extent keeps every word from a
+    /// lower bound of its address on, or all memory without one, as `msize`
+    /// reads it; a call keeps what its callee may read; a `return` keeps what
+    /// the callers may read after their calls; and gas observations keep all
+    /// memory. Each only ever keeps a store, never drops a live one.
     fn remove_dead_memory_stores(&mut self, func: &mut Function) {
         if !func.instructions().any(|inst_id| {
             matches!(func.inst(inst_id).kind, InstKind::Store(addr, _, PtrLocation::Memory) if self.word_aligned_const(func, addr).is_some())
@@ -659,17 +833,45 @@ impl MemoryStoreEliminator {
         dead: &mut Option<&mut DenseBitSet<InstId>>,
     ) -> MemLive {
         // Terminator first: it executes after every instruction in the block.
+        self.transfer_terminator(func, block, &mut live);
+        for &inst_id in func.blocks[block].instructions.iter().rev() {
+            self.transfer_inst(func, inst_id, &mut live, dead);
+        }
+        live
+    }
+
+    /// The memory live right after `inst`, an instruction of `block`, given the memory live into
+    /// every block.
+    fn live_after(
+        &self,
+        func: &Function,
+        block: BlockId,
+        inst: InstId,
+        live_in: &IndexVec<BlockId, MemLive>,
+    ) -> MemLive {
+        let mut live = Self::live_out(func, block, live_in);
+        self.transfer_terminator(func, block, &mut live);
+        for &inst_id in func.blocks[block].instructions.iter().rev() {
+            if inst_id == inst {
+                break;
+            }
+            self.transfer_inst(func, inst_id, &mut live, &mut None);
+        }
+        live
+    }
+
+    fn transfer_terminator(&self, func: &Function, block: BlockId, live: &mut MemLive) {
         match func.blocks[block].terminator.as_ref() {
             Some(Terminator::Revert { offset, size })
             | Some(Terminator::ReturnData { offset, size }) => {
-                Self::mark_read(func, &mut live, *offset, *size);
+                self.mark_read(func, live, *offset, *size);
             }
             // A `return` value may be a memory pointer the caller dereferences: keep
-            // all memory live rather than reason about escape. A tail call forwards
-            // memory to its callee, which keeps only what it reads first when it
-            // never returns.
-            Some(Terminator::Return { .. }) => live = MemLive::all(),
-            Some(Terminator::TailCall { function, .. }) => live = self.callee_liveness(*function),
+            // what the callers read after their calls when the module shows them all,
+            // and all memory otherwise. A tail call forwards memory to its callee,
+            // which keeps only what it reads first when it never returns.
+            Some(Terminator::Return { .. }) => *live = self.return_liveness(func),
+            Some(Terminator::TailCall { function, .. }) => *live = self.callee_liveness(*function),
             // Halts end the call and discard its memory without reading it.
             // `jump`/`branch`/`switch` read no memory; their successors already
             // contribute liveness via `live_out`.
@@ -682,55 +884,72 @@ impl MemoryStoreEliminator {
             | Some(Terminator::Switch { .. })
             | None => {}
         }
+    }
 
-        for &inst_id in func.blocks[block].instructions.iter().rev() {
-            match &func.inst(inst_id).kind {
-                InstKind::Store(addr, _, PtrLocation::Memory) => {
-                    if let Some(slot) = self.word_aligned_const(func, *addr) {
-                        if !live.contains(slot)
-                            && let Some(dead) = dead.as_mut()
-                        {
-                            dead.insert(inst_id);
-                        }
-                        // The store fully defines `slot`; nothing above it on
-                        // this path can be observed here.
-                        live.kill(slot);
+    fn transfer_inst(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        live: &mut MemLive,
+        dead: &mut Option<&mut DenseBitSet<InstId>>,
+    ) {
+        match &func.inst(inst_id).kind {
+            InstKind::Store(addr, _, PtrLocation::Memory) => {
+                if let Some(slot) = self.word_aligned_const(func, *addr) {
+                    if !live.contains(slot)
+                        && let Some(dead) = dead.as_mut()
+                    {
+                        dead.insert(inst_id);
                     }
-                    // A symbolic store neither reads nor provably overwrites a
-                    // tracked slot: leave the live set untouched.
+                    // The store fully defines `slot`; nothing above it on
+                    // this path can be observed here.
+                    live.kill(slot);
                 }
-                InstKind::Load(addr, PtrLocation::Memory) => {
-                    match self.word_aligned_const(func, *addr) {
-                        Some(slot) => live.add_addr(slot),
-                        None => Self::mark_from(func, &mut live, *addr),
-                    }
-                }
-                InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
-                InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
-                InstKind::Keccak256(offset, size) | InstKind::Log { offset, size, .. } => {
-                    Self::mark_read(func, &mut live, *offset, *size);
-                }
-                // Byte stores never fully define a word (so cannot make an
-                // earlier store dead) and read nothing: leave the set as is.
-                InstKind::Store8(..) => {}
-                // A call to a function that never returns leaves only what that
-                // function reads first.
-                InstKind::ICall { function: Callee::Function(function), .. }
-                    if self.terminal.contains_key(function) =>
-                {
-                    live = self.callee_liveness(*function);
-                }
-                _ => self.mark_effects(func, inst_id, &mut live),
+                // A symbolic store neither reads nor provably overwrites a
+                // tracked slot: leave the live set untouched.
             }
+            InstKind::Load(addr, PtrLocation::Memory) => match self.word_aligned_const(func, *addr)
+            {
+                Some(slot) => live.add_addr(slot),
+                None => self.mark_from(func, live, *addr),
+            },
+            InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
+            InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
+            InstKind::Keccak256(offset, size) | InstKind::Log { offset, size, .. } => {
+                self.mark_read(func, live, *offset, *size);
+            }
+            // Byte stores never fully define a word (so cannot make an
+            // earlier store dead) and read nothing: leave the set as is.
+            InstKind::Store8(..) => {}
+            // A call to a function that never returns leaves only what that
+            // function reads first.
+            InstKind::ICall { function: Callee::Function(function), .. }
+                if self.terminal.contains_key(function) =>
+            {
+                *live = self.callee_liveness(*function);
+            }
+            _ => self.mark_effects(func, inst_id, live),
         }
-
-        live
     }
 
     /// The memory a call or tail call to `function` keeps live: what it reads first when it never
     /// returns, and all memory otherwise.
     fn callee_liveness(&self, function: FunctionId) -> MemLive {
         self.terminal.get(&function).cloned().unwrap_or_else(MemLive::all)
+    }
+
+    /// The memory the callers of `func` may read once it returns: what they keep live right
+    /// after their calls when the module shows every call site, and all memory otherwise.
+    fn return_liveness(&self, func: &Function) -> MemLive {
+        self.returns.live.get(&func.name).cloned().unwrap_or_else(MemLive::all)
+    }
+
+    /// The least address a read through `value` can reach; see
+    /// [`AliasAnalysis::read_lower_bound`].
+    fn read_bound(&self, func: &Function, value: ValueId) -> Option<u64> {
+        AliasAnalysis::read_lower_bound(func, value, &|function| {
+            self.returns.bounds.get(&function).copied()
+        })
     }
 
     /// Marks the memory an instruction may read live: a constant range word by word, and any
@@ -750,7 +969,7 @@ impl MemoryStoreEliminator {
                     return;
                 }
                 Access::Location(Location::Memory(location)) => {
-                    Self::mark_location(func, live, location);
+                    self.mark_location(func, live, location);
                 }
                 Access::Any(_) | Access::Location(_) => {}
             }
@@ -762,7 +981,7 @@ impl MemoryStoreEliminator {
     /// allocations lie above the reserved words; see [`AliasAnalysis::frame_lower_bound`]. A
     /// location of unknown extent may come from a runtime index, which a forged length can wrap
     /// around to low memory, so it keeps all memory live.
-    fn mark_location(func: &Function, live: &mut MemLive, location: MemoryLocation) {
+    fn mark_location(&self, func: &Function, live: &mut MemLive, location: MemoryLocation) {
         let offset = location.address.offset;
         if location.size == LocationSize::Unknown {
             *live = MemLive::all();
@@ -780,8 +999,9 @@ impl MemoryStoreEliminator {
             MemoryBase::Allocation(_)
             | MemoryBase::UnboundedAllocation(_)
             | MemoryBase::DynamicAllocation(_) => EvmMemoryLayout::HEAP_START.checked_add(offset),
-            MemoryBase::Value(value) => AliasAnalysis::read_lower_bound(func, value)
-                .and_then(|bound| bound.checked_add(offset)),
+            MemoryBase::Value(value) => {
+                self.read_bound(func, value).and_then(|bound| bound.checked_add(offset))
+            }
         };
         match bound {
             Some(bound) => live.add_from(bound),
@@ -791,8 +1011,8 @@ impl MemoryStoreEliminator {
 
     /// Marks every word from a read's address on live when a compiler-owned base bounds that
     /// address from below through constant offsets, and all memory otherwise.
-    fn mark_from(func: &Function, live: &mut MemLive, address: ValueId) {
-        match AliasAnalysis::read_lower_bound(func, address) {
+    fn mark_from(&self, func: &Function, live: &mut MemLive, address: ValueId) {
+        match self.read_bound(func, address) {
             Some(bound) => live.add_from(bound),
             None => *live = MemLive::all(),
         }
@@ -801,13 +1021,13 @@ impl MemoryStoreEliminator {
     /// Marks the word-aligned slots a memory read `[offset, offset + size)` may
     /// observe as live: those of a constant range, and for any other every word
     /// from a lower bound of `offset` on.
-    fn mark_read(func: &Function, live: &mut MemLive, offset: ValueId, size: ValueId) {
+    fn mark_read(&self, func: &Function, live: &mut MemLive, offset: ValueId, size: ValueId) {
         if live.is_all() {
             return;
         }
         match (func.value_u64(offset), func.value_u64(size)) {
             (Some(offset), Some(size)) => Self::mark_range(live, offset, size),
-            _ => Self::mark_from(func, live, offset),
+            _ => self.mark_from(func, live, offset),
         }
     }
 

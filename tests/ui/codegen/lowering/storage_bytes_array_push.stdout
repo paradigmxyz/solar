@@ -254,7 +254,6 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     v39 = or v37, v38
     jumpi v39, bb9, bb8
   bb8:
-    mstore 64, v36 !metadata(memory=scratch)
     mstore v35, v7
     jumpi v3, bb4, bb3
   bb3:
