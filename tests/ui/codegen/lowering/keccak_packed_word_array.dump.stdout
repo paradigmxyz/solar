@@ -44,34 +44,54 @@ fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
 
 fn @addresses() [selector=0x82d38954, abi_wrapper, pure] {
   bb0:
-    v12 = calldataload 4
-    v13 = shr v12, 160
-    v10 = calldatasize
-    v11 = lt v10, 36
-    v25 = zext i1 v11 to i256
-    v26 = or v25, v13
-    v27 = ne v26, 0
-    jumpi v27, bb1, bb2
-  bb2:
-    v18 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v19 = add v18, 64
-    v20 = lt v19, v18
-    v21 = gt v19, 0xffffffffffffffff
-    v22 = or v20, v21
-    jumpi v22, bb4, bb3
+    v45 = calldataload 4
+    v46 = shr v45, 160
+    v43 = calldatasize
+    v44 = lt v43, 36
+    v75 = zext i1 v44 to i256
+    v76 = or v75, v46
+    v77 = ne v76, 0
+    jumpi v77, bb4, bb5
+  bb5:
+    v61 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v62 = add v61, 64
+    v63 = lt v62, v61
+    v64 = gt v62, 0xffffffffffffffff
+    v65 = or v63, v64
+    jumpi v65, bb7, bb6
+  bb6:
+    mstore v61, 1
+    v58 = add v61, 32
+    mstore v58, arg0
+    v68 = add v62, 64
+    mstore 64, v68 !metadata(memory=scratch)
+    mstore v62, 32
+    v69 = add v61, 32
+    v72 = add v62, 32
+    jump bb1
+  bb1:
+    v31 = phi [bb6: 0], [bb2: 1]
+    v70 = phi [bb6: v69], [bb2: v71]
+    v73 = phi [bb6: v72], [bb2: v74]
+    v32 = eq v31, 0
+    jumpi v32, bb2, bb3
   bb3:
-    v24 = calldatasize
-    calldatacopy v18, v24, 64
-    v17 = add v18, 32
-    mstore v17, arg0
-    v9 = keccak256 v17, 32
+    v56 = add v62, 32
+    v9 = keccak256 v56, 32
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
-  bb4:
+  bb2:
+    v38 = mload v70
+    v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore v73, v39
+    v71 = add v70, 32
+    v74 = add v73, 32
+    jump bb1
+  bb7:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb4:
     revert 0, 0
 }
 

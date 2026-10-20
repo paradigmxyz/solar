@@ -84,10 +84,10 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v76 = ptradd v75, 32
     v77 = mload v75
     v78 = keccak256 v76, v77
-    v79 = ptradd v0, 32
-    v80 = mload v0
-    v81 = shl v80, 5
-    v82 = keccak256 v79, v81
+    v79 = abi_encode_packed (array<word<uint120>> memoryarray<1> v0)
+    v80 = ptradd v79, 32
+    v81 = mload v79
+    v82 = keccak256 v80, v81
     v83 = insert_value struct0, undef struct0, 0, v78
     v84 = insert_value struct0, v83, 1, v82
     v85 = insert_value struct0, v84, 2, 0xe7490fade3a8e31113ecb6c0d2635e28a6f5ca8359a57afe914827f41ddf0848
