@@ -774,8 +774,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   as Seaport lays out a basic order's hashes and event data, keeps its spill
   slots and the frames it reaches above `0x2080`, and above the constant
   ranges assembly names there in the functions it runs or that an external
-  function sharing those frames runs. A constant that stays in the slot until a
-  call, a return from a helper, or a read of the slot as the pointer, because a
+  function sharing those frames runs. A constant below `0x1000` that stays in the slot until a
+  read of the slot, an internal call, or a return from a helper, because a
   later pass folded the address or the value and `heap-floor` had no store to
   clamp, does the same. This costs memory expansion gas; other
   external functions keep their memory low unless they share those frames, or
@@ -797,7 +797,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
-  `tests/ui/codegen/lowering/run-call/spill_constant_operands.sol`,
   `tests/ui/codegen/lowering/run-call/folded_guard_spills.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`, whose runner keeps

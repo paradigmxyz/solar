@@ -28,6 +28,10 @@ use crate::mir::{
 /// `HEAP_START` is treated as possibly reaching the spill area.
 const SPILL_HAZARD_BOUND: u64 = 0x2000;
 
+/// A constant stored into the free memory pointer from this address up leaves low memory to
+/// the spill area.
+const HEAP_FLOOR_BOUND: u64 = 0x1000;
+
 /// The address `SPILL_HAZARD_BOUND` above `HEAP_START`, where low memory ends.
 const LOW_MEMORY_BOUND: u64 = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
 
@@ -384,7 +388,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .iter()
                     .map(|func_id| {
                         *low_memory_marks[func_id].get_or_insert_with(|| {
-                            Self::low_memory_high_water_mark(&module.functions[func_id])
+                            Self::low_memory_high_water_mark(module, &module.functions[func_id])
                         })
                     })
                     .max()
@@ -1373,11 +1377,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     ///
     /// NOTE: A layout that grows past the bound can still reach the spill area, and one indexed
     /// only by a loop counter is not recognized. See CODEGEN-010.
-    pub(in crate::backend::evm::codegen) fn low_memory_high_water_mark(func: &Function) -> u64 {
+    pub(in crate::backend::evm::codegen) fn low_memory_high_water_mark(
+        module: &Module,
+        func: &Function,
+    ) -> u64 {
         let mark = Self::constant_memory_high_water_mark(func);
         if mark < LOW_MEMORY_BOUND
             && (Self::writes_absolute_dynamic_memory(func)
-                || Self::stores_constant_free_memory_pointer(func))
+                || Self::stores_constant_free_memory_pointer(module, func))
         {
             LOW_MEMORY_BOUND
         } else {
@@ -1386,16 +1393,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Returns whether a constant word stored into the free-memory-pointer slot can reach a read
-    /// of the slot as the pointer, a call, or a return from `func`.
+    /// of the slot, an internal call, or a return from `func`.
     ///
     /// The heap-floor pass clamps the stores that inline assembly writes there, but it runs before
     /// the passes that fold a guarded address or value, so a store that only becomes constant
-    /// later keeps its value. Like the calldata-addressed write it replaced, it hands the heap
-    /// to that value, and the spill area has to lie above the low memory the heap then reaches.
-    /// A word that another store replaces first, as `solady`'s sentinel does, or that only a
-    /// return or revert reads as data, never becomes the pointer. A tail call is taken for the
-    /// outlined revert it almost always is.
-    fn stores_constant_free_memory_pointer(func: &Function) -> bool {
+    /// later keeps its value. Like a calldata-addressed write, it hands the heap to that value,
+    /// and the spill area has to lie above the low memory the heap then reaches. A word that
+    /// another store replaces first, as `solady`'s sentinel does, or that only a return or revert
+    /// reads, never becomes the pointer. A constant from `HEAP_FLOOR_BOUND` up leaves low memory
+    /// to the spill area. A tail call counts unless its callee never reads the slot or returns,
+    /// as an outlined revert.
+    fn stores_constant_free_memory_pointer(module: &Module, func: &Function) -> bool {
         // Whether each block's entry may hold a constant stored by this function.
         let mut constant_at_entry = DenseBitSet::new_empty(func.blocks.len());
         let mut pending = vec![BlockId::ENTRY];
@@ -1406,10 +1414,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             let mut constant = constant_at_entry.contains(block_id);
             for &inst_id in &block.instructions {
                 match func.inst(inst_id).kind {
-                    InstKind::Store(ptr, value, PtrLocation::Memory)
-                        if func.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT) =>
-                    {
-                        constant = func.value_u256(value).is_some();
+                    InstKind::Store(_, value, _) if func.is_fmp_slot_store(inst_id) => {
+                        constant = func
+                            .value_u256(value)
+                            .is_some_and(|value| value < U256::from(HEAP_FLOOR_BOUND));
                     }
                     InstKind::Load(ptr, PtrLocation::Memory)
                         if constant && func.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT) =>
@@ -1423,17 +1431,37 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             let Some(terminator) = &block.terminator else { continue };
-            if constant && matches!(terminator, Terminator::Return { .. }) {
-                return true;
+            if constant {
+                match terminator {
+                    Terminator::Return { .. } => return true,
+                    Terminator::TailCall { function, .. }
+                        if Self::reads_free_memory_pointer(&module.functions[*function]) =>
+                    {
+                        return true;
+                    }
+                    _ => {}
+                }
             }
             for successor in terminator.successors() {
                 let changed = constant && constant_at_entry.insert(successor);
-                if (changed || visited.insert(successor)) && !pending.contains(&successor) {
+                if changed || visited.insert(successor) {
                     pending.push(successor);
                 }
             }
         }
         false
+    }
+
+    /// Returns whether `func` can read the free-memory-pointer slot or return to its caller.
+    fn reads_free_memory_pointer(func: &Function) -> bool {
+        func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+            || func.instructions().any(|inst_id| match func.inst(inst_id).kind {
+                InstKind::Load(ptr, PtrLocation::Memory) => {
+                    func.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT)
+                }
+                InstKind::Fmp | InstKind::Alloc { .. } | InstKind::ICall { .. } => true,
+                _ => false,
+            })
     }
 
     /// Returns whether `func` may write memory at an absolute address that is not a constant: a

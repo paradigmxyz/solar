@@ -25,12 +25,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
         let dynamic_range = |dest, size| {
-            // A pass may fold the length of a copy to a destination that a parameter chooses from
-            // a guarded value, so a constant length protects the spills as a variable one does.
-            // The other constant-length copies stay as written: calldata-computed destinations
-            // moved the spill area, and a pointer from an allocation or a call is on the heap.
-            if func.value_u64(size) == Some(0)
-                || (func.value_u64(size).is_some() && !Self::is_chosen_by_parameter(func, dest))
+            // A guard can fold a copy's length to a constant while a parameter still picks its
+            // destination, so protect it like a variable-length copy. Other constant-length copies
+            // keep the `mstore` contract: calldata-computed destinations moved the spill area, and
+            // a pointer from an allocation or a call is on the heap.
+            if let Some(size) = func.value_u64(size)
+                && (size == 0 || !Self::is_chosen_by_parameter(func, dest))
             {
                 return None;
             }
@@ -112,13 +112,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 | InstKind::Mul(lhs, rhs)
                 | InstKind::And(lhs, rhs)
                 | InstKind::Or(lhs, rhs)
+                | InstKind::Xor(lhs, rhs)
+                | InstKind::Div(lhs, rhs)
+                | InstKind::SDiv(lhs, rhs)
+                | InstKind::Mod(lhs, rhs)
+                | InstKind::SMod(lhs, rhs)
+                | InstKind::Sar(lhs, rhs)
                 | InstKind::Shl(lhs, rhs)
                 | InstKind::Shr(lhs, rhs)
                 | InstKind::Select(_, lhs, rhs) => {
                     Self::is_chosen_by_parameter_inner(func, *lhs, visiting)
                         || Self::is_chosen_by_parameter_inner(func, *rhs, visiting)
                 }
-                InstKind::Zext(inner) | InstKind::IntToPtr(inner) => {
+                InstKind::Zext(inner) | InstKind::Not(inner) | InstKind::IntToPtr(inner) => {
                     Self::is_chosen_by_parameter_inner(func, *inner, visiting)
                 }
                 InstKind::Phi(incoming) => incoming.iter().any(|&(_, incoming)| {
