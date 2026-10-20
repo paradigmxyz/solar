@@ -88,3 +88,37 @@ fn @calls_maybe(arg0: i256) -> i256 {
     icall @maybe_fail, arg0
     ret arg0
 }
+
+// A check that always fails ends its block like such a call, as in the body
+// `new uint256[](0)[0]` leaves once its length load is forwarded, so its
+// callers' continuations go too. A check that may pass stays.
+// CHECK-LABEL: @out_of_bounds
+// CHECK:          icall panic_if_zero<0x32>, v0
+// CHECK-NEXT: -   ret 0
+// CHECK-NEXT: +   invalid
+// CHECK-LABEL: @calls_out_of_bounds
+// CHECK:          v0 = icall @out_of_bounds
+// CHECK-NEXT: -   ret v0
+// CHECK-NEXT: +   invalid
+// CHECK-LABEL: @checked
+// CHECK:        icall panic_if_zero<0x32>, v0
+// CHECK-NEXT:   ret arg0
+fn @out_of_bounds() -> i256 {
+  bb0:
+    v0 = gt 0, 0
+    icall panic_if_zero<0x32>, v0
+    ret 0
+}
+
+fn @calls_out_of_bounds() -> i256 {
+  bb0:
+    v0 = icall @out_of_bounds
+    ret v0
+}
+
+fn @checked(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0
+    icall panic_if_zero<0x32>, v0
+    ret arg0
+}

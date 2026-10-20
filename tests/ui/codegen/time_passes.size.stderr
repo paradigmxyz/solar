@@ -9,6 +9,7 @@ time: <TIME>	MIR TimePasses word-sequence changed=false
 time: <TIME>	MIR TimePasses pre changed=false
 time: <TIME>	MIR TimePasses cse changed=false
 time: <TIME>	MIR TimePasses load-pre changed=false
+time: <TIME>	MIR TimePasses noreturn-calls changed=false
 time: <TIME>	MIR TimePasses element-cleanup changed=false
 time: <TIME>	MIR TimePasses frame-slot-promotion changed=false
 time: <TIME>	MIR TimePasses loop-canonicalize changed=false
