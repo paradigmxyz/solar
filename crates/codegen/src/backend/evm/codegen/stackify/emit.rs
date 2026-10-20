@@ -203,17 +203,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut order = self.block_layout_order(func, &cfg);
         order.retain(|block| !forward.contains_key(block));
         let mut trampolines = Vec::new();
-        // The continuations and trampolines of a block in a loop of creation code run as often as
-        // the block, but only the labels of MIR blocks are marked as loop labels.
+        // The continuations and trampolines of a block in a loop of creation code may run as often
+        // as the block, but only the labels of MIR blocks are marked as loop labels.
         let repeating = self.asm.repeating_code;
         let in_loop = |codegen: &Self, block| codegen.in_constructor && loop_blocks.contains(block);
         for (pos, &block) in order.iter().enumerate() {
             let Some(block_plan) = plan.blocks[block].as_ref() else { continue };
             let next = order.get(pos + 1).copied();
+            self.asm.repeating_code = repeating || in_loop(self, block);
             if !func.blocks[block].predecessors.is_empty() {
                 self.asm.define_label(self.block_labels[&block]);
             }
-            self.asm.repeating_code = repeating || in_loop(self, block);
             if self.capture_debug_info {
                 let depth = func.blocks[block]
                     .instructions
