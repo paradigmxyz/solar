@@ -1375,11 +1375,65 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// only by a loop counter is not recognized. See CODEGEN-010.
     pub(in crate::backend::evm::codegen) fn low_memory_high_water_mark(func: &Function) -> u64 {
         let mark = Self::constant_memory_high_water_mark(func);
-        if mark < LOW_MEMORY_BOUND && Self::writes_absolute_dynamic_memory(func) {
+        if mark < LOW_MEMORY_BOUND
+            && (Self::writes_absolute_dynamic_memory(func)
+                || Self::stores_constant_free_memory_pointer(func))
+        {
             LOW_MEMORY_BOUND
         } else {
             mark
         }
+    }
+
+    /// Returns whether a constant word stored into the free-memory-pointer slot can reach a read
+    /// of the slot as the pointer, a call, or a return from `func`.
+    ///
+    /// The heap-floor pass clamps the stores that inline assembly writes there, but it runs before
+    /// the passes that fold a guarded address or value, so a store that only becomes constant
+    /// later keeps its value. Like the calldata-addressed write it replaced, it hands the heap
+    /// to that value, and the spill area has to lie above the low memory the heap then reaches.
+    /// A word that another store replaces first, as `solady`'s sentinel does, or that only a
+    /// return or revert reads as data, never becomes the pointer. A tail call is taken for the
+    /// outlined revert it almost always is.
+    fn stores_constant_free_memory_pointer(func: &Function) -> bool {
+        // Whether each block's entry may hold a constant stored by this function.
+        let mut constant_at_entry = DenseBitSet::new_empty(func.blocks.len());
+        let mut pending = vec![BlockId::ENTRY];
+        let mut visited = DenseBitSet::new_empty(func.blocks.len());
+        visited.insert(BlockId::ENTRY);
+        while let Some(block_id) = pending.pop() {
+            let block = &func.blocks[block_id];
+            let mut constant = constant_at_entry.contains(block_id);
+            for &inst_id in &block.instructions {
+                match func.inst(inst_id).kind {
+                    InstKind::Store(ptr, value, PtrLocation::Memory)
+                        if func.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                    {
+                        constant = func.value_u256(value).is_some();
+                    }
+                    InstKind::Load(ptr, PtrLocation::Memory)
+                        if constant && func.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                    {
+                        return true;
+                    }
+                    InstKind::Fmp | InstKind::Alloc { .. } | InstKind::ICall { .. } if constant => {
+                        return true;
+                    }
+                    _ => {}
+                }
+            }
+            let Some(terminator) = &block.terminator else { continue };
+            if constant && matches!(terminator, Terminator::Return { .. }) {
+                return true;
+            }
+            for successor in terminator.successors() {
+                let changed = constant && constant_at_entry.insert(successor);
+                if (changed || visited.insert(successor)) && !pending.contains(&successor) {
+                    pending.push(successor);
+                }
+            }
+        }
+        false
     }
 
     /// Returns whether `func` may write memory at an absolute address that is not a constant: a

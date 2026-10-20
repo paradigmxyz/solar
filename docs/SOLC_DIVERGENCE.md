@@ -770,9 +770,14 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   as Seaport lays out a basic order's hashes and event data, keeps its spill
   slots and the frames it reaches above `0x2080`, and above the constant
   ranges assembly names there in the functions it runs or that an external
-  function sharing those frames runs. This costs memory expansion gas; other
+  function sharing those frames runs. A constant that stays in the slot until a
+  call, a return from a helper, or a read of the slot as the pointer, because a
+  later pass folded the address or the value and `heap-floor` had no store to
+  clamp, does the same. This costs memory expansion gas; other
   external functions keep their memory low unless they share those frames, or
-  a recursive helper places every frame above all external functions.
+  a recursive helper places every frame above all external functions. A copy
+  of constant length to a destination that a parameter chooses protects the
+  spills as one of variable length does.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,
@@ -788,6 +793,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
+  `tests/ui/codegen/lowering/run-call/spill_constant_operands.sol`,
+  `tests/ui/codegen/lowering/run-call/folded_guard_spills.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`.
 

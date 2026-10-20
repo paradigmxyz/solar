@@ -3,8 +3,8 @@
 use super::{
     super::{
         AliasAnalysis, ArgIdx, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId,
-        FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase, MemoryRegion, Module,
-        Terminator, U256, Value, ValueId,
+        FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase, MemoryRegion, MirType,
+        Module, Terminator, U256, Value, ValueId,
     },
     LOW_MEMORY_BOUND, PtrLocation,
 };
@@ -25,11 +25,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
         let dynamic_range = |dest, size| {
-            // Fixed-width copies have the same explicit-memory contract as
-            // `mstore`: arbitrary destinations in hand-written assembly may
-            // alias compiler memory. The forwarding-buffer protocol is for
-            // variable-length writes that can sweep over every spill slot.
-            if func.value_u64(size).is_some() {
+            // A pass may fold the length of a copy to a destination that a parameter chooses from
+            // a guarded value, so a constant length protects the spills as a variable one does.
+            // The other constant-length copies stay as written: calldata-computed destinations
+            // moved the spill area, and a pointer from an allocation or a call is on the heap.
+            if func.value_u64(size) == Some(0)
+                || (func.value_u64(size).is_some() && !Self::is_chosen_by_parameter(func, dest))
+            {
                 return None;
             }
             let below_spills = func.value_u64(dest).is_some_and(|dest| {
@@ -89,6 +91,43 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if lhs == pointer || rhs == pointer))
         });
         starts_low && advances
+    }
+
+    /// Whether `value` is an integer parameter, or arithmetic on one.
+    fn is_chosen_by_parameter(func: &Function, value: ValueId) -> bool {
+        let mut visiting = DenseBitSet::new_empty(func.num_values());
+        Self::is_chosen_by_parameter_inner(func, value, &mut visiting)
+    }
+
+    fn is_chosen_by_parameter_inner(
+        func: &Function,
+        value: ValueId,
+        visiting: &mut DenseBitSet<ValueId>,
+    ) -> bool {
+        match func.value(value) {
+            Value::Arg(_) => !func.value_ty(value).is_some_and(MirType::is_memory_reference),
+            Value::Inst(inst_id) if visiting.insert(value) => match &func.inst(*inst_id).kind {
+                InstKind::Add(lhs, rhs)
+                | InstKind::Sub(lhs, rhs)
+                | InstKind::Mul(lhs, rhs)
+                | InstKind::And(lhs, rhs)
+                | InstKind::Or(lhs, rhs)
+                | InstKind::Shl(lhs, rhs)
+                | InstKind::Shr(lhs, rhs)
+                | InstKind::Select(_, lhs, rhs) => {
+                    Self::is_chosen_by_parameter_inner(func, *lhs, visiting)
+                        || Self::is_chosen_by_parameter_inner(func, *rhs, visiting)
+                }
+                InstKind::Zext(inner) | InstKind::IntToPtr(inner) => {
+                    Self::is_chosen_by_parameter_inner(func, *inner, visiting)
+                }
+                InstKind::Phi(incoming) => incoming.iter().any(|&(_, incoming)| {
+                    Self::is_chosen_by_parameter_inner(func, incoming, visiting)
+                }),
+                _ => false,
+            },
+            _ => false,
+        }
     }
 
     /// Returns a conservative upper bound for a small integer expression.
