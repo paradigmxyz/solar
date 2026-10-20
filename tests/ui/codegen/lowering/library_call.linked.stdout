@@ -76,10 +76,10 @@ bb1:
   lt
   push bb8
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module C_runtime
@@ -96,7 +96,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 160
+  push 128
   push 64
   mstore
   push 4
@@ -111,7 +111,7 @@ bb0:
   jumpi
   push 64
   mload
-  push 128
+  dup 1
   dup 2
   add
   push 64
@@ -156,10 +156,10 @@ bb0:
   jumpi
   push 0
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0

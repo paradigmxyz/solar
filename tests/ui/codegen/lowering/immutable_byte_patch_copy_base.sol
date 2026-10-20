@@ -27,14 +27,14 @@ contract ImmutableBytePatchCopyBase {
 
     // CHECK-LABEL: (deployment)
     // CHECK: CODECOPY
-    // CHECK: PUSH1 0xbe
+    // CHECK: PUSH1 0xb6
     // CHECK-NEXT: DUP1
     // CHECK-NEXT: PUSH1
     // CHECK-NEXT: PUSH0
     // CHECK-NEXT: CODECOPY
     // CHECK-NEXT: PUSH1 0xc0
     // CHECK-NEXT: MLOAD
-    // CHECK-NEXT: PUSH1 0xb5
+    // CHECK-NEXT: PUSH1 0xaf
     // CHECK-NEXT: MSTORE8
     function f() external view returns (uint8) {
         return x;

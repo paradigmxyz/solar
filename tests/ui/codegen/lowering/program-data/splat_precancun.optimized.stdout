@@ -21,10 +21,10 @@ fn @hash() [selector=0x09bd5a60, abi_wrapper, pure] {
   bb0:
     v0 = icall @data
     v2 = mload v0
-    v7 = add v0, 32
-    v3 = keccak256 v7, v2
-    mstore 128, v3
-    returndata 128, 32
+    v6 = add v0, 32
+    v3 = keccak256 v6, v2
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
@@ -37,51 +37,51 @@ fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
     v7 = shr v6, 8
     v8 = eq v7, 0
     v9 = zext i1 v8 to i256
-    mstore 128, v9
-    returndata 128, 32
+    mstore 0, v9
+    returndata 0, 32
 }
 
 fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
   bb0:
-    v13 = mload 64 !metadata(memory=scratch)
-    v14 = add v13, 96
-    mstore 64, v14
-    mstore v13, 33
-    v9 = add v13, 32
-    mstore v9, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-    v11 = add v13, 64
-    mstore v11, 0x100000000000000000000000000000000000000000000000000000000000000
-    v5 = keccak256 v9, 33
-    mstore 128, v5
-    returndata 128, 32
+    v12 = mload 64 !metadata(memory=scratch)
+    v13 = add v12, 96
+    mstore 64, v13
+    mstore v12, 33
+    v8 = add v12, 32
+    mstore v8, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v10 = add v12, 64
+    mstore v10, 0x100000000000000000000000000000000000000000000000000000000000000
+    v5 = keccak256 v8, 33
+    mstore 0, v5 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
   bb0:
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, 128
-    mstore 64, v25
-    mstore v24, 96
-    v11 = add v24, 32
-    mstore v11, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-    v13 = add v24, 64
-    mstore v13, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-    v15 = add v24, 96
+    v23 = mload 64 !metadata(memory=scratch)
+    v24 = add v23, 128
+    mstore 64, v24
+    mstore v23, 96
+    v10 = add v23, 32
+    mstore v10, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v12 = add v23, 64
+    mstore v12, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v14 = add v23, 96
     jump bb2
   bb2:
-    v18 = phi [bb0: 0], [bb3: v23]
-    v19 = lt v18, 32
-    jumpi v19, bb3, bb1
+    v17 = phi [bb0: 0], [bb3: v22]
+    v18 = lt v17, 32
+    jumpi v18, bb3, bb1
   bb1:
-    v7 = keccak256 v11, 96
-    mstore 128, v7
-    returndata 128, 32
+    v7 = keccak256 v10, 96
+    mstore 0, v7 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
-    v20 = add v11, v18
-    v21 = mload v20
-    v22 = add v15, v18
-    mstore v22, v21
-    v23 = add v18, 32
+    v19 = add v10, v17
+    v20 = mload v19
+    v21 = add v14, v17
+    mstore v21, v20
+    v22 = add v17, 32
     jump bb2
 }
 
@@ -144,7 +144,7 @@ bb6 [cold]:
   dup 1
   revert
 bb7:
-  push 160
+  push 128
   push 64
   mstore
   push bb8
@@ -185,13 +185,13 @@ bb18 [loop]:
   keccak256
   jump bb17
 bb17 [loop]:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb9:
-  push 160
+  push 128
   push 64
   mstore
   push bb10
@@ -210,7 +210,7 @@ bb10 [continuation]:
   jump bb17
 bb11:
   push 96
-  push 160
+  push 128
   dup 1
   push 64
   mstore
@@ -218,7 +218,7 @@ bb11:
   push 64
   mstore
   push bb20
-  push 160
+  push 128
   push 33
   jump bb19
 bb19:
@@ -233,16 +233,17 @@ bb19:
   swap 3
   jump
 bb12:
-  push 128
-  push 160
+  push 64
   dup 1
-  push 64
-  mstore
+  push 128
+  dup 1
+  dup 1
   add
-  push 64
+  swap 3
+  mstore
   mstore
   push bb21
-  push 160
+  push 128
   push 96
   jump bb19
 bb15 [loop]:

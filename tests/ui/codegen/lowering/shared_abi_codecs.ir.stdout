@@ -75,17 +75,17 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v178 = gt v175, 0xffffffffffffffff
     v179 = gt v177, v173
     v180 = or v178, v179
-    v236 = or v174, v180
+    v235 = or v174, v180
     v182 = calldataload v176
     v184 = sub v173, v177
     v185 = shr v184, 5
     v186 = gt v182, v185
-    v237 = or v236, v186
-    jumpi v237, bb6, bb32
+    v236 = or v235, v186
+    jumpi v236, bb6, bb32
   bb32:
-    v234 = mload 64
-    v235 = add v234, 64
-    mstore 64, v235
+    v233 = mload 64
+    v234 = add v233, 64
+    mstore 64, v234
     v3 = shl v182, 5
     v5 = shr v3, 5
     v9 = ne v5, v182
@@ -100,33 +100,33 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v22 = lt v21, 32
     jumpi v22, bb4, bb8
   bb8:
-    v230 = mload 64 !metadata(memory=scratch)
-    v231 = add v230, v21
-    mstore 64, v231
-    mstore v230, v182
+    v229 = mload 64 !metadata(memory=scratch)
+    v230 = add v229, v21
+    mstore 64, v230
+    mstore v229, v182
     jump bb1
   bb1:
     v24 = phi [bb8: 0], [bb12: v67]
     v25 = lt v24, v182
     jumpi v25, bb2, bb3
   bb3:
-    mstore v234, arg0
-    v192 = add v234, 32
-    mstore v192, v230
-    v70 = icall @encodeFirst.body, v234
-    v194 = add v70, 32
+    mstore v233, arg0
+    v191 = add v233, 32
+    mstore v191, v229
+    v70 = icall @encodeFirst.body, v233
+    v193 = add v70, 32
     v106 = mload v70
-    v108 = add v194, v106
+    v108 = add v193, v106
     v109 = slt v106, 32
     jumpi v109, bb6, bb21
   bb21:
-    v110 = mload v194
-    v112 = add v194, v110
+    v110 = mload v193
+    v112 = add v193, v110
     v115 = gt v110, v106
     v116 = sub v108, v112
     v117 = lt v116, 64
-    v238 = or v115, v117
-    jumpi v238, bb6, bb22
+    v237 = or v115, v117
+    jumpi v237, bb6, bb22
   bb22:
     v118 = alloc 64 !metadata(deferred_alloc)
     v119 = mload v112
@@ -146,8 +146,8 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb24:
     v131 = add v128, 1
     v132 = shl v131, 5
-    v228 = icall @alloc, v132
-    mstore v228, v128
+    v227 = icall @alloc, v132
+    mstore v227, v128
     v135 = sub v108, v123
     v136 = shr v135, 5
     v137 = gt v128, v136
@@ -161,21 +161,21 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v141 = gt v138, 0
     jumpi v141, bb27, bb28
   bb28:
-    v209 = add v118, 32
-    mstore v209, v228
+    v208 = add v118, 32
+    mstore v208, v227
     v72 = mload v118
-    v75 = mload v228
+    v75 = mload v227
     v76 = gt v75, 0
     jumpi v76, bb14, bb13
   bb14:
-    v201 = add v228, 32
-    v220 = mload v201
-    v80 = mload v220
+    v200 = add v227, 32
+    v219 = mload v200
+    v80 = mload v219
     v81 = gt v80, 0
     jumpi v81, bb15, bb13
   bb15:
-    v203 = add v220, 32
-    v84 = mload v203
+    v202 = add v219, 32
+    v84 = mload v202
     v99 = add v72, v84
     v100 = lt v99, v72
     jumpi v100, bb18, bb19
@@ -183,9 +183,9 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v89 = gt v75, 1
     jumpi v89, bb16, bb13
   bb16:
-    v205 = add v228, 64
-    v221 = mload v205
-    v93 = mload v221
+    v204 = add v227, 64
+    v220 = mload v204
+    v93 = mload v220
     v94 = gt v93, 0
     jumpi v94, bb17, bb13
   bb13:
@@ -193,14 +193,14 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     mstore 0, 0x4e487b71
     revert 28, 36
   bb17:
-    v207 = add v221, 32
-    v97 = mload v207
+    v206 = add v220, 32
+    v97 = mload v206
     v101 = add v99, v97
     v102 = lt v101, v99
     jumpi v102, bb18, bb20
   bb20:
-    mstore 128, v101
-    returndata 128, 32
+    mstore 0, v101
+    returndata 0, 32
   bb18:
     tail_call @revert_stub
   bb27:
@@ -218,20 +218,20 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb30:
     v152 = add v149, 1
     v153 = shl v152, 5
-    v229 = icall @alloc, v153
-    mstore v229, v149
+    v228 = icall @alloc, v153
+    mstore v228, v149
     v155 = shl v149, 5
     v156 = sub v108, v144
     v157 = shr v156, 5
     v158 = gt v149, v157
     jumpi v158, bb6, bb31
   bb31:
-    v211 = add v229, 32
-    mcopy v211, v144, v155
+    v210 = add v228, 32
+    mcopy v210, v144, v155
     v164 = shl v140, 5
-    v213 = add v228, v164
-    v214 = add v213, 32
-    mstore v214, v229
+    v212 = add v227, v164
+    v213 = add v212, 32
+    mstore v213, v228
     v168 = sub v138, 1
     v169 = add v139, 32
     v170 = add v140, 1
@@ -265,15 +265,15 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v47, bb6, bb12
   bb12:
     v55 = add v44, 32
-    v232 = mload 64
-    v233 = add v232, v55
-    mstore 64, v233
-    mstore v232, v41
-    v196 = add v232, 32
-    calldatacopy v196, v45, v44
-    v198 = add v230, v26
-    v199 = add v198, 32
-    mstore v199, v232
+    v231 = mload 64
+    v232 = add v231, v55
+    mstore 64, v232
+    mstore v231, v41
+    v195 = add v231, 32
+    calldatacopy v195, v45, v44
+    v197 = add v229, v26
+    v198 = add v197, 32
+    mstore v198, v231
     v67 = add v24, 1
     jump bb1
   bb4:

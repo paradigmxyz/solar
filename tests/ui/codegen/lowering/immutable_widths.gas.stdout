@@ -60,8 +60,8 @@ bb6:
   push 96
   shr
   and
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

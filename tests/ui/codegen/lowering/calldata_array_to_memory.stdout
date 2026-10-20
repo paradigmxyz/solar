@@ -46,13 +46,13 @@ bb26 [cold]:
 bb7:
   push 0
   sload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8:
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -158,13 +158,13 @@ bb10 [loop]:
   dup 1
   push 0
   sstore
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb16:
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -233,13 +233,13 @@ bb16:
   swap 2
   swap 1
   calldatacopy
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb19:
-  push 256
+  push 224
   push 64
   mstore
   push 100
@@ -397,8 +397,8 @@ bb19:
   lt
   push bb26
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

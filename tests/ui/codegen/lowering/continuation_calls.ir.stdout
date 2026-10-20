@@ -61,10 +61,10 @@ bb9 [continuation]:
   lt
   push bb25
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb23:
   dup 2
@@ -81,10 +81,10 @@ bb23:
   or
   push bb25
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8:
   push 1
