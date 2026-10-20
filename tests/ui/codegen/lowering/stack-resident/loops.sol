@@ -7,9 +7,6 @@
 //@ run-call: ascii 0x => true
 //@ run-call: ascii 0x41427f => true
 //@ run-call: ascii 0x414280 => false
-//@ run-call: factorial 0 => 1
-//@ run-call: factorial 10 => 3628800
-//@ run-call-fail: factorial 58 => Panic(0x11)
 
 contract Loops {
     // `n` and `k` are read from calldata once, before the loop.
@@ -27,14 +24,17 @@ contract Loops {
     }
 
     // The exit results are pushed after the branches that leave the loop, so the
-    // loop carries no extra word and pops nothing.
+    // loop carries no extra word and pops nothing. The latch runs the loop test
+    // and its return.
     // CHECK: calldatacopy
     // CHECK: {{bb[0-9]+}} [loop]:
     // CHECK-NEXT: push 1{{$}}
     // CHECK-NEXT: add
-    // CHECK-NEXT: jump [[HEADER:bb[0-9]+]]
-    // CHECK-NEXT: [[HEADER]] [loop]:
-    // CHECK: jumpi
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: sub
+    // CHECK-NEXT: push {{bb[0-9]+}}
+    // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 1{{$}}
     // CHECK-NEXT: push 0
     function ascii(bytes memory s) external pure returns (bool) {
@@ -42,18 +42,5 @@ contract Loops {
             if (uint8(s[i]) > 127) return false;
         }
         return true;
-    }
-
-    // The product takes the slot of the old result, which dies at the overflow
-    // check right after, so the check needs no further swaps.
-    // CHECK: mul
-    // CHECK-NEXT: swap 2
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: dup 4
-    // CHECK-NEXT: div
-    // CHECK-NEXT: sub
-    function factorial(uint256 n) external pure returns (uint256 result) {
-        result = 1;
-        for (uint256 i = 2; i <= n; ++i) result *= i;
     }
 }

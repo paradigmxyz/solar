@@ -4,7 +4,8 @@
 
 // The stack entering the outer loop holds one value twice. The edge pops the
 // stale copy and reaches the loop layout with plain swaps, instead of `exchange`
-// pseudo-ops that lower to three swaps each.
+// pseudo-ops that lower to three swaps each, and then runs the loop's first test,
+// copied there with the return it makes once the loop ends.
 // CHECK-LABEL: @module Test_runtime
 // CHECK: calldatacopy
 // CHECK-NOT: exchange
@@ -17,7 +18,9 @@
 // CHECK-NEXT: swap 3
 // CHECK-NEXT: swap 4
 // CHECK-NEXT: swap 5
-// CHECK-NEXT: jump bb{{[0-9]+}}
+// CHECK-NEXT: push 32
+// CHECK-NEXT: dup 2
+// CHECK-NEXT: add
 // CHECK-NOT: exchange
 contract Test {
     function sort(uint256[] memory a) external pure returns (uint256[] memory) {

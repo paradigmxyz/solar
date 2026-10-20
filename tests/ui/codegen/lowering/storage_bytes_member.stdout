@@ -73,7 +73,7 @@ bb14 [cold]:
   push 0
   push 0
   revert
-bb15:
+bb15 [loop]:
   push 68
   calldatasize
   lt
@@ -105,7 +105,12 @@ bb15:
   push 1
   add
   push 0
-  jump bb17
+  dup 3
+  dup 2
+  lt
+  push bb19
+  jumpi
+  stop
 bb19 [loop]:
   dup 1
   dup 5
@@ -175,8 +180,6 @@ bb19 [loop]:
   sstore
   push 1
   add
-  jump bb17
-bb17 [loop]:
   dup 3
   dup 2
   lt
@@ -203,7 +206,12 @@ bb26 [loop]:
   sstore
   push 1
   add
-  jump bb17
+  dup 3
+  dup 2
+  lt
+  push bb19
+  jumpi
+  stop
 bb27 [loop]:
   swap 1
   push 2
@@ -246,7 +254,12 @@ bb27 [loop]:
   sstore
   push 1
   add
-  jump bb17
+  dup 3
+  dup 2
+  lt
+  push bb19
+  jumpi
+  stop
 bb30:
   caller
   push 0
