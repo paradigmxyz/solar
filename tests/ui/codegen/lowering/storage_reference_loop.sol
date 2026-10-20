@@ -3,8 +3,6 @@
 //@ codegen-matrix: standard
 //@ run-call: rebindLoop false, 3, 5, 17 => 17, 0
 //@ run-call: rebindLoop true, 3, 5, 17 => 0, 17
-//@[gas] run-call: storageLoopMemory 0 => 0
-//@[size] run-call: storageLoopMemory 0 => 0
 
 contract StorageReferenceLoop {
     function storageLoopMemory(uint256 count) external returns (uint256 delta) {

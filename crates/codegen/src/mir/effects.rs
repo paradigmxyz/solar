@@ -270,20 +270,19 @@ impl InstKind {
                     | EffectKind::Create
                     | EffectKind::Log
             ),
-            expands_memory: (matches!(
+            expands_memory: matches!(
                 kind,
                 EffectKind::MemoryRead
                     | EffectKind::MemoryWrite
                     | EffectKind::ExternalCall
                     | EffectKind::Create
                     | EffectKind::Log
-            ) && !matches!(self, Self::MSize))
-                || matches!(
-                    self,
-                    Self::StorageBytesStore(..)
-                        | Self::StorageBytesStoreLiteral { .. }
-                        | Self::StorageClearWords(..)
-                ),
+            ) || matches!(
+                self,
+                Self::StorageBytesStore(..)
+                    | Self::StorageBytesStoreLiteral { .. }
+                    | Self::StorageClearWords(..)
+            ),
             observes_execution: self.observes_gas() || matches!(self, Self::MSize),
             idempotent_write: matches!(
                 self,

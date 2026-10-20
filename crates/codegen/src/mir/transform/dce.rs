@@ -45,19 +45,14 @@ impl MirPass for Dce {
 /// Dead Code Elimination pass.
 ///
 /// Empties unreachable blocks and removes instructions whose results are unused and whose
-/// execution `Instruction::must_execute` does not require, together with internal calls whose
+/// execution `InstKind::has_side_effects` does not require, together with internal calls whose
 /// summaries allow discarding them.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct DeadCodeEliminator {
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
 impl DeadCodeEliminator {
-    /// Creates a new dead code eliminator.
-    pub(crate) fn new() -> Self {
-        Self { call_summaries: None }
-    }
-
     /// Removes unreachable blocks and unused instructions to a fixed point.
     pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let cfg = CfgInfo::new(func);
@@ -90,7 +85,7 @@ impl DeadCodeEliminator {
             let discardable_call = matches!(&inst.kind, InstKind::ICall { function: Callee::Function(function), .. }
                 if self.call_summaries.as_ref().and_then(|summaries| summaries.get(*function))
                     .is_some_and(|summary| summary.can_discard_call()));
-            if !inst.must_execute() || discardable_call {
+            if !inst.kind.has_side_effects() || discardable_call {
                 discardable.insert(inst_id);
                 if inst.result().is_none_or(|result| uses[result] == 0) {
                     pending.push(inst_id);

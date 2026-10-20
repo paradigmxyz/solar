@@ -387,7 +387,7 @@ fn sweep_dead(func: &mut Function) -> bool {
         let uses = super::egraph::use_counts(func);
         let mut dead = FxHashSet::default();
         for inst in func.instructions() {
-            if func.inst(inst).must_execute() {
+            if func.inst(inst).kind.has_side_effects() {
                 continue;
             }
             if let Some(result) = func.inst_result_value(inst)

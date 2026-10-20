@@ -382,8 +382,8 @@ properties. Internal-call summaries include failure, divergence, and external
 termination. Compute them only for called functions, including tail-call targets;
 uncalled bodies need no interprocedural summary. DCE removes unused calls only
 when these summaries prove normal termination and no observable effects. Recursive calls and possible CFG cycles
-remain conservative. `msize` is an opaque memory read: it keeps earlier writes alive, is
-never commoned or moved, and promises no exact value.
+remain conservative. `msize` is an opaque memory read: it is never commoned or moved, DSE keeps the
+writes it may see, and it promises no exact value.
 As in solc, unused storage/account reads and normally returning calls containing
 only those reads may disappear, including their implicit access-list warming.
 Optimization preserves required effects rather than exact gas consumption.

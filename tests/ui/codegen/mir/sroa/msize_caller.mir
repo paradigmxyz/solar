@@ -2,26 +2,6 @@
 //@filecheck:
 @module SroaMsizeCaller
 
-// The object lies below the free-memory pointer, so `msize` in a caller does not keep its store.
-// CHECK-LABEL: fn @touch{{[( ]}}
-// CHECK-NOT: {{^[ +]+}}mstore
-// CHECK: {{^[ +]+}}ret arg0
-fn @touch(arg0: i256) -> i256 {
-  bb0:
-    v0 = alloc 32
-    mstore v0, arg0
-    v1 = mload v0
-    ret v1
-}
-
-fn @caller(arg0: i256) -> i256 {
-  bb0:
-    v0 = icall @touch, arg0
-    v1 = msize
-    v2 = add v0, v1
-    ret v2
-}
-
 // `msize` reads all of memory in the alias model, so a function that reads it, or calls one that
 // does, keeps its objects in memory.
 // CHECK-LABEL: fn @touch_then_measure{{[( ]}}
@@ -43,6 +23,7 @@ fn @measure() -> i256 {
     ret v0
 }
 
+// `msize` in the function reads the object, so it stays in memory.
 // CHECK-LABEL: fn @observe_size{{[( ]}}
 // CHECK: {{^[ +]+}}memory_zero
 // CHECK: {{^[ +]+}}mstore

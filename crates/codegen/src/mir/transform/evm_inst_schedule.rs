@@ -7,15 +7,15 @@
 //! inside each basic block immediately before EVM codegen.
 //!
 //! The pass deliberately moves only computations and reads. Memory and state writes, calls,
-//! creation, logs, control effects, `gas`, and phis are barriers, so the pass cannot move
-//! work across an observable mutation, gas observation, call-gas boundary, or phi definition.
-//! Within each barrier-delimited segment, a deterministic dependency-first traversal emits operand
-//! producers in EVM push order and places values consumed by the following barrier or terminator
-//! last. Shared-result producers stay at their original positions because moving one use changes
-//! which physical copy should survive for later consumers. Single-use islands between those pinned
-//! producers are still scheduled independently; references left in the arena by eliminated
-//! instructions do not count as sharing. The pass also preserves the producer order of binary
-//! operations whose lowering already costs both equivalent operand orientations.
+//! creation, logs, control effects, `gas` and other opaque observations, and phis are barriers, so
+//! the pass cannot move work across an observable mutation, gas observation, call-gas boundary, or
+//! phi definition. Within each barrier-delimited segment, a deterministic dependency-first
+//! traversal emits operand producers in EVM push order and places values consumed by the following
+//! barrier or terminator last. Shared-result producers stay at their original positions because
+//! moving one use changes which physical copy should survive for later consumers. Single-use
+//! islands between those pinned producers are still scheduled independently; references left in the
+//! arena by eliminated instructions do not count as sharing. The pass also preserves the producer
+//! order of binary operations whose lowering already costs both equivalent operand orientations.
 //! Instruction and value identities do not change; codegen recomputes liveness from the resulting
 //! order before stack scheduling.
 //!

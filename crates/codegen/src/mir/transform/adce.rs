@@ -31,7 +31,7 @@ impl MirPass for Adce {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            AggressiveDeadCodeEliminator::new().run(func).total() != 0
+            AggressiveDeadCodeEliminator::default().run(func).total() != 0
         })
     }
 }
@@ -53,7 +53,7 @@ impl AdceStats {
 }
 
 /// Aggressive dead-code eliminator.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct AggressiveDeadCodeEliminator {
     stats: AdceStats,
 }
@@ -87,11 +87,6 @@ impl TargetSearch {
 }
 
 impl AggressiveDeadCodeEliminator {
-    /// Creates a new ADCE pass.
-    fn new() -> Self {
-        Self { stats: AdceStats::default() }
-    }
-
     /// Runs aggressive dead-code elimination once to a fixed point.
     fn run(&mut self, func: &mut Function) -> AdceStats {
         self.stats = AdceStats::default();
@@ -108,7 +103,7 @@ impl AggressiveDeadCodeEliminator {
             self.stats.control_edges_removed += rewrites;
         }
 
-        let removed = super::dce::DeadCodeEliminator::new().run_to_fixpoint(func);
+        let removed = super::dce::DeadCodeEliminator::default().run_to_fixpoint(func);
         self.stats.instructions_removed += removed;
         self.stats
     }
@@ -215,7 +210,7 @@ impl AggressiveDeadCodeEliminator {
     fn block_has_effect(&self, func: &Function, block_id: BlockId) -> bool {
         func.blocks[block_id].instructions.iter().any(|&inst_id| {
             let inst = func.inst(inst_id);
-            inst.must_execute()
+            inst.kind.has_side_effects()
         })
     }
 

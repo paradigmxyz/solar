@@ -677,11 +677,6 @@ pub(crate) struct Instruction {
 }
 
 impl Instruction {
-    /// Returns whether an unused instruction must retain its execution.
-    pub(crate) fn must_execute(&self) -> bool {
-        self.kind.effects().must_execute()
-    }
-
     /// Returns the semantic operation that still needs representation lowering.
     pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<PhaseCategory> {
         if self.result_ty == Some(MirType::I1)
