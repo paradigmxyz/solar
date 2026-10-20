@@ -37,13 +37,17 @@ mod entry;
 mod expressions;
 mod indexing;
 mod lvalues;
+mod memory_facts;
 mod memory_values;
 mod modifiers;
 mod operators;
 mod raw_scalars;
+mod scratch;
 mod statements;
 mod storage_values;
 mod values;
+
+pub(super) use scratch::{ScratchRegion, check_scratch_regions};
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -103,6 +107,12 @@ pub(super) struct LoweringState {
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
     raw_scalars: FxHashSet<VariableId>,
     raw_pointer_types: FxHashSet<MirType>,
+    /// The `@custom:solar-scratch` blocks of the function being lowered, which the contract
+    /// driver claims for its MIR function.
+    pub(super) scratch_regions: Vec<ScratchRegion>,
+    /// Whether the function being lowered runs inline assembly, which the contract driver claims
+    /// for its MIR function.
+    pub(super) lowered_assembly: bool,
 }
 
 /// Lowers one HIR function into a typed MIR function.
@@ -233,6 +243,9 @@ struct FunctionLowerer<'gcx, 'ctx> {
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
+    /// The tags of the `@custom:solar-scratch` blocks the code being lowered runs inside,
+    /// innermost last, including those a modifier's `_` runs the function's body in.
+    open_scratch: Vec<Span>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -507,6 +520,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             is_getter: false,
             unchecked: false,
             in_inline_assembly: false,
+            open_scratch: Vec::new(),
         }
     }
 

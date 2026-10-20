@@ -99,6 +99,9 @@ pub struct Hir<'hir> {
     pub(crate) errors: IndexVec<ErrorId, Error<'hir>>,
     /// All events.
     pub(crate) events: IndexVec<EventId, Event<'hir>>,
+    /// Statements documented by `@custom:solar-*` tags, with each tag's span. The tags are rare,
+    /// so lookups scan.
+    pub(crate) solar_tags: Vec<(SolarStmtTag, Span)>,
 }
 
 macro_rules! indexvec_methods {
@@ -189,6 +192,7 @@ impl<'hir> Hir<'hir> {
             udvts: IndexVec::new(),
             errors: IndexVec::new(),
             events: IndexVec::new(),
+            solar_tags: Vec::new(),
         }
     }
 
@@ -329,6 +333,21 @@ impl<'hir> Hir<'hir> {
     ) -> HirBuilder<'hir, 'id> {
         HirBuilder::new(arena, next_id)
     }
+
+    /// Returns the span of the `@custom:solar-scratch` tag on the block that spans `block`.
+    pub fn solar_scratch(&self, block: Span) -> Option<Span> {
+        self.solar_tags
+            .iter()
+            .find(|&&(tag, _)| matches!(tag, SolarStmtTag::Scratch(scratch) if scratch == block))
+            .map(|&(_, span)| span)
+    }
+}
+
+/// A statement documented by a `@custom:solar-*` tag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SolarStmtTag {
+    /// `@custom:solar-scratch` on the block with this span.
+    Scratch(Span),
 }
 
 /// A counter for generating unique IDs.
@@ -2233,7 +2252,7 @@ mod tests {
             assert_data_eq!(actual.to_string(), expected);
         }
 
-        assert_size::<Hir<'_>>(str!["240"]);
+        assert_size::<Hir<'_>>(str!["264"]);
 
         assert_size::<Item<'_, '_>>(str!["16"]);
         assert_size::<Contract<'_>>(str!["152"]);

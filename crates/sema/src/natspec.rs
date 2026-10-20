@@ -928,6 +928,8 @@ pub(crate) enum SolarTag {
     Optimize,
     /// `@custom:solar-terminates`: the function ends the call on every path.
     Terminates,
+    /// `@custom:solar-scratch`: the memory the block allocates is reused after it.
+    Scratch,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -942,6 +944,7 @@ impl SolarTag {
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_optimize => Some(Self::Optimize),
             sym::solar_dash_terminates => Some(Self::Terminates),
+            sym::solar_dash_scratch => Some(Self::Scratch),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -987,14 +990,19 @@ pub(crate) fn report_misplaced_solar_tag(
             .span(span)
             .help("put it on a function with a body that ends the call on every path")
             .emit(),
+        SolarTag::Scratch => dcx
+            .err("`@custom:solar-scratch` must document a block statement")
+            .span(span)
+            .help("put it on a `{ ... }` block whose allocations do not outlive it")
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown tag `@custom:{name}`"))
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
                 "the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, \
-                 `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-terminates`, and \
-                 `@custom:solar-trusted`",
+                 `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, \
+                 `@custom:solar-terminates`, and `@custom:solar-trusted`",
             )
             .emit(),
     }
