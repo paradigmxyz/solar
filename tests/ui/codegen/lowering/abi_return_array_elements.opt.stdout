@@ -147,32 +147,34 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
   bb4:
     v11 = add v8, 1
     v12 = shl v11, 5
-    v35 = icall @alloc, v12
-    mstore v35, v8
+    v37 = icall @alloc, v12
+    mstore v37, v8
     v14 = shl v8, 5
     v15 = sub v0, v3
     v16 = shr v15, 5
     v17 = gt v8, v16
     jumpi v17, bb1, bb5
   bb5:
-    v38 = shl v8, 5
-    v39 = add v3, v38
+    v40 = shl v8, 5
+    v41 = add v3, v40
     jump bb6
   bb6:
-    v36 = phi [bb5: v3], [bb9: v37]
-    v19 = ne v36, v39
-    jumpi v19, bb7, bb8
+    v19 = phi [bb5: 0], [bb7: v24]
+    v38 = phi [bb5: v3], [bb7: v39]
+    v20 = ne v38, v41
+    jumpi v20, bb7, bb8
   bb8:
-    v32 = add v35, 32
-    calldatacopy v32, v3, v14
-    ret v35
-  bb7:
-    v22 = calldataload v36
-    v23 = shr v22, 160
-    v24 = eq v23, 0
-    jumpi v24, bb9, bb1
+    v26 = shr v19, 160
+    v27 = eq v26, 0
+    jumpi v27, bb9, bb1
   bb9:
-    v37 = add v36, 32
+    v34 = add v37, 32
+    calldatacopy v34, v3, v14
+    ret v37
+  bb7:
+    v23 = calldataload v38
+    v24 = or v19, v23
+    v39 = add v38, 32
     jump bb6
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
@@ -199,32 +201,34 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
   bb4:
     v11 = add v8, 1
     v12 = shl v11, 5
-    v35 = icall @alloc, v12
-    mstore v35, v8
+    v37 = icall @alloc, v12
+    mstore v37, v8
     v14 = shl v8, 5
     v15 = sub v0, v3
     v16 = shr v15, 5
     v17 = gt v8, v16
     jumpi v17, bb1, bb5
   bb5:
-    v38 = shl v8, 5
-    v39 = add v3, v38
+    v40 = shl v8, 5
+    v41 = add v3, v40
     jump bb6
   bb6:
-    v36 = phi [bb5: v3], [bb9: v37]
-    v19 = ne v36, v39
-    jumpi v19, bb7, bb8
+    v19 = phi [bb5: 0], [bb7: v24]
+    v38 = phi [bb5: v3], [bb7: v39]
+    v20 = ne v38, v41
+    jumpi v20, bb7, bb8
   bb8:
-    v32 = add v35, 32
-    calldatacopy v32, v3, v14
-    ret v35
-  bb7:
-    v22 = calldataload v36
-    v23 = shr v22, 8
-    v24 = eq v23, 0
-    jumpi v24, bb9, bb1
+    v26 = shr v19, 8
+    v27 = eq v26, 0
+    jumpi v27, bb9, bb1
   bb9:
-    v37 = add v36, 32
+    v34 = add v37, 32
+    calldatacopy v34, v3, v14
+    ret v37
+  bb7:
+    v23 = calldataload v38
+    v24 = or v19, v23
+    v39 = add v38, 32
     jump bb6
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
