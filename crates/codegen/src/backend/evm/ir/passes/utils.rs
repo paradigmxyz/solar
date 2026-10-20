@@ -174,3 +174,22 @@ pub(super) fn is_terminal_boundary(kind: &TerminatorKind) -> bool {
     matches!(kind, TerminatorKind::IndexedJump(_))
         || matches!(kind, TerminatorKind::Op(opcode) if op::is_terminal(*opcode))
 }
+
+/// Counts the pushed labels and terminator edges targeting each block, plus the program entry.
+pub(super) fn count_block_references(module: &Module, references: &mut IndexVec<BlockId, usize>) {
+    references.clear();
+    references.resize(module.blocks.len(), 0);
+    if let Some(entry) = references.first_mut() {
+        *entry = 1;
+    }
+    for block in &module.blocks {
+        for inst in &block.instructions {
+            if let Some(target) = inst.pushed_block() {
+                references[target] += 1;
+            }
+        }
+        if let Some(term) = &block.terminator {
+            term.kind.visit_targets(|target| references[target] += 1);
+        }
+    }
+}

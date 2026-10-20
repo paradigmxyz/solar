@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: directOne => 32, 42
-//@ run-call: pointerOne => 32, 42
+//@ run-call: directOne => 0, 42
+//@ run-call: pointerOne => 0, 42
 //@ run-call: directTwo => 32, 42, 43
 //@ run-call: pointerTwo => 32, 42, 43
 //@ run-call-fail: directShort
