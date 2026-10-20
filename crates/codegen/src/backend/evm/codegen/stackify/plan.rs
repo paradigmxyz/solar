@@ -970,9 +970,10 @@ impl<'a> Planner<'a> {
                 }
                 start
             };
-            // Copied values must exist before the chain starts.
+            // Copied values must exist before the chain starts. A spilled value is stored where
+            // its instruction runs, so its reload cannot come earlier.
             let available = |operand: &ValueId, start: usize| {
-                self.is_fresh(*operand)
+                self.remat.contains(*operand)
                     || def_position.get(operand).is_none_or(|&position| position < start)
             };
             let start = first(&[def]);
