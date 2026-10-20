@@ -98,7 +98,7 @@ impl MirPass for Inline {
         let mut changed = false;
         for _ in 0..4 {
             let calls = MemoryCallSummaries::new_cached(module, &mut LocalSummaryCache::default());
-            let straight_line = if target.priced_for(true).is_creation() {
+            let straight_line = if target.optimization().is_gas() {
                 module.creation_pricing_functions().1
             } else {
                 DenseBitSet::new_empty(module.functions.len())

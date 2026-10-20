@@ -129,7 +129,7 @@ A pass builds the `Target` of the function it is optimizing, never one for the
 whole module. MIR function passes ask the function's `FunctionAnalyses`:
 `target` for passes that rank code shapes without weighing blocks by how often
 they run, which prices creation code only without loops, recursion, or a looping
-caller (`Module::straight_line_creation_functions`), and `loop_aware_target` for
+caller (`Module::creation_pricing_functions`), and `loop_aware_target` for
 passes that multiply by trip counts themselves, which price every creation-only
 function (`Module::creation_only_functions`) as creation code. The inliner counts
 the calls that creation code holds on its own, since it carries its own copy of

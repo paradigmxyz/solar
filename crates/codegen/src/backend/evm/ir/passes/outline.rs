@@ -181,6 +181,11 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
 /// push2 body
 /// jump
 /// jumpdest
+/// Whether any of `blocks` may run more than once.
+fn repeats(module: &Module, blocks: impl IntoIterator<Item = BlockId>) -> bool {
+    blocks.into_iter().any(|block| !module.blocks[block].runs_once())
+}
+
 fn transfer_size(target: &Target) -> usize {
     (target.opcode(op::PUSH2).bytes * 2
         + target.opcode(op::JUMP).bytes
@@ -356,10 +361,10 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         if gcx.sess.opts.optimization.is_gas() {
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
             // Sites that may run more than once pay the transfer gas at the runtime price.
-            let target = if free.iter().all(|site| module.blocks[site.block].runs_once()) {
-                target
-            } else {
+            let target = if repeats(module, free.iter().map(|site| site.block)) {
                 Target::new(gcx)
+            } else {
+                target
             };
             let transfer_gas = transfer_gas(&target)
                 + target.opcode_gas(op::SWAP1)
@@ -414,8 +419,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     let mut stubs = Vec::with_capacity(chosen.len());
     for group in &chosen {
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
-        stub.metadata.repeats =
-            group.sites.iter().any(|site| !module.blocks[site.block].runs_once());
+        stub.metadata.repeats = repeats(module, group.sites.iter().map(|site| site.block));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
             stub.instructions.push(
@@ -636,8 +640,7 @@ fn outline_parametric_machine_runs(
     let mut stubs = Vec::with_capacity(chosen.len());
     for group in &chosen {
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
-        stub.metadata.repeats =
-            group.sites.iter().any(|site| !module.blocks[site.block].runs_once());
+        stub.metadata.repeats = repeats(module, group.sites.iter().map(|site| site.block));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
             stub.instructions.push(
@@ -767,11 +770,11 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             let push_size = selected_len(gcx, value);
             // Sites that may run more than once pay the transfer gas at the runtime price.
             let (target, transfer_gas) =
-                if occurrences.iter().all(|&(block, _)| module.blocks[block].runs_once()) {
-                    (target, transfer_gas)
-                } else {
+                if repeats(module, occurrences.iter().map(|&(block, _)| block)) {
                     let runtime = Target::new(gcx);
                     (runtime, push_share_costs(&runtime).2)
+                } else {
+                    (target, transfer_gas)
                 };
             let inline = occurrences.len() * push_size;
             let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
@@ -798,8 +801,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     for (value, _) in values {
         let occurrences = &sites[&value];
         let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
-        stub.metadata.repeats =
-            occurrences.iter().any(|&(block, _)| !module.blocks[block].runs_once());
+        stub.metadata.repeats = repeats(module, occurrences.iter().map(|&(block, _)| block));
         let mut push = Instruction::push_value(value).with_debug_info_dropped();
         for &(block, index) in occurrences {
             push.metadata.merge_source_spans(&module.blocks[block].instructions[index].metadata);

@@ -381,9 +381,10 @@ impl Module {
     }
 
     /// Returns the creation-only functions that no loop or recursion calls, and the subset of
-    /// those without loops of their own. The creation model's single execution holds for the
-    /// instructions of the second set, and for the whole of the first when a transform weighs
-    /// the function's own loops.
+    /// those without loops of their own. Their instructions run a bounded number of times, not
+    /// scaled by a trip count, which the creation model's single execution approximates for the
+    /// second set, and for the whole of the first when a transform weighs the function's own
+    /// loops.
     #[must_use]
     pub(crate) fn creation_pricing_functions(
         &self,
@@ -419,11 +420,12 @@ impl Module {
         for id in domain.iter() {
             let func = self.function(id);
             let has_loop = !CfgInfo::new(func).cyclic_blocks().is_empty();
-            let recursive = self.reachable_from(direct_callees(func)).contains(id);
+            let repeats_callees =
+                has_loop || self.reachable_from(direct_callees(func)).contains(id);
             if has_loop {
                 looping.insert(id);
             }
-            if has_loop || recursive {
+            if repeats_callees {
                 worklist.extend(
                     direct_callees(func)
                         .filter(|&callee| domain.contains(callee) && repeated.insert(callee)),

@@ -387,7 +387,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// The cost model of a function being planned: creation code inside the constructor, unless
     /// a loop or recursion calls the function. The planner weighs each block by its loop depth,
-    /// so loops inside the function stay priced as creation code.
+    /// so loops inside the function stay priced as creation code, though the choices inside one
+    /// block compare unweighted costs.
     fn target(&self, info: &ModuleInfo, func_id: FunctionId) -> Target {
         Target::new(self.gcx).priced_for(self.in_constructor && !info.repeated.contains(func_id))
     }
