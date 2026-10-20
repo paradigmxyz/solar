@@ -79,25 +79,23 @@ fn @getFlag() -> i1 [selector=0xf9633930, view, abi_params=[], abi_returns=[word
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = abi_encode [], selector 0xf963393000000000000000000000000000000000000000000000000000000000
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
-    v6 = zext i160 v1 to i256
-    v7 = staticcall v2, v6, v4, v5, 0, 32
-    jumpi v7, bb2, bb1
+    mstore 0, 0xf9633930 !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = staticcall v2, v3, 28, 4, 0, 32
+    jumpi v4, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    v12 = lt v11, 2
-    v13 = eq v12, false
-    icall revert_if<empty>, v13
-    v14 = ne v11, 0
-    ret v14
+    v5 = returndatasize
+    v6 = lt v5, 32
+    icall revert_if<tuple_data_too_short>, v6
+    v7 = add 0, 0
+    v8 = mload v7
+    v9 = lt v8, 2
+    v10 = eq v9, false
+    icall revert_if<empty>, v10
+    v11 = ne v8, 0
+    ret v11
 }
 
 fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
@@ -105,23 +103,21 @@ fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = abi_encode [], selector 0x17d7de7c00000000000000000000000000000000000000000000000000000000
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
-    v6 = zext i160 v1 to i256
-    v7 = staticcall v2, v6, v4, v5, 0, 32
-    jumpi v7, bb2, bb1
+    mstore 0, 0x17d7de7c !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = staticcall v2, v3, 28, 4, 0, 32
+    jumpi v4, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    v12 = shl v11, 24
-    v13 = eq v12, 0
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    ret v11
+    v5 = returndatasize
+    v6 = lt v5, 32
+    icall revert_if<tuple_data_too_short>, v6
+    v7 = add 0, 0
+    v8 = mload v7
+    v9 = shl v8, 24
+    v10 = eq v9, 0
+    v11 = eq v10, false
+    icall revert_if<empty>, v11
+    ret v8
 }

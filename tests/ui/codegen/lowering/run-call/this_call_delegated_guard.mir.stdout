@@ -10,16 +10,14 @@ fn @init() [selector=0xe1c7392a, abi_params=[], abi_returns=[], abi_return_param
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
+    mstore 0, 0x5c36b186 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
     v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = call v1, v8, 0, v3, v4, 0, 0
-    jumpi v9, bb2, bb1
+    v6 = call v1, v5, 0, 28, 4, 0, 0
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -90,21 +88,19 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     revert_returndata
   bb4:
     v20 = gas
-    v21 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
-    v22 = extract_value slice<memory>, v21, 0
-    v23 = extract_value slice<memory>, v21, 1
-    v24 = zext i160 v18 to i256
-    v25 = staticcall v20, v24, v22, v23, 0, 32
-    jumpi v25, bb6, bb5
+    mstore 0, 0x158ef93e !metadata(memory=scratch)
+    v21 = zext i160 v18 to i256
+    v22 = staticcall v20, v21, 28, 4, 0, 32
+    jumpi v22, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v26 = returndatasize
-    v27 = lt v26, 32
-    icall revert_if<tuple_data_too_short>, v27
-    v28 = add 0, 0
-    v29 = mload v28
-    ret v29
+    v23 = returndatasize
+    v24 = lt v23, 32
+    icall revert_if<tuple_data_too_short>, v24
+    v25 = add 0, 0
+    v26 = mload v25
+    ret v26
 }
 
 fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -125,33 +121,29 @@ fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
+    mstore 0, 0xe1c7392a !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = extcodesize v10
+    v12 = eq v11, 0
+    icall revert_if<target_contract_has_no_code>, v12
     v13 = zext i160 v7 to i256
-    v14 = extcodesize v13
-    v15 = eq v14, 0
-    icall revert_if<target_contract_has_no_code>, v15
-    v16 = zext i160 v7 to i256
-    v17 = call v9, v16, 0, v11, v12, 0, 0
-    jumpi v17, bb4, bb3
+    v14 = call v9, v13, 0, 28, 4, 0, 0
+    jumpi v14, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = gas
-    v19 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
-    v20 = extract_value slice<memory>, v19, 0
-    v21 = extract_value slice<memory>, v19, 1
-    v22 = zext i160 v7 to i256
-    v23 = staticcall v18, v22, v20, v21, 0, 32
-    jumpi v23, bb6, bb5
+    v15 = gas
+    mstore 0, 0x158ef93e !metadata(memory=scratch)
+    v16 = zext i160 v7 to i256
+    v17 = staticcall v15, v16, 28, 4, 0, 32
+    jumpi v17, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v24 = returndatasize
-    v25 = lt v24, 32
-    icall revert_if<tuple_data_too_short>, v25
-    v26 = add 0, 0
-    v27 = mload v26
-    ret v27
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = add 0, 0
+    v21 = mload v20
+    ret v21
 }
