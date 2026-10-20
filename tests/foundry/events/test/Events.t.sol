@@ -95,4 +95,49 @@ contract EventsTest {
         vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x21));
         events.emitInvalidIndexedEnum();
     }
+
+    function test_EmitTwoWords() public {
+        vm.recordLogs();
+        events.emitTwoWords(7, type(uint256).max);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 1);
+        require(logs[0].topics[0] == keccak256("TwoWords(uint256,uint256)"));
+        require(logs[0].data.length == 64);
+        (uint256 first, uint256 second) = abi.decode(logs[0].data, (uint256, uint256));
+        require(first == 7 && second == type(uint256).max);
+    }
+
+    function test_EmitTwoWordsIndexed() public {
+        vm.recordLogs();
+        events.emitTwoWordsIndexed(9, address(0x1234), true);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 2);
+        require(logs[0].topics[0] == keccak256("TwoWordsIndexed(uint256,address,bool)"));
+        require(logs[0].topics[1] == bytes32(uint256(9)));
+        require(logs[0].data.length == 64);
+        (address account, bool flag) = abi.decode(logs[0].data, (address, bool));
+        require(account == address(0x1234) && flag);
+    }
+
+    function test_EmitTwoWordsAnonymous() public {
+        vm.recordLogs();
+        events.emitTwoWordsAnonymous(address(0x1234), true);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 0);
+        require(logs[0].data.length == 64);
+        (address account, bool flag) = abi.decode(logs[0].data, (address, bool));
+        require(account == address(0x1234) && flag);
+    }
+
+    function test_EmitTwoWordsSwapped() public {
+        vm.recordLogs();
+        events.emitTwoWordsSwapped();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        (uint256 first, uint256 second) = abi.decode(logs[0].data, (uint256, uint256));
+        require(first == 2 && second == 1);
+    }
 }
