@@ -45,6 +45,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &call_cleanup::CallCleanup,
     &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
+    &cfg_simplify::NoreturnCalls,
     &cfg_simplify::SimplifyTrivialPhis,
     &sccp::Sccp,
     &pure_eval::PureEval,
@@ -179,6 +180,9 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // pass forwards the stored value to the pointer's loads.
     &heap_floor::HeapFloor,
     &cfg_simplify::FunctionDce,
+    // A failure path through a revert helper ends at the call, so the code after it keeps the
+    // facts the failing branch states.
+    &cfg_simplify::NoreturnCalls,
     // HIR lowering leaves trivial phis for locals that loops never reassign.
     // They hide one object behind several SSA names, which alias analysis
     // joins to distinct symbolic pointers, so remove them before the loop and
