@@ -90,9 +90,6 @@ bb0:
   sub
   push bb7
   jumpi
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 6
@@ -130,9 +127,6 @@ bb23 [cold]:
   push 28
   revert
 bb11:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 6
@@ -154,9 +148,6 @@ bb24 [cold]:
   push 11
   jump bb23
 bb14:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 6
@@ -217,9 +208,6 @@ bb17:
   push 0
   return
 bb20:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 6
