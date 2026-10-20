@@ -22,7 +22,10 @@
 //!   one value collapses one level at a time;
 //! - a boolean merged with `true`, `c ? true : e` and `c ? t : true`, becomes `c | e` and `!c | t`,
 //!   the shape a chain of `||` operands leaves at its last join;
-//! - a boolean merged with `false`, `c ? t : false` or `c ? false : e`, becomes an `and`; and
+//! - a boolean merged with `false`, `c ? t : false` or `c ? false : e`, becomes an `and`;
+//! - a select whose arms agree, `x == C ? K : f(x)` with `f(C) == K` for an addition, subtraction
+//!   or exclusive-or of `x` and a literal, becomes `f(x)`: checked Solidity spells a wrapping
+//!   increment `x == type(uint256).max ? 0 : x + 1`, which is `x + 1`; and
 //! - any other pair becomes `f + c * (t - f)`.
 //!
 //! Conditions are canonical booleans and cast to words before arithmetic.
@@ -51,7 +54,7 @@ use crate::{
     mir::{
         BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Op,
         Terminator, Value, ValueId,
-        analysis::CfgInfo,
+        analysis::{CfgInfo, integers::integer_mask},
         pass::{MirPass, run_function_pass},
         utils::invalidate_unreachable_blocks,
     },
@@ -125,6 +128,9 @@ enum SelectForm {
     General(Option<U256>),
     /// A boolean merged with `true`: `c | e`, or `!c | t` when `else` is the literal.
     Or { negated: bool },
+    /// The value both edges compute: a literal on the edge taken when `x == C`, and on the
+    /// other edge a word operation of `x` that gives that literal at `x = C`.
+    Either(ValueId),
 }
 
 fn if_convert_function(func: &mut Function, target: &Target) -> bool {
@@ -240,6 +246,9 @@ fn select_form(
 ) -> SelectForm {
     if then_value == else_value {
         return SelectForm::Same;
+    }
+    if let Some(value) = agreeing_value(func, condition, then_value, else_value) {
+        return SelectForm::Either(value);
     }
     // c ? true : e => c | e, c ? t : true => !c | t
     if func.value_ty(then_value) == Some(MirType::I1) {
@@ -359,7 +368,7 @@ fn profitable(func: &Function, target: &Target, site: &Site, selects: &[Select])
         {
             products.push(product);
         }
-        if !shared && !matches!(select.form, SelectForm::Same) {
+        if !shared && !matches!(select.form, SelectForm::Same | SelectForm::Either(_)) {
             reads += 1;
         }
         selected = selected.plus(select_cost(func, target, select, shared));
@@ -375,7 +384,9 @@ fn profitable(func: &Function, target: &Target, site: &Site, selects: &[Select])
     // Doubled costs: the transfers and join moves run on every path, each
     // arm and phi literal on one of the two paths.
     let before = transfer_cost(target).plus(arms).plus(joined);
-    let condition = condition_cost(func, target, site.condition, reads);
+    // Selects that read no condition leave its comparison dead.
+    let condition =
+        if reads == 0 { Cost::ZERO } else { condition_cost(func, target, site.condition, reads) };
     let after = kept_arms.plus(selected).plus(condition).times(2);
     target.cmp(after, before) != Ordering::Greater
 }
@@ -423,7 +434,7 @@ fn select_cost(func: &Function, target: &Target, select: &Select, shared: bool) 
         if shared { combine } else { product.plus(literal(amount)).plus(combine) }
     };
     match select.form {
-        SelectForm::Same => Cost::ZERO,
+        SelectForm::Same | SelectForm::Either(_) => Cost::ZERO,
         SelectForm::Scaled(derived) => scaled(derived, false, select.then_value),
         SelectForm::ScaledNegated(derived) => scaled(derived, true, select.else_value),
         // e + c * delta
@@ -557,6 +568,8 @@ fn select_value(
     let ty = func.value_ty(then_value).or_else(|| func.value_ty(else_value));
     match select.form {
         SelectForm::Same => then_value,
+        // x == C ? f(C) : f(x) => f(x)
+        SelectForm::Either(value) => value,
         SelectForm::Scaled(derived) => {
             scaled_select(func, block, condition, then_value, else_value, derived, ty)
         }
@@ -594,6 +607,63 @@ fn select_value(
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
     }
+}
+
+/// The value a select gives on both edges: `x == C ? K : f(x)`, or `x != C ? f(x) : K`, where
+/// `f` adds, subtracts or exclusive-ors a literal and `f(C)` is `K` at the select's width. The
+/// condition may be such a comparison or its negation.
+fn agreeing_value(
+    func: &Function,
+    condition: ValueId,
+    then_value: ValueId,
+    else_value: ValueId,
+) -> Option<ValueId> {
+    let (x, c, equal) = literal_comparison(func, condition, MAX_NEGATIONS)?;
+    // The value on the edge taken when `x == c`, and the other edge's.
+    let (at_c, other) = if equal { (then_value, else_value) } else { (else_value, then_value) };
+    let literal = func.value_u256(at_c)?;
+    let Some(MirType::Int(bits)) = func.value_ty(other) else { return None };
+    let Value::Inst(inst) = func.value(other) else { return None };
+    let operand = |value: ValueId| if value == x { Some(c) } else { func.value_u256(value) };
+    let result = match func.inst(*inst).kind {
+        InstKind::Add(a, b) if a == x || b == x => operand(a)?.wrapping_add(operand(b)?),
+        InstKind::Sub(a, b) if a == x || b == x => operand(a)?.wrapping_sub(operand(b)?),
+        InstKind::Xor(a, b) if a == x || b == x => operand(a)? ^ operand(b)?,
+        _ => return None,
+    };
+    (result & integer_mask(bits.get()) == literal).then_some(other)
+}
+
+/// Negations of a comparison a branch condition may wrap.
+const MAX_NEGATIONS: u32 = 2;
+
+/// `(x, C, true)` for a condition `x == C`, and `(x, C, false)` for `x != C`, with `C` a
+/// literal and `x` not, through `eq(b, 0)` negations of a boolean `b`.
+fn literal_comparison(
+    func: &Function,
+    condition: ValueId,
+    negations: u32,
+) -> Option<(ValueId, U256, bool)> {
+    let Value::Inst(inst) = func.value(condition) else { return None };
+    let (a, b, equal) = match func.inst(*inst).kind {
+        InstKind::Eq(a, b) => (a, b, true),
+        InstKind::Ne(a, b) => (a, b, false),
+        _ => return None,
+    };
+    let (x, c) = match (func.value_u256(a), func.value_u256(b)) {
+        (None, Some(c)) => (a, c),
+        (Some(c), None) => (b, c),
+        _ => return None,
+    };
+    // eq(b, 0) of a boolean comparison b negates it.
+    if c.is_zero()
+        && negations != 0
+        && is_bool_value(func, x)
+        && let Some((inner, literal, inner_equal)) = literal_comparison(func, x, negations - 1)
+    {
+        return Some((inner, literal, inner_equal != equal));
+    }
+    Some((x, c, equal))
 }
 
 /// `then = base op k` for a base equal to `else`, or a zero else value.

@@ -1,0 +1,72 @@
+//@compile-flags: -Zmir-pipeline=if-convert
+//@filecheck:
+@module AgreeingArms
+
+// Checked Solidity's wrapping increment, `x == max ? 0 : x + 1`: the sum is
+// zero at `x == max`, so both edges give `x + 1` and the branch goes away
+// without a select.
+// CHECK-LABEL: {{^[ +].*}}fn @increment{{[( ]}}
+// CHECK: - jumpi
+// CHECK-NOT: mul
+// CHECK: {{^[ +]}}   ret [[SUM:v[0-9]+]]
+fn @increment(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = add arg0, 1
+    jump bb2
+  bb2:
+    v2 = phi [bb0: 0], [bb1: v1]
+    ret v2
+}
+
+// The wrapping decrement through a `!=` test: `x != 0 ? x - 1 : max`.
+// CHECK-LABEL: {{^[ +].*}}fn @decrement{{[( ]}}
+// CHECK: - jumpi
+// CHECK-NOT: mul
+fn @decrement(arg0: i256) -> i256 {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = sub arg0, 1
+    jump bb2
+  bb2:
+    v2 = phi [bb0: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff], [bb1: v1]
+    ret v2
+}
+
+// A negated test agrees the same way, and at a narrower width the sum wraps at
+// that width: `x + 1` of an `i160` is zero at `2**160 - 1`.
+// CHECK-LABEL: {{^[ +].*}}fn @negated_narrow{{[( ]}}
+// CHECK: - jumpi
+// CHECK-NOT: mul
+fn @negated_narrow(arg0: i160) -> i160 {
+  bb0:
+    v0 = eq arg0, i160 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = eq v0, false
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = add arg0, i160 1
+    jump bb2
+  bb2:
+    v3 = phi [bb0: i160 0], [bb1: v2]
+    ret v3
+}
+
+// An edge literal the operation does not give at the tested value keeps a
+// select: `x + 1` is zero, not one, at `x == max`.
+// CHECK-LABEL: {{^[ +].*}}fn @disagreeing{{[( ]}}
+// CHECK: mul
+fn @disagreeing(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = add arg0, 1
+    jump bb2
+  bb2:
+    v2 = phi [bb0: 1], [bb1: v1]
+    ret v2
+}
