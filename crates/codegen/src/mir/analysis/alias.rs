@@ -21,7 +21,7 @@
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
     AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee, FrameMode,
-    FrameSlotKind, Function, ImmutableId, InstId, InstKind, MAX_SCRATCH_ERROR_WORDS, MemoryRegion,
+    FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind, MAX_SCRATCH_ERROR_WORDS, MemoryRegion,
     MirType, PtrLocation,
     RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
@@ -2447,10 +2447,15 @@ impl AliasAnalysis {
     /// frame or a read of the free memory pointer, reaches it through constant additions alone.
     /// Unlike [`Self::pointer_lower_bound`], which bounds where a write may land, it trusts no
     /// runtime offset: assembly that forges a length can index an object's element around to
-    /// low memory, and a read there must see what was stored.
+    /// low memory, and a read there must see what was stored. `call` bounds the pointer an
+    /// internal call returns.
     #[must_use]
-    pub(crate) fn read_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
-        Self::constant_offset_lower_bound(func, value, 0)
+    pub(crate) fn read_lower_bound(
+        func: &Function,
+        value: ValueId,
+        call: &dyn Fn(FunctionId) -> Option<u64>,
+    ) -> Option<u64> {
+        Self::constant_offset_lower_bound(func, value, call, 0)
     }
 
     /// Returns the least address a word at `offset` of the current internal-call frame can
@@ -2462,7 +2467,12 @@ impl AliasAnalysis {
             .saturating_add(offset.saturating_sub(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE))
     }
 
-    fn constant_offset_lower_bound(func: &Function, value: ValueId, depth: usize) -> Option<u64> {
+    fn constant_offset_lower_bound(
+        func: &Function,
+        value: ValueId,
+        call: &dyn Fn(FunctionId) -> Option<u64>,
+        depth: usize,
+    ) -> Option<u64> {
         if depth > 8 {
             return None;
         }
@@ -2470,7 +2480,7 @@ impl AliasAnalysis {
             return Some(value);
         }
         let Value::Inst(inst) = func.value(value) else { return None };
-        let bound = |value| Self::constant_offset_lower_bound(func, value, depth + 1);
+        let bound = |value| Self::constant_offset_lower_bound(func, value, call, depth + 1);
         match &func.inst(*inst).kind {
             InstKind::Fmp
             | InstKind::Alloc { .. }
@@ -2482,6 +2492,7 @@ impl AliasAnalysis {
                 Some(EvmMemoryLayout::HEAP_START)
             }
             InstKind::InternalFrameAddr(offset) => Some(Self::frame_lower_bound(*offset)),
+            InstKind::ICall { function: Callee::Function(function), .. } => call(*function),
             InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => bound(*value),
             InstKind::Add(first, second) if super::integers::integer_bits(func, value) == 256 => {
                 bound(*first)
