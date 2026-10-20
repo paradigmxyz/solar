@@ -7,7 +7,14 @@ fn @three() [selector=0xae4e757a, abi_wrapper, pure] {
     v18 = lt v17, 100
     jumpi v18, bb1, bb2
   bb2:
-    v28 = icall @alloc, 128
+    v28 = mload 64 !metadata(memory=scratch)
+    v29 = add v28, 128
+    v30 = lt v29, v28
+    v31 = gt v29, 0xffffffffffffffff
+    v32 = or v30, v31
+    jumpi v32, bb4, bb3
+  bb3:
+    mstore 64, v29 !metadata(memory=scratch)
     mstore v28, 3
     v22 = add v28, 32
     mstore v22, arg0
@@ -18,6 +25,10 @@ fn @three() [selector=0xae4e757a, abi_wrapper, pure] {
     v16 = keccak256 v22, 96
     mstore 128, v16
     returndata 128, 32
+  bb4:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }
@@ -37,18 +48,29 @@ fn @addresses() [selector=0x82d38954, abi_wrapper, pure] {
     v13 = shr v12, 160
     v10 = calldatasize
     v11 = lt v10, 36
-    v21 = zext i1 v11 to i256
-    v22 = or v21, v13
-    v23 = ne v22, 0
-    jumpi v23, bb1, bb2
+    v26 = zext i1 v11 to i256
+    v27 = or v26, v13
+    v28 = ne v27, 0
+    jumpi v28, bb1, bb2
   bb2:
-    v20 = icall @alloc, 64
+    v20 = mload 64 !metadata(memory=scratch)
+    v21 = add v20, 64
+    v22 = lt v21, v20
+    v23 = gt v21, 0xffffffffffffffff
+    v24 = or v22, v23
+    jumpi v24, bb4, bb3
+  bb3:
+    mstore 64, v21 !metadata(memory=scratch)
     mstore v20, 1
     v18 = add v20, 32
     mstore v18, arg0
     v9 = keccak256 v18, 32
     mstore 128, v9
     returndata 128, 32
+  bb4:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }
@@ -70,21 +92,4 @@ fn @entry() [entry] {
     tail_call @addresses
   bb5:
     revert 0, 0
-}
-
-fn @alloc(arg0: i256) -> i256 {
-  bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
-    v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
-  bb2:
-    mstore 64, v2 !metadata(memory=scratch)
-    ret v0
-  bb1:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

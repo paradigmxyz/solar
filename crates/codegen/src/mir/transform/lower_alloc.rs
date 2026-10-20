@@ -8,9 +8,11 @@
 //! branches carry those effects. Source metadata stays on the original instruction.
 //!
 //! A checked allocation bumps the pointer only after testing the new end against overflow and
-//! the allocation limit, panicking otherwise. When a module has two or more, one `alloc(size)`
-//! helper owns the pointer load, check, panic, and update, and each site calls it and keeps its
-//! own zeroing; a single checked allocation splits its block around the inline check instead.
+//! the allocation limit, panicking otherwise. When the target prices one shared `alloc(size)`
+//! helper below expanding the check at every site, as the size objective does for two or more,
+//! the helper owns the pointer load, check, panic, and update, and each site calls it and keeps
+//! its own zeroing. Otherwise, as in gas builds, whose call protocol costs more than the check,
+//! each allocation splits its block around the inline check.
 //!
 //! A preserving allocation that reserves bytes an encoder already wrote through an
 //! earlier pointer read in the same block reuses that read instead of loading the
@@ -40,16 +42,16 @@ impl MirPass for LowerAlloc {
 
     fn run_pass(
         &self,
-        _gcx: Gcx<'_>,
+        gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        lower_alloc(module)
+        lower_alloc(gcx, module)
     }
 }
 
-fn lower_alloc(module: &mut Module) -> bool {
-    let mut changed = share_checked_allocations(module);
+fn lower_alloc(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let mut changed = share_checked_allocations(gcx, module);
     for func in module.functions.iter_mut() {
         changed |= lower_function(func);
     }
@@ -61,7 +63,8 @@ fn lower_alloc(module: &mut Module) -> bool {
 ///
 /// The helper owns only the pointer load, checked bump, panic, and update.
 /// Callers retain their initialization, so allocation ordering stays intact.
-fn share_checked_allocations(module: &mut Module) -> bool {
+/// The target decides whether the shared helper beats an inline check at every site.
+fn share_checked_allocations(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let count = module
         .functions
         .iter()
@@ -79,8 +82,16 @@ fn share_checked_allocations(module: &mut Module) -> bool {
     if count < 2 {
         return false;
     }
+    let function = checked_alloc_helper();
+    let target = module.target(gcx);
+    let body_bytes = target.code_estimate(&function).bytes;
+    let sites = u32::try_from(count).unwrap_or(u32::MAX);
+    let (shared, expanded) = target.helper_sharing(body_bytes, 1, 1, sites);
+    if !target.cmp(shared, expanded).is_lt() {
+        return false;
+    }
 
-    let helper = create_checked_alloc(module);
+    let helper = module.add_function(function);
     for func in &mut module.functions {
         let mut replacements = FxHashMap::default();
         let blocks = func.blocks.indices();
@@ -112,7 +123,7 @@ fn share_checked_allocations(module: &mut Module) -> bool {
     true
 }
 
-fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
+fn checked_alloc_helper() -> Function {
     let mut function = Function::new(Ident::with_dummy_span(sym::alloc));
     {
         let mut builder = FunctionBuilder::new(&mut function);
@@ -138,7 +149,7 @@ fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
         builder.switch_to_block(panic);
         builder.panic(PanicCode::MemoryAllocationOverflow);
     }
-    module.add_function(function)
+    function
 }
 
 fn lower_function(func: &mut Function) -> bool {

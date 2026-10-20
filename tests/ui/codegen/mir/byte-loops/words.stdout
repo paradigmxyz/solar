@@ -141,9 +141,16 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     jumpi v1, bb6, bb7
   bb7:
     v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v88 = icall @alloc, v3
-    v90 = calldatasize
-    calldatacopy v88, v90, v3
+    v88 = mload 64 !metadata(memory=scratch)
+    v89 = add v88, v3
+    v90 = lt v89, v88
+    v91 = gt v89, 0xffffffffffffffff
+    v92 = or v90, v91
+    jumpi v92, bb6, bb15
+  bb15:
+    mstore 64, v89 !metadata(memory=scratch)
+    v94 = calldatasize
+    calldatacopy v88, v94, v3
     mstore v88, arg2
     v27 = eq arg2, 0
     jumpi v27, bb2, bb4
@@ -238,7 +245,14 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     jumpi v11, bb3, bb4
   bb4:
     v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v26 = icall @alloc, v13
+    v26 = mload 64 !metadata(memory=scratch)
+    v27 = add v26, v13
+    v28 = lt v27, v26
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb3, bb6
+  bb6:
+    mstore 64, v27 !metadata(memory=scratch)
     mstore v26, v8
     v15 = sub v0, v3
     v16 = gt v8, v15
@@ -276,21 +290,4 @@ fn @entry() [entry] {
     tail_call @load4
   bb7:
     revert 0, 0
-}
-
-fn @alloc(arg0: i256) -> i256 {
-  bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
-    v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
-  bb2:
-    mstore 64, v2 !metadata(memory=scratch)
-    ret v0
-  bb1:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

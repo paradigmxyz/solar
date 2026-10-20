@@ -127,9 +127,16 @@ fn @afterAllocation() [selector=0x510dcf1e, abi_wrapper, pure] {
     v15 = ne v11, v7
     jumpi v15, bb1, bb3
   bb3:
-    v24 = icall @alloc, v9
-    v26 = calldatasize
-    calldatacopy v24, v26, v9
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, v9
+    v26 = lt v25, v24
+    v27 = gt v25, 0xffffffffffffffff
+    v28 = or v26, v27
+    jumpi v28, bb1, bb6
+  bb6:
+    mstore 64, v25 !metadata(memory=scratch)
+    v30 = calldatasize
+    calldatacopy v24, v30, v9
     mstore v24, arg0
     v18 = add arg0, arg0
     mstore 128, v18
@@ -159,7 +166,14 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb4:
     v11 = add v8, 1
     v12 = shl v11, 5
-    v27 = icall @alloc, v12
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, v12
+    v29 = lt v28, v27
+    v30 = gt v28, 0xffffffffffffffff
+    v31 = or v29, v30
+    jumpi v31, bb3, bb6
+  bb6:
+    mstore 64, v28 !metadata(memory=scratch)
     mstore v27, v8
     v14 = shl v8, 5
     v15 = sub v0, v3
@@ -195,21 +209,4 @@ fn @entry() [entry] {
     tail_call @keepsCheck
   bb5:
     revert 0, 0
-}
-
-fn @alloc(arg0: i256) -> i256 {
-  bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
-    v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
-  bb2:
-    mstore 64, v2 !metadata(memory=scratch)
-    ret v0
-  bb1:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

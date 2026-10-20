@@ -11,8 +11,8 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v38 = gt v35, 0xffffffffffffffff
     v39 = gt v37, v33
     v40 = or v38, v39
-    v118 = or v34, v40
-    jumpi v118, bb4, bb5
+    v123 = or v34, v40
+    jumpi v123, bb4, bb5
   bb5:
     v42 = calldataload v36
     v44 = add v42, 63
@@ -20,7 +20,14 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     jumpi v45, bb6, bb7
   bb7:
     v47 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v81 = icall @alloc, v47
+    v81 = mload 64 !metadata(memory=scratch)
+    v82 = add v81, v47
+    v83 = lt v82, v81
+    v84 = gt v82, 0xffffffffffffffff
+    v85 = or v83, v84
+    jumpi v85, bb6, bb9
+  bb9:
+    mstore 64, v82 !metadata(memory=scratch)
     mstore v81, v42
     v49 = sub v33, v37
     v50 = gt v42, v49
@@ -35,31 +42,31 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
     v5 = add v3, 32
     v7 = add v81, v42
-    v113 = sub v7, v81
-    v114 = and v113, 1
-    v115 = ne v114, 0
-    jumpi v115, bb9, bb10
-  bb9:
-    v87 = add v81, 1
-    v88 = mload v87
-    v89 = and v88, 15
-    v90 = mload v89
-    v91 = add v5, 1
-    mstore8 v91, v90
-    v92 = mload v87
-    v93 = shr v92, 4
+    v118 = sub v7, v81
+    v119 = and v118, 1
+    v120 = ne v119, 0
+    jumpi v120, bb10, bb11
+  bb10:
+    v92 = add v81, 1
+    v93 = mload v92
     v94 = and v93, 15
     v95 = mload v94
-    mstore8 v5, v95
-    v96 = add v5, 2
-    jump bb10
-  bb10:
-    v116 = phi [bb8: v81], [bb9: v87]
-    v117 = phi [bb8: v5], [bb9: v96]
+    v96 = add v5, 1
+    mstore8 v96, v95
+    v97 = mload v92
+    v98 = shr v97, 4
+    v99 = and v98, 15
+    v100 = mload v99
+    mstore8 v5, v100
+    v101 = add v5, 2
+    jump bb11
+  bb11:
+    v121 = phi [bb8: v81], [bb10: v92]
+    v122 = phi [bb8: v5], [bb10: v101]
     jump bb1
   bb1:
-    v8 = phi [bb10: v116], [bb3: v102]
-    v11 = phi [bb10: v117], [bb3: v111]
+    v8 = phi [bb11: v121], [bb3: v107]
+    v11 = phi [bb11: v122], [bb3: v116]
     v16 = ne v8, v7
     jumpi v16, bb3, bb2
   bb2:
@@ -91,19 +98,19 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v27 = and v26, 15
     v28 = mload v27
     mstore8 v11, v28
-    v102 = add v20, 1
-    v103 = mload v102
-    v104 = and v103, 15
-    v105 = mload v104
-    v106 = add v11, 3
-    mstore8 v106, v105
-    v107 = mload v102
-    v108 = shr v107, 4
+    v107 = add v20, 1
+    v108 = mload v107
     v109 = and v108, 15
     v110 = mload v109
+    v111 = add v11, 3
+    mstore8 v111, v110
+    v112 = mload v107
+    v113 = shr v112, 4
+    v114 = and v113, 15
+    v115 = mload v114
     v29 = add v11, 2
-    mstore8 v29, v110
-    v111 = add v11, 4
+    mstore8 v29, v115
+    v116 = add v11, 4
     jump bb1
   bb6:
     mstore 32, 65 !metadata(memory=scratch)
@@ -123,8 +130,8 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v23 = gt v20, 0xffffffffffffffff
     v24 = gt v22, v18
     v25 = or v23, v24
-    v64 = or v19, v25
-    jumpi v64, bb4, bb5
+    v70 = or v19, v25
+    jumpi v70, bb4, bb5
   bb5:
     v27 = calldataload v21
     v29 = gt v27, 0x7fffffffffffffe
@@ -132,44 +139,51 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
   bb7:
     v30 = add v27, 1
     v31 = shl v30, 5
-    v47 = icall @alloc, v31
-    mstore v47, v27
+    v48 = mload 64 !metadata(memory=scratch)
+    v49 = add v48, v31
+    v50 = lt v49, v48
+    v51 = gt v49, 0xffffffffffffffff
+    v52 = or v50, v51
+    jumpi v52, bb6, bb9
+  bb9:
+    mstore 64, v49 !metadata(memory=scratch)
+    mstore v48, v27
     v33 = shl v27, 5
     v34 = sub v18, v22
     v35 = shr v34, 5
     v36 = gt v27, v35
     jumpi v36, bb4, bb8
   bb8:
-    v44 = add v47, 32
-    calldatacopy v44, v22, v33
-    v5 = add v44, v33
-    v60 = and v27, 1
-    v61 = ne v60, 0
-    jumpi v61, bb9, bb10
-  bb9:
-    v51 = mload v44
-    v52 = add 0, v51
-    v53 = add v44, 32
-    jump bb10
+    v45 = add v48, 32
+    calldatacopy v45, v22, v33
+    v5 = add v45, v33
+    v66 = and v27, 1
+    v67 = ne v66, 0
+    jumpi v67, bb10, bb11
   bb10:
-    v62 = phi [bb8: 0], [bb9: v52]
-    v63 = phi [bb8: v44], [bb9: v53]
+    v57 = mload v45
+    v58 = add 0, v57
+    v59 = add v45, 32
+    jump bb11
+  bb11:
+    v68 = phi [bb8: 0], [bb10: v58]
+    v69 = phi [bb8: v45], [bb10: v59]
     jump bb1
   bb1:
-    v7 = phi [bb10: v62], [bb3: v58]
-    v8 = phi [bb10: v63], [bb3: v59]
+    v7 = phi [bb11: v68], [bb3: v64]
+    v8 = phi [bb11: v69], [bb3: v65]
     v12 = ne v8, v5
     jumpi v12, bb3, bb2
   bb2:
-    mstore 0, v7 !metadata(memory=scratch)
-    returndata 0, 32
+    mstore 128, v7
+    returndata 128, 32
   bb3:
     v15 = mload v8
     v16 = add v7, v15
     v17 = add v8, 32
-    v57 = mload v17
-    v58 = add v16, v57
-    v59 = add v8, 64
+    v63 = mload v17
+    v64 = add v16, v63
+    v65 = add v8, 64
     jump bb1
   bb6:
     mstore 32, 65 !metadata(memory=scratch)
@@ -185,31 +199,31 @@ fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
     v12 = lt v11, 68
     jumpi v12, bb4, bb5
   bb5:
-    v24 = sub arg1, arg0
-    v25 = and v24, 1
-    v26 = ne v25, 0
-    jumpi v26, bb6, bb7
+    v25 = sub arg1, arg0
+    v26 = and v25, 1
+    v27 = ne v26, 0
+    jumpi v27, bb6, bb7
   bb6:
-    v17 = add 0, arg0
-    v18 = add arg0, 3
+    v18 = add 0, arg0
+    v19 = add arg0, 3
     jump bb7
   bb7:
-    v27 = phi [bb5: 0], [bb6: v17]
-    v28 = phi [bb5: arg0], [bb6: v18]
+    v28 = phi [bb5: 0], [bb6: v18]
+    v29 = phi [bb5: arg0], [bb6: v19]
     jump bb1
   bb1:
-    v2 = phi [bb7: v27], [bb3: v22]
-    v3 = phi [bb7: v28], [bb3: v23]
+    v2 = phi [bb7: v28], [bb3: v23]
+    v3 = phi [bb7: v29], [bb3: v24]
     v6 = ne v3, arg1
     jumpi v6, bb3, bb2
   bb2:
-    mstore 0, v2 !metadata(memory=scratch)
-    returndata 0, 32
+    mstore 128, v2
+    returndata 128, 32
   bb3:
     v9 = add v2, v3
     v10 = add v3, 3
-    v22 = add v9, v10
-    v23 = add v10, 3
+    v23 = add v9, v10
+    v24 = add v10, 3
     jump bb1
   bb4:
     revert 0, 0
@@ -232,21 +246,4 @@ fn @entry() [entry] {
     tail_call @sumWords
   bb5:
     revert 0, 0
-}
-
-fn @alloc(arg0: i256) -> i256 {
-  bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
-    v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
-  bb2:
-    mstore 64, v2 !metadata(memory=scratch)
-    ret v0
-  bb1:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
