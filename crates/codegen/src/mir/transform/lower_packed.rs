@@ -226,10 +226,19 @@ impl PackedEncoder<'_, '_> {
             Some(self.builder.fmp())
         } else {
             let _ = u64::try_from(self.builder.func().value_u256(total)?).ok()?;
+            // Plan the stores the writes below make, merged words included, and find how far
+            // the last word reaches.
             let mut max_write_end = 0u64;
             let mut offset = 0u64;
-            for piece in &pieces {
-                match piece {
+            let mut index = 0;
+            while index < pieces.len() {
+                if let Some((consumed, length)) = packed_word_group(&pieces[index..]) {
+                    max_write_end = max_write_end.max(offset.checked_add(32)?);
+                    offset = offset.checked_add(length)?;
+                    index += consumed;
+                    continue;
+                }
+                match &pieces[index] {
                     PackedPiece::Bytes(bytes) => {
                         for chunk in bytes.chunks(32) {
                             max_write_end = max_write_end.max(offset.checked_add(32)?);
@@ -242,6 +251,7 @@ impl PackedEncoder<'_, '_> {
                     }
                     PackedPiece::Dynamic { .. } | PackedPiece::Array { .. } => return None,
                 }
+                index += 1;
             }
             (max_write_end > EvmMemoryLayout::FMP_SLOT).then(|| self.builder.fmp())
         };
@@ -455,48 +465,30 @@ impl PackedEncoder<'_, '_> {
     }
 
     fn try_pack_packed_word(&mut self, pieces: &[PackedPiece]) -> Option<(usize, u64, ValueId)> {
+        let (consumed, length) = packed_word_group(pieces)?;
         let mut constant = U256::ZERO;
         let mut terms = Vec::new();
-        let mut length = 0u64;
-        let mut consumed = 0;
-
-        for piece in pieces {
+        let mut offset = 0u64;
+        for piece in &pieces[..consumed] {
             match piece {
                 PackedPiece::Bytes(bytes) => {
                     let piece_length = u64::try_from(bytes.len()).ok()?;
-                    if piece_length == 0 {
-                        consumed += 1;
-                        continue;
-                    }
-                    if length.checked_add(piece_length)? > 32 {
-                        break;
-                    }
-                    let shift = (32 - length - piece_length) * 8;
+                    let shift = (32 - offset - piece_length) * 8;
                     constant |= U256::from_be_slice(bytes) << usize::try_from(shift).unwrap();
-                    length += piece_length;
-                    consumed += 1;
+                    offset += piece_length;
                 }
-                PackedPiece::Static { value, length: piece_length, fixed_bytes, signed }
-                    if *piece_length < 32 =>
-                {
+                PackedPiece::Static { value, length: piece_length, fixed_bytes, signed } => {
                     if *piece_length == 0 {
-                        consumed += 1;
                         continue;
                     }
-                    if length.checked_add(*piece_length)? > 32 {
-                        break;
-                    }
-                    let shift = (32 - length - *piece_length) * 8;
+                    let shift = (32 - offset - *piece_length) * 8;
                     terms.push((*value, shift, *piece_length, *signed, *fixed_bytes));
-                    length += *piece_length;
-                    consumed += 1;
+                    offset += *piece_length;
                 }
-                _ => break,
+                PackedPiece::Dynamic { .. } | PackedPiece::Array { .. } => {
+                    unreachable!("packed word groups hold only literals and narrow scalars")
+                }
             }
-        }
-
-        if consumed < 2 || length == 0 || terms.is_empty() {
-            return None;
         }
 
         let mut value = self.builder.imm(constant);
@@ -543,6 +535,39 @@ impl PackedEncoder<'_, '_> {
         self.builder.memory_store_word(output, offset, value);
         Some((consumed, length))
     }
+}
+
+/// The leading pieces that share one word store: literal bytes and scalars narrower than a word,
+/// at least two of them and one scalar, together at most 32 bytes. Returns how many pieces the
+/// word takes and how many bytes they fill.
+fn packed_word_group(pieces: &[PackedPiece]) -> Option<(usize, u64)> {
+    let mut length = 0u64;
+    let mut consumed = 0;
+    let mut scalars = 0;
+    for piece in pieces {
+        match piece {
+            PackedPiece::Bytes(bytes) => {
+                let piece_length = u64::try_from(bytes.len()).ok()?;
+                if piece_length != 0 && length.checked_add(piece_length)? > 32 {
+                    break;
+                }
+                length += piece_length;
+                consumed += 1;
+            }
+            PackedPiece::Static { length: piece_length, .. } if *piece_length < 32 => {
+                if *piece_length != 0 {
+                    if length.checked_add(*piece_length)? > 32 {
+                        break;
+                    }
+                    scalars += 1;
+                }
+                length += *piece_length;
+                consumed += 1;
+            }
+            _ => break,
+        }
+    }
+    (consumed >= 2 && length != 0 && scalars != 0).then_some((consumed, length))
 }
 
 fn known_byte_length(func: &Function, object: ValueId, block: BlockId) -> Option<u64> {
