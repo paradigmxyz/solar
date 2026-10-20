@@ -37,14 +37,20 @@
 //! and zeros past its end, but never the bytes of code, which only assembly decides. A dynamic
 //! jump must land on a block whose address the program pushes. A program that reveals the
 //! layout, such as by returning, storing, or hashing an address, or by copying past a data entry
-//! into whatever follows it, gets another result on another layout:
+//! into whatever follows it, can get another result on another layout:
 //! [`transact`](crate::transact) runs every transaction on two layouts and reports a difference as
-//! unsupported. One layout ends the code after a single byte, the least a program that reads its
-//! code size has, so its blocks share addresses with the data, which only jumps tell apart. The
-//! other starts the blocks past 1 MiB, longer than any contract a block's gas can deploy, yet short
-//! enough for a copy of the code size to fit in memory. The two code sizes bound the assembled one,
-//! unless the assembled code is longer than 1 MiB, so comparing the code size with a constant that
-//! the assembled code size could fall on either side of also gets two results.
+//! unsupported. One layout ends the code after a single byte, so its blocks share addresses with
+//! the data, which only jumps tell apart. The other starts the blocks past 1 MiB, yet short enough
+//! for a copy of the code size to fit in memory. This check detects differences between those
+//! layouts; agreement does not prove an arbitrary address-dependent expression independent of
+//! layout.
+//!
+//! `CODESIZE` stays unknown: equality with the assembled size could be false on both layouts.
+//! The run tracks its unmodified value through stack operations. It may be discarded, or used
+//! as `CODECOPY`'s source offset when its other operands are not code sizes, which copies zeros.
+//! All other consumers, including arithmetic and comparisons, are unsupported before their result
+//! can reach memory, storage, control flow, or a host read. NOTE: This also rejects arithmetic
+//! whose result would cancel the code size; it does not try to prove such cancellations.
 //!
 //! # Limits
 //!
@@ -289,6 +295,7 @@ impl<'m> Machine<'m> {
             host,
             calldata,
             stack: Vec::new(),
+            code_sizes: DenseBitSet::new_empty(MAX_STACK_DEPTH),
             memory: Memory::default(),
             effects: Effects::default(),
             fuel,
@@ -471,6 +478,8 @@ struct Run<'r, 'm, 't> {
     calldata: &'r [u8],
     /// The stack, bottom first.
     stack: Vec<U256>,
+    /// Stack slots holding an unmodified `CODESIZE`, which is unknown before assembly.
+    code_sizes: DenseBitSet<usize>,
     memory: Memory,
     effects: Effects,
     fuel: u64,
@@ -585,26 +594,32 @@ impl<'m> Run<'_, 'm, '_> {
         let top = depth - 1;
         match stack_op {
             StackOp::Dup(n) => {
-                let value = self.stack[depth - usize::from(n)];
+                let source = depth - usize::from(n);
+                let value = self.stack[source];
+                let code_size = self.code_sizes.contains(source);
                 self.trace(block, Site::Instruction(inst), &[], Some(value));
                 self.push(value)?;
+                if code_size {
+                    self.code_sizes.insert(depth);
+                }
             }
             StackOp::Swap(n) => {
                 let other = top - usize::from(n);
                 let words = [self.stack[top], self.stack[other]];
                 self.trace(block, Site::Instruction(inst), &words, None);
-                self.stack.swap(top, other);
+                self.swap(top, other);
             }
             StackOp::Exchange(n, m) => {
                 let (first, second) = (top - usize::from(n), top - usize::from(m));
                 let words = [self.stack[first], self.stack[second]];
                 self.trace(block, Site::Instruction(inst), &words, None);
-                self.stack.swap(first, second);
+                self.swap(first, second);
             }
             StackOp::Pop => {
                 let words = [self.stack[top]];
                 self.trace(block, Site::Instruction(inst), &words, None);
                 self.stack.pop();
+                self.code_sizes.remove(top);
             }
         }
         Ok(())
@@ -673,6 +688,23 @@ impl<'m> Run<'_, 'm, '_> {
             self.trace(block, site, &[], None);
             return Err(Outcome::Halt(Halt::StackUnderflow));
         }
+        let start = self.stack.len() - inputs;
+        if self.code_sizes.contains_any(start..self.stack.len()) {
+            // NOTE: Agreement between two layouts cannot prove a size comparison or arithmetic
+            // independent of assembly. Only using an unmodified size as CODECOPY's source is
+            // supported: it reads zeros, and its other operands must not be code sizes.
+            if opcode != op::CODECOPY
+                || !self.code_sizes.contains(start + 1)
+                || self.code_sizes.contains(start)
+                || self.code_sizes.contains(start + 2)
+            {
+                let operands =
+                    self.stack[start..].iter().rev().copied().collect::<SmallVec<[_; 8]>>();
+                self.trace(block, site, &operands, None);
+                return Err(unsupported("observes the code size, which only assembly decides"));
+            }
+            self.code_sizes.remove(start + 1);
+        }
         // Operands in pop order: the top of the stack first.
         let operands =
             self.stack.drain(self.stack.len() - inputs..).rev().collect::<SmallVec<[U256; 8]>>();
@@ -690,7 +722,14 @@ impl<'m> Run<'_, 'm, '_> {
         self.trace(block, site, &operands, result);
         match effect? {
             Effect::Next => Ok(None),
-            Effect::Push(value) => self.push(value).map(|()| None),
+            Effect::Push(value) => {
+                let slot = self.stack.len();
+                self.push(value)?;
+                if opcode == op::CODESIZE {
+                    self.code_sizes.insert(slot);
+                }
+                Ok(None)
+            }
             Effect::Jump(target) => Ok(Some(target)),
         }
     }
@@ -812,10 +851,15 @@ impl<'m> Run<'_, 'm, '_> {
 
     /// Pops the top of the stack for the operation at `site`.
     fn pop(&mut self, block: BlockId, site: Site<'_>) -> Result<U256, Outcome> {
-        self.stack.pop().ok_or_else(|| {
+        let value = self.stack.pop().ok_or_else(|| {
             self.trace(block, site, &[], None);
             Outcome::Halt(Halt::StackUnderflow)
-        })
+        })?;
+        if self.code_sizes.remove(self.stack.len()) {
+            self.trace(block, site, &[value], None);
+            return Err(unsupported("observes the code size, which only assembly decides"));
+        }
+        Ok(value)
     }
 
     /// Pushes `value`.
@@ -823,6 +867,7 @@ impl<'m> Run<'_, 'm, '_> {
         if self.stack.len() == MAX_STACK_DEPTH {
             return Err(Outcome::Halt(Halt::StackOverflow));
         }
+        self.code_sizes.remove(self.stack.len());
         self.stack.push(value);
         Ok(())
     }
@@ -855,6 +900,19 @@ impl<'m> Run<'_, 'm, '_> {
             let _ = write!(line, " -> {result:#x}");
         }
         sink(&line);
+    }
+
+    /// Exchanges two stack slots, retaining whether they hold the code size.
+    fn swap(&mut self, first: usize, second: usize) {
+        self.stack.swap(first, second);
+        let first_size = self.code_sizes.remove(first);
+        let second_size = self.code_sizes.remove(second);
+        if first_size {
+            self.code_sizes.insert(second);
+        }
+        if second_size {
+            self.code_sizes.insert(first);
+        }
     }
 }
 

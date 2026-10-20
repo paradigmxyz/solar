@@ -47,6 +47,11 @@ and pushed block addresses report its own choices. It runs every transaction a s
 them moved, and reports a run whose result changes with them as unsupported, since the bytecode
 would see other addresses.
 
+Agreement between those layouts cannot establish the value of `codesize`: equality with the real
+assembled size may be false in both. The interpreter permits discarding it or using it unmodified
+as the source offset of `codecopy`, which reads zeros there. All other uses of `codesize`,
+including arithmetic and comparisons, are unsupported.
+
 ## Output
 
 The tool prints how the run ended, the events it logged, and the persistent and transient storage

@@ -201,3 +201,78 @@ fn unsupported_and_halts() {
 "#]]
     );
 }
+
+#[test]
+fn exact_code_size_is_unsupported() {
+    // With native PUSH0 and no IR passes, this program assembles to ten bytes.
+    // Both synthetic layouts have another size, so equality alone misses it.
+    let program = "@module size\nbb0:\n  codesize\n  push 10\n  eq\n  push 0\n  mstore\n  push 32\n  push 0\n  return\n";
+    let run = run_with("-", program, &[]);
+    assert_eq!(run.code, 2);
+    assert_eq!(run.stderr, "");
+    assert_data_eq!(
+        run.stdout,
+        str![[r#"
+could not run: observes the code size, which only assembly decides
+
+"#]]
+    );
+}
+
+#[test]
+fn code_size_consumers_are_unsupported() {
+    for body in [
+        "codesize\n  dup 1\n  push 10\n  eq\n  stop",
+        "codesize\n  push 0\n  swap 1\n  push 10\n  eq\n  stop",
+        "codesize\n  push 0\n  push 0\n  exchange 1, 2\n  pop\n  push 10\n  eq\n  stop",
+        "codesize\n  push 0\n  mstore\n  stop",
+        "codesize\n  push 1\n  add\n  stop",
+        "push 7\n  push 0\n  sstore\n  codesize\n  push 10\n  eq\n  stop",
+        "codesize\n  jumpi bb1, bb1\nbb1:\n  stop",
+        "codesize\n  jump bb1\nbb1:\n  push 10\n  eq\n  stop",
+        "codesize\n  push 0\n  push 0\n  codecopy\n  stop",
+        "push 0\n  push 0\n  codesize\n  codecopy\n  stop",
+    ] {
+        let program = format!("@module size\nbb0:\n  {body}\n");
+        let run = run_with("-", &program, &[]);
+        assert_eq!(run.code, 2, "{body}: {}", run.stderr);
+        assert_eq!(run.stderr, "");
+        assert_data_eq!(
+            run.stdout,
+            str![[r#"
+could not run: observes the code size, which only assembly decides
+
+"#]]
+        );
+    }
+}
+
+#[test]
+fn code_size_can_be_discarded_or_copy_zeros() {
+    let program = "@module size\nbb0:\n  codesize\n  dup 1\n  pop\n  pop\n  push 1\n  push 0\n  sstore\n  stop\n";
+    let run = run_with("-", program, &[]);
+    assert_eq!(run.code, 0);
+    assert_eq!(run.stderr, "");
+    assert_data_eq!(
+        run.stdout,
+        str![[r#"
+stopped
+storage:
+  0x0 = 0x1
+
+"#]]
+    );
+
+    // Stack permutations must retain the one permitted use: CODECOPY's source offset.
+    let program = "@module size\nbb0:\n  push 32\n  codesize\n  push 0\n  swap 1\n  swap 1\n  codecopy\n  push 32\n  push 0\n  return\n";
+    let run = run_with("-", program, &[]);
+    assert_eq!(run.code, 0);
+    assert_eq!(run.stderr, "");
+    assert_data_eq!(
+        run.stdout,
+        str![[r#"
+returned 0x0000000000000000000000000000000000000000000000000000000000000000
+
+"#]]
+    );
+}

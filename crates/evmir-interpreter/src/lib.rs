@@ -80,6 +80,10 @@ pub struct DumpedModule {
 /// The assembler decides the addresses of blocks and data, so the interpreter picks its own. The
 /// transaction runs again with those moved, and a result that changes with them is unsupported,
 /// since the compiled code would see other addresses.
+///
+/// `CODESIZE` is unknown before assembly. Its value may be discarded or used unmodified as the
+/// source offset of `CODECOPY`, which reads zeros there. Other uses are unsupported even when
+/// the two layouts agree: agreement cannot rule out equality with the assembled size.
 pub fn transact(
     evm_ir: &str,
     calldata: &[u8],
@@ -466,7 +470,7 @@ bb0:
                 .repeat(22)
         );
         let execution = transact(&module, &[], &mut Zero, Options::default()).unwrap();
-        let reason = "a result that depends on the code layout".to_owned();
+        let reason = "observes the code size, which only assembly decides".to_owned();
         assert_eq!(execution.outcome, Outcome::Unsupported(reason.clone()));
 
         // Empty blocks assemble to no code, so the code can be shorter than the block count.

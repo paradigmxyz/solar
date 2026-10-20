@@ -39,6 +39,12 @@ addresses end a run as unsupported. EVM IR leaves code addresses to the assemble
 interpreter places blocks and data itself, and runs each transaction again with them moved: a
 result that changes with them is unsupported, since the bytecode sees other addresses.
 
+`CODESIZE` remains unknown before assembly: two layouts can agree on a comparison whose result
+differs at the assembled size. Its value may be discarded or used unmodified as `CODECOPY`'s source
+offset, which reads zeros past the code's end. Other uses, including arithmetic and comparisons,
+are unsupported. The two-layout check detects other address-dependent results but does not prove
+arbitrary expressions independent of layout.
+
 The compiler's UI test runner executes every `run-call` directive in an EVM. With
 `SOLAR_RUN_CALL_EVM_IR` set, it also runs the call through `transact` on the runtime EVM IR the
 compiler scheduled for that bytecode, before the EVM IR pipeline, and a test written in EVM IR
