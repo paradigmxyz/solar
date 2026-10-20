@@ -60,3 +60,49 @@ fn @unwrapped() -> i1 [selector=0x52e7751f, view, abi_params=[], abi_returns=[wo
     v2 = eq v1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     ret v2
 }
+
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_dirty_immutables.sol:Stored ===
+@module Stored
+@immutables
+  stored: bytes4
+  storedWrapped: bytes4
+
+fn @stored() -> i256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = loadimmutable stored
+    ret v0
+}
+
+fn @storedWrapped() -> i256 [selector=0x5863c7b1, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = loadimmutable storedWrapped
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    storeimmutable stored, v1
+    v2 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
+    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    storeimmutable storedWrapped, v3
+    ret
+}
+
+fn @full(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+fn @internal_dispatcher_asm_p_uint256_r_bytes4(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @full, arg1
+    ret v1
+}

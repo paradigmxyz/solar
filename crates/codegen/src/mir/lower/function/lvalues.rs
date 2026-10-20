@@ -284,7 +284,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.cx.report_unsupported(span, "identifier")
     }
 
-    /// Stores a value in an immutable. An enum is range checked at the store, like solc.
+    /// Stores a value in an immutable. A raw immutable keeps the bits assembly wrote; any other
+    /// is cleaned, and an enum range checked, like solc.
     pub(super) fn store_immutable_value(
         &mut self,
         id: VariableId,
@@ -292,7 +293,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut value: ValueId,
     ) {
         let source_ty = self.cx.gcx.type_of_item(id.into());
-        if matches!(source_ty.kind, TyKind::Enum(_)) {
+        if matches!(source_ty.kind, TyKind::Enum(_)) || !self.cx.state.raw_scalars.contains(&id) {
             value = self.normalize_dirty_scalar(value, source_ty);
         }
         // value = cast to the immutable value type
