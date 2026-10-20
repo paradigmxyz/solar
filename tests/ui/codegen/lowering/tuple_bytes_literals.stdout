@@ -1,0 +1,93 @@
+// === ROOT/tests/ui/codegen/lowering/tuple_bytes_literals.sol:TupleBytesLiterals ===
+@module TupleBytesLiterals
+@phase lowered
+@types
+  struct0: {i256, i256}
+
+fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
+  bb0:
+    v10 = calldatasize
+    v11 = lt v10, 36
+    v12 = calldataload 4
+    v13 = add v12, 4
+    v14 = add v13, 32
+    v15 = gt v12, 0xffffffffffffffff
+    v16 = gt v14, v10
+    v17 = or v15, v16
+    v60 = or v11, v17
+    jumpi v60, bb3, bb4
+  bb4:
+    v19 = calldataload v13
+    v21 = add v19, 63
+    v22 = lt v21, v19
+    jumpi v22, bb5, bb6
+  bb6:
+    v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v54 = mload 64 !metadata(memory=scratch)
+    v55 = add v54, v24
+    v56 = lt v55, v54
+    v57 = gt v55, 0xffffffffffffffff
+    v58 = or v56, v57
+    jumpi v58, bb5, bb8
+  bb8:
+    mstore 64, v55 !metadata(memory=scratch)
+    mstore v54, v19
+    v26 = sub v10, v14
+    v27 = gt v19, v26
+    jumpi v27, bb3, bb7
+  bb7:
+    v51 = add v54, 32
+    calldatacopy v51, v14, v19
+    v1 = gt v19, 0
+    v4 = gt v19, 1
+    v61 = and v1, v4
+    jumpi v61, bb2, bb1
+  bb1:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    v47 = add v54, 33
+    mstore8 v47, 120
+    mstore8 v51, 48
+    v38 = add v19, 31
+    v40 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v42 = add v51, v40
+    mstore v42, 0
+    v49 = add v54, 64
+    mcopy v49, v51, v19
+    mstore v54, 32
+    mstore v51, v19
+    v44 = add v40, 64
+    returndata v54, v44
+  bb5:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
+  bb0:
+    mstore 128, 0x3000000000000000000000000000000000000000000000000000000000000000
+    mstore 160, 0x7879000000000000000000000000000000000000000000000000000000000000
+    returndata 128, 64
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x1cd9057 => bb2, 0xf2c31bd9 => bb3]
+  bb3:
+    tail_call @words
+  bb2:
+    tail_call @prefix
+  bb4:
+    revert 0, 0
+}
