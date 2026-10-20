@@ -11,15 +11,16 @@
 //@ run-call-fail: fail 7 => 0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002573637261746368206c69746572616c2074686174207370616e732074776f20776f7264732c000000000000000000000000000000000000000000000000000000
 //@ run-call-fail: aliased => 0xf37cd160000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000003616263000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000036162630000000000000000000000000000000000000000000000000000000000
 //@ run-call-fail: grown 64 => 0x5c11eac3000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000406162000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000026364000000000000000000000000000000000000000000000000000000000000
+//@ run-call: pair 5 => 5, "scratch literal that spans two words:"
 //@ run-call: shifted => 0x616263, 192
 //@ run-call: recycledText => 0xabcd
 
 // A literal folded into a scratch encode: `hash` hashes it, `text` returns it, and `fail`
 // reverts with it. `observed` and `observedRevert` read its allocation after the encode.
-// `shifted` returns the address of a later allocation, `aliased` reverts with a pointer into the
-// literal, and `grown` lengthens an earlier literal so that its copy reaches the last one. The
-// recycled cases overwrite a literal through an older allocation, so its bytes differ from the
-// ones it was initialized with.
+// `pair` returns a word and a literal. `shifted` returns the address of a later allocation,
+// `aliased` reverts with a pointer into the literal, and `grown` lengthens an earlier literal
+// so that its copy reaches the last one. The recycled cases overwrite a literal through an
+// older allocation, so its bytes differ from the ones it was initialized with.
 error E(bytes a, string b);
 error F(bytes a, bytes b, uint256 p);
 
@@ -74,6 +75,10 @@ contract C {
         }
         bytes memory last = "cd";
         revert F(first, last, 0);
+    }
+
+    function pair(uint256 x) external pure returns (uint256, string memory) {
+        return (x, "scratch literal that spans two words:");
     }
 
     function shifted() external pure returns (bytes memory, uint256) {

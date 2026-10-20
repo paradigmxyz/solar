@@ -1597,10 +1597,10 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
 }
 
 /// Literal objects whose allocation nothing can observe once their scratch encode has run: the
-/// block returns or reverts with exactly the encoded bytes right after it, so no later access
-/// reads the allocation or the free-memory pointer it moved. The literal's allocation is the
-/// last one before the encode and no other argument reads memory, so no address shifts and no
-/// argument reaches into the literal. `literal_objects_at_encodes` already proved that no access
+/// block returns or reverts with exactly the encoded bytes after only pure instructions, so no
+/// later access reads the allocation or the free-memory pointer it moved. The literal's allocation
+/// is the last one before the encode and no other argument reads memory, so no address shifts and
+/// no argument reaches into the literal. `literal_objects_at_encodes` already proved that no access
 /// sits between the allocation and the encode.
 fn terminal_scratch_literals(
     func: &Function,
@@ -1635,9 +1635,9 @@ fn terminal_scratch_literals(
                         if func.inst(*projection).kind.slice_projection() == Some((encoded, field)))
                 },
             )
-            && block.instructions[index + 1..].iter().all(|&later| {
-                !literal_opaque_instruction(func, &func.inst(later).kind, &FxHashSet::default())
-            })
+            && block.instructions[index + 1..]
+                .iter()
+                .all(|&later| func.inst(later).kind.effect_kind() == EffectKind::Pure)
         {
             objects.insert(object);
         }
