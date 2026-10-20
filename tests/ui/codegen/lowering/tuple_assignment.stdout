@@ -45,21 +45,26 @@ bb6:
   push 4
   dup 2
   add
-  swap 1
-  push 36
-  calldatasize
-  sub
-  lt
-  dup 2
-  calldataload
-  swap 2
   push 32
-  add
-  swap 1
   dup 2
+  add
+  swap 2
+  push 0
+  not
+  push 192
+  shr
+  lt
+  calldatasize
+  dup 4
+  gt
+  or
+  swap 1
+  calldataload
+  swap 1
+  dup 3
   calldatasize
   sub
-  dup 4
+  dup 3
   gt
   or
   swap 1
@@ -67,32 +72,16 @@ bb6:
   or
   push bb5
   jumpi
-  push 63
-  dup 2
-  add
-  push 31
-  not
-  and
   push 64
   mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 2
-  dup 2
-  mstore
-  push 32
-  add
-  dup 2
-  dup 4
+  dup 3
+  dup 3
   dup 3
   calldatacopy
   push 0
-  swap 2
   push 0
-  swap 2
+  dup 5
+  dup 4
   push 0
   push 4
   calldataload
