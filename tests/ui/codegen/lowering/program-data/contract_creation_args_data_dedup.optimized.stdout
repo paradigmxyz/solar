@@ -126,11 +126,6 @@ bb6:
   mstore
   push 64
   mload
-  push 352
-  dup 2
-  add
-  push 64
-  mstore
   push 319
   push_data ChildWithArg_creation_code_0
   dup 3
@@ -191,11 +186,6 @@ bb12:
   mstore
   push 64
   mload
-  push 352
-  dup 2
-  add
-  push 64
-  mstore
   push 319
   push_data ChildWithArg_creation_code_0
   dup 3
@@ -232,11 +222,6 @@ bb18:
   mstore
   push 64
   mload
-  push 352
-  dup 2
-  add
-  push 64
-  mstore
   push 319
   push_data ChildWithArg_creation_code_0
   dup 3
@@ -272,11 +257,6 @@ bb18:
   mstore
   push 64
   mload
-  push 352
-  dup 2
-  add
-  push 64
-  mstore
   push 319
   push_data ChildWithArg_creation_code_0
   dup 3

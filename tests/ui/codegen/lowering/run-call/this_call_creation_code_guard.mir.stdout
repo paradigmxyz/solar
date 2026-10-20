@@ -377,18 +377,12 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CreationHelper_creation_code_0
-    v2 = datasize CreationHelper_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy CreationHelper_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CreationHelper_creation_code_0
+    v1 = fmp
+    datacopy CreationHelper_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -397,18 +391,12 @@ fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_
 
 fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CreationDirect_creation_code_1
-    v2 = datasize CreationDirect_creation_code_1, 31, aligned
-    v3 = alloc v2
-    datacopy CreationDirect_creation_code_1, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CreationDirect_creation_code_1
+    v1 = fmp
+    datacopy CreationDirect_creation_code_1, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -417,18 +405,12 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
 
 fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CreationModifier_creation_code_2
-    v2 = datasize CreationModifier_creation_code_2, 31, aligned
-    v3 = alloc v2
-    datacopy CreationModifier_creation_code_2, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CreationModifier_creation_code_2
+    v1 = fmp
+    datacopy CreationModifier_creation_code_2, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -437,18 +419,12 @@ fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_retur
 
 fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CreationDerived_creation_code_3
-    v2 = datasize CreationDerived_creation_code_3, 31, aligned
-    v3 = alloc v2
-    datacopy CreationDerived_creation_code_3, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CreationDerived_creation_code_3
+    v1 = fmp
+    datacopy CreationDerived_creation_code_3, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -457,18 +433,12 @@ fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_pa
 
 fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CreationInitializer_creation_code_4
-    v2 = datasize CreationInitializer_creation_code_4, 31, aligned
-    v3 = alloc v2
-    datacopy CreationInitializer_creation_code_4, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CreationInitializer_creation_code_4
+    v1 = fmp
+    datacopy CreationInitializer_creation_code_4, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -477,18 +447,12 @@ fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_re
 
 fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize CreationTry_creation_code_5
-    v2 = datasize CreationTry_creation_code_5, 31, aligned
-    v3 = alloc v2
-    datacopy CreationTry_creation_code_5, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize CreationTry_creation_code_5
+    v1 = fmp
+    datacopy CreationTry_creation_code_5, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -502,16 +466,15 @@ fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_
     v2 = abi_encode [word<bool>], args v1
     v3 = datasize SharedHelper_creation_code_6
     v4 = datasize SharedHelper_creation_code_6, 32
-    v5 = datasize SharedHelper_creation_code_6, 63, aligned
-    v6 = alloc v5
-    datacopy SharedHelper_creation_code_6, v6, v3
-    v7 = extract_value slice<memory>, v2, 0
-    v8 = ptrtoint ptr<memory> v6 to i256
-    v9 = add v8, v3
-    mcopy v9, v7, 32 !metadata(memory=heap)
-    v10 = create 0, v6, v4
-    v11 = ne v10, i160 0
-    jumpi v11, bb2, bb1
+    v5 = fmp
+    datacopy SharedHelper_creation_code_6, v5, v3
+    v6 = extract_value slice<memory>, v2, 0
+    v7 = ptrtoint ptr<memory> v5 to i256
+    v8 = add v7, v3
+    mcopy v8, v6, 32 !metadata(memory=heap)
+    v9 = create 0, v5, v4
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:

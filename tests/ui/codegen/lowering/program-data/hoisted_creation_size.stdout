@@ -84,21 +84,6 @@ bb8 [loop]:
   pop
   push 64
   mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
-  push 0
-  swap 1
-  mstore
-  push 64
-  mload
-  push 64
-  dup 2
-  add
-  push 64
-  mstore
   push 48
   push_data RuntimeChild_creation_code_0
   dup 3
