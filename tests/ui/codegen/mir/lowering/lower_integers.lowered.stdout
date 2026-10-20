@@ -21,17 +21,17 @@
 +     v10 = and v9, 255
 +     v11 = mul v10, arg0
 +     v12 = and v11, 255
-+     v13 = signextend 0, v12
++     v13 = signextend 0, v11
 +     v14 = signextend 0, arg1
 +     v15 = sdiv v13, v14
 +     v16 = and v15, 255
-+     v17 = signextend 0, v16
++     v17 = signextend 0, v15
 +     v18 = signextend 0, arg0
 +     v19 = smod v17, v18
 +     v20 = and v19, 255
 +     v21 = not v20
 +     v22 = and v21, 255
-+     v23 = signextend 0, v22
++     v23 = signextend 0, v21
 +     v24 = sar v23, arg1
 +     v25 = and v24, 255
 +     ret v25
@@ -47,10 +47,10 @@
 -     ret v3
 +     v4 = shl arg0, arg1
 +     v5 = and v4, 0xffffff
-+     v6 = signextend 2, v5
++     v6 = signextend 2, v4
 +     v7 = sar v6, arg1
 +     v8 = and v7, 0xffffff
-+     v9 = signextend 2, v8
++     v9 = signextend 2, v7
 +     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     v11 = and v10, 0xffffff
 +     ret v11
@@ -100,8 +100,8 @@
 +     v8 = and v7, 255
 +     v9 = not v8
 +     v10 = and v9, 255
-+     v11 = signextend 0, v10
-+     v12 = signextend 0, v6
++     v11 = signextend 0, v9
++     v12 = signextend 0, 1
 +     v13 = sdiv v11, v12
 +     v14 = and v13, 255
 +     ret v14
@@ -309,17 +309,17 @@
       v10 = and v9, 255
       v11 = mul v10, arg0
       v12 = and v11, 255
-      v13 = signextend 0, v12
+      v13 = signextend 0, v11
       v14 = signextend 0, arg1
       v15 = sdiv v13, v14
       v16 = and v15, 255
-      v17 = signextend 0, v16
+      v17 = signextend 0, v15
       v18 = signextend 0, arg0
       v19 = smod v17, v18
       v20 = and v19, 255
       v21 = not v20
       v22 = and v21, 255
-      v23 = signextend 0, v22
+      v23 = signextend 0, v21
       v24 = sar v23, arg1
       v25 = and v24, 255
       ret v25
@@ -329,10 +329,10 @@
     bb0:
       v4 = shl arg0, arg1
       v5 = and v4, 0xffffff
-      v6 = signextend 2, v5
+      v6 = signextend 2, v4
       v7 = sar v6, arg1
       v8 = and v7, 0xffffff
-      v9 = signextend 2, v8
+      v9 = signextend 2, v7
       v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v11 = and v10, 0xffffff
       ret v11
@@ -366,8 +366,8 @@
       v8 = and v7, 255
       v9 = not v8
       v10 = and v9, 255
-      v11 = signextend 0, v10
-      v12 = signextend 0, v6
+      v11 = signextend 0, v9
+      v12 = signextend 0, 1
       v13 = sdiv v11, v12
       v14 = and v13, 255
       ret v14
@@ -538,17 +538,17 @@
       v10 = and v9, 255
       v11 = mul v10, arg0
       v12 = and v11, 255
-      v13 = signextend 0, v12
+      v13 = signextend 0, v11
       v14 = signextend 0, arg1
       v15 = sdiv v13, v14
       v16 = and v15, 255
-      v17 = signextend 0, v16
+      v17 = signextend 0, v15
       v18 = signextend 0, arg0
       v19 = smod v17, v18
       v20 = and v19, 255
       v21 = not v20
       v22 = and v21, 255
-      v23 = signextend 0, v22
+      v23 = signextend 0, v21
       v24 = sar v23, arg1
       v25 = and v24, 255
       ret v25
@@ -558,14 +558,14 @@
     bb0:
       v4 = shl arg0, arg1
       v5 = and v4, 0xffffff
-      v6 = signextend 2, v5
+      v6 = signextend 2, v4
       v7 = sar v6, arg1
       v8 = and v7, 0xffffff
-      v9 = signextend 2, v8
+      v9 = signextend 2, v7
       v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     v11 = and v10, 0xffffff
--     ret v11
-+     ret v8
++     v11 = and v7, 0xffffff
+      ret v11
   }
   
   fn @sign_compare(arg0: i256, arg1: i256) -> i1 {
@@ -599,8 +599,8 @@
 -     v8 = and v7, 255
 -     v9 = not v8
 -     v10 = and v9, 255
--     v11 = signextend 0, v10
--     v12 = signextend 0, v6
+-     v11 = signextend 0, v9
+-     v12 = signextend 0, 1
 -     v13 = sdiv v11, v12
 -     v14 = and v13, 255
 -     ret v14
@@ -772,17 +772,17 @@
       v10 = and v9, 255
       v11 = mul v10, arg0
       v12 = and v11, 255
-      v13 = signextend 0, v12
+      v13 = signextend 0, v11
       v14 = signextend 0, arg1
       v15 = sdiv v13, v14
       v16 = and v15, 255
-      v17 = signextend 0, v16
+      v17 = signextend 0, v15
       v18 = signextend 0, arg0
       v19 = smod v17, v18
       v20 = and v19, 255
       v21 = not v20
       v22 = and v21, 255
-      v23 = signextend 0, v22
+      v23 = signextend 0, v21
       v24 = sar v23, arg1
       v25 = and v24, 255
       ret v25
@@ -792,12 +792,13 @@
     bb0:
       v4 = shl arg0, arg1
       v5 = and v4, 0xffffff
-      v6 = signextend 2, v5
+      v6 = signextend 2, v4
       v7 = sar v6, arg1
       v8 = and v7, 0xffffff
-      v9 = signextend 2, v8
+      v9 = signextend 2, v7
       v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      ret v8
+      v11 = and v7, 0xffffff
+      ret v11
   }
   
   fn @sign_compare(arg0: i256, arg1: i256) -> i1 {
