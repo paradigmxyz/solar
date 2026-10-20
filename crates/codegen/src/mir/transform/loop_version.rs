@@ -23,8 +23,10 @@
 //! # Recognition
 //!
 //! A natural loop with a preheader, exit blocks whose predecessors all lie in the loop, and at most
-//! `MAX_LOOP_INSTRUCTIONS` instructions. Every instruction of the loop that may write memory is an
-//! element store:
+//! `MAX_LOOP_INSTRUCTIONS` instructions. An exit block that code outside the loop also enters, as
+//! the `return false` of a search that also returns early before its loop, first gets a block of
+//! its own on each edge from the loop, once the loop otherwise qualifies. Every instruction of the
+//! loop that may write memory is an element store:
 //!
 //! - `mstore (x + (i << 5)) + 32` of a word element, or `mstore8 (x + i) + 32` of a byte, where `x`
 //!   is defined before the loop;
@@ -75,7 +77,7 @@ use crate::mir::{
     PanicCode, PtrLocation, RevertKind, Terminator, Value, ValueId,
     analysis::{AddressSpace, AliasAnalysis, CfgInfo, Loop, LoopAnalyzer},
     pass::{MirPass, ModuleAnalyses, run_function_pass},
-    utils::rebuild_predecessors,
+    utils::{rebuild_predecessors, split_edge},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -131,10 +133,22 @@ struct Plan {
     words: Vec<(ValueId, Vec<InstId>)>,
 }
 
+/// What a qualifying loop needs next.
+enum Planned {
+    /// The loop can be versioned as it is.
+    Version(Plan),
+    /// Edges from the loop into exit blocks that code outside the loop also enters, which each
+    /// need a block of their own first.
+    Split(Vec<(BlockId, BlockId)>),
+}
+
 fn version_function(func: &mut Function) -> bool {
     let mut changed = false;
     // Blocks of loops already versioned, whose original copies are not versioned again.
     let mut done = FxHashSet::default();
+    // Headers of loops whose shared exits were split. A loop asks once: a second request means
+    // the split did not give it exits of its own, and it is left alone.
+    let mut split = FxHashSet::default();
     loop {
         let loops = LoopAnalyzer::new().analyze_structure(func);
         let cfg = CfgInfo::new(func);
@@ -142,15 +156,29 @@ fn version_function(func: &mut Function) -> bool {
         // Outermost loops first: a loop with more blocks cannot nest in one with fewer.
         let mut candidates = loops.all_loops().collect::<Vec<_>>();
         candidates.sort_by_key(|l| std::cmp::Reverse(l.blocks.count()));
-        let Some(plan) = candidates
-            .into_iter()
-            .filter(|l| !done.contains(&l.header))
-            .find_map(|l| plan(func, &cfg, &aa, l))
+        let Some(planned) =
+            candidates.into_iter().filter(|l| !done.contains(&l.header)).find_map(|l| {
+                plan(func, &cfg, &aa, l).filter(|planned| {
+                    !matches!(planned, Planned::Split(_)) || split.insert(l.header)
+                })
+            })
         else {
             break;
         };
-        done.extend(plan.blocks.iter().copied());
-        apply(func, &plan);
+        match planned {
+            Planned::Version(plan) => {
+                done.extend(plan.blocks.iter().copied());
+                apply(func, &plan);
+            }
+            // from -> exit  =>  from -> split -> exit, after which the loop's exits are its own
+            // and the next round plans it again.
+            Planned::Split(edges) => {
+                rebuild_predecessors(func);
+                for (from, exit) in edges {
+                    split_edge(func, from, exit);
+                }
+            }
+        }
         changed = true;
     }
     changed
@@ -199,7 +227,7 @@ fn element_address(
     (func.value_u64(shift) == Some(5)).then_some((object, index, 5))
 }
 
-fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<Plan> {
+fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<Planned> {
     let preheader = l.preheader?;
     let exits: Vec<BlockId> = l.exit_blocks.to_vec();
     let blocks: Vec<BlockId> = l.blocks.iter().collect();
@@ -210,9 +238,14 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
     if loop_insts.len() > MAX_LOOP_INSTRUCTIONS {
         return None;
     }
+    // The loop's edges into exit blocks that code outside the loop also enters.
+    let mut shared = Vec::new();
     for &exit in &exits {
-        if predecessors(func, exit).iter().any(|pred| !l.blocks.contains(*pred)) {
-            return None;
+        let preds = predecessors(func, exit);
+        if preds.iter().any(|pred| !l.blocks.contains(*pred)) {
+            shared.extend(
+                preds.into_iter().filter(|&pred| l.blocks.contains(pred)).map(|pred| (pred, exit)),
+            );
         }
     }
     let defined_in_loop = |value: ValueId| match func.value(value) {
@@ -360,8 +393,19 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
             return None;
         }
     }
+    if !shared.is_empty() {
+        return Some(Planned::Split(shared));
+    }
     let loop_blocks = blocks.iter().copied().collect();
-    Some(Plan { header: l.header, preheader, exits, blocks, loop_blocks, written, words })
+    Some(Planned::Version(Plan {
+        header: l.header,
+        preheader,
+        exits,
+        blocks,
+        loop_blocks,
+        written,
+        words,
+    }))
 }
 
 /// The exit block a block after the loop lies behind: the one exit that dominates it.
