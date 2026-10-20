@@ -4,8 +4,8 @@
 
 use super::{
     BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
-    InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias, Terminator,
-    Value, ValueId,
+    InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, PtrLocation,
+    StorageAlias, Terminator, Value, ValueId,
 };
 use crate::mir::{Builtin, Callee, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
@@ -606,7 +606,25 @@ fn display_inst_kind<'a>(
             Ok(())
         }
         InstKind::AbiDecode { data, layout } => {
-            write!(f, "abi_decode {layout}, {}", display_val(*data, func))
+            write!(f, "abi_decode {layout}, {}", display_val(*data, func))?;
+            // A `bytes` field that is a calldata slice is a view of its bytes.
+            let fields = match result_ty {
+                Some(MirType::Struct(id)) => module
+                    .and_then(|module| module.struct_types.get(id))
+                    .map_or(&[][..], |ty| &ty.fields[..]),
+                Some(ref ty) => std::slice::from_ref(ty),
+                None => &[],
+            };
+            let views = fields
+                .iter()
+                .enumerate()
+                .filter(|&(_, &field)| field == MirType::Slice(PtrLocation::Calldata))
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            if !views.is_empty() {
+                write!(f, ", views {}", views.iter().format(", "))?;
+            }
+            Ok(())
         }
         InstKind::ICall { function: Callee::Function(function), args } => {
             write!(f, "icall {}", display_function_ref(*function, module))?;

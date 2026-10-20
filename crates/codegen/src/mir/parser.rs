@@ -1729,7 +1729,35 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         .parser
                         .error("ABI decode requires bytes or a memory or calldata slice"));
                 }
-                let fields = layout.types.iter().map(AbiParamType::mir_type).collect::<Vec<_>>();
+                let mut fields =
+                    layout.types.iter().map(AbiParamType::mir_type).collect::<Vec<_>>();
+                // `, views i, j`: the `bytes` fields decoded as calldata slices of their bytes.
+                if self.parser.eat(TokenKind::Comma) {
+                    let group = self.parser.parse_ident()?;
+                    if group != sym::views {
+                        return Err(self
+                            .parser
+                            .error(format!("unexpected ABI decode operand group `{group}`")));
+                    }
+                    if data_ty != Some(MirType::Slice(PtrLocation::Calldata)) {
+                        return Err(self.parser.error("ABI decode views require a calldata slice"));
+                    }
+                    loop {
+                        let index = self.parser.parse_uint()?;
+                        let field = usize::try_from(index)
+                            .ok()
+                            .filter(|&index| {
+                                matches!(layout.types.get(index), Some(AbiParamType::Bytes))
+                            })
+                            .ok_or_else(|| {
+                                self.parser.error("an ABI decode view must be a `bytes` field")
+                            })?;
+                        fields[field] = MirType::Slice(PtrLocation::Calldata);
+                        if !self.parser.eat(TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                }
                 let result_ty = match fields.as_slice() {
                     [] => None,
                     [ty] => Some(*ty),

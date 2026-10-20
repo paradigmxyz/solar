@@ -341,6 +341,19 @@ impl<'hir> Hir<'hir> {
             .find(|&&(tag, _)| matches!(tag, SolarStmtTag::Scratch(scratch) if scratch == block))
             .map(|&(_, span)| span)
     }
+
+    /// Returns the span of the `@custom:solar-view` tag on the declaration of `variable`.
+    pub fn solar_view(&self, variable: VariableId) -> Option<Span> {
+        self.solar_tags
+            .iter()
+            .find(|&&(tag, _)| matches!(tag, SolarStmtTag::View(view) if view == variable))
+            .map(|&(_, span)| span)
+    }
+
+    /// Returns whether a `@custom:solar-view` tag documents any declaration.
+    pub fn has_solar_views(&self) -> bool {
+        self.solar_tags.iter().any(|(tag, _)| matches!(tag, SolarStmtTag::View(_)))
+    }
 }
 
 /// A statement documented by a `@custom:solar-*` tag.
@@ -348,6 +361,9 @@ impl<'hir> Hir<'hir> {
 pub enum SolarStmtTag {
     /// `@custom:solar-scratch` on the block with this span.
     Scratch(Span),
+    /// `@custom:solar-view` on the declaration of this variable, one of each declaration's
+    /// variables.
+    View(VariableId),
 }
 
 /// A counter for generating unique IDs.
