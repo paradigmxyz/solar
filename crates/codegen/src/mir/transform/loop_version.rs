@@ -22,16 +22,17 @@
 //!
 //! # Recognition
 //!
-//! A natural loop with a preheader, every edge leaving it entering one exit block whose
-//! predecessors all lie in the loop, and at most `MAX_LOOP_INSTRUCTIONS` instructions. Every
-//! instruction of the loop that may write memory is an element store:
+//! A natural loop with a preheader, exit blocks whose predecessors all lie in the loop, and at most
+//! `MAX_LOOP_INSTRUCTIONS` instructions. Every instruction of the loop that may write memory is an
+//! element store:
 //!
 //! - `mstore (x + (i << 5)) + 32` of a word element, or `mstore8 (x + i) + 32` of a byte, where `x`
 //!   is defined before the loop;
 //! - dominated by a `panic_if_zero<0x32> (lt i, n)` check of the same index, where `n` is `mload x`
 //!   or a value defined before the loop, such as the length a fresh allocation stored.
 //!
-//! The words are the `mload z` of the loop whose pointer `z` is defined before the loop.
+//! The words are the `mload z` of the loop whose pointer `z` is defined before the loop. A block
+//! after the loop that reads a value the loop defines must lie behind exactly one exit block.
 //!
 //! # Safety
 //!
@@ -47,8 +48,9 @@
 //! would have returned. The two copies run the same instructions otherwise, with the same effects
 //! and failures. A check that compared with a replaced load now compares with the same value.
 //!
-//! Values the loop defines and the code after it reads reach that code through a phi in the exit
-//! block, which merges the two copies; existing phis there gain the clone's edges.
+//! Values the loop defines and the code after it reads reach that code through a phi in the one
+//! exit block that every reading block lies behind, which merges the two copies; existing phis in
+//! every exit block gain the clone's edges.
 //!
 //! # Profitability
 //!
@@ -118,7 +120,7 @@ enum Bound {
 struct Plan {
     header: BlockId,
     preheader: BlockId,
-    exit: BlockId,
+    exits: Vec<BlockId>,
     blocks: Vec<BlockId>,
     loop_blocks: FxHashSet<BlockId>,
     written: Vec<Written>,
@@ -196,7 +198,7 @@ fn element_address(
 
 fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<Plan> {
     let preheader = l.preheader?;
-    let [exit] = l.exit_blocks[..] else { return None };
+    let exits: Vec<BlockId> = l.exit_blocks.to_vec();
     let blocks: Vec<BlockId> = l.blocks.iter().collect();
     let mut loop_insts = FxHashSet::default();
     for &block in &blocks {
@@ -205,9 +207,10 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
     if loop_insts.len() > MAX_LOOP_INSTRUCTIONS {
         return None;
     }
-    let preds = predecessors(func, exit);
-    if preds.iter().any(|pred| !l.blocks.contains(*pred)) {
-        return None;
+    for &exit in &exits {
+        if predecessors(func, exit).iter().any(|pred| !l.blocks.contains(*pred)) {
+            return None;
+        }
     }
     let defined_in_loop = |value: ValueId| match func.value(value) {
         Value::Inst(inst) => loop_insts.contains(inst),
@@ -318,34 +321,42 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
             return None;
         }
     }
-    // Loop values read after the loop reach that code through the exit block.
+    // Loop values read after the loop reach each reading block through the one exit block that
+    // lies before it; an exit block's phis take them on the loop's edges.
     for (block, body) in func.blocks.iter_enumerated() {
         if l.blocks.contains(block) {
             continue;
         }
+        let mut readers = Vec::new();
         for &inst in &body.instructions {
             if let InstKind::Phi(incoming) = &func.inst(inst).kind {
-                if incoming.iter().any(|&(from, value)| {
-                    defined_in_loop(value)
-                        && !(block == exit && l.blocks.contains(from))
-                        && !cfg.dominators().dominates(exit, from)
-                }) {
-                    return None;
+                for &(from, value) in incoming {
+                    if defined_in_loop(value)
+                        && !(exits.contains(&block) && l.blocks.contains(from))
+                    {
+                        readers.push(from);
+                    }
                 }
-            } else if func.inst(inst).kind.operands().into_iter().any(defined_in_loop)
-                && !cfg.dominators().dominates(exit, block)
-            {
-                return None;
+            } else if func.inst(inst).kind.operands().into_iter().any(defined_in_loop) {
+                readers.push(block);
             }
         }
-        if body.terminator.as_ref().is_some_and(|t| t.operands().into_iter().any(defined_in_loop))
-            && !cfg.dominators().dominates(exit, block)
-        {
+        if body.terminator.as_ref().is_some_and(|t| t.operands().into_iter().any(defined_in_loop)) {
+            readers.push(block);
+        }
+        if readers.into_iter().any(|reader| owning_exit(cfg, &exits, reader).is_none()) {
             return None;
         }
     }
     let loop_blocks = blocks.iter().copied().collect();
-    Some(Plan { header: l.header, preheader, exit, blocks, loop_blocks, written, words })
+    Some(Plan { header: l.header, preheader, exits, blocks, loop_blocks, written, words })
+}
+
+/// The exit block a block after the loop lies behind: the one exit that dominates it.
+fn owning_exit(cfg: &CfgInfo, exits: &[BlockId], block: BlockId) -> Option<BlockId> {
+    let mut owners = exits.iter().filter(|&&exit| cfg.dominators().dominates(exit, block));
+    let (&owner, None) = (owners.next()?, owners.next()) else { return None };
+    Some(owner)
 }
 
 /// The predecessors of `block`, from the terminators.
@@ -360,43 +371,55 @@ fn predecessors(func: &Function, block: BlockId) -> Vec<BlockId> {
 }
 
 fn apply(func: &mut Function, plan: &Plan) {
-    // Loop values the code after the loop reads, other than through the exit's phis.
+    // Loop values the code after the loop reads, other than through the exits' phis, with the
+    // exit block each reading block lies behind.
+    let cfg = CfgInfo::new(func);
     let loop_insts: FxHashSet<InstId> =
         plan.blocks.iter().flat_map(|&b| func.blocks[b].instructions.iter().copied()).collect();
-    let in_loop = |func: &Function, value: ValueId| match func.value(value) {
+    let in_loop = |value: ValueId| match func.value(value) {
         Value::Inst(inst) => loop_insts.contains(inst),
         _ => false,
     };
+    let owner = |block: BlockId| owning_exit(&cfg, &plan.exits, block).expect("planned");
     let mut escaping = Vec::new();
     for (block, body) in func.blocks.iter_enumerated() {
         if plan.loop_blocks.contains(&block) {
             continue;
         }
+        let mut reads = Vec::new();
         for &inst in &body.instructions {
             let kind = &func.inst(inst).kind;
-            let operands: Vec<ValueId> = match kind {
-                InstKind::Phi(incoming) => incoming
-                    .iter()
-                    .filter(|&&(from, _)| !(block == plan.exit && plan.loop_blocks.contains(&from)))
-                    .map(|&(_, value)| value)
-                    .collect(),
-                _ => kind.operands().into_iter().collect(),
-            };
-            for value in operands {
-                if in_loop(func, value) && !escaping.contains(&value) {
-                    escaping.push(value);
+            match kind {
+                InstKind::Phi(incoming) => {
+                    for &(from, value) in incoming {
+                        if !(plan.exits.contains(&block) && plan.loop_blocks.contains(&from)) {
+                            reads.push((from, value));
+                        }
+                    }
                 }
+                _ => reads.extend(kind.operands().into_iter().map(|value| (block, value))),
             }
         }
         if let Some(terminator) = &body.terminator {
-            for value in terminator.operands() {
-                if in_loop(func, value) && !escaping.contains(&value) {
-                    escaping.push(value);
+            reads.extend(terminator.operands().into_iter().map(|value| (block, value)));
+        }
+        for (reader, value) in reads {
+            if in_loop(value) {
+                let entry = (value, owner(reader));
+                if !escaping.contains(&entry) {
+                    escaping.push(entry);
                 }
             }
         }
     }
-    let exiting: Vec<BlockId> = predecessors(func, plan.exit);
+    let exiting: FxHashMap<BlockId, Vec<BlockId>> =
+        plan.exits.iter().map(|&exit| (exit, predecessors(func, exit))).collect();
+    let owners: FxHashMap<BlockId, BlockId> = func
+        .blocks
+        .indices()
+        .filter(|block| !plan.loop_blocks.contains(block))
+        .filter_map(|block| Some((block, owning_exit(&cfg, &plan.exits, block)?)))
+        .collect();
 
     let copy = clone_loop(func, &plan.blocks);
 
@@ -493,34 +516,35 @@ fn apply(func: &mut Function, plan: &Plan) {
     }
 
     // exit: v = phi [block: x], ..., [block': x']
-    for inst in func.blocks[plan.exit].instructions.clone() {
-        if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
-            let cloned: Vec<_> = incoming
-                .iter()
-                .filter(|&&(from, _)| plan.loop_blocks.contains(&from))
-                .map(|&(from, value)| (copy.blocks[&from], copy.value(value)))
-                .collect();
-            let cloned: Vec<_> = cloned
-                .into_iter()
-                .map(|(from, value)| (from, replacements.get(&value).copied().unwrap_or(value)))
-                .collect();
-            incoming.extend(cloned);
+    for &exit in &plan.exits {
+        for inst in func.blocks[exit].instructions.clone() {
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
+                let cloned: Vec<_> = incoming
+                    .iter()
+                    .filter(|&&(from, _)| plan.loop_blocks.contains(&from))
+                    .map(|&(from, value)| {
+                        let value = copy.value(value);
+                        (copy.blocks[&from], replacements.get(&value).copied().unwrap_or(value))
+                    })
+                    .collect();
+                incoming.extend(cloned);
+            }
         }
     }
 
-    // exit: e = phi [exiting: v], [exiting': v']; uses after the loop read e
+    // exit: e = phi [exiting: v], [exiting': v']; uses behind the exit read e
     let mut merged = FxHashMap::default();
-    for value in escaping {
+    for &(value, exit) in &escaping {
         let cloned = copy.value(value);
         let cloned = replacements.get(&cloned).copied().unwrap_or(cloned);
-        let incoming = exiting
+        let incoming = exiting[&exit]
             .iter()
             .flat_map(|&block| [(block, value), (copy.blocks[&block], cloned)])
             .collect();
         let mut builder = FunctionBuilder::new_semantic(func);
-        builder.switch_to_block(plan.exit);
+        builder.switch_to_block(exit);
         let phi = builder.phi(incoming);
-        merged.insert(value, phi);
+        merged.insert((value, exit), phi);
     }
     if !merged.is_empty() {
         let new_phis: FxHashSet<InstId> = merged
@@ -530,12 +554,17 @@ fn apply(func: &mut Function, plan: &Plan) {
                 _ => None,
             })
             .collect();
-        // Move the new phis to the front of the exit block.
-        let instructions = std::mem::take(&mut func.blocks[plan.exit].instructions);
-        let (phis, rest): (Vec<_>, Vec<_>) =
-            instructions.into_iter().partition(|inst| new_phis.contains(inst));
-        func.blocks[plan.exit].instructions = phis.into_iter().chain(rest).collect();
+        // Move the new phis to the front of their exit blocks.
+        for &exit in &plan.exits {
+            let instructions = std::mem::take(&mut func.blocks[exit].instructions);
+            let (phis, rest): (Vec<_>, Vec<_>) =
+                instructions.into_iter().partition(|inst| new_phis.contains(inst));
+            func.blocks[exit].instructions = phis.into_iter().chain(rest).collect();
+        }
         let clone_blocks: FxHashSet<BlockId> = copy.blocks.values().copied().collect();
+        let merged_at = |value: ValueId, reader: BlockId| {
+            owners.get(&reader).and_then(|&exit| merged.get(&(value, exit)).copied())
+        };
         for (block, body) in func.blocks.clone().iter_enumerated() {
             if plan.loop_blocks.contains(&block) || clone_blocks.contains(&block) {
                 continue;
@@ -544,7 +573,7 @@ fn apply(func: &mut Function, plan: &Plan) {
                 if new_phis.contains(&inst) {
                     continue;
                 }
-                let is_exit_phi = block == plan.exit;
+                let is_exit_phi = plan.exits.contains(&block);
                 let kind = &mut func.inst_mut(inst).kind;
                 if let InstKind::Phi(incoming) = kind {
                     for (from, value) in incoming.iter_mut() {
@@ -553,13 +582,13 @@ fn apply(func: &mut Function, plan: &Plan) {
                         {
                             continue;
                         }
-                        if let Some(&phi) = merged.get(value) {
+                        if let Some(phi) = merged_at(*value, *from) {
                             *value = phi;
                         }
                     }
                 } else {
                     kind.visit_operands_mut(|value| {
-                        if let Some(&phi) = merged.get(value) {
+                        if let Some(phi) = merged_at(*value, block) {
                             *value = phi;
                         }
                     });
@@ -567,7 +596,7 @@ fn apply(func: &mut Function, plan: &Plan) {
             }
             if let Some(mut terminator) = func.blocks[block].terminator.clone() {
                 terminator.visit_operands_mut(|value| {
-                    if let Some(&phi) = merged.get(value) {
+                    if let Some(phi) = merged_at(*value, block) {
                         *value = phi;
                     }
                 });
