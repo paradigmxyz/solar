@@ -14,7 +14,7 @@
 //! the test fails.
 //!
 //! ```text
-//! test: lz = mload z ...; ok = (z <= x || z >= x + 32 + (lx << s)) && ...
+//! test: lz = mload z ...; ok = (x | lx | ...) < 2^64 && !(z - (x + 1) < (lx << s) + 31 || ...)
 //!       jumpi ok, fast, slow
 //! fast: jump header'        // the clone, `mload z` replaced by `lz`
 //! slow: jump header         // the original loop
@@ -36,10 +36,13 @@
 //!
 //! # Safety
 //!
-//! The test requires every written array's pointer and bound below `2^64`, so its data range
-//! `[x + 32, x + 32 + (n << s))` does not wrap, and every word's pointer `z` other than `x` to
-//! lie outside that range: `z <= x` keeps `[z, z + 32)` below the data, and `z` at or past its
-//! end keeps it above. The word of `x` itself is its length, below its data.
+//! The test requires every written array's pointer and bound below `2^64`, one comparison of
+//! their bitwise OR, so its data range `[x + 32, x + 32 + (n << s))` does not wrap, and every
+//! word's pointer `z` other than `x` to lie outside that range: `z <= x` keeps `[z, z + 32)` below
+//! the data, and `z` at or past its end keeps it above. The word of `x` itself is its length,
+//! below its data. `z` lies strictly between `x` and the range's end exactly when
+//! `z - (x + 1) < (n << s) + 31` in wrapping arithmetic: for `z > x` the difference is exact, and
+//! for `z <= x` it wraps above `2^256 - 2^64`, past every span below `2^69`.
 //!
 //! In the clone, the words hold their test-block values on entry. Each store writes inside its
 //! array's data range: its index passed a check against `n`, which is either a value from before
@@ -438,39 +441,40 @@ fn apply(func: &mut Function, plan: &Plan) {
         values.insert(word, value);
     }
     let limit = builder.imm(U256::from(1) << 64);
-    let header_size = builder.imm(32);
-    let mut ok = builder.imm_bool(true);
+    let one = builder.imm(1);
+    let last_header_byte = builder.imm(31);
     let no = builder.imm_bool(false);
+    let mut bits = builder.imm(0);
+    let mut inside = no;
     for written in &plan.written {
         let bound = match written.bound {
             Bound::Length => values[&written.object],
             Bound::Value(bound) => bound,
         };
         let object = pointer_word(&mut builder, written.object);
-        // small = lt object, 2^64 && lt bound, 2^64
-        let small_object = builder.lt(object, limit);
-        let small_bound = builder.lt(bound, limit);
-        ok = builder.and(ok, small_object);
-        ok = builder.and(ok, small_bound);
-        // end = object + 32 + (bound << shift)
+        // bits = bits | object | bound
+        bits = builder.or(bits, object);
+        bits = builder.or(bits, bound);
+        // first = object + 1; span = (bound << shift) + 31
         let shift = builder.imm(u64::from(written.shift));
         let size = builder.shl(bound, shift);
-        let data = builder.add(object, header_size);
-        let end = builder.add(data, size);
+        let first = builder.add(object, one);
+        let span = builder.add(size, last_header_byte);
         for &(word, _) in &plan.words {
             if word == written.object {
                 continue;
             }
-            // ok = ok && (word <= object || word >= end)
+            // inside = inside || word - first < span
             let word = pointer_word(&mut builder, word);
-            let above = builder.gt(word, object);
-            let below = builder.eq(above, no);
-            let before_end = builder.lt(word, end);
-            let past = builder.eq(before_end, no);
-            let clear = builder.or(below, past);
-            ok = builder.and(ok, clear);
+            let offset = builder.sub(word, first);
+            let within = builder.lt(offset, span);
+            inside = builder.or(inside, within);
         }
     }
+    // ok = bits < 2^64 && !inside
+    let small = builder.lt(bits, limit);
+    let clear = builder.eq(inside, no);
+    let ok = builder.and(small, clear);
     let fast = builder.create_block();
     let slow = builder.create_block();
     builder.branch(ok, fast, slow);
