@@ -2027,7 +2027,7 @@ impl MemoryStoreEliminator {
     ///
     /// The run addresses one base. Its lowest store starts a 32-byte window, and the stores inside
     /// the window merge when the known words cover it; the sweep continues after the window, or at
-    /// the next store when the window does not merge. Each window reads the state at the start of
+    /// the next offset when the window does not merge. Each window reads the state at the start of
     /// the run, before any store of the run applies. Dynamic allocations stay apart, since their
     /// addresses may name different instances.
     fn merge_store_run(
@@ -2059,7 +2059,11 @@ impl MemoryStoreEliminator {
                 let Some(word) =
                     self.merged_window(func, run, &group, lowest, &scratch.stored_words, uses)
                 else {
-                    start += 1;
+                    // Stores at the same offset start the same window.
+                    let offset = run[lowest].key.0.offset;
+                    while start < by_offset.len() && run[by_offset[start]].key.0.offset == offset {
+                        start += 1;
+                    }
                     continue;
                 };
                 start += group.len();
