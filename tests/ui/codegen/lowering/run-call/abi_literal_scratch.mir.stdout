@@ -1,7 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_literal_scratch.sol:C ===
 @module C
 @types
-  struct0: {ptr<memory>, i256}
+  struct0: {i256, ptr<memory>}
+  struct1: {ptr<memory>, i256}
 
 fn @hash(arg0: i256) -> i256 [selector=0xb189fd4c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
@@ -126,7 +127,20 @@ fn @grown(arg0: i256) [selector=0x922be285, pure, abi_params=[uint256], abi_retu
     invalid
 }
 
-fn @shifted() -> struct0 [selector=0xd461625c, pure, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
+fn @pair(arg0: i256) -> struct0 [selector=0x645751af, pure, abi_params=[uint256], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 37
+    v1 = ptradd v0, 32
+    mstore v1, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
+    v2 = ptradd v0, 64
+    mstore v2, 0x6f7264733a000000000000000000000000000000000000000000000000000000
+    v3 = insert_value struct0, undef struct0, 0, arg0
+    v4 = insert_value struct0, v3, 1, v0
+    ret v4
+}
+
+fn @shifted() -> struct1 [selector=0xd461625c, pure, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 3
@@ -137,8 +151,8 @@ fn @shifted() -> struct0 [selector=0xd461625c, pure, abi_params=[], abi_returns=
     v4 = alloc zeroed checked v3
     mstore v4, 0
     v5 = ptrtoint ptr<memory> v4 to i256
-    v6 = insert_value struct0, undef struct0, 0, v0
-    v7 = insert_value struct0, v6, 1, v5
+    v6 = insert_value struct1, undef struct1, 0, v0
+    v7 = insert_value struct1, v6, 1, v5
     ret v7
 }
 
