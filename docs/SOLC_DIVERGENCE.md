@@ -869,7 +869,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   return buffers that the compiler may not have written yet, so the `MSIZE`
   instruction can return less than the memory the compiler owns. Returning the
   larger of `MSIZE` and the free memory pointer keeps memory at the result
-  unused and zero, which is what the common `msize()` idioms rely on.
+  unused and zero, which is what the common `msize()` idioms rely on. The
+  result reads the word at `0x40`, so assembly that keeps non-pointer data
+  there across an `msize()` sees that data as the result, as `heap-floor`
+  already assumes that such code restores the slot.
 - Coverage: `tests/ui/codegen/run-call/msize_fresh_memory.sol`,
   `tests/ui/codegen/run-call/msize_default_bindings.sol`,
   `tests/ui/codegen/run-call/msize_idioms.sol` and
