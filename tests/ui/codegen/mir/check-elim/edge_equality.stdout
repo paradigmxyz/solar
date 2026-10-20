@@ -152,3 +152,21 @@
       ret v1
   }
   
+  fn @raw_memory(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = eq arg0, 64
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      mstore arg0, arg1
+      mstore arg0, arg1
+      calldatacopy arg1, arg1, arg0
+      calldatacopy arg1, arg1, arg0
+-     mstore 0, arg0
+-     mstore 32, arg0
++     mstore 0, 64
++     mstore 32, 64
+      returndata 0, 64
+  }
+  

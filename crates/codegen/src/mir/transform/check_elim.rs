@@ -50,9 +50,11 @@
 //! counting its reads above the check too: the constant replaces a stack slot and a `DUP` at each
 //! read, but at a single read it costs what the value does and only makes sites that were
 //! identical, such as inlined copies of one guard body, differ for the tail merging after this
-//! pass. An outer edge's constant wins over a contradicting inner one, whose edge is dead. Phi
-//! operands and terminators keep their values, except where `integer-cleanup` replaces a removed
-//! mask's result by the constant.
+//! pass. Raw memory addresses and sizes keep their values: frame and heap layout treat constant
+//! ones as fixed images, so a constant would move spill slots into the heap. An outer edge's
+//! constant wins over a contradicting inner one, whose edge is dead. Phi operands and terminators
+//! keep their values, except where `integer-cleanup` replaces a removed mask's result by the
+//! constant.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -1361,6 +1363,14 @@ impl<'a> CheckEliminator<'a> {
             }
         });
         if replaced.is_empty() || matches!(kind, InstKind::Phi(_)) {
+            return;
+        }
+        // Frame and heap layout treat constant raw memory addresses and sizes as fixed images.
+        let mut raw_memory = kind.clone();
+        raw_memory.visit_raw_memory_operands_mut(|operand| {
+            replaced.retain(|&mut (from, _)| from != *operand);
+        });
+        if replaced.is_empty() {
             return;
         }
         let evaluates = eval::eval_typed_inst(func, kind, |operand| {

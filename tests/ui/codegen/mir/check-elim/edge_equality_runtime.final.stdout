@@ -30,7 +30,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     mstore 64, v51 !metadata(memory=scratch)
     mstore v50, 96
     v41 = add v50, 32
-    mcopy v41, v39, 64
+    mcopy v41, v39, v0
     v43 = add v50, 64
     v44 = add v43, 32
     mstore v44, 64

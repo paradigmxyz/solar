@@ -190,3 +190,27 @@ fn @unfailing(arg0: i256) -> i256 {
   bb2:
     ret 0
 }
+
+// Raw memory addresses and sizes stay symbolic, however often they are read: frame and
+// heap layout treat constant ones as fixed images. A stored value takes the constant.
+// CHECK-LABEL: {{^[ +].*}}fn @raw_memory{{[( ]}}
+// CHECK: - mstore 0, arg0
+// CHECK-NEXT: - mstore 32, arg0
+// CHECK-NEXT: + mstore 0, 64
+// CHECK-NEXT: + mstore 32, 64
+// CHECK-NOT: {{^[-+]}}
+fn @raw_memory(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = eq arg0, 64
+    jumpi v0, bb1, bb2
+  bb1:
+    mstore arg0, arg1
+    mstore arg0, arg1
+    calldatacopy arg1, arg1, arg0
+    calldatacopy arg1, arg1, arg0
+    mstore 0, arg0
+    mstore 32, arg0
+    returndata 0, 64
+  bb2:
+    revert 0, 0
+}

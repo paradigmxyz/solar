@@ -1,0 +1,136 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/edge_equality_memory.sol:EdgeEqualityMemory ===
+@module EdgeEqualityMemory
+fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = calldataload 68
+    v18 = calldataload 100
+    v19 = eq v18, 64
+    v20 = zext i1 v19 to i256
+    v21 = eq v17, 128
+    v22 = zext i1 v21 to i256
+    v23 = and v22, v20
+    v24 = ne v23, 0
+    jumpi v24, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    calldatacopy v17, 0, v18
+    calldatacopy v17, 0, v18
+    jump bb3
+  bb3:
+    v25 = ne arg1, 0
+    jumpi v25, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v26 = not 31
+    v27 = and 0x43f, v26
+    v28 = alloc zeroed checked v27
+    mstore v28, 0x400
+    v29 = mload v28
+    v30 = shl v29, 0
+    jump bb6
+  bb6:
+    v31 = phi [bb4: v30], [bb5: 0]
+    v32 = xor v0, v1
+    v33 = xor v32, v2
+    v34 = xor v33, v3
+    v35 = xor v34, v4
+    v36 = xor v35, v5
+    v37 = xor v36, v6
+    v38 = xor v37, v7
+    v39 = xor v38, v8
+    v40 = xor v39, v9
+    v41 = xor v40, v10
+    v42 = xor v41, v11
+    v43 = xor v42, v12
+    v44 = xor v43, v13
+    v45 = xor v44, v14
+    v46 = xor v45, v15
+    v47 = xor v46, v16
+    v48 = xor v31, v47
+    ret v48
+}
+
+fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = calldataload 68
+    v18 = calldataload 100
+    v19 = eq v17, 64
+    v20 = zext i1 v19 to i256
+    v21 = ne v20, 0
+    jumpi v21, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    mstore v17, 256
+    mstore v17, 128
+    jump bb3
+  bb3:
+    v22 = ne arg1, 0
+    jumpi v22, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v23 = not 31
+    v24 = and 0x43f, v23
+    v25 = alloc zeroed checked v24
+    mstore v25, 0x400
+    v26 = mload v25
+    v27 = shl v26, 0
+    jump bb6
+  bb6:
+    v28 = phi [bb4: v27], [bb5: 0]
+    v29 = xor v0, v1
+    v30 = xor v29, v2
+    v31 = xor v30, v3
+    v32 = xor v31, v4
+    v33 = xor v32, v5
+    v34 = xor v33, v6
+    v35 = xor v34, v7
+    v36 = xor v35, v8
+    v37 = xor v36, v9
+    v38 = xor v37, v10
+    v39 = xor v38, v11
+    v40 = xor v39, v12
+    v41 = xor v40, v13
+    v42 = xor v41, v14
+    v43 = xor v42, v15
+    v44 = xor v43, v16
+    v45 = xor v28, v44
+    ret v45
+}
