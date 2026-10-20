@@ -1,4 +1,8 @@
-use crate::{builtins::Builtin, hir};
+use crate::{
+    builtins::Builtin,
+    hir,
+    natspec::{SolarTag, report_misplaced_solar_tag},
+};
 use alloy_primitives::U256;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -1081,7 +1085,19 @@ impl<'gcx> ResolveContext<'gcx> {
             }
             ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
         };
+        self.check_solar_tags(stmt);
         hir::Stmt { span: stmt.span, kind }
+    }
+
+    /// Reports the `@custom:solar-*` tags documenting `stmt`, since none documents a statement.
+    fn check_solar_tags(&self, stmt: &ast::Stmt<'_>) {
+        for natspec in stmt.docs.iter().flat_map(|doc| doc.natspec.iter()) {
+            if let ast::NatSpecKind::Custom { name } = natspec.kind
+                && let Some(tag) = SolarTag::from_custom(name.name)
+            {
+                let _ = report_misplaced_solar_tag(self.dcx(), tag, name.name, natspec.span);
+            }
+        }
     }
 
     fn lower_yul_assembly(&mut self, assembly: &ast::StmtAssembly<'_>) -> hir::StmtKind<'gcx> {

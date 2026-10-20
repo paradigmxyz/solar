@@ -597,6 +597,24 @@ and rejecting the code would only block programs we compile correctly.
 Coverage:
 `tests/ui/codegen/lowering/run-call/yul_multi_assignment_duplicate_targets.sol`.
 
+### TYPECK-022: `@custom:solar-` tags are requirements
+
+Status: intentional.
+
+Difference: `solc` reads every `@custom:` NatSpec tag as documentation.
+`solar` reserves the `solar-` names: an unknown `@custom:solar-` tag, or one
+documenting something it cannot apply to, such as a statement, is an error.
+`@custom:solar-safe` on a contract or a library is an error when the code it
+runs, outside functions tagged `@custom:solar-trusted` or in contracts tagged
+so, uses inline assembly or an `unchecked` block.
+
+Rationale: a tag states a requirement this compiler checks or relies on, so a
+misspelled or misplaced tag must not silently go unchecked. Other compilers
+still read the tags as documentation, and no tag changes what the code does.
+
+Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`
+and `tests/ui/typeck/solar_safe.sol`.
+
 ## Contract-Level Checks
 
 ### CONTRACT-001: Base slots that solc does not evaluate
