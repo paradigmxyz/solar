@@ -1,4 +1,4 @@
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_idioms.sol:LL:CC
    │
 LL │             let mark := msize()
@@ -6,7 +6,7 @@ LL │             let mark := msize()
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_idioms.sol:LL:CC
    │
 LL │             codecopy(fmem, codesize(), sub(msize(), fmem))
@@ -14,7 +14,7 @@ LL │             codecopy(fmem, codesize(), sub(msize(), fmem))
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_idioms.sol:LL:CC
    │
 LL │             values := msize()
@@ -22,7 +22,7 @@ LL │             values := msize()
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_idioms.sol:LL:CC
    │
 LL │             let m_alloc := add(msize(), 0x1)
@@ -30,7 +30,7 @@ LL │             let m_alloc := add(msize(), 0x1)
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_idioms.sol:LL:CC
    │
 LL │             let m_alloc := add(msize(), 0x1)
@@ -38,7 +38,7 @@ LL │             let m_alloc := add(msize(), 0x1)
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_idioms.sol:LL:CC
    │
 LL │         assembly { h := keccak256(add(msize(), 0), 0x20) }
@@ -46,7 +46,7 @@ LL │         assembly { h := keccak256(add(msize(), 0), 0x20) }
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_idioms.sol:LL:CC
    │
 LL │             returnData := msize()
@@ -54,7 +54,7 @@ LL │             returnData := msize()
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
-warning: `msize` is not exact when optimizing
+warning[0059]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/run-call/msize_idioms.sol:LL:CC
    │
 LL │             let returndatastart := msize()

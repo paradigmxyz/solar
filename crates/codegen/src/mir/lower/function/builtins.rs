@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::link::CodeKind;
+use solar_interface::error_code;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_builtin_call(
@@ -58,6 +59,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .gcx
                     .dcx()
                     .warn("`msize` is not exact when optimizing")
+                    // solc assigns codes from 1000 to 9999, so a code below 1000 cannot collide.
+                    .code(error_code!(0059))
                     .span(callee.span)
                     .note(
                         "the result is at least the free memory pointer and above every byte written before it",
@@ -832,9 +835,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulMload => load!(PtrLocation::Memory),
             Builtin::YulMsize => {
                 self.lower_builtin_args::<0>(builtin, &args)?;
-                // Default-initialized memory variables must exist before `msize` hands out memory
-                // above them.
-                self.materialize_default_bindings();
                 // size = msize
                 // fmp = ptrtoint ptr<memory> fmp to i256
                 // below = lt size, fmp
