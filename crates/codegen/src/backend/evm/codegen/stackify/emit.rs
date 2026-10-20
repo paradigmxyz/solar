@@ -131,11 +131,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func_id in info.internal.iter() {
             let Some(plan) = plans[func_id].take() else { continue };
             let func = &module.functions[func_id];
+            self.asm.repeating_code = info.repeated.contains(func_id);
             self.asm.define_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
             self.body = Body::Internal(func_id);
             self.emit_stackified_body(func_id, func, plan);
         }
+        self.asm.repeating_code = false;
         self.body = Body::External;
     }
 

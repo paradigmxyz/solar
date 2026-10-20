@@ -359,46 +359,83 @@ impl Module {
     }
 
     /// Returns the functions that run only during deployment: the constructor and the functions
-    /// it reaches through calls, less those the runtime also reaches.
+    /// it reaches through calls, less those the runtime also reaches. Functions that neither
+    /// artifact roots, which only ad-hoc MIR has, and the functions they reach stay out, because
+    /// no one knows where they run.
     #[must_use]
     pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
-        let roots = self
-            .functions
-            .iter_enumerated()
-            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id));
-        let mut creation = self.reachable_from(roots);
-        creation.subtract(&self.runtime_reachable_functions());
+        let constructor = self.reachable_from(
+            self.functions
+                .iter_enumerated()
+                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
+        );
+        let runtime = self.runtime_reachable_functions();
+        let mut creation = constructor.clone();
+        creation.subtract(&runtime);
+        let mut rooted = constructor;
+        rooted.union(&runtime);
+        let mut unrooted = DenseBitSet::new_filled(self.functions.len());
+        unrooted.subtract(&rooted);
+        creation.subtract(&self.reachable_from(unrooted.iter()));
         creation
     }
 
     /// Returns the functions of `creation`, from [`Self::creation_only_functions`], whose
-    /// instructions run a bounded number of times per deployment: those without loops or
-    /// recursion that only loop-free creation-only functions call. A loop, or a call from one,
-    /// repeats an instruction by more than the creation model's one execution.
+    /// instructions run a bounded number of times per deployment: those without loops that
+    /// [`Self::repeated_functions`] does not report. A loop, or a call from one, repeats an
+    /// instruction by more than the creation model's one execution.
     #[must_use]
     pub(crate) fn straight_line_creation_functions(
         &self,
         creation: &DenseBitSet<FunctionId>,
     ) -> DenseBitSet<FunctionId> {
+        let (looping, repeated) = self.loops_and_repeats(creation);
         let mut straight = creation.clone();
+        straight.subtract(&looping);
+        straight.subtract(&repeated);
+        straight
+    }
+
+    /// Returns the functions of `domain` that run more than once per deployment because they
+    /// are recursive, or because a function with a loop, or a recursive one, calls them
+    /// directly or not.
+    #[must_use]
+    pub(crate) fn repeated_functions(
+        &self,
+        domain: &DenseBitSet<FunctionId>,
+    ) -> DenseBitSet<FunctionId> {
+        self.loops_and_repeats(domain).1
+    }
+
+    /// Returns the functions of `domain` with a loop of their own, and those it repeats.
+    fn loops_and_repeats(
+        &self,
+        domain: &DenseBitSet<FunctionId>,
+    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
+        let mut looping = DenseBitSet::new_empty(self.functions.len());
         let mut repeated = DenseBitSet::new_empty(self.functions.len());
         let mut worklist = Vec::new();
-        for id in straight.iter() {
+        for id in domain.iter() {
             let func = self.function(id);
-            let calls_itself = self.reachable_from(direct_callees(func)).contains(id);
-            if (calls_itself || !CfgInfo::new(func).cyclic_blocks().is_empty())
-                && repeated.insert(id)
-            {
-                worklist.push(id);
+            let has_loop = !CfgInfo::new(func).cyclic_blocks().is_empty();
+            let recursive = self.reachable_from(direct_callees(func)).contains(id);
+            if has_loop {
+                looping.insert(id);
+            }
+            if has_loop || recursive {
+                worklist.extend(
+                    direct_callees(func)
+                        .filter(|&callee| domain.contains(callee) && repeated.insert(callee)),
+                );
             }
         }
         while let Some(id) = worklist.pop() {
             worklist.extend(
-                direct_callees(self.function(id)).filter(|&callee| repeated.insert(callee)),
+                direct_callees(self.function(id))
+                    .filter(|&callee| domain.contains(callee) && repeated.insert(callee)),
             );
         }
-        straight.subtract(&repeated);
-        straight
+        (looping, repeated)
     }
 
     /// Returns `roots` and every function they reach through calls.

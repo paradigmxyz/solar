@@ -153,23 +153,18 @@ impl MirPass for Egraph {
                 }
             }
         }
-        let target = Target::new(gcx);
         let mut changed = run_selected_function_pass_without_analyses_cached::<FlatEgraph>(
             module,
             analyses,
             &flat,
-            |func, analyses| {
-                Builder::new(func, &target.priced_for(analyses.straight_line_creation()), None)
-                    .run()
-                    != 0
-            },
+            |func, analyses| Builder::new(func, &analyses.target(gcx), None).run() != 0,
         );
         changed |= run_selected_function_pass_cached::<CfgEgraph>(
             module,
             analyses,
             &with_cfg,
             |func, analyses| {
-                let target = target.priced_for(analyses.straight_line_creation());
+                let target = analyses.target(gcx);
                 Builder::new(func, &target, Some(Rc::clone(analyses.cfg()))).run() != 0
             },
         );
@@ -179,6 +174,7 @@ impl MirPass for Egraph {
             analyses,
             &fresh_mapping_entries,
             |func, analyses| {
+                let target = analyses.target(gcx);
                 let mut builder = Builder::new(func, &target, Some(Rc::clone(analyses.cfg())));
                 builder.fresh_mapping_arguments = true;
                 builder.run() != 0

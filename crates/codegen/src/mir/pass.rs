@@ -16,15 +16,19 @@
 //! );
 //! ```
 
-use crate::mir::{
-    Function, FunctionId, InstId, MirPhase, Module,
-    analysis::{AliasAnalysis, CfgInfo, LocalSummaryCache, MemoryCallSummaries},
-    pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
-    transform::*,
+use crate::{
+    mir::{
+        Function, FunctionId, InstId, MirPhase, Module,
+        analysis::{AliasAnalysis, CfgInfo, LocalSummaryCache, MemoryCallSummaries},
+        pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
+        transform::*,
+    },
+    target::Target,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::diagnostics::ErrorGuaranteed;
+use solar_sema::Gcx;
 use std::{any::TypeId, cell::Cell, rc::Rc, sync::Arc};
 
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
@@ -636,18 +640,17 @@ impl FunctionAnalyses {
         self.cfg.as_ref().expect("function pass must request CFG analysis")
     }
 
-    /// Returns whether the function runs only during deployment. A transform that weighs loops
-    /// itself prices such a function with the creation model,
-    /// [`Target::priced_for`](crate::target::Target::priced_for).
-    pub(crate) fn creation_only(&self) -> bool {
-        self.creation_only
+    /// The cost model for a transform that weighs loops itself: creation code is priced as such
+    /// whether or not it loops, because the transform multiplies by trip counts.
+    pub(crate) fn loop_aware_target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx).priced_for(self.creation_only)
     }
 
-    /// Returns whether the function runs only during deployment, with every instruction running a
-    /// bounded number of times. A transform that ranks code shapes without weighing blocks by how
-    /// often they run prices such a function with the creation model.
-    pub(crate) fn straight_line_creation(&self) -> bool {
-        self.straight_line_creation
+    /// The cost model for a transform that ranks code shapes without weighing blocks by how
+    /// often they run: creation code is priced as such only when every instruction runs a
+    /// bounded number of times, so without loops, recursion, or a looping caller.
+    pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx).priced_for(self.straight_line_creation)
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead

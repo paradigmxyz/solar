@@ -215,11 +215,10 @@ impl MirPass for LoopUnroll {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
         let cold = cold_functions(module);
         let returns = return_bounds(module);
         run_function_pass(module, analyses, |func, analyses| {
-            unroll_function(func, &cold, &returns, &target.priced_for(analyses.creation_only()))
+            unroll_function(func, &cold, &returns, &analyses.loop_aware_target(gcx))
         })
     }
 }

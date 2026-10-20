@@ -6,7 +6,7 @@
 //@ run-call: Constants::v; constructor=[5] => 15
 //@ run-call: Constants::a; constructor=[5] => 0x1111111111111111111111111111111111111111
 //@ run-call: Constants::c; constructor=[5] => 0x1111111111111111111111111111111111111111
-//@ run-call: Shared::v; constructor=[5] => 15
+//@ run-call: Shared::v; constructor=[5] => 33
 //@ run-call: Shared::f 2; constructor=[5] => 15
 //@ run-call: Looped::arr 5; constructor=[1] => 18
 
@@ -35,7 +35,8 @@ contract Constants {
 }
 
 // A helper that the runtime also calls is not creation-only code, so the constructor's copy of it
-// and the runtime's both keep the gas-first overflow check against a 32-byte limit.
+// and the runtime's both keep the gas-first overflow check against a 32-byte limit. The
+// constructor calls it twice, so inlining does not give the constructor a private copy.
 // DEPLOY-LABEL: // === {{.*}}:Shared (deployment) ===
 // DEPLOY: PUSH32 0x5555555555555555555555555555555555555555555555555555555555555555
 // RUNTIME-LABEL: // === {{.*}}:Shared (runtime) ===
@@ -44,7 +45,7 @@ contract Shared {
     uint256 public v;
 
     constructor(uint256 p) {
-        v = triple(p);
+        v = triple(p) + triple(p + 1);
     }
 
     function triple(uint256 p) internal pure returns (uint256) {

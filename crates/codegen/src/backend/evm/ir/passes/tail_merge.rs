@@ -371,6 +371,10 @@ impl RunState {
                     || group.sites.iter().any(|&(site, site_common)| {
                         site_common >= common && module.blocks[site].metadata.in_loop
                     });
+                tail.metadata.repeats = metadata.repeats
+                    || group.sites.iter().any(|&(site, site_common)| {
+                        site_common >= common && module.blocks[site].metadata.repeats
+                    });
                 if !metadata.hotness.is_cold()
                     || max_hot_common.is_some_and(|hot_common| common <= hot_common)
                 {

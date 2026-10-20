@@ -63,7 +63,10 @@ fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], a
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     v0 = icall @triple, arg0
-    sstore 0, v0 !metadata(storage=slot(0))
+    v1 = checked_add uint256, arg0, 1
+    v2 = icall @triple, v1
+    v3 = checked_add uint256, v0, v2
+    sstore 0, v3 !metadata(storage=slot(0))
     ret
 }
 

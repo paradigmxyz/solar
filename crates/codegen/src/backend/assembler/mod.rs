@@ -121,6 +121,9 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) cold_labels: GrowableBitSet<Label>,
     /// Labels whose blocks run once per loop iteration.
     pub(in crate::backend) loop_labels: GrowableBitSet<Label>,
+    /// Whether the code being emitted may run more than once, as the creation code that a loop
+    /// calls does: its blocks are marked as loop blocks.
+    pub(in crate::backend) repeating_code: bool,
     /// Unresolved block references emitted as push operands.
     /// Ordered by (block, instruction); EVM IR construction uses binary search.
     pub(in crate::backend) label_relocations: Vec<(ir::BlockId, usize, Label)>,
@@ -180,6 +183,7 @@ impl<'gcx> Assembler<'gcx> {
             label_blocks: FxHashMap::default(),
             cold_labels: GrowableBitSet::new_empty(),
             loop_labels: GrowableBitSet::new_empty(),
+            repeating_code: false,
             label_relocations: Vec::new(),
             deferred_relocations: Vec::new(),
             indexed_jump_relocations: Vec::new(),
@@ -207,6 +211,7 @@ impl<'gcx> Assembler<'gcx> {
         self.label_blocks.clear();
         self.cold_labels.clear();
         self.loop_labels.clear();
+        self.repeating_code = false;
         self.label_relocations.clear();
         self.deferred_relocations.clear();
         self.indexed_jump_relocations.clear();

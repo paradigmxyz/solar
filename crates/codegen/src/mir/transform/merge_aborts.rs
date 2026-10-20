@@ -96,10 +96,9 @@ impl MirPass for MergeAborts {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
         let cold = cold_functions(module);
         run_function_pass(module, analyses, |func, analyses| {
-            merge_function(func, &cold, &target.priced_for(analyses.straight_line_creation()))
+            merge_function(func, &cold, &analyses.target(gcx))
         })
     }
 }

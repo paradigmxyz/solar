@@ -665,6 +665,7 @@ fn coalesce_blocks(
                 }
             }
             module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
+            module.blocks[predecessor].metadata.repeats |= module.blocks[target].metadata.repeats;
             module.blocks[predecessor].instructions.append(&mut instructions);
             module.blocks[predecessor].terminator = terminator;
             retained.remove(target);

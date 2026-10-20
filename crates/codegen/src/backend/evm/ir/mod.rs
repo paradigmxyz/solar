@@ -92,10 +92,9 @@ impl Module {
         Target::new(gcx).priced_for(self.code_follows)
     }
 
-    /// The cost model of one block of this module: the creation model for a block of creation
-    /// code outside loops, which run once.
+    /// The cost model of one block of this module.
     pub(crate) fn block_target(&self, gcx: Gcx<'_>, block: &Block) -> Target {
-        Target::new(gcx).priced_for(self.code_follows && !block.metadata.in_loop)
+        block.target(gcx, self.code_follows)
     }
 
     /// Links embedded contract bytecode into deferred data, interning the bytecode's libraries
@@ -252,6 +251,17 @@ impl Block {
             terminator: None,
         }
     }
+
+    /// Whether the block runs at most once per call of its code, outside every loop.
+    pub(crate) fn runs_once(&self) -> bool {
+        !self.metadata.in_loop && !self.metadata.repeats
+    }
+
+    /// The cost model of this block: the creation model for creation code, which the runtime
+    /// artifact follows (`code_follows`), unless the block may run more than once.
+    pub(crate) fn target(&self, gcx: Gcx<'_>, code_follows: bool) -> Target {
+        Target::new(gcx).priced_for(code_follows && self.runs_once())
+    }
 }
 
 /// Block-level metadata.
@@ -261,6 +271,10 @@ pub(crate) struct BlockMetadata {
     pub(crate) hotness: Hotness,
     /// Whether the block contains code from a known natural loop.
     pub(crate) in_loop: bool,
+    /// Whether the block may run more than once per deployment although it is not in a loop of
+    /// its own function: it belongs to creation code that a loop or recursion calls. Pricing
+    /// treats such blocks as runtime code.
+    pub(crate) repeats: bool,
     /// This label's address is used only for control transfer, never as an observable word.
     /// Hidden return targets and branches separated from their pushed labels by sharing carry
     /// this property. References may be redirected to an

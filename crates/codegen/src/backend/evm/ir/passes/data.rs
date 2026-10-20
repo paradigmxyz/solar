@@ -765,9 +765,9 @@ fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, R
             next_run_start = 0;
         }
         // Creation code in a loop runs more than once, which its model does not assume.
-        let in_creation_loop = target.is_creation() && module.blocks[block_id].metadata.in_loop;
+        let repeats = target.is_creation() && !module.blocks[block_id].runs_once();
         if index >= next_run_start
-            && !in_creation_loop
+            && !repeats
             && let Some((data, rewrite)) = find_run(&target, block_id, instructions, index)
         {
             next_run_start = rewrite.end;
