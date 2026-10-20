@@ -462,6 +462,13 @@ impl Target {
         Cost::new(gas as u32, bytes as u32)
     }
 
+    /// Whether reading `value` as an immediate costs no more gas than a `DUP` and at most one
+    /// byte more, as `PUSH0` and `PUSH1` do. A wider constant makes every read it replaces larger.
+    pub(crate) fn is_cheap_immediate(&self, value: U256) -> bool {
+        let push = self.push(value);
+        push.gas <= self.dup().gas && push.bytes <= self.opcode(op::PUSH1).bytes
+    }
+
     /// Expected cost of one MIR operation: its opcode, or a very-low instruction
     /// for operations the backend expands by hand, plus its dynamic work sized
     /// from the immediate operands `immediate` resolves, or one unit otherwise.
@@ -1036,6 +1043,17 @@ mod tests {
         assert_eq!(Target::nested_block_weight(1), 8);
         assert_eq!(Target::nested_block_weight(64), 512);
         assert_eq!(Target::nested_block_weight(512), 512);
+    }
+
+    #[test]
+    fn cheap_immediates_fit_one_push_byte() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        for value in [0, 1, 64, 255] {
+            assert!(target.is_cheap_immediate(U256::from(value)), "{value}");
+        }
+        assert!(!target.is_cheap_immediate(U256::from(256)));
+        assert!(!target.is_cheap_immediate(U256::MAX));
+        assert!(!target.is_cheap_immediate(U256::from(1) << 159));
     }
 
     #[test]

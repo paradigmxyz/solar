@@ -17,3 +17,28 @@ fn @padded(arg0: i256) -> i256 {
   bb2:
     revert 0, 0
 }
+
+// An inner edge that contradicts an outer one is dead, and its constant must not
+// leak to the live blocks after it; this pass keeps the dead branch.
+// CHECK-LABEL: fn @contradiction
+// CHECK: - v2 = add arg0, 1
+// CHECK-NEXT: - v3 = add v2, arg0
+// CHECK-NEXT: + v2 = add 5, 1
+// CHECK-NEXT: + v3 = add v2, 5
+fn @contradiction(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 5
+    jumpi v0, bb1, bb4
+  bb1:
+    v1 = eq arg0, 6
+    jumpi v1, bb3, bb2
+  bb2:
+    v3 = add arg0, 1
+    v4 = add v3, arg0
+    ret v4
+  bb3:
+    v5 = add arg0, arg0
+    ret v5
+  bb4:
+    ret 0
+}

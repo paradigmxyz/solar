@@ -43,12 +43,14 @@
 //! `ne x, C`, or a passed check of one), instructions the edge dominates read `C` in place of `x`.
 //! `check-elim` and `integer-cleanup` run it. A guarded length then makes the round-up, copy size,
 //! and encoder size arithmetic below it constant for `sccp` and `egraph`, which a range alone
-//! would not rewrite. An instruction takes the constant for every operand proven equal when that
-//! makes it evaluate, the way `sccp` will, chaining through the values it folds. Otherwise it
-//! takes it only for a value that at least two instructions below the edge read: the constant
-//! replaces a stack slot and a `DUP` at each read, but at a single read it costs what the value
-//! does and only makes sites that were identical, such as inlined copies of one guard body, differ
-//! for the tail merging after this pass. Phi operands and terminators keep their values.
+//! would not rewrite. Only constants the target prices as cheap to read qualify, so a word-wide
+//! mask or an address never replaces a `DUP`. An instruction takes the constant for every operand
+//! proven equal when that makes it evaluate, the way `sccp` will. Otherwise it takes it only for a
+//! value that at least two instructions below the edge read: the constant replaces a stack slot
+//! and a `DUP` at each read, but at a single read it costs what the value does and only makes
+//! sites that were identical, such as inlined copies of one guard body, differ for the tail
+//! merging after this pass. An outer edge's constant wins over a contradicting inner one, whose
+//! edge is dead. Phi operands and terminators keep their values.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -177,13 +179,14 @@ impl MirPass for CheckElim {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let target = Target::new(gcx);
         run_function_pass(module, analyses, |func, _| {
             let mut eliminator = CheckEliminator::new(None);
-            eliminator.propagate_equalities = true;
+            eliminator.propagate_equalities = Some(target);
             eliminator.run(func) != 0
         })
     }
@@ -204,6 +207,7 @@ impl MirPass for IntegerCleanup {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let target = Target::new(gcx);
         let cleanup = |func: &mut Function, immutable_ranges: Option<&FxHashMap<_, _>>| {
             if (immutable_ranges.is_none()
                 && !func
@@ -223,7 +227,7 @@ impl MirPass for IntegerCleanup {
             let removed = invalidate_unreachable_blocks(func, cfg.reachable());
             let mut eliminator = CheckEliminator {
                 collect_masks: true,
-                propagate_equalities: true,
+                propagate_equalities: Some(target),
                 immutable_ranges,
                 ..Default::default()
             };
@@ -635,8 +639,9 @@ struct CheckEliminator<'a> {
     cfg: Option<Rc<CfgInfo>>,
     collect_masks: bool,
     redundant_masks: Vec<(InstId, ValueId)>,
-    /// Whether to record constants that dominating branches prove equal to a value.
-    propagate_equalities: bool,
+    /// Records constants that dominating branches prove equal to a value, when the target
+    /// prices the constant as cheap to read.
+    propagate_equalities: Option<Target>,
     /// Values proven equal to a constant in the current scope.
     equalities: FxHashMap<ValueId, Equality>,
     equality_undo: Vec<ValueId>,
@@ -644,9 +649,6 @@ struct CheckEliminator<'a> {
     scope: Option<BlockId>,
     /// Blocks of the instructions reading each value, built on the first query.
     readers: Option<IndexLists<ValueId, BlockId>>,
-    /// Constants of the pure values that the equalities in scope fold, as `lower-integers` and
-    /// `sccp` will evaluate them.
-    folded: FxHashMap<ValueId, U256>,
     /// Instructions that read an equal value, with the operands that become its constant.
     equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
@@ -849,7 +851,6 @@ impl<'a> CheckEliminator<'a> {
         let mut reductions = Vec::new();
         self.unfailing.clear();
         self.equality_uses.clear();
-        self.folded.clear();
         self.readers = None;
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
@@ -1330,12 +1331,15 @@ impl<'a> CheckEliminator<'a> {
     /// Records that `value` equals `constant` in the current scope, when `constant` is an
     /// immediate. Operands of `eq`, `ne`, `sub`, and `xor` share one type.
     fn record_equality(&mut self, func: &Function, value: ValueId, constant: ValueId) {
-        if self.propagate_equalities
-            && func.value_u256(constant).is_some()
+        // An outer scope's constant stays: a contradicting inner edge is dead.
+        if let Some(target) = &self.propagate_equalities
+            && let Some(constant_value) = func.value_u256(constant)
+            && target.is_cheap_immediate(constant_value)
             && func.value_u256(value).is_none()
             && let Some(block) = self.scope
-            && self.equalities.insert(value, Equality { constant, block, repeated: None }).is_none()
+            && !self.equalities.contains_key(&value)
         {
+            self.equalities.insert(value, Equality { constant, block, repeated: None });
             self.equality_undo.push(value);
         }
     }
@@ -1346,38 +1350,26 @@ impl<'a> CheckEliminator<'a> {
         let mut operands = SmallVec::<[ValueId; 4]>::new();
         kind.visit_operands(|operand| operands.push(operand));
         if matches!(kind, InstKind::Phi(_))
-            || !operands.iter().any(|operand| {
-                self.equalities.contains_key(operand) || self.folded.contains_key(operand)
-            })
+            || !operands.iter().any(|operand| self.equalities.contains_key(operand))
         {
             return;
         }
-        let mut replaced = Replacements::new();
-        let result = eval::eval_typed_inst(func, kind, |operand| {
-            if let Some(value) =
-                func.value_u256(operand).or_else(|| self.folded.get(&operand).copied())
-            {
-                Ok(value)
-            } else if let Some(equality) = self.equalities.get(&operand) {
-                replaced.push((operand, equality.constant));
-                Ok(func.value_u256(equality.constant).expect("equalities hold immediates"))
-            } else {
-                Err(())
-            }
-        });
-        if let Ok(Some(value)) = result {
-            self.folded.insert(
-                func.inst_result_value(id).expect("evaluated instructions have results"),
-                value,
-            );
-        } else {
-            replaced.clear();
-            for operand in operands {
-                if self.is_repeated(func, cfg, operand) {
-                    replaced.push((operand, self.equalities[&operand].constant));
-                }
-            }
-        }
+        let evaluates = eval::eval_typed_inst(func, kind, |operand| {
+            func.value_u256(operand)
+                .or_else(|| {
+                    let constant = self.equalities.get(&operand)?.constant;
+                    func.value_u256(constant)
+                })
+                .ok_or(())
+        })
+        .is_ok_and(|value| value.is_some());
+        let replaced = operands
+            .into_iter()
+            .filter_map(|operand| {
+                let constant = self.equalities.get(&operand)?.constant;
+                (evaluates || self.is_repeated(func, cfg, operand)).then_some((operand, constant))
+            })
+            .collect::<Replacements>();
         if !replaced.is_empty() {
             self.equality_uses.push((id, replaced));
         }
@@ -1385,7 +1377,7 @@ impl<'a> CheckEliminator<'a> {
 
     /// Whether `value` equals a constant that at least two instructions below its edge read.
     fn is_repeated(&mut self, func: &Function, cfg: &CfgInfo, value: ValueId) -> bool {
-        let Some(equality) = self.equalities.get(&value) else { return false };
+        let Some(equality) = self.equalities.get_mut(&value) else { return false };
         if let Some(repeated) = equality.repeated {
             return repeated;
         }
@@ -1397,7 +1389,9 @@ impl<'a> CheckEliminator<'a> {
             .filter(|&&reader| cfg.dominators().dominates(block, reader))
             .nth(1)
             .is_some();
-        self.equalities.get_mut(&value).expect("checked above").repeated = Some(repeated);
+        if let Some(equality) = self.equalities.get_mut(&value) {
+            equality.repeated = Some(repeated);
+        }
         repeated
     }
 

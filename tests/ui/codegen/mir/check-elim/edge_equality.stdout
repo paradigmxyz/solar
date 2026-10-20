@@ -103,3 +103,40 @@
       returndata 0, 64
   }
   
+  fn @contradiction(arg0: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 5
+      jumpi v0, bb1, bb4
+    bb4:
+      ret 0
+    bb1:
+-     v1 = eq arg0, 6
+-     jumpi v1, bb3, bb2
++     v1 = eq 5, 6
++     jump bb2
+    bb2:
+-     v2 = add arg0, 1
+-     v3 = add arg0, 2
++     v2 = add 5, 1
++     v3 = add 5, 2
+      v4 = add v2, v3
+      ret v4
+    bb3:
+-     v5 = add arg0, arg0
++     v5 = add 5, 5
+      ret v5
+  }
+  
+  fn @wide_constant(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 0x1234567890123456789012345678901234567890
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      mstore 0, arg0
+      mstore 32, arg0
+      mstore 64, arg0
+      returndata 0, 96
+  }
+  
