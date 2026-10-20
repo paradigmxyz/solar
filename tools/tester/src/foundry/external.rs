@@ -487,7 +487,7 @@ fn git_output(dir: &Path, args: &[&str]) -> Result<String, String> {
 /// Runs the external Foundry suite.
 ///
 /// Fetch failures skip the affected project so offline runs degrade instead of
-/// failing; every other divergence is judged by [`AssertionPolicy::ExternalDifferential`].
+/// failing; every other divergence is judged by `AssertionPolicy::ExternalDifferential`.
 pub fn run_external_suite(solar: &Path) {
     let _ = SOLAR_BINARY.set(select_solar_binary(solar));
 
