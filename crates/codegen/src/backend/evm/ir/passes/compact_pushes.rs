@@ -16,9 +16,12 @@
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
 
 use super::EvmPass;
-use crate::backend::evm::{
-    ir::{Instruction, Metadata, Module},
-    op::{self, WORD_BYTES},
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Metadata, Module},
+        op::{self, WORD_BYTES},
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -199,8 +202,8 @@ fn select(evm_version: EvmVersion, value: U256) -> CompactPush {
     select_with_len(evm_version, value).1
 }
 
-pub(super) fn selected_len(gcx: Gcx<'_>, value: U256) -> usize {
-    immediate_materialization_len(gcx.sess.opts.evm_version, value)
+pub(super) fn selected_len(target: Target, value: U256) -> usize {
+    immediate_materialization_len(target.evm_version(), value)
 }
 
 pub(in crate::backend) fn immediate_materialization_len(

@@ -44,7 +44,8 @@ impl MirPass for OutlineReverts {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        outline_reverts(module, &Target::new(gcx))
+        let target = module.target(gcx);
+        outline_reverts(module, &target)
     }
 }
 

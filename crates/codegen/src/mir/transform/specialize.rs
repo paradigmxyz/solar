@@ -22,14 +22,11 @@
 //! specialized parameters. Run after function-pointer specialization and before dead-argument
 //! elimination.
 
-use crate::{
-    mir::{
-        ArgIdx, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
-        analysis::CallGraphInfo,
-        pass::{MirPass, ModuleAnalyses},
-        transform::{cfg_simplify, check_elim, dce, egraph, sccp},
-    },
-    target::Target,
+use crate::mir::{
+    ArgIdx, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
+    analysis::CallGraphInfo,
+    pass::{MirPass, ModuleAnalyses},
+    transform::{cfg_simplify, check_elim, dce, egraph, sccp},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -83,7 +80,7 @@ fn specialize_round(
     tried: &mut FxHashSet<(FunctionId, Constants, usize, bool)>,
 ) -> bool {
     let graph = CallGraphInfo::new(module);
-    let target = Target::new(gcx);
+    let target = module.target(gcx);
     let mut sites: IndexVec<FunctionId, Vec<CallSite>> =
         index_vec![Vec::new(); module.functions.len()];
     let mut tail_called =

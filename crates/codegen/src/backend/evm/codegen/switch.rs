@@ -1742,7 +1742,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // dup selector; [push value; eq/sub]; jumpi [iszero] condition, target/next
         self.asm.emit_stack_op(StackOp::Dup(1));
         let compare_zero = value.is_some_and(|value| value.is_zero())
-            && self.gcx.sess.opts.optimization != OptimizationMode::None;
+            && self.optimization != OptimizationMode::None;
         if !compare_zero {
             self.emit_case_value(func, value_id);
             // A miss needs only nonzero, so subtraction avoids EQ followed by ISZERO.
@@ -1797,11 +1797,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     &values,
                     linear_values,
                     SwitchPlanOptions {
-                        optimization: self.gcx.sess.opts.optimization,
+                        optimization: self.optimization,
                         evm_version: self.gcx.sess.opts.evm_version,
                         expected_executions: self
                             .emitting_entry
-                            .then(|| Target::new(self.gcx).expected_executions()),
+                            .then(|| self.runtime_target().expected_executions()),
                         default,
                         table_target_width: self.asm.indexed_jump_target_width_bound(),
                         max_gas_code_growth: self.switch_gas_code_growth_remaining,

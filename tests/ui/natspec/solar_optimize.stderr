@@ -1,0 +1,71 @@
+error: `@custom:solar-optimize` must document a non-abstract contract or a library
+   ╭▸ ROOT/tests/ui/natspec/solar_optimize.sol:LL:CC
+   │
+LL │ /// @custom:solar-optimize size
+   │      ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the contract or library whose code to optimize, naming the objective: `@custom:solar-optimize size`
+
+error: `@custom:solar-optimize` must document a non-abstract contract or a library
+   ╭▸ ROOT/tests/ui/natspec/solar_optimize.sol:LL:CC
+   │
+LL │ /// @custom:solar-optimize size
+   │      ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the contract or library whose code to optimize, naming the objective: `@custom:solar-optimize size`
+
+error: `@custom:solar-optimize` must name one objective, `gas` or `size`
+   ╭▸ ROOT/tests/ui/natspec/solar_optimize.sol:LL:CC
+   │
+LL │ /// @custom:solar-optimize speed
+   │      ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-optimize size` to optimize this code for size
+
+error: `@custom:solar-optimize` must name one objective, `gas` or `size`
+   ╭▸ ROOT/tests/ui/natspec/solar_optimize.sol:LL:CC
+   │
+LL │ /// @custom:solar-optimize
+   │      ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-optimize size` to optimize this code for size
+
+error: `@custom:solar-optimize` must name one objective, `gas` or `size`
+   ╭▸ ROOT/tests/ui/natspec/solar_optimize.sol:LL:CC
+   │
+LL │ /// @custom:solar-optimize size gas
+   │      ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-optimize size` to optimize this code for size
+
+error: duplicate `@custom:solar-optimize` tag
+   ╭▸ ROOT/tests/ui/natspec/solar_optimize.sol:LL:CC
+   │
+LL │ /// @custom:solar-optimize gas
+   │      ━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the first tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_optimize.sol:LL:CC
+   │
+LL │ /// @custom:solar-optimize size
+   │      ━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep one tag naming the objective
+
+error: `@custom:solar-optimize` must document a non-abstract contract or a library
+   ╭▸ ROOT/tests/ui/natspec/solar_optimize.sol:LL:CC
+   │
+LL │     /// @custom:solar-optimize size
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the contract or library whose code to optimize, naming the objective: `@custom:solar-optimize size`
+
+error: `@custom:solar-optimize` must document a non-abstract contract or a library
+   ╭▸ ROOT/tests/ui/natspec/solar_optimize.sol:LL:CC
+   │
+LL │     /// @custom:solar-optimize gas
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the contract or library whose code to optimize, naming the objective: `@custom:solar-optimize size`
+
+error: aborting due to 8 previous errors
+

@@ -44,6 +44,7 @@ impl MirPass for LowerBuiltins {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let size = module.optimization(gcx).is_size();
         let mut needs_clear = false;
         let mut needs_bytes = false;
         let mut literal_counts = FxHashMap::default();
@@ -196,11 +197,9 @@ impl MirPass for LowerBuiltins {
                                 bytes_helper,
                             )
                         }
-                        InstKind::StorageBytesLoad(slot) => super::lower_storage_bytes::load(
-                            builder,
-                            slot,
-                            gcx.sess.opts.optimization.is_size(),
-                        ),
+                        InstKind::StorageBytesLoad(slot) => {
+                            super::lower_storage_bytes::load(builder, slot, size)
+                        }
                         InstKind::AddressCall { kind, address, input, gas, value } => {
                             lower_address_call(
                                 builder,

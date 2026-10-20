@@ -66,8 +66,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Address-taken locals, multiword return buffers and recursive frames retain their layouts.
     /// The constructor's spill area lies outside its frame and keeps its layout.
     pub(in crate::backend::evm::codegen) fn pack_scalar_static_frames(&mut self, module: &Module) {
-        if !(self.gcx.sess.opts.optimization.is_gas() || self.gcx.sess.opts.optimization.is_size())
-        {
+        if !(self.optimization.is_gas() || self.optimization.is_size()) {
             return;
         }
         let referenced = self.asm.referenced_deferred_constants().collect::<FxHashSet<_>>();

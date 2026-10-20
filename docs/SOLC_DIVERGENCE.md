@@ -606,14 +606,17 @@ Difference: `solc` reads every `@custom:` NatSpec tag as documentation.
 documenting something it cannot apply to, such as a statement, is an error.
 `@custom:solar-safe` on a contract or a library is an error when the code it
 runs, outside functions tagged `@custom:solar-trusted` or in contracts tagged
-so, uses inline assembly or an `unchecked` block.
+so, uses inline assembly or an `unchecked` block. `@custom:solar-optimize`
+documents a non-abstract contract or a library and names exactly one objective,
+`gas` or `size`, which optimized builds use for its code instead of the
+build's.
 
 Rationale: a tag states a requirement this compiler checks or relies on, so a
 misspelled or misplaced tag must not silently go unchecked. Other compilers
 still read the tags as documentation, and no tag changes what the code does.
 
-Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`
-and `tests/ui/typeck/solar_safe.sol`.
+Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`,
+`tests/ui/natspec/solar_optimize.sol` and `tests/ui/typeck/solar_safe.sol`.
 
 ## Contract-Level Checks
 
@@ -679,7 +682,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   decoder control-flow subgraphs, so these large wrappers retain duplicated
   validation and materialization code. The external artifact audit exempts
   only these named contracts while continuing to enforce artifact presence
-  and EIP-170 parity for the rest of the corpus.
+  and EIP-170 parity for the rest of the corpus. A contract that must fit can
+  be built with `-O size`, or documented `@custom:solar-optimize size`, which
+  compiles its code as a `-O size` build would while the rest of the build
+  keeps its objective; other compilers read the tag as documentation.
 - Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
   `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
 

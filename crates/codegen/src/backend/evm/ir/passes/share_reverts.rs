@@ -52,7 +52,7 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let shared = empty_reverts
         .iter()
         .next()
-        .filter(|&shared| !preserves_shared_revert_low_address(Target::new(gcx), module, shared));
+        .filter(|&shared| !preserves_shared_revert_low_address(module.target(gcx), module, shared));
     let mut cold_reverts = DenseBitSet::new_empty(module.blocks.len());
     for (id, block) in module.blocks.iter_enumerated() {
         if block.metadata.hotness.is_cold()

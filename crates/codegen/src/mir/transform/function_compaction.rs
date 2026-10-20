@@ -59,7 +59,8 @@ impl MirPass for DeadArgElim {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let forwarded = forward_returned_values(module, gcx.sess.opts.optimization.is_size());
+        let size = module.optimization(gcx).is_size();
+        let forwarded = forward_returned_values(module, size);
         let mut changed = forwarded != 0;
         // Pruning keeps every `ret` and tail call, so the returning set holds for the loop.
         let returning = module.returning_functions();

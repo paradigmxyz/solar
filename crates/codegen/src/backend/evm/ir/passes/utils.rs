@@ -16,7 +16,6 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashSet,
 };
-use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
 /// The machine-level identity shared by transforms that compare instructions.
@@ -148,22 +147,22 @@ impl FreshLabels {
 }
 
 /// Returns a conservative lower bound for one instruction's assembled byte length.
-pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> usize {
+pub(super) fn instruction_size_lower_bound(target: Target, inst: &Instruction) -> usize {
     if !inst.is_encoded_push() {
         return inst.as_stack_op().map_or(1, |stack_op| {
             stack_op
-                .assembled_len(gcx.sess.opts.evm_version)
+                .assembled_len(target.evm_version())
                 .expect("EVM IR passes only run on target-compatible stack operations")
         });
     }
     if inst.pushed_library().is_some() {
-        return Target::new(gcx).opcode(op::PUSH20).bytes as usize;
+        return target.opcode(op::PUSH20).bytes as usize;
     }
     if let Some(type_size) = inst.immutable_type_size() {
-        return Target::new(gcx).opcode(op::push(type_size.bytes())).bytes as usize;
+        return target.opcode(op::push(type_size.bytes())).bytes as usize;
     }
     if let Some(value) = inst.concrete_immediate() {
-        return selected_len(gcx, value);
+        return selected_len(target, value);
     }
     // Labels and data offsets are address-sensitive. They may resolve to
     // zero, so one byte is the only safe lower bound before assembly.

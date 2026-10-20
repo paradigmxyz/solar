@@ -365,11 +365,12 @@ impl Target {
     /// pricing, so that a contract near the code size limit cannot grow past it.
     pub(crate) const MAX_LOOP_COPY_BYTES: u32 = 256;
 
-    /// The model of the session's EVM version, objective, and optimizer runs.
-    pub(crate) fn new(gcx: Gcx<'_>) -> Self {
+    /// The model of the session's EVM version and optimizer runs for code optimized for
+    /// `optimization`, its objective after any `@custom:solar-optimize` tag (see [`objective`]).
+    pub(crate) fn new(gcx: Gcx<'_>, optimization: OptimizationMode) -> Self {
         let opts = &gcx.sess.opts;
-        let expected_executions = Self::optimizer_runs(opts.optimization, opts.optimizer_runs);
-        Self::with(opts.evm_version, opts.optimization, expected_executions)
+        let expected_executions = Self::optimizer_runs(optimization, opts.optimizer_runs);
+        Self::with(opts.evm_version, optimization, expected_executions)
     }
 
     /// Resolves the run count used by enabled lifetime-aware optimizations.
@@ -849,6 +850,19 @@ impl Target {
     }
 }
 
+/// The objective code is optimized for: the build's, unless its source selects one with
+/// `@custom:solar-optimize`. A selection only picks what an optimized build optimizes for, so code
+/// built with `-O none` stays unoptimized.
+pub(crate) fn objective(
+    build: OptimizationMode,
+    selected: Option<OptimizationMode>,
+) -> OptimizationMode {
+    match (build, selected) {
+        (OptimizationMode::None, _) | (_, None) => build,
+        (_, Some(selected)) => selected,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1231,5 +1245,15 @@ mod tests {
         assert!(size.shares_terminal_copy(medium, 3));
         // One site never pays for a jump.
         assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
+    }
+
+    #[test]
+    fn tags_select_the_objective_of_optimized_builds() {
+        let (none, gas, size) =
+            (OptimizationMode::None, OptimizationMode::Gas, OptimizationMode::Size);
+        assert_eq!(objective(gas, None), gas);
+        assert_eq!(objective(gas, Some(size)), size);
+        assert_eq!(objective(size, Some(gas)), gas);
+        assert_eq!(objective(none, Some(size)), none);
     }
 }

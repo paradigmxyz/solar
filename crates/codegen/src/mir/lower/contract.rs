@@ -20,6 +20,8 @@ use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
+    // Every decision about the contract's code reads the objective its tag selects.
+    module.optimize = gcx.solar_tags(hir::ItemId::Contract(contract_id)).optimize;
     let storage = StorageLayout::for_contract(gcx, contract_id);
     let mut function_ids = Vec::new();
     let mut seen_selectors = FxHashSet::default();

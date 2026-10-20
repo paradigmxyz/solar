@@ -46,9 +46,10 @@ pub(in crate::backend) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> 
     }
 
     let code_follows = module.code_follows;
+    let optimization = module.optimization(gcx);
     let mut changed = false;
     for block in &mut module.blocks {
-        let target = block.target(gcx, code_follows);
+        let target = block.target(gcx, optimization, code_follows);
         let mut instructions = Vec::with_capacity(block.instructions.len());
         for inst in std::mem::take(&mut block.instructions) {
             let metadata = inst.metadata.clone();

@@ -217,7 +217,7 @@ impl MirPass for CheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         run_function_pass(module, analyses, |func, _| {
             let mut eliminator = CheckEliminator::new(None);
             eliminator.propagate_equalities = Some(target);
@@ -241,7 +241,7 @@ impl MirPass for IntegerCleanup {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         let cleanup = |func: &mut Function, immutable_ranges: Option<&FxHashMap<_, _>>| {
             if (immutable_ranges.is_none()
                 && !func
@@ -283,7 +283,7 @@ impl MirPass for IntegerCleanup {
             }
             true
         };
-        let bounds = if gcx.sess.opts.optimization.is_gas() {
+        let bounds = if module.optimization(gcx).is_gas() {
             runtime_immutable_bounds(module, gcx)
         } else {
             FxHashMap::default()
@@ -318,9 +318,9 @@ impl MirPass for LateCheckElim {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let cold = cold_functions(module);
+        let gas = module.optimization(gcx).is_gas();
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
-            let selected =
-                gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg().cyclic_blocks());
+            let selected = gas.then(|| analyses.cfg().cyclic_blocks());
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
@@ -517,7 +517,7 @@ fn runtime_immutable_bounds(
             };
             let width = immutable_push_type_size(
                 encoding,
-                gcx.sess.opts.optimization,
+                module.optimization(gcx),
                 gcx.sess.opts.evm_version.has_bitwise_shifting(),
             )
             .bits();
