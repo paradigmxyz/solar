@@ -6,7 +6,7 @@ contract Test {
     function far() external pure returns (uint256 r) {
         assembly {
             mstore(0x2100, 1)
-            let q := msize()
+            let q := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
             mstore(add(q, 0x2080), 0xbeef)
             mstore(0x2100, 2)
             r := mload(add(q, 0x2080))
