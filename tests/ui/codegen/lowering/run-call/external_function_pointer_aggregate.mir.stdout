@@ -155,20 +155,20 @@ fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[fun
     v1 = shl v0, 224
     v2 = shr arg0, 32
     v3 = gas
-    v4 = abi_encode [word], selector v1, args arg1
-    v5 = extract_value slice<memory>, v4, 0
-    v6 = extract_value slice<memory>, v4, 1
-    v7 = call v3, v2, 0, v5, v6, 0, 32
-    jumpi v7, bb2, bb1
+    v4 = shr v1, 224
+    mstore 0, v4 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    v5 = call v3, v2, 0, 28, 36, 0, 32
+    jumpi v5, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    ret v11
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = add 0, 0
+    v9 = mload v8
+    ret v9
 }
 
 fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -201,35 +201,33 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x2f5f3b3c00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 0
-    jumpi v6, bb2, bb1
+    mstore 0, 0x2f5f3b3c !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 4, 0, 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [function], v7
-    v9 = and v8, 0xffffffff
-    v10 = shl v9, 224
-    v11 = shr v8, 32
-    v12 = gas
-    v13 = abi_encode [word], selector v10, args 8
-    v14 = extract_value slice<memory>, v13, 0
-    v15 = extract_value slice<memory>, v13, 1
-    v16 = call v12, v11, 0, v14, v15, 0, 32
-    jumpi v16, bb4, bb3
+    v4 = icall returndata_bytes<>
+    v5 = abi_decode [function], v4
+    v6 = and v5, 0xffffffff
+    v7 = shl v6, 224
+    v8 = shr v5, 32
+    v9 = gas
+    v10 = shr v7, 224
+    mstore 0, v10 !metadata(memory=scratch)
+    mstore 32, 8 !metadata(memory=scratch)
+    v11 = call v9, v8, 0, 28, 36, 0, 32
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v17 = returndatasize
-    v18 = lt v17, 32
-    icall revert_if<tuple_data_too_short>, v18
-    v19 = add 0, 0
-    v20 = mload v19
-    ret v20
+    v12 = returndatasize
+    v13 = lt v12, 32
+    icall revert_if<tuple_data_too_short>, v13
+    v14 = add 0, 0
+    v15 = mload v14
+    ret v15
 }
 
 fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -248,20 +246,20 @@ fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_re
     v9 = shl v8, 224
     v10 = shr v7, 32
     v11 = gas
-    v12 = abi_encode [word], selector v9, args 8
-    v13 = extract_value slice<memory>, v12, 0
-    v14 = extract_value slice<memory>, v12, 1
-    v15 = call v11, v10, 0, v13, v14, 0, 32
-    jumpi v15, bb2, bb1
+    v12 = shr v9, 224
+    mstore 0, v12 !metadata(memory=scratch)
+    mstore 32, 8 !metadata(memory=scratch)
+    v13 = call v11, v10, 0, 28, 36, 0, 32
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    ret v17
 }
 
 fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -301,45 +299,45 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     v26 = shl v25, 224
     v27 = shr v24, 32
     v28 = gas
-    v29 = abi_encode [word], selector v26, args 3
-    v30 = extract_value slice<memory>, v29, 0
-    v31 = extract_value slice<memory>, v29, 1
-    v32 = call v28, v27, 0, v30, v31, 0, 32
-    jumpi v32, bb2, bb1
+    v29 = shr v26, 224
+    mstore 0, v29 !metadata(memory=scratch)
+    mstore 32, 3 !metadata(memory=scratch)
+    v30 = call v28, v27, 0, 28, 36, 0, 32
+    jumpi v30, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v33 = returndatasize
-    v34 = lt v33, 32
-    icall revert_if<tuple_data_too_short>, v34
-    v35 = add 0, 0
-    v36 = mload v35
-    v37 = mload v0
-    v38 = lt 1, v37
-    v39 = eq v38, false
-    icall panic_if<0x32>, v39
-    v40 = ptradd v0, 64
-    v41 = mload v40
-    v42 = shr v41, 64
-    v43 = and v42, 0xffffffff
-    v44 = shl v43, 224
-    v45 = shr v42, 32
-    v46 = gas
-    v47 = abi_encode [word], selector v44, args 4
-    v48 = extract_value slice<memory>, v47, 0
-    v49 = extract_value slice<memory>, v47, 1
-    v50 = call v46, v45, 0, v48, v49, 0, 32
-    jumpi v50, bb4, bb3
+    v31 = returndatasize
+    v32 = lt v31, 32
+    icall revert_if<tuple_data_too_short>, v32
+    v33 = add 0, 0
+    v34 = mload v33
+    v35 = mload v0
+    v36 = lt 1, v35
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = ptradd v0, 64
+    v39 = mload v38
+    v40 = shr v39, 64
+    v41 = and v40, 0xffffffff
+    v42 = shl v41, 224
+    v43 = shr v40, 32
+    v44 = gas
+    v45 = shr v42, 224
+    mstore 0, v45 !metadata(memory=scratch)
+    mstore 32, 4 !metadata(memory=scratch)
+    v46 = call v44, v43, 0, 28, 36, 0, 32
+    jumpi v46, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v51 = returndatasize
-    v52 = lt v51, 32
-    icall revert_if<tuple_data_too_short>, v52
-    v53 = add 0, 0
-    v54 = mload v53
-    v55 = checked_add uint256, v36, v54
-    ret v55
+    v47 = returndatasize
+    v48 = lt v47, 32
+    icall revert_if<tuple_data_too_short>, v48
+    v49 = add 0, 0
+    v50 = mload v49
+    v51 = checked_add uint256, v34, v50
+    ret v51
 }
 
 fn @calldataTarget(arg0: slice<calldata>) -> i1 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {

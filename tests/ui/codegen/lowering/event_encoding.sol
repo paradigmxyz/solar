@@ -65,10 +65,9 @@ contract EventEncoding {
     function target() external {}
 
     // CHECK-LABEL: fn @emitNamed
-    // CHECK: [[NAMED_ENCODED:v[0-9]+]] = abi_encode [word, word], args 1, 2
-    // CHECK: [[NAMED_PTR:v[0-9]+]] = extract_value slice<memory>, [[NAMED_ENCODED]], 0
-    // CHECK: [[NAMED_LEN:v[0-9]+]] = extract_value slice<memory>, [[NAMED_ENCODED]], 1
-    // CHECK: log [[NAMED_PTR]], [[NAMED_LEN]],
+    // CHECK: mstore 0, 1
+    // CHECK-NEXT: mstore 32, 2
+    // CHECK-NEXT: log 0, 64,
     function emitNamed() external {
         emit NamedEvent({b: 2, a: 1});
     }
