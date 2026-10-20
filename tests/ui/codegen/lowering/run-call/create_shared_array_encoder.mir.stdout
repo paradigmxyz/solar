@@ -117,86 +117,81 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v21 = add v20, v19
     v22 = lt v21, v20
     icall panic_if<0x41>, v22
-    v23 = add v21, 31
-    v24 = lt v23, v21
-    icall panic_if<0x41>, v24
-    v25 = not 31
-    v26 = and v23, v25
-    v27 = alloc v26
-    datacopy Child_creation_code_0, v27, v20
-    v28 = extract_value slice<memory>, v18, 0
-    v29 = ptrtoint ptr<memory> v27 to i256
-    v30 = add v29, v20
-    mcopy v30, v28, v19 !metadata(memory=heap)
-    v31 = create 0, v27, v21
-    v32 = ne v31, i160 0
-    jumpi v32, bb2, bb1
+    v23 = fmp
+    datacopy Child_creation_code_0, v23, v20
+    v24 = extract_value slice<memory>, v18, 0
+    v25 = ptrtoint ptr<memory> v23 to i256
+    v26 = add v25, v20
+    mcopy v26, v24, v19 !metadata(memory=heap)
+    v27 = create 0, v23, v21
+    v28 = ne v27, i160 0
+    jumpi v28, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v33 = gas
+    v29 = gas
     mstore 0, 0xbe9a6555 !metadata(memory=scratch)
-    v34 = zext i160 v31 to i256
-    v35 = staticcall v33, v34, 28, 4, 0, 32
-    jumpi v35, bb4, bb3
+    v30 = zext i160 v27 to i256
+    v31 = staticcall v29, v30, 28, 4, 0, 32
+    jumpi v31, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v36 = returndatasize
-    v37 = lt v36, 32
-    icall revert_if<tuple_data_too_short>, v37
-    v38 = add 0, 0
-    v39 = mload v38
-    v40 = gas
+    v32 = returndatasize
+    v33 = lt v32, 32
+    icall revert_if<tuple_data_too_short>, v33
+    v34 = add 0, 0
+    v35 = mload v34
+    v36 = gas
     mstore 0, 0x3602175c !metadata(memory=scratch)
-    v41 = zext i160 v31 to i256
-    v42 = staticcall v40, v41, 28, 4, 0, 32
-    jumpi v42, bb6, bb5
+    v37 = zext i160 v27 to i256
+    v38 = staticcall v36, v37, 28, 4, 0, 32
+    jumpi v38, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v43 = returndatasize
-    v44 = lt v43, 32
-    icall revert_if<tuple_data_too_short>, v44
-    v45 = add 0, 0
-    v46 = mload v45
-    v47 = gas
+    v39 = returndatasize
+    v40 = lt v39, 32
+    icall revert_if<tuple_data_too_short>, v40
+    v41 = add 0, 0
+    v42 = mload v41
+    v43 = gas
     mstore 0, 0xee495002 !metadata(memory=scratch)
-    v48 = zext i160 v31 to i256
-    v49 = staticcall v47, v48, 28, 4, 0, 32
-    jumpi v49, bb8, bb7
+    v44 = zext i160 v27 to i256
+    v45 = staticcall v43, v44, 28, 4, 0, 32
+    jumpi v45, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v50 = returndatasize
-    v51 = lt v50, 32
-    icall revert_if<tuple_data_too_short>, v51
-    v52 = add 0, 0
-    v53 = mload v52
-    v54 = gas
+    v46 = returndatasize
+    v47 = lt v46, 32
+    icall revert_if<tuple_data_too_short>, v47
+    v48 = add 0, 0
+    v49 = mload v48
+    v50 = gas
     mstore 0, 0x659621b5 !metadata(memory=scratch)
-    v55 = zext i160 v31 to i256
-    v56 = staticcall v54, v55, 28, 4, 0, 32
-    jumpi v56, bb10, bb9
+    v51 = zext i160 v27 to i256
+    v52 = staticcall v50, v51, 28, 4, 0, 32
+    jumpi v52, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v57 = returndatasize
-    v58 = lt v57, 32
-    icall revert_if<tuple_data_too_short>, v58
-    v59 = add 0, 0
-    v60 = mload v59
-    v61 = shr v60, 160
-    v62 = eq v61, 0
-    v63 = eq v62, false
-    icall revert_if<empty>, v63
-    v64 = trunc i256 v60 to i160
-    v65 = zext i160 v64 to i256
-    v66 = insert_value struct0, undef struct0, 0, v39
-    v67 = insert_value struct0, v66, 1, v46
-    v68 = insert_value struct0, v67, 2, v53
-    v69 = insert_value struct0, v68, 3, v65
-    ret v69
+    v53 = returndatasize
+    v54 = lt v53, 32
+    icall revert_if<tuple_data_too_short>, v54
+    v55 = add 0, 0
+    v56 = mload v55
+    v57 = shr v56, 160
+    v58 = eq v57, 0
+    v59 = eq v58, false
+    icall revert_if<empty>, v59
+    v60 = trunc i256 v56 to i160
+    v61 = zext i160 v60 to i256
+    v62 = insert_value struct0, undef struct0, 0, v35
+    v63 = insert_value struct0, v62, 1, v42
+    v64 = insert_value struct0, v63, 2, v49
+    v65 = insert_value struct0, v64, 3, v61
+    ret v65
 }
 
 fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
@@ -222,84 +217,79 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v13 = add v12, v11
     v14 = lt v13, v12
     icall panic_if<0x41>, v14
-    v15 = add v13, 31
-    v16 = lt v15, v13
-    icall panic_if<0x41>, v16
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = alloc v18
-    datacopy Child_creation_code_0, v19, v12
-    v20 = extract_value slice<memory>, v10, 0
-    v21 = ptrtoint ptr<memory> v19 to i256
-    v22 = add v21, v12
-    mcopy v22, v20, v11 !metadata(memory=heap)
-    v23 = create 0, v19, v13
-    v24 = ne v23, i160 0
-    jumpi v24, bb2, bb1
+    v15 = fmp
+    datacopy Child_creation_code_0, v15, v12
+    v16 = extract_value slice<memory>, v10, 0
+    v17 = ptrtoint ptr<memory> v15 to i256
+    v18 = add v17, v12
+    mcopy v18, v16, v11 !metadata(memory=heap)
+    v19 = create 0, v15, v13
+    v20 = ne v19, i160 0
+    jumpi v20, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v25 = gas
+    v21 = gas
     mstore 0, 0xbe9a6555 !metadata(memory=scratch)
-    v26 = zext i160 v23 to i256
-    v27 = staticcall v25, v26, 28, 4, 0, 32
-    jumpi v27, bb4, bb3
+    v22 = zext i160 v19 to i256
+    v23 = staticcall v21, v22, 28, 4, 0, 32
+    jumpi v23, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v28 = returndatasize
-    v29 = lt v28, 32
-    icall revert_if<tuple_data_too_short>, v29
-    v30 = add 0, 0
-    v31 = mload v30
-    v32 = gas
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = add 0, 0
+    v27 = mload v26
+    v28 = gas
     mstore 0, 0x3602175c !metadata(memory=scratch)
-    v33 = zext i160 v23 to i256
-    v34 = staticcall v32, v33, 28, 4, 0, 32
-    jumpi v34, bb6, bb5
+    v29 = zext i160 v19 to i256
+    v30 = staticcall v28, v29, 28, 4, 0, 32
+    jumpi v30, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v35 = returndatasize
-    v36 = lt v35, 32
-    icall revert_if<tuple_data_too_short>, v36
-    v37 = add 0, 0
-    v38 = mload v37
-    v39 = gas
+    v31 = returndatasize
+    v32 = lt v31, 32
+    icall revert_if<tuple_data_too_short>, v32
+    v33 = add 0, 0
+    v34 = mload v33
+    v35 = gas
     mstore 0, 0xee495002 !metadata(memory=scratch)
-    v40 = zext i160 v23 to i256
-    v41 = staticcall v39, v40, 28, 4, 0, 32
-    jumpi v41, bb8, bb7
+    v36 = zext i160 v19 to i256
+    v37 = staticcall v35, v36, 28, 4, 0, 32
+    jumpi v37, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v42 = returndatasize
-    v43 = lt v42, 32
-    icall revert_if<tuple_data_too_short>, v43
-    v44 = add 0, 0
-    v45 = mload v44
-    v46 = gas
+    v38 = returndatasize
+    v39 = lt v38, 32
+    icall revert_if<tuple_data_too_short>, v39
+    v40 = add 0, 0
+    v41 = mload v40
+    v42 = gas
     mstore 0, 0x659621b5 !metadata(memory=scratch)
-    v47 = zext i160 v23 to i256
-    v48 = staticcall v46, v47, 28, 4, 0, 32
-    jumpi v48, bb10, bb9
+    v43 = zext i160 v19 to i256
+    v44 = staticcall v42, v43, 28, 4, 0, 32
+    jumpi v44, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v49 = returndatasize
-    v50 = lt v49, 32
-    icall revert_if<tuple_data_too_short>, v50
-    v51 = add 0, 0
-    v52 = mload v51
-    v53 = shr v52, 160
-    v54 = eq v53, 0
-    v55 = eq v54, false
-    icall revert_if<empty>, v55
-    v56 = trunc i256 v52 to i160
-    v57 = zext i160 v56 to i256
-    v58 = insert_value struct0, undef struct0, 0, v31
-    v59 = insert_value struct0, v58, 1, v38
-    v60 = insert_value struct0, v59, 2, v45
-    v61 = insert_value struct0, v60, 3, v57
-    ret v61
+    v45 = returndatasize
+    v46 = lt v45, 32
+    icall revert_if<tuple_data_too_short>, v46
+    v47 = add 0, 0
+    v48 = mload v47
+    v49 = shr v48, 160
+    v50 = eq v49, 0
+    v51 = eq v50, false
+    icall revert_if<empty>, v51
+    v52 = trunc i256 v48 to i160
+    v53 = zext i160 v52 to i256
+    v54 = insert_value struct0, undef struct0, 0, v27
+    v55 = insert_value struct0, v54, 1, v34
+    v56 = insert_value struct0, v55, 2, v41
+    v57 = insert_value struct0, v56, 3, v53
+    ret v57
 }

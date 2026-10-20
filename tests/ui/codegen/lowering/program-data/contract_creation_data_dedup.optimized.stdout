@@ -112,13 +112,8 @@ bb26 [cold]:
   push 0
   revert
 bb6:
-  push 160
+  push 128
   dup 1
-  push 64
-  mstore
-  push 256
-  dup 2
-  add
   push 64
   mstore
   push 233
@@ -159,13 +154,8 @@ bb6:
   push 0
   return
 bb18:
-  push 192
+  push 128
   dup 1
-  push 64
-  mstore
-  push 256
-  dup 2
-  add
   push 64
   mstore
   push 233
@@ -182,11 +172,6 @@ bb18:
   jumpi
   push 64
   mload
-  push 256
-  dup 2
-  add
-  push 64
-  mstore
   push 233
   push_data Child_creation_code_0
   dup 3

@@ -37,22 +37,55 @@ fn @plain() -> i256 [selector=0x59748c98, abi_params=[], abi_returns=[word], abi
     v0 = abi_encode [word], args 11
     v1 = datasize ChildWithArg_creation_code_0
     v2 = datasize ChildWithArg_creation_code_0, 32
-    v3 = datasize ChildWithArg_creation_code_0, 63, aligned
-    v4 = alloc v3
-    datacopy ChildWithArg_creation_code_0, v4, v1
-    v5 = extract_value slice<memory>, v0, 0
-    v6 = ptrtoint ptr<memory> v4 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 32 !metadata(memory=heap)
-    v8 = create 0, v4, v2
-    v9 = ne v8, i160 0
-    jumpi v9, bb2, bb1
+    v3 = fmp
+    datacopy ChildWithArg_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 32 !metadata(memory=heap)
+    v7 = create 0, v3, v2
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
+    v9 = gas
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = staticcall v9, v10, 28, 4, 0, 32
+    jumpi v11, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v12 = returndatasize
+    v13 = lt v12, 32
+    icall revert_if<tuple_data_too_short>, v13
+    v14 = add 0, 0
+    v15 = mload v14
+    ret v15
+}
+
+fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = abi_encode [word], args 22
+    v1 = datasize ChildWithArg_creation_code_0
+    v2 = datasize ChildWithArg_creation_code_0, 32
+    v3 = fmp
+    datacopy ChildWithArg_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 32 !metadata(memory=heap)
+    v7: i256 = create2 0, v3, v2, 1
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = trunc i256 v7 to i160
     v10 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v11 = zext i160 v8 to i256
+    v11 = zext i160 v9 to i256
     v12 = staticcall v10, v11, 28, 4, 0, 32
     jumpi v12, bb4, bb3
   bb3:
@@ -66,101 +99,64 @@ fn @plain() -> i256 [selector=0x59748c98, abi_params=[], abi_returns=[word], abi
     ret v16
 }
 
-fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = abi_encode [word], args 22
-    v1 = datasize ChildWithArg_creation_code_0
-    v2 = datasize ChildWithArg_creation_code_0, 32
-    v3 = datasize ChildWithArg_creation_code_0, 63, aligned
-    v4 = alloc v3
-    datacopy ChildWithArg_creation_code_0, v4, v1
-    v5 = extract_value slice<memory>, v0, 0
-    v6 = ptrtoint ptr<memory> v4 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 32 !metadata(memory=heap)
-    v8: i256 = create2 0, v4, v2, 1
-    v9 = ne v8, 0
-    jumpi v9, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v10 = trunc i256 v8 to i160
-    v11 = gas
-    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v12 = zext i160 v10 to i256
-    v13 = staticcall v11, v12, 28, 4, 0, 32
-    jumpi v13, bb4, bb3
-  bb3:
-    revert_returndata
-  bb4:
-    v14 = returndatasize
-    v15 = lt v14, 32
-    icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    ret v17
-}
-
 fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], args 3
     v1 = datasize ChildWithArg_creation_code_0
     v2 = datasize ChildWithArg_creation_code_0, 32
-    v3 = datasize ChildWithArg_creation_code_0, 63, aligned
-    v4 = alloc v3
-    datacopy ChildWithArg_creation_code_0, v4, v1
-    v5 = extract_value slice<memory>, v0, 0
-    v6 = ptrtoint ptr<memory> v4 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 32 !metadata(memory=heap)
-    v8 = create 0, v4, v2
-    v9 = ne v8, i160 0
-    jumpi v9, bb2, bb1
+    v3 = fmp
+    datacopy ChildWithArg_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 32 !metadata(memory=heap)
+    v7 = create 0, v3, v2
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v10 = abi_encode [word], args 4
-    v11 = datasize ChildWithArg_creation_code_0
-    v12 = datasize ChildWithArg_creation_code_0, 32
-    v13 = datasize ChildWithArg_creation_code_0, 63, aligned
-    v14 = alloc v13
-    datacopy ChildWithArg_creation_code_0, v14, v11
-    v15 = extract_value slice<memory>, v10, 0
-    v16 = ptrtoint ptr<memory> v14 to i256
-    v17 = add v16, v11
-    mcopy v17, v15, 32 !metadata(memory=heap)
-    v18 = create 0, v14, v12
-    v19 = ne v18, i160 0
-    jumpi v19, bb4, bb3
+    v9 = abi_encode [word], args 4
+    v10 = datasize ChildWithArg_creation_code_0
+    v11 = datasize ChildWithArg_creation_code_0, 32
+    v12 = fmp
+    datacopy ChildWithArg_creation_code_0, v12, v10
+    v13 = extract_value slice<memory>, v9, 0
+    v14 = ptrtoint ptr<memory> v12 to i256
+    v15 = add v14, v10
+    mcopy v15, v13, 32 !metadata(memory=heap)
+    v16 = create 0, v12, v11
+    v17 = ne v16, i160 0
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = gas
+    v18 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v21 = zext i160 v8 to i256
-    v22 = staticcall v20, v21, 28, 4, 0, 32
-    jumpi v22, bb6, bb5
+    v19 = zext i160 v7 to i256
+    v20 = staticcall v18, v19, 28, 4, 0, 32
+    jumpi v20, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v23 = returndatasize
-    v24 = lt v23, 32
-    icall revert_if<tuple_data_too_short>, v24
-    v25 = add 0, 0
-    v26 = mload v25
-    v27 = gas
+    v21 = returndatasize
+    v22 = lt v21, 32
+    icall revert_if<tuple_data_too_short>, v22
+    v23 = add 0, 0
+    v24 = mload v23
+    v25 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v28 = zext i160 v18 to i256
-    v29 = staticcall v27, v28, 28, 4, 0, 32
-    jumpi v29, bb8, bb7
+    v26 = zext i160 v16 to i256
+    v27 = staticcall v25, v26, 28, 4, 0, 32
+    jumpi v27, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v30 = returndatasize
-    v31 = lt v30, 32
-    icall revert_if<tuple_data_too_short>, v31
-    v32 = add 0, 0
-    v33 = mload v32
-    v34 = checked_add uint256, v26, v33
-    ret v34
+    v28 = returndatasize
+    v29 = lt v28, 32
+    icall revert_if<tuple_data_too_short>, v29
+    v30 = add 0, 0
+    v31 = mload v30
+    v32 = checked_add uint256, v24, v31
+    ret v32
 }
