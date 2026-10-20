@@ -21,11 +21,11 @@
       "A": {
         "evm": {
           "bytecode": {
-            "object": "60c060405234601257604b8060165f395ff35b5f5ffd346047575f3560e01c806313d1aa2e03604757604436106047576004356ffffffffeffffffffffffffffffffffff60601b198082800990916024358391090860805260206080f35b5f5ffd",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;"
+            "object": "34600d5760498060115f395ff35b5f5ffd346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd",
+            "sourceMap": ":::-:0;;;;;;;;;;;;;"
           },
           "deployedBytecode": {
-            "object": "346047575f3560e01c806313d1aa2e03604757604436106047576004356ffffffffeffffffffffffffffffffffff60601b198082800990916024358391090860805260206080f35b5f5ffd",
+            "object": "346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd",
             "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;;;;212:15:0;;;;;195;;;;;;188:43;181:51;;;;;-1:-1:-1;;;"
           }
         }
@@ -33,7 +33,7 @@
       "B": {
         "evm": {
           "bytecode": {
-            "object": "60c060405234601257604b8060165f395ff35b5f5ffd346047575f3560e01c806313d1aa2e03604757604436106047576004356ffffffffeffffffffffffffffffffffff60601b198082800990916024358391090860805260206080f35b5f5ffd",
+            "object": "34600d5760498060115f395ff35b5f5ffd346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -55,70 +55,76 @@
                 {
                   "offset": 0,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0xc0"
-                    ]
-                  }
-                },
-                {
-                  "offset": 2,
-                  "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x40"
-                    ]
-                  }
-                },
-                {
-                  "offset": 4,
-                  "operation": {
-                    "mnemonic": "MSTORE"
-                  }
-                },
-                {
-                  "offset": 5,
-                  "operation": {
                     "mnemonic": "CALLVALUE"
                   }
                 },
                 {
-                  "offset": 6,
+                  "offset": 1,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x12"
+                      "0x0d"
                     ]
                   }
                 },
                 {
-                  "offset": 8,
+                  "offset": 3,
                   "operation": {
                     "mnemonic": "JUMPI"
                   }
                 },
                 {
-                  "offset": 9,
+                  "offset": 4,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x4b"
+                      "0x49"
                     ]
                   }
                 },
                 {
-                  "offset": 11,
+                  "offset": 6,
                   "operation": {
                     "mnemonic": "DUP1"
                   }
                 },
                 {
-                  "offset": 12,
+                  "offset": 7,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x16"
+                      "0x11"
                     ]
+                  }
+                },
+                {
+                  "offset": 9,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 10,
+                  "operation": {
+                    "mnemonic": "CODECOPY"
+                  }
+                },
+                {
+                  "offset": 11,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 12,
+                  "operation": {
+                    "mnemonic": "RETURN"
+                  }
+                },
+                {
+                  "offset": 13,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
                   }
                 },
                 {
@@ -130,41 +136,11 @@
                 {
                   "offset": 15,
                   "operation": {
-                    "mnemonic": "CODECOPY"
+                    "mnemonic": "PUSH0"
                   }
                 },
                 {
                   "offset": 16,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 17,
-                  "operation": {
-                    "mnemonic": "RETURN"
-                  }
-                },
-                {
-                  "offset": 18,
-                  "operation": {
-                    "mnemonic": "JUMPDEST"
-                  }
-                },
-                {
-                  "offset": 19,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 20,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 21,
                   "operation": {
                     "mnemonic": "REVERT"
                   }
@@ -173,7 +149,7 @@
             }
           },
           "deployedBytecode": {
-            "object": "346047575f3560e01c806313d1aa2e03604757604436106047576004356ffffffffeffffffffffffffffffffffff60601b198082800990916024358391090860805260206080f35b5f5ffd",
+            "object": "346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -203,7 +179,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x47"
+                      "0x45"
                     ]
                   }
                 },
@@ -266,7 +242,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x47"
+                      "0x45"
                     ]
                   }
                 },
@@ -302,7 +278,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x47"
+                      "0x45"
                     ]
                   }
                 },
@@ -567,10 +543,7 @@
                 {
                   "offset": 63,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x80"
-                    ]
+                    "mnemonic": "PUSH0"
                   },
                   "context": {
                     "code": {
@@ -585,7 +558,7 @@
                   }
                 },
                 {
-                  "offset": 65,
+                  "offset": 64,
                   "operation": {
                     "mnemonic": "MSTORE"
                   },
@@ -602,7 +575,7 @@
                   }
                 },
                 {
-                  "offset": 66,
+                  "offset": 65,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -622,12 +595,9 @@
                   }
                 },
                 {
-                  "offset": 68,
+                  "offset": 67,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x80"
-                    ]
+                    "mnemonic": "PUSH0"
                   },
                   "context": {
                     "code": {
@@ -642,7 +612,7 @@
                   }
                 },
                 {
-                  "offset": 70,
+                  "offset": 68,
                   "operation": {
                     "mnemonic": "RETURN"
                   },
@@ -660,25 +630,25 @@
                   }
                 },
                 {
-                  "offset": 71,
+                  "offset": 69,
                   "operation": {
                     "mnemonic": "JUMPDEST"
                   }
                 },
                 {
+                  "offset": 70,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 71,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
                   "offset": 72,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 73,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 74,
                   "operation": {
                     "mnemonic": "REVERT"
                   },
@@ -694,10 +664,10 @@
       "C": {
         "evm": {
           "bytecode": {
-            "object": "60c060405234601257604b8060165f395ff35b5f5ffd346047575f3560e01c806313d1aa2e03604757604436106047576004356ffffffffeffffffffffffffffffffffff60601b198082800990916024358391090860805260206080f35b5f5ffd"
+            "object": "34600d5760498060115f395ff35b5f5ffd346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd"
           },
           "deployedBytecode": {
-            "object": "346047575f3560e01c806313d1aa2e03604757604436106047576004356ffffffffeffffffffffffffffffffffff60601b198082800990916024358391090860805260206080f35b5f5ffd"
+            "object": "346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd"
           }
         }
       }

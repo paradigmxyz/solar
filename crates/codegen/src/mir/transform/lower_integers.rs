@@ -7,9 +7,11 @@
 //! stack scheduling. Booleans retain i1 so branches still require a condition;
 //! pointers retain their distinct types and explicit pointer conversions.
 //!
-//! Sign extension uses SIGNEXTEND for byte widths and negation for i1. All signatures and value
-//! types change together, rewriting uses across calls and cyclic phis. No ABI layout
-//! changes: narrow argument bit patterns are already clean at this internal boundary.
+//! Sign extension uses SIGNEXTEND for byte widths and negation for i1. SIGNEXTEND reads only the
+//! low bytes (LLVM's `sign_extend_inreg`), so it starts from the word a mask cleaned, not the
+//! masked value. All signatures and value types change together, rewriting uses across calls and
+//! cyclic phis. No ABI layout changes: narrow argument bit patterns are already clean at this
+//! internal boundary.
 //! Signed immutable loads need explicit cleanup because runtime placeholders can
 //! sign-extend their stored bits to a full word.
 
@@ -145,6 +147,9 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
         inst.result_ty = inst.result_ty.map(lower_type);
     });
     let mut replacements = FxHashMap::default();
+    // Words whose low `bits` bits hold a narrow value that `clean` masked; `signextend` reads only
+    // those bits, so a sign extension of the value starts from the word, as `sign_extend_inreg`.
+    let mut unmasked = FxHashMap::default();
     // Keep original types while rewriting; earlier producers now have word results.
     for block in func.blocks.indices() {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -172,15 +177,21 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
             }
             let inst = inst.clone();
             builder.set_debug_context(&inst.metadata.debug_context());
+            let mut word = None;
             let replacement = match inst.kind {
                 InstKind::LoadImmutable(immutable) if narrow_immutable => {
                     // Runtime placeholders may sign-extend the stored integer.
                     let value = builder.load_immutable(immutable, MirType::I256);
+                    word = Some(value);
                     Some(clean(&mut builder, value, bits(inst.result().unwrap())))
                 }
-                InstKind::Trunc(value, width) => Some(clean(&mut builder, value, width)),
+                InstKind::Trunc(value, width) => {
+                    word = Some(builder.cast_word(value));
+                    Some(clean(&mut builder, value, width))
+                }
                 InstKind::Sext(value, from, to) => {
-                    let value = signed(&mut builder, value, from);
+                    let value = signed(&mut builder, &unmasked, value, from);
+                    word = Some(value);
                     Some(clean(&mut builder, value, to))
                 }
                 InstKind::Zext(value)
@@ -190,6 +201,7 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                 }
                 InstKind::PtrToInt(value, width) if width < 256 => {
                     let value = builder.cast_word(value);
+                    word = Some(value);
                     Some(clean(&mut builder, value, width))
                 }
                 InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..)
@@ -210,7 +222,7 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                     let mut index = 0;
                     kind.visit_operands_mut(|value| {
                         *value = if signed_op && (!arithmetic_shift || index != 0) {
-                            signed(&mut builder, *value, width)
+                            signed(&mut builder, &unmasked, *value, width)
                         } else {
                             builder.cast_word(*value)
                         };
@@ -222,11 +234,12 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                         let padding = builder.imm(256 - width);
                         value = builder.sub(value, padding);
                     }
+                    word = Some(value);
                     Some(clean(&mut builder, value, width))
                 }
                 InstKind::SLt(a, b) | InstKind::SGt(a, b) if bits(a) < 256 => {
-                    let a = signed(&mut builder, a, bits(a));
-                    let b = signed(&mut builder, b, bits(b));
+                    let a = signed(&mut builder, &unmasked, a, bits(a));
+                    let b = signed(&mut builder, &unmasked, b, bits(b));
                     Some(if matches!(inst.kind, InstKind::SLt(..)) {
                         builder.slt(a, b)
                     } else {
@@ -236,7 +249,11 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                 _ => None,
             };
             if let Some(value) = replacement {
-                replacements.insert(inst.result().unwrap(), value);
+                let result = inst.result().unwrap();
+                if let Some(word) = word {
+                    unmasked.insert(result, word);
+                }
+                replacements.insert(result, value);
                 changed = true;
             } else {
                 builder.func_mut().blocks[block].instructions.push(id);
@@ -262,14 +279,20 @@ fn clean(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> ValueI
     }
 }
 
-fn signed(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> ValueId {
-    let value = builder.cast_word(value);
+fn signed(
+    builder: &mut FunctionBuilder<'_>,
+    unmasked: &FxHashMap<ValueId, ValueId>,
+    value: ValueId,
+    bits: u32,
+) -> ValueId {
     if bits == 256 {
-        value
+        builder.cast_word(value)
     } else if bits == 1 {
+        let value = builder.cast_word(value);
         let zero = builder.imm(0);
         builder.sub(zero, value)
     } else {
+        let value = unmasked.get(&value).copied().unwrap_or_else(|| builder.cast_word(value));
         let byte = builder.imm(bits / 8 - 1);
         builder.signextend(byte, value)
     }

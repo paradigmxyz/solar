@@ -29,10 +29,10 @@ bb0:
   add
   jump bb11
 bb11:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb12 [cold]:
   push 0
@@ -49,10 +49,10 @@ bb2:
   iszero
   push bb6
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8:
   pop
@@ -84,7 +84,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -188,13 +188,13 @@ bb7 [loop]:
   push bb9
   jumpi
   pop
-  push 128
+  push 0
   mstore
   pop
-  push 160
+  push 32
   mstore
   push 64
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0

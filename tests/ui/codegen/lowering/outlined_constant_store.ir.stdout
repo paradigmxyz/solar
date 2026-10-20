@@ -56,10 +56,10 @@ bb8 [continuation]:
   mstore
   push 128
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb9 [continuation]:
   push 9
@@ -70,10 +70,10 @@ bb9 [continuation]:
   mstore
   push 128
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 // === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedNarrowing (runtime) ===
 @module OutlinedNarrowing_runtime
@@ -118,7 +118,7 @@ bb5 [cold]:
   push 0
   revert
 bb6:
-  push 160
+  push 128
   push 64
   mstore
   push 4
@@ -131,10 +131,10 @@ bb6:
 bb7:
   pop
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8 [cold]:
   push 64
@@ -197,7 +197,7 @@ bb10 [cold]:
   swap 1
   revert
 bb11:
-  push 160
+  push 128
   push 64
   mstore
   push 4
@@ -213,10 +213,10 @@ bb11:
 bb12:
   pop
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb13 [cold]:
   push bb22
@@ -248,7 +248,7 @@ bb15 [cold]:
   swap 2
   revert
 bb16:
-  push 160
+  push 128
   push 64
   mstore
   push 4
@@ -264,10 +264,10 @@ bb16:
 bb17:
   pop
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb18 [cold]:
   push bb23

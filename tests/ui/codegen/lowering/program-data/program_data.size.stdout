@@ -45,14 +45,14 @@ fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
 
 fn @dataHash() [selector=0x1b3012a3, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
-    returndata 128, 32
+    mstore 0, 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @subsliceHash() [selector=0xe5a3e763, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
-    returndata 128, 32
+    mstore 0, 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
@@ -101,30 +101,30 @@ fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {
   bb0:
     v0 = icall @zeroData.body
     v2 = mload v0
-    v7 = add v0, 32
-    v3 = keccak256 v7, v2
-    mstore 128, v3
-    returndata 128, 32
+    v6 = add v0, 32
+    v3 = keccak256 v6, v2
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @zeroWordHash() [selector=0x0d00d797, abi_wrapper, pure] {
   bb0:
     v0 = icall @zeroWord.body
     v2 = mload v0
-    v7 = add v0, 32
-    v3 = keccak256 v7, v2
-    mstore 128, v3
-    returndata 128, 32
+    v6 = add v0, 32
+    v3 = keccak256 v6, v2
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
   bb0:
     v0 = icall @splatData.body
     v2 = mload v0
-    v7 = add v0, 32
-    v3 = keccak256 v7, v2
-    mstore 128, v3
-    returndata 128, 32
+    v6 = add v0, 32
+    v3 = keccak256 v6, v2
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @zeroData.body() -> i256 [may_return_memory, pure] {
@@ -361,10 +361,10 @@ bb15:
   push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
   jump bb31
 bb31:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb16:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
@@ -484,7 +484,7 @@ bb30:
   swap 1
   jump
 bb22:
-  push 160
+  push 128
   push 64
   mstore
   push bb23
@@ -498,7 +498,7 @@ bb23 [continuation]:
   keccak256
   jump bb31
 bb24:
-  push 160
+  push 128
   push 64
   mstore
   push bb23
@@ -520,7 +520,7 @@ bb24:
   swap 1
   jump
 bb26:
-  push 160
+  push 128
   push 64
   mstore
   push bb23

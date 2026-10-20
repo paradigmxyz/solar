@@ -126,13 +126,13 @@ bb20:
   dup 1
   dup 3
   sub
-  push 128
+  push 0
   mstore
   eq
-  push 160
+  push 32
   mstore
   push 64
-  push 128
+  push 0
   return
 bb23:
   push 68
@@ -147,13 +147,13 @@ bb23:
   dup 2
   dup 2
   sub
-  push 128
+  push 0
   mstore
   eq
-  push 160
+  push 32
   mstore
   push 64
-  push 128
+  push 0
   return
 bb26:
   push 68
@@ -168,13 +168,13 @@ bb26:
   dup 1
   dup 3
   xor
-  push 128
+  push 0
   mstore
   eq
-  push 160
+  push 32
   mstore
   push 64
-  push 128
+  push 0
   return
 bb29:
   push 36
@@ -196,8 +196,8 @@ bb31 [loop]:
   lt
   push bb33
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

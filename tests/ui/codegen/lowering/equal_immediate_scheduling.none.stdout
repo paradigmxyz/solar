@@ -23,6 +23,9 @@ bb3 [cold]:
   push 0
   revert
 bb4:
+  push 128
+  push 64
+  mstore
   push 36
   calldatasize
   lt
@@ -50,15 +53,12 @@ bb7:
   push 0x123456789abcde
   push 0x123456789abcde
   addmod
-  push 128
+  push 0
   mstore
+  push 0
   push 32
-  push 128
-  add
-  push 128
-  swap 1
   sub
-  push 128
+  push 0
   return
 bb8 [cold]:
   push 0

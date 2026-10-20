@@ -23,17 +23,15 @@ alloy-json-abi.workspace = true
 alloy-primitives.workspace = true
 evm2.workspace = true
 regex.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 solar-config.workspace = true
 solar-evmir.workspace = true
 solar-evmir-interpreter.workspace = true
 strum.workspace = true
 tempfile.workspace = true
-ui_test = { git = "https://github.com/DaniPopes/ui_test", branch = "fork", version = "0.30.5" }
-
-[dev-dependencies]
-serde = { workspace = true, features = ["derive"] }
 toml_edit = { workspace = true, features = ["serde"] }
+ui_test = { git = "https://github.com/DaniPopes/ui_test", branch = "fork", version = "0.30.5" }
 
 [features]
 nightly = []

@@ -97,10 +97,10 @@ bb12 [loop]:
   lt
   push bb14
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3:
   push 0xaf080e88
@@ -139,8 +139,8 @@ bb7 [loop]:
   lt
   push bb9
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
