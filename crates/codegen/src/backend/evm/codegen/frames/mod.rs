@@ -373,6 +373,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .map(|&entry| (entry, Self::entry_own_reach(module, entry, &runtime_entries)))
             .collect::<FxHashMap<_, _>>();
+        let mut entry_pointers = FxHashMap::default();
         let mut reachable_memory_marks = own_reach
             .iter()
             .map(|(&entry, reach)| {
@@ -407,7 +408,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                             .clone()
                     })
                     .collect::<Vec<_>>();
-                (entry, Self::raise_for_folded_pointers(images.max(own), &pointers))
+                let mark = Self::raise_for_folded_pointers(images.max(own), &pointers);
+                entry_pointers.insert(entry, pointers);
+                (entry, mark)
             })
             .collect::<FxHashMap<_, _>>();
         // Compiler memory that starts at or above the bound must also clear the fixed memory
@@ -459,6 +462,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .unwrap_or(0);
                 *mark = (*mark).max(shared_end);
             }
+        }
+        // Relocating the spill area above high ranges and shared frames can bring a heap that a
+        // folded pointer starts into reach of it.
+        for (entry, mark) in &mut reachable_memory_marks {
+            *mark = Self::raise_for_folded_pointers(*mark, &entry_pointers[entry]);
         }
         let entry_bases: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
