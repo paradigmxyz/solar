@@ -1,0 +1,115 @@
+// === ROOT/tests/ui/codegen/mir/storage-load-cse/equal_slot_hashes.sol:EqualSlotHashes ===
+@module EqualSlotHashes
+@phase lowered
+fn @quotient() [selector=0xc44fffd3, abi_wrapper] {
+  bb0:
+    v5 = calldatasize
+    v6 = lt v5, 68
+    jumpi v6, bb1, bb2
+  bb2:
+    v0 = shr arg0, 3
+    mstore 0, v0 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v8 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v8, arg1
+    mstore 0, arg1
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @quotientBy() [selector=0x8acb0e18, abi_wrapper] {
+  bb0:
+    v9 = calldatasize
+    v10 = lt v9, 100
+    jumpi v10, bb3, bb4
+  bb4:
+    v5 = ne arg1, 0
+    jumpi v5, bb2, bb1
+  bb1:
+    mstore 32, 18 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    v6 = div arg0, arg1
+    mstore 0, v6 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v12, arg2
+    mstore 0, arg2
+    returndata 0, 32
+  bb3:
+    revert 0, 0
+}
+
+fn @successor() [selector=0xf807e60a, abi_wrapper] {
+  bb0:
+    v9 = calldatasize
+    v10 = lt v9, 68
+    jumpi v10, bb3, bb4
+  bb4:
+    v5 = add arg0, 1
+    v6 = eq v5, 0
+    jumpi v6, bb1, bb2
+  bb2:
+    mstore 0, v5 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v12, arg1
+    mstore 0, arg1
+    returndata 0, 32
+  bb1:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @lane() [selector=0x72d8bcce, abi_wrapper] {
+  bb0:
+    v33 = calldatasize
+    v34 = lt v33, 68
+    jumpi v34, bb1, bb2
+  bb2:
+    v0 = and arg0, 7
+    v19 = shl v0, 5
+    v2 = shr arg0, 3
+    mstore 0, v2 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v36 = keccak256 0, 64 !metadata(memory=scratch)
+    v4 = sload v36
+    v5 = shr v4, v19
+    v6 = xor v5, arg1
+    v7 = and v6, 0xffffffff
+    v8 = shl v7, v19
+    v9 = xor v4, v8
+    sstore v36, v9
+    v17 = shr v9, v19
+    v18 = and v17, 0xffffffff
+    mstore 0, v18 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x72d8bcce => bb2, 0x8acb0e18 => bb3, 0xc44fffd3 => bb4, 0xf807e60a => bb5]
+  bb5:
+    tail_call @successor
+  bb4:
+    tail_call @quotient
+  bb3:
+    tail_call @quotientBy
+  bb2:
+    tail_call @lane
+  bb6:
+    revert 0, 0
+}
