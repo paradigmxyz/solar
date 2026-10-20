@@ -109,4 +109,13 @@
     push 0
     gt
     jumpi bb25, bb6
+  bb28 [loop]:
+    push 37
+    jump bb30
+  bb29:
+    stop
+  bb30 [loop]:
+    push 1
+    add
+    jump bb25
   
