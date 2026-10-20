@@ -479,6 +479,8 @@ struct RunStore {
 struct StoreMerge {
     /// The last store of the group, which becomes the word store.
     last: InstId,
+    /// The other stores of the group, whose source origins the word store keeps.
+    merged: Vec<InstId>,
     /// The address of the group's lowest store.
     addr: ValueId,
     word: U256,
@@ -1991,6 +1993,10 @@ impl MemoryStoreEliminator {
                 word,
                 PtrLocation::Memory,
             ));
+            for &inst in &merge.merged {
+                let context = func.inst(inst).metadata.debug_context();
+                func.inst_mut(merge.last).metadata.merge_debug_context(&context);
+            }
         }
         if scratch.dead.is_empty() {
             return;
@@ -2069,13 +2075,16 @@ impl MemoryStoreEliminator {
                 start += group.len();
                 windows.push((run[lowest].key, word));
                 let last = run[*group.last().unwrap()].inst;
-                for &index in &group {
-                    if run[index].inst != last {
-                        scratch.dead.insert(run[index].inst);
-                    }
+                let merged = group
+                    .iter()
+                    .map(|&index| run[index].inst)
+                    .filter(|&inst| inst != last)
+                    .collect::<Vec<_>>();
+                for &inst in &merged {
+                    scratch.dead.insert(inst);
                 }
                 self.eliminated_count += group.len() - 1;
-                merges.push(StoreMerge { last, addr: run[lowest].addr, word });
+                merges.push(StoreMerge { last, merged, addr: run[lowest].addr, word });
             }
         }
 

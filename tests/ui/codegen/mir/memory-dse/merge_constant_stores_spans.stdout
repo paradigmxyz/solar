@@ -1,0 +1,12 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/merge_constant_stores_spans.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/merge_constant_stores_spans.mir (after memory-dse) ===
+  @module MergeConstantStoresSpans
+  fn @merged_origins() {
+    bb0:
+-     mstore 128, 0 !metadata(span=1..2)
+-     mstore8 128, 48 !metadata(span=10..20)
+-     mstore8 129, 120 !metadata(span=30..40)
++     mstore 128, 0x3078000000000000000000000000000000000000000000000000000000000000 !metadata(spans=[30..40, 10..20])
+      returndata 128, 32
+  }
+  

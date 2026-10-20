@@ -1,0 +1,11 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+@module MergeConstantStoresSpans
+
+// The word store keeps the source origins of every byte store it replaces.
+fn @merged_origins() {
+  bb0:
+    mstore 128, 0 !metadata(span=1..2)
+    mstore8 128, 48 !metadata(span=10..20)
+    mstore8 129, 120 !metadata(span=30..40)
+    returndata 128, 32
+}
