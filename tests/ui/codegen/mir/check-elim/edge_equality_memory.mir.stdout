@@ -445,6 +445,70 @@ fn @calledDerived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x619af4
     ret v42
 }
 
+fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = calldataload 100
+    v18 = eq v17, 63
+    v19 = zext i1 v18 to i256
+    v20 = ne v19, 0
+    jumpi v20, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v21 = and v17, 255
+    calldatacopy arg2, 0, v21
+    v22 = and v17, 255
+    calldatacopy arg2, 0, v22
+    jump bb3
+  bb3:
+    v23 = ne arg1, 0
+    jumpi v23, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v24 = icall @_copy, 0x400
+    v25 = mload v24
+    v26 = shl v25, 0
+    jump bb6
+  bb6:
+    v27 = phi [bb4: v26], [bb5: 0]
+    v28 = xor v0, v1
+    v29 = xor v28, v2
+    v30 = xor v29, v3
+    v31 = xor v30, v4
+    v32 = xor v31, v5
+    v33 = xor v32, v6
+    v34 = xor v33, v7
+    v35 = xor v34, v8
+    v36 = xor v35, v9
+    v37 = xor v36, v10
+    v38 = xor v37, v11
+    v39 = xor v38, v12
+    v40 = xor v39, v13
+    v41 = xor v40, v14
+    v42 = xor v41, v15
+    v43 = xor v42, v16
+    v44 = xor v27, v43
+    ret v44
+}
+
 fn @_write(arg0: i256, arg1: i256) [pure] {
   bb0:
     calldatacopy arg0, 0, arg1

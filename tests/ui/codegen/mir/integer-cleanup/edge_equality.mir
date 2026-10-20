@@ -43,10 +43,11 @@ fn @contradiction(arg0: i256) -> i256 {
     ret 0
 }
 
-// A mask that the edge makes redundant leaves the constant, not the value, behind.
+// A mask that the edge makes redundant leaves its input, not the constant: the operand rules
+// decide whether the input may become one.
 // CHECK-LABEL: fn @mask
 // CHECK: - mstore 0, v1
-// CHECK: + mstore 0, 3
+// CHECK: + mstore 0, arg0
 fn @mask(arg0: i256) {
   bb0:
     v0 = eq arg0, 3
