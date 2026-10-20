@@ -4,7 +4,7 @@ Integration test support for the compiler.
 
 `crates/solar/tests.rs` passes the freshly built `solar` binary to the UI, MIR,
 EVM IR, standard JSON, and upstream compatibility runners, and
-`crates/solar/foundry.rs` passes it to the Foundry runner. The Foundry runner is
+`crates/solar/tests/it/foundry.rs` passes it to the Foundry runner. The Foundry runner is
 a separate test that runs in the workspace's default
 `cargo nextest run` and discovers every project under `tests/foundry` with a
 `foundry.toml`. Run one suite with a `cargo tq` alias, such as `cargo tq ui`,

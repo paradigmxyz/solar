@@ -12,7 +12,7 @@ use xshell::{Shell, cmd};
 mod flags;
 
 const INT_FLAGS: &[&str] = &["--package=solar-compiler", "--test=tests"];
-const FOUNDRY_FLAGS: &[&str] = &["--package=solar-compiler", "--test=foundry"];
+const FOUNDRY_FLAGS: &[&str] = &["--package=solar-compiler", "--test=it"];
 
 fn main() -> anyhow::Result<()> {
     let flags = flags::Xtask::from_env_or_exit();
@@ -32,7 +32,7 @@ fn main() -> anyhow::Result<()> {
                 let mut cmd = cmd!(sh, "cargo nextest run --release");
                 cmd = cmd
                     .args(FOUNDRY_FLAGS)
-                    .arg("external")
+                    .arg("foundry::external")
                     .arg("--run-ignored=only")
                     .arg("--no-capture");
                 if let Some(project) = rest.first() {
@@ -44,7 +44,7 @@ fn main() -> anyhow::Result<()> {
 
             if test_name.as_deref().is_some_and(|name| matches!(name, "foundry" | "runtime")) {
                 let mut cmd = cmd!(sh, "cargo nextest run");
-                cmd = cmd.args(FOUNDRY_FLAGS).arg("foundry").arg("--");
+                cmd = cmd.args(FOUNDRY_FLAGS).arg("foundry::foundry").arg("--");
                 if !rest.is_empty() {
                     cmd = cmd.args(rest);
                 }
