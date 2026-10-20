@@ -683,6 +683,7 @@ body a modifier's `_` runs in it. The memory the block allocates is reused once
 the block ends normally, so a reference to it that code after the block could
 still use is an error: one used after the block, returned, stored into older
 memory or storage, or passed to a call that may store it there.
+[TAGS.md](TAGS.md) describes each tag.
 
 Rationale: a tag states a requirement this compiler checks or relies on, so a
 misspelled or misplaced tag must not silently go unchecked. Other compilers
