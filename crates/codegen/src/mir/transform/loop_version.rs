@@ -238,8 +238,17 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
             if let &InstKind::Load(pointer, PtrLocation::Memory) = kind
                 && !defined_in_loop(pointer)
             {
+                // The clone reads each word once, as the type its loads give it: a word loaded
+                // both as a pointer and as an integer is left alone.
+                let ty = func.inst_result_value(inst).and_then(|result| func.value_ty(result));
                 match words.iter_mut().find(|(word, _)| *word == pointer) {
-                    Some((_, loads)) => loads.push(inst),
+                    Some((_, loads)) => {
+                        let first = func.inst_result_value(loads[0]).and_then(|r| func.value_ty(r));
+                        if first != ty {
+                            return None;
+                        }
+                        loads.push(inst);
+                    }
                     None => words.push((pointer, vec![inst])),
                 }
                 continue;
@@ -436,9 +445,15 @@ fn apply(func: &mut Function, plan: &Plan) {
     let mut builder = FunctionBuilder::new_semantic(func);
     builder.switch_to_block(test);
     let mut values = FxHashMap::default();
-    for &(word, _) in &plan.words {
-        let value = builder.load(word, PtrLocation::Memory);
-        values.insert(word, value);
+    for (word, loads) in &plan.words {
+        // A pointer word stays a pointer, so the clone's addresses built from it keep their type.
+        let ty = builder
+            .func()
+            .inst_result_value(loads[0])
+            .and_then(|result| builder.func().value_ty(result))
+            .unwrap_or(MirType::I256);
+        let value = builder.load_as(*word, PtrLocation::Memory, ty);
+        values.insert(*word, value);
     }
     let limit = builder.imm(U256::from(1) << 64);
     let one = builder.imm(1);
