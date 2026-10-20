@@ -930,6 +930,9 @@ pub(crate) enum SolarTag {
     Terminates,
     /// `@custom:solar-scratch`: the memory the block allocates is reused after it.
     Scratch,
+    /// `@custom:solar-view`: the declaration's `bytes` and `string` values are read where an
+    /// `abi.decode` finds them in calldata, with no copy.
+    View,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -945,6 +948,7 @@ impl SolarTag {
             sym::solar_dash_optimize => Some(Self::Optimize),
             sym::solar_dash_terminates => Some(Self::Terminates),
             sym::solar_dash_scratch => Some(Self::Scratch),
+            sym::solar_dash_view => Some(Self::View),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -995,6 +999,14 @@ pub(crate) fn report_misplaced_solar_tag(
             .span(span)
             .help("put it on a `{ ... }` block whose allocations do not outlive it")
             .emit(),
+        SolarTag::View => dcx
+            .err("`@custom:solar-view` must document a variable declaration")
+            .span(span)
+            .help(
+                "put it on a declaration initialized by `abi.decode` of calldata `bytes`: \
+                 `(bytes memory payload) = abi.decode(data, (bytes));`",
+            )
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown tag `@custom:{name}`"))
             .span(span)
@@ -1002,7 +1014,7 @@ pub(crate) fn report_misplaced_solar_tag(
             .help(
                 "the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, \
                  `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, \
-                 `@custom:solar-terminates`, and `@custom:solar-trusted`",
+                 `@custom:solar-terminates`, `@custom:solar-trusted`, and `@custom:solar-view`",
             )
             .emit(),
     }

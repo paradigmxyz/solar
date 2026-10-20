@@ -1,0 +1,271 @@
+// === ROOT/tests/ui/codegen/lowering/solar_view_decode.sol:SolarViewDecode ===
+@module SolarViewDecode
+@types
+  struct0: {i256, i256, i256}
+  struct1: {i256, slice<calldata>}
+  struct2: {i256, ptr<memory>}
+  struct3: {i256, i256, ptr<memory>}
+  struct4: {slice<calldata>, slice<calldata>}
+  struct5: {ptr<memory>, ptr<memory>}
+
+fn @viewed(arg0: slice<calldata>) -> struct0 [selector=0xd3855add, pure, abi_params=[bytes], abi_returns=[word, word, word<bytes1>], abi_return_params=[bytes32, uint256, bytes1]] {
+  bb0:
+    v0 = abi_decode [uint256, bytes], arg0, views 1
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = extract_value slice<calldata>, v2, 1
+    v5 = fmp
+    calldatacopy v5, v3, v4 !metadata(memory=heap)
+    v6 = keccak256 v5, v4
+    v7 = extract_value slice<calldata>, v2, 1
+    v8 = checked_add uint256, v1, v7
+    v9 = extract_value slice<calldata>, v2, 1
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = extract_value slice<calldata>, v2, 0
+    v13 = extract_value slice<calldata>, v2, 0
+    v14 = calldataload v13
+    v15 = byte 0, v14
+    v16 = shl v15, 248
+    v17 = insert_value struct0, undef struct0, 0, v6
+    v18 = insert_value struct0, v17, 1, v8
+    v19 = insert_value struct0, v18, 2, v16
+    ret v19
+}
+
+fn @copied(arg0: slice<calldata>) -> struct0 [selector=0x08d930ef, pure, abi_params=[bytes], abi_returns=[word, word, word<bytes1>], abi_return_params=[bytes32, uint256, bytes1]] {
+  bb0:
+    v0 = abi_decode [uint256, bytes], arg0
+    v1 = extract_value struct2, v0, 0
+    v2 = extract_value struct2, v0, 1
+    v3 = ptradd v2, 32
+    v4 = mload v2
+    v5 = keccak256 v3, v4
+    v6 = mload v2
+    v7 = checked_add uint256, v1, v6
+    v8 = mload v2
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = ptradd v2, 32
+    v12 = mload v11
+    v13 = byte 0, v12
+    v14 = shl v13, 248
+    v15 = insert_value struct0, undef struct0, 0, v5
+    v16 = insert_value struct0, v15, 1, v7
+    v17 = insert_value struct0, v16, 2, v14
+    ret v17
+}
+
+fn @pairViewed(arg0: slice<calldata>) -> struct3 [selector=0x8049c2b9, pure, abi_params=[bytes], abi_returns=[word, word, memory_bytes], abi_return_params=[bytes32, uint256, bytes]] {
+  bb0:
+    v0 = abi_decode [bytes, bytes], arg0, views 0, 1
+    v1 = extract_value struct4, v0, 0
+    v2 = extract_value struct4, v0, 1
+    v3 = extract_value slice<calldata>, v1, 0
+    v4 = extract_value slice<calldata>, v1, 1
+    v5 = fmp
+    calldatacopy v5, v3, v4 !metadata(memory=heap)
+    v6 = keccak256 v5, v4
+    v7 = extract_value slice<calldata>, v2, 1
+    v8 = abi_encode_packed (bytes v1, bytes v2)
+    v9 = insert_value struct3, undef struct3, 0, v6
+    v10 = insert_value struct3, v9, 1, v7
+    v11 = insert_value struct3, v10, 2, v8
+    ret v11
+}
+
+fn @pairCopied(arg0: slice<calldata>) -> struct3 [selector=0x5cbc9640, pure, abi_params=[bytes], abi_returns=[word, word, memory_bytes], abi_return_params=[bytes32, uint256, bytes]] {
+  bb0:
+    v0 = abi_decode [bytes, bytes], arg0
+    v1 = extract_value struct5, v0, 0
+    v2 = extract_value struct5, v0, 1
+    v3 = ptradd v1, 32
+    v4 = mload v1
+    v5 = keccak256 v3, v4
+    v6 = mload v2
+    v7 = abi_encode_packed (bytes v1, bytes v2)
+    v8 = insert_value struct3, undef struct3, 0, v5
+    v9 = insert_value struct3, v8, 1, v6
+    v10 = insert_value struct3, v9, 2, v7
+    ret v10
+}
+
+fn @nestedViewed(arg0: slice<calldata>) -> ptr<memory> [selector=0x3fdd3a1d, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_decode [bytes], arg0, views 0
+    v1 = abi_decode [bytes], v0, views 0
+    v2 = abi_encode_packed (bytes v1, data hex"21")
+    ret v2
+}
+
+fn @nestedCopied(arg0: slice<calldata>) -> ptr<memory> [selector=0xa2b6bc17, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_decode [bytes], arg0
+    v1 = abi_decode [bytes], v0
+    v2 = abi_encode_packed (bytes v1, data hex"21")
+    ret v2
+}
+
+fn @encodedViewed(arg0: slice<calldata>) -> ptr<memory> [selector=0xb9cfee11, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_decode [uint256, bytes], arg0, views 1
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = abi_encode [word, calldata_bytes], object, args v1, v2
+    ret v3
+}
+
+fn @encodedCopied(arg0: slice<calldata>) -> ptr<memory> [selector=0xd61f3095, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_decode [uint256, bytes], arg0
+    v1 = extract_value struct2, v0, 0
+    v2 = extract_value struct2, v0, 1
+    v3 = abi_encode [word, memory_bytes], object, args v1, v2
+    ret v3
+}
+
+fn @conversions(arg0: slice<calldata>) -> i1 [selector=0xe8362a9d, view, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = abi_decode [bytes, bytes], arg0, views 0, 1
+    v1 = extract_value struct4, v0, 0
+    v2 = extract_value struct4, v0, 1
+    v3 = abi_decode [bytes, bytes], arg0
+    v4 = extract_value struct5, v3, 0
+    v5 = extract_value struct5, v3, 1
+    v6 = abi_encode_packed (bytes v1, bytes v2)
+    v7 = ptradd v6, 32
+    v8 = mload v6
+    v9 = keccak256 v7, v8
+    v10 = abi_encode_packed (bytes v4, bytes v5)
+    v11 = ptradd v10, 32
+    v12 = mload v10
+    v13 = keccak256 v11, v12
+    v14 = eq v9, v13
+    jumpi v14, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v15 = abi_encode_packed (bytes v2, bytes v1)
+    v16 = ptradd v15, 32
+    v17 = mload v15
+    v18 = keccak256 v16, v17
+    v19 = abi_encode_packed (bytes v5, bytes v4)
+    v20 = ptradd v19, 32
+    v21 = mload v19
+    v22 = keccak256 v20, v21
+    v23 = eq v18, v22
+    jump bb3
+  bb3:
+    v24 = phi [bb1: v23], [bb2: false]
+    jumpi v24, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v25 = shl 0x12345678, 224
+    v26 = abi_encode [calldata_bytes, calldata_bytes], object, selector v25, args v1, v2
+    v27 = ptradd v26, 32
+    v28 = mload v26
+    v29 = keccak256 v27, v28
+    v30 = shl 0x12345678, 224
+    v31 = abi_encode [memory_bytes, memory_bytes], object, selector v30, args v4, v5
+    v32 = ptradd v31, 32
+    v33 = mload v31
+    v34 = keccak256 v32, v33
+    v35 = eq v29, v34
+    jump bb6
+  bb6:
+    v36 = phi [bb4: v35], [bb5: false]
+    jumpi v36, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v37 = abi_encode [calldata_bytes, calldata_bytes], object, selector 0x3356f0e600000000000000000000000000000000000000000000000000000000, args v1, v2
+    v38 = ptradd v37, 32
+    v39 = mload v37
+    v40 = keccak256 v38, v39
+    v41 = abi_encode [memory_bytes, memory_bytes], object, selector 0x3356f0e600000000000000000000000000000000000000000000000000000000, args v4, v5
+    v42 = ptradd v41, 32
+    v43 = mload v41
+    v44 = keccak256 v42, v43
+    v45 = eq v40, v44
+    jump bb9
+  bb9:
+    v46 = phi [bb7: v45], [bb8: false]
+    jumpi v46, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v47 = abi_encode [calldata_bytes, calldata_bytes], object, selector 0x3356f0e600000000000000000000000000000000000000000000000000000000, args v1, v2
+    v48 = ptradd v47, 32
+    v49 = mload v47
+    v50 = keccak256 v48, v49
+    v51 = abi_encode [memory_bytes, memory_bytes], object, selector 0x3356f0e600000000000000000000000000000000000000000000000000000000, args v4, v5
+    v52 = ptradd v51, 32
+    v53 = mload v51
+    v54 = keccak256 v52, v53
+    v55 = eq v50, v54
+    jump bb12
+  bb12:
+    v56 = phi [bb10: v55], [bb11: false]
+    jumpi v56, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    v57 = keccak256_packed (bytes v2, bytes v1)
+    v58 = keccak256_packed (bytes v5, bytes v4)
+    v59 = eq v57, v58
+    jump bb15
+  bb15:
+    v60 = phi [bb13: v59], [bb14: false]
+    jumpi v60, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    v61 = extract_value slice<calldata>, v2, 0
+    v62 = extract_value slice<calldata>, v2, 1
+    v63 = fmp
+    calldatacopy v63, v61, v62 !metadata(memory=heap)
+    v64 = keccak256 v63, v62
+    v65 = ptradd v5, 32
+    v66 = mload v5
+    v67 = keccak256 v65, v66
+    v68 = eq v64, v67
+    jump bb18
+  bb18:
+    v69 = phi [bb16: v68], [bb17: false]
+    jumpi v69, bb19, bb20
+  bb20:
+    jump bb21
+  bb19:
+    v70 = extract_value slice<calldata>, v2, 1
+    v71 = lt 1, v70
+    v72 = eq v71, false
+    icall panic_if<0x32>, v72
+    v73 = extract_value slice<calldata>, v2, 0
+    v74 = extract_value slice<calldata>, v2, 0
+    v75 = ptradd v74, 1
+    v76 = calldataload v75
+    v77 = byte 0, v76
+    v78 = shl v77, 248
+    v79 = mload v5
+    v80 = lt 1, v79
+    v81 = eq v80, false
+    icall panic_if<0x32>, v81
+    v82 = ptradd v5, 33
+    v83 = mload v82
+    v84 = byte 0, v83
+    v85 = shl v84, 248
+    v86 = eq v78, v85
+    jump bb21
+  bb21:
+    v87 = phi [bb19: v86], [bb20: false]
+    ret v87
+}
+
+fn @target(arg0: slice<calldata>, arg1: slice<calldata>) [selector=0x3356f0e6, pure, abi_params=[bytes, bytes], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}

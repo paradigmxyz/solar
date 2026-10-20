@@ -668,6 +668,8 @@ impl LowerAbiCx {
         }
 
         for func_id in decode_functions.iter() {
+            // The result fields of the decodes whose `bytes` and `string` values are views.
+            let view_fields = decode_view_fields(module, func_id);
             let func = module.function_mut(func_id);
             let mut replacements = FxHashMap::default();
             let mut builder = self.builder(func);
@@ -689,13 +691,14 @@ impl LowerAbiCx {
                     let result = builder.func().inst_result_value(inst);
                     if builder.func().value_slice_location(data) == Some(PtrLocation::Calldata) {
                         let layout = layout.clone();
+                        let fields = view_fields.get(&inst).map(Vec::as_slice);
                         let Some(values) =
-                            decode_calldata_tuple(&mut builder, data, layout.as_ref())
+                            decode_calldata_tuple(&mut builder, data, layout.as_ref(), fields)
                         else {
                             return false;
                         };
                         if let Some(result) = result {
-                            let value = pack_decoded(&mut builder, result, values, &layout);
+                            let value = pack_decoded(&mut builder, result, values, &layout, fields);
                             replacements.insert(result, value);
                         }
                         continue;
@@ -736,7 +739,9 @@ impl LowerAbiCx {
                         return false;
                     };
                     let Some(result) = result else { continue };
-                    let value = pack_decoded(&mut builder, result, values, layout);
+                    // Type checking only accepts views of calldata.
+                    debug_assert!(!view_fields.contains_key(&inst), "a view decoded from memory");
+                    let value = pack_decoded(&mut builder, result, values, layout, None);
                     replacements.insert(result, value);
                 }
                 super::lower_abi_encode::move_terminator(
@@ -2105,6 +2110,68 @@ impl LowerAbiCx {
         (base, data, len)
     }
 
+    /// Decodes the `bytes` at `head` of a calldata tuple at `tuple_base` as a view: the checks the
+    /// copying decode makes, in its order and with its revert reasons, and the calldata slice of
+    /// the bytes instead of a copy. The copy's allocation is replayed against `virtual_fmp`, the
+    /// free memory pointer the copies before it would have advanced, so a length that cannot be
+    /// allocated panics as the copy does, before the length is checked against the input.
+    fn decode_calldata_bytes_view(
+        builder: &mut FunctionBuilder<'_>,
+        head: ValueId,
+        tuple_base: ValueId,
+        input_end: ValueId,
+        current: &mut BlockId,
+        virtual_fmp: &mut Option<ValueId>,
+    ) -> ValueId {
+        let ty = AbiParamType::Bytes;
+        Self::guard_input_range(
+            builder,
+            head,
+            32,
+            input_end,
+            current,
+            RevertReason::TupleDataTooShort,
+        );
+        let offset = Self::load_input_word(builder, head, false);
+        let base = Self::guard_input_offset(
+            builder,
+            tuple_base,
+            offset,
+            input_end,
+            false,
+            &ty,
+            current,
+            RevertReason::InvalidTupleOffset,
+            false,
+        );
+        // len = calldataload base
+        // size = checked_padded_size len
+        // next = fmp + size
+        // if next < fmp || next > MAX_ALLOCATION_END { panic 0x41 }
+        builder.switch_to_block(*current);
+        let len = Self::load_input_word(builder, base, false);
+        let data = builder.add_u64_offset(base, 32);
+        let size = builder.checked_padded_size(len);
+        let fmp = match *virtual_fmp {
+            Some(fmp) => fmp,
+            None => {
+                let fmp = builder.fmp();
+                builder.cast(fmp, MirType::I256)
+            }
+        };
+        let next = builder.add(fmp, size);
+        let wrapped = builder.lt(next, fmp);
+        let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
+        let over_limit = builder.gt(next, limit);
+        let invalid = builder.or(wrapped, over_limit);
+        builder.panic_if(invalid, crate::mir::PanicCode::MemoryAllocationOverflow);
+        *virtual_fmp = Some(next);
+        *current = builder.current_block();
+        Self::guard_bytes_data(builder, data, len, input_end, current, true);
+        builder.switch_to_block(*current);
+        builder.make_slice(data, len, PtrLocation::Calldata)
+    }
+
     fn decode_static_calldata_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
@@ -2648,10 +2715,15 @@ fn decode_input(builder: &mut FunctionBuilder<'_>, data: ValueId) -> (ValueId, V
 /// calldata: offsets resolve against the slice's base, every read stays below the slice's end, and
 /// dynamic values are copied into memory. Reading the slice directly spares the copy of the whole
 /// encoding into memory that decoding a memory object needs.
+///
+/// With `fields`, a `@custom:solar-view` decode's result field types, each `bytes` field that is a
+/// calldata slice is a view: [`LowerAbiCx::decode_calldata_bytes_view`] checks it as the copy is
+/// checked and keeps it where it is.
 fn decode_calldata_tuple(
     builder: &mut FunctionBuilder<'_>,
     data: ValueId,
     layout: &AbiParamLayout,
+    fields: Option<&[MirType]>,
 ) -> Option<Vec<ValueId>> {
     let head_size = layout.checked_head_size()?;
     // base = ptrtoint (extract_value data, 0)
@@ -2666,10 +2738,24 @@ fn decode_calldata_tuple(
     let mut values = Vec::with_capacity(layout.types.len());
     let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
     let mut head_offset = 0_u64;
-    for ty in &layout.types {
+    // The free memory pointer the copies of the views would have advanced.
+    let mut virtual_fmp = None;
+    for (index, ty) in layout.types.iter().enumerate() {
         builder.switch_to_block(current);
         let head = builder.add_u64_offset(base, head_offset);
-        let value = if static_layout {
+        let view = matches!(ty, AbiParamType::Bytes)
+            && fields.and_then(|fields| fields.get(index))
+                == Some(&MirType::Slice(PtrLocation::Calldata));
+        let value = if view {
+            LowerAbiCx::decode_calldata_bytes_view(
+                builder,
+                head,
+                base,
+                input_end,
+                &mut current,
+                &mut virtual_fmp,
+            )
+        } else if static_layout {
             LowerAbiCx::decode_static_calldata_argument(builder, ty, head, &mut current)
         } else {
             LowerAbiCx::decode_aggregate_argument(
@@ -2690,19 +2776,44 @@ fn decode_calldata_tuple(
     Some(values)
 }
 
+/// The result field types of each `abi_decode` in `func_id` that decodes a `bytes` field as a
+/// calldata slice, a `@custom:solar-view`.
+fn decode_view_fields(module: &Module, func_id: FunctionId) -> FxHashMap<InstId, Vec<MirType>> {
+    let func = module.function(func_id);
+    let mut fields = FxHashMap::default();
+    for inst in func.instructions() {
+        let InstKind::AbiDecode { .. } = func.inst(inst).kind else { continue };
+        let types = match func.inst(inst).result_ty {
+            Some(MirType::Struct(id)) => module.struct_types[id].fields.to_vec(),
+            Some(ty) => vec![ty],
+            None => continue,
+        };
+        if types.contains(&MirType::Slice(PtrLocation::Calldata)) {
+            fields.insert(inst, types);
+        }
+    }
+    fields
+}
+
 /// Builds an ABI decode's result from its decoded words: one field, or a struct of all of them.
+/// `fields` are a view decode's field types, whose views are already calldata slices.
 fn pack_decoded(
     builder: &mut FunctionBuilder<'_>,
     result: ValueId,
     values: Vec<ValueId>,
     layout: &AbiParamLayout,
+    fields: Option<&[MirType]>,
 ) -> ValueId {
     // field = cast decoded word to the declared field type
     // result = insert_value(undef, field0), ...
     let values = values
         .into_iter()
         .zip(&layout.types)
-        .map(|(value, ty)| builder.cast(value, ty.mir_type()))
+        .enumerate()
+        .map(|(index, (value, ty))| {
+            let field = fields.and_then(|fields| fields.get(index)).copied();
+            builder.cast(value, field.unwrap_or_else(|| ty.mir_type()))
+        })
         .collect::<Vec<_>>();
     if let Some(MirType::Struct(id)) = builder.func().value_ty(result) {
         builder.make_struct(id, values)

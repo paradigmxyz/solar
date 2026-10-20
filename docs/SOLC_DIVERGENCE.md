@@ -683,19 +683,28 @@ body a modifier's `_` runs in it. The memory the block allocates is reused once
 the block ends normally, so a reference to it that code after the block could
 still use is an error: one used after the block, returned, stored into older
 memory or storage, or passed to a call that may store it there.
+`@custom:solar-view` documents a declaration initialized by `abi.decode` of
+calldata `bytes` or of a view, into value types, `bytes`, and `string`; its
+`bytes` and `string` variables read their bytes in calldata, and any use other
+than a read in place (`.length`, an index read, `keccak256`, `abi.decode`, and
+the ABI encodings and concatenations) is an error.
 [TAGS.md](TAGS.md) describes each tag.
 
 Rationale: a tag states a requirement this compiler checks or relies on, so a
 misspelled or misplaced tag must not silently go unchecked. Other compilers
 still read the tags as documentation, and no tag changes what the code
 computes. A scratch block only changes where later allocations go: the free
-memory pointer and `msize` can be lower after it.
+memory pointer and `msize` can be lower after it. A view decode fails exactly
+where the copying decode fails, replaying its allocation checks, and allocates
+nothing, so the free memory pointer can be lower after it.
 
 Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`,
 `tests/ui/natspec/solar_optimize.sol`, `tests/ui/typeck/solar_safe.sol`,
-`tests/ui/typeck/solar_terminates.sol`,
-`tests/ui/codegen/lowering/solar_scratch_escape.sol` and
-`tests/ui/codegen/lowering/solar_scratch_runtime.sol`.
+`tests/ui/typeck/solar_terminates.sol`, `tests/ui/typeck/solar_view.sol`,
+`tests/ui/codegen/lowering/solar_scratch_escape.sol`,
+`tests/ui/codegen/lowering/solar_scratch_runtime.sol`,
+`tests/ui/codegen/lowering/solar_view_decode.sol` and
+`tests/ui/codegen/mir/lowering/lower_abi_decode_views.mir`.
 
 ## Contract-Level Checks
 

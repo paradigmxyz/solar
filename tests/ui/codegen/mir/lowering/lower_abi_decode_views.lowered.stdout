@@ -1,0 +1,164 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_views.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_views.mir (after lower-abi) ===
+  @module LowerAbiDecodeViews
+  @types
+    struct0: {i256, slice<calldata>}
+    struct1: {slice<calldata>, slice<calldata>}
+  
+  fn @view(arg0: slice<calldata>) -> i256 {
+    bb0:
+-     v0 = abi_decode [uint256, bytes], arg0, views 1
+-     v1 = extract_value struct0, v0, 1
++     v3 = extract_value slice<calldata>, arg0, 0
++     v4 = ptrtoint ptr<calldata> v3 to i256
++     v5 = extract_value slice<calldata>, arg0, 1
++     v6 = add v4, v5
++     v7 = slt v5, 64
++     jumpi v7, bb1, bb2
++   bb2:
++     v8 = calldataload v3
++     v9 = add v4, 32
++     v10 = sub v6, v9
++     v11 = gt 32, v10
++     jumpi v11, bb1, bb3
++   bb3:
++     v12 = calldataload v9
++     v13 = add v4, v12
++     v14 = add v13, 32
++     v15 = gt v12, 0xffffffffffffffff
++     v16 = gt v14, v6
++     v17 = or v15, v16
++     v18 = zext i1 v17 to i256
++     jumpi v17, bb1, bb4
++   bb4:
++     v19 = calldataload v13
++     v20 = add v13, 32
++     v21 = add v19, 63
++     v22 = lt v21, v19
++     jumpi v22, bb5, bb6
++   bb6:
++     v23 = not 31
++     v24 = and v21, v23
++     v25 = fmp
++     v26 = ptrtoint ptr<memory> v25 to i256
++     v27 = add v26, v24
++     v28 = lt v27, v26
++     v29 = gt v27, 0xffffffffffffffff
++     v30 = or v28, v29
++     v31 = zext i1 v30 to i256
++     jumpi v30, bb5, bb7
++   bb7:
++     v32 = sub v6, v20
++     v33 = gt v19, v32
++     jumpi v33, bb1, bb8
++   bb8:
++     v34 = inttoptr i256 v20 to ptr<calldata>
++     v35 = make_calldata_slice v34, v19
++     v36 = insert_value struct0, undef struct0, 0, v8
++     v37 = insert_value struct0, v36, 1, v35
++     v1 = extract_value struct0, v37, 1
+      v2 = extract_value slice<calldata>, v1, 1
+      ret v2
++   bb5:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
++   bb1:
++     revert 0, 0
+  }
+  
+  fn @views(arg0: slice<calldata>) -> i256 {
+    bb0:
+-     v0 = abi_decode [bytes, bytes], arg0, views 0, 1
+-     v1 = extract_value struct1, v0, 1
++     v3 = extract_value slice<calldata>, arg0, 0
++     v4 = ptrtoint ptr<calldata> v3 to i256
++     v5 = extract_value slice<calldata>, arg0, 1
++     v6 = add v4, v5
++     v7 = slt v5, 64
++     jumpi v7, bb1, bb2
++   bb2:
++     v8 = sub v6, v4
++     v9 = gt 32, v8
++     jumpi v9, bb1, bb3
++   bb3:
++     v10 = calldataload v3
++     v11 = add v4, v10
++     v12 = add v11, 32
++     v13 = gt v10, 0xffffffffffffffff
++     v14 = gt v12, v6
++     v15 = or v13, v14
++     v16 = zext i1 v15 to i256
++     jumpi v15, bb1, bb4
++   bb4:
++     v17 = calldataload v11
++     v18 = add v11, 32
++     v19 = add v17, 63
++     v20 = lt v19, v17
++     jumpi v20, bb5, bb6
++   bb6:
++     v21 = not 31
++     v22 = and v19, v21
++     v23 = fmp
++     v24 = ptrtoint ptr<memory> v23 to i256
++     v25 = add v24, v22
++     v26 = lt v25, v24
++     v27 = gt v25, 0xffffffffffffffff
++     v28 = or v26, v27
++     v29 = zext i1 v28 to i256
++     jumpi v28, bb5, bb7
++   bb7:
++     v30 = sub v6, v18
++     v31 = gt v17, v30
++     jumpi v31, bb1, bb8
++   bb8:
++     v32 = inttoptr i256 v18 to ptr<calldata>
++     v33 = make_calldata_slice v32, v17
++     v34 = add v4, 32
++     v35 = sub v6, v34
++     v36 = gt 32, v35
++     jumpi v36, bb1, bb9
++   bb9:
++     v37 = calldataload v34
++     v38 = add v4, v37
++     v39 = add v38, 32
++     v40 = gt v37, 0xffffffffffffffff
++     v41 = gt v39, v6
++     v42 = or v40, v41
++     v43 = zext i1 v42 to i256
++     jumpi v42, bb1, bb10
++   bb10:
++     v44 = calldataload v38
++     v45 = add v38, 32
++     v46 = add v44, 63
++     v47 = lt v46, v44
++     jumpi v47, bb5, bb11
++   bb11:
++     v48 = not 31
++     v49 = and v46, v48
++     v50 = add v25, v49
++     v51 = lt v50, v25
++     v52 = gt v50, 0xffffffffffffffff
++     v53 = or v51, v52
++     v54 = zext i1 v53 to i256
++     jumpi v53, bb5, bb12
++   bb12:
++     v55 = sub v6, v45
++     v56 = gt v44, v55
++     jumpi v56, bb1, bb13
++   bb13:
++     v57 = inttoptr i256 v45 to ptr<calldata>
++     v58 = make_calldata_slice v57, v44
++     v59 = insert_value struct1, undef struct1, 0, v33
++     v60 = insert_value struct1, v59, 1, v58
++     v1 = extract_value struct1, v60, 1
+      v2 = extract_value slice<calldata>, v1, 1
+      ret v2
++   bb5:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
++   bb1:
++     revert 0, 0
+  }
+  

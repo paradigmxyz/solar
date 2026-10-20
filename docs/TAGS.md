@@ -17,6 +17,7 @@ divergence entry is [TYPECK-022](SOLC_DIVERGENCE.md#typeck-022-customsolar--tags
 | `solar-optimize gas` or `size` | a non-abstract contract or a library | Optimize its code for this objective instead of the build's. |
 | `solar-terminates` | an internal or private function | Every path ends the call. |
 | `solar-scratch` | a `{ ... }` or `unchecked { ... }` block | Later code reuses the memory the block allocates. |
+| `solar-view` | a declaration initialized by `abi.decode` of calldata `bytes` | Its `bytes` and `string` values are read where they are, with no copy. |
 
 ## `solar-safe` and `solar-trusted`
 
@@ -111,3 +112,32 @@ rejects every reference to it that later code could reach: a variable used after
 may store such a reference where later code can reach it. Values such as hashes, lengths, and words
 read from the memory leave the block freely. After the block, the free memory pointer and `msize`
 can be lower than without the tag.
+
+## `solar-view`
+
+```solidity
+function handle(bytes calldata data) external {
+    /// @custom:solar-view
+    (uint256 id, bytes memory payload) = abi.decode(data, (uint256, bytes));
+    bytes32 digest = keccak256(payload);
+    bytes1 kind = payload[0];
+    ...
+}
+```
+
+Every compiler gives `payload` a copy of its bytes. With the tag, this compiler makes each `bytes`
+and `string` variable of the declaration a view of its bytes where the decode finds them in
+calldata, which cannot change. The decode validates its input exactly as the copying decode does,
+including the checks of the allocations the copies would make, so every input fails where it
+would: `Panic(0x41)` for a length that could not be allocated, and a revert for an offset or a
+length past the input. No memory is allocated, so the free memory pointer can be lower after the
+declaration than after the copies.
+
+A view can only be read in place, so no use can tell it from the copy: its `.length`, an index
+read, `keccak256`, `abi.decode`, and the encodings that copy their arguments into their output
+(`abi.encode` and its variants, `abi.encodePacked`, `bytes.concat` and `string.concat`), also
+through a conversion between `bytes` and `string`. A tagged `abi.decode` of a view makes views of
+the same calldata. Any other use, such as an assignment, a write through the view, a return, a
+call, event, or error argument, or inline assembly, is an error at the use. The decoded types may
+be value types, `bytes`, and `string`, and the data must be `bytes` in calldata or a view.
+

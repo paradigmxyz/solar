@@ -26,6 +26,7 @@ mod constant_values;
 mod control_flow;
 pub(crate) mod override_checker;
 pub(crate) mod safe_profile;
+mod solar_view;
 mod terminates;
 mod udvt;
 mod view_pure_checker;
@@ -93,6 +94,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     view_pure_checker::check(gcx);
     safe_profile::check(gcx);
     terminates::check(gcx);
+    solar_view::check(gcx);
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
