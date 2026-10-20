@@ -1333,9 +1333,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // mstore(add(fmp(), ret_size), 0)
         let gas = options.and_then(|options| options.gas);
         self.touch_call_output_area(gas, return_tys, overlay_buffer.is_some());
-        // input = abi_encode(selector, args)
+        // input = abi_encode(selector, args), staged at the free memory pointer without a bump
+        // when nothing keeps it
+        let stage_input = self.stages_call_input(&types, return_tys);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+        let values = values.into_boxed_slice();
+        let encoded = if stage_input {
+            self.builder.abi_encode_scratch(layout, Some(selector), values)
+        } else {
+            self.builder.abi_encode(layout, Some(selector), values)
+        };
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         // zero = 0
@@ -1370,6 +1377,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         (success, plan)
+    }
+
+    /// Whether a call's input is staged at the free memory pointer without reserving it.
+    ///
+    /// Nothing keeps the input after the call, so the reservation is only needed while the return
+    /// plan overlays it: before Byzantium the output area always does, a multi-word return that
+    /// is not decoded reads from the input's address, and a static aggregate return buffer is
+    /// allocated at the unbumped pointer. A dynamic layout keeps the reservation because encoding
+    /// it in place costs more code than the bump saves.
+    fn stages_call_input(&mut self, types: &[AbiType], return_tys: &[Ty<'gcx>]) -> bool {
+        self.cx.gcx.sess.opts.evm_version.supports_returndata()
+            && return_tys.len() <= 1
+            && !types.iter().any(AbiType::is_dynamic)
+            && self.static_aggregate_return_layout(return_tys.iter().copied()).is_none()
     }
 
     pub(super) fn finish_external_call(

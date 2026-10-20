@@ -155,7 +155,7 @@ fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[fun
     v1 = shl v0, 224
     v2 = shr arg0, 32
     v3 = gas
-    v4 = abi_encode [word], selector v1, args arg1
+    v4 = abi_encode [word], scratch, selector v1, args arg1
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 32
@@ -201,7 +201,7 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x2f5f3b3c00000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0x2f5f3b3c00000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -216,7 +216,7 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     v10 = shl v9, 224
     v11 = shr v8, 32
     v12 = gas
-    v13 = abi_encode [word], selector v10, args 8
+    v13 = abi_encode [word], scratch, selector v10, args 8
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     v16 = call v12, v11, 0, v14, v15, 0, 32
@@ -248,7 +248,7 @@ fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_re
     v9 = shl v8, 224
     v10 = shr v7, 32
     v11 = gas
-    v12 = abi_encode [word], selector v9, args 8
+    v12 = abi_encode [word], scratch, selector v9, args 8
     v13 = extract_value slice<memory>, v12, 0
     v14 = extract_value slice<memory>, v12, 1
     v15 = call v11, v10, 0, v13, v14, 0, 32
@@ -301,7 +301,7 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     v26 = shl v25, 224
     v27 = shr v24, 32
     v28 = gas
-    v29 = abi_encode [word], selector v26, args 3
+    v29 = abi_encode [word], scratch, selector v26, args 3
     v30 = extract_value slice<memory>, v29, 0
     v31 = extract_value slice<memory>, v29, 1
     v32 = call v28, v27, 0, v30, v31, 0, 32
@@ -325,7 +325,7 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     v44 = shl v43, 224
     v45 = shr v42, 32
     v46 = gas
-    v47 = abi_encode [word], selector v44, args 4
+    v47 = abi_encode [word], scratch, selector v44, args 4
     v48 = extract_value slice<memory>, v47, 0
     v49 = extract_value slice<memory>, v47, 1
     v50 = call v46, v45, 0, v48, v49, 0, 32

@@ -214,7 +214,7 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0x986597e500000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0x986597e500000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256
@@ -256,7 +256,7 @@ fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word],
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256

@@ -48,7 +48,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = abi_encode [], selector 0xd909b40300000000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [], scratch, selector 0xd909b40300000000000000000000000000000000000000000000000000000000
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v1 to i256
@@ -100,7 +100,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [], scratch, selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v1 to i256

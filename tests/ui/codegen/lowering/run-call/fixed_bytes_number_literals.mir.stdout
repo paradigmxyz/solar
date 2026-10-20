@@ -49,7 +49,7 @@ fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word
   bb2:
     v9 = gas
     v10 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v11 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v10
+    v11 = abi_encode [word<bytes4>], scratch, selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v10
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
     v14 = zext i160 v7 to i256

@@ -35,7 +35,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v12 = icall @_cloneDeterministic, v11, v9, 1
     v13 = trunc i256 v12 to i160
     v14 = gas
-    v15 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v15 = abi_encode [], scratch, selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
     v16 = extract_value slice<memory>, v15, 0
     v17 = extract_value slice<memory>, v15, 1
     v18 = zext i160 v13 to i256

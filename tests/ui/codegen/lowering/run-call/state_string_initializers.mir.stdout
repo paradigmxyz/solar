@@ -101,7 +101,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0x6fdde0300000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0x6fdde0300000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256
@@ -113,7 +113,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v15 = icall returndata_bytes<>
     v16 = abi_decode [bytes], v15
     v17 = gas
-    v18 = abi_encode [], selector 0x95d89b4100000000000000000000000000000000000000000000000000000000
+    v18 = abi_encode [], scratch, selector 0x95d89b4100000000000000000000000000000000000000000000000000000000
     v19 = extract_value slice<memory>, v18, 0
     v20 = extract_value slice<memory>, v18, 1
     v21 = zext i160 v7 to i256
@@ -125,7 +125,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v23 = icall returndata_bytes<>
     v24 = abi_decode [bytes], v23
     v25 = gas
-    v26 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
+    v26 = abi_encode [], scratch, selector 0x313ce56700000000000000000000000000000000000000000000000000000000
     v27 = extract_value slice<memory>, v26, 0
     v28 = extract_value slice<memory>, v26, 1
     v29 = zext i160 v7 to i256

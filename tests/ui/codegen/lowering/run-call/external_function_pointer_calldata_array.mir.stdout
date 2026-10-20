@@ -26,7 +26,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v15 = shl v14, 224
     v16 = shr v13, 32
     v17 = gas
-    v18 = abi_encode [], selector v15
+    v18 = abi_encode [], scratch, selector v15
     v19 = extract_value slice<memory>, v18, 0
     v20 = extract_value slice<memory>, v18, 1
     v21 = call v17, v16, 0, v19, v20, 0, 32
@@ -56,7 +56,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v38 = shl v37, 224
     v39 = shr v36, 32
     v40 = gas
-    v41 = abi_encode [], selector v38
+    v41 = abi_encode [], scratch, selector v38
     v42 = extract_value slice<memory>, v41, 0
     v43 = extract_value slice<memory>, v41, 1
     v44 = call v40, v39, 0, v42, v43, 0, 32
@@ -86,7 +86,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v61 = shl v60, 224
     v62 = shr v59, 32
     v63 = gas
-    v64 = abi_encode [], selector v61
+    v64 = abi_encode [], scratch, selector v61
     v65 = extract_value slice<memory>, v64, 0
     v66 = extract_value slice<memory>, v64, 1
     v67 = call v63, v62, 0, v65, v66, 0, 32

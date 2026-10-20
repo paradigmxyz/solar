@@ -15,7 +15,7 @@ fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address
     v0 = address
     v1 = gas
     v2 = zext i160 arg0 to i256
-    v3 = abi_encode [word<uint160>], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args v2
+    v3 = abi_encode [word<uint160>], scratch, selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args v2
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v0 to i256
@@ -47,7 +47,7 @@ fn @dirtyBytes1(arg0: i256) -> i256 [selector=0x92fef914, view, abi_params=[byte
     v0 = address
     v1 = gas
     v2 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [word<bytes1>], selector 0xa408523c00000000000000000000000000000000000000000000000000000000, args v2
+    v3 = abi_encode [word<bytes1>], scratch, selector 0xa408523c00000000000000000000000000000000000000000000000000000000, args v2
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v0 to i256
@@ -77,7 +77,7 @@ fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[uin
     v2 = lt arg0, 2
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    v4 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = abi_encode [word<enum 2>], scratch, selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args arg0
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256

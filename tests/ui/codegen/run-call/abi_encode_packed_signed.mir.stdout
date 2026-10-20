@@ -39,7 +39,7 @@ fn @signedCall(arg0: i8) -> i8 [selector=0x036e241f, view, abi_params=[int8], ab
     v0 = address
     v1 = gas
     v2 = sext i8 arg0 to i256
-    v3 = abi_encode [word<int8>], selector 0x8720942900000000000000000000000000000000000000000000000000000000, args v2
+    v3 = abi_encode [word<int8>], scratch, selector 0x8720942900000000000000000000000000000000000000000000000000000000, args v2
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v0 to i256

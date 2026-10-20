@@ -31,7 +31,7 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
   bb4:
     v3 = address
     v4 = gas
-    v5 = abi_encode [], selector 0xce74602400000000000000000000000000000000000000000000000000000000
+    v5 = abi_encode [], scratch, selector 0xce74602400000000000000000000000000000000000000000000000000000000
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v3 to i256

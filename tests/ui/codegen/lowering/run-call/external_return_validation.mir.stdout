@@ -67,7 +67,7 @@ fn @short() -> i256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0xeee93c0200000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0xeee93c0200000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -93,7 +93,7 @@ fn @dirty() -> i8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<u
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0xacf697c300000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0xacf697c300000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -426,7 +426,7 @@ fn @dirtyEnumExternalArg() -> i256 [selector=0x0ca35a15, view, abi_params=[], ab
     v2 = lt 2, 2
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    v4 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args 2
+    v4 = abi_encode [word<enum 2>], scratch, selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args 2
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
@@ -456,7 +456,7 @@ fn @dirtyEnumStructExternalArg() -> i256 [selector=0x06fd3c7e, view, abi_params=
     mstore v0, 2
     v2 = address
     v3 = gas
-    v4 = abi_encode [tuple<word<enum 2>>], selector 0x9e10d92f00000000000000000000000000000000000000000000000000000000, args v0
+    v4 = abi_encode [tuple<word<enum 2>>], scratch, selector 0x9e10d92f00000000000000000000000000000000000000000000000000000000, args v0
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v2 to i256
@@ -565,7 +565,7 @@ fn @dynamicShort(arg0: i256) -> i1 [selector=0x73932459, view, abi_params=[uint2
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word], selector 0x3207938400000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [word], scratch, selector 0x3207938400000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -590,7 +590,7 @@ fn @dynamicLengthOverflow() -> i256 [selector=0x5e963174, view, abi_params=[], a
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0xe136590400000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0xe136590400000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -616,7 +616,7 @@ fn @dynamicArrayLengthOverflow() -> i256 [selector=0xbd5e58ee, view, abi_params=
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x839ae55400000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0x839ae55400000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256

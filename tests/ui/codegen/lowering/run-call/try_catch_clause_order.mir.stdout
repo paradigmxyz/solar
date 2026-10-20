@@ -33,7 +33,7 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[ui
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word], selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [word], scratch, selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -99,7 +99,7 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[uint2
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word], selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [word], scratch, selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -165,7 +165,7 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[uint25
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word], selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [word], scratch, selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256

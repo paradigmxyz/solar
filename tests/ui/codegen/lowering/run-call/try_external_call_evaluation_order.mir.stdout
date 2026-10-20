@@ -83,7 +83,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v2 = icall @gasOpt
     v3 = icall @valueOpt
     v4 = icall @arg
-    v5 = abi_encode [word], selector 0x773acdef00000000000000000000000000000000000000000000000000000000, args v4
+    v5 = abi_encode [word], scratch, selector 0x773acdef00000000000000000000000000000000000000000000000000000000, args v4
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v0 to i256

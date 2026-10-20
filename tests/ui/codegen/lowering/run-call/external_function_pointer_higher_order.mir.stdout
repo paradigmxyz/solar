@@ -30,7 +30,7 @@ fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_re
     v1 = shl v0, 224
     v2 = shr arg0, 32
     v3 = gas
-    v4 = abi_encode [word], selector v1, args 7
+    v4 = abi_encode [word], scratch, selector v1, args 7
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 32
@@ -74,7 +74,7 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     v16 = zext i160 v14 to i256
     v17 = shl v16, 32
     v18 = or v17, 0xcae57913
-    v19 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v18
+    v19 = abi_encode [function], scratch, selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v18
     v20 = extract_value slice<memory>, v19, 0
     v21 = extract_value slice<memory>, v19, 1
     v22 = zext i160 v5 to i256

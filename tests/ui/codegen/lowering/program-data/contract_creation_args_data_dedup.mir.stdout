@@ -51,7 +51,7 @@ fn @plain() -> i256 [selector=0x59748c98, abi_params=[], abi_returns=[word], abi
     revert_returndata
   bb2:
     v10 = gas
-    v11 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v11 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
     v14 = zext i160 v8 to i256
@@ -88,7 +88,7 @@ fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], ab
   bb2:
     v10 = trunc i256 v8 to i160
     v11 = gas
-    v12 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v12 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v13 = extract_value slice<memory>, v12, 0
     v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v10 to i256
@@ -140,7 +140,7 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     revert_returndata
   bb4:
     v20 = gas
-    v21 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v21 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v22 = extract_value slice<memory>, v21, 0
     v23 = extract_value slice<memory>, v21, 1
     v24 = zext i160 v8 to i256
@@ -155,7 +155,7 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v28 = add 0, 0
     v29 = mload v28
     v30 = gas
-    v31 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v31 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v32 = extract_value slice<memory>, v31, 0
     v33 = extract_value slice<memory>, v31, 1
     v34 = zext i160 v18 to i256

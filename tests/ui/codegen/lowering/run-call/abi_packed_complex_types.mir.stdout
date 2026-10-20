@@ -237,7 +237,7 @@ fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word<uint8>], selector 0x1f3c3a7b00000000000000000000000000000000000000000000000000000000, args 2
+    v2 = abi_encode [word<uint8>], scratch, selector 0x1f3c3a7b00000000000000000000000000000000000000000000000000000000, args 2
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256

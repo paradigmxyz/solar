@@ -195,7 +195,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v73 = shl v72, 224
     v74 = shr v71, 32
     v75 = gas
-    v76 = abi_encode [], selector v73
+    v76 = abi_encode [], scratch, selector v73
     v77 = extract_value slice<memory>, v76, 0
     v78 = extract_value slice<memory>, v76, 1
     v79 = extcodesize v74
@@ -224,7 +224,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v96 = shl v95, 224
     v97 = shr v94, 32
     v98 = gas
-    v99 = abi_encode [], selector v96
+    v99 = abi_encode [], scratch, selector v96
     v100 = extract_value slice<memory>, v99, 0
     v101 = extract_value slice<memory>, v99, 1
     v102 = extcodesize v97
@@ -268,7 +268,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v129 = shl v128, 224
     v130 = shr v127, 32
     v131 = gas
-    v132 = abi_encode [], selector v129
+    v132 = abi_encode [], scratch, selector v129
     v133 = extract_value slice<memory>, v132, 0
     v134 = extract_value slice<memory>, v132, 1
     v135 = extcodesize v130
@@ -297,7 +297,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v152 = shl v151, 224
     v153 = shr v150, 32
     v154 = gas
-    v155 = abi_encode [], selector v152
+    v155 = abi_encode [], scratch, selector v152
     v156 = extract_value slice<memory>, v155, 0
     v157 = extract_value slice<memory>, v155, 1
     v158 = extcodesize v153
@@ -375,7 +375,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v251 = shl v250, 224
     v252 = shr v249, 32
     v253 = gas
-    v254 = abi_encode [], selector v251
+    v254 = abi_encode [], scratch, selector v251
     v255 = extract_value slice<memory>, v254, 0
     v256 = extract_value slice<memory>, v254, 1
     v257 = extcodesize v252
@@ -404,7 +404,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v274 = shl v273, 224
     v275 = shr v272, 32
     v276 = gas
-    v277 = abi_encode [], selector v274
+    v277 = abi_encode [], scratch, selector v274
     v278 = extract_value slice<memory>, v277, 0
     v279 = extract_value slice<memory>, v277, 1
     v280 = extcodesize v275

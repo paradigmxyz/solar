@@ -13,7 +13,7 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
     v7 = shl v6, 224
     v8 = shr v5, 32
     v9 = gas
-    v10 = abi_encode [], selector v7
+    v10 = abi_encode [], scratch, selector v7
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = call v9, v8, 0, v11, v12, 0, 0
@@ -41,7 +41,7 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
     v27 = shl v26, 224
     v28 = shr v25, 32
     v29 = gas
-    v30 = abi_encode [], selector v27
+    v30 = abi_encode [], scratch, selector v27
     v31 = extract_value slice<memory>, v30, 0
     v32 = extract_value slice<memory>, v30, 1
     v33 = call v29, v28, 0, v31, v32, 0, 0
@@ -68,7 +68,7 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
     v47 = shl v46, 224
     v48 = shr v45, 32
     v49 = gas
-    v50 = abi_encode [], selector v47
+    v50 = abi_encode [], scratch, selector v47
     v51 = extract_value slice<memory>, v50, 0
     v52 = extract_value slice<memory>, v50, 1
     v53 = call v49, v48, 0, v51, v52, 0, 0
@@ -163,7 +163,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v54 = shl v53, 224
     v55 = shr v52, 32
     v56 = gas
-    v57 = abi_encode [], selector v54
+    v57 = abi_encode [], scratch, selector v54
     v58 = extract_value slice<memory>, v57, 0
     v59 = extract_value slice<memory>, v57, 1
     v60 = call v56, v55, 0, v58, v59, 0, 32
@@ -186,7 +186,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v71 = shl v70, 224
     v72 = shr v69, 32
     v73 = gas
-    v74 = abi_encode [], selector v71
+    v74 = abi_encode [], scratch, selector v71
     v75 = extract_value slice<memory>, v74, 0
     v76 = extract_value slice<memory>, v74, 1
     v77 = call v73, v72, 0, v75, v76, 0, 32
@@ -209,7 +209,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v88 = shl v87, 224
     v89 = shr v86, 32
     v90 = gas
-    v91 = abi_encode [], selector v88
+    v91 = abi_encode [], scratch, selector v88
     v92 = extract_value slice<memory>, v91, 0
     v93 = extract_value slice<memory>, v91, 1
     v94 = call v90, v89, 0, v92, v93, 0, 32

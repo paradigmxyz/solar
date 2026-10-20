@@ -123,7 +123,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     revert_returndata
   bb5:
     v37 = gas
-    v38 = abi_encode [], selector 0xa1c6d2f600000000000000000000000000000000000000000000000000000000
+    v38 = abi_encode [], scratch, selector 0xa1c6d2f600000000000000000000000000000000000000000000000000000000
     v39 = extract_value slice<memory>, v38, 0
     v40 = extract_value slice<memory>, v38, 1
     v41 = zext i160 v35 to i256
@@ -152,7 +152,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb10
   bb8:
     v56 = gas
-    v57 = abi_encode [], selector 0xf799654200000000000000000000000000000000000000000000000000000000
+    v57 = abi_encode [], scratch, selector 0xf799654200000000000000000000000000000000000000000000000000000000
     v58 = extract_value slice<memory>, v57, 0
     v59 = extract_value slice<memory>, v57, 1
     v60 = zext i160 v35 to i256
@@ -180,7 +180,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb10:
     v75 = phi [bb12: v74], [bb9: false]
     v76 = gas
-    v77 = abi_encode [], selector 0xdab1fa1200000000000000000000000000000000000000000000000000000000
+    v77 = abi_encode [], scratch, selector 0xdab1fa1200000000000000000000000000000000000000000000000000000000
     v78 = extract_value slice<memory>, v77, 0
     v79 = extract_value slice<memory>, v77, 1
     v80 = zext i160 v35 to i256

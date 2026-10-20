@@ -158,11 +158,6 @@ bb28:
   jumpi
   push 64
   mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
   push 224
   shl
@@ -316,11 +311,6 @@ bb18:
   jumpi
   push 64
   mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
   push 224
   shl
@@ -347,11 +337,6 @@ bb18:
   mload
   push 64
   mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
   push 224
   shl

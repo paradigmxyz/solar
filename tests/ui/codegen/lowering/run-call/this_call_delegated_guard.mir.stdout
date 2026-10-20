@@ -10,7 +10,7 @@ fn @init() [selector=0xe1c7392a, abi_params=[], abi_returns=[], abi_return_param
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -90,7 +90,7 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     revert_returndata
   bb4:
     v20 = gas
-    v21 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
+    v21 = abi_encode [], scratch, selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
     v22 = extract_value slice<memory>, v21, 0
     v23 = extract_value slice<memory>, v21, 1
     v24 = zext i160 v18 to i256
@@ -125,7 +125,7 @@ fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256
@@ -139,7 +139,7 @@ fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=
     revert_returndata
   bb4:
     v18 = gas
-    v19 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
+    v19 = abi_encode [], scratch, selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
     v20 = extract_value slice<memory>, v19, 0
     v21 = extract_value slice<memory>, v19, 1
     v22 = zext i160 v7 to i256

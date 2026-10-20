@@ -28,7 +28,7 @@ fn @constructor() [constructor] {
 fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [], scratch, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     v4 = extcodesize 0
@@ -50,7 +50,7 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[], abi_return_pa
     v3 = shl v2, 224
     v4 = shr v1, 32
     v5 = gas
-    v6 = abi_encode [], selector v3
+    v6 = abi_encode [], scratch, selector v3
     v7 = extract_value slice<memory>, v6, 0
     v8 = extract_value slice<memory>, v6, 1
     v9 = extcodesize v4
@@ -66,7 +66,7 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[], abi_return_pa
 
 fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v0 = abi_encode [], scratch, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v1 = extract_value slice<memory>, v0, 0
     v2 = extract_value slice<memory>, v0, 1
     v3 = gas
@@ -84,7 +84,7 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[], abi_retur
 fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [], scratch, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     v4 = extcodesize 0
@@ -113,7 +113,7 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[], abi_return
     v3 = shl v2, 224
     v4 = shr v1, 32
     v5 = gas
-    v6 = abi_encode [], selector v3
+    v6 = abi_encode [], scratch, selector v3
     v7 = extract_value slice<memory>, v6, 0
     v8 = extract_value slice<memory>, v6, 1
     v9 = extcodesize v4
@@ -137,7 +137,7 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[], abi_return
 fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [], scratch, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     v4 = extcodesize 0
@@ -162,7 +162,7 @@ fn @trySelf() -> i1 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -196,7 +196,7 @@ fn @selfCall() -> i1 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -248,7 +248,7 @@ fn @constructor() [constructor] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256

@@ -153,7 +153,7 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = zext i160 arg0 to i256
-    v4 = abi_encode [word<uint160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v3
+    v4 = abi_encode [word<uint160>], scratch, selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v3
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v1 to i256
@@ -172,7 +172,7 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v15 = gas
     v16 = address
     v17 = zext i160 v16 to i256
-    v18 = abi_encode [word<uint160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v17
+    v18 = abi_encode [word<uint160>], scratch, selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v17
     v19 = extract_value slice<memory>, v18, 0
     v20 = extract_value slice<memory>, v18, 1
     v21 = zext i160 v14 to i256
@@ -190,7 +190,7 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v28 = trunc i256 v27 to i160
     v29 = gas
     v30 = zext i160 arg0 to i256
-    v31 = abi_encode [word<uint160>], selector 0xacaa1fa00000000000000000000000000000000000000000000000000000000, args v30
+    v31 = abi_encode [word<uint160>], scratch, selector 0xacaa1fa00000000000000000000000000000000000000000000000000000000, args v30
     v32 = extract_value slice<memory>, v31, 0
     v33 = extract_value slice<memory>, v31, 1
     v34 = zext i160 v28 to i256
@@ -216,7 +216,7 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = zext i160 arg0 to i256
-    v4 = abi_encode [word<uint160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v3
+    v4 = abi_encode [word<uint160>], scratch, selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v3
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v1 to i256
@@ -235,7 +235,7 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v15 = gas
     v16 = address
     v17 = zext i160 v16 to i256
-    v18 = abi_encode [word<uint160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v17
+    v18 = abi_encode [word<uint160>], scratch, selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v17
     v19 = extract_value slice<memory>, v18, 0
     v20 = extract_value slice<memory>, v18, 1
     v21 = zext i160 v14 to i256
@@ -253,7 +253,7 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v28 = trunc i256 v27 to i160
     v29 = gas
     v30 = zext i160 arg0 to i256
-    v31 = abi_encode [word<uint160>], selector 0xf6e32b8b00000000000000000000000000000000000000000000000000000000, args v30
+    v31 = abi_encode [word<uint160>], scratch, selector 0xf6e32b8b00000000000000000000000000000000000000000000000000000000, args v30
     v32 = extract_value slice<memory>, v31, 0
     v33 = extract_value slice<memory>, v31, 1
     v34 = zext i160 v28 to i256
@@ -343,7 +343,7 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v32 = sload 0 !metadata(storage=slot(0))
     v33 = trunc i256 v32 to i160
     v34 = gas
-    v35 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v3
+    v35 = abi_encode [word], scratch, selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v3
     v36 = extract_value slice<memory>, v35, 0
     v37 = extract_value slice<memory>, v35, 1
     v38 = zext i160 v33 to i256
@@ -366,7 +366,7 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v44 = sload 0 !metadata(storage=slot(0))
     v45 = trunc i256 v44 to i160
     v46 = gas
-    v47 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v7
+    v47 = abi_encode [word], scratch, selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v7
     v48 = extract_value slice<memory>, v47, 0
     v49 = extract_value slice<memory>, v47, 1
     v50 = zext i160 v45 to i256
@@ -384,7 +384,7 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v55 = sload 0 !metadata(storage=slot(0))
     v56 = trunc i256 v55 to i160
     v57 = gas
-    v58 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
+    v58 = abi_encode [], scratch, selector 0x47799da800000000000000000000000000000000000000000000000000000000
     v59 = extract_value slice<memory>, v58, 0
     v60 = extract_value slice<memory>, v58, 1
     v61 = zext i160 v56 to i256
@@ -563,7 +563,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v94 = sload 0 !metadata(storage=slot(0))
     v95 = trunc i256 v94 to i160
     v96 = gas
-    v97 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v43
+    v97 = abi_encode [word], scratch, selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v43
     v98 = extract_value slice<memory>, v97, 0
     v99 = extract_value slice<memory>, v97, 1
     v100 = zext i160 v95 to i256
@@ -586,7 +586,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v106 = sload 0 !metadata(storage=slot(0))
     v107 = trunc i256 v106 to i160
     v108 = gas
-    v109 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v50
+    v109 = abi_encode [word], scratch, selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v50
     v110 = extract_value slice<memory>, v109, 0
     v111 = extract_value slice<memory>, v109, 1
     v112 = zext i160 v107 to i256
@@ -606,7 +606,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v118 = sload 0 !metadata(storage=slot(0))
     v119 = trunc i256 v118 to i160
     v120 = gas
-    v121 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
+    v121 = abi_encode [], scratch, selector 0x47799da800000000000000000000000000000000000000000000000000000000
     v122 = extract_value slice<memory>, v121, 0
     v123 = extract_value slice<memory>, v121, 1
     v124 = zext i160 v119 to i256
@@ -628,7 +628,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
 fn @settle(arg0: i160, arg1: i160, arg2: i256) {
   bb0:
     v0 = gas
-    v1 = abi_encode [word<uint160>], selector 0xa584119400000000000000000000000000000000000000000000000000000000, args 0x1234
+    v1 = abi_encode [word<uint160>], scratch, selector 0xa584119400000000000000000000000000000000000000000000000000000000, args 0x1234
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     v4 = zext i160 arg0 to i256
@@ -642,7 +642,7 @@ fn @settle(arg0: i160, arg1: i160, arg2: i256) {
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args arg2
+    v10 = abi_encode [word], scratch, selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args arg2
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 arg0 to i256

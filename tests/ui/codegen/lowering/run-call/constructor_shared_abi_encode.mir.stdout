@@ -110,7 +110,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     revert_returndata
   bb4:
     v20 = gas
-    v21 = abi_encode [], selector 0x305f72b700000000000000000000000000000000000000000000000000000000
+    v21 = abi_encode [], scratch, selector 0x305f72b700000000000000000000000000000000000000000000000000000000
     v22 = extract_value slice<memory>, v21, 0
     v23 = extract_value slice<memory>, v21, 1
     v24 = zext i160 v7 to i256

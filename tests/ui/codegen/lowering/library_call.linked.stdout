@@ -111,11 +111,6 @@ bb0:
   jumpi
   push 64
   mload
-  dup 1
-  dup 2
-  add
-  push 64
-  mstore
   push 0xed2f0bb8
   push 224
   shl

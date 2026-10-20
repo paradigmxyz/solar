@@ -59,7 +59,7 @@ fn @selfAddress(arg0: i160) -> i160 [pure] {
 fn @addValue(arg0: i160, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     v4 = zext i160 arg0 to i256

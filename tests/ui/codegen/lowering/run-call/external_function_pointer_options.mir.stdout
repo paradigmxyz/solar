@@ -46,7 +46,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v8 = icall @gasOpt
     v9 = icall @valueOpt
     v10 = icall @arg
-    v11 = abi_encode [word], selector v5, args v10
+    v11 = abi_encode [word], scratch, selector v5, args v10
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
     v14 = extcodesize v6

@@ -57,7 +57,7 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=
     v2 = gas
     v3 = ne false, false
     v4 = zext i1 v3 to i256
-    v5 = abi_encode [word<bool>], selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v4
+    v5 = abi_encode [word<bool>], scratch, selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v4
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v1 to i256
@@ -87,7 +87,7 @@ fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=
     v2 = gas
     v3 = ne true, false
     v4 = zext i1 v3 to i256
-    v5 = abi_encode [word<bool>], selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v4
+    v5 = abi_encode [word<bool>], scratch, selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v4
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v1 to i256
@@ -322,7 +322,7 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word], selector 0x49740e5b00000000000000000000000000000000000000000000000000000000, args 3
+    v2 = abi_encode [word], scratch, selector 0x49740e5b00000000000000000000000000000000000000000000000000000000, args 3
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256

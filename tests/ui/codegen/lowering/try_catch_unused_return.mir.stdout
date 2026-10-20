@@ -3,7 +3,7 @@
 fn @unusedReturn() -> i256 [selector=0x1df86abb, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     v4 = staticcall v0, 0x1111111111111111111111111111111111111111, v2, v3, 0, 32

@@ -177,7 +177,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     revert_returndata
   bb6:
     v32 = gas
-    v33 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v33 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v34 = extract_value slice<memory>, v33, 0
     v35 = extract_value slice<memory>, v33, 1
     v36 = zext i160 v18 to i256
@@ -249,7 +249,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     revert_returndata
   bb6:
     v32 = gas
-    v33 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v33 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v34 = extract_value slice<memory>, v33, 0
     v35 = extract_value slice<memory>, v33, 1
     v36 = zext i160 v18 to i256
@@ -342,7 +342,7 @@ fn @bubble() -> ptr<memory> [selector=0x4ce637d6, view, abi_params=[], abi_retur
   bb0:
     v0 = loadimmutable producer
     v1 = gas
-    v2 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256

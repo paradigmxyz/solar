@@ -39,7 +39,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v15 = loadimmutable sI
     v16 = sext i144 0 to i256
     v17 = zext i24 v15 to i256
-    v18 = abi_encode [word<uint24>, word, word<int144>], selector 0xafabfe2900000000000000000000000000000000000000000000000000000000, args v17, 0, v16
+    v18 = abi_encode [word<uint24>, word, word<int144>], scratch, selector 0xafabfe2900000000000000000000000000000000000000000000000000000000, args v17, 0, v16
     v19 = extract_value slice<memory>, v18, 0
     v20 = extract_value slice<memory>, v18, 1
     v21 = zext i160 v12 to i256
@@ -177,7 +177,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v122 = trunc i256 v121 to i144
     v123 = sext i144 v122 to i256
     v124 = zext i24 v103 to i256
-    v125 = abi_encode [word<uint24>, word, word<int144>], selector 0xafabfe2900000000000000000000000000000000000000000000000000000000, args v124, v109, v123
+    v125 = abi_encode [word<uint24>, word, word<int144>], scratch, selector 0xafabfe2900000000000000000000000000000000000000000000000000000000, args v124, v109, v123
     v126 = extract_value slice<memory>, v125, 0
     v127 = extract_value slice<memory>, v125, 1
     v128 = zext i160 v94 to i256

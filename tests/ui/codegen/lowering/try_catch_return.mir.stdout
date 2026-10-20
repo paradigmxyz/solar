@@ -52,7 +52,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v2 = gas
     v3 = ne true, false
     v4 = zext i1 v3 to i256
-    v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
+    v5 = abi_encode [word<bool>], scratch, selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v1 to i256
@@ -84,7 +84,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v2 = gas
     v3 = ne false, false
     v4 = zext i1 v3 to i256
-    v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
+    v5 = abi_encode [word<bool>], scratch, selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v1 to i256
@@ -116,7 +116,7 @@ fn @ignored() -> i256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     v2 = gas
     v3 = ne true, false
     v4 = zext i1 v3 to i256
-    v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
+    v5 = abi_encode [word<bool>], scratch, selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v1 to i256

@@ -64,7 +64,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0xd909b40300000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0xd909b40300000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -111,7 +111,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v29 = phi [bb1: v10], [bb7: 100]
     v30 = address
     v31 = gas
-    v32 = abi_encode [], selector 0x9c3674fc00000000000000000000000000000000000000000000000000000000
+    v32 = abi_encode [], scratch, selector 0x9c3674fc00000000000000000000000000000000000000000000000000000000
     v33 = extract_value slice<memory>, v32, 0
     v34 = extract_value slice<memory>, v32, 1
     v35 = zext i160 v30 to i256
@@ -168,7 +168,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v65 = sload 0 !metadata(storage=slot(0))
     v66 = trunc i256 v65 to i160
     v67 = gas
-    v68 = abi_encode [word], selector 0xb3de648b00000000000000000000000000000000000000000000000000000000, args 3
+    v68 = abi_encode [word], scratch, selector 0xb3de648b00000000000000000000000000000000000000000000000000000000, args 3
     v69 = extract_value slice<memory>, v68, 0
     v70 = extract_value slice<memory>, v68, 1
     v71 = zext i160 v66 to i256
@@ -247,7 +247,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v117 = sload 0 !metadata(storage=slot(0))
     v118 = trunc i256 v117 to i160
     v119 = gas
-    v120 = abi_encode [word], selector 0xb3de648b00000000000000000000000000000000000000000000000000000000, args 5
+    v120 = abi_encode [word], scratch, selector 0xb3de648b00000000000000000000000000000000000000000000000000000000, args 5
     v121 = extract_value slice<memory>, v120, 0
     v122 = extract_value slice<memory>, v120, 1
     v123 = zext i160 v118 to i256
@@ -305,7 +305,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v150 = shl v149, 224
     v151 = shr v148, 32
     v152 = gas
-    v153 = abi_encode [word], selector v150, args 6
+    v153 = abi_encode [word], scratch, selector v150, args 6
     v154 = extract_value slice<memory>, v153, 0
     v155 = extract_value slice<memory>, v153, 1
     v156 = call v152, v151, 0, v154, v155, 0, 32

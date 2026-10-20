@@ -103,7 +103,7 @@ fn @returnPointer(arg0: i1) -> ptr<memory> [selector=0x82ecaf4d, view, abi_param
   bb2:
     v1 = address
     v2 = gas
-    v3 = abi_encode [], selector 0xf3aefcd800000000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [], scratch, selector 0xf3aefcd800000000000000000000000000000000000000000000000000000000
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v1 to i256
@@ -350,7 +350,7 @@ fn @returnIndirectOne(arg0: i1) -> ptr<memory> [selector=0xf7a7bdf0, view, abi_p
   bb2:
     v3 = address
     v4 = gas
-    v5 = abi_encode [], selector 0xf3aefcd800000000000000000000000000000000000000000000000000000000
+    v5 = abi_encode [], scratch, selector 0xf3aefcd800000000000000000000000000000000000000000000000000000000
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v3 to i256

@@ -3,7 +3,7 @@
 fn @read(arg0: i160) -> i256 [selector=0xa087a87e, view, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [], scratch, selector 0x57de26a400000000000000000000000000000000000000000000000000000000
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     v4 = zext i160 arg0 to i256
@@ -26,7 +26,7 @@ fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[func
     v1 = shl v0, 224
     v2 = shr arg0, 32
     v3 = gas
-    v4 = abi_encode [], selector v1
+    v4 = abi_encode [], scratch, selector v1
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = staticcall v3, v2, v5, v6, 0, 32

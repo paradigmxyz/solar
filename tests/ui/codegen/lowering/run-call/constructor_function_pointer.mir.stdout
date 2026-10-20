@@ -12,7 +12,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[function]] {
     v1 = shl v0, 224
     v2 = shr arg0, 32
     v3 = gas
-    v4 = abi_encode [], selector v1
+    v4 = abi_encode [], scratch, selector v1
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = staticcall v3, v2, v5, v6, 0, 32
@@ -74,7 +74,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     revert_returndata
   bb2:
     v14 = gas
-    v15 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v15 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v16 = extract_value slice<memory>, v15, 0
     v17 = extract_value slice<memory>, v15, 1
     v18 = zext i160 v12 to i256
@@ -125,7 +125,7 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     v20 = shl v19, 96
     v21 = or v20, 0x990227f10000000000000000
     v22 = gas
-    v23 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
+    v23 = abi_encode [], scratch, selector 0xc096a63200000000000000000000000000000000000000000000000000000000
     v24 = extract_value slice<memory>, v23, 0
     v25 = extract_value slice<memory>, v23, 1
     v26 = zext i160 v16 to i256

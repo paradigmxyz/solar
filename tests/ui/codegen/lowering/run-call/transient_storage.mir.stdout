@@ -91,7 +91,7 @@ fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], ab
     tstore 0, 77
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x52099d8b00000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], scratch, selector 0x52099d8b00000000000000000000000000000000000000000000000000000000
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256

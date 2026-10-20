@@ -82,7 +82,7 @@ fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[uint2
     v8 = gas
     v9 = mload v0
     v10 = shr v9, 64
-    v11 = abi_encode [function], selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v10
+    v11 = abi_encode [function], scratch, selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v10
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
     v14 = zext i160 v7 to i256
@@ -98,7 +98,7 @@ fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[uint2
     v19 = mload v18
     v20 = address
     v21 = gas
-    v22 = abi_encode [tuple<function>], selector 0xadfc46c000000000000000000000000000000000000000000000000000000000, args v0
+    v22 = abi_encode [tuple<function>], scratch, selector 0xadfc46c000000000000000000000000000000000000000000000000000000000, args v0
     v23 = extract_value slice<memory>, v22, 0
     v24 = extract_value slice<memory>, v22, 1
     v25 = zext i160 v20 to i256
@@ -192,7 +192,7 @@ fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, abi_params=[
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = trunc i256 v16 to i192
     v18 = zext i192 v17 to i256
-    v19 = abi_encode [function], selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v18
+    v19 = abi_encode [function], scratch, selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v18
     v20 = extract_value slice<memory>, v19, 0
     v21 = extract_value slice<memory>, v19, 1
     v22 = zext i160 v14 to i256
@@ -285,7 +285,7 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     v55 = shr v53, v54
     v56 = trunc i256 v55 to i192
     v57 = zext i192 v56 to i256
-    v58 = abi_encode [function], selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v57
+    v58 = abi_encode [function], scratch, selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v57
     v59 = extract_value slice<memory>, v58, 0
     v60 = extract_value slice<memory>, v58, 1
     v61 = zext i160 v43 to i256

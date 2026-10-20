@@ -65,7 +65,7 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256
@@ -210,7 +210,7 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256
@@ -252,7 +252,7 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256
@@ -301,7 +301,7 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v13 = shl v12, 224
     v14 = shr v11, 32
     v15 = gas
-    v16 = abi_encode [], selector v13
+    v16 = abi_encode [], scratch, selector v13
     v17 = extract_value slice<memory>, v16, 0
     v18 = extract_value slice<memory>, v16, 1
     v19 = call v15, v14, 0, v17, v18, 0, 32
@@ -356,7 +356,7 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
 fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     v4 = call v0, 0, 0, v2, v3, 0, 32
@@ -383,7 +383,7 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
 fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [], scratch, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     v4 = extcodesize 0

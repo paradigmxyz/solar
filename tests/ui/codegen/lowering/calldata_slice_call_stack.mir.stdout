@@ -13,7 +13,7 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) [selector
     v0 = gas
     v1 = address
     v2 = zext i160 v1 to i256
-    v3 = abi_encode [word<uint160>], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v2
+    v3 = abi_encode [word<uint160>], scratch, selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v2
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 arg1 to i256
@@ -33,7 +33,7 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) [selector
     log 0, 32, 0xa6d5647a92aa1dcbb9b0a53bd2edba8935c58f1e2c7c8fae35acd2acf52a5bd1, v12, v13
     v14 = gas
     v15 = zext i160 arg0 to i256
-    v16 = abi_encode [word<uint160>, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v15, arg2
+    v16 = abi_encode [word<uint160>, word], scratch, selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v15, arg2
     v17 = extract_value slice<memory>, v16, 0
     v18 = extract_value slice<memory>, v16, 1
     v19 = zext i160 arg1 to i256
@@ -70,7 +70,7 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) [selector
     v39 = gas
     v40 = address
     v41 = zext i160 v40 to i256
-    v42 = abi_encode [word<uint160>], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v41
+    v42 = abi_encode [word<uint160>], scratch, selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v41
     v43 = extract_value slice<memory>, v42, 0
     v44 = extract_value slice<memory>, v42, 1
     v45 = zext i160 arg1 to i256

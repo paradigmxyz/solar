@@ -82,7 +82,7 @@ fn @six(arg0: ptr<memory>) -> struct1 [selector=0xb84d18fb, pure, abi_params=[by
 
 fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode [word], selector 0x5d2a686300000000000000000000000000000000000000000000000000000000, args arg0
+    v0 = abi_encode [word], scratch, selector 0x5d2a686300000000000000000000000000000000000000000000000000000000, args arg0
     v1 = extract_value slice<memory>, v0, 0
     v2 = extract_value slice<memory>, v0, 1
     v3 = gas
@@ -152,7 +152,7 @@ fn @aggregate(arg0: i256) -> ptr<memory> [selector=0x407b7269, pure, abi_params=
 
 fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = abi_encode [word], selector 0xbb760a7500000000000000000000000000000000000000000000000000000000, args arg0
+    v0 = abi_encode [word], scratch, selector 0xbb760a7500000000000000000000000000000000000000000000000000000000, args arg0
     v1 = extract_value slice<memory>, v0, 0
     v2 = extract_value slice<memory>, v0, 1
     v3 = gas
@@ -201,7 +201,7 @@ fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode [word], selector 0xa2fc82bf00000000000000000000000000000000000000000000000000000000, args 0
+    v0 = abi_encode [word], scratch, selector 0xa2fc82bf00000000000000000000000000000000000000000000000000000000, args 0
     v1 = extract_value slice<memory>, v0, 0
     v2 = extract_value slice<memory>, v0, 1
     v3 = gas
@@ -269,7 +269,7 @@ fn @dynamicArgument(arg0: ptr<memory>) -> struct0 [selector=0x11b8efbf, pure, ab
 
 fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = abi_encode [word], selector 0x89b964400000000000000000000000000000000000000000000000000000000, args arg0
+    v0 = abi_encode [word], scratch, selector 0x89b964400000000000000000000000000000000000000000000000000000000, args arg0
     v1 = extract_value slice<memory>, v0, 0
     v2 = extract_value slice<memory>, v0, 1
     v3 = gas

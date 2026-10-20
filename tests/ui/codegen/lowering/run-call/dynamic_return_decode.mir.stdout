@@ -264,7 +264,7 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0x462bb00400000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0x462bb00400000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256
@@ -335,7 +335,7 @@ fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0xb8c9e4ed00000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0xb8c9e4ed00000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256
@@ -383,7 +383,7 @@ fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[w
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0xbcd3b3300000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0xbcd3b3300000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256
@@ -478,7 +478,7 @@ fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0x17d7de7c00000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0x17d7de7c00000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256
@@ -516,7 +516,7 @@ fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word],
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0x2ec6845100000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0x2ec6845100000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256

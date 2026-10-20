@@ -67,7 +67,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v74 = shl v73, 224
     v75 = shr v72, 32
     v76 = gas
-    v77 = abi_encode [], selector v74
+    v77 = abi_encode [], scratch, selector v74
     v78 = extract_value slice<memory>, v77, 0
     v79 = extract_value slice<memory>, v77, 1
     v80 = call v76, v75, 0, v78, v79, 0, 32
@@ -208,7 +208,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v74 = shl v73, 224
     v75 = shr v72, 32
     v76 = gas
-    v77 = abi_encode [], selector v74
+    v77 = abi_encode [], scratch, selector v74
     v78 = extract_value slice<memory>, v77, 0
     v79 = extract_value slice<memory>, v77, 1
     v80 = call v76, v75, 0, v78, v79, 0, 32
@@ -349,7 +349,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v74 = shl v73, 224
     v75 = shr v72, 32
     v76 = gas
-    v77 = abi_encode [], selector v74
+    v77 = abi_encode [], scratch, selector v74
     v78 = extract_value slice<memory>, v77, 0
     v79 = extract_value slice<memory>, v77, 1
     v80 = staticcall v76, v75, v78, v79, 0, 32

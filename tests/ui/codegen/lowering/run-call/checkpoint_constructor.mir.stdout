@@ -223,7 +223,7 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<uint9
     revert_returndata
   bb2:
     v24 = gas
-    v25 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
+    v25 = abi_encode [], scratch, selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
     v26 = extract_value slice<memory>, v25, 0
     v27 = extract_value slice<memory>, v25, 1
     v28 = zext i160 v22 to i256
@@ -263,7 +263,7 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v10 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 v7 to i256

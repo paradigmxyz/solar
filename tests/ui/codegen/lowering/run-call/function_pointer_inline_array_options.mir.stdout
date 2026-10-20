@@ -43,7 +43,7 @@ fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     v17 = shl v16, 224
     v18 = shr v15, 32
     v19 = gas
-    v20 = abi_encode [], selector v17
+    v20 = abi_encode [], scratch, selector v17
     v21 = extract_value slice<memory>, v20, 0
     v22 = extract_value slice<memory>, v20, 1
     v23 = call v19, v18, 1, v21, v22, 0, 32
