@@ -26,8 +26,8 @@
 use crate::{
     backend::evm::select::opcode_lowering,
     mir::{
-        BasicBlock, EffectKind, Function, FunctionBuilder, InstKind, MirType, Module, PtrLocation,
-        Terminator, analysis::CallGraphInfo, memory::EvmMemoryLayout,
+        EffectKind, Function, FunctionBuilder, InstKind, MirType, Module, PtrLocation, Terminator,
+        analysis::CallGraphInfo, memory::EvmMemoryLayout,
     },
     target::Target,
 };
@@ -165,7 +165,7 @@ fn eligible(func: &Function) -> bool {
                             end <= EvmMemoryLayout::HEAP_START
                                 && (end <= EvmMemoryLayout::FMP_SLOT
                                     || offset >= EvmMemoryLayout::ZERO_SLOT
-                                    || stores_fmp_slot(func, block))
+                                    || func.block_stores_fmp_slot(block))
                         })
                 })
             }
@@ -184,18 +184,6 @@ fn eligible(func: &Function) -> bool {
             ) => true,
             _ => false,
         })
-}
-
-/// Returns whether the block overwrites the free-memory-pointer word, which the dispatcher never
-/// initializes, so a return range covering it reads the stored word.
-fn stores_fmp_slot(func: &Function, block: &BasicBlock) -> bool {
-    block.instructions.iter().any(|&id| {
-        matches!(
-            func.inst(id).kind,
-            InstKind::Store(ptr, _, PtrLocation::Memory)
-                if func.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT)
-        )
-    })
 }
 
 /// Returns whether a constant word write stays within memory owned by the route.
