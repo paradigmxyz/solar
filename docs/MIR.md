@@ -385,11 +385,11 @@ when these summaries prove normal termination and no observable effects. Recursi
 remain conservative. DCE and ADCE preserve memory expansion when `msize` in the
 function or a callee can observe it.
 `msize` promises a lower bound, not the exact memory extent: it returns at least the
-free-memory pointer and one past every byte written before it. It stays a barrier that
-no pass commons or moves, and it reads all of memory, so a write that precedes it is
-never dead. Compiler-owned memory lies below the free-memory pointer, so passes that
-remove or move frames, spill slots, static allocations, scalar-replaced or
-copy-elided objects, and storage-promotion temporaries need no `msize` check.
+free-memory pointer and one past every byte read or written before it. It stays a
+barrier that no pass commons or moves, and it reads all of memory, so a write the
+program can see is never dead before it. Frames, spill slots, static allocations,
+scalar-replaced or copy-elided objects, and storage-promotion temporaries lie below
+the free-memory pointer, so passes that remove or move them need no `msize` check.
 As in solc, unused storage/account reads and normally returning calls containing
 only those reads may disappear, including their implicit access-list warming.
 Optimization preserves required effects rather than exact gas consumption.

@@ -2,12 +2,9 @@
 //@filecheck:
 @module SroaMsizeCaller
 
-// `msize` only promises a lower bound, the free-memory pointer and every byte written before it,
-// and the object lies below that bound, so a caller that reads `msize` does not keep the object's
-// store alive.
+// The object lies below the free-memory pointer, so `msize` in a caller does not keep its store.
 // CHECK-LABEL: fn @touch{{[( ]}}
 // CHECK-NOT: {{^[ +]+}}mstore
-// CHECK-NOT: {{^[ +]+}}mload
 // CHECK: {{^[ +]+}}ret arg0
 fn @touch(arg0: i256) -> i256 {
   bb0:

@@ -51,8 +51,8 @@ fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     ret v1
 }
 
-// `msize` only promises a lower bound, the free-memory pointer and every byte written before it, so
-// the placement is kept whatever the callee does with the pointer.
+// A callee that reads `msize` and dereferences the pointer keeps the placement: it never relates
+// the pointer to the heap.
 // CHECK:   fn @msize_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT: - {{.*}}v0 = alloc 32
@@ -66,8 +66,7 @@ fn @msize_caller() -> i256 [selector=0x01020307] {
     ret v1
 }
 
-// The callee need not receive the pointer: `msize` anywhere after the store
-// still keeps the placement.
+// A callee that reads `msize` without receiving the pointer keeps the placement too.
 // CHECK:   fn @unrelated_msize_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT: - {{.*}}v0 = alloc 32

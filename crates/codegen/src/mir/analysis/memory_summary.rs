@@ -295,7 +295,8 @@ impl FunctionMemorySummary {
         self.may_observe_fmp
     }
 
-    /// Returns whether the function may read `msize`, which an elided allocation would change.
+    /// Returns whether the function may read `msize`, which a call reused across two sites would
+    /// change.
     #[must_use]
     pub(crate) const fn may_observe_msize(&self) -> bool {
         self.may_observe_msize

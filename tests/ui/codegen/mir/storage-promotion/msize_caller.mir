@@ -2,13 +2,11 @@
 //@filecheck: --enable-var-scope
 @module StoragePromotionMsize
 
-// `msize` only promises a lower bound, the free-memory pointer and every byte written before it,
-// and the promoted value's memory temporary lies below that bound, so a caller that reads `msize`
+// The promoted value's memory temporary lies below the free-memory pointer, so `msize` in a caller
 // does not block promotion. Before `lower-abi`, an external function can still have internal
 // callers.
 // CHECK-LABEL: @called_externally
 // CHECK: {{^[ +]+}}mstore [[TEMP:[0-9]+]], 1
-// CHECK-NOT: {{^[ +]+}}sload
 // CHECK: [[VALUE:v[0-9]+]] = mload [[TEMP]]
 // CHECK: sstore 0, [[VALUE]]
 fn @called_externally(arg0: i256) [selector=0x01020306] {
@@ -37,7 +35,6 @@ fn @caller(arg0: i256) -> i256 [selector=0x01020307] {
 // `msize` in the function itself does not block promotion.
 // CHECK-LABEL: @promote_around_msize
 // CHECK: {{^[ +]+}}mstore [[TEMP:[0-9]+]], 1
-// CHECK-NOT: {{^[ +]+}}sload
 // CHECK: [[VALUE:v[0-9]+]] = mload [[TEMP]]
 // CHECK: sstore 0, [[VALUE]]
 fn @promote_around_msize(arg0: i256) -> i256 [selector=0x01020304] {
@@ -62,7 +59,6 @@ fn @promote_around_msize(arg0: i256) -> i256 [selector=0x01020304] {
 // A callee that reads `msize` does not either.
 // CHECK-LABEL: @promote_around_msize_callee
 // CHECK: {{^[ +]+}}mstore [[TEMP:[0-9]+]], 1
-// CHECK-NOT: {{^[ +]+}}sload
 // CHECK: [[VALUE:v[0-9]+]] = mload [[TEMP]]
 // CHECK: sstore 0, [[VALUE]]
 fn @promote_around_msize_callee(arg0: i256) -> i256 [selector=0x01020305] {

@@ -75,8 +75,8 @@
 //! For that scan, gas observations and calls block all spaces: a partial-redundancy
 //! insertion moves the read to the end of a predecessor, so everything in the join block
 //! above the original load executes after the moved read, and a `gas` read there would
-//! observe the moved load's gas early. `msize` does not block: an earlier read only raises the
-//! lower bound it promises. A call can also observe storage-access warming even when it cannot
+//! observe the moved load's gas early. `msize` does not block: moving a read earlier can only raise
+//! what `msize` returns. A call can also observe storage-access warming even when it cannot
 //! change stored values. Removal-only (fully redundant) rewrites do not move
 //! reads, but we keep the single conservative scan for these cases for simplicity.
 //!

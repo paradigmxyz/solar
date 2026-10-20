@@ -48,8 +48,7 @@ fn @escapes(arg0: i256) {
     returndata 128, 32
 }
 
-// `msize` only promises a lower bound, the free-memory pointer and every byte written before it,
-// and the allocation lies below that bound, so reading it does not keep the stores.
+// The allocation lies below the free-memory pointer, so `msize` does not keep its stores.
 // CHECK: alloc 32 !metadata(deferred_alloc)
 // CHECK-NEXT: - mstore
 // CHECK-LABEL: {{^[ +].*}}fn @heap_allocation{{[( ]}}

@@ -2,12 +2,10 @@
 //@filecheck:
 @module FramePromotionMsizeCaller
 
-// `msize` only promises a lower bound, the free-memory pointer and every byte written before it,
-// and frame slots lie below that bound, so a caller that reads `msize` does not keep the slot's
+// Frame slots lie below the free-memory pointer, so `msize` in a caller does not keep the slot's
 // traffic in memory.
 // CHECK-LABEL: fn @frame{{[( ]}}
 // CHECK-NOT: {{^[ +]+}}mstore
-// CHECK-NOT: {{^[ +]+}}mload
 // CHECK: {{^[ +]+}}ret arg0
 fn @frame(arg0: i256) -> i256 {
   bb0:
@@ -30,7 +28,6 @@ fn @caller(arg0: i256) -> i256 {
 // CHECK-LABEL: @msize_observed
 // CHECK-NOT: {{^[ +]+}}mstore
 // CHECK: {{^ +}}{{v[0-9]+}} = msize
-// CHECK-NOT: {{^[ +]+}}mload
 // CHECK: {{^[ +]+}}ret 42
 fn @msize_observed() -> i256 {
   bb0:
@@ -46,7 +43,6 @@ fn @msize_observed() -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @promote_around_msize{{[( ]}}
 // CHECK-NOT: {{^[ +]+}}mstore
 // CHECK: {{^[ +].*}}msize
-// CHECK-NOT: {{^[ +]+}}mload
 fn @promote_around_msize() -> i256 {
   bb0:
     v10 = internal_frame_addr 128

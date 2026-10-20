@@ -3,7 +3,7 @@
 @module MemoryDseMsizeCaller
 
 // No instruction of `@frame` reads its frame slot, and the slot lies below the free-memory pointer,
-// the lower bound `msize` promises, so the store goes even though the caller reads `msize`.
+// so the store goes even though the caller reads `msize`.
 // CHECK-LABEL: fn @frame{{[( ]}}
 // CHECK-NOT: {{^[ +]+}}mstore
 // CHECK: {{^[ +]+}}ret arg0
