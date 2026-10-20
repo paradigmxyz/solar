@@ -1,0 +1,65 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:EnumImmutable ===
+@module EnumImmutable
+@immutables
+  choice: uint8
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
+    v1 = lt v0, i8 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    storeimmutable choice, v0
+    ret
+}
+
+fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable choice
+    v1 = zext i8 v0 to i256
+    ret v1
+}
+
+fn @five(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret 5
+}
+
+fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i8 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @five, arg1
+    v2 = and v1, 255
+    v3 = trunc i256 v2 to i8
+    ret v3
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:Deployer ===
+@module Deployer
+@data
+  EnumImmutable_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:EnumImmutable"
+
+fn @create() [selector=0xefc81a8c, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = datasize EnumImmutable_creation_code_0
+    v2 = datasize EnumImmutable_creation_code_0, 31, aligned
+    v3 = alloc v2
+    datacopy EnumImmutable_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    ret
+}

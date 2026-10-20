@@ -246,6 +246,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if ty != types::TypeLowerer::mir_type(source_ty) {
                 self.dirty_values.insert(value);
             }
+            // A fixed-bytes immutable keeps its full word, so assembly can have stored dirty bits
+            // that ABI return encoding would otherwise trust as canonical.
+            if self.cx.state.raw_scalars.contains(&id)
+                && let Some(size) = calls::fixed_bytes_size(source_ty)
+            {
+                return Some(self.clean_fixed_bytes(value, size.bytes()));
+            }
             return Some(value);
         }
         if let Some(access) = self.storage_refs.get(&id).copied() {
@@ -274,6 +281,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
         self.cx.report_unsupported(span, "identifier")
+    }
+
+    /// Stores a value in an immutable. An enum is range checked at the store, like solc.
+    pub(super) fn store_immutable_value(
+        &mut self,
+        id: VariableId,
+        immutable_id: ImmutableId,
+        mut value: ValueId,
+    ) {
+        let source_ty = self.cx.gcx.type_of_item(id.into());
+        if matches!(source_ty.kind, TyKind::Enum(_)) {
+            value = self.normalize_dirty_scalar(value, source_ty);
+        }
+        // value = cast to the immutable value type
+        let ty = self.cx.module.immutable_type(immutable_id).mir_type();
+        let value = self.builder.cast(value, ty);
+        self.builder.store_immutable(immutable_id, value);
     }
 
     pub(super) fn store_variable(
@@ -318,10 +342,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(());
         }
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-            // value = cast to the immutable value type
-            let ty = self.cx.module.immutable_type(immutable_id).mir_type();
-            let value = self.builder.cast(value, ty);
-            self.builder.store_immutable(immutable_id, value);
+            self.store_immutable_value(id, immutable_id, value);
             return Some(());
         }
         if let Some(location) = self.cx.storage.get(id) {

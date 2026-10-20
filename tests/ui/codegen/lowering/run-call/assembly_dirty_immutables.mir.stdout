@@ -1,0 +1,44 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_dirty_immutables.sol:AssemblyDirtyImmutables ===
+@module AssemblyDirtyImmutables
+@immutables
+  id: bytes4
+  flag: uint256
+  owner: uint256
+  small: uint8
+
+fn @id() -> i256 [selector=0xaf640d0f, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = loadimmutable id
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @flag() -> i256 [selector=0x890eba68, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable flag
+    ret v0
+}
+
+fn @owner() -> i256 [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = loadimmutable owner
+    ret v0
+}
+
+fn @small() -> i256 [selector=0x6cf3c25e, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+  bb0:
+    v0 = loadimmutable small
+    v1 = zext i8 v0 to i256
+    ret v1
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = not 0
+    v1 = not 0
+    storeimmutable id, v0
+    storeimmutable flag, 256
+    storeimmutable owner, v1
+    storeimmutable small, i8 255
+    ret
+}
