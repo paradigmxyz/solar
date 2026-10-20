@@ -13,7 +13,7 @@ LL │         /// @custom:solar-scratch
    │              ━━━━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-terminates`, and `@custom:solar-trusted`
 
 error: unknown tag `@custom:solar-saef`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
@@ -22,7 +22,7 @@ LL │ /// @custom:solar-saef
    │      ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-terminates`, and `@custom:solar-trusted`
 
 error: unknown tag `@custom:solar-view`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
@@ -31,7 +31,7 @@ LL │     /// @custom:solar-view
    │          ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-terminates`, and `@custom:solar-trusted`
 
 error: `@custom:solar-safe` must document a contract or a library
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
