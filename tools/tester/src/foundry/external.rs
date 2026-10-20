@@ -16,7 +16,8 @@
 //! tests. Manifest projects keep their sources unchanged.
 
 use super::{
-    AssertionPolicy, SOLAR_BINARY, SkipEntry, TestConfig, forge_available, workspace_root,
+    AssertionPolicy, SOLAR_BINARY, SkipEntry, TestConfig, forge_available, select_solar_binary,
+    workspace_root,
 };
 use std::{
     collections::HashSet,
@@ -487,8 +488,8 @@ fn git_output(dir: &Path, args: &[&str]) -> Result<String, String> {
 ///
 /// Fetch failures skip the affected project so offline runs degrade instead of
 /// failing; every other divergence is judged by [`AssertionPolicy::ExternalDifferential`].
-pub(super) fn run_external_suite(solar: &Path) {
-    let _ = SOLAR_BINARY.set(solar.to_path_buf());
+pub fn run_external_suite(solar: &Path) {
+    let _ = SOLAR_BINARY.set(select_solar_binary(solar));
 
     if !forge_available() {
         eprintln!("Skipping external Foundry suite: forge not found in PATH");

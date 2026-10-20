@@ -33,6 +33,10 @@ name = "tests"
 path = "./tests.rs"
 harness = false
 
+[[test]]
+name = "foundry"
+path = "./foundry.rs"
+
 [dependencies]
 solar-ast.workspace = true
 solar-config.workspace = true
