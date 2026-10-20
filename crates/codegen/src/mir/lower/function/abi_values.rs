@@ -563,6 +563,37 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((element_abi, source))
     }
 
+    /// `keccak256(abi.encodePacked(array))` of one dynamic memory array of one-word value
+    /// types, hashed in place: an array's packed encoding is its elements as ABI words, which
+    /// is how memory holds them.
+    pub(super) fn lower_keccak_packed_word_array(
+        &mut self,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
+        let [expr] = exprs else { return None };
+        let ty = self.cx.gcx.type_of_expr(expr.id)?;
+        if !ty.is_ref_at(DataLocation::Memory)
+            || !matches!(
+                self.types.abi_type(ty)?,
+                AbiType::DynamicArray { element, .. } if matches!(*element, AbiType::Word(_))
+            )
+            || !matches!(
+                self.types.memory_layout(ty)?,
+                MemoryObjectLayout::DynamicArray { element_words: 1 }
+            )
+        {
+            return None;
+        }
+        // hash = keccak256(array.data, array.len << 5)
+        let array = self.lower_expr(expr)?;
+        let data = self.builder.memory_data(array);
+        let length = self.builder.memory_len(array);
+        let shift = self.builder.imm(5);
+        let size = self.builder.shl(length, shift);
+        Some(self.builder.keccak256(data, size))
+    }
+
     pub(super) fn lower_packed_word_array(
         &mut self,
         ty: Ty<'gcx>,
