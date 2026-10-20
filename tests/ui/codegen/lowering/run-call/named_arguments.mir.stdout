@@ -173,10 +173,9 @@ fn @eventNamed() -> i256 [selector=0xab104c47, abi_params=[], abi_returns=[word]
   bb0:
     v0 = icall @tick, 1
     v1 = icall @tick, 2
-    v2 = abi_encode [word, word], args v1, v0
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    log v3, v4, 0xee8cdd0e491e3f98f9848174ab3e42fc5047a4e3a6d80675d4e97eba388d9a51
-    v5 = sload 0 !metadata(storage=slot(0))
-    ret v5
+    mstore 0, v1 !metadata(memory=scratch)
+    mstore 32, v0 !metadata(memory=scratch)
+    log 0, 64, 0xee8cdd0e491e3f98f9848174ab3e42fc5047a4e3a6d80675d4e97eba388d9a51
+    v2 = sload 0 !metadata(storage=slot(0))
+    ret v2
 }
