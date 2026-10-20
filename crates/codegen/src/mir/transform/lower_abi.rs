@@ -102,11 +102,12 @@ impl MirPass for LowerAbi {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let gas = module.optimization(gcx).is_gas();
         let changed =
             LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }.run(
                 module,
                 gcx.sess.opts.evm_version,
-                gcx.sess.opts.optimization.is_gas(),
+                gas,
             );
         if !module.has_explicit_abi()
             || module.functions.iter().any(|func| {

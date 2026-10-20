@@ -63,7 +63,7 @@ impl MirPass for LowerShifts {
             // A block outside every loop of creation-only code runs once, and is priced as creation
             // code as the EVM IR passes price it.
             let once = analyses.loop_aware_target(gcx);
-            let repeated = Target::new(gcx);
+            let repeated = analyses.runtime_target(gcx);
             let cyclic = analyses.cfg().cyclic_blocks();
             let mut changed = false;
             for block in blocks {

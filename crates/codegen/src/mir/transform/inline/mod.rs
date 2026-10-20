@@ -103,8 +103,8 @@ impl MirPass for Inline {
         }
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        gcx.sess.opts.optimization != solar_config::OptimizationMode::None
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        module.optimization(gcx) != solar_config::OptimizationMode::None
     }
 
     fn run_pass(
@@ -113,7 +113,7 @@ impl MirPass for Inline {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
         let tagged_only = matches!(self, Self::Tagged);
         if tagged_only && !module.functions.iter().any(|function| function.attributes.always_inline)

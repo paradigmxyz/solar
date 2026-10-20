@@ -101,8 +101,8 @@ impl MirPass for LowerMCopy {
             return false;
         }
 
-        let target = Target::new(gcx);
-        let summaries = (gcx.sess.opts.optimization != OptimizationMode::None)
+        let target = module.target(gcx);
+        let summaries = (module.optimization(gcx) != OptimizationMode::None)
             .then(|| analyses.call_summaries(module));
         let sites = module
             .functions

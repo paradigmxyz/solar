@@ -57,7 +57,7 @@ impl EvmPass for LoopLayout {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() {
+        if !module.optimization(gcx).is_gas() {
             return false;
         }
         BlockLayout.run_pass(gcx, module) | place_loop_latches(module)

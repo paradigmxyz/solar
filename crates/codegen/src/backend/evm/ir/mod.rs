@@ -10,9 +10,10 @@ use crate::{
         evm::op::{self, StackOp},
     },
     link::{EmbeddedBytecodes, LibraryTable, RelocatableBytecode},
-    target::Target,
+    target::{self, Target},
 };
 use alloy_primitives::U256;
+use solar_config::OptimizationMode;
 use solar_sema::Gcx;
 
 pub use solar_evmir::ir::*;
@@ -37,14 +38,21 @@ pub(in crate::backend) use passes::{
 
 /// The cost model of a module's code.
 pub(crate) trait ModuleTarget {
-    /// The cost model of this module's code: the creation model for creation code, which the
-    /// runtime artifact follows.
+    /// The objective this program's code is optimized for.
+    fn optimization(&self, gcx: Gcx<'_>) -> OptimizationMode;
+
+    /// The cost model of this module's code: the objective its contract selects, with the
+    /// creation model for creation code, which the runtime artifact follows.
     fn target(&self, gcx: Gcx<'_>) -> Target;
 }
 
 impl ModuleTarget for Module {
+    fn optimization(&self, gcx: Gcx<'_>) -> OptimizationMode {
+        target::objective(gcx.sess.opts.optimization, self.optimize)
+    }
+
     fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.code_follows)
+        Target::new(gcx, self.optimization(gcx)).priced_for(self.code_follows)
     }
 }
 
@@ -52,12 +60,12 @@ impl ModuleTarget for Module {
 pub(crate) trait BlockTarget {
     /// The cost model of this block: the creation model for creation code, which the runtime
     /// artifact follows (`code_follows`), unless the block may run more than once.
-    fn target(&self, gcx: Gcx<'_>, code_follows: bool) -> Target;
+    fn target(&self, gcx: Gcx<'_>, optimization: OptimizationMode, code_follows: bool) -> Target;
 }
 
 impl BlockTarget for Block {
-    fn target(&self, gcx: Gcx<'_>, code_follows: bool) -> Target {
-        Target::new(gcx).priced_for(code_follows && self.runs_once())
+    fn target(&self, gcx: Gcx<'_>, optimization: OptimizationMode, code_follows: bool) -> Target {
+        Target::new(gcx, optimization).priced_for(code_follows && self.runs_once())
     }
 }
 

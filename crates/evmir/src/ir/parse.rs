@@ -7,7 +7,10 @@ use solar_ast::{
     token::{Delimiter, TokenKind},
 };
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{BytePos, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
+use solar_interface::{
+    BytePos, Result, Session, Span, Symbol, config::OptimizationMode, kw, source_map::SourceFile,
+    sym,
+};
 use solar_parse::{PErr, PResult};
 
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
@@ -57,6 +60,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         while self.parser.eat(TokenKind::At) {
             let section = self.parser.parse_ident()?;
             match section {
+                sym::optimize => {
+                    let objective_span = self.parser.token().span;
+                    module.optimize = Some(match self.parser.parse_ident()? {
+                        kw::Gas => OptimizationMode::Gas,
+                        sym::size => OptimizationMode::Size,
+                        objective => {
+                            return Err(self.parser.error_at(
+                                objective_span,
+                                format!("unknown optimization objective `{objective}`"),
+                            ));
+                        }
+                    });
+                }
                 sym::libraries => self.parser.parse_library_declarations()?,
                 sym::data => module.data = self.parser.parse_data_declarations()?,
                 _ => return Err(self.parser.error(format!("unknown module section `@{section}`"))),

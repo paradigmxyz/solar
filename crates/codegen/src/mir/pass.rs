@@ -25,10 +25,11 @@ use crate::{
         pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
         transform::*,
     },
-    target::Target,
+    target::{self, Target},
 };
 use either::Either;
 use smallvec::SmallVec;
+use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap, sync};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_sema::Gcx;
@@ -129,7 +130,7 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
+        module.optimization(gcx).is_size() && self.0.is_enabled(gcx, module)
     }
 
     fn is_required(&self) -> bool {
@@ -160,7 +161,7 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_gas() && self.0.is_enabled(gcx, module)
+        module.optimization(gcx).is_gas() && self.0.is_enabled(gcx, module)
     }
 
     fn is_required(&self) -> bool {
@@ -713,6 +714,8 @@ pub(crate) struct FunctionAnalyses {
     creation_only: bool,
     /// Whether, besides, the function has no loop of its own.
     straight_line_creation: bool,
+    /// The objective the module's `@custom:solar-optimize` tag selects.
+    optimize: Option<OptimizationMode>,
 }
 
 impl FunctionAnalyses {
@@ -735,14 +738,21 @@ impl FunctionAnalyses {
     /// recursion calls is priced as such whether or not it loops, because the transform
     /// multiplies by trip counts.
     pub(crate) fn loop_aware_target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.creation_only)
+        self.runtime_target(gcx).priced_for(self.creation_only)
+    }
+
+    /// The cost model of runtime code under the module's objective, for code that a loop may run
+    /// many times, wherever it is.
+    pub(crate) fn runtime_target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx, target::objective(gcx.sess.opts.optimization, self.optimize))
     }
 
     /// The cost model for a transform that ranks code shapes without weighing blocks by how
     /// often they run: creation code is priced as such only when every instruction runs a
     /// bounded number of times, so without loops, recursion, or a looping caller.
     pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.straight_line_creation)
+        Target::new(gcx, target::objective(gcx.sess.opts.optimization, self.optimize))
+            .priced_for(self.straight_line_creation)
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
@@ -876,6 +886,7 @@ impl ModuleAnalyses {
             unreported_edit: Cell::new(false),
             creation_only,
             straight_line_creation,
+            optimize: module.optimize,
         }
     }
 
@@ -1128,6 +1139,7 @@ fn run_parallel_function_pass(
         }
     }
     let summaries = first_missing.map(|_| analyses.call_summaries(module));
+    let optimize = module.optimize;
 
     let tasks = module
         .functions
@@ -1157,6 +1169,7 @@ fn run_parallel_function_pass(
                 unreported_edit: Cell::new(false),
                 creation_only,
                 straight_line_creation,
+                optimize,
             };
             let insts_before = func.num_insts();
             let changed = run(func, &bundle);

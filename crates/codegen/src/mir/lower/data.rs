@@ -54,7 +54,8 @@ pub(crate) fn copy_data_to_memory(
         builder.memory_zero(start, size);
         return;
     }
-    let separate_tail = (name.is_some() || gcx.sess.opts.optimization.is_size())
+    let target = module.target(gcx);
+    let separate_tail = (name.is_some() || target.optimization().is_size())
         && padded_size > data.len()
         && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
     let data = if separate_tail || padded_size == data.len() {
@@ -65,10 +66,10 @@ pub(crate) fn copy_data_to_memory(
         padded.resize(padded_size, 0);
         Cow::Owned(padded)
     };
-    if copy_splat_to_memory(gcx, builder, dest, &data, separate_tail) {
+    if copy_splat_to_memory(target, builder, dest, &data, separate_tail) {
         return;
     }
-    if !data_copy_is_profitable_for(gcx, &data, separate_tail) {
+    if !data_copy_is_profitable_for(target, &data, separate_tail) {
         store_data_words(builder, dest, &data);
         return;
     }
@@ -85,8 +86,7 @@ pub(crate) fn copy_data_to_memory(
     builder.data_copy(data, start, size);
 }
 
-fn data_copy_is_profitable_for(gcx: Gcx<'_>, data: &[u8], separate_tail: bool) -> bool {
-    let target = Target::new(gcx);
+fn data_copy_is_profitable_for(target: Target, data: &[u8], separate_tail: bool) -> bool {
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
     // push value; dup base; mstore
     let store = target.dup() + target.opcode(op::MSTORE);
@@ -138,7 +138,7 @@ fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: DataDest, data: &[u
 
 /// Expands a repeated word with logarithmically many memory copies.
 fn copy_splat_to_memory(
-    gcx: Gcx<'_>,
+    target: Target,
     builder: &mut FunctionBuilder<'_>,
     dest: DataDest,
     data: &[u8],
@@ -146,18 +146,18 @@ fn copy_splat_to_memory(
 ) -> bool {
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
     // Partial copies need a masked merge before Cancun; retain the ordinary data lowering.
-    if !(gcx.sess.opts.optimization.is_size()
+    if !(target.optimization().is_size()
         && is_repeated_word(data)
-        && (gcx.sess.opts.evm_version.has_mcopy() || data.len().is_multiple_of(word_size)))
+        && (target.evm_version().has_mcopy() || data.len().is_multiple_of(word_size)))
     {
         return false;
     }
     let word = U256::from_be_bytes(padded_data_word(&data[..word_size]));
-    if !gcx.sess.opts.evm_version.has_mcopy()
-        && !Target::new(gcx).legacy_splat_is_profitable(
+    if !target.evm_version().has_mcopy()
+        && !target.legacy_splat_is_profitable(
             word,
             data.len(),
-            data_copy_is_profitable_for(gcx, data, clear_tail),
+            data_copy_is_profitable_for(target, data, clear_tail),
         )
     {
         return false;

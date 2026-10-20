@@ -12,6 +12,9 @@ impl Module {
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             writeln!(f, "@module {}", self.name)?;
+            if let Some(optimize) = self.optimize {
+                writeln!(f, "@optimize {optimize}")?;
+            }
             write!(f, "{}", display_declarations(&self.libraries, &self.data))?;
             write!(
                 f,

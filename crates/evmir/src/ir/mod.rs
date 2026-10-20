@@ -19,7 +19,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::TypeSize;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
@@ -73,6 +73,9 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Block contents in which an earlier peephole run found nothing to rewrite.
     pub peephole_clean: CleanBlocks,
+    /// The objective the source contract's `@custom:solar-optimize` tag selects, which replaces
+    /// the build's in optimized builds.
+    pub optimize: Option<OptimizationMode>,
 }
 
 impl Module {
@@ -134,6 +137,7 @@ impl Module {
             code_follows: false,
             debug_info_tracked: false,
             peephole_clean: CleanBlocks::default(),
+            optimize: None,
         }
     }
 
@@ -145,6 +149,7 @@ impl Module {
         self.code_follows = false;
         self.debug_info_tracked = false;
         self.peephole_clean.clear();
+        self.optimize = None;
     }
 
     /// Enables source debug information auditing for optimization passes.

@@ -111,7 +111,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 worklist.push(block_id);
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.optimization, OptimizationMode::None) {
             return cold;
         }
 
@@ -246,14 +246,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     *target
                 }
                 Some(Terminator::Branch { then_block, else_block, .. })
-                    if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) =>
+                    if !matches!(self.optimization, OptimizationMode::None) =>
                 {
                     match (self.block_is_cold(*then_block), self.block_is_cold(*else_block)) {
                         (true, false) => *else_block,
                         (false, true) => *then_block,
                         // jumpi condition, then; else ... exit; then ... exit
                         (false, false)
-                            if self.gcx.sess.opts.optimization.is_gas()
+                            if self.optimization.is_gas()
                                 && [*then_block, *else_block].into_iter().all(|target| {
                                     func.blocks[target]
                                         .terminator

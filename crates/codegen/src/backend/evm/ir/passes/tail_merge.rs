@@ -143,7 +143,7 @@ impl RunState {
         self.tail_representatives.clear();
         self.tail_lazy.clear();
         let in_gas_loop =
-            |block: &Block| gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
+            |block: &Block| module.optimization(gcx).is_gas() && block.metadata.in_loop;
         let blocks = module.blocks.iter_enumerated();
         for (block_id, block) in blocks
             .clone()
@@ -155,19 +155,19 @@ impl RunState {
             }
             // Do not use loop bodies to seed sharing groups. They may reuse a tail
             // from a non-loop path to preserve common loop entries.
-            let keep_branches = if gcx.sess.opts.optimization.is_gas() {
+            let keep_branches = if module.optimization(gcx).is_gas() {
                 has_short_word_backedge(module, block_id)
             } else {
                 block.metadata.in_loop
             };
             let matched = self.longest_common_tail(module, block, keep_branches);
-            let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
+            let in_gas_loop = module.optimization(gcx).is_gas() && block.metadata.in_loop;
 
             // A share also runs the representative's code more than once when it may.
             let creation = module.code_follows
                 && matched
                     .is_none_or(|(representative, _)| module.blocks[representative].runs_once());
-            let target = block.target(gcx, creation);
+            let target = block.target(gcx, module.optimization(gcx), creation);
             let transfer_bytes = (target.opcode(op::PUSH2).bytes
                 + target.opcode(op::JUMP).bytes
                 + target.opcode(op::JUMPDEST).bytes) as usize;
@@ -182,7 +182,7 @@ impl RunState {
                     let suffix_size = suffix_size(gcx, module, block_id, common);
                     let saved_bytes = suffix_size.saturating_sub(transfer_bytes);
                     suffix_size > transfer_bytes
-                        && (!gcx.sess.opts.optimization.is_gas()
+                        && (!module.optimization(gcx).is_gas()
                             || !hot
                             || target
                                 .deposit_repays_gas(saved_bytes as u64, u64::from(transfer_gas)))
@@ -594,7 +594,7 @@ fn suffix_size(gcx: Gcx<'_>, module: &Module, block_id: BlockId, common: usize) 
             .iter()
             .map(|inst| match inst.as_stack_op() {
                 Some(StackOp::Exchange(_, ..=16)) => 3,
-                _ => instruction_size_lower_bound(gcx, inst),
+                _ => instruction_size_lower_bound(module.target(gcx), inst),
             })
             .sum::<usize>()
 }

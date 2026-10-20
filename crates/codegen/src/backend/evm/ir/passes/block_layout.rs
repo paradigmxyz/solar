@@ -70,7 +70,8 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
     }
 
-    pack_terminal_traces(gcx, module, &mut state);
+    let packing = TablePacking::new(&gcx.sess.opts, module.optimization(gcx));
+    pack_terminal_traces(module.target(gcx), packing, module, &mut state);
     for cold in [false, true] {
         for block in module.blocks.indices() {
             if is_cold_terminal_block(&module.blocks[block]) == cold {
@@ -135,7 +136,12 @@ struct Candidate {
     references: usize,
 }
 
-fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
+fn pack_terminal_traces(
+    target: Target,
+    packing: TablePacking,
+    module: &Module,
+    state: &mut RunState,
+) {
     let Some(first_terminal) = state.order.iter().enumerate().position(|(position, &block)| {
         is_physical_terminal_boundary(&module.blocks[block], state.order.get(position + 1).copied())
     }) else {
@@ -148,7 +154,8 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
         .enumerate()
         .map(|(index, &block)| {
             estimated_block_size(
-                gcx,
+                target,
+                packing,
                 &module.blocks[block],
                 state.order.get(index + 1).copied(),
                 state.references[block] != 0,
@@ -173,7 +180,8 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
             // Past the first 256 bytes, only whether a trace fits in 32 bytes matters.
             let limit = if offset > 0xff { 32usize.saturating_sub(size) } else { usize::MAX };
             size += estimated_block_size_up_to(
-                gcx,
+                target,
+                packing,
                 &module.blocks[block],
                 next,
                 state.references[block] != 0,
@@ -210,7 +218,7 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
             .then(b.references.cmp(&a.references))
             .then(a.position.cmp(&b.position))
     });
-    let mut budget = terminal_packing_budget(gcx, module, state, insert_offset);
+    let mut budget = terminal_packing_budget(target, packing, module, state, insert_offset);
     for candidate in &state.candidates {
         if candidate.size <= budget {
             budget -= candidate.size;
@@ -232,7 +240,8 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
 // Reserve space for tables whose absolute targets fit in one-byte entries. Widening
 // such a table replaces the BYTE pick with a larger stride table.
 fn terminal_packing_budget(
-    gcx: Gcx<'_>,
+    target: Target,
+    packing: TablePacking,
     module: &Module,
     state: &RunState,
     insert_offset: usize,
@@ -255,7 +264,8 @@ fn terminal_packing_budget(
             let block = &module.blocks[block_id];
             let next = state.order.get(position + 1).copied();
             offset += estimated_block_size(
-                gcx,
+                target,
+                packing,
                 block,
                 next,
                 state.references[block_id] != 0,
@@ -265,12 +275,13 @@ fn terminal_packing_budget(
                 block.terminator.as_ref().map(|term| &term.kind)
                 && targets.len() <= 32
             {
-                offset -= estimated_terminator_size(gcx, kind, next, module.code_follows);
+                offset -=
+                    estimated_terminator_size(target, packing, kind, next, module.code_follows);
                 offset += estimated_indexed_jump_terminator_size(
                     targets.len(),
                     1,
-                    gcx.sess.opts.evm_version,
-                    TablePacking::new(&gcx.sess.opts),
+                    target.evm_version(),
+                    packing,
                 );
             }
         }
@@ -278,7 +289,7 @@ fn terminal_packing_budget(
             if let Some(TerminatorKind::IndexedJump(targets)) =
                 block.terminator.as_ref().map(|term| &term.kind)
                 && targets.len() <= 32
-                && let Some(last) = targets.iter().map(|&target| offsets[target]).max()
+                && let Some(last) = targets.iter().map(|&destination| offsets[destination]).max()
                 && (insert_offset..0xff).contains(&last)
             {
                 budget = budget.min(0xfe - last);
@@ -309,18 +320,20 @@ fn block_reference_counts(
 }
 
 pub(super) fn estimated_block_size(
-    gcx: Gcx<'_>,
+    target: Target,
+    packing: TablePacking,
     block: &Block,
     next: Option<BlockId>,
     addressed: bool,
     code_follows: bool,
 ) -> usize {
-    estimated_block_size_up_to(gcx, block, next, addressed, code_follows, usize::MAX)
+    estimated_block_size_up_to(target, packing, block, next, addressed, code_follows, usize::MAX)
 }
 
 /// Returns [`estimated_block_size`] when it is at most `limit`, and otherwise some larger size.
 fn estimated_block_size_up_to(
-    gcx: Gcx<'_>,
+    target: Target,
+    packing: TablePacking,
     block: &Block,
     next: Option<BlockId>,
     addressed: bool,
@@ -328,21 +341,19 @@ fn estimated_block_size_up_to(
     limit: usize,
 ) -> usize {
     let mut size = usize::from(addressed)
-        + block
-            .terminator
-            .as_ref()
-            .map_or(0, |term| estimated_terminator_size(gcx, &term.kind, next, code_follows));
+        + block.terminator.as_ref().map_or(0, |term| {
+            estimated_terminator_size(target, packing, &term.kind, next, code_follows)
+        });
     for inst in &block.instructions {
         if size > limit {
             break;
         }
-        size += estimated_instruction_size(gcx, inst);
+        size += estimated_instruction_size(target, inst);
     }
     size
 }
 
-fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    let target = Target::new(gcx);
+fn estimated_instruction_size(target: Target, inst: &Instruction) -> usize {
     if let Some(size) = inst.immutable_type_size() {
         target.opcode(op::push(size.bytes())).bytes as usize
     } else if inst.is_encoded_push() {
@@ -357,7 +368,7 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
         }
     } else if let Some(stack_op) = inst.as_stack_op() {
         stack_op
-            .assembled_len(gcx.sess.opts.evm_version)
+            .assembled_len(target.evm_version())
             .expect("block layout only runs on target-compatible stack operations")
     } else {
         1
@@ -365,16 +376,17 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
 }
 
 fn estimated_terminator_size(
-    gcx: Gcx<'_>,
+    target: Target,
+    packing: TablePacking,
     kind: &TerminatorKind,
     next: Option<BlockId>,
     code_follows: bool,
 ) -> usize {
-    let model = Target::new(gcx);
+    let model = target;
     let jump = (model.label_push() + model.opcode(op::JUMP)).bytes as usize;
     let branch = (model.label_push() + model.opcode(op::JUMPI)).bytes as usize;
     match kind {
-        TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * jump,
+        TerminatorKind::Jump(destination) => usize::from(Some(*destination) != next) * jump,
         TerminatorKind::Op(op::STOP) => usize::from(next.is_some() || code_follows),
         TerminatorKind::JumpI { then_block, else_block } => {
             if Some(*else_block) == next {
@@ -388,12 +400,12 @@ fn estimated_terminator_size(
         TerminatorKind::IndexedJump(targets) => {
             // This pass does not know whether the module is runtime or initcode,
             // so use the larger bound. Final assembly resolves the exact width.
-            let target_width = indexed_jump_target_width_bound(gcx.sess.opts.evm_version, true);
+            let target_width = indexed_jump_target_width_bound(target.evm_version(), true);
             estimated_indexed_jump_terminator_size(
                 targets.len(),
                 target_width as u8,
-                gcx.sess.opts.evm_version,
-                TablePacking::new(&gcx.sess.opts),
+                target.evm_version(),
+                packing,
             )
         }
         TerminatorKind::Op(opcode) => model.opcode(*opcode).bytes as usize,
