@@ -2,10 +2,12 @@
 slow-timeout = { period = "60s", terminate-after = 2 }
 status-level = "leak"
 
-# The UI harness runs thousands of compiler invocations in parallel itself.
+# The UI harness runs thousands of compiler invocations in parallel itself, and prints the real
+# fixture count in its own `test result:` line, which nextest hides on a pass by default.
 [[profile.default.overrides]]
 filter = 'package(solar-compiler) & test(=ui_test)'
 threads-required = "num-test-threads"
+success-output = "final"
 slow-timeout = { period = "60s", terminate-after = 10 }
 
 # The external Foundry suite compiles and tests whole real-world projects;
