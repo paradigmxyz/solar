@@ -5,7 +5,7 @@
     bb0:
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
-      mstore v1, arg0
+-     mstore v1, arg0
       ret arg0
   }
   

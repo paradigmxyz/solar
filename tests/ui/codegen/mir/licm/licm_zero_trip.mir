@@ -88,8 +88,8 @@ fn @hoist_mload_dominates_exits() -> i256 {
 // written before it, so it does not keep the mload in the loop when the trip count is known.
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_mload_around_msize{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = mload 64
-// CHECK: - [[LOAD]] = mload 64
 // CHECK: {{^[ +].*}}msize
+// CHECK: - [[LOAD]] = mload 64
 fn @hoist_mload_around_msize() -> i256 {
   bb0:
     jump bb1
