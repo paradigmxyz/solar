@@ -927,6 +927,10 @@ impl<'a> Planner<'a> {
             if let Some(result) = func.inst_result_value(inst) {
                 def_position.insert(result, position);
             }
+            // A call also defines its extra results.
+            for &extra in self.projections.get(&inst).into_iter().flatten().flatten() {
+                def_position.insert(extra, position);
+            }
         }
         let mut windows = FxHashMap::<usize, Vec<Preplacement>>::default();
         for (consumer, &inst) in planned.iter().enumerate() {
