@@ -85,91 +85,68 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v52 = mload arg0
     v53 = mload arg1
     v54 = mload arg2
-    v110 = shr arg1, 64
-    v56 = eq v110, 0
-    v112 = shr v53, 64
-    v57 = eq v112, 0
-    v59 = zext i1 v56 to i256
-    v60 = zext i1 v57 to i256
-    v61 = and v59, v60
-    v62 = shl v53, 5
-    v63 = add arg1, 32
-    v64 = add v63, v62
-    v66 = gt arg0, arg1
-    v67 = eq v66, false
-    v68 = lt arg0, v64
-    v69 = eq v68, false
-    v70 = or v67, v69
-    v71 = zext i1 v70 to i256
-    v72 = and v61, v71
-    v74 = gt arg2, arg1
-    v75 = eq v74, false
-    v76 = lt arg2, v64
-    v77 = eq v76, false
-    v78 = or v75, v77
-    v79 = zext i1 v78 to i256
-    v80 = and v72, v79
-    v114 = shr arg2, 64
-    v82 = eq v114, 0
-    v116 = shr v54, 64
-    v83 = eq v116, 0
-    v84 = zext i1 v82 to i256
-    v85 = and v80, v84
-    v86 = zext i1 v83 to i256
-    v87 = and v85, v86
-    v88 = shl v54, 5
-    v89 = add arg2, 32
-    v90 = add v89, v88
-    v92 = gt arg0, arg2
-    v93 = eq v92, false
-    v94 = lt arg0, v90
-    v95 = eq v94, false
-    v96 = or v93, v95
-    v97 = zext i1 v96 to i256
-    v98 = and v87, v97
-    v100 = gt arg1, arg2
-    v101 = eq v100, false
-    v102 = lt arg1, v90
-    v103 = eq v102, false
-    v104 = or v101, v103
-    v105 = zext i1 v104 to i256
-    v106 = and v98, v105
-    v107 = ne v106, 0
-    jumpi v107, bb9, bb10
+    v57 = or arg1, v53
+    v58 = shl v53, 5
+    v59 = add arg1, 1
+    v60 = add v58, 31
+    v62 = sub arg0, v59
+    v63 = lt v62, v60
+    v65 = zext i1 v63 to i256
+    v67 = sub arg2, v59
+    v68 = lt v67, v60
+    v69 = zext i1 v68 to i256
+    v70 = or v65, v69
+    v72 = or v57, arg2
+    v73 = or v72, v54
+    v74 = shl v54, 5
+    v75 = add arg2, 1
+    v76 = add v74, 31
+    v78 = sub arg0, v75
+    v79 = lt v78, v76
+    v80 = zext i1 v79 to i256
+    v81 = or v70, v80
+    v83 = sub arg1, v75
+    v84 = lt v83, v76
+    v85 = zext i1 v84 to i256
+    v86 = or v81, v85
+    v93 = shr v73, 64
+    v95 = or v93, v86
+    v89 = eq v95, 0
+    jumpi v89, bb9, bb10
   bb10:
-    v144 = add arg0, 32
-    v147 = add arg2, 32
-    v150 = add arg1, 32
+    v123 = add arg2, 32
+    v126 = add arg1, 32
+    v129 = add arg0, 32
     jump bb1
   bb1:
     v4 = phi [bb10: 0], [bb13: v30]
-    v145 = phi [bb10: v144], [bb13: v146]
-    v148 = phi [bb10: v147], [bb13: v149]
-    v151 = phi [bb10: v150], [bb13: v152]
+    v124 = phi [bb10: v123], [bb13: v125]
+    v127 = phi [bb10: v126], [bb13: v128]
+    v130 = phi [bb10: v129], [bb13: v131]
     v5 = mload arg0
     v6 = lt v4, v5
     jumpi v6, bb3, bb2
   bb3:
-    v13 = mload v145
+    v13 = mload v130
     v14 = eq v13, 0
     jumpi v14, bb4, bb5
   bb5:
-    v142 = and v13, 0xffffffffffffffffffffffffffffffff
+    v121 = and v13, 0xffffffffffffffffffffffffffffffff
     v17 = mload arg1
     v18 = lt v4, v17
     jumpi v18, bb12, bb11
   bb12:
-    mstore v151, v142
+    mstore v127, v121
     v23 = shr v13, 128
     v24 = mload arg2
     v25 = lt v4, v24
     jumpi v25, bb13, bb11
   bb13:
-    mstore v148, v23
+    mstore v124, v23
     v30 = add v4, 1
-    v146 = add v145, 32
-    v149 = add v148, 32
-    v152 = add v151, 32
+    v125 = add v124, 32
+    v128 = add v127, 32
+    v131 = add v130, 32
     jump bb1
   bb9:
     jump bb6
@@ -178,23 +155,23 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v34 = lt v32, v52
     jumpi v34, bb7, bb2
   bb2:
-    v108 = phi [bb1: v5], [bb6: v52]
-    ret v108
+    v91 = phi [bb1: v5], [bb6: v52]
+    ret v91
   bb7:
     v35 = shl v32, 5
-    v122 = add arg0, v35
-    v123 = add v122, 32
-    v38 = mload v123
+    v101 = add arg0, v35
+    v102 = add v101, 32
+    v38 = mload v102
     v39 = eq v38, 0
     jumpi v39, bb4, bb8
   bb8:
-    v143 = and v38, 0xffffffffffffffffffffffffffffffff
+    v122 = and v38, 0xffffffffffffffffffffffffffffffff
     v43 = lt v32, v53
     jumpi v43, bb14, bb11
   bb14:
-    v131 = add arg1, v35
-    v132 = add v131, 32
-    mstore v132, v143
+    v110 = add arg1, v35
+    v111 = add v110, 32
+    mstore v111, v122
     v46 = shr v38, 128
     v48 = lt v32, v54
     jumpi v48, bb15, bb11
@@ -203,14 +180,14 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb15:
-    v134 = add arg2, v35
-    v135 = add v134, 32
-    mstore v135, v46
+    v113 = add arg2, v35
+    v114 = add v113, 32
+    mstore v114, v46
     v51 = add v32, 1
     jump bb6
   bb4:
-    v109 = phi [bb3: v4], [bb7: v32]
-    ret v109
+    v92 = phi [bb3: v4], [bb7: v32]
+    ret v92
 }
 
 fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
