@@ -121,6 +121,15 @@ costs as `Cost { gas, bytes }` (sizing dynamic work from known immediate
 operands), push materialization cost, deposit economics
 (`CODE_DEPOSIT_GAS_PER_BYTE`, `lifetime_gas`), and objective ordering
 (`objective_key`, `cmp`, `improves`).
+Creation code has its own model, `Target::creation`, under the gas objective. It
+runs once per deployment, and the deployment transaction pays calldata gas
+(`byte_gas`: 16 per byte, 68 before Istanbul) for each byte instead of the code
+deposit, so costs rank by deployment gas and loop copying stays off. Passes
+take it for functions that no runtime entry reaches
+(`Module::creation_only_functions`, `FunctionAnalyses::creation_only`), for
+EVM IR modules with `code_follows`, and for the constructor's stack plan.
+Inlining keeps the runtime model: it also enables folding that the model does
+not see, and pricing it as creation code grew constructors.
 The stack scheduler plans against a `Target` and orders plans by
 `objective_key`; `target/stack.rs` holds its fixed opcode and frame-sequence
 estimates, built from the opcode table. Never write gas or byte literals in
