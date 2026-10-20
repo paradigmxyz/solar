@@ -214,3 +214,52 @@ fn @quotient_above_overflow_i8(arg0: i8) -> i1 {
     v1 = gt v0, i8 25
     ret v1
 }
+
+// Division and remainder by zero are zero, so scaling a quotient or remainder by its
+// divisor's nonzero test, as if-conversion leaves `if (y != 0) q = x / y`, is the
+// quotient or remainder itself.
+fn @guarded_div(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = ne arg1, 0
+    v1 = zext i1 v0 to i256
+    v2 = div arg0, arg1
+    v3 = mul v1, v2
+    ret v3
+}
+
+fn @guarded_mod(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = ne arg1, 0
+    v1 = zext i1 v0 to i256
+    v2 = mod arg0, arg1
+    v3 = mul v2, v1
+    ret v3
+}
+
+fn @guarded_sdiv(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = ne arg1, 0
+    v1 = zext i1 v0 to i256
+    v2 = sdiv arg0, arg1
+    v3 = mul v2, v1
+    ret v3
+}
+
+fn @guarded_smod(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = ne arg1, 0
+    v1 = zext i1 v0 to i256
+    v2 = smod arg0, arg1
+    v3 = mul v1, v2
+    ret v3
+}
+
+// The test must be of the divisor itself.
+fn @guarded_by_other(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = ne arg0, 0
+    v1 = zext i1 v0 to i256
+    v2 = div arg0, arg1
+    v3 = mul v1, v2
+    ret v3
+}
