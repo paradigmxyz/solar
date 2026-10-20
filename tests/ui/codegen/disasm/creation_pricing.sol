@@ -9,6 +9,7 @@
 //@ run-call: Shared::v; constructor=[5] => 33
 //@ run-call: Shared::f 2; constructor=[5] => 15
 //@ run-call: Looped::arr 5; constructor=[1] => 18
+//@ run-call: LoopAfterCall::g 7; constructor=[1] => 0x013c98f4b7d351aebf1cd66b023e68e296b3ac2142a4c834e5ec69b55b48b841
 //@ run-call: LoopCalled::g 7; constructor=[1] => 0xe5911188c23b5df9927b4d3fc62cc87e06c9374664016f91a70f29bdb41a4252
 
 // Creation code runs once and pays calldata for every byte, so gas builds weigh the bytes of the
@@ -94,6 +95,45 @@ contract LoopCalled {
             total = r ^ 0x1234567812345678123456781234567812345678123456781234567812345678;
             r += (x * 3) ^ 0x1234567812345678123456781234567812345678123456781234567812345678;
             total += (r * 5) ^ 0x1234567812345678123456781234567812345678123456781234567812345678;
+        }
+    }
+
+    function g(uint256 x) external returns (uint256) {
+        return h(x);
+    }
+}
+
+// The code after a call in a constructor loop runs once per iteration too, so the constants it
+// uses keep their pushes instead of sharing them through a stub.
+// DEPLOY-LABEL: // === {{.*}}:LoopAfterCall (deployment) ===
+// DEPLOY-COUNT-2: PUSH32 0x1234567812345678123456781234567812345678123456781234567812345678
+contract LoopAfterCall {
+    uint256[50] public arr;
+    uint256 public total;
+
+    constructor(uint256 s) {
+        for (uint256 i; i < 50; ++i) {
+            uint256 r = h(s + i);
+            unchecked {
+                r = (r ^ 0x1234567812345678123456781234567812345678123456781234567812345678)
+                    + (r * 3 ^ 0x2234567812345678123456781234567812345678123456781234567812345678)
+                    + (r * 5 ^ 0x3234567812345678123456781234567812345678123456781234567812345678)
+                    + (r * 7 ^ 0x4234567812345678123456781234567812345678123456781234567812345678);
+                arr[i] = r ^ 0x1234567812345678123456781234567812345678123456781234567812345678
+                    ^ 0x2234567812345678123456781234567812345678123456781234567812345678
+                    ^ 0x3234567812345678123456781234567812345678123456781234567812345678;
+                total += (r + 1 ^ 0x4234567812345678123456781234567812345678123456781234567812345678)
+                    + (r + 2 ^ 0x1234567812345678123456781234567812345678123456781234567812345678)
+                    + (r + 3 ^ 0x2234567812345678123456781234567812345678123456781234567812345678)
+                    + (r + 4 ^ 0x3234567812345678123456781234567812345678123456781234567812345678);
+            }
+        }
+    }
+
+    function h(uint256 x) internal returns (uint256 r) {
+        unchecked {
+            total += x;
+            r = total * 7 + x;
         }
     }
 

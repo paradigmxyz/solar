@@ -200,3 +200,92 @@ fn @g(arg0: i256) -> i256 [selector=0xe420264a, abi_params=[uint256], abi_return
     v0 = icall @h, arg0
     ret v0
 }
+
+// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopAfterCall ===
+@module LoopAfterCall
+fn @arr(arg0: i256) -> i256 [selector=0x71e5ee5f, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg0, 50
+    icall revert_if_zero<empty>, v0
+    v1 = add 0, arg0
+    v2 = sload v1 !metadata(storage=symbolic(arg0))
+    ret v2
+}
+
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 50 !metadata(storage=slot(50))
+    ret v0
+}
+
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v34]
+    v2 = lt v1, 50
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    v3 = checked_add uint256, v0, v1
+    v4 = icall @h, v3
+    v5 = xor v4, 0x1234567812345678123456781234567812345678123456781234567812345678
+    v6 = mul v4, 3
+    v7 = xor v6, 0x2234567812345678123456781234567812345678123456781234567812345678
+    v8 = add v5, v7
+    v9 = mul v4, 5
+    v10 = xor v9, 0x3234567812345678123456781234567812345678123456781234567812345678
+    v11 = add v8, v10
+    v12 = mul v4, 7
+    v13 = xor v12, 0x4234567812345678123456781234567812345678123456781234567812345678
+    v14 = add v11, v13
+    v15 = xor v14, 0x1234567812345678123456781234567812345678123456781234567812345678
+    v16 = xor v15, 0x2234567812345678123456781234567812345678123456781234567812345678
+    v17 = xor v16, 0x3234567812345678123456781234567812345678123456781234567812345678
+    v18 = lt v1, 50
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = add 0, v1
+    sstore v20, v17 !metadata(storage=symbolic(v1))
+    v21 = add v14, 1
+    v22 = xor v21, 0x4234567812345678123456781234567812345678123456781234567812345678
+    v23 = add v14, 2
+    v24 = xor v23, 0x1234567812345678123456781234567812345678123456781234567812345678
+    v25 = add v22, v24
+    v26 = add v14, 3
+    v27 = xor v26, 0x2234567812345678123456781234567812345678123456781234567812345678
+    v28 = add v25, v27
+    v29 = add v14, 4
+    v30 = xor v29, 0x3234567812345678123456781234567812345678123456781234567812345678
+    v31 = add v28, v30
+    v32 = sload 50 !metadata(storage=slot(50))
+    v33 = add v32, v31
+    sstore 50, v33 !metadata(storage=slot(50))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v34 = checked_add uint256, v1, 1
+    jump bb1
+}
+
+fn @h(arg0: i256) -> i256 {
+  bb0:
+    v0 = sload 50 !metadata(storage=slot(50))
+    v1 = add v0, arg0
+    sstore 50, v1 !metadata(storage=slot(50))
+    v2 = sload 50 !metadata(storage=slot(50))
+    v3 = mul v2, 7
+    v4 = add v3, arg0
+    ret v4
+}
+
+fn @g(arg0: i256) -> i256 [selector=0xe420264a, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @h, arg0
+    ret v0
+}

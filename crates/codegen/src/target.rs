@@ -397,8 +397,9 @@ impl Target {
     /// pays calldata gas for every byte, so the gas objective ranks it by deployment gas. Initcode
     /// that a factory embeds is priced the same way, though its bytes then cost the deposit and
     /// it runs on every `CREATE`. The EIP-3860 charge of two gas per 32 bytes of initcode is not
-    /// priced. Other objectives keep the runtime model: size already ranks bytes
-    /// first, and measurements showed no clear gain from pricing creation code differently there.
+    /// priced, and a zero byte of calldata, which costs 4 gas, counts as a nonzero one. Other
+    /// objectives keep the runtime model: size already ranks bytes first, and measurements showed
+    /// no clear gain from pricing creation code differently there.
     pub(crate) const fn priced_for(self, creation: bool) -> Self {
         if !creation || !self.optimization.is_gas() {
             return self;

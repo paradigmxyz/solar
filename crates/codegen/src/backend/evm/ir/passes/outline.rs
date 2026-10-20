@@ -175,17 +175,17 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     false
 }
 
+/// Whether any of `blocks` may run more than once.
+fn repeats(module: &Module, blocks: impl IntoIterator<Item = BlockId>) -> bool {
+    blocks.into_iter().any(|block| !module.blocks[block].runs_once())
+}
+
 /// Returns the bytes of one call site:
 ///
 /// push2 return
 /// push2 body
 /// jump
 /// jumpdest
-/// Whether any of `blocks` may run more than once.
-fn repeats(module: &Module, blocks: impl IntoIterator<Item = BlockId>) -> bool {
-    blocks.into_iter().any(|block| !module.blocks[block].runs_once())
-}
-
 fn transfer_size(target: &Target) -> usize {
     (target.opcode(op::PUSH2).bytes * 2
         + target.opcode(op::JUMP).bytes

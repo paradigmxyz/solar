@@ -12,8 +12,10 @@
 //! copy from the data pool. The pass prices each run with the `Target` cost model and groups equal
 //! byte strings so every site of a group shares one entry, accepting a group when its total saving
 //! improves the objective; under `-Ogas` that means less runtime gas and no more bytes, since
-//! static sites have no execution frequency to repay code growth. Rejected groups can still ride
-//! along as substrings of an accepted entry.
+//! static sites have no execution frequency to repay code growth. Creation code that runs once
+//! may trade gas for bytes at the calldata price of its model, but blocks that may run more than
+//! once keep the runtime model. Rejected groups can still ride along as substrings of an accepted
+//! entry.
 //!
 //! Both passes leave a module alone when `CODESIZE` can observe the changed data layout, or when
 //! a data address may reach anything but a `CODECOPY` that stays inside its entry. The scan tracks
