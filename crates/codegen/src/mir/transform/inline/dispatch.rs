@@ -17,7 +17,7 @@
 //! optimization enabled. Dynamic inputs qualify only when their lowered body
 //! needs word operations alone; general dynamic ABI and memory copying retain
 //! the wrapper boundary. Returns must use the bounded ABI buffer or fit below the
-//! free-memory-pointer slot, and so must reverts. Constant writes must stay in
+//! free-memory-pointer slot, and reverts must fit below it. Constant writes must stay in
 //! scratch memory or the route's static ABI return buffer. Arbitrary assembly
 //! memory accesses could otherwise observe or overwrite spills introduced by
 //! the combined dispatcher, or depend on a wrapper's free-memory initialization.

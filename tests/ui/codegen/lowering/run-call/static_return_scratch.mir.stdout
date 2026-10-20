@@ -3,6 +3,8 @@
 @types
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
+  struct2: {ptr<memory>, ptr<memory>}
+  struct3: {i256, ptr<memory>}
 
 fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -31,4 +33,32 @@ fn @three(arg0: i256) -> struct1 [selector=0xa7697424, pure, abi_params=[uint256
 fn @unused(arg0: i256) [selector=0xbef217cc, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
+}
+
+fn @swapped() -> struct0 [selector=0x817ba96a, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    mstore 0, 1 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    v0 = mload 32 !metadata(memory=scratch)
+    v1 = mload 0 !metadata(memory=scratch)
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
+}
+
+fn @aliasedArrays() -> struct2 [selector=0xf54f1c28, pure, abi_params=[], abi_returns=[array<1, word>, array<1, word>], abi_return_params=[array<1, uint256>, array<1, uint256>]] {
+  bb0:
+    mstore 0, 1 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    v0 = insert_value struct2, undef struct2, 0, ptr<memory> 32
+    v1 = insert_value struct2, v0, 1, ptr<memory> 0
+    ret v1
+}
+
+fn @scalarThenAlias() -> struct3 [selector=0x69021083, pure, abi_params=[], abi_returns=[word, array<1, word>], abi_return_params=[uint256, array<1, uint256>]] {
+  bb0:
+    mstore 0, 7 !metadata(memory=scratch)
+    v0 = insert_value struct3, undef struct3, 0, 5
+    v1 = insert_value struct3, v0, 1, ptr<memory> 0
+    ret v1
 }
