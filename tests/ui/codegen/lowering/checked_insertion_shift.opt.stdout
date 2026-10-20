@@ -80,7 +80,9 @@ fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
     v10 = lt arg1, v2
     jumpi v10, bb5, bb3
   bb3:
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb5:
     v12 = shl arg1, 5
     v35 = add v17, v12
@@ -99,13 +101,6 @@ fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
     returndata v17, v25
   bb6:
     revert 0, 0
-}
-
-fn @revert_stub() {
-  bb0:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {
