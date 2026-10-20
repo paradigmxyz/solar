@@ -18,8 +18,8 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
   bb2:
     v28 = add v34, arg1
     v29 = calldataload v28
-    mstore 128, v29
-    returndata 128, 32
+    mstore 0, v29 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     tail_call @revert_stub.16
   bb3:
@@ -84,17 +84,17 @@ fn @loadSome() [selector=0x982de5a7, abi_wrapper, pure] {
     v28 = and v23, v25
     jumpi v28, bb1, bb2
   bb2:
-    v44 = add v40, arg1
-    v45 = add v44, 32
-    v31 = mload v45
+    v43 = add v40, arg1
+    v44 = add v43, 32
+    v31 = mload v44
     v32 = lt arg2, 32
     v33 = select v32, arg2, 32
     v34 = shl v33, 3
     v35 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v34
     v36 = not v35
     v37 = and v31, v36
-    mstore 128, v37
-    returndata 128, 32
+    mstore 0, v37 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     tail_call @revert_stub.16
   bb3:
@@ -795,17 +795,17 @@ fn @asciiWords() [selector=0x581c0829, abi_wrapper, pure] {
     v6 = gt v41, 31
     jumpi v6, bb3, bb2
   bb2:
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
     v34 = sub v31, 32
     v35 = gt v2, v34
     v36 = or v33, v35
     jumpi v36, bb4, bb5
   bb5:
-    v54 = add v50, v2
-    v55 = add v54, 32
-    v40 = mload v55
+    v53 = add v50, v2
+    v54 = add v53, 32
+    v40 = mload v54
     v26 = and v40, 0x8080808080808080808080808080808080808080808080808080808080808080
     v27 = eq v26, 0
     v45 = zext i1 v27 to i256

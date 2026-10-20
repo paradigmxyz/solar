@@ -20,11 +20,11 @@ fn @signed() [selector=0x24401e82, abi_wrapper, pure] {
     v9 = or v4, 0x19457468657265756d205369676e6564204d6573736167653a0a00
     mstore v15, v9
     v11 = add v0, 27
-    v19 = add v15, 5
-    v12 = keccak256 v19, v11
+    v18 = add v15, 5
+    v12 = keccak256 v18, v11
     mstore v15, v0
-    mstore 128, v12
-    returndata 128, 32
+    mstore 0, v12 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -73,11 +73,11 @@ fn @narrow() [selector=0x3e18eba5, abi_wrapper, pure] {
     v2 = mload v14
     mstore v14, 0xfffeabcd
     v10 = add v2, 4
-    v18 = add v14, 28
-    v11 = keccak256 v18, v10
+    v17 = add v14, 28
+    v11 = keccak256 v17, v10
     mstore v14, v2
-    mstore 128, v11
-    returndata 128, 32
+    mstore 0, v11 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -88,9 +88,9 @@ fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
     mstore 96, 0x1020304
     v10 = add v5, 4
     v11 = keccak256 124, v10
-    mstore 128, v11
-    mstore 160, v5
-    returndata 128, 64
+    mstore 0, v11 !metadata(memory=scratch)
+    mstore 32, v5 !metadata(memory=scratch)
+    returndata 0, 64
 }
 
 fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
@@ -101,10 +101,10 @@ fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
   bb2:
     v6 = icall @decode_calldata_type
     v1 = mload v6
-    v10 = add v6, 32
-    v3 = keccak256 v10, v1
-    mstore 128, v3
-    returndata 128, 32
+    v9 = add v6, 32
+    v3 = keccak256 v9, v1
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -116,19 +116,19 @@ fn @tooLong() [selector=0x3db8dd3c, abi_wrapper, pure] {
     jumpi v19, bb1, bb2
   bb2:
     v20 = icall @decode_calldata_type
-    v24 = add v20, 32
+    v23 = add v20, 32
     v2 = mload v20
-    v29 = mload 64 !metadata(memory=scratch)
-    mstore v29, 1
-    v9 = add v29, 32
+    v28 = mload 64 !metadata(memory=scratch)
+    mstore v28, 1
+    v9 = add v28, 32
     mstore v9, 0x200000000000000000000000000000000000000000000000000000000000000
-    v11 = add v29, 33
-    mcopy v11, v24, v2
+    v11 = add v28, 33
+    mcopy v11, v23, v2
     v14 = add v11, v2
-    v16 = sub v14, v29
-    v17 = keccak256 v29, v16
-    mstore 128, v17
-    returndata 128, 32
+    v16 = sub v14, v28
+    v17 = keccak256 v28, v16
+    mstore 0, v17 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

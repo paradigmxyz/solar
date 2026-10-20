@@ -53,10 +53,10 @@ bb9:
   push 4
   calldataload
   shl
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb33 [cold]:
   push 65
@@ -86,10 +86,10 @@ bb15:
   push 1
   swap 1
   shl
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb20:
   push 36
@@ -101,10 +101,10 @@ bb20:
   calldataload
   push 5
   shl
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb23:
   push 36
@@ -116,13 +116,13 @@ bb23:
   calldataload
   push 255
   shl
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb26:
-  push 160
+  push 128
   push 64
   mstore
   push 68
@@ -216,10 +216,10 @@ bb26:
   push 32
   add
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb18 [cold]:
   push 17

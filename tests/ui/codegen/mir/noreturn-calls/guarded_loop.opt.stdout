@@ -11,8 +11,8 @@ fn @sumFrom() [selector=0xd9941e3f, abi_wrapper, pure] {
     v28 = gt v25, 0xffffffffffffffff
     v29 = gt v27, v23
     v30 = or v28, v29
-    v61 = or v24, v30
-    jumpi v61, bb7, bb8
+    v60 = or v24, v30
+    jumpi v60, bb7, bb8
   bb8:
     v32 = calldataload v26
     v34 = add v32, 63
@@ -20,21 +20,21 @@ fn @sumFrom() [selector=0xd9941e3f, abi_wrapper, pure] {
     jumpi v35, bb9, bb10
   bb10:
     v37 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v55 = mload 64 !metadata(memory=scratch)
-    v56 = add v55, v37
-    v57 = lt v56, v55
-    v58 = gt v56, 0xffffffffffffffff
-    v59 = or v57, v58
-    jumpi v59, bb9, bb12
+    v54 = mload 64 !metadata(memory=scratch)
+    v55 = add v54, v37
+    v56 = lt v55, v54
+    v57 = gt v55, 0xffffffffffffffff
+    v58 = or v56, v57
+    jumpi v58, bb9, bb12
   bb12:
-    mstore 64, v56 !metadata(memory=scratch)
-    mstore v55, v32
+    mstore 64, v55 !metadata(memory=scratch)
+    mstore v54, v32
     v39 = sub v23, v27
     v40 = gt v32, v39
     jumpi v40, bb7, bb11
   bb11:
-    v52 = add v55, 32
-    calldatacopy v52, v27, v32
+    v51 = add v54, 32
+    calldatacopy v51, v27, v32
     v1 = lt arg1, v32
     jumpi v1, bb2, bb1
   bb1:
@@ -44,9 +44,9 @@ fn @sumFrom() [selector=0xd9941e3f, abi_wrapper, pure] {
   bb3:
     v4 = phi [bb2: arg1], [bb6: v18]
     v5 = phi [bb2: 0], [bb6: v21]
-    v49 = add v55, v4
-    v50 = add v49, 32
-    v11 = mload v50
+    v48 = add v54, v4
+    v49 = add v48, 32
+    v11 = mload v49
     v12 = byte 0, v11
     v21 = add v5, v12
     v22 = lt v21, v5
@@ -56,8 +56,8 @@ fn @sumFrom() [selector=0xd9941e3f, abi_wrapper, pure] {
     v20 = lt v18, v32
     jumpi v20, bb3, bb4
   bb4:
-    mstore 128, v21
-    returndata 128, 32
+    mstore 0, v21 !metadata(memory=scratch)
+    returndata 0, 32
   bb5:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

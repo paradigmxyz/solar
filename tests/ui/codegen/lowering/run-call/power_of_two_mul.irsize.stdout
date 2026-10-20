@@ -75,10 +75,10 @@ bb35:
   shl
   jump bb34
 bb34:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb20:
   push 36
@@ -101,7 +101,7 @@ bb23:
   push 255
   jump bb35
 bb26:
-  push 160
+  push 128
   push 64
   mstore
   push 68

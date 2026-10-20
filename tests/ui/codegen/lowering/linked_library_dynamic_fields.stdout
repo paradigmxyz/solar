@@ -209,7 +209,7 @@ bb1:
   add
   calldataload
   dup 1
-  dup 6
+  push 160
   shr
   push bb3
   jumpi
@@ -219,7 +219,7 @@ bb1:
   add
   mstore
   dup 6
-  push 128
+  dup 6
   dup 7
   add
   mstore

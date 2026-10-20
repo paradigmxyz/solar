@@ -127,20 +127,20 @@ fn @afterAllocation() [selector=0x510dcf1e, abi_wrapper, pure] {
     v15 = ne v11, v7
     jumpi v15, bb1, bb3
   bb3:
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, v9
-    v26 = lt v25, v24
-    v27 = gt v25, 0xffffffffffffffff
-    v28 = or v26, v27
-    jumpi v28, bb1, bb6
+    v23 = mload 64 !metadata(memory=scratch)
+    v24 = add v23, v9
+    v25 = lt v24, v23
+    v26 = gt v24, 0xffffffffffffffff
+    v27 = or v25, v26
+    jumpi v27, bb1, bb6
   bb6:
-    mstore 64, v25 !metadata(memory=scratch)
-    v30 = calldatasize
-    calldatacopy v24, v30, v9
-    mstore v24, arg0
+    mstore 64, v24 !metadata(memory=scratch)
+    v29 = calldatasize
+    calldatacopy v23, v29, v9
+    mstore v23, arg0
     v18 = add arg0, arg0
-    mstore 128, v18
-    returndata 128, 32
+    mstore 0, v18 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

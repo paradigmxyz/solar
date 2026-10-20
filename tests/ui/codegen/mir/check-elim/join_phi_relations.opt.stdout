@@ -14,29 +14,29 @@ fn @lastIndexOf() [selector=0x46c1da7f, abi_wrapper, pure] {
     v22 = zext i1 v2 to i256
     v23 = mul v22, v21
     v24 = add v3, v23
-    v36 = shl v24, 5
-    v37 = add v27, v36
-    v38 = add v37, 32
+    v34 = shl v24, 5
+    v35 = add v27, v34
+    v36 = add v35, 32
     jump bb3
   bb3:
     v10 = phi [bb2: v24], [bb6: v20]
-    v39 = phi [bb2: v38], [bb6: v40]
-    v17 = mload v39
+    v37 = phi [bb2: v36], [bb6: v38]
+    v17 = mload v37
     v18 = ne v17, arg1
     jumpi v18, bb5, bb4
   bb4:
-    mstore 128, v10
-    returndata 128, 32
+    mstore 0, v10 !metadata(memory=scratch)
+    returndata 0, 32
   bb5:
     v19 = eq v10, 0
     jumpi v19, bb1, bb6
   bb6:
     v20 = sub v10, 1
-    v40 = sub v39, 32
+    v38 = sub v37, 32
     jump bb3
   bb1:
-    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    returndata 128, 32
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
@@ -51,13 +51,13 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     v21 = zext i1 v2 to i256
     v22 = mul v21, v20
     v23 = add v0, v22
-    v35 = shl v23, 5
-    v36 = add v26, v35
-    v37 = add v36, 32
+    v33 = shl v23, 5
+    v34 = add v26, v33
+    v35 = add v34, 32
     jump bb3
   bb3:
     v9 = phi [bb2: v23], [bb6: v19]
-    v38 = phi [bb2: v37], [bb6: v39]
+    v36 = phi [bb2: v35], [bb6: v37]
     v11 = lt v9, v0
     jumpi v11, bb8, bb7
   bb7:
@@ -65,22 +65,22 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb8:
-    v16 = mload v38
+    v16 = mload v36
     v17 = ne v16, arg1
     jumpi v17, bb5, bb4
   bb4:
-    mstore 128, v9
-    returndata 128, 32
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
   bb5:
     v18 = eq v9, 0
     jumpi v18, bb1, bb6
   bb6:
     v19 = sub v9, 1
-    v39 = sub v38, 32
+    v37 = sub v36, 32
     jump bb3
   bb1:
-    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    returndata 128, 32
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {
