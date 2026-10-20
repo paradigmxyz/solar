@@ -154,20 +154,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // An empty input is only read, so it needs no allocation.
             self.zero_slot()
         } else if is_calldata_bytes(data_ty) {
-            // solc copies calldata `bytes` input into memory without checking that it lies
-            // within the calldata, so the copy reads zeros past its end.
-            // input = bytes(data.len); copy(data, input.data)
+            // solc copies calldata `bytes` input past the free memory pointer, which the call
+            // reads at once, so it stays unreserved, and without checking that it lies within
+            // the calldata, so the copy reads zeros past its end.
+            // input = memory_slice(fmp, data.len); calldatacopy(fmp, data.offset, data.len)
             let slice = self.lower_expr(data)?;
-            if self.is_decoded_external_argument(slice) && !self.dirty_values.contains(&slice) {
-                // ABI decoding bounded the length, so its padded size cannot overflow.
-                let length = self.builder.slice_len(slice);
-                let object =
-                    self.builder.alloc_bounded_bytes_object(length, AllocationSemantics::INTERNAL);
-                self.builder.memory_copy_from_slice(object, slice);
-                object
-            } else {
-                self.materialize_memory_slice(slice)
-            }
+            let length = self.builder.slice_len(slice);
+            let source = self.builder.slice_ptr(slice);
+            let base = self.builder.fmp();
+            self.builder.copy_heap(base, source, length, PtrLocation::Calldata);
+            self.builder.make_slice(base, length, PtrLocation::Memory)
         } else {
             // input = materialize_memory(arg)
             let data = self.lower_typed_expr(data, memory_ty)?;
