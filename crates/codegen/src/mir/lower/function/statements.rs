@@ -579,7 +579,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             args.span,
             "event argument",
             |this, index, argument| {
-                let parameter_ty = this.cx.gcx.type_of_item(event.parameters[index].into());
+                let parameter = event.parameters[index];
+                let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
+                // A literal in the event's data needs no object of its own: the encoder writes
+                // its words.
+                if !this.cx.gcx.hir.variable(parameter).indexed
+                    && matches!(
+                        parameter_ty.peel_refs().kind,
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    )
+                    && let ExprKind::Lit(lit) =
+                        this.peel_bytes_conversion(argument).peel_parens().kind
+                    && let LitKind::Str(_, bytes, _) = &lit.kind
+                    && !bytes.as_byte_str().is_empty()
+                {
+                    let value = this.lower_encoded_bytes_literal(bytes.as_byte_str())?;
+                    return Some((argument, value));
+                }
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
                 Some((argument, value))
             },
@@ -685,6 +701,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             (self.builder.imm(0), self.builder.imm(32 * data_values.len() as u64))
         } else {
+            // The log reads the data at once, so it stays unreserved past the free memory
+            // pointer, as with solc.
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
             let encoded =
                 self.builder.abi_encode_scratch(layout, None, data_values.into_boxed_slice());
