@@ -66,11 +66,15 @@
 //! observable.
 //!
 //! The word read starts at the lowest byte the loop read and ends inside the last word the loop
-//! read, so it touches no memory the loop did not. A scatter below 32 bytes reads and rewrites
-//! the bytes after the ones it writes, and a copy's `mcopy` reads and writes exactly the copied
-//! ranges; memory expansion can differ, which only `msize` sees. A
-//! loop's own stores never reach a length word, which lies below every checked range, or feed
-//! a gather, which stores nothing.
+//! read, so it touches no memory the loop did not. A loop of a dynamic count may run no
+//! iterations, though, and then checks no offset, so a gather or scatter of such a count
+//! multiplies its memory offset by `count != 0`: a count of zero reads, and a scatter writes
+//! back, the buffer's first data word instead of a word at an offset that could expand memory
+//! until the call runs out of gas. A scatter below 32 bytes reads and rewrites the bytes after
+//! the ones it writes, and a copy's `mcopy` reads and writes exactly the copied ranges; memory
+//! expansion can differ, which only `msize` sees. A loop's own stores
+//! never reach a length word, which lies below every checked range, or feed a gather, which
+//! stores nothing.
 //!
 //! A forward byte copy equals `mcopy` unless its destination starts strictly inside its source
 //! range, where the loop copies bytes it already wrote. A calldata source, or a source and a
@@ -1325,10 +1329,13 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
     builder.switch_to_block(lp.preheader);
     match shape {
         Shape::Gather { access, width, result } => {
+            // nonzero = ne bound, 0, for a dynamic bound
             // panic_if (bound != 0 && range does not fit), 0x32
             // word = load (buffer data + offset); value = and word, top(min(bound, width))
-            let fails = range_fails(&mut builder, &access, lp.bound, literal.is_none());
+            let nonzero = literal.is_none().then(|| builder.ne_zero(lp.bound));
+            let fails = range_fails(&mut builder, &access, lp.bound, nonzero);
             builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
+            let access = start_when_empty(&mut builder, access, nonzero);
             let word = load_word(&mut builder, &access);
             let mask = leading_mask(&mut builder, lp.bound, literal, width);
             let value = match mask {
@@ -1361,7 +1368,8 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                     builder.mul(byte, lanes)
                 }
             };
-            let mut fails = range_fails(&mut builder, &access, lp.bound, literal.is_none());
+            let nonzero = literal.is_none().then(|| builder.ne_zero(lp.bound));
+            let mut fails = range_fails(&mut builder, &access, lp.bound, nonzero);
             if literal.is_none() {
                 // A dynamic bound always comes with the value's index check.
                 let limit = builder.imm(width);
@@ -1369,6 +1377,7 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 fails = builder.or(fails, wide);
             }
             builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
+            let access = start_when_empty(&mut builder, access, nonzero);
             let address = memory_data_address(&mut builder, &access);
             let stored = match leading_mask(&mut builder, lp.bound, literal, 32) {
                 Some(mask) => {
@@ -1464,9 +1473,9 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
             } else {
                 // panic_if (bound != 0 && (src range does not fit || dst range does not fit)), 0x32
                 // A fresh destination's length is the bound, so its range always fits.
-                let mut fails = range_fails(&mut builder, &src, lp.bound, false);
+                let mut fails = range_fails(&mut builder, &src, lp.bound, None);
                 if dst_checked && fresh.is_none() {
-                    let dst_fails = range_fails(&mut builder, &dst, lp.bound, false);
+                    let dst_fails = range_fails(&mut builder, &dst, lp.bound, None);
                     fails = builder.or(fails, dst_fails);
                 }
                 if !tested && literal.is_none_or(|bound| bound == 0) {
@@ -1565,7 +1574,8 @@ fn fresh_guarded_copy(
     builder.branch(overlaps, slow, fast);
     let source_check = |builder: &mut FunctionBuilder<'_>| {
         // panic_if (bound != 0 && src range does not fit), 0x32
-        let fails = range_fails(builder, src, lp.bound, !tested);
+        let nonzero = (!tested).then(|| builder.ne_zero(lp.bound));
+        let fails = range_fails(builder, src, lp.bound, nonzero);
         builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
     };
     builder.switch_to_block(fast);
@@ -1608,12 +1618,13 @@ fn clear_padding(builder: &mut FunctionBuilder<'_>, dst: &Access, fresh: &FreshD
 }
 
 /// Emits whether `count` bytes from the access's offset do not fit in its buffer:
-/// `count > len || offset > len - count`, and with `nonempty` only when `count != 0`.
+/// `count > len || offset > len - count`, and with `nonzero`, the test `count != 0`, only when
+/// it holds.
 fn range_fails(
     builder: &mut FunctionBuilder<'_>,
     access: &Access,
     count: ValueId,
-    nonempty: bool,
+    nonzero: Option<ValueId>,
 ) -> ValueId {
     // len = mload object | slice.len
     // fails = lt len, count
@@ -1625,9 +1636,8 @@ fn range_fails(
         let past = builder.gt(offset, room);
         fails = builder.or(fails, past);
     }
-    if nonempty {
-        // fails = and fails, (ne count, 0)
-        let nonzero = builder.ne_zero(count);
+    if let Some(nonzero) = nonzero {
+        // fails = and fails, nonzero
         fails = builder.and(fails, nonzero);
     }
     fails
@@ -1723,6 +1733,25 @@ fn leading_mask(
     let all = builder.imm(U256::MAX);
     let low = builder.shr(all, bits);
     Some(builder.not(low))
+}
+
+/// The access a gather or scatter of a dynamic count takes its word at: the given one, or for a
+/// count of zero, given `nonzero`, the test `count != 0`, the memory buffer's first word. A loop
+/// of no iterations checks no offset and touches no memory, so its offset may lie anywhere, and
+/// a word there could expand memory until the call runs out of gas.
+fn start_when_empty(
+    builder: &mut FunctionBuilder<'_>,
+    access: Access,
+    nonzero: Option<ValueId>,
+) -> Access {
+    let (Buffer::Memory(_), Some(offset), Some(nonzero)) = (access.buffer, access.offset, nonzero)
+    else {
+        return access;
+    };
+    // offset = mul offset, (zext nonzero)
+    let scale = builder.cast(nonzero, MirType::I256);
+    let offset = builder.mul(offset, scale);
+    Access { offset: Some(offset), ..access }
 }
 
 fn defined_outside(func: &Function, l: &Loop, value: ValueId) -> bool {
