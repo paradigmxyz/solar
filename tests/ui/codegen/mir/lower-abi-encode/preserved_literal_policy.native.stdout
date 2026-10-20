@@ -267,3 +267,57 @@
 +     returndata v8, v25
   }
   
+  fn @aliased_argument(arg0: ptr<memory>) {
+    bb0:
+      v0 = alloc 96 !metadata(preserves_fmp)
+      mstore v0, 48
+      v1 = ptradd v0, 32
+      mstore v1, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+      v2 = ptradd v0, 64
+      mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+-     v3 = abi_encode [memory_bytes, memory_bytes], scratch, args arg0, v0
+-     v4 = extract_value slice<memory>, v3, 0
+-     v5 = extract_value slice<memory>, v3, 1
+-     revert v4, v5
++     v6 = fmp
++     v7 = ptrtoint ptr<memory> v6 to i256
++     v8 = add v7, 64
++     v9 = ptrtoint ptr<memory> v6 to i256
++     v10 = sub v8, v9
++     mstore v6, v10
++     v11 = mload arg0
++     v12 = not 31
++     v13 = add v11, 31
++     v14 = and v13, v12
++     v15 = add v8, 32
++     v16 = add v8, v14
++     mstore v16, 0
++     mstore v8, v11
++     v17 = ptradd arg0, 32
++     v18 = add v15, v14
++     mcopy v15, v17, v11 !metadata(memory=heap, disjoint)
++     v19 = ptrtoint ptr<memory> v6 to i256
++     v20 = add v19, 32
++     v21 = ptrtoint ptr<memory> v6 to i256
++     v22 = sub v18, v21
++     mstore v20, v22
++     v23 = mload v0
++     v24 = not 31
++     v25 = add v23, 31
++     v26 = and v25, v24
++     v27 = add v18, 32
++     v28 = add v18, v26
++     mstore v28, 0
++     mstore v18, v23
++     v29 = ptradd v0, 32
++     v30 = add v27, v26
++     mcopy v27, v29, v23 !metadata(memory=heap, disjoint)
++     v31 = ptrtoint ptr<memory> v6 to i256
++     v32 = sub v30, v31
++     v33 = add v32, 0
++     v34 = make_memory_slice v6, v33
++     v4 = extract_value slice<memory>, v34, 0
++     v5 = extract_value slice<memory>, v34, 1
++     revert v6, v33
+  }
+  

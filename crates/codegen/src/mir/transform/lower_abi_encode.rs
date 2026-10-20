@@ -1598,11 +1598,12 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
 }
 
 /// Literal objects whose allocation nothing can observe once their scratch encode has run: the
-/// block returns or reverts with exactly the encoded bytes, no instruction after the encode
-/// accesses memory, and no allocation or reserving encode follows the literal's, so the
-/// free-memory-pointer bump it preserves moves no address and has no reader.
-/// `literal_objects_at_encodes` already proved that no access sits between the allocation and
-/// the encode.
+/// block returns or reverts with exactly the encoded bytes, nothing after the encode accesses
+/// memory or allocates, no allocation or reserving encode follows the literal's, and every
+/// other argument is a word or another literal, so the free-memory-pointer bump it preserves
+/// moves no address and has no reader. Any other argument may point at memory the encoding
+/// would then overwrite before reading it. `literal_objects_at_encodes` already proved that
+/// no access sits between the allocation and the encode.
 fn terminal_scratch_literals(
     func: &Function,
     literal_objects: &FxHashSet<ValueId>,
@@ -1619,18 +1620,20 @@ fn terminal_scratch_literals(
         for (index, &inst) in block.instructions.iter().enumerate() {
             match &func.inst(inst).kind {
                 InstKind::Alloc { .. } => last_allocation = func.inst_result_value(inst),
-                InstKind::AbiEncode { mode: AbiEncodeMode::Scratch, args, .. } => {
+                InstKind::AbiEncode { mode: AbiEncodeMode::Scratch, args, layout, .. } => {
                     let Some(encoded) = func.inst_result_value(inst) else { continue };
                     let projects = |operand, field| {
                         matches!(func.value(operand), Value::Inst(projection)
                             if func.inst(*projection).kind.slice_projection() == Some((encoded, field)))
                     };
                     let no_observer = block.instructions[index + 1..].iter().all(|&later| {
-                        !literal_opaque_instruction(
-                            func,
-                            &func.inst(later).kind,
-                            &FxHashSet::default(),
-                        )
+                        let kind = &func.inst(later).kind;
+                        !matches!(kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
+                            && !literal_opaque_instruction(func, kind, &FxHashSet::default())
+                    });
+                    let reads_no_memory = layout.types.iter().zip(args).all(|(ty, arg)| {
+                        matches!(ty, AbiType::Word(_) | AbiType::Function)
+                            || literal_objects.contains(arg)
                     });
                     if let Some(object) = last_allocation
                         && args.contains(&object)
@@ -1638,6 +1641,7 @@ fn terminal_scratch_literals(
                         && projects(*offset, MirType::SLICE_PTR_FIELD)
                         && projects(*size, MirType::SLICE_LEN_FIELD)
                         && no_observer
+                        && reads_no_memory
                     {
                         objects.insert(object);
                     }

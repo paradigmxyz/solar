@@ -10,7 +10,7 @@
 
 // CHECK-LABEL: (after lower-abi-encode)
 // CHECK: fn @reserved
-// CHECK: alloc 96 !metadata(preserves_fmp)
+// CHECK: {{^ .*}}alloc 96 !metadata(preserves_fmp)
 // FOLD-NOT: mcopy
 // FOLD: + mstore {{v[0-9]+}}, 48
 // FOLD-NOT: mcopy
@@ -30,7 +30,7 @@ fn @reserved() -> slice<memory> {
 }
 
 // CHECK: fn @scratch
-// CHECK: alloc 96 !metadata(preserves_fmp)
+// CHECK: {{^ .*}}alloc 96 !metadata(preserves_fmp)
 // FOLD-NOT: mcopy
 // FOLD: + mstore {{v[0-9]+}}, 48
 // FOLD-NOT: mcopy
@@ -54,7 +54,7 @@ fn @scratch() -> slice<memory> {
 // CHECK: fn @unobserved_revert
 // FOLD: - {{ *}}v0 = alloc 96 !metadata(preserves_fmp)
 // FOLD: + revert
-// COPY: alloc 96 !metadata(preserves_fmp)
+// COPY: {{^ .*}}alloc 96 !metadata(preserves_fmp)
 // COPY: + mcopy
 // COPY: + revert
 fn @unobserved_revert() {
@@ -75,7 +75,7 @@ fn @unobserved_revert() {
 // CHECK: fn @unobserved_return
 // FOLD: - {{ *}}v0 = alloc 96 !metadata(preserves_fmp)
 // FOLD: + returndata
-// COPY: alloc 96 !metadata(preserves_fmp)
+// COPY: {{^ .*}}alloc 96 !metadata(preserves_fmp)
 // COPY: + mcopy
 // COPY: + returndata
 fn @unobserved_return() {
@@ -94,7 +94,7 @@ fn @unobserved_return() {
 
 // A memory access after the encoding may observe the free-memory pointer the allocation moved.
 // CHECK: fn @observed_return
-// CHECK: alloc 96 !metadata(preserves_fmp)
+// CHECK: {{^ .*}}alloc 96 !metadata(preserves_fmp)
 // FOLD-NOT: mcopy
 // COPY: + mcopy
 fn @observed_return() {
@@ -115,7 +115,7 @@ fn @observed_return() {
 
 // The revert data is not the encoding, so it may read the allocation.
 // CHECK: fn @revert_reads_allocation
-// CHECK: alloc 96 !metadata(preserves_fmp)
+// CHECK: {{^ .*}}alloc 96 !metadata(preserves_fmp)
 // FOLD-NOT: mcopy
 // COPY: + mcopy
 fn @revert_reads_allocation() {
@@ -135,7 +135,7 @@ fn @revert_reads_allocation() {
 // An allocation after the literal's would move if the literal's went, and its address can
 // reach the return data.
 // CHECK: fn @later_allocation
-// CHECK: alloc 96 !metadata(preserves_fmp)
+// CHECK: {{^ .*}}alloc 96 !metadata(preserves_fmp)
 // FOLD-NOT: mcopy
 // COPY: + mcopy
 fn @later_allocation() {
@@ -152,4 +152,21 @@ fn @later_allocation() {
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     returndata v6, v7
+}
+
+// Another argument may point at the literal's memory, which the encoding would overwrite.
+// CHECK: fn @aliased_argument
+// CHECK: {{^ .*}}alloc 96 !metadata(preserves_fmp)
+fn @aliased_argument(arg0: ptr<memory>) {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 48
+    v1 = ptradd v0, 32
+    mstore v1, 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v2 = ptradd v0, 64
+    mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+    v3 = abi_encode [memory_bytes, memory_bytes], scratch, args arg0, v0
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    revert v4, v5
 }
