@@ -47,62 +47,61 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
 
 fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
   bb0:
-    v74 = icall @alloc, 96
-    v79 = calldatasize
-    calldatacopy v74, v79, 96
-    mstore v74, 33
+    v71 = icall @alloc, 96
+    v76 = calldatasize
+    calldatacopy v71, v76, 96
+    mstore v71, 33
     jump bb1
   bb1:
     v5 = phi [bb0: 0], [bb2: v7]
     v6 = lt v5, 33
     jumpi v6, bb2, bb3
   bb3:
-    v75 = mload 64 !metadata(memory=scratch)
-    v45 = add v75, 32
-    v46 = add v45, 32
-    mstore v45, 32
-    v48 = mload v74
-    mstore v46, v48
-    v50 = add v48, 31
-    v51 = and v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v52 = add v46, 32
-    v53 = eq v51, 0
-    jumpi v53, bb7, bb6
+    v72 = mload 64 !metadata(memory=scratch)
+    v42 = add v72, 32
+    v43 = add v42, 32
+    mstore v42, 32
+    v45 = mload v71
+    mstore v43, v45
+    v47 = add v45, 31
+    v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v49 = add v43, 32
+    v50 = eq v48, 0
+    jumpi v50, bb7, bb6
   bb6:
-    v54 = add v46, v51
-    mstore v54, 0
+    v51 = add v43, v48
+    mstore v51, 0
     jump bb7
   bb7:
-    v56 = add v52, v51
-    v70 = add v74, 32
-    icall @mcopy_words, v52, v70, v48 !metadata(memory=heap, effect=memory_write)
-    v57 = sub v56, v45
-    v59 = add v57, 63
-    v60 = lt v59, v57
-    jumpi v60, bb8, bb9
+    v53 = add v49, v48
+    v67 = add v71, 32
+    icall @mcopy_words, v49, v67, v45 !metadata(memory=heap, effect=memory_write)
+    v54 = sub v53, v42
+    v56 = add v54, 63
+    v57 = lt v56, v54
+    jumpi v57, bb8, bb9
   bb9:
-    v62 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v76 = mload 64
-    v77 = add v76, v62
-    mstore 64, v77
-    mstore v76, v57
-    v20 = add v76, 128
+    v59 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v73 = mload 64
+    v74 = add v73, v59
+    mstore 64, v74
+    mstore v73, v54
+    v20 = add v73, 128
     v21 = mload v20
-    v23 = eq v57, 128
+    v23 = eq v54, 128
     jumpi v23, bb4, bb5
   bb4:
-    v68 = add v76, 96
-    v28 = mload v68
+    v65 = add v73, 96
+    v28 = mload v65
     v29 = byte 0, v28
     v31 = eq v29, 1
     jump bb5
   bb5:
     v32 = phi [bb4: v31], [bb9: false]
     v33 = eq v21, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v35 = zext i1 v32 to i256
-    v36 = zext i1 v33 to i256
-    v37 = mul v35, v36
-    mstore 0, v37
+    v35 = and v32, v33
+    v38 = zext i1 v35 to i256
+    mstore 0, v38
     returndata 0, 32
   bb8:
     mstore 32, 65
@@ -110,9 +109,9 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     revert 28, 36
   bb2:
     v7 = add v5, 1
-    v65 = add v74, v5
-    v66 = add v65, 32
-    mstore8 v66, v7
+    v62 = add v71, v5
+    v63 = add v62, 32
+    mstore8 v63, v7
     jump bb1
 }
 
