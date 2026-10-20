@@ -14,7 +14,7 @@
 // CHECK: shr {{v[0-9]+}}, 64
 // CHECK: jumpi {{v[0-9]+}}, [[FAST:bb[0-9]+]], [[SLOW:bb[0-9]+]]
 // CHECK: [[FAST]]:
-// CHECK-NEXT: jump [[CLONE:bb[0-9]+]]
+// CHECK: jump [[CLONE:bb[0-9]+]]
 // CHECK: [[CLONE]]:
 // CHECK-NOT: mload arg
 // CHECK: [[I:v[0-9]+]] = sub {{v[0-9]+}}, 1
