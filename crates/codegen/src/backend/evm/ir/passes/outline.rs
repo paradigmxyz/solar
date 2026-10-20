@@ -100,7 +100,7 @@ fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
     if !gcx.sess.opts.optimization.is_gas() {
         return true;
     }
-    let target = Target::new(gcx).priced_for(module.code_follows);
+    let target = module.target(gcx);
     let (site_bytes, _, transfer_gas) = push_share_costs(&target);
     target.deposit_repays_gas(
         u64::from(target.opcode(op::PUSH32).bytes).saturating_sub(site_bytes as u64),
@@ -120,7 +120,7 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     if !gcx.sess.opts.optimization.is_gas() {
         return true;
     }
-    let target = Target::new(gcx).priced_for(module.code_follows);
+    let target = module.target(gcx);
     let transfer_size = transfer_size(&target);
     let transfer_gas = transfer_gas(&target);
     let profitable = |size: usize| {
@@ -224,7 +224,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         return false;
     }
     let max_run_length = max_machine_run_length(repeated_instructions);
-    let target = Target::new(gcx).priced_for(module.code_follows);
+    let target = module.target(gcx);
     let transfer_size = transfer_size(&target);
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
@@ -744,7 +744,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         }
     }
 
-    let target = Target::new(gcx).priced_for(module.code_follows);
+    let target = module.target(gcx);
     let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites

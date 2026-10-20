@@ -63,7 +63,11 @@ impl MirPass for WordSequence {
     ) -> bool {
         let target = Target::new(gcx);
         run_function_pass(module, analyses, |func, analyses| {
-            run(func, &target.priced_for(analyses.creation_only()), matches!(self, Self::Late))
+            run(
+                func,
+                &target.priced_for(analyses.straight_line_creation()),
+                matches!(self, Self::Late),
+            )
         })
     }
 }

@@ -159,7 +159,9 @@ impl MirPass for Egraph {
             analyses,
             &flat,
             |func, analyses| {
-                Builder::new(func, &target.priced_for(analyses.creation_only()), None).run() != 0
+                Builder::new(func, &target.priced_for(analyses.straight_line_creation()), None)
+                    .run()
+                    != 0
             },
         );
         changed |= run_selected_function_pass_cached::<CfgEgraph>(
@@ -167,7 +169,7 @@ impl MirPass for Egraph {
             analyses,
             &with_cfg,
             |func, analyses| {
-                let target = target.priced_for(analyses.creation_only());
+                let target = target.priced_for(analyses.straight_line_creation());
                 Builder::new(func, &target, Some(Rc::clone(analyses.cfg()))).run() != 0
             },
         );

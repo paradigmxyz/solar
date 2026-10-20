@@ -4,10 +4,11 @@
 //! gas of every opcode across the fork schedule, the encoded size of pushes
 //! and stack operations, the price of deposited bytes, and how the active
 //! optimization objective ranks gas against bytes. Creation code has its own
-//! model, [`Target::creation`]: it runs once, and each of its bytes costs the
-//! calldata gas of the deployment transaction instead of a code deposit. Every pass that chooses
-//! between equivalent code shapes consults [`Target`] instead of carrying its
-//! own constants, so a schedule change or a new EVM version lands here once.
+//! model, [`Target::priced_for`]: it runs once, and each of its bytes costs the
+//! calldata gas of the deployment transaction instead of a code deposit.
+//! Every pass that chooses between equivalent code shapes consults [`Target`]
+//! instead of carrying its own constants, so a schedule change or a new EVM
+//! version lands here once.
 //!
 //! Gas is the amount charged before dynamic components such as memory
 //! expansion or copied words. Account and storage accesses are priced cold
@@ -391,24 +392,18 @@ impl Target {
         Self { evm_version, optimization, expected_executions, creation: false }
     }
 
-    /// The model of creation code under the same EVM version and objective. Creation code runs
-    /// once per deployment, and the transaction that carries it pays calldata gas for every
-    /// byte, so the gas objective ranks it by deployment gas. A factory's `CREATE` embeds the
-    /// code in its runtime, where the deposit costs more than calldata, so this price is a lower
-    /// bound. The EIP-3860 charge of two gas per 32 bytes of initcode is not priced. Other
-    /// objectives keep the runtime model: size already ranks bytes first, and measurements showed
-    /// no clear gain from pricing creation code differently there.
-    pub(crate) const fn creation(self) -> Self {
-        if !self.optimization.is_gas() {
+    /// This model for code that runs only at deployment when `creation` is set, itself
+    /// otherwise. Creation code runs once per deployment, and the transaction that carries it
+    /// pays calldata gas for every byte, so the gas objective ranks it by deployment gas. A
+    /// factory's `CREATE` embeds the code in its runtime, where the deposit costs more than
+    /// calldata, so this price is a lower bound. The EIP-3860 charge of two gas per 32 bytes of
+    /// initcode is not priced. Other objectives keep the runtime model: size already ranks bytes
+    /// first, and measurements showed no clear gain from pricing creation code differently there.
+    pub(crate) const fn priced_for(self, creation: bool) -> Self {
+        if !creation || !self.optimization.is_gas() {
             return self;
         }
         Self { expected_executions: 1, creation: true, ..self }
-    }
-
-    /// This model for the code of one function: its creation form for code that runs only at
-    /// deployment, itself otherwise.
-    pub(crate) const fn priced_for(self, creation_only: bool) -> Self {
-        if creation_only { self.creation() } else { self }
     }
 
     /// Whether the model prices creation code, which only the gas objective does.
@@ -729,7 +724,7 @@ impl Target {
         match self.optimization {
             OptimizationMode::Size => [cost.bytes, cost.gas],
             _ if self.creation => {
-                [cost.gas.saturating_add(cost.bytes.saturating_mul(self.byte_gas())), cost.bytes]
+                [u32::try_from(self.lifetime_gas(cost)).unwrap_or(u32::MAX), cost.bytes]
             }
             _ => [cost.gas, cost.bytes],
         }
@@ -996,8 +991,9 @@ mod tests {
 
     #[test]
     fn creation_code_pays_calldata_and_runs_once() {
-        let creation =
-            |version, optimization, runs| Target::with(version, optimization, runs).creation();
+        let creation = |version, optimization, runs| {
+            Target::with(version, optimization, runs).priced_for(true)
+        };
         let runtime = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 10_000);
         let gas = creation(EvmVersion::Osaka, OptimizationMode::Gas, 10_000);
         assert_eq!((runtime.byte_gas(), runtime.expected_executions()), (200, 10_000));
@@ -1005,7 +1001,6 @@ mod tests {
         assert_eq!(creation(EvmVersion::Berlin, OptimizationMode::Gas, 200).byte_gas(), 16);
         assert_eq!(creation(EvmVersion::Petersburg, OptimizationMode::Gas, 200).byte_gas(), 68);
         assert_eq!(runtime.priced_for(false).byte_gas(), 200);
-        assert_eq!(runtime.priced_for(true).byte_gas(), 16);
         // The checked `p * 3` shapes: a `PUSH32` compare against a division.
         let compare = Cost::new(9, 35);
         let divide = Cost::new(17, 6);

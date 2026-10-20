@@ -1,0 +1,38 @@
+// === ROOT/tests/ui/codegen/disasm/creation_loop_constants.sol:Looped ===
+@module Looped
+fn @arr(arg0: i256) -> i256 [selector=0x71e5ee5f, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg0, 100
+    icall revert_if_zero<empty>, v0
+    v1 = add 0, arg0
+    v2 = sload v1 !metadata(storage=symbolic(arg0))
+    ret v2
+}
+
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v8]
+    v2 = lt v1, 100
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    v3 = checked_add uint256, v0, v1
+    v4 = checked_mul uint256, v3, 3
+    v5 = lt v1, 100
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = add 0, v1
+    sstore v7, v4 !metadata(storage=symbolic(v1))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v8 = checked_add uint256, v1, 1
+    jump bb1
+}

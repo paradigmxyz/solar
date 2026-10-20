@@ -45,18 +45,15 @@ bb1:
   iszero
   push bb7
   jumpi
-  push 11
-  dup 3
-  mul
-  push 11
   dup 2
-  div
-  dup 4
-  sub
+  push 0x1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745
+  lt
   push bb6
   jumpi
   push 1
-  swap 1
+  dup 3
+  push 11
+  mul
   swap 3
   sub
   push bb4

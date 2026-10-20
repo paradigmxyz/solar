@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     link::{ContractCode, LibraryTable},
-    mir::analysis::direct_callees,
+    mir::analysis::{CfgInfo, direct_callees},
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
@@ -369,6 +369,33 @@ impl Module {
         let mut creation = self.reachable_from(roots);
         creation.subtract(&self.runtime_reachable_functions());
         creation
+    }
+
+    /// Returns the creation-only functions whose instructions run a bounded number of times per
+    /// deployment: those without loops or recursion that only loop-free creation-only functions
+    /// call. A loop, or a call from one, repeats an instruction by more than the creation model's
+    /// one execution.
+    #[must_use]
+    pub(crate) fn straight_line_creation_functions(&self) -> DenseBitSet<FunctionId> {
+        let mut straight = self.creation_only_functions();
+        let mut repeated = DenseBitSet::new_empty(self.functions.len());
+        let mut worklist = Vec::new();
+        for id in straight.iter() {
+            let func = self.function(id);
+            let calls_itself = self.reachable_from(direct_callees(func)).contains(id);
+            if (calls_itself || !CfgInfo::new(func).cyclic_blocks().is_empty())
+                && repeated.insert(id)
+            {
+                worklist.push(id);
+            }
+        }
+        while let Some(id) = worklist.pop() {
+            worklist.extend(
+                direct_callees(self.function(id)).filter(|&callee| repeated.insert(callee)),
+            );
+        }
+        straight.subtract(&repeated);
+        straight
     }
 
     /// Returns `roots` and every function they reach through calls.

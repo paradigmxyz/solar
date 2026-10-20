@@ -74,7 +74,7 @@ impl MirPass for IfConvert {
     ) -> bool {
         let target = Target::new(gcx);
         run_function_pass(module, analyses, |func, analyses| {
-            if_convert_function(func, &target.priced_for(analyses.creation_only()))
+            if_convert_function(func, &target.priced_for(analyses.straight_line_creation()))
         })
     }
 }

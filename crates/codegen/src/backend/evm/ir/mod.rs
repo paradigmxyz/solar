@@ -19,11 +19,13 @@ use crate::{
     backend::assembler::{self, assembly},
     link::{EmbeddedBytecodes, LibraryId, LibraryTable, RelocatableBytecode},
     mir::{ImmutableId, TypeSize},
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
+use solar_sema::Gcx;
 use std::fmt;
 
 pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
@@ -84,6 +86,12 @@ pub struct Module {
 }
 
 impl Module {
+    /// The cost model of this module's code: the creation model for creation code, which the
+    /// runtime artifact follows.
+    pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx).priced_for(self.code_follows)
+    }
+
     /// Links embedded contract bytecode into deferred data, interning the bytecode's libraries
     /// into `libraries`.
     ///

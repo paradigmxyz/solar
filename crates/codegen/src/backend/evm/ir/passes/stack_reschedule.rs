@@ -162,7 +162,9 @@ impl EvmPass for StackReschedule {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let target = Target::new(gcx).priced_for(module.code_follows);
+        // Blocks in loops run more than once, which the creation model does not assume.
+        let runtime = Target::new(gcx);
+        let creation = module.target(gcx);
         let mut halts = DenseBitSet::new_empty(module.blocks.len());
         for id in module.blocks.indices() {
             if aborts_without_stack(module, id) {
@@ -172,12 +174,13 @@ impl EvmPass for StackReschedule {
         let mut scratch = Scratch::default();
         let mut changed = false;
         for block in &mut module.blocks {
+            let target = if block.metadata.in_loop { &runtime } else { &creation };
             let hot_loop = target.optimization().is_gas()
                 && block.metadata.in_loop
                 && !block.metadata.hotness.is_cold();
             let budget = if hot_loop { LOOP_BUDGET } else { BLOCK_BUDGET };
             changed |=
-                reschedule_block(&mut block.instructions, &target, budget, &halts, &mut scratch);
+                reschedule_block(&mut block.instructions, target, budget, &halts, &mut scratch);
         }
         changed
     }

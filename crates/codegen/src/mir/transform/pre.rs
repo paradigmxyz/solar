@@ -63,7 +63,7 @@ impl MirPass for Pre {
     ) -> bool {
         let target = Target::new(gcx);
         run_function_pass(module, analyses, |func, analyses| {
-            let target = target.priced_for(analyses.creation_only());
+            let target = target.priced_for(analyses.straight_line_creation());
             PartialRedundancyEliminator::new(&target).run(func).total() != 0
         })
     }

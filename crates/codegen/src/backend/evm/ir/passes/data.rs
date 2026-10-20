@@ -223,7 +223,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
         a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
     });
 
-    let target = Target::new(gcx).priced_for(module.code_follows);
+    let target = module.target(gcx);
     let mut pool = DataPool::new(&module.data);
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
@@ -757,14 +757,17 @@ pub(crate) fn data_layout_is_observable(module: &Module) -> bool {
 }
 
 fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
-    let target = Target::new(gcx).priced_for(module.code_follows);
+    let target = module.target(gcx);
     let mut groups = RewriteGroups::default();
     let mut next_run_start = 0;
     let references = scan_data_references(module, |block_id, index, instructions| {
         if index == 0 {
             next_run_start = 0;
         }
+        // Creation code in a loop runs more than once, which its model does not assume.
+        let in_creation_loop = target.is_creation() && module.blocks[block_id].metadata.in_loop;
         if index >= next_run_start
+            && !in_creation_loop
             && let Some((data, rewrite)) = find_run(&target, block_id, instructions, index)
         {
             next_run_start = rewrite.end;

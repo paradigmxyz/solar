@@ -1,0 +1,29 @@
+// === ROOT/tests/ui/codegen/disasm/creation_shared_helper.sol:Shared ===
+@module Shared
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    v0 = icall @triple, arg0
+    sstore 0, v0 !metadata(storage=slot(0))
+    ret
+}
+
+fn @triple(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = checked_mul uint256, arg0, 3
+    ret v0
+}
+
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @triple, arg0
+    v1 = checked_add uint256, arg0, 1
+    v2 = icall @triple, v1
+    v3 = checked_add uint256, v0, v2
+    ret v3
+}

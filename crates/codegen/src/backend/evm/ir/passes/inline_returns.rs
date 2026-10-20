@@ -34,7 +34,7 @@ impl EvmPass for InlineReturns {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let target = Target::new(gcx).priced_for(module.code_follows);
+        let target = Target::new(gcx);
         let address_bytes = if gcx.sess.opts.optimization.is_gas() {
             target.opcode(op::PUSH1).bytes
         } else {

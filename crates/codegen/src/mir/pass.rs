@@ -620,6 +620,9 @@ pub(crate) struct FunctionAnalyses {
     unreported_edit: Cell<bool>,
     /// Whether the function runs only during deployment.
     creation_only: bool,
+    /// Whether the function runs only during deployment, without loops, recursion, or a looping
+    /// caller.
+    straight_line_creation: bool,
 }
 
 impl FunctionAnalyses {
@@ -633,10 +636,18 @@ impl FunctionAnalyses {
         self.cfg.as_ref().expect("function pass must request CFG analysis")
     }
 
-    /// Returns whether the function runs only during deployment, so that the transform prices
-    /// it with the creation model, [`Target::creation`](crate::target::Target::creation).
+    /// Returns whether the function runs only during deployment. A transform that weighs loops
+    /// itself prices such a function with the creation model,
+    /// [`Target::priced_for`](crate::target::Target::priced_for).
     pub(crate) fn creation_only(&self) -> bool {
         self.creation_only
+    }
+
+    /// Returns whether the function runs only during deployment, with every instruction running a
+    /// bounded number of times. A transform that ranks code shapes without weighing blocks by how
+    /// often they run prices such a function with the creation model.
+    pub(crate) fn straight_line_creation(&self) -> bool {
+        self.straight_line_creation
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
@@ -681,8 +692,12 @@ pub struct ModuleAnalyses {
     local_summaries: LocalSummaryCache,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
-    /// The functions that run only during deployment, as of the running pass.
-    creation_only: Option<DenseBitSet<FunctionId>>,
+    /// Whether the running pass prices creation code differently, which only the gas objective
+    /// does.
+    prices_creation: bool,
+    /// The functions that run only during deployment, as of the running pass, and the subset
+    /// without loops or recursion.
+    creation_functions: Option<(DenseBitSet<FunctionId>, DenseBitSet<FunctionId>)>,
 }
 
 impl ModuleAnalyses {
@@ -691,10 +706,11 @@ impl ModuleAnalyses {
         self.error = Some(error);
     }
 
-    pub(crate) fn begin_pass(&mut self) {
+    pub(crate) fn begin_pass(&mut self, prices_creation: bool) {
         self.preserved_by_pass = false;
         self.call_summaries_preserved = false;
-        self.creation_only = None;
+        self.prices_creation = prices_creation;
+        self.creation_functions = None;
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {
@@ -736,10 +752,14 @@ impl ModuleAnalyses {
         module: &Module,
         requirements: FunctionAnalysisRequirements,
     ) -> FunctionAnalyses {
-        let creation_only = self
-            .creation_only
-            .get_or_insert_with(|| module.creation_only_functions())
-            .contains(func_id);
+        let (creation_only, straight_line_creation) = if self.prices_creation {
+            let (creation, straight) = self.creation_functions.get_or_insert_with(|| {
+                (module.creation_only_functions(), module.straight_line_creation_functions())
+            });
+            (creation.contains(func_id), straight.contains(func_id))
+        } else {
+            (false, false)
+        };
         FunctionAnalyses {
             alias: requirements.alias().then(|| {
                 if let Some(alias) = self.alias.get(&func_id) {
@@ -751,6 +771,7 @@ impl ModuleAnalyses {
             cfg: requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id])),
             unreported_edit: Cell::new(false),
             creation_only,
+            straight_line_creation,
         }
     }
 

@@ -99,7 +99,7 @@ impl MirPass for MergeAborts {
         let target = Target::new(gcx);
         let cold = cold_functions(module);
         run_function_pass(module, analyses, |func, analyses| {
-            merge_function(func, &cold, &target.priced_for(analyses.creation_only()))
+            merge_function(func, &cold, &target.priced_for(analyses.straight_line_creation()))
         })
     }
 }

@@ -42,7 +42,7 @@ impl MirPass for LowerMappingSlots {
     ) -> bool {
         let target = Target::new(gcx);
         run_function_pass(module, analyses, |func, analyses| {
-            let target = target.priced_for(analyses.creation_only());
+            let target = target.priced_for(analyses.straight_line_creation());
             let has_mapping_slots = func.instructions().any(|inst_id| {
                 matches!(
                     func.inst(inst_id).kind,
