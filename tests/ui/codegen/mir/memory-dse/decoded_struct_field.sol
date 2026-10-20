@@ -18,8 +18,8 @@ contract DecodedStructField {
     // CHECK-LABEL: fn @tokenId
     // CHECK: alloc 128 !metadata(deferred_alloc)
     // CHECK-NOT: mstore v{{[0-9]+}}
-    // CHECK: mstore 128,
-    // CHECK-NEXT: returndata 128, 32
+    // CHECK: mstore 0,
+    // CHECK-NEXT: returndata 0, 32
     function tokenId(bytes calldata data) external pure returns (uint256) {
         return abi.decode(data, (Params)).tokenId;
     }

@@ -30,8 +30,8 @@ fn @entry() [entry] {
     v45 = lt v44, v4
     jumpi v45, bb30, bb29
   bb29:
-    mstore 128, v43
-    returndata 128, 32
+    mstore 0, v43
+    returndata 0, 32
   bb30:
     v46 = mul v43, 7
     v47 = add v46, v44
@@ -73,8 +73,8 @@ fn @entry() [entry] {
     v40 = eq v39, 0
     jumpi v40, bb11, bb24
   bb25:
-    mstore 128, v35
-    returndata 128, 32
+    mstore 0, v35
+    returndata 0, 32
   bb42:
     v142 = add v139, v140
     v143 = add v140, 1
@@ -100,8 +100,8 @@ fn @entry() [entry] {
     v29 = lt v28, v4
     jumpi v29, bb21, bb20
   bb20:
-    mstore 128, v27
-    returndata 128, 32
+    mstore 0, v27
+    returndata 0, 32
   bb21:
     v30 = add v27, v5
     v31 = lt v30, v27
@@ -174,8 +174,8 @@ fn @entry() [entry] {
     v24 = add v19, 1
     jump bb14
   bb15:
-    mstore 128, v18
-    returndata 128, 32
+    mstore 0, v18
+    returndata 0, 32
   bb2:
     v6 = calldatasize
     v7 = lt v6, 36
@@ -194,8 +194,8 @@ fn @entry() [entry] {
     v10 = lt v9, v4
     jumpi v10, bb10, bb9
   bb9:
-    mstore 128, v8
-    returndata 128, 32
+    mstore 0, v8
+    returndata 0, 32
   bb10:
     v11 = mul v9, 3
     v12 = add v11, 1

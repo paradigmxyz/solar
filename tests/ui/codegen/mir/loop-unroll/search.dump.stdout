@@ -50,8 +50,8 @@ fn @entry() [entry] {
     v60 = ne v72, v75
     jumpi v60, bb20, bb18
   bb18:
-    mstore 128, v66
-    returndata 128, 32
+    mstore 0, v66
+    returndata 0, 32
   bb20:
     v64 = calldataload v72
     v65 = eq v64, v9
@@ -68,8 +68,8 @@ fn @entry() [entry] {
     v98 = phi [bb20: v72], [bb29: v55], [bb19: v73]
     v76 = sub v98, v55
     v77 = shr v76, 5
-    mstore 128, v77
-    returndata 128, 32
+    mstore 0, v77
+    returndata 0, 32
   bb4:
     v31 = calldatasize
     v33 = add v8, 4
@@ -102,8 +102,8 @@ fn @entry() [entry] {
     v41 = add v38, 1
     jump bb11
   bb12:
-    mstore 128, v38
-    returndata 128, 32
+    mstore 0, v38
+    returndata 0, 32
   bb3:
     v10 = calldatasize
     v12 = add v8, 4
@@ -156,8 +156,8 @@ fn @entry() [entry] {
     jump bb7
   bb7:
     v19 = phi [bb23: v83], [bb6: v25]
-    mstore 128, v19
-    returndata 128, 32
+    mstore 0, v19
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

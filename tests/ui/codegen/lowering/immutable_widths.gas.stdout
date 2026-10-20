@@ -26,8 +26,6 @@ bb4 [cold]:
 bb5:
   push_immutable 0, 1
   push_immutable 1, 32
-  push 0xffff
-  and
   push_immutable 2, 32
   push_immutable 3, 20
   push_immutable 4, 32
@@ -62,8 +60,8 @@ bb6:
   push 96
   shr
   and
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

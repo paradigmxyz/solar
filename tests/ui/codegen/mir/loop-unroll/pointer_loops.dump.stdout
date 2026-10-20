@@ -123,8 +123,8 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v23 = gt v20, 0xffffffffffffffff
     v24 = gt v22, v18
     v25 = or v23, v24
-    v65 = or v19, v25
-    jumpi v65, bb4, bb5
+    v64 = or v19, v25
+    jumpi v64, bb4, bb5
   bb5:
     v27 = calldataload v21
     v29 = gt v27, 0x7fffffffffffffe
@@ -132,44 +132,44 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
   bb7:
     v30 = add v27, 1
     v31 = shl v30, 5
-    v48 = icall @alloc, v31
-    mstore v48, v27
+    v47 = icall @alloc, v31
+    mstore v47, v27
     v33 = shl v27, 5
     v34 = sub v18, v22
     v35 = shr v34, 5
     v36 = gt v27, v35
     jumpi v36, bb4, bb8
   bb8:
-    v45 = add v48, 32
-    calldatacopy v45, v22, v33
-    v5 = add v45, v33
-    v61 = and v27, 1
-    v62 = ne v61, 0
-    jumpi v62, bb9, bb10
+    v44 = add v47, 32
+    calldatacopy v44, v22, v33
+    v5 = add v44, v33
+    v60 = and v27, 1
+    v61 = ne v60, 0
+    jumpi v61, bb9, bb10
   bb9:
-    v52 = mload v45
-    v53 = add 0, v52
-    v54 = add v45, 32
+    v51 = mload v44
+    v52 = add 0, v51
+    v53 = add v44, 32
     jump bb10
   bb10:
-    v63 = phi [bb8: 0], [bb9: v53]
-    v64 = phi [bb8: v45], [bb9: v54]
+    v62 = phi [bb8: 0], [bb9: v52]
+    v63 = phi [bb8: v44], [bb9: v53]
     jump bb1
   bb1:
-    v7 = phi [bb10: v63], [bb3: v59]
-    v8 = phi [bb10: v64], [bb3: v60]
+    v7 = phi [bb10: v62], [bb3: v58]
+    v8 = phi [bb10: v63], [bb3: v59]
     v12 = ne v8, v5
     jumpi v12, bb3, bb2
   bb2:
-    mstore 128, v7
-    returndata 128, 32
+    mstore 0, v7 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
     v15 = mload v8
     v16 = add v7, v15
     v17 = add v8, 32
-    v58 = mload v17
-    v59 = add v16, v58
-    v60 = add v8, 64
+    v57 = mload v17
+    v58 = add v16, v57
+    v59 = add v8, 64
     jump bb1
   bb6:
     mstore 32, 65 !metadata(memory=scratch)
@@ -185,31 +185,31 @@ fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
     v12 = lt v11, 68
     jumpi v12, bb4, bb5
   bb5:
-    v25 = sub arg1, arg0
-    v26 = and v25, 1
-    v27 = ne v26, 0
-    jumpi v27, bb6, bb7
+    v24 = sub arg1, arg0
+    v25 = and v24, 1
+    v26 = ne v25, 0
+    jumpi v26, bb6, bb7
   bb6:
-    v18 = add 0, arg0
-    v19 = add arg0, 3
+    v17 = add 0, arg0
+    v18 = add arg0, 3
     jump bb7
   bb7:
-    v28 = phi [bb5: 0], [bb6: v18]
-    v29 = phi [bb5: arg0], [bb6: v19]
+    v27 = phi [bb5: 0], [bb6: v17]
+    v28 = phi [bb5: arg0], [bb6: v18]
     jump bb1
   bb1:
-    v2 = phi [bb7: v28], [bb3: v23]
-    v3 = phi [bb7: v29], [bb3: v24]
+    v2 = phi [bb7: v27], [bb3: v22]
+    v3 = phi [bb7: v28], [bb3: v23]
     v6 = ne v3, arg1
     jumpi v6, bb3, bb2
   bb2:
-    mstore 128, v2
-    returndata 128, 32
+    mstore 0, v2 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
     v9 = add v2, v3
     v10 = add v3, 3
-    v23 = add v9, v10
-    v24 = add v10, 3
+    v22 = add v9, v10
+    v23 = add v10, 3
     jump bb1
   bb4:
     revert 0, 0
