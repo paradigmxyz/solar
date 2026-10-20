@@ -13,7 +13,11 @@
 //! copy, so it qualifies only when that successor leaves the loop, a path taken once per exit
 //! instead of once per iteration. A block that ends the call, such as one that returns, runs
 //! once per call, so it stays shared: `inline-returns` copies such tails when they are no
-//! larger than the jump.
+//! larger than the jump. A loop header that returns on the loop's exit is the exception: its
+//! conditional jump back into the loop runs it on every iteration, so it is copied like any
+//! other loop block, with its return. Whether `inline-returns` copied a shared return into the
+//! header first then no longer decides whether the latch jumps back to it, and that depended on
+//! where block layout had placed the shared return, which other functions' code moves.
 //!
 //! # Safety
 //!
@@ -72,23 +76,27 @@ impl EvmPass for TailDup {
         // A latch's copy ends with the latch's jump to the header, which the next round copies.
         for _ in 0..MAX_ROUNDS {
             let paths = incoming_paths(module);
-            let mut round = false;
-            for caller in module.blocks.indices() {
-                if let Some(callee) = candidate(module, target, &paths, caller) {
+            // Every copy of a round takes its block as the round found it, so a block grown by
+            // one copy still qualifies for the others.
+            let copies = module
+                .blocks
+                .indices()
+                .filter_map(|caller| {
+                    let callee = candidate(module, target, &paths, caller)?;
                     let tail = &module.blocks[callee];
-                    let instructions = tail.instructions.clone();
-                    let terminator = tail.terminator.clone();
-                    // jump tail -> tail.instructions; tail.terminator
-                    let block = &mut module.blocks[caller];
-                    block.instructions.extend(instructions);
-                    block.terminator = terminator;
-                    round = true;
-                }
-            }
-            changed |= round;
-            if !round {
+                    Some((caller, tail.instructions.clone(), tail.terminator.clone()))
+                })
+                .collect::<Vec<_>>();
+            if copies.is_empty() {
                 break;
             }
+            for (caller, instructions, terminator) in copies {
+                // jump tail -> tail.instructions; tail.terminator
+                let block = &mut module.blocks[caller];
+                block.instructions.extend(instructions);
+                block.terminator = terminator;
+            }
+            changed = true;
         }
         changed
     }
@@ -151,6 +159,8 @@ fn candidate(
             target.label_push() + target.opcode(op::JUMP)
         }
         TerminatorKind::Jump(_) => target.label_push() + target.opcode(op::JUMP),
+        // A tail that tests the loop runs on every iteration, whatever it does on exit.
+        TerminatorKind::Op(opcode) if continues_loop(module, tail) => target.opcode(opcode),
         // A terminal tail runs once per call, which `inline-returns` already weighs.
         TerminatorKind::Op(_) => return None,
         TerminatorKind::JumpI { .. } | TerminatorKind::IndexedJump(_) => return None,
@@ -162,6 +172,15 @@ fn candidate(
 /// Whether `block` holds hot code of a loop.
 fn in_hot_loop(block: &Block) -> bool {
     block.metadata.in_loop && !block.metadata.hotness.is_cold()
+}
+
+/// Whether `block` jumps conditionally to hot code of its loop, as a header does that returns on
+/// the loop's exit.
+fn continues_loop(module: &Module, block: &Block) -> bool {
+    block.instructions.windows(2).any(|pair| {
+        pair[1].as_evm_opcode() == Some(op::JUMPI)
+            && pair[0].pushed_block().is_some_and(|to| in_hot_loop(&module.blocks[to]))
+    })
 }
 
 /// The cost of copying the instructions of `block`, or `None` when one of them is tied to its

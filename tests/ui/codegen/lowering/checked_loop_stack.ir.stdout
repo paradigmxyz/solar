@@ -77,7 +77,7 @@ bb8 [loop]:
   stop
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStack (runtime) ===
 @module CheckedLoopStack_runtime
-bb0:
+bb0 [loop]:
   callvalue
   push bb5
   jumpi
@@ -109,22 +109,6 @@ bb0:
   calldataload
   push 1
   push 2
-  jump bb8
-bb10 [loop]:
-  dup 1
-  dup 3
-  mul
-  swap 2
-  dup 2
-  dup 4
-  div
-  sub
-  push bb12
-  jumpi
-  push 1
-  add
-  jump bb8
-bb8 [loop]:
   dup 3
   dup 2
   gt
@@ -141,6 +125,54 @@ bb5 [cold]:
   push 0
   push 0
   revert
+bb25 [loop]:
+  dup 2
+  add
+  push 1
+  dup 3
+  add
+  dup 1
+  iszero
+  push bb27
+  jumpi
+  swap 2
+  pop
+  dup 3
+  dup 3
+  gt
+  iszero
+  push bb25
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb10 [loop]:
+  dup 1
+  dup 3
+  mul
+  swap 2
+  dup 2
+  dup 4
+  div
+  sub
+  push bb12
+  jumpi
+  push 1
+  add
+  dup 3
+  dup 2
+  gt
+  iszero
+  push bb10
+  jumpi
+  pop
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb14:
   push 68
   calldatasize
@@ -184,7 +216,10 @@ bb17:
   push 32
   push 0
   return
-bb21:
+bb21 [loop]:
+  push 128
+  push 64
+  mstore
   push 68
   calldatasize
   lt
@@ -195,21 +230,6 @@ bb21:
   push 4
   calldataload
   push 0
-  jump bb23
-bb25 [loop]:
-  dup 2
-  add
-  push 1
-  dup 3
-  add
-  dup 1
-  iszero
-  push bb27
-  jumpi
-  swap 2
-  pop
-  jump bb23
-bb23 [loop]:
   dup 3
   dup 3
   gt

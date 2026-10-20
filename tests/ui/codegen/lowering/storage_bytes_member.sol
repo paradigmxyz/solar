@@ -43,15 +43,18 @@ contract StorageBytesMember {
     // CHECK: push 0x72bd964d
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[WHOLE:bb[0-9]+]]
-    // The body precedes the test it falls through into.
-    // CHECK: [[PUSH_RANGE]]:
+    // The loop test, which stops the call once the loop ends, runs at the end of
+    // the entry and of the body, so no iteration jumps back to a separate test.
+    // CHECK: [[PUSH_RANGE]]{{( \[[a-z]+\])?}}:
     // CHECK: keccak256
-    // CHECK: jump [[LOOP:bb[0-9]+]]
-    // CHECK: [[LOOP_BODY:bb[0-9]+]]{{( \[[a-z]+\])?}}:
+    // CHECK: push [[LOOP_BODY:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: stop
+    // CHECK-NEXT: [[LOOP_BODY]]{{( \[[a-z]+\])?}}:
     // CHECK: sload
     // CHECK-NOT: mcopy
     // CHECK: sstore
-    // CHECK: [[LOOP]]{{( \[[a-z]+\])?}}:
+    // CHECK-NOT: {{^bb[0-9]+}}
     // CHECK: push [[LOOP_BODY]]
     // CHECK-NEXT: jumpi
     function pushRange(uint8 from, uint8 count) external {
