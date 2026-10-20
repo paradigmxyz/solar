@@ -77,6 +77,11 @@
 //! A memory argument may overlap a fresh allocation, so other copies test the addresses at run
 //! time and fall back to the original loop when the destination leads into the source.
 //!
+//! The loop's header test skips its body for a zero bound. A copy keeps that test in gas builds,
+//! as [`crate::target::Target::tests_empty_copies`] prices it: a copy of nothing then skips the
+//! overlap test, the checks and the copy, whose checks no longer need the `bound != 0` masks. Size
+//! builds, and copies of a literal bound, run the setup unconditionally.
+//!
 //! # Place in the pipeline
 //!
 //! The pass runs on semantic MIR right after `loop-canonicalize`, where checks are still single
@@ -123,20 +128,21 @@ impl MirPass for ByteLoops {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| run_function(func))
+        let tests_empty_copies = module.target(gcx).tests_empty_copies();
+        run_function_pass(module, analyses, |func, _| run_function(func, tests_empty_copies))
     }
 }
 
-fn run_function(func: &mut Function) -> bool {
+fn run_function(func: &mut Function, tests_empty_copies: bool) -> bool {
     let mut changed = false;
     loop {
         let loops = LoopAnalyzer::new().analyze_structure(func);
         let Some(plan) = loops.all_loops().find_map(|l| plan(func, l)) else { break };
-        rewrite(func, plan);
+        rewrite(func, plan, tests_empty_copies);
         let _ = super::cfg_simplify::remove_unreachable_blocks(func);
         changed = true;
     }
@@ -1019,7 +1025,7 @@ fn only_pattern_effects(func: &Function, lp: &Counted, used: &[InstId]) -> bool 
     lp.insts.iter().all(|inst| used.contains(inst) || !func.inst(*inst).kind.has_side_effects())
 }
 
-fn rewrite(func: &mut Function, plan: Plan) {
+fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
     let Plan { lp, shape } = plan;
     let mut replacements = FxHashMap::default();
     // The counter leaves the loop equal to its bound.
@@ -1087,6 +1093,33 @@ fn rewrite(func: &mut Function, plan: Plan) {
             builder.store(address, stored);
         }
         Shape::Copy { src, dst, dst_checked, overlap } => {
+            // A copy of nothing skips its setup, as the loop's own header test did: the checks,
+            // any overlap test, and the copy, which then run only for a nonzero bound.
+            let tested = literal.is_none() && tests_empty_copies;
+            if tested {
+                // empty = eq bound, 0
+                // branch empty, skip, setup
+                let empty = builder.eq_zero(lp.bound);
+                let setup = builder.create_block();
+                // The loop's exit has no phis for a guarded copy, and the header of an
+                // unguarded one becomes a jump to it.
+                let skip = match overlap {
+                    Overlap::Disjoint => lp.header,
+                    Overlap::Guarded => lp.exit,
+                };
+                builder.branch(empty, skip, setup);
+                builder.switch_to_block(setup);
+                // A guarded copy still enters the loop, now from the setup.
+                for &inst in &builder.func().blocks[lp.header].instructions.clone() {
+                    if let InstKind::Phi(incoming) = &mut builder.func_mut().inst_mut(inst).kind {
+                        for (block, _) in incoming.iter_mut() {
+                            if *block == lp.preheader {
+                                *block = setup;
+                            }
+                        }
+                    }
+                }
+            }
             // size = shl bound, shift
             let size = scaled(&mut builder, lp.bound, src.shift);
             let fast = match overlap {
@@ -1119,21 +1152,26 @@ fn rewrite(func: &mut Function, plan: Plan) {
                 // index's addition, then its bounds check, then the destination's.
                 // panic_if (bound != 0 && offset + bound wraps), 0x11
                 // panic_if (bound != 0 && offset + bound > len), 0x32
-                let nonzero = builder.ne_zero(lp.bound);
+                // A tested bound is not zero here.
+                let nonzero = (!tested).then(|| builder.ne_zero(lp.bound));
                 for access in [Some(&src), dst_checked.then_some(&dst)].into_iter().flatten() {
                     let len = buffer_len(&mut builder, access);
                     let end = match access.offset {
                         Some(offset) => {
                             let end = builder.add(offset, lp.bound);
-                            let wraps = builder.lt(end, offset);
-                            let wraps = builder.and(wraps, nonzero);
+                            let mut wraps = builder.lt(end, offset);
+                            if let Some(nonzero) = nonzero {
+                                wraps = builder.and(wraps, nonzero);
+                            }
                             builder.panic_if(wraps, PanicCode::ArithmeticOverflowUnderflow);
                             end
                         }
                         None => lp.bound,
                     };
-                    let past = builder.gt(end, len);
-                    let past = builder.and(past, nonzero);
+                    let mut past = builder.gt(end, len);
+                    if let Some(nonzero) = nonzero {
+                        past = builder.and(past, nonzero);
+                    }
                     builder.panic_if(past, PanicCode::ArrayOutOfBounds);
                 }
             } else {
@@ -1143,7 +1181,7 @@ fn rewrite(func: &mut Function, plan: Plan) {
                     let dst_fails = range_fails(&mut builder, &dst, lp.bound, false);
                     fails = builder.or(fails, dst_fails);
                 }
-                if literal.is_none_or(|bound| bound == 0) {
+                if !tested && literal.is_none_or(|bound| bound == 0) {
                     let nonzero = builder.ne_zero(lp.bound);
                     fails = builder.and(fails, nonzero);
                 }
@@ -1166,6 +1204,10 @@ fn rewrite(func: &mut Function, plan: Plan) {
                 builder.jump(lp.exit);
                 rebuild_predecessors(func);
                 return;
+            }
+            if tested {
+                // setup: ...; jump header
+                builder.jump(lp.header);
             }
         }
     }

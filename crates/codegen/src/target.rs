@@ -447,6 +447,17 @@ impl Target {
         self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
     }
 
+    /// Whether a loop rewritten into one copy keeps a test of its length before the copy's
+    /// setup, which then runs only for a nonzero length, as the loop body did.
+    ///
+    /// The test is one branch on every copy. The setup it skips for an empty copy holds the
+    /// range checks with their panic branch, any overlap test, and the copy instruction, several
+    /// times the branch, and no longer masks its checks with a nonzero length. Gas builds take
+    /// that trade; size builds keep the branch's bytes.
+    pub(crate) fn tests_empty_copies(&self) -> bool {
+        self.optimization.is_gas()
+    }
+
     /// Static gas of one opcode; unknown opcodes are free.
     pub(crate) fn opcode_gas(&self, opcode: u8) -> u32 {
         self.opcode_gas_at(opcode, Warmth::Cold)
@@ -1245,6 +1256,18 @@ mod tests {
         assert!(size.shares_terminal_copy(medium, 3));
         // One site never pays for a jump.
         assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
+    }
+
+    #[test]
+    fn empty_copies_are_tested_for_gas() {
+        let target = |optimization| Target::with(EvmVersion::Cancun, optimization, 200);
+        assert!(target(OptimizationMode::Gas).tests_empty_copies());
+        assert!(!target(OptimizationMode::Size).tests_empty_copies());
+        // The setup an empty copy skips costs more than the branch that tests it.
+        let gas = target(OptimizationMode::Gas);
+        let setup =
+            gas.opcode(op::LT).times(2) + gas.opcode(op::OR) + gas.branch() + gas.opcode(op::MCOPY);
+        assert!(setup.gas > (gas.opcode(op::ISZERO) + gas.branch()).gas);
     }
 
     #[test]

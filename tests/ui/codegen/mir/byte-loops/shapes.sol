@@ -13,8 +13,10 @@
 //@ run-call: within 0x0102030405, 1, 0, 3 => 0x0203040405
 //@ run-call: within 0x0102030405, 0, 0, 5 => 0x0102030405
 //@ run-call-fail: within 0x0102030405, 3, 0, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: within 0x0102030405, 9, 9, 0 => 0x0102030405
 //@ run-call: between 0x0102030405, 0xaaaaaaaaaa, 1, 3 => 0xaa020304aa
 //@ run-call-fail: between 0x0102030405, 0xaaaaaa, 1, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: between 0x0102030405, 0xaaaaaa, 9, 0 => 0xaaaaaa
 //@ run-call: down 0x0102030405, 0, 1, 3 => 0x0101020305
 //@ run-call: down 0x0102030405, 1, 0, 3 => 0x0404040405
 //@ run-call-fail: down 0x0102030405, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
@@ -22,6 +24,7 @@
 //@ run-call: down 0x0102030405, 9, 9, 0 => 0x0102030405
 //@ run-call: sliceCalldata 0x0a0b0c0d0e, 1, 3 => 0x0b0c0d
 //@ run-call-fail: sliceCalldata 0x0a0b0c0d0e, 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: sliceCalldata 0x0a0b0c0d0e, 9, 0 => 0x
 //@ run-call: freshPair 3 => 0x010203
 //@ run-call: freshPair 0 => 0x
 //@ run-call: wordsFromCalldata [0x0100000000000000000000000000000000000000000000000000000000000000, 0x0200000000000000000000000000000000000000000000000000000000000000] => [0x0100000000000000000000000000000000000000000000000000000000000000, 0x0200000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000]
@@ -57,8 +60,11 @@
 // CHECK-NOT: byte 0
 // CHECK: select
 
-// A copy within one object keeps the loop for a destination that leads into the source.
+// A copy within one object keeps the loop for a destination that leads into the source. A copy
+// of nothing skips the overlap test and the checks, as the loop did.
 // CHECK-LABEL: fn @within(
+// CHECK: [[EMPTY:v[0-9]+]] = eq {{arg[0-9]+|v[0-9]+}}, 0
+// CHECK-NEXT: jumpi [[EMPTY]]
 // CHECK: mcopy
 // CHECK: mstore8
 
@@ -71,9 +77,11 @@
 // CHECK: mcopy
 // CHECK: mstore8
 
-// A copy out of calldata is one `calldatacopy`.
+// A copy out of calldata is one `calldatacopy`, which a copy of nothing skips.
 // CHECK-LABEL: fn @sliceCalldata(
 // CHECK-NOT: mstore8
+// CHECK: [[EMPTY:v[0-9]+]] = eq {{arg[0-9]+|v[0-9]+}}, 0
+// CHECK-NEXT: jumpi [[EMPTY]]
 // CHECK: calldatacopy
 
 // A fresh destination's checks compare with the length its allocation stored. Its source is an
