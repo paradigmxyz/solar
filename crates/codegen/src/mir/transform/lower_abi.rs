@@ -1861,6 +1861,11 @@ impl LowerAbiCx {
         }
     }
 
+    /// Validates the `len` scalar words at `data`, whose range the caller has checked.
+    ///
+    /// A validator that only requires some bits to be zero accepts every word exactly when it
+    /// accepts their bitwise OR, so the loop folds the words and one check follows it. The revert
+    /// is the same, and the words are only read, so it does not matter that it comes after them.
     fn validate_scalar_array(
         builder: &mut FunctionBuilder<'_>,
         data: ValueId,
@@ -1871,6 +1876,37 @@ impl LowerAbiCx {
     ) {
         let word = builder.imm(32);
         builder.switch_to_block(*current);
+        if let Some(validator) = element.word_validator().and_then(AbiWordValidator::zero_bits) {
+            // header: index = phi [pre: 0], [body: index + 1]; folded = phi [pre: 0], [body: next]
+            //         jumpi (lt index, len), body, done
+            // body:   next = or folded, (load data + index * 32); jump header
+            // done:   revert_if_zero (valid folded)
+            let zero = builder.imm(0);
+            let preheader = builder.current_block();
+            let header = builder.create_block();
+            let body = builder.create_block();
+            let done = builder.create_block();
+            builder.jump(header);
+            builder.switch_to_block(header);
+            let index = builder.phi(vec![(preheader, zero)]);
+            let folded = builder.phi(vec![(preheader, zero)]);
+            let more = builder.lt(index, len);
+            builder.branch(more, body, done);
+            builder.switch_to_block(body);
+            let offset = builder.mul(index, word);
+            let position = builder.add(data, offset);
+            let value = Self::load_input_word(builder, position, options.constructor);
+            let next = builder.or(folded, value);
+            let one = builder.imm(1);
+            let next_index = builder.add(index, one);
+            builder.jump(header);
+            builder.add_phi_incoming(index, body, next_index);
+            builder.add_phi_incoming(folded, body, next);
+            builder.switch_to_block(done);
+            Self::validate_abi_word(builder, folded, validator);
+            *current = builder.current_block();
+            return;
+        }
         builder.counted_loop(len, |builder, index| {
             let offset = builder.mul(index, word);
             let position = builder.add(data, offset);

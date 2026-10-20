@@ -135,50 +135,47 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     v0 = calldatasize
     v1 = calldataload 4
     v2 = add v1, 4
-    v4 = sub v0, 36
-    v5 = gt v1, v4
-    jumpi v5, bb1, bb2
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
   bb2:
-    v6 = calldataload v2
-    v7 = add v2, 32
-    v8 = gt v6, 0x7fffffffffffffe
-    v9 = add v6, 1
-    v10 = shl v9, 5
-    v33 = heap_floor !metadata(alloc_ptr)
-    v34 = add v33, v10 !metadata(alloc_ptr)
-    v35 = lt v34, v33
-    v36 = gt v34, 0xffffffffffffffff
-    v37 = or v35, v36
-    v43 = or v8, v37
-    jumpi v43, bb3, bb9
-  bb9:
-    mstore 64, v34 !metadata(memory=scratch)
-    mstore v33, v6
-    v12 = shl v6, 5
-    v13 = sub v0, v7
-    v14 = shr v13, 5
-    v15 = gt v6, v14
-    jumpi v15, bb1, bb4
+    v8 = calldataload v2
+    v10 = gt v8, 0x7fffffffffffffe
+    jumpi v10, bb3, bb4
   bb4:
-    v41 = shl v6, 5
-    v42 = add v7, v41
-    jump bb5
+    v11 = add v8, 1
+    v12 = shl v11, 5
+    v37 = icall @alloc, v12
+    mstore v37, v8
+    v14 = shl v8, 5
+    v15 = sub v0, v3
+    v16 = shr v15, 5
+    v17 = gt v8, v16
+    jumpi v17, bb1, bb5
   bb5:
-    v39 = phi [bb4: v7], [bb8: v40]
-    v17 = ne v39, v42
-    jumpi v17, bb6, bb7
-  bb7:
-    v30 = add v33, 32
-    calldatacopy v30, v7, v12
-    ret v33
+    v40 = shl v8, 5
+    v41 = add v3, v40
+    jump bb6
   bb6:
-    v20 = calldataload v39
-    v21 = shr v20, 160
-    v22 = eq v21, 0
-    jumpi v22, bb8, bb1
+    v19 = phi [bb5: 0], [bb7: v24]
+    v38 = phi [bb5: v3], [bb7: v39]
+    v20 = ne v38, v41
+    jumpi v20, bb7, bb8
   bb8:
-    v40 = add v39, 32
-    jump bb5
+    v26 = shr v19, 160
+    v27 = eq v26, 0
+    jumpi v27, bb9, bb1
+  bb9:
+    v34 = add v37, 32
+    calldatacopy v34, v3, v14
+    ret v37
+  bb7:
+    v23 = calldataload v38
+    v24 = or v19, v23
+    v39 = add v38, 32
+    jump bb6
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -192,50 +189,47 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v0 = calldatasize
     v1 = calldataload 4
     v2 = add v1, 4
-    v4 = sub v0, 36
-    v5 = gt v1, v4
-    jumpi v5, bb1, bb2
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
   bb2:
-    v6 = calldataload v2
-    v7 = add v2, 32
-    v8 = gt v6, 0x7fffffffffffffe
-    v9 = add v6, 1
-    v10 = shl v9, 5
-    v33 = heap_floor !metadata(alloc_ptr)
-    v34 = add v33, v10 !metadata(alloc_ptr)
-    v35 = lt v34, v33
-    v36 = gt v34, 0xffffffffffffffff
-    v37 = or v35, v36
-    v43 = or v8, v37
-    jumpi v43, bb3, bb9
-  bb9:
-    mstore 64, v34 !metadata(memory=scratch)
-    mstore v33, v6
-    v12 = shl v6, 5
-    v13 = sub v0, v7
-    v14 = shr v13, 5
-    v15 = gt v6, v14
-    jumpi v15, bb1, bb4
+    v8 = calldataload v2
+    v10 = gt v8, 0x7fffffffffffffe
+    jumpi v10, bb3, bb4
   bb4:
-    v41 = shl v6, 5
-    v42 = add v7, v41
-    jump bb5
+    v11 = add v8, 1
+    v12 = shl v11, 5
+    v37 = icall @alloc, v12
+    mstore v37, v8
+    v14 = shl v8, 5
+    v15 = sub v0, v3
+    v16 = shr v15, 5
+    v17 = gt v8, v16
+    jumpi v17, bb1, bb5
   bb5:
-    v39 = phi [bb4: v7], [bb8: v40]
-    v17 = ne v39, v42
-    jumpi v17, bb6, bb7
-  bb7:
-    v30 = add v33, 32
-    calldatacopy v30, v7, v12
-    ret v33
+    v40 = shl v8, 5
+    v41 = add v3, v40
+    jump bb6
   bb6:
-    v20 = calldataload v39
-    v21 = shr v20, 8
-    v22 = eq v21, 0
-    jumpi v22, bb8, bb1
+    v19 = phi [bb5: 0], [bb7: v24]
+    v38 = phi [bb5: v3], [bb7: v39]
+    v20 = ne v38, v41
+    jumpi v20, bb7, bb8
   bb8:
-    v40 = add v39, 32
-    jump bb5
+    v26 = shr v19, 8
+    v27 = eq v26, 0
+    jumpi v27, bb9, bb1
+  bb9:
+    v34 = add v37, 32
+    calldatacopy v34, v3, v14
+    ret v37
+  bb7:
+    v23 = calldataload v38
+    v24 = or v19, v23
+    v39 = add v38, 32
+    jump bb6
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -299,4 +293,21 @@ fn @entry() [entry] {
     tail_call @unalignedHelper
   bb1:
     revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
