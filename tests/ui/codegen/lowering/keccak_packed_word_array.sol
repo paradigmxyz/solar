@@ -5,9 +5,10 @@
 //@ run-call: empty() => 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
 //@ run-call: addresses 0x0000000000000000000000000000000000001234 => 0xe321d900f3fd366734e2d071e30949ded20c27fd638f1a059390091c643b62c5
 
-// The packed encoding of a dynamic memory array of one-word value types is its
+// The packed encoding of a dynamic memory array of full-word value types is its
 // elements as ABI words, which is how memory holds them, so a hash of it reads
-// the array's elements in place instead of a copy.
+// the array's elements in place instead of a copy. The encoding cleans narrower
+// elements, so an array of addresses still takes the encoder.
 // CHECK-LABEL: fn @three(
 // CHECK: mstore [[DATA:v[0-9]+]], arg0
 // CHECK: keccak256 [[DATA]], 96

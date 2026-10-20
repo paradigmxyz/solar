@@ -49,9 +49,9 @@ fn @addresses(arg0: i160) -> i256 [selector=0x82d38954, pure, abi_params=[addres
     v4 = zext i160 arg0 to i256
     v5 = ptradd v0, 32
     mstore v5, v4
-    v6 = ptradd v0, 32
-    v7 = mload v0
-    v8 = shl v7, 5
-    v9 = keccak256 v6, v8
+    v6 = abi_encode_packed (array<word<uint160>> memoryarray<1> v0)
+    v7 = ptradd v6, 32
+    v8 = mload v6
+    v9 = keccak256 v7, v8
     ret v9
 }

@@ -563,9 +563,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((element_abi, source))
     }
 
-    /// `keccak256(abi.encodePacked(array))` of one dynamic memory array of one-word value
+    /// `keccak256(abi.encodePacked(array))` of one dynamic memory array of full-word value
     /// types, hashed in place: an array's packed encoding is its elements as ABI words, which
-    /// is how memory holds them.
+    /// is how memory holds them. The encoding cleans narrower elements, which inline assembly
+    /// can leave dirty in memory, and checks the range of enums, so those arrays take the
+    /// encoder.
     pub(super) fn lower_keccak_packed_word_array(
         &mut self,
         args: hir::CallArgs<'_>,
@@ -576,7 +578,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !ty.is_ref_at(DataLocation::Memory)
             || !matches!(
                 self.types.abi_type(ty)?,
-                AbiType::DynamicArray { element, .. } if matches!(*element, AbiType::Word(_))
+                AbiType::DynamicArray { element, .. } if matches!(*element, AbiType::Word(None))
             )
             || !matches!(
                 self.types.memory_layout(ty)?,
