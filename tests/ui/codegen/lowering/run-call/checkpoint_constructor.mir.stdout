@@ -223,26 +223,24 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<uint9
     revert_returndata
   bb2:
     v24 = gas
-    v25 = abi_encode [], scratch, selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
-    v26 = extract_value slice<memory>, v25, 0
-    v27 = extract_value slice<memory>, v25, 1
-    v28 = zext i160 v22 to i256
-    v29 = staticcall v24, v28, v26, v27, 0, 32
-    jumpi v29, bb4, bb3
+    mstore 0, 0x8ee82b53 !metadata(memory=scratch)
+    v25 = zext i160 v22 to i256
+    v26 = staticcall v24, v25, 28, 4, 0, 32
+    jumpi v26, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v30 = returndatasize
-    v31 = lt v30, 32
-    icall revert_if<tuple_data_too_short>, v31
-    v32 = add 0, 0
-    v33 = mload v32
-    v34 = shr v33, 96
-    v35 = eq v34, 0
-    v36 = eq v35, false
-    icall revert_if<empty>, v36
-    v37 = trunc i256 v33 to i96
-    ret v37
+    v27 = returndatasize
+    v28 = lt v27, 32
+    icall revert_if<tuple_data_too_short>, v28
+    v29 = add 0, 0
+    v30 = mload v29
+    v31 = shr v30, 96
+    v32 = eq v31, 0
+    v33 = eq v32, false
+    icall revert_if<empty>, v33
+    v34 = trunc i256 v30 to i96
+    ret v34
 }
 
 fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
@@ -263,26 +261,24 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = staticcall v9, v13, v11, v12, 0, 32
-    jumpi v14, bb4, bb3
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = staticcall v9, v10, 28, 4, 0, 32
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    v19 = shr v18, 8
-    v20 = eq v19, 0
-    v21 = eq v20, false
-    icall revert_if<empty>, v21
-    v22 = trunc i256 v18 to i8
-    ret v22
+    v12 = returndatasize
+    v13 = lt v12, 32
+    icall revert_if<tuple_data_too_short>, v13
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = shr v15, 8
+    v17 = eq v16, 0
+    v18 = eq v17, false
+    icall revert_if<empty>, v18
+    v19 = trunc i256 v15 to i8
+    ret v19
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===

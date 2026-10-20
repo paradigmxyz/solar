@@ -131,21 +131,19 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     revert_returndata
   bb6:
     v31 = gas
-    v32 = abi_encode [], scratch, selector 0x7c2efcba00000000000000000000000000000000000000000000000000000000
-    v33 = extract_value slice<memory>, v32, 0
-    v34 = extract_value slice<memory>, v32, 1
-    v35 = zext i160 v18 to i256
-    v36 = staticcall v31, v35, v33, v34, 0, 32
-    jumpi v36, bb8, bb7
+    mstore 0, 0x7c2efcba !metadata(memory=scratch)
+    v32 = zext i160 v18 to i256
+    v33 = staticcall v31, v32, 28, 4, 0, 32
+    jumpi v33, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v37 = returndatasize
-    v38 = lt v37, 32
-    icall revert_if<tuple_data_too_short>, v38
-    v39 = add 0, 0
-    v40 = mload v39
-    v41 = eq v40, 76
-    icall require<short_string>, v41, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v34 = returndatasize
+    v35 = lt v34, 32
+    icall revert_if<tuple_data_too_short>, v35
+    v36 = add 0, 0
+    v37 = mload v36
+    v38 = eq v37, 76
+    icall require<short_string>, v38, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

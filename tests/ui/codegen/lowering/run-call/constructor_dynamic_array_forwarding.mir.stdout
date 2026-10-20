@@ -222,41 +222,38 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0x1b2902dd, abi_params
     revert_returndata
   bb2:
     v15 = gas
-    v16 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v17 = extract_value slice<memory>, v16, 0
-    v18 = extract_value slice<memory>, v16, 1
-    v19 = zext i160 v13 to i256
-    v20 = staticcall v15, v19, v17, v18, 0, 32
-    jumpi v20, bb4, bb3
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v16 = zext i160 v13 to i256
+    v17 = staticcall v15, v16, 28, 4, 0, 32
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v21 = returndatasize
-    v22 = lt v21, 32
-    icall revert_if<tuple_data_too_short>, v22
-    v23 = add 0, 0
-    v24 = mload v23
-    v25 = gas
-    v26 = abi_encode [word], scratch, selector 0xe2095c0700000000000000000000000000000000000000000000000000000000, args arg0
-    v27 = extract_value slice<memory>, v26, 0
-    v28 = extract_value slice<memory>, v26, 1
-    v29 = zext i160 v13 to i256
-    v30 = staticcall v25, v29, v27, v28, 0, 32
-    jumpi v30, bb6, bb5
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = gas
+    mstore 0, 0xe2095c07 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v23 = zext i160 v13 to i256
+    v24 = staticcall v22, v23, 28, 36, 0, 32
+    jumpi v24, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v31 = returndatasize
-    v32 = lt v31, 32
-    icall revert_if<tuple_data_too_short>, v32
-    v33 = add 0, 0
-    v34 = mload v33
-    v35 = shr v34, 160
-    v36 = eq v35, 0
-    v37 = eq v36, false
-    icall revert_if<empty>, v37
-    v38 = trunc i256 v34 to i160
-    v39 = insert_value struct0, undef struct0, 0, v24
-    v40 = insert_value struct0, v39, 1, v38
-    ret v40
+    v25 = returndatasize
+    v26 = lt v25, 32
+    icall revert_if<tuple_data_too_short>, v26
+    v27 = add 0, 0
+    v28 = mload v27
+    v29 = shr v28, 160
+    v30 = eq v29, 0
+    v31 = eq v30, false
+    icall revert_if<empty>, v31
+    v32 = trunc i256 v28 to i160
+    v33 = insert_value struct0, undef struct0, 0, v21
+    v34 = insert_value struct0, v33, 1, v32
+    ret v34
 }

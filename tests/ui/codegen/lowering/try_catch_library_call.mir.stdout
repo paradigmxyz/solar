@@ -195,14 +195,12 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
 fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], scratch, selector 0xf2a75fe400000000000000000000000000000000000000000000000000000000
-    v2 = extract_value slice<memory>, v1, 0
-    v3 = extract_value slice<memory>, v1, 1
-    v4 = extcodesize 0x1111111111111111111111111111111111111111
-    v5 = eq v4, 0
-    icall revert_if<target_contract_has_no_code>, v5
-    v6 = delegatecall v0, 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
-    jumpi v6, bb1, bb2
+    mstore 0, 0xf2a75fe4 !metadata(memory=scratch)
+    v1 = extcodesize 0x1111111111111111111111111111111111111111
+    v2 = eq v1, 0
+    icall revert_if<target_contract_has_no_code>, v2
+    v3 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 4, 0, 0
+    jumpi v3, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:

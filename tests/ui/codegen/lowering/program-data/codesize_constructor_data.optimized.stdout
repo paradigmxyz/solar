@@ -52,19 +52,14 @@ bb5:
   push 128
   push 64
   mstore
-  push_immutable 0, 20
-  push 64
-  mload
-  push 0x3fa4f245
-  push 224
-  shl
-  dup 2
-  mstore
-  push 4
-  push 0
-  swap 2
   push 32
-  swap 4
+  push 0
+  push 4
+  push 28
+  push_immutable 0, 20
+  push 0x3fa4f245
+  push 0
+  mstore
   gas
   staticcall
   iszero

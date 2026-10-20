@@ -237,21 +237,20 @@ fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word<uint8>], scratch, selector 0x1f3c3a7b00000000000000000000000000000000000000000000000000000000, args 2
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 32
-    jumpi v6, bb2, bb1
+    mstore 0, 0x1f3c3a7b !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 36, 0, 32
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    ret v7
 }
 
 fn @echoScalar(arg0: i256) -> i256 [selector=0x1f3c3a7b, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {

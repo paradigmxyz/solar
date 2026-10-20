@@ -43,18 +43,17 @@ fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     v17 = shl v16, 224
     v18 = shr v15, 32
     v19 = gas
-    v20 = abi_encode [], scratch, selector v17
-    v21 = extract_value slice<memory>, v20, 0
-    v22 = extract_value slice<memory>, v20, 1
-    v23 = call v19, v18, 1, v21, v22, 0, 32
-    jumpi v23, bb2, bb1
+    v20 = shr v17, 224
+    mstore 0, v20 !metadata(memory=scratch)
+    v21 = call v19, v18, 1, 28, 4, 0, 32
+    jumpi v21, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v24 = returndatasize
-    v25 = lt v24, 32
-    icall revert_if<tuple_data_too_short>, v25
-    v26 = add 0, 0
-    v27 = mload v26
-    ret v27
+    v22 = returndatasize
+    v23 = lt v22, 32
+    icall revert_if<tuple_data_too_short>, v23
+    v24 = add 0, 0
+    v25 = mload v24
+    ret v25
 }

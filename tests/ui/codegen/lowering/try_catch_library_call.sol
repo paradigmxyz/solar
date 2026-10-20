@@ -70,7 +70,7 @@ contract C {
     }
 
     // LINKED-LABEL: fn @emptyCode
-    // LINKED: abi_encode [], scratch, selector 0xf2a75fe4{{.*}}
+    // LINKED: mstore 0, 0xf2a75fe4{{.*}}
     // LINKED: extcodesize 0x1111111111111111111111111111111111111111
     // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function emptyCode() external pure {

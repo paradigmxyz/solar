@@ -7,6 +7,13 @@
 //@ run-call: dynamicReturn => 3, 1, 2, 3
 //@ run-call: dynamicInput => 4, 1, 2, 3
 //@ run-call: memoryArgument => 0, 5, 1, 2, 3
+//@ run-call: noArguments => 0, 1, 1, 2, 3
+//@ run-call: addressArgument => 0, 1, 1, 2, 3
+//@ run-call: boolArgument => 0, 1, 1, 2, 3
+//@ run-call: narrowReturn => 0, 1
+//@ run-call: functionArgument => 0, 7, 1, 2, 3
+//@ run-call: internalTuple => 0, 52, 1, 2, 3
+//@ run-call: pointerCall => 0, 43, 1, 2, 3
 
 // A call whose input nothing keeps stages it at the free memory pointer without reserving it, so
 // the free memory pointer does not move across the call. Memory below the pointer stays intact,
@@ -19,6 +26,11 @@ interface ITarget {
     function bytesOf(uint256 length) external view returns (bytes memory);
     function sum(uint256[] memory values) external view returns (uint256);
     function sumFixed(uint256[2] memory values) external view returns (uint256);
+    function one() external view returns (uint256);
+    function owned(address account) external view returns (bool);
+    function flag(bool value) external view returns (uint256);
+    function small(uint256 value) external view returns (uint8);
+    function selectorOf(function() external view returns (uint256) callback) external view returns (uint256);
 }
 
 contract Target is ITarget {
@@ -56,6 +68,30 @@ contract Target is ITarget {
 
     function sumFixed(uint256[2] memory values) external pure returns (uint256) {
         return values[0] + values[1];
+    }
+
+    function one() external pure returns (uint256) {
+        return 1;
+    }
+
+    function owned(address account) external pure returns (bool) {
+        return account == address(0x1234);
+    }
+
+    function flag(bool value) external pure returns (uint256) {
+        return value ? 1 : 0;
+    }
+
+    function small(uint256 value) external pure returns (uint8) {
+        return uint8(value);
+    }
+
+    function selectorOf(function() external view returns (uint256) callback)
+        external
+        view
+        returns (uint256)
+    {
+        return callback();
     }
 }
 
@@ -133,5 +169,69 @@ contract ExternalCallInputScratch {
         total = target.sumFixed(fixedValues);
         moved = fmp() - before;
         return (moved, total, values[0], values[1], values[2]);
+    }
+
+    function noArguments() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        uint256 before = fmp();
+        value = target.one();
+        moved = fmp() - before;
+        return (moved, value, values[0], values[1], values[2]);
+    }
+
+    function addressArgument() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        uint256 before = fmp();
+        bool owner = target.owned(address(0x1234));
+        moved = fmp() - before;
+        return (moved, owner ? 1 : 0, values[0], values[1], values[2]);
+    }
+
+    function boolArgument() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        uint256 before = fmp();
+        value = target.flag(true);
+        moved = fmp() - before;
+        return (moved, value, values[0], values[1], values[2]);
+    }
+
+    function narrowReturn() external view returns (uint256 moved, uint256 value) {
+        uint256 before = fmp();
+        value = target.small(0x101);
+        moved = fmp() - before;
+    }
+
+    function functionArgument() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        uint256 before = fmp();
+        value = target.selectorOf(this.seven);
+        moved = fmp() - before;
+        return (moved, value, values[0], values[1], values[2]);
+    }
+
+    function seven() external pure returns (uint256) {
+        return 7;
+    }
+
+    function pairValues() internal pure returns (uint256, uint256) {
+        return (10, 10);
+    }
+
+    function internalTuple() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        uint256 before = fmp();
+        (, uint256 second) = pairValues();
+        value = target.balanceOf(second);
+        moved = fmp() - before;
+        return (moved, value, values[0], values[1], values[2]);
+    }
+
+    function pointerCall() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        function(uint256) external view returns (uint256) callback = target.balanceOf;
+        uint256 before = fmp();
+        value = callback(1);
+        moved = fmp() - before;
+        return (moved, value, values[0], values[1], values[2]);
     }
 }

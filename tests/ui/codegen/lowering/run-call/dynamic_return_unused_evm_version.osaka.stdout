@@ -60,17 +60,15 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], scratch, selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = call v9, v13, 0, v11, v12, 0, 0
-    jumpi v14, bb4, bb3
+    mstore 0, 0x7271bb2c !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = call v9, v10, 0, 28, 4, 0, 0
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v15 = icall returndata_bytes<>
-    v16 = abi_decode [bytes], v15
+    v12 = icall returndata_bytes<>
+    v13 = abi_decode [bytes], v12
     ret 1
 }
 
@@ -92,17 +90,15 @@ fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], scratch, selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = call v9, v13, 0, v11, v12, 0, 0
-    jumpi v14, bb4, bb3
+    mstore 0, 0x2f4e7409 !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = call v9, v10, 0, 28, 4, 0, 0
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v15 = icall returndata_bytes<>
-    v16 = abi_decode [bytes], v15
+    v12 = icall returndata_bytes<>
+    v13 = abi_decode [bytes], v12
     ret 1
 }
 
@@ -124,12 +120,10 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], scratch, selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = call v9, v13, 0, v11, v12, 0, 0
-    jumpi v14, bb3, bb4
+    mstore 0, 0x7271bb2c !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = call v9, v10, 0, 28, 4, 0, 0
+    jumpi v11, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -138,12 +132,12 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
   bb6:
     jump bb5
   bb3:
-    v15 = icall returndata_bytes<>
-    v16 = abi_decode [bytes], v15
+    v12 = icall returndata_bytes<>
+    v13 = abi_decode [bytes], v12
     jump bb5
   bb5:
-    v17 = phi [bb3: 1], [bb6: 2]
-    ret v17
+    v14 = phi [bb3: 1], [bb6: 2]
+    ret v14
 }
 
 fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -202,29 +196,25 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], scratch, selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = call v9, v13, 0, v11, v12, 0, 0
-    jumpi v14, bb4, bb3
+    mstore 0, 0x7271bb2c !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = call v9, v10, 0, 28, 4, 0, 0
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v15 = icall returndata_bytes<>
-    v16 = abi_decode [bytes], v15
-    v17 = gas
-    v18 = abi_encode [], scratch, selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v19 = extract_value slice<memory>, v18, 0
-    v20 = extract_value slice<memory>, v18, 1
-    v21 = zext i160 v7 to i256
-    v22 = call v17, v21, 0, v19, v20, 0, 0
-    jumpi v22, bb6, bb5
+    v12 = icall returndata_bytes<>
+    v13 = abi_decode [bytes], v12
+    v14 = gas
+    mstore 0, 0x2f4e7409 !metadata(memory=scratch)
+    v15 = zext i160 v7 to i256
+    v16 = call v14, v15, 0, 28, 4, 0, 0
+    jumpi v16, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v23 = icall returndata_bytes<>
-    v24 = abi_decode [bytes], v23
+    v17 = icall returndata_bytes<>
+    v18 = abi_decode [bytes], v17
     ret 1
 }
 
@@ -252,16 +242,15 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v13 = shl v12, 224
     v14 = shr v11, 32
     v15 = gas
-    v16 = abi_encode [], scratch, selector v13
-    v17 = extract_value slice<memory>, v16, 0
-    v18 = extract_value slice<memory>, v16, 1
-    v19 = call v15, v14, 0, v17, v18, 0, 0
-    jumpi v19, bb4, bb3
+    v16 = shr v13, 224
+    mstore 0, v16 !metadata(memory=scratch)
+    v17 = call v15, v14, 0, 28, 4, 0, 0
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = icall returndata_bytes<>
-    v21 = abi_decode [bytes], v20
+    v18 = icall returndata_bytes<>
+    v19 = abi_decode [bytes], v18
     ret 1
 }
 
@@ -284,9 +273,9 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
   bb2:
     jump bb3
   bb3:
-    v9 = phi [bb2: 0], [bb5: v21]
+    v9 = phi [bb2: 0], [bb5: v18]
     v10 = phi [bb2: v7], [bb5: v10]
-    v11 = phi [bb2: 0], [bb5: v22]
+    v11 = phi [bb2: 0], [bb5: v19]
     v12 = lt v11, 3
     jumpi v12, bb6, bb7
   bb7:
@@ -295,50 +284,44 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
     ret v9
   bb6:
     v13 = gas
-    v14 = abi_encode [], scratch, selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v15 = extract_value slice<memory>, v14, 0
-    v16 = extract_value slice<memory>, v14, 1
-    v17 = zext i160 v10 to i256
-    v18 = call v13, v17, 0, v15, v16, 0, 0
-    jumpi v18, bb10, bb9
+    mstore 0, 0x7271bb2c !metadata(memory=scratch)
+    v14 = zext i160 v10 to i256
+    v15 = call v13, v14, 0, 28, 4, 0, 0
+    jumpi v15, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v19 = icall returndata_bytes<>
-    v20 = abi_decode [bytes], v19
-    v21 = checked_add uint256, v9, 1
+    v16 = icall returndata_bytes<>
+    v17 = abi_decode [bytes], v16
+    v18 = checked_add uint256, v9, 1
     jump bb8
   bb8:
     jump bb5
   bb5:
-    v22 = checked_add uint256, v11, 1
+    v19 = checked_add uint256, v11, 1
     jump bb3
 }
 
 fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], scratch, selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v2 = extract_value slice<memory>, v1, 0
-    v3 = extract_value slice<memory>, v1, 1
-    v4 = call v0, 0, 0, v2, v3, 0, 0
-    jumpi v4, bb2, bb1
+    mstore 0, 0x7271bb2c !metadata(memory=scratch)
+    v1 = call v0, 0, 0, 28, 4, 0, 0
+    jumpi v1, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v5 = icall returndata_bytes<>
-    v6 = abi_decode [bytes], v5
+    v2 = icall returndata_bytes<>
+    v3 = abi_decode [bytes], v2
     ret 1
 }
 
 fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], scratch, selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v2 = extract_value slice<memory>, v1, 0
-    v3 = extract_value slice<memory>, v1, 1
-    v4 = call v0, 0, 0, v2, v3, 0, 0
-    jumpi v4, bb1, bb2
+    mstore 0, 0x7271bb2c !metadata(memory=scratch)
+    v1 = call v0, 0, 0, 28, 4, 0, 0
+    jumpi v1, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -347,10 +330,10 @@ fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word],
   bb4:
     jump bb3
   bb1:
-    v5 = icall returndata_bytes<>
-    v6 = abi_decode [bytes], v5
+    v2 = icall returndata_bytes<>
+    v3 = abi_decode [bytes], v2
     jump bb3
   bb3:
-    v7 = phi [bb1: 1], [bb4: 2]
-    ret v7
+    v4 = phi [bb1: 1], [bb4: 2]
+    ret v4
 }

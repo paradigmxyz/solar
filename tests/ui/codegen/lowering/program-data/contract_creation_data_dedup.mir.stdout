@@ -40,21 +40,19 @@ fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = staticcall v9, v13, v11, v12, 0, 32
-    jumpi v14, bb4, bb3
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = staticcall v9, v10, 28, 4, 0, 32
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v12 = returndatasize
+    v13 = lt v12, 32
+    icall revert_if<tuple_data_too_short>, v13
+    v14 = add 0, 0
+    v15 = mload v14
+    ret v15
 }
 
 fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -75,21 +73,19 @@ fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], ab
     revert_returndata
   bb2:
     v9 = gas
-    v10 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = staticcall v9, v13, v11, v12, 0, 32
-    jumpi v14, bb4, bb3
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v10 = zext i160 v7 to i256
+    v11 = staticcall v9, v10, 28, 4, 0, 32
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v12 = returndatasize
+    v13 = lt v12, 32
+    icall revert_if<tuple_data_too_short>, v13
+    v14 = add 0, 0
+    v15 = mload v14
+    ret v15
 }
 
 fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -125,35 +121,31 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     revert_returndata
   bb4:
     v18 = gas
-    v19 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v20 = extract_value slice<memory>, v19, 0
-    v21 = extract_value slice<memory>, v19, 1
-    v22 = zext i160 v7 to i256
-    v23 = staticcall v18, v22, v20, v21, 0, 32
-    jumpi v23, bb6, bb5
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v19 = zext i160 v7 to i256
+    v20 = staticcall v18, v19, 28, 4, 0, 32
+    jumpi v20, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v24 = returndatasize
-    v25 = lt v24, 32
-    icall revert_if<tuple_data_too_short>, v25
-    v26 = add 0, 0
-    v27 = mload v26
-    v28 = gas
-    v29 = abi_encode [], scratch, selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v30 = extract_value slice<memory>, v29, 0
-    v31 = extract_value slice<memory>, v29, 1
-    v32 = zext i160 v16 to i256
-    v33 = staticcall v28, v32, v30, v31, 0, 32
-    jumpi v33, bb8, bb7
+    v21 = returndatasize
+    v22 = lt v21, 32
+    icall revert_if<tuple_data_too_short>, v22
+    v23 = add 0, 0
+    v24 = mload v23
+    v25 = gas
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v26 = zext i160 v16 to i256
+    v27 = staticcall v25, v26, 28, 4, 0, 32
+    jumpi v27, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = checked_add uint256, v27, v37
-    ret v38
+    v28 = returndatasize
+    v29 = lt v28, 32
+    icall revert_if<tuple_data_too_short>, v29
+    v30 = add 0, 0
+    v31 = mload v30
+    v32 = checked_add uint256, v24, v31
+    ret v32
 }

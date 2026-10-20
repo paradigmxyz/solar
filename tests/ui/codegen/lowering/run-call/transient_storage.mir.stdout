@@ -91,21 +91,19 @@ fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], ab
     tstore 0, 77
     v0 = address
     v1 = gas
-    v2 = abi_encode [], scratch, selector 0x52099d8b00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 32
-    jumpi v6, bb2, bb1
+    mstore 0, 0x52099d8b !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 4, 0, 32
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    ret v7
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===

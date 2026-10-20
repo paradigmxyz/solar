@@ -42,7 +42,7 @@
               "A.sol": {
                 "Lib": [
                   {
-                    "start": 48,
+                    "start": 54,
                     "length": 20
                   }
                 ]
@@ -50,7 +50,7 @@
               "B.sol": {
                 "Lib": [
                   {
-                    "start": 145,
+                    "start": 110,
                     "length": 20
                   }
                 ]

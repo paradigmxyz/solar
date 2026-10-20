@@ -27,12 +27,11 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
   bb0:
     v0 = library_address TryLib_0
     v1 = gas
-    v2 = abi_encode [word], scratch, selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = delegatecall v1, v5, v3, v4, 0, 32
-    jumpi v6, bb1, bb2
+    mstore 0, 0xeee97206 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = delegatecall v1, v2, 28, 36, 0, 32
+    jumpi v3, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -41,32 +40,31 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
   bb4:
     jump bb3
   bb1:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    sstore 0, v10 !metadata(storage=slot(0))
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    sstore 0, v7 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb4: 7]
-    ret v11
+    v8 = phi [bb1: v7], [bb4: 7]
+    ret v8
 }
 
 fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = library_address TryLib_0
     v1 = gas
-    v2 = abi_encode [word], scratch, selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
+    mstore 0, 0x67190395 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
     v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = delegatecall v1, v8, v3, v4, 0, 0
-    jumpi v9, bb1, bb2
+    v6 = delegatecall v1, v5, 28, 36, 0, 0
+    jumpi v6, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -78,6 +76,6 @@ fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], 
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    v10 = phi [bb1: 1], [bb4: 7]
-    ret v10
+    v7 = phi [bb1: 1], [bb4: 7]
+    ret v7
 }

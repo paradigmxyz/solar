@@ -82,39 +82,39 @@ fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[uint2
     v8 = gas
     v9 = mload v0
     v10 = shr v9, 64
-    v11 = abi_encode [function], scratch, selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v10
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = zext i160 v7 to i256
-    v15 = staticcall v8, v14, v12, v13, 0, 32
-    jumpi v15, bb2, bb1
+    mstore 0, 0xbd2d517e !metadata(memory=scratch)
+    v11 = shl v10, 64
+    mstore 32, v11 !metadata(memory=scratch)
+    v12 = zext i160 v7 to i256
+    v13 = staticcall v8, v12, 28, 36, 0, 32
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    v20 = address
-    v21 = gas
-    v22 = abi_encode [tuple<function>], scratch, selector 0xadfc46c000000000000000000000000000000000000000000000000000000000, args v0
-    v23 = extract_value slice<memory>, v22, 0
-    v24 = extract_value slice<memory>, v22, 1
-    v25 = zext i160 v20 to i256
-    v26 = staticcall v21, v25, v23, v24, 0, 32
-    jumpi v26, bb4, bb3
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = address
+    v19 = gas
+    v20 = abi_encode [tuple<function>], scratch, selector 0xadfc46c000000000000000000000000000000000000000000000000000000000, args v0
+    v21 = extract_value slice<memory>, v20, 0
+    v22 = extract_value slice<memory>, v20, 1
+    v23 = zext i160 v18 to i256
+    v24 = staticcall v19, v23, v21, v22, 0, 32
+    jumpi v24, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v27 = returndatasize
-    v28 = lt v27, 32
-    icall revert_if<tuple_data_too_short>, v28
-    v29 = add 0, 0
-    v30 = mload v29
-    v31 = insert_value struct0, undef struct0, 0, v19
-    v32 = insert_value struct0, v31, 1, v30
-    ret v32
+    v25 = returndatasize
+    v26 = lt v25, 32
+    icall revert_if<tuple_data_too_short>, v26
+    v27 = add 0, 0
+    v28 = mload v27
+    v29 = insert_value struct0, undef struct0, 0, v17
+    v30 = insert_value struct0, v29, 1, v28
+    ret v30
 }
 
 fn @dirtyReturn(arg0: i256) -> ptr<memory> [selector=0x2aae0ed6, view, abi_params=[uint256], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
@@ -192,21 +192,21 @@ fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, abi_params=[
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = trunc i256 v16 to i192
     v18 = zext i192 v17 to i256
-    v19 = abi_encode [function], scratch, selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v18
-    v20 = extract_value slice<memory>, v19, 0
-    v21 = extract_value slice<memory>, v19, 1
-    v22 = zext i160 v14 to i256
-    v23 = staticcall v15, v22, v20, v21, 0, 32
-    jumpi v23, bb2, bb1
+    mstore 0, 0xbd2d517e !metadata(memory=scratch)
+    v19 = shl v18, 64
+    mstore 32, v19 !metadata(memory=scratch)
+    v20 = zext i160 v14 to i256
+    v21 = staticcall v15, v20, 28, 36, 0, 32
+    jumpi v21, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v24 = returndatasize
-    v25 = lt v24, 32
-    icall revert_if<tuple_data_too_short>, v25
-    v26 = add 0, 0
-    v27 = mload v26
-    ret v27
+    v22 = returndatasize
+    v23 = lt v22, 32
+    icall revert_if<tuple_data_too_short>, v23
+    v24 = add 0, 0
+    v25 = mload v24
+    ret v25
 }
 
 fn @storageStructToMemory() -> i1 [selector=0x9a40632d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -285,21 +285,21 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     v55 = shr v53, v54
     v56 = trunc i256 v55 to i192
     v57 = zext i192 v56 to i256
-    v58 = abi_encode [function], scratch, selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v57
-    v59 = extract_value slice<memory>, v58, 0
-    v60 = extract_value slice<memory>, v58, 1
-    v61 = zext i160 v43 to i256
-    v62 = staticcall v44, v61, v59, v60, 0, 32
-    jumpi v62, bb10, bb9
+    mstore 0, 0xbd2d517e !metadata(memory=scratch)
+    v58 = shl v57, 64
+    mstore 32, v58 !metadata(memory=scratch)
+    v59 = zext i160 v43 to i256
+    v60 = staticcall v44, v59, 28, 36, 0, 32
+    jumpi v60, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v63 = returndatasize
-    v64 = lt v63, 32
-    icall revert_if<tuple_data_too_short>, v64
-    v65 = add 0, 0
-    v66 = mload v65
-    ret v66
+    v61 = returndatasize
+    v62 = lt v61, 32
+    icall revert_if<tuple_data_too_short>, v62
+    v63 = add 0, 0
+    v64 = mload v63
+    ret v64
   bb7:
     v24 = shl v22, 5
     v25 = ptradd v0, v24

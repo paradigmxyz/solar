@@ -27,20 +27,18 @@ fn @constructorAndRuntime() -> i1 [selector=0x6b57fb7b, view, abi_params=[], abi
     v0 = loadimmutable initial
     v1 = address
     v2 = gas
-    v3 = abi_encode [], scratch, selector 0x54fd4d5000000000000000000000000000000000000000000000000000000000
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
-    v6 = zext i160 v1 to i256
-    v7 = staticcall v2, v6, v4, v5, 0, 0
-    jumpi v7, bb2, bb1
+    mstore 0, 0x54fd4d50 !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = staticcall v2, v3, 28, 4, 0, 0
+    jumpi v4, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = icall returndata_bytes<>
-    v9 = abi_decode [bytes], v8
-    v10 = ptradd v9, 32
-    v11 = mload v9
-    v12 = keccak256 v10, v11
-    v13 = eq v0, v12
-    ret v13
+    v5 = icall returndata_bytes<>
+    v6 = abi_decode [bytes], v5
+    v7 = ptradd v6, 32
+    v8 = mload v6
+    v9 = keccak256 v7, v8
+    v10 = eq v0, v9
+    ret v10
 }
