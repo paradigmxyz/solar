@@ -1,5 +1,6 @@
 //! Loop versioning on facts a run-time test establishes for a copy (`loop-version`): the words a
-//! loop's element stores cannot reach, or the fences a two-pointer partition's scans stop at.
+//! loop's element stores cannot reach, the fences a two-pointer partition's scans stop at, or the
+//! lengths a counted loop's bound stays within.
 //!
 //! MIR's memory model lets any two memory references overlap: a caller may pass one object
 //! twice, or assembly may retag a word as a reference into another object. So a loop that stores
@@ -149,6 +150,29 @@
 //!
 //! The test reads two words and compares twice once per entry into the loop, which a partition of
 //! a dozen elements already repays: every step of either scan saves a compare and a branch.
+//!
+//! # Bounds
+//!
+//! A counted loop whose trip test bounds its counter by a value from before the loop, `c < n`,
+//! may check its accesses against lengths, also read before the loop, that check elimination
+//! cannot relate to `n`: a heap's sift loop, bounded by its queue's size, checks every access
+//! against the lengths of the arrays that hold the queue. Each such check compares an index below
+//! `n` with a length on every iteration. The pass copies such a loop behind a test that `n` does
+//! not exceed any of those lengths:
+//!
+//! ```text
+//! test: short = or (lt len1, n), (lt len2, n), ...; jumpi short, slow, fast
+//! fast: jump header'        // the clone, unchanged
+//! slow: jump header         // the original loop
+//! ```
+//!
+//! The clone runs the loop's own instructions, and check elimination folds the checks the edge
+//! into it covers: an index below `n` stays below every length `n` does not exceed. The test
+//! compares only values the program computed before the loop, so it reads no memory and cannot
+//! fail. The copy pays when a check of the loop compares a length from before the loop with an
+//! index that stays below `n`: the counter, a right shift of it, the counter plus a constant
+//! behind a loop branch that tests that sum against `n`, or a phi of such indices. A length that a
+//! bounds check on every path to the loop already compares `n` with needs no copy.
 
 use super::loop_split::{LoopCopy, clone_loop, retarget};
 use crate::mir::{
@@ -226,6 +250,9 @@ enum Test {
     /// A two-pointer partition's scans stop at their fences before leaving the range their checks
     /// guard.
     Fence(Box<Fence>),
+    /// A counted loop's limit, the bound of its trip test, does not exceed the lengths its checks
+    /// compare with.
+    Bounds { limit: ValueId, lengths: Vec<ValueId> },
 }
 
 /// A scan: a single-block loop that steps a counter by one, reads the element of an array at
@@ -292,6 +319,7 @@ fn version_function(func: &mut Function) -> bool {
             candidates.into_iter().filter(|l| !done.contains(&l.header)).find_map(|l| {
                 plan(func, &cfg, &aa, l)
                     .or_else(|| plan_partition(func, &cfg, &aa, &loops, &accesses, l))
+                    .or_else(|| plan_bounds(func, &cfg, l))
                     .filter(|planned| {
                         !matches!(planned, Planned::Split(_)) || split.insert(l.header)
                     })
@@ -363,7 +391,6 @@ fn element_address(
 
 fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<Planned> {
     let preheader = l.preheader?;
-    let exits: Vec<BlockId> = l.exit_blocks.to_vec();
     let blocks: Vec<BlockId> = l.blocks.iter().collect();
     let mut loop_insts = FxHashSet::default();
     for &block in &blocks {
@@ -371,16 +398,6 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
     }
     if loop_insts.len() > MAX_LOOP_INSTRUCTIONS {
         return None;
-    }
-    // The loop's edges into exit blocks that code outside the loop also enters.
-    let mut shared = Vec::new();
-    for &exit in &exits {
-        let preds = predecessors(func, exit);
-        if preds.iter().any(|pred| !l.blocks.contains(*pred)) {
-            shared.extend(
-                preds.into_iter().filter(|&pred| l.blocks.contains(pred)).map(|pred| (pred, exit)),
-            );
-        }
     }
     let defined_in_loop = |value: ValueId| match func.value(value) {
         Value::Inst(inst) => loop_insts.contains(inst),
@@ -533,46 +550,15 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
         }
         (after, Some(latch))
     };
-    // Loop values read after the loop reach each reading block through the one exit block that
-    // lies before it; an exit block's phis take them on the loop's edges.
-    for (block, body) in func.blocks.iter_enumerated() {
-        if l.blocks.contains(block) {
-            continue;
-        }
-        let mut readers = Vec::new();
-        for &inst in &body.instructions {
-            if let InstKind::Phi(incoming) = &func.inst(inst).kind {
-                for &(from, value) in incoming {
-                    if defined_in_loop(value)
-                        && !(exits.contains(&block) && l.blocks.contains(from))
-                    {
-                        readers.push(from);
-                    }
-                }
-            } else if func.inst(inst).kind.operands().into_iter().any(defined_in_loop) {
-                readers.push(block);
-            }
-        }
-        if body.terminator.as_ref().is_some_and(|t| t.operands().into_iter().any(defined_in_loop)) {
-            readers.push(block);
-        }
-        if readers.into_iter().any(|reader| owning_exit(cfg, &exits, reader).is_none()) {
-            return None;
-        }
-    }
-    if !shared.is_empty() {
-        return Some(Planned::Split(shared));
-    }
-    let loop_blocks = blocks.iter().copied().collect();
-    Some(Planned::Version(Plan {
-        header: l.header,
+    version_plan(
+        func,
+        cfg,
+        l,
         preheader,
-        exits,
         blocks,
-        loop_blocks,
-        test: Test::Words { written, words, scratch_end },
+        Test::Words { written, words, scratch_end },
         latch,
-    }))
+    )
 }
 
 /// The blocks that read or write each element of each array, by array and index.
@@ -781,54 +767,8 @@ fn plan_partition(
     if up.bound.is_some_and(in_loop) {
         return None;
     }
-    // Loop values read after the loop reach each reading block through the one exit block that
-    // lies before it; an exit block's phis take them on the loop's edges.
-    let exits: Vec<BlockId> = l.exit_blocks.to_vec();
-    for (block, body) in func.blocks.iter_enumerated() {
-        if l.blocks.contains(block) {
-            continue;
-        }
-        let mut readers = Vec::new();
-        for &inst in &body.instructions {
-            if let InstKind::Phi(incoming) = &func.inst(inst).kind {
-                for &(from, value) in incoming {
-                    if in_loop(value) && !(exits.contains(&block) && l.blocks.contains(from)) {
-                        readers.push(from);
-                    }
-                }
-            } else if func.inst(inst).kind.operands().into_iter().any(in_loop) {
-                readers.push(block);
-            }
-        }
-        if body.terminator.as_ref().is_some_and(|t| t.operands().into_iter().any(in_loop)) {
-            readers.push(block);
-        }
-        if readers.into_iter().any(|reader| owning_exit(cfg, &exits, reader).is_none()) {
-            return None;
-        }
-    }
-    let mut shared = Vec::new();
-    for &exit in &exits {
-        let preds = predecessors(func, exit);
-        if preds.iter().any(|pred| !l.blocks.contains(*pred)) {
-            shared.extend(
-                preds.into_iter().filter(|&pred| l.blocks.contains(pred)).map(|pred| (pred, exit)),
-            );
-        }
-    }
-    if !shared.is_empty() {
-        return Some(Planned::Split(shared));
-    }
-    let loop_blocks = blocks.iter().copied().collect();
-    Some(Planned::Version(Plan {
-        header: l.header,
-        preheader,
-        exits,
-        blocks,
-        loop_blocks,
-        test: Test::Fence(Box::new(Fence { up, down, low, high, order })),
-        latch: None,
-    }))
+    let fence = Fence { up, down, low, high, order };
+    version_plan(func, cfg, l, preheader, blocks, Test::Fence(Box::new(fence)), None)
 }
 
 /// Recognizes a scan. See [`Scan`].
@@ -972,6 +912,137 @@ fn exit_condition(
     reads_element.then_some(order)
 }
 
+/// Recognizes a counted loop whose checks compare indices below its trip test's limit with
+/// lengths from before the loop. See the module docs' Bounds section.
+fn plan_bounds(func: &Function, cfg: &CfgInfo, l: &Loop) -> Option<Planned> {
+    let preheader = l.preheader?;
+    let blocks: Vec<BlockId> = l.blocks.iter().collect();
+    let loop_insts: FxHashSet<InstId> =
+        blocks.iter().flat_map(|&b| func.blocks[b].instructions.iter().copied()).collect();
+    if loop_insts.len() > MAX_LOOP_INSTRUCTIONS {
+        return None;
+    }
+    let in_loop = |value: ValueId| match func.value(value) {
+        Value::Inst(inst) => loop_insts.contains(inst),
+        _ => false,
+    };
+    // header: c = phi ...; ...; jumpi (lt c, n), body, exit
+    let Some(Terminator::Branch { condition, then_block, else_block }) =
+        func.blocks[l.header].terminator
+    else {
+        return None;
+    };
+    let &InstKind::Lt(counter, limit) = inst_kind(func, condition)? else { return None };
+    if !l.blocks.contains(then_block)
+        || l.blocks.contains(else_block)
+        || in_loop(limit)
+        || func.value_ty(limit) != Some(MirType::I256)
+    {
+        return None;
+    }
+    let Value::Inst(phi) = *func.value(counter) else { return None };
+    if !func.blocks[l.header].instructions.contains(&phi)
+        || !matches!(func.inst(phi).kind, InstKind::Phi(_))
+    {
+        return None;
+    }
+    let compared = compared_before(func, cfg, preheader, limit);
+    let mut lengths = Vec::new();
+    for &block in &blocks {
+        // The header checks before its trip test.
+        if block == l.header {
+            continue;
+        }
+        for &inst in &func.blocks[block].instructions {
+            let Some(check) = array_check(&func.inst(inst).kind) else { continue };
+            let Some(&InstKind::Lt(index, length)) = inst_kind(func, check) else { continue };
+            if length == limit
+                || func.value_ty(length) != Some(MirType::I256)
+                || in_loop(length)
+                || compared.contains(&length)
+                || lengths.contains(&length)
+                // Two constants compare without a copy.
+                || func.value_u256(length).is_some() && func.value_u256(limit).is_some()
+            {
+                continue;
+            }
+            if below_limit(func, &blocks, counter, limit, index, 0) {
+                lengths.push(length);
+            }
+        }
+    }
+    if lengths.is_empty() {
+        return None;
+    }
+    version_plan(func, cfg, l, preheader, blocks, Test::Bounds { limit, lengths }, None)
+}
+
+/// The lengths that a bounds check on every path to `preheader` compares `limit` with, `limit <
+/// length`, which check elimination relates to the loop's indices without a copy.
+fn compared_before(
+    func: &Function,
+    cfg: &CfgInfo,
+    preheader: BlockId,
+    limit: ValueId,
+) -> FxHashSet<ValueId> {
+    let mut compared = FxHashSet::default();
+    for block in cfg.dominators().self_and_dominators(preheader) {
+        for &inst in &func.blocks[block].instructions {
+            if let Some(check) = array_check(&func.inst(inst).kind)
+                && let Some(&InstKind::Lt(index, length)) = inst_kind(func, check)
+                && index == limit
+            {
+                compared.insert(length);
+            }
+        }
+    }
+    compared
+}
+
+/// Whether `index` stays below the trip test's limit where the loop checks it: the counter, a
+/// right shift of such an index, the counter plus a constant that a branch of the loop tests
+/// against the limit, or a phi of such indices. It only decides whether a copy pays; check
+/// elimination proves every fold.
+fn below_limit(
+    func: &Function,
+    blocks: &[BlockId],
+    counter: ValueId,
+    limit: ValueId,
+    index: ValueId,
+    depth: usize,
+) -> bool {
+    const MAX_DEPTH: usize = 4;
+    if index == counter {
+        return true;
+    }
+    if depth == MAX_DEPTH {
+        return false;
+    }
+    match inst_kind(func, index) {
+        Some(&InstKind::Shr(shift, value)) => {
+            func.value_u64(shift).is_some()
+                && below_limit(func, blocks, counter, limit, value, depth + 1)
+        }
+        Some(&InstKind::Add(a, b)) => {
+            let constant = |x: ValueId, k: ValueId| x == counter && func.value_u64(k).is_some();
+            let sum = |value: ValueId| {
+                value == index
+                    || matches!(inst_kind(func, value), Some(&InstKind::Add(x, y))
+                        if (x, y) == (a, b) || (x, y) == (b, a))
+            };
+            (constant(a, b) || constant(b, a)) && blocks.iter().any(|&block| {
+                matches!(func.blocks[block].terminator, Some(Terminator::Branch { condition, .. })
+                        if matches!(inst_kind(func, condition), Some(&InstKind::Lt(x, n))
+                            if n == limit && sum(x)))
+            })
+        }
+        Some(InstKind::Phi(incoming)) => incoming
+            .iter()
+            .all(|&(_, input)| below_limit(func, blocks, counter, limit, input, depth + 1)),
+        _ => false,
+    }
+}
+
 /// The exit block a block after the loop lies behind: the one exit that dominates it.
 fn owning_exit(cfg: &CfgInfo, exits: &[BlockId], block: BlockId) -> Option<BlockId> {
     let mut owners = exits.iter().filter(|&&exit| cfg.dominators().dominates(exit, block));
@@ -1039,6 +1110,73 @@ fn read_first(func: &Function, cfg: &CfgInfo, l: &Loop, blocks: &[BlockId], load
                 !kind.effects().control.any() && !matches!(kind, InstKind::MSize)
             })
         })
+}
+
+/// Completes the plan of a loop that otherwise qualifies: loop values read after the loop must
+/// reach each reading block through the one exit block that lies before it, where an exit block's
+/// phis take them on the loop's edges, and the loop's edges into exit blocks that code outside the
+/// loop also enters first get blocks of their own.
+fn version_plan(
+    func: &Function,
+    cfg: &CfgInfo,
+    l: &Loop,
+    preheader: BlockId,
+    blocks: Vec<BlockId>,
+    test: Test,
+    latch: Option<BlockId>,
+) -> Option<Planned> {
+    let exits: Vec<BlockId> = l.exit_blocks.to_vec();
+    let loop_insts: FxHashSet<InstId> =
+        blocks.iter().flat_map(|&b| func.blocks[b].instructions.iter().copied()).collect();
+    let in_loop = |value: ValueId| match func.value(value) {
+        Value::Inst(inst) => loop_insts.contains(inst),
+        _ => false,
+    };
+    for (block, body) in func.blocks.iter_enumerated() {
+        if l.blocks.contains(block) {
+            continue;
+        }
+        let mut readers = Vec::new();
+        for &inst in &body.instructions {
+            if let InstKind::Phi(incoming) = &func.inst(inst).kind {
+                for &(from, value) in incoming {
+                    if in_loop(value) && !(exits.contains(&block) && l.blocks.contains(from)) {
+                        readers.push(from);
+                    }
+                }
+            } else if func.inst(inst).kind.operands().into_iter().any(in_loop) {
+                readers.push(block);
+            }
+        }
+        if body.terminator.as_ref().is_some_and(|t| t.operands().into_iter().any(in_loop)) {
+            readers.push(block);
+        }
+        if readers.into_iter().any(|reader| owning_exit(cfg, &exits, reader).is_none()) {
+            return None;
+        }
+    }
+    let mut shared = Vec::new();
+    for &exit in &exits {
+        let preds = predecessors(func, exit);
+        if preds.iter().any(|pred| !l.blocks.contains(*pred)) {
+            shared.extend(
+                preds.into_iter().filter(|&pred| l.blocks.contains(pred)).map(|pred| (pred, exit)),
+            );
+        }
+    }
+    if !shared.is_empty() {
+        return Some(Planned::Split(shared));
+    }
+    let loop_blocks = blocks.iter().copied().collect();
+    Some(Planned::Version(Plan {
+        header: l.header,
+        preheader,
+        exits,
+        blocks,
+        loop_blocks,
+        test,
+        latch,
+    }))
 }
 
 /// Versions the loop and returns the blocks of its clone.
@@ -1114,6 +1252,10 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
             fence_test(&mut builder, fence, fast, slow);
             FxHashMap::default()
         }
+        Test::Bounds { limit, lengths } => {
+            bounds_test(&mut builder, *limit, lengths, fast, slow);
+            FxHashMap::default()
+        }
     };
     builder.switch_to_block(fast);
     builder.jump(copy.blocks[&plan.header]);
@@ -1187,6 +1329,8 @@ fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
             }
         }
         Test::Fence(fence) => drop_fenced_checks(func, fence, &copy),
+        // The clone runs the loop as it is; check elimination folds its checks.
+        Test::Bounds { .. } => {}
     }
 
     // exit: v = phi [block: x], ..., [block': x']
@@ -1501,4 +1645,26 @@ fn pointer_word(builder: &mut FunctionBuilder<'_>, value: ValueId) -> ValueId {
         Some(MirType::I256) | None => value,
         Some(_) => builder.cast(value, MirType::I256),
     }
+}
+
+/// Builds the test that a counted loop's limit does not exceed any of the lengths, branching to
+/// `fast` when it holds and to `slow` otherwise.
+fn bounds_test(
+    builder: &mut FunctionBuilder<'_>,
+    limit: ValueId,
+    lengths: &[ValueId],
+    fast: BlockId,
+    slow: BlockId,
+) {
+    // test: short = or (lt len1, n), (lt len2, n), ...; jumpi short, slow, fast
+    let mut short = None;
+    for &length in lengths {
+        let below = builder.lt(length, limit);
+        short = Some(match short {
+            Some(short) => builder.or(short, below),
+            None => below,
+        });
+    }
+    let short = short.expect("a planned bounds test compares a length");
+    builder.branch(short, slow, fast);
 }
