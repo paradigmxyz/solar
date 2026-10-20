@@ -1401,7 +1401,8 @@ impl<'a> CheckEliminator<'a> {
     }
 
     /// Drops the recorded replacements in the pure expressions behind a raw memory address or
-    /// size operand of `id`, when a value the scope proves equal to a constant feeds them.
+    /// size operand of `id`, or an argument of an internal call, when a value the scope proves
+    /// equal to a constant feeds them.
     fn keep_memory_operands_dynamic(&mut self, func: &Function, id: InstId) {
         let mut operands = SmallVec::<[ValueId; 4]>::new();
         func.inst(id).kind.visit_raw_memory(|_, address, size| {
@@ -1410,6 +1411,10 @@ impl<'a> CheckEliminator<'a> {
                 operands.push(size);
             }
         });
+        // A callee's memory operands are not visible here once it is inlined or specialized.
+        if let InstKind::ICall { function: Callee::Function(_), args } = &func.inst(id).kind {
+            operands.extend(args.iter().copied());
+        }
         for operand in operands {
             if let Some(expression) = self.equality_expression(func, operand) {
                 self.equality_uses.retain(|(user, _)| !expression.contains(user));

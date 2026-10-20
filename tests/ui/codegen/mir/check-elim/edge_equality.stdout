@@ -215,6 +215,19 @@
       returndata 0, 0
   }
   
+  fn @call_derived_argument(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = eq arg0, 63
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      v1 = add arg0, 1
+      icall @write, arg1, v1
+      icall @write, arg1, v1
+      returndata 0, 0
+  }
+  
   fn @write(arg0: i256, arg1: i256) {
     bb0:
       calldatacopy arg0, 0, arg1
