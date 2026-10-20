@@ -34,14 +34,14 @@ bb0:
   or
   jump bb11
 bb11:
-  push 128
+  push 0
   mstore
-  push 160
+  push 32
   mstore
-  push 192
+  push 64
   mstore
   push 96
-  push 128
+  push 0
   return
 bb10 [cold]:
   push 0

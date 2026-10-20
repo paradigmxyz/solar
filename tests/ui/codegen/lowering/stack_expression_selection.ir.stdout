@@ -73,17 +73,17 @@ bb11:
   jump bb34
 bb34:
   dup 1
-  push 128
+  push 0
   mstore
   push 1
   add
-  push 160
+  push 32
   mstore
   eq
-  push 192
+  push 64
   mstore
   push 96
-  push 128
+  push 0
   return
 bb14:
   push 68
