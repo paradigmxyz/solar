@@ -22,6 +22,8 @@
 //@ run-call: down 0x0102030405, 9, 9, 0 => 0x0102030405
 //@ run-call: sliceCalldata 0x0a0b0c0d0e, 1, 3 => 0x0b0c0d
 //@ run-call-fail: sliceCalldata 0x0a0b0c0d0e, 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: freshPair 3 => 0x010203
+//@ run-call: freshPair 0 => 0x
 //@ run-call: fresh 0x0102030405, 1, 3 => 0x00020304
 //@ run-call-fail: fresh 0x0102030405, 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: viaHelper 0x0102030405, 2, 3 => 0x030405
@@ -72,18 +74,22 @@
 // CHECK-NOT: mstore8
 // CHECK: calldatacopy
 
-// A fresh destination's checks compare with the length its allocation stored, and the copy
-// needs no overlap guard.
+// A fresh destination's checks compare with the length its allocation stored. Its source is an
+// argument, which may overlap a fresh allocation, so the copy keeps the guarded loop.
 // CHECK-LABEL: fn @fresh(
-// CHECK-NOT: mstore8
 // CHECK: mcopy
+// CHECK: mstore8
+
+// Between two fresh allocations, the copy needs no overlap guard: the only byte loop left is
+// the fill.
+// CHECK-LABEL: fn @freshPair(
+// CHECK: mcopy
+// CHECK: mstore8
 // CHECK-NOT: mstore8
 
-// A `@custom:solar-inline` helper meets the caller's fresh destination before this pass runs.
+// A `@custom:solar-inline` helper meets the caller's objects before this pass runs.
 // CHECK-LABEL: fn @viaHelper(
-// CHECK-NOT: mstore8
 // CHECK: mcopy
-// CHECK-NOT: mstore8
 
 // A constant byte fills the range with one masked word store.
 // CHECK-LABEL: fn @zeroSome(
@@ -101,9 +107,8 @@
 // CHECK-NOT: byte 0
 // CHECK: ret
 
-// A copy of word elements into a fresh array is one `mcopy` of 32 bytes per element.
+// A copy of word elements is an `mcopy` of 32 bytes per element.
 // CHECK-LABEL: fn @copyWords(
-// CHECK: mcopy
 // CHECK: mcopy
 
 // Within one array, the copy keeps the loop for a destination that leads into the source.
@@ -162,6 +167,17 @@ contract Test {
         out = new bytes(count + 1);
         for (uint256 k; k < count; ++k) {
             out[1 + k] = src[from + k];
+        }
+    }
+
+    function freshPair(uint256 count) external pure returns (bytes memory out) {
+        bytes memory tmp = new bytes(count);
+        for (uint256 k; k < count; ++k) {
+            tmp[k] = bytes1(uint8(k + 1));
+        }
+        out = new bytes(count);
+        for (uint256 k; k < count; ++k) {
+            out[k] = tmp[k];
         }
     }
 

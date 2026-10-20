@@ -35,9 +35,9 @@
 // CHECK-NOT: mstore8
 // CHECK: mstore
 
-// A copy into a fresh buffer is one `mcopy`.
+// A copy into a fresh buffer is an `mcopy`, behind a test that keeps the loop for a source
+// that the buffer overlaps, as a memory argument may.
 // CHECK-LABEL: fn @slice(
-// CHECK-NOT: mstore8
 // CHECK: mcopy
 
 contract Test {
