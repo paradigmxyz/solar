@@ -778,11 +778,14 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   internal call, a return, or a tail call into code that reads it, when the
   constant lies below `0x1000` or at or below the spill area, because a later
   pass folded the address or the value after `heap-floor` ran: the spill area
-  then lies `0x2000` above the constant. This costs memory expansion gas; other
-  external functions keep their memory low unless they share those frames, or
-  a recursive helper places every frame above all external functions. A copy
-  of constant length to a destination that an input chooses protects the
-  spills as one of variable length does.
+  then lies `0x2000` above the constant. A word that still depends on a
+  parameter after inlining keeps the limitation above. This costs memory
+  expansion gas; other external functions keep their memory low unless they
+  share those frames, or a recursive helper places every frame above all
+  external functions. A copy
+  of constant length to a destination that an input chooses, and a constant
+  address that a `select` or `phi` picks, protect the spills as one of variable
+  length does.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,
@@ -799,6 +802,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/lowering/run-call/folded_guard_spills.sol`,
+  `tests/ui/codegen/lowering/run-call/folded_operand_spills.sol`,
+  `tests/ui/codegen/lowering/run-call/folded_tail_call_spills.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`, whose runner keeps
   `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` at 38

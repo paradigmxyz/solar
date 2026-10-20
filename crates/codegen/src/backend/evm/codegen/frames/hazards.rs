@@ -3,12 +3,15 @@
 use super::{
     super::{
         AliasAnalysis, ArgIdx, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId,
-        FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase, MemoryRegion, MirType,
-        Module, Terminator, U256, Value, ValueId,
+        FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase, MemoryRegion, Module,
+        Terminator, U256, Value, ValueId,
     },
     LOW_MEMORY_BOUND, PtrLocation,
 };
-use crate::mir::Callee;
+use crate::mir::{
+    Callee,
+    analysis::{AddressInput, absolute_address_inputs},
+};
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the destination of a symbolic memory write that can cover a
@@ -16,6 +19,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// high-water mark instead.
     pub(in crate::backend::evm::codegen) fn dynamic_spill_write_dest(
         func: &Function,
+        inputs: &IndexVec<ValueId, AddressInput>,
         inst_id: InstId,
     ) -> Option<ValueId> {
         if matches!(
@@ -25,12 +29,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
         let dynamic_range = |dest, size| {
-            // A guard or inlining can fold a copy's length to a constant while the input still
-            // picks its destination, so protect it like a variable-length copy. Other
-            // constant-length copies keep the `mstore` contract: a pointer from an allocation or a
-            // call is on the heap.
+            // A guard or inlining can fold a copy's length to a constant while an input still
+            // picks its destination, so protect it like a variable-length copy. The other
+            // constant-length copies keep the `mstore` contract: constants and calldata-computed
+            // addresses are handled by the memory marks, and an allocation or a call returns a
+            // pointer on the heap.
             if let Some(size) = func.value_u64(size)
                 && (size == 0
+                    || inputs[dest] != AddressInput::Other
                     || !Self::is_chosen_by_input(
                         func,
                         dest,
@@ -98,44 +104,45 @@ impl<'gcx> EvmCodegen<'gcx> {
         starts_low && advances
     }
 
-    /// Whether `value` is an integer parameter, a calldata, returndata, or memory word, or
-    /// arithmetic on one: an address the input chooses rather than a pointer the compiler
-    /// allocated.
+    /// Whether an input may choose `value`: a parameter, or any word that is not a constant, an
+    /// allocation, an internal call's result, or the free memory pointer, or arithmetic that
+    /// mixes one in. The compiler's own pointers lie on the heap above the spill area.
     fn is_chosen_by_input(
         func: &Function,
         value: ValueId,
         visiting: &mut DenseBitSet<ValueId>,
     ) -> bool {
         match func.value(value) {
-            Value::Arg(_) => !func.value_ty(value).is_some_and(MirType::is_memory_reference),
+            Value::Arg(_) | Value::Undef(_) | Value::Error(_) => true,
+            Value::Immediate(_) => false,
             Value::Inst(inst_id) if visiting.insert(value) => match &func.inst(*inst_id).kind {
-                InstKind::ReturnDataSize | InstKind::Load(_, PtrLocation::Memory) => true,
+                InstKind::ICall { .. } | InstKind::Alloc { .. } | InstKind::Fmp => false,
+                InstKind::Load(ptr, PtrLocation::Memory)
+                    if func.value_u64(*ptr) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                {
+                    false
+                }
                 InstKind::Add(lhs, rhs)
                 | InstKind::Sub(lhs, rhs)
                 | InstKind::Mul(lhs, rhs)
                 | InstKind::And(lhs, rhs)
                 | InstKind::Or(lhs, rhs)
                 | InstKind::Xor(lhs, rhs)
-                | InstKind::Div(lhs, rhs)
-                | InstKind::SDiv(lhs, rhs)
-                | InstKind::Mod(lhs, rhs)
-                | InstKind::SMod(lhs, rhs)
-                | InstKind::Sar(lhs, rhs)
                 | InstKind::Shl(lhs, rhs)
                 | InstKind::Shr(lhs, rhs)
                 | InstKind::Select(_, lhs, rhs) => {
                     Self::is_chosen_by_input(func, *lhs, visiting)
                         || Self::is_chosen_by_input(func, *rhs, visiting)
                 }
-                InstKind::Zext(inner) | InstKind::Not(inner) | InstKind::IntToPtr(inner) => {
+                InstKind::Zext(inner) | InstKind::IntToPtr(inner) => {
                     Self::is_chosen_by_input(func, *inner, visiting)
                 }
                 InstKind::Phi(incoming) => incoming
                     .iter()
                     .any(|&(_, incoming)| Self::is_chosen_by_input(func, incoming, visiting)),
-                _ => false,
+                _ => true,
             },
-            _ => false,
+            Value::Inst(_) => false,
         }
     }
 
@@ -178,10 +185,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
     ) -> FxHashSet<InstId> {
         let mut hazards = FxHashSet::default();
+        let inputs = absolute_address_inputs(func);
         let candidates = func
             .instructions()
             .filter_map(|inst_id| {
-                Self::dynamic_spill_write_dest(func, inst_id).map(|dest| (inst_id, dest))
+                Self::dynamic_spill_write_dest(func, &inputs, inst_id).map(|dest| (inst_id, dest))
             })
             .collect::<Vec<_>>();
         if candidates.is_empty() {

@@ -363,6 +363,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Entries reach mostly the same functions, so each function's marks are computed once.
         let mut constant_memory_marks = index_vec![None; module.functions.len()];
         let mut low_memory_marks = index_vec![None; module.functions.len()];
+        let mut folded_pointers = index_vec![None; module.functions.len()];
         // An entry's spill area stays above every constant image the functions it reaches lay
         // out, but only a calldata-sized layout it runs before control passes to another entry
         // moves it above low memory. The dispatcher's tail calls into the external functions
@@ -388,12 +389,24 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .iter()
                     .map(|func_id| {
                         *low_memory_marks[func_id].get_or_insert_with(|| {
-                            Self::low_memory_high_water_mark(module, &module.functions[func_id])
+                            Self::low_memory_high_water_mark(&module.functions[func_id])
                         })
                     })
                     .max()
                     .unwrap_or(0);
-                (entry, images.max(own))
+                let mark = images.max(own);
+                // A heap that starts at a folded constant grows over a spill area at or above it,
+                // so the area moves `SPILL_HAZARD_BOUND` above the constant.
+                let pointer = reach
+                    .iter()
+                    .filter_map(|func_id| {
+                        *folded_pointers[func_id].get_or_insert_with(|| {
+                            Self::folded_free_memory_pointer(module, &module.functions[func_id])
+                        })
+                    })
+                    .max()
+                    .filter(|&pointer| pointer < LOW_HEAP_POINTER_BOUND || pointer <= mark);
+                (entry, pointer.map_or(mark, |pointer| mark.max(pointer + SPILL_HAZARD_BOUND)))
             })
             .collect::<FxHashMap<_, _>>();
         // Compiler memory that starts at or above the bound must also clear the fixed memory
@@ -1330,14 +1343,42 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> u64 {
         let mut mark = 0;
         Self::for_each_memory_range(func, |offset, size| {
-            if let Some(start) = func.value_u64(offset)
-                && start < LOW_MEMORY_BOUND
-                && let Some(end) = size.and_then(|size| start.checked_add(size))
-            {
-                mark = mark.max(end);
+            for start in Self::constant_leaves(func, offset) {
+                if start < LOW_MEMORY_BOUND
+                    && let Some(end) = size.and_then(|size| start.checked_add(size))
+                {
+                    mark = mark.max(end);
+                }
             }
         });
         mark
+    }
+
+    /// Returns the constants `value` is, or the constants of the `select` or `phi` that chooses
+    /// among them, and nothing when any other word can reach it.
+    fn constant_leaves(func: &Function, value: ValueId) -> Vec<u64> {
+        let mut leaves = Vec::new();
+        let mut pending = vec![value];
+        let mut visited = DenseBitSet::new_empty(func.num_values());
+        while let Some(value) = pending.pop() {
+            if let Some(leaf) = func.value_u64(value) {
+                leaves.push(leaf);
+            } else if let Value::Inst(inst_id) = func.value(value) {
+                if !visited.insert(value) {
+                    continue;
+                }
+                match &func.inst(*inst_id).kind {
+                    InstKind::Select(_, lhs, rhs) => pending.extend([*lhs, *rhs]),
+                    InstKind::Phi(incoming) => {
+                        pending.extend(incoming.iter().map(|&(_, incoming)| incoming));
+                    }
+                    _ => return Vec::new(),
+                }
+            } else {
+                return Vec::new();
+            }
+        }
+        leaves
     }
 
     /// Returns the highest end address of a constant memory range in `func` that starts at or
@@ -1355,13 +1396,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn high_constant_memory_end(func: &Function) -> u64 {
         let mut end = 0;
         Self::for_each_memory_range(func, |offset, size| {
-            if let Some(start) = func.value_u64(offset)
-                && start >= LOW_MEMORY_BOUND
-                && let Some(size) = size
-                && size != 0
-                && let Some(range_end) = start.checked_add(size)
-            {
-                end = end.max(range_end);
+            for start in Self::constant_leaves(func, offset) {
+                if start >= LOW_MEMORY_BOUND
+                    && let Some(size) = size
+                    && size != 0
+                    && let Some(range_end) = start.checked_add(size)
+                {
+                    end = end.max(range_end);
+                }
             }
         });
         end
@@ -1377,37 +1419,29 @@ impl<'gcx> EvmCodegen<'gcx> {
     ///
     /// NOTE: A layout that grows past the bound can still reach the spill area, and one indexed
     /// only by a loop counter is not recognized. See CODEGEN-010.
-    pub(in crate::backend::evm::codegen) fn low_memory_high_water_mark(
-        module: &Module,
-        func: &Function,
-    ) -> u64 {
+    pub(in crate::backend::evm::codegen) fn low_memory_high_water_mark(func: &Function) -> u64 {
         let mark = Self::constant_memory_high_water_mark(func);
-        let dynamic = mark < LOW_MEMORY_BOUND && Self::writes_absolute_dynamic_memory(func);
-        let mark = if dynamic { LOW_MEMORY_BOUND } else { mark };
-        match Self::folded_free_memory_pointer(module, func, mark) {
-            // The heap grows from the constant, so the spill area clears what it reaches.
-            Some(pointer) => mark.max(pointer + SPILL_HAZARD_BOUND),
-            None => mark,
+        if mark < LOW_MEMORY_BOUND && Self::writes_absolute_dynamic_memory(func) {
+            LOW_MEMORY_BOUND
+        } else {
+            mark
         }
     }
 
-    /// Returns the highest constant stored into the free-memory-pointer slot that can reach a read
-    /// of the slot, an internal call, or a return from `func`, and starts the heap below
-    /// `LOW_HEAP_POINTER_BOUND` or at or below the spill area's start `spill_start`.
+    /// Returns the highest address the heap may start at after a store into the
+    /// free-memory-pointer slot of `func` that reaches a read of the slot, an internal call, or a
+    /// return, when calldata or constants alone compute the stored word (zero for calldata).
     ///
     /// The heap-floor pass clamps the stores that inline assembly writes there, but it runs before
-    /// the passes that fold a guarded address or value, so a store that only becomes constant
-    /// later keeps its value. Like a calldata-addressed write, it hands the heap to that value,
-    /// and the spill area has to lie above the low memory the heap then reaches. A word that
-    /// another store replaces first, as `solady`'s sentinel does, or that only a `return` or
-    /// `revert` opcode reads, never becomes the pointer. A tail call counts unless its callee
-    /// never reads the slot, returns, or tail calls, as an outlined revert.
-    fn folded_free_memory_pointer(
-        module: &Module,
-        func: &Function,
-        spill_start: u64,
-    ) -> Option<u64> {
-        // The highest constant each block's entry may hold, from this function's stores.
+    /// the passes that fold a guarded address or value, or inline a helper that stores its
+    /// argument, so such a store keeps its value. Like a calldata-addressed write, it hands the
+    /// heap to that value, and the spill area has to lie above the low memory the heap then
+    /// reaches. A word that another store replaces first, as `solady`'s sentinel does, or that
+    /// only a `return` or `revert` opcode reads, never becomes the pointer. A tail call counts
+    /// unless its callee never reads the slot, returns, or tail calls, as an outlined revert.
+    fn folded_free_memory_pointer(module: &Module, func: &Function) -> Option<u64> {
+        let inputs = absolute_address_inputs(func);
+        // The highest pointer each block's entry may hold, from this function's stores.
         let mut at_entry = index_vec![None::<u64>; func.blocks.len()];
         let mut pending = vec![BlockId::ENTRY];
         let mut visited = DenseBitSet::new_empty(func.blocks.len());
@@ -1419,9 +1453,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             for &inst_id in &block.instructions {
                 match func.inst(inst_id).kind {
                     InstKind::Store(_, value, _) if func.is_fmp_slot_store(inst_id) => {
-                        held = func.value_u64(value).filter(|&pointer| {
-                            pointer < LOW_HEAP_POINTER_BOUND || pointer <= spill_start
-                        });
+                        held = if inputs[value] == AddressInput::Other {
+                            None
+                        } else {
+                            Self::constant_leaves(func, value).into_iter().max().or(Some(0))
+                        };
                     }
                     _ if held.is_some() && Self::reads_free_memory_pointer(func, inst_id) => {
                         found = found.max(held);
