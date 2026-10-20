@@ -92,6 +92,12 @@ impl Module {
         Target::new(gcx).priced_for(self.code_follows)
     }
 
+    /// The cost model of one block of this module: the creation model for a block of creation
+    /// code outside loops, which run once.
+    pub(crate) fn block_target(&self, gcx: Gcx<'_>, block: &Block) -> Target {
+        Target::new(gcx).priced_for(self.code_follows && !block.metadata.in_loop)
+    }
+
     /// Links embedded contract bytecode into deferred data, interning the bytecode's libraries
     /// into `libraries`.
     ///

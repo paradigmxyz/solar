@@ -754,7 +754,9 @@ impl ModuleAnalyses {
     ) -> FunctionAnalyses {
         let (creation_only, straight_line_creation) = if self.prices_creation {
             let (creation, straight) = self.creation_functions.get_or_insert_with(|| {
-                (module.creation_only_functions(), module.straight_line_creation_functions())
+                let creation = module.creation_only_functions();
+                let straight = module.straight_line_creation_functions(&creation);
+                (creation, straight)
             });
             (creation.contains(func_id), straight.contains(func_id))
         } else {

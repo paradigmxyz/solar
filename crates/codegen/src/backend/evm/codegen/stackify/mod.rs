@@ -383,7 +383,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// The cost model of the code being planned: creation code inside the constructor.
+    /// The cost model of the code being planned: creation code inside the constructor. The
+    /// planner weighs each block by its loop depth, but not the choices inside a block. Pricing
+    /// loop-free functions only gave up most of the deployment gas this saves on the measured
+    /// corpus, which showed no loss from the loops.
     fn target(&self) -> Target {
         Target::new(self.gcx).priced_for(self.in_constructor)
     }

@@ -371,13 +371,16 @@ impl Module {
         creation
     }
 
-    /// Returns the creation-only functions whose instructions run a bounded number of times per
-    /// deployment: those without loops or recursion that only loop-free creation-only functions
-    /// call. A loop, or a call from one, repeats an instruction by more than the creation model's
-    /// one execution.
+    /// Returns the functions of `creation`, from [`Self::creation_only_functions`], whose
+    /// instructions run a bounded number of times per deployment: those without loops or
+    /// recursion that only loop-free creation-only functions call. A loop, or a call from one,
+    /// repeats an instruction by more than the creation model's one execution.
     #[must_use]
-    pub(crate) fn straight_line_creation_functions(&self) -> DenseBitSet<FunctionId> {
-        let mut straight = self.creation_only_functions();
+    pub(crate) fn straight_line_creation_functions(
+        &self,
+        creation: &DenseBitSet<FunctionId>,
+    ) -> DenseBitSet<FunctionId> {
+        let mut straight = creation.clone();
         let mut repeated = DenseBitSet::new_empty(self.functions.len());
         let mut worklist = Vec::new();
         for id in straight.iter() {

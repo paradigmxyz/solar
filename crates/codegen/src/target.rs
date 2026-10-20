@@ -394,10 +394,10 @@ impl Target {
 
     /// This model for code that runs only at deployment when `creation` is set, itself
     /// otherwise. Creation code runs once per deployment, and the transaction that carries it
-    /// pays calldata gas for every byte, so the gas objective ranks it by deployment gas. A
-    /// factory's `CREATE` embeds the code in its runtime, where the deposit costs more than
-    /// calldata, so this price is a lower bound. The EIP-3860 charge of two gas per 32 bytes of
-    /// initcode is not priced. Other objectives keep the runtime model: size already ranks bytes
+    /// pays calldata gas for every byte, so the gas objective ranks it by deployment gas. Initcode
+    /// that a factory embeds is priced the same way, though its bytes then cost the deposit and
+    /// it runs on every `CREATE`. The EIP-3860 charge of two gas per 32 bytes of initcode is not
+    /// priced. Other objectives keep the runtime model: size already ranks bytes
     /// first, and measurements showed no clear gain from pricing creation code differently there.
     pub(crate) const fn priced_for(self, creation: bool) -> Self {
         if !creation || !self.optimization.is_gas() {
