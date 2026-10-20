@@ -30,3 +30,11 @@ LL │                 q := msize()
    │
    ╰ note: the result is at least the free memory pointer and above every byte written before it
 
+warning: `msize` is not exact when optimizing
+   ╭▸ ROOT/tests/ui/codegen/run-call/msize_default_bindings.sol:LL:CC
+   │
+LL │             seen := msize()
+   │                     ━━━━━
+   │
+   ╰ note: the result is at least the free memory pointer and above every byte written before it
+

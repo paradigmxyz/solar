@@ -832,9 +832,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulMload => load!(PtrLocation::Memory),
             Builtin::YulMsize => {
                 self.lower_builtin_args::<0>(builtin, &args)?;
-                // Default-initialized memory variables must exist before `msize` hands out memory
-                // above them.
-                self.materialize_default_bindings();
                 // size = msize
                 // fmp = ptrtoint ptr<memory> fmp to i256
                 // below = lt size, fmp
