@@ -1,0 +1,62 @@
+// === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_fixed_bytes_immutable_store.sol:DirtyFixedBytesImmutableStore ===
+@module DirtyFixedBytesImmutableStore
+@immutables
+  id: bytes4
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @internal_dispatcher_asm_p_bytes32_r_bytes4, 1, 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    storeimmutable id, v1
+    ret
+}
+
+fn @direct() -> i1 [selector=0x222b1407, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable id
+    v1 = eq v0, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @viaCall() -> i1 [selector=0x0c1c699a, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable id
+    v1 = icall @compare, v0
+    ret v1
+}
+
+fn @compare(arg0: i256) -> i1 [pure] {
+  bb0:
+    v0 = eq arg0, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @viaReturn() -> i1 [selector=0xefd065cd, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @get
+    v1 = eq v0, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @get() -> i256 [view] {
+  bb0:
+    v0 = loadimmutable id
+    ret v0
+}
+
+fn @identity(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @internal_dispatcher_asm_p_bytes32_r_bytes4(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @identity, arg1
+    ret v1
+}
