@@ -20,6 +20,20 @@
       ret v4
   }
   
+  fn @unrelated_keccak(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = add 2, 3
+      mstore 32, v0
+      v1 = shl arg0, 248
+-     mstore 128, v1
++     mstore8 128, arg0
+      mstore 129, arg1
+      v2 = keccak256 128, 33
+      sstore 1, v2
+      v3 = keccak256 32, 32
+      ret v3
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (before sccp) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (after sccp) ===
   @module NarrowEqualStore
@@ -42,6 +56,20 @@
       ret v4
   }
   
+  fn @unrelated_keccak(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = add 2, 3
+-     mstore 32, v0
++     mstore 32, 5
+      v1 = shl arg0, 248
+      mstore8 128, arg0
+      mstore 129, arg1
+      v2 = keccak256 128, 33
+      sstore 1, v2
+      v3 = keccak256 32, 32
+      ret v3
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (after memory-dse) ===
   @module NarrowEqualStore
@@ -60,5 +88,18 @@
 -     mstore 32, 5
       v4 = keccak256 0, 64
       ret v4
+  }
+  
+  fn @unrelated_keccak(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      mstore 32, 5
+      v1 = shl arg0, 248
+      mstore8 128, arg0
+      mstore 129, arg1
+      v2 = keccak256 128, 33
+      sstore 1, v2
+-     v3 = keccak256 32, 32
+-     ret v3
++     ret 0x36b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0
   }
   

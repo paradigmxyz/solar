@@ -1280,6 +1280,13 @@ impl MemoryStoreEliminator {
                         scratch.stored_words.insert(key, value);
                     }
                 }
+                InstKind::Store8(addr, _) => {
+                    if let Some(key) = self.mem_addr_key(func, *addr, 1) {
+                        scratch.stored_words.invalidate(key, 1);
+                    } else {
+                        scratch.stored_words.clear();
+                    }
+                }
                 InstKind::Keccak256(offset, size) => {
                     let Some(bytes) =
                         Self::constant_memory_bytes(func, &scratch.stored_words, *offset, *size)

@@ -20,3 +20,17 @@ fn @unrelated_word(arg0: i256, arg1: i256) -> i256 {
     v5 = keccak256 0, 64
     ret v5
 }
+
+// The byte store also leaves the constant word at 32 known, so its hash still folds.
+fn @unrelated_keccak(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v3 = add 2, 3
+    mstore 32, v3
+    v1 = shl arg0, 248
+    mstore 128, v1
+    mstore 129, arg1
+    v2 = keccak256 128, 33
+    sstore 1, v2
+    v4 = keccak256 32, 32
+    ret v4
+}
