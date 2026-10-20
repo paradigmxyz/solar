@@ -1,0 +1,8 @@
+warning: `msize` is not exact when optimizing
+   ╭▸ ROOT/tests/ui/codegen/run-call/byte_copy_loops.sol:LL:CC
+   │
+LL │         assembly { size := msize() }
+   │                            ━━━━━
+   │
+   ╰ note: the result is at least the free memory pointer and above every byte written before it
+

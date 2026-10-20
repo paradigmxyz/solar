@@ -850,3 +850,30 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol`,
   `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/constant_values_too_large.sol`.
+
+### CODEGEN-014: `msize()` is at least the free memory pointer
+
+- ID: CODEGEN-014
+- Status: intentional
+- Difference: `msize()` returns at least the free memory pointer and above
+  every byte the program has written or allocated so far, but `solar` does not
+  promise `solc`'s exact value. At the start of an external function `solc`
+  returns `0x60`; `solar` returns `0x80` or more, because the compiler keeps
+  its own memory below the free memory pointer. Code that takes fresh memory at
+  `msize()` behaves the same in both compilers, but code that prints or
+  compares the value can see a different number, and the value can differ
+  between optimization levels. With the optimizer on, `solc` rejects
+  `msize()` in inline assembly (error 6553). `solar` accepts it and warns,
+  without an error code, at every `msize()`.
+- Rationale: the memory above `0x80` holds spill slots, static frames and
+  return buffers that the compiler may not have written yet, so the `MSIZE`
+  instruction can return less than the memory the compiler owns. Returning the
+  larger of `MSIZE` and the free memory pointer keeps memory at the result
+  unused and zero, which is what the common `msize()` idioms rely on. The
+  result reads the word at `0x40`, so assembly that keeps non-pointer data
+  there across an `msize()` sees that data as the result, as `heap-floor`
+  already assumes that such code restores the slot.
+- Coverage: `tests/ui/codegen/run-call/msize_fresh_memory.sol`,
+  `tests/ui/codegen/run-call/msize_default_bindings.sol`,
+  `tests/ui/codegen/run-call/msize_idioms.sol` and
+  `tests/ui/codegen/lowering/entry_free_memory.sol`.

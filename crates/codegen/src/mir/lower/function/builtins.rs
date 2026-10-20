@@ -50,6 +50,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .map(|()| CallResult::Void);
             }
             Builtin::AbiDecode => return self.lower_abi_decode(args),
+            Builtin::YulMsize
+                if self.cx.gcx.sess.opts.optimization.is_gas()
+                    || self.cx.gcx.sess.opts.optimization.is_size() =>
+            {
+                self.cx
+                    .gcx
+                    .dcx()
+                    .warn("`msize` is not exact when optimizing")
+                    .span(callee.span)
+                    .note(
+                        "the result is at least the free memory pointer and above every byte written before it",
+                    )
+                    .emit();
+            }
             _ => {}
         }
 
@@ -816,7 +830,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
             Builtin::YulClz => lower!(clz(value)),
             Builtin::YulMload => load!(PtrLocation::Memory),
-            Builtin::YulMsize => lower!(msize()),
+            Builtin::YulMsize => {
+                self.lower_builtin_args::<0>(builtin, &args)?;
+                // Default-initialized memory variables must exist before `msize` hands out memory
+                // above them.
+                self.materialize_default_bindings();
+                // size = msize
+                // fmp = ptrtoint ptr<memory> fmp to i256
+                // below = lt size, fmp
+                // result = select below, fmp, size
+                let size = self.builder.msize();
+                let fmp = self.builder.fmp();
+                let fmp = self.builder.cast(fmp, MirType::I256);
+                let below = self.builder.lt(size, fmp);
+                Some(self.builder.select(below, fmp, size))
+            }
             Builtin::YulSload => lower!(sload(slot)),
             Builtin::YulTload => lower!(tload(slot)),
             Builtin::YulCalldataload => load!(PtrLocation::Calldata),

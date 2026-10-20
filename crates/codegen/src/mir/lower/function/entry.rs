@@ -307,6 +307,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    /// Allocates default-initialized memory variables before a call that can run `msize`, so
+    /// the memory it hands out lies above them.
+    pub(super) fn materialize_defaults_before_call(&mut self) {
+        if self.cx.state.uses_msize {
+            self.materialize_default_bindings();
+        }
+    }
+
     pub(super) fn record_return_state(&mut self) {
         let state = self.snapshot_loop_state(self.builder.current_block());
         if let Some(target) = self.return_targets.last_mut() {
