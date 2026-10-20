@@ -75,15 +75,14 @@
   bb13:
     push 23
 -   jump bb15
-+   push 3
-+   add
-+   jump bb6
-  bb14:
-    stop
-  bb15 [loop]:
+- bb14:
+-   stop
+- bb15 [loop]:
     push 3
     add
     jump bb6
++ bb14:
++   stop
   bb16:
     push 29
     jump bb18

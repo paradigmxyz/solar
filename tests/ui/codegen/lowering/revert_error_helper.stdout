@@ -90,7 +90,7 @@ bb0:
   sub
   push bb7
   jumpi
-  push 160
+  push 128
   push 64
   mstore
   push 4
@@ -100,10 +100,10 @@ bb0:
   lt
   push bb10
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb7 [cold]:
   push 0
@@ -130,7 +130,7 @@ bb23 [cold]:
   push 28
   revert
 bb11:
-  push 160
+  push 128
   push 64
   mstore
   push 4
@@ -140,10 +140,10 @@ bb11:
   lt
   push bb13
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb13 [cold]:
   push 0x6c69746572616c206d7367
@@ -154,7 +154,7 @@ bb24 [cold]:
   push 11
   jump bb23
 bb14:
-  push 160
+  push 128
   push 64
   mstore
   push 4
@@ -164,10 +164,10 @@ bb14:
   lt
   push bb16
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb16 [cold]:
   push 0x6c6f63616c2d636f6e73742d6d7367
@@ -176,7 +176,7 @@ bb16 [cold]:
   push 15
   jump bb23
 bb17:
-  push 160
+  push 128
   push 64
   mstore
   push 4
@@ -211,13 +211,13 @@ bb17:
   jumpi
   pop
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb20:
-  push 160
+  push 128
   push 64
   mstore
   push 4
@@ -227,10 +227,10 @@ bb20:
   lt
   push bb22
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb22 [cold]:
   push 0x7265766572742d70617468

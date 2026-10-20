@@ -16,14 +16,20 @@
 // PRE: + [[FULL:v[0-9]+]] = and arg2, {{v[0-9]+}}
 // PRE: + [[BACKWARD:v[0-9]+]] = lt arg1, arg0
 // PRE: + [[FORWARD_OFFSET:v[0-9]+]] = phi
-// PRE: + [[FORWARD_MERGED:v[0-9]+]] = or {{v[0-9]+}}, {{v[0-9]+}}
+// PRE: + [[FORWARD_CHANGED:v[0-9]+]] = xor {{v[0-9]+}}, {{v[0-9]+}}
+// PRE-NEXT: + [[FORWARD_SHIFTED:v[0-9]+]] = shr [[FORWARD_CHANGED]], {{v[0-9]+}}
+// PRE-NEXT: + [[FORWARD_TOP:v[0-9]+]] = shl [[FORWARD_SHIFTED]], {{v[0-9]+}}
+// PRE-NEXT: + [[FORWARD_MERGED:v[0-9]+]] = xor {{v[0-9]+}}, [[FORWARD_TOP]]
 // PRE: + mstore {{v[0-9]+}}, [[FORWARD_MERGED]]
 // PRE: + [[FORWARD_SOURCE:v[0-9]+]] = add arg1, [[FORWARD_OFFSET]]
 // PRE: + [[FORWARD_WORD:v[0-9]+]] = mload [[FORWARD_SOURCE]]
 // PRE: + mstore {{v[0-9]+}}, [[FORWARD_WORD]]
 // PRE: + [[FORWARD_NEXT:v[0-9]+]] = add [[FORWARD_OFFSET]], 32
 // PRE: + {{v[0-9]+}} = lt [[FULL]], arg2
-// PRE: + [[REVERSE_MERGED:v[0-9]+]] = or {{v[0-9]+}}, {{v[0-9]+}}
+// PRE: + [[REVERSE_CHANGED:v[0-9]+]] = xor {{v[0-9]+}}, {{v[0-9]+}}
+// PRE-NEXT: + [[REVERSE_SHIFTED:v[0-9]+]] = shr [[REVERSE_CHANGED]], {{v[0-9]+}}
+// PRE-NEXT: + [[REVERSE_TOP:v[0-9]+]] = shl [[REVERSE_SHIFTED]], {{v[0-9]+}}
+// PRE-NEXT: + [[REVERSE_MERGED:v[0-9]+]] = xor {{v[0-9]+}}, [[REVERSE_TOP]]
 // PRE: + mstore {{v[0-9]+}}, [[REVERSE_MERGED]]
 // PRE: + [[REVERSE_OFFSET:v[0-9]+]] = phi
 // PRE: + [[REVERSE_NEXT:v[0-9]+]] = sub [[REVERSE_OFFSET]], 32
@@ -41,7 +47,7 @@ fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 // whole words and skip the partial-word merge.
 // PRE-LABEL: {{^[ +].*}}fn @copy_words{{[( ]}}
 // PRE: - mcopy arg0, arg1, v0
-// PRE-NOT: {{^\+.*}} = or
+// PRE-NOT: {{^\+.*}} = xor
 // PRE: {{^[ +].*}}ret arg0
 fn @copy_words(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:

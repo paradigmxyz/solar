@@ -25,8 +25,8 @@ fn @entry() [entry] {
     v193 = or v49, v47
     jumpi v193, bb10, bb24
   bb24:
-    mstore 128, v46
-    returndata 128, 32
+    mstore 0, v46
+    returndata 0, 32
   bb4:
     v28 = calldatasize
     v29 = lt v28, 100
@@ -51,8 +51,8 @@ fn @entry() [entry] {
     v33 = lt v32, v6
     jumpi v33, bb20, bb19
   bb19:
-    mstore 128, v31
-    returndata 128, 32
+    mstore 0, v31
+    returndata 0, 32
   bb20:
     v54 = gt v30, v53
     v34 = mul v30, v5
@@ -132,8 +132,8 @@ fn @entry() [entry] {
     v24 = lt v23, v5
     jumpi v24, bb15, bb14
   bb14:
-    mstore 128, v22
-    returndata 128, 32
+    mstore 0, v22
+    returndata 0, 32
   bb15:
     v25 = add v22, v23
     v26 = lt v25, v22
@@ -174,8 +174,8 @@ fn @entry() [entry] {
     v12 = lt v11, v6
     jumpi v12, bb9, bb8
   bb8:
-    mstore 128, v10
-    returndata 128, 32
+    mstore 0, v10
+    returndata 0, 32
   bb9:
     v189 = gt v9, 0x119799812dea11197f27f0f6e885c8ba7eb31f476caf7411a863387
     v13 = mul v9, 0xe8d4a51000

@@ -9,16 +9,16 @@
 //! Only immediate pushes, physical stack operations, and position-independent computations qualify.
 //! Immutable patches and protected predecessor boundaries are excluded. Cold tails stay shared.
 //! Straight-line loop joins qualify, but no branches are copied: header tests and loop rotation
-//! remain with loop layout. Block order and existing label identities stay intact; assembly omits
-//! labels whose last reference disappears. Debug origins remain on the copied operations and never
-//! affect eligibility.
+//! remain with loop layout. Block order and existing label identities stay intact. A tail left
+//! without references is removed, and assembly omits labels whose last reference disappears. Debug
+//! origins remain on the copied operations and never affect eligibility.
 //! Opcodes awaiting fork legalization stay shared because their expansion is not priced here.
 //! Copies start beyond the one-byte address range, using an instruction-only lower bound on the
 //! prefix size, so they cannot widen the labels and indexed tables packed by block layout.
 
 use super::{
     EvmPass,
-    utils::{instruction_size_lower_bound, is_split_point},
+    utils::{count_block_references, instruction_size_lower_bound, is_split_point, retain_blocks},
 };
 use crate::{
     backend::evm::{
@@ -28,6 +28,7 @@ use crate::{
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
 pub(super) struct TailDuplicate;
@@ -47,7 +48,9 @@ impl EvmPass for TailDuplicate {
         let transfer = target.push(U256::ZERO) + target.opcode(op::JUMP);
         let saved_gas = transfer.gas + target.opcode_gas(op::JUMPDEST);
         let copied_transfer = target.label_push() + target.opcode(op::JUMP);
-        let mut changed = false;
+        let mut references = IndexVec::new();
+        count_block_references(module, &mut references);
+        let mut duplicated = Vec::new();
         let mut prefix_bytes = 0;
         for caller in module.blocks.indices() {
             let block = &module.blocks[caller];
@@ -109,12 +112,35 @@ impl EvmPass for TailDuplicate {
             }
             let instructions = tail.instructions.clone();
             let terminator = term.clone();
+            references[callee] -= 1;
+            terminator.kind.visit_targets(|block| references[block] += 1);
+            duplicated.push(callee);
             // NOTE: Removed transfer and label-entry checkpoints are dropped, as in inline-returns.
             // jump tail -> tail.instructions; jump successor
             module.blocks[caller].instructions.extend(instructions);
             module.blocks[caller].terminator = Some(terminator);
-            changed = true;
         }
+        let changed = !duplicated.is_empty();
+        remove_dead_tails(module, &references, &duplicated);
         changed
     }
+}
+
+/// Removes duplicated tails left without references.
+fn remove_dead_tails(
+    module: &mut Module,
+    references: &IndexVec<BlockId, usize>,
+    duplicated: &[BlockId],
+) {
+    let mut dead = DenseBitSet::new_empty(module.blocks.len());
+    for &tail in duplicated {
+        if references[tail] == 0 {
+            dead.insert(tail);
+        }
+    }
+    if dead.is_empty() {
+        return;
+    }
+    let order = module.blocks.indices().filter(|&block| !dead.contains(block)).collect::<Vec<_>>();
+    retain_blocks(module, &order);
 }

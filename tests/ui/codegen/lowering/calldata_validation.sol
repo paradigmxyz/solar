@@ -77,7 +77,7 @@ contract CalldataValidation {
     // CHECK-NOT: = and arg0
     // CHECK: [[WIDE:v[0-9]+]] = zext i8 arg0 to i16
     // CHECK: [[WORD:v[0-9]+]] = zext i16 [[WIDE]] to i256
-    // CHECK: mstore 128, [[WORD]]
+    // CHECK: mstore 0, [[WORD]]
     function vWidened(uint8 x) external pure returns (uint16) {
         return x;
     }

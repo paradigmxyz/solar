@@ -66,7 +66,7 @@ contract CalldataStructFieldSlice {
     // CDSFS-LABEL: fn @midWord{{[.][0-9]+}}
     // CDSFS: = lt {{v[0-9]+}}, 32
     // CDSFS: [[WORD:v[0-9]+]] = calldataload
-    // CDSFS-NEXT: mstore 128, [[WORD]]
+    // CDSFS-NEXT: mstore 0, [[WORD]]
     function midWord(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.midWord(op);
     }

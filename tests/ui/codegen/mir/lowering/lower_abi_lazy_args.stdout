@@ -17,10 +17,9 @@
 +   bb1:
 +     v4 = ne arg0, false
 +     v5 = zext i1 v4 to i256
-+     mstore 128, v5
-+     v6 = add 128, 32
-+     v7 = sub v6, 128
-+     returndata 128, v7
++     mstore 0, v5 !metadata(memory=scratch)
++     v6 = sub 32, 0
++     returndata 0, v6
 +   bb2:
 +     revert 0, 0
   }
