@@ -1088,17 +1088,44 @@ impl<'gcx> ResolveContext<'gcx> {
             }
             ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
         };
-        self.check_solar_tags(stmt);
+        self.lower_solar_tags(stmt, &kind);
         hir::Stmt { span: stmt.span, kind }
     }
 
-    /// Reports the `@custom:solar-*` tags documenting `stmt`, since none documents a statement.
-    fn check_solar_tags(&self, stmt: &ast::Stmt<'_>) {
+    /// Records the `@custom:solar-*` tags documenting `stmt`, whose lowering is `kind`, and
+    /// reports the ones that cannot document it: every tag but `solar-scratch` on a block.
+    fn lower_solar_tags(&mut self, stmt: &ast::Stmt<'_>, kind: &hir::StmtKind<'gcx>) {
         for natspec in stmt.docs.iter().flat_map(|doc| doc.natspec.iter()) {
             if let ast::NatSpecKind::Custom { name } = natspec.kind
                 && let Some(tag) = SolarTag::from_custom(name.name)
             {
-                let _ = report_misplaced_solar_tag(self.dcx(), tag, name.name, natspec.span);
+                match (tag, &stmt.kind, kind) {
+                    (
+                        SolarTag::Scratch,
+                        ast::StmtKind::Block(_) | ast::StmtKind::UncheckedBlock(_),
+                        hir::StmtKind::Block(block) | hir::StmtKind::UncheckedBlock(block),
+                    ) => {
+                        // Assembly can keep a pointer into the block's memory where no analysis
+                        // follows it.
+                        if let Some(assembly) = find_assembly(block.stmts) {
+                            self.dcx()
+                                .err(
+                                    "a `@custom:solar-scratch` block cannot contain inline \
+                                     assembly",
+                                )
+                                .span(assembly)
+                                .span_note(natspec.span, "the tag is here")
+                                .emit();
+                        } else if self.hir.solar_scratch(block.span).is_none() {
+                            let tag = hir::SolarStmtTag::Scratch(block.span);
+                            self.hir.solar_tags.push((tag, natspec.span));
+                        }
+                    }
+                    _ => {
+                        let _ =
+                            report_misplaced_solar_tag(self.dcx(), tag, name.name, natspec.span);
+                    }
+                }
             }
         }
     }
@@ -2727,6 +2754,23 @@ fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: D
             .span(decl.span)
             .emit();
     }
+}
+
+/// Returns the span of the first inline assembly block among `stmts` and the statements nested
+/// in them.
+fn find_assembly(stmts: &[hir::Stmt<'_>]) -> Option<Span> {
+    stmts.iter().find_map(|stmt| match &stmt.kind {
+        hir::StmtKind::AssemblyBlock(_) => Some(stmt.span),
+        hir::StmtKind::Block(block)
+        | hir::StmtKind::UncheckedBlock(block)
+        | hir::StmtKind::Loop(block, _) => find_assembly(block.stmts),
+        hir::StmtKind::If(_, then, else_) => find_assembly(std::slice::from_ref(*then))
+            .or_else(|| else_.and_then(|else_| find_assembly(std::slice::from_ref(else_)))),
+        hir::StmtKind::Try(stmt) => {
+            stmt.clauses.iter().find_map(|clause| find_assembly(clause.block.stmts))
+        }
+        _ => None,
+    })
 }
 
 #[cfg(test)]

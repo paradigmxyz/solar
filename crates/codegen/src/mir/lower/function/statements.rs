@@ -180,11 +180,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 self.lower_discarded_expr(expr)?;
             }
-            StmtKind::Block(block) => self.lower_block(*block)?,
+            StmtKind::Block(block) => match self.cx.gcx.hir.solar_scratch(block.span) {
+                Some(tag) => self.lower_scratch_block(*block, tag)?,
+                None => self.lower_block(*block)?,
+            },
             StmtKind::UncheckedBlock(block) => {
                 let previous = self.unchecked;
                 self.unchecked = true;
-                let result = self.lower_block(*block);
+                let result = match self.cx.gcx.hir.solar_scratch(block.span) {
+                    Some(tag) => self.lower_scratch_block(*block, tag),
+                    None => self.lower_block(*block),
+                };
                 self.unchecked = previous;
                 result?;
             }
@@ -256,6 +262,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
             StmtKind::AssemblyBlock(block, memory_safe) => {
+                // Lowering to HIR rejects assembly in a scratch block itself; this is the body a
+                // modifier's `_` runs inside one.
+                if let Some(&tag) = self.open_scratch.last() {
+                    self.cx
+                        .gcx
+                        .dcx()
+                        .err("a `@custom:solar-scratch` block cannot contain inline assembly")
+                        .span(stmt.span)
+                        .span_note(tag, "the tag is here")
+                        .note("a modifier's `_` runs the function's body inside the block")
+                        .emit();
+                }
+                self.cx.state.lowered_assembly = true;
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let previous_writes = std::mem::take(&mut self.assembly_writes_memory);
                 let result = self.lower_block(*block);
