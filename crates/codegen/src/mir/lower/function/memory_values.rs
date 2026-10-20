@@ -162,6 +162,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(value)
     }
 
+    /// Lowers a byte string literal that only an encoding reads. Its allocation does not
+    /// preserve the free memory pointer, so the encoder writes the literal's words itself and
+    /// drops the allocation: as with solc, the literal takes no memory.
+    pub(super) fn lower_encoded_bytes_literal(&mut self, bytes: &[u8]) -> Option<ValueId> {
+        let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
+        // object = alloc (words + 1) * 32
+        // mstore object, len
+        // object[32..] = literal
+        let size = self.builder.imm(words.checked_add(1)?.checked_mul(32)?);
+        let object = self.builder.alloc(size, AllocationSemantics::INTERNAL);
+        let length = self.builder.imm(u64::try_from(bytes.len()).ok()?);
+        self.builder.set_memory_len(object, length);
+        let data = DataDest { base: object, offset: EvmMemoryLayout::DYNAMIC_HEADER_SIZE };
+        let padded_size = usize::try_from(words.checked_mul(32)?).ok()?;
+        copy_data_to_memory(
+            self.cx.gcx,
+            self.cx.module,
+            &mut self.builder,
+            data,
+            bytes,
+            padded_size,
+            None,
+        );
+        Some(object)
+    }
+
     fn ensure_bytes_word_helper(&mut self) -> FunctionId {
         // object = bytes(word, length) !preserves_fmp
         // object[0] = word
