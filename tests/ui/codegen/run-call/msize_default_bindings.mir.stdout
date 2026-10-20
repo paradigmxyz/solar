@@ -173,10 +173,34 @@ fn @pointerCall() -> ptr<memory> [selector=0xd74ff6c6, pure, abi_params=[], abi_
     mstore v0, 0
     v1 = ptradd v0, 32
     mstore v1, 0
-    v2 = icall @internal_dispatcher_p_none_r_uint256, 4
+    v2 = icall @internal_dispatcher_p_none_r_uint256, 5
     mstore v0, 7
     mstore v2, 99
     ret v0
+}
+
+fn @operatorCall() -> ptr<memory> [selector=0x2fe7231f, pure, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint256, uint256>]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = icall @addWords, 0, 0
+    mstore v0, 7
+    mstore v2, 99
+    ret v0
+}
+
+fn @addWords(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = msize
+    v2 = fmp
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = lt v1, v3
+    v5 = select v4, v3, v1
+    v6 = add v5, v0
+    ret v6
 }
 
 fn @buf() -> i256 {
@@ -191,7 +215,7 @@ fn @buf() -> i256 {
 
 fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 4
+    v0 = eq arg0, 5
     jumpi v0, bb1, bb2
   bb2:
     icall panic_if<0x51>, true

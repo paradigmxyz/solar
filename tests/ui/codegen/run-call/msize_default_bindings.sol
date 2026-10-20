@@ -5,6 +5,7 @@
 //@ run-call: internalCall => (7, 0)
 //@ run-call: yulCall => (7, 0)
 //@ run-call: pointerCall => (7, 0)
+//@ run-call: operatorCall => (7, 0)
 
 // Reduced from the `_init` function of zondax/solidity-BigNumber. The assembly
 // takes `msize()` as its buffer and then stores that buffer into the memory
@@ -72,6 +73,16 @@ struct Pair {
     uint256 b;
 }
 
+type Word is uint256;
+
+function addWords(Word x, Word y) pure returns (Word r) {
+    assembly {
+        r := add(msize(), add(x, y)) //~[gas,size] WARN: `msize` is not exact when optimizing
+    }
+}
+
+using {addWords as +} for Word global;
+
 // A callee that takes memory at `msize()` must not hand out the address of the
 // caller's return struct, which is allocated at the declaration.
 contract CalleeMsize {
@@ -106,6 +117,14 @@ contract CalleeMsize {
     function pointerCall() external pure returns (Pair memory r) {
         function() internal pure returns (uint256) f = buffer;
         uint256 p = f();
+        r.a = 7;
+        assembly {
+            mstore(p, 99)
+        }
+    }
+
+    function operatorCall() external pure returns (Pair memory r) {
+        Word p = Word.wrap(0) + Word.wrap(0);
         r.a = 7;
         assembly {
             mstore(p, 99)

@@ -97,6 +97,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .zip(function.parameters)
             .map(|(&value, &parameter)| self.materialize_scalar_carrier(parameter, value, span))
             .collect::<Option<Vec<_>>>()?;
+        self.materialize_defaults_before_call();
         let result = self.builder.icall(mir_id, values, result_ty);
         self.dirty_values.insert(result);
         Some(result)
