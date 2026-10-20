@@ -909,6 +909,19 @@ impl Target {
     pub(crate) fn frame_words(&self, words: u32) -> Cost {
         Cost::new(GasTier::MEMORY_WORD_GAS.saturating_mul(words), 0)
     }
+
+    /// Whether code shared from a site inside a loop pays for itself when the bytes it saves at
+    /// that site, `saved_bytes`, cost `transfer_gas` more on every iteration: the deposit of the
+    /// bytes against the transfers over the expected executions,
+    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times per execution. This holds in size builds too,
+    /// which otherwise take the bytes, so a hot loop keeps code that only its size made worth
+    /// sharing.
+    pub(crate) fn shares_in_loop(&self, saved_bytes: u64, transfer_gas: u64) -> bool {
+        self.deposit_repays_gas(
+            saved_bytes,
+            transfer_gas.saturating_mul(Self::UNCOUNTED_LOOP_ITERATIONS),
+        )
+    }
 }
 
 /// The objective code is optimized for: the build's, unless its source selects one with
@@ -1373,6 +1386,19 @@ mod tests {
             let target = Target::with(EvmVersion::Cancun, optimization, 200);
             assert_eq!(target.frame_words(0), Cost::ZERO);
             assert_eq!(target.frame_words(10), Cost::new(30, 0));
+        }
+    }
+
+    #[test]
+    fn loop_sites_share_by_lifetime_gas() {
+        // A pooled `PUSH32` saves 25 bytes at a site and adds 27 gas of transfers to every
+        // iteration: 5,000 gas of deposit against 54,000 over 200 runs of ten iterations, or 270
+        // over one run.
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = |runs| Target::with(EvmVersion::Cancun, optimization, runs);
+            assert!(!target(200).shares_in_loop(25, 27));
+            assert!(target(1).shares_in_loop(25, 27));
+            assert!(!target(1).shares_in_loop(0, 27));
         }
     }
 }

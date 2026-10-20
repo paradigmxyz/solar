@@ -19,7 +19,10 @@
 //! new blocks and labels are installed through the normal EVM IR CFG representation.
 //!
 //! Gas mode keeps computations and immediate pushes in known loop blocks inline,
-//! since each outlined site adds call and return jumps on every iteration.
+//! since each outlined site adds call and return jumps on every iteration. Size mode shares a
+//! push inside a loop only when the bytes it saves there repay those jumps over the expected
+//! executions, at the target's estimate of a loop's iterations per execution, so a constant that
+//! enough other code repeats does not slow down every iteration of an unrelated loop.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
@@ -701,23 +704,29 @@ fn split_parametric_outline_site(
 
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     let target = module.target(gcx);
+    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        if target.optimization().is_gas() && block.metadata.in_loop {
+        let in_loop = block.metadata.in_loop;
+        if target.optimization().is_gas() && in_loop {
             continue;
         }
         for (index, inst) in block.instructions.iter().enumerate() {
             if let Some(value) = inst.concrete_immediate()
                 && is_split_point(&block.instructions, index)
                 && is_split_point(&block.instructions, index + 1)
+                // A loop site pays the call and return on every iteration.
+                && (!in_loop
+                    || target.shares_in_loop(
+                        selected_len(target, value).saturating_sub(site_bytes) as u64,
+                        u64::from(transfer_gas),
+                    ))
             {
                 sites.entry(value).or_default().push((block_id, index));
             }
         }
     }
 
-    let target = module.target(gcx);
-    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()
