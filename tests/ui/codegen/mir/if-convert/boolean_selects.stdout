@@ -1,0 +1,49 @@
+- // === ROOT/tests/ui/codegen/mir/if-convert/boolean_selects.mir (before if-convert) ===
++ // === ROOT/tests/ui/codegen/mir/if-convert/boolean_selects.mir (after if-convert) ===
+  @module BooleanSelects
+  fn @short_circuit_or(arg0: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, 1
+-     jumpi v0, bb2, bb1
+-   bb1:
+      v1 = eq arg0, 2
+-     jump bb2
+-   bb2:
+-     v2 = phi [bb0: true], [bb1: v1]
+-     ret v2
++     v3 = or v0, v1
++     v4 = zext i1 v3 to i256
++     ret v3
+  }
+  
+  fn @true_on_else(arg0: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, 10
+-     jumpi v0, bb1, bb2
+-   bb1:
+      v1 = gt arg0, 3
+-     jump bb2
+-   bb2:
+-     v2 = phi [bb0: true], [bb1: v1]
+-     ret v2
++     v3 = eq v0, false
++     v4 = or v3, v1
++     v5 = zext i1 v4 to i256
++     ret v4
+  }
+  
+  fn @short_circuit_and(arg0: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, 10
+-     jumpi v0, bb1, bb2
+-   bb1:
+      v1 = gt arg0, 3
+-     jump bb2
+-   bb2:
+-     v2 = phi [bb0: false], [bb1: v1]
+-     ret v2
++     v3 = and v0, v1
++     v4 = zext i1 v3 to i256
++     ret v3
+  }
+  

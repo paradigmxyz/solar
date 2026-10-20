@@ -608,7 +608,9 @@ impl Target {
     /// Prices sharing one helper with `body_bytes` of body, `params` parameters, and `returns`
     /// results among `sites` call sites against expanding the body at every site, as
     /// `(shared, expanded)`. The body runs in both shapes, so sharing adds the call protocol's
-    /// gas at every site and its bytes once per site plus one copy of the body and return.
+    /// gas at every site. Its bytes are what a call emits: each site pushes its return label,
+    /// jumps to the helper, lands on return, and moves each argument and result once; the helper
+    /// adds one landing, one copy of the body, and a return jump after moving its results.
     pub(crate) fn helper_sharing(
         &self,
         body_bytes: u32,
@@ -618,9 +620,13 @@ impl Target {
     ) -> (Cost, Cost) {
         let frame_words = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE
             + (params + returns) as u64;
-        let call = self.icall(params, returns, frame_words);
-        let ret = self.internal_return(params, returns);
-        let shared = Cost::new(call.gas + ret.gas, call.bytes)
+        let gas = self.icall(params, returns, frame_words).gas
+            + self.internal_return(params, returns).gas;
+        let moves = self.dup().times((params + returns) as u32);
+        let call = self.label_push() + self.jump() + moves;
+        let ret =
+            self.opcode(op::JUMPDEST) + self.dup().times(returns as u32) + self.opcode(op::JUMP);
+        let shared = Cost::new(gas, call.bytes)
             .times(sites)
             .plus(Cost::new(0, body_bytes.saturating_add(ret.bytes)));
         (shared, Cost::new(0, body_bytes).times(sites))
@@ -1056,11 +1062,19 @@ mod tests {
     fn helper_sharing_prices_the_call_protocol_per_site() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
         let (shared, expanded) = target.helper_sharing(100, 2, 1, 3);
-        // Three sites each pay a call with a 5-word frame and a return; one body and return.
-        assert_eq!(shared, Cost::new(3 * ((90 + 3 * 24 + 5 * 6) + (24 + 3 * 8)), 3 * 33 + 120));
+        // Three sites each pay a call with a 5-word frame and a return. Each emits two label
+        // pushes, a jump, a landing, and three moves; the helper adds a landing, one body, a
+        // result move, and the return jump.
+        assert_eq!(shared, Cost::new(3 * ((90 + 3 * 24 + 5 * 6) + (24 + 3 * 8)), 3 * 11 + 103));
         assert_eq!(expanded, Cost::new(0, 300));
         assert!(target.cmp(shared, expanded).is_lt());
-        let (shared, expanded) = target.helper_sharing(40, 2, 1, 2);
+        let (shared, expanded) = target.helper_sharing(10, 2, 1, 2);
+        assert!(target.cmp(shared, expanded).is_gt());
+        // A second result costs a move at each site and in the helper: 51 bytes against 52
+        // expanded with one result, 54 with two.
+        let (shared, expanded) = target.helper_sharing(26, 2, 1, 2);
+        assert!(target.cmp(shared, expanded).is_lt());
+        let (shared, expanded) = target.helper_sharing(26, 2, 2, 2);
         assert!(target.cmp(shared, expanded).is_gt());
     }
 

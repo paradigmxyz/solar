@@ -37,6 +37,60 @@
 +     revert 28, 36
   }
   
+  fn @small(arg0: i256) -> ptr<memory> {
+    bb0:
+-     v0 = load_storage_array uint8, arg0
+-     ret v0
++     v1 = sload arg0 !metadata(storage=symbolic(arg0))
++     v2 = gt v1, 0x7fffffffffffffe
++     jumpi v2, bb1, bb2
++   bb2:
++     v3 = add v1, 1
++     v4 = mul v3, 32
++     v5 = alloc checked v4
++     mstore v5, v1
++     v6 = storage_array_data_slot arg0
++     v7 = add v1, 31
++     v8 = div v7, 32
++     jump bb3
++   bb3:
++     v9 = phi [bb2: 0], [bb8: v27]
++     v10 = lt v9, v8
++     jumpi v10, bb4, bb5
++   bb5:
++     ret v5
++   bb4:
++     v11 = add v6, v9
++     v12 = sload v11 !metadata(storage=symbolic(v11))
++     v13 = mul v9, 32
++     v14 = sub v1, v13
++     v15 = lt v14, 32
++     v16 = select v15, v14, 32
++     jump bb6
++   bb6:
++     v17 = phi [bb4: 0], [bb7: v26]
++     v18 = lt v17, v16
++     jumpi v18, bb7, bb8
++   bb8:
++     v27 = add v9, 1
++     jump bb3
++   bb7:
++     v19 = mul v17, 8
++     v20 = shr v12, v19
++     v21 = and v20, 255
++     v22 = add v13, v17
++     v23 = shl v22, 5
++     v24 = ptradd v5, v23
++     v25 = ptradd v24, 32
++     mstore v25, v21
++     v26 = add v17, 1
++     jump bb6
++   bb1:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
   fn @signed(arg0: i256) -> ptr<memory> {
     bb0:
 -     v0 = load_storage_array int24, arg0
@@ -50,28 +104,42 @@
 +     v5 = alloc checked v4
 +     mstore v5, v1
 +     v6 = storage_array_data_slot arg0
++     v7 = add v1, 9
++     v8 = div v7, 10
 +     jump bb3
 +   bb3:
-+     v7 = phi [bb2: 0], [bb4: v20]
-+     v8 = lt v7, v1
-+     jumpi v8, bb4, bb5
++     v9 = phi [bb2: 0], [bb8: v28]
++     v10 = lt v9, v8
++     jumpi v10, bb4, bb5
 +   bb5:
 +     ret v5
 +   bb4:
-+     v9 = div v7, 10
-+     v10 = add v6, v9
-+     v11 = sload v10 !metadata(storage=symbolic(v10))
-+     v12 = mod v7, 10
-+     v13 = mul v12, 24
-+     v14 = shr v11, v13
-+     v15 = and v14, 0xffffff
-+     v16 = signextend 2, v15
-+     v17 = shl v7, 5
-+     v18 = ptradd v5, v17
-+     v19 = ptradd v18, 32
-+     mstore v19, v16
-+     v20 = add v7, 1
++     v11 = add v6, v9
++     v12 = sload v11 !metadata(storage=symbolic(v11))
++     v13 = mul v9, 10
++     v14 = sub v1, v13
++     v15 = lt v14, 10
++     v16 = select v15, v14, 10
++     jump bb6
++   bb6:
++     v17 = phi [bb4: 0], [bb7: v27]
++     v18 = lt v17, v16
++     jumpi v18, bb7, bb8
++   bb8:
++     v28 = add v9, 1
 +     jump bb3
++   bb7:
++     v19 = mul v17, 24
++     v20 = shr v12, v19
++     v21 = and v20, 0xffffff
++     v22 = signextend 2, v21
++     v23 = add v13, v17
++     v24 = shl v23, 5
++     v25 = ptradd v5, v24
++     v26 = ptradd v25, 32
++     mstore v26, v22
++     v27 = add v17, 1
++     jump bb6
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -91,28 +159,42 @@
 +     v5 = alloc checked v4
 +     mstore v5, v1
 +     v6 = storage_array_data_slot arg0
++     v7 = add v1, 2
++     v8 = div v7, 3
 +     jump bb3
 +   bb3:
-+     v7 = phi [bb2: 0], [bb4: v20]
-+     v8 = lt v7, v1
-+     jumpi v8, bb4, bb5
++     v9 = phi [bb2: 0], [bb8: v28]
++     v10 = lt v9, v8
++     jumpi v10, bb4, bb5
 +   bb5:
 +     ret v5
 +   bb4:
-+     v9 = div v7, 3
-+     v10 = add v6, v9
-+     v11 = sload v10 !metadata(storage=symbolic(v10))
-+     v12 = mod v7, 3
-+     v13 = mul v12, 72
-+     v14 = shr v11, v13
-+     v15 = and v14, 0xffffffffffffffffff
-+     v16 = shl v15, 184
-+     v17 = shl v7, 5
-+     v18 = ptradd v5, v17
-+     v19 = ptradd v18, 32
-+     mstore v19, v16
-+     v20 = add v7, 1
++     v11 = add v6, v9
++     v12 = sload v11 !metadata(storage=symbolic(v11))
++     v13 = mul v9, 3
++     v14 = sub v1, v13
++     v15 = lt v14, 3
++     v16 = select v15, v14, 3
++     jump bb6
++   bb6:
++     v17 = phi [bb4: 0], [bb7: v27]
++     v18 = lt v17, v16
++     jumpi v18, bb7, bb8
++   bb8:
++     v28 = add v9, 1
 +     jump bb3
++   bb7:
++     v19 = mul v17, 72
++     v20 = shr v12, v19
++     v21 = and v20, 0xffffffffffffffffff
++     v22 = shl v21, 184
++     v23 = add v13, v17
++     v24 = shl v23, 5
++     v25 = ptradd v5, v24
++     v26 = ptradd v25, 32
++     mstore v26, v22
++     v27 = add v17, 1
++     jump bb6
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -132,32 +214,46 @@
 +     v5 = alloc checked v4
 +     mstore v5, v1
 +     v6 = storage_array_data_slot arg0
++     v7 = add v1, 31
++     v8 = div v7, 32
 +     jump bb3
 +   bb3:
-+     v7 = phi [bb2: 0], [bb7: v21]
-+     v8 = lt v7, v1
-+     jumpi v8, bb4, bb5
++     v9 = phi [bb2: 0], [bb8: v29]
++     v10 = lt v9, v8
++     jumpi v10, bb4, bb5
 +   bb5:
 +     ret v5
 +   bb4:
-+     v9 = div v7, 32
-+     v10 = add v6, v9
-+     v11 = sload v10 !metadata(storage=symbolic(v10))
-+     v12 = mod v7, 32
-+     v13 = mul v12, 8
-+     v14 = shr v11, v13
-+     v15 = and v14, 255
-+     v16 = lt v15, 3
-+     v17 = eq v16, false
-+     jumpi v17, bb6, bb7
-+   bb7:
-+     v18 = shl v7, 5
-+     v19 = ptradd v5, v18
-+     v20 = ptradd v19, 32
-+     mstore v20, v15
-+     v21 = add v7, 1
-+     jump bb3
++     v11 = add v6, v9
++     v12 = sload v11 !metadata(storage=symbolic(v11))
++     v13 = mul v9, 32
++     v14 = sub v1, v13
++     v15 = lt v14, 32
++     v16 = select v15, v14, 32
++     jump bb6
 +   bb6:
++     v17 = phi [bb4: 0], [bb10: v28]
++     v18 = lt v17, v16
++     jumpi v18, bb7, bb8
++   bb8:
++     v29 = add v9, 1
++     jump bb3
++   bb7:
++     v19 = mul v17, 8
++     v20 = shr v12, v19
++     v21 = and v20, 255
++     v22 = lt v21, 3
++     v23 = eq v22, false
++     jumpi v23, bb9, bb10
++   bb10:
++     v24 = add v13, v17
++     v25 = shl v24, 5
++     v26 = ptradd v5, v25
++     v27 = ptradd v26, 32
++     mstore v27, v21
++     v28 = add v17, 1
++     jump bb6
++   bb9:
 +     mstore 32, 33 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

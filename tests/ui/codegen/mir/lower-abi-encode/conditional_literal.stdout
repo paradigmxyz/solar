@@ -35,12 +35,10 @@
 +     v18 = ptrtoint ptr<memory> v5 to i256
 +     v19 = sub v17, v18
 +     v20 = add v19, 0
-+     v21 = add v20, 31
-+     v22 = not 31
-+     v23 = and v21, v22
-+     v24 = alloc v23 !metadata(preserves_fmp)
-+     v25 = make_memory_slice v24, v20
-+     ret v25
++     v21 = add v19, 0
++     v22 = alloc v21 !metadata(preserves_fmp)
++     v23 = make_memory_slice v22, v20
++     ret v23
   }
   
   fn @overlapping(arg0: i256) -> slice<memory> {
@@ -77,12 +75,10 @@
 +     v20 = ptrtoint ptr<memory> v7 to i256
 +     v21 = sub v19, v20
 +     v22 = add v21, 0
-+     v23 = add v22, 31
-+     v24 = not 31
-+     v25 = and v23, v24
-+     v26 = alloc v25 !metadata(preserves_fmp)
-+     v27 = make_memory_slice v26, v22
-+     ret v27
++     v23 = add v21, 0
++     v24 = alloc v23 !metadata(preserves_fmp)
++     v25 = make_memory_slice v24, v22
++     ret v25
   }
   
   fn @preserved() -> slice<memory> {
