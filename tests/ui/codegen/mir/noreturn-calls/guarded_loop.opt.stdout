@@ -1,0 +1,92 @@
+// === ROOT/tests/ui/codegen/mir/noreturn-calls/guarded_loop.sol:GuardedLoop ===
+@module GuardedLoop
+@phase lowered
+fn @sumFrom() [selector=0xd9941e3f, abi_wrapper, pure] {
+  bb0:
+    v23 = calldatasize
+    v24 = lt v23, 68
+    v25 = calldataload 4
+    v26 = add v25, 4
+    v27 = add v26, 32
+    v28 = gt v25, 0xffffffffffffffff
+    v29 = gt v27, v23
+    v30 = or v28, v29
+    v61 = or v24, v30
+    jumpi v61, bb7, bb8
+  bb8:
+    v32 = calldataload v26
+    v34 = add v32, 63
+    v35 = lt v34, v32
+    jumpi v35, bb9, bb10
+  bb10:
+    v37 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v55 = mload 64 !metadata(memory=scratch)
+    v56 = add v55, v37
+    v57 = lt v56, v55
+    v58 = gt v56, 0xffffffffffffffff
+    v59 = or v57, v58
+    jumpi v59, bb9, bb12
+  bb12:
+    mstore 64, v56 !metadata(memory=scratch)
+    mstore v55, v32
+    v39 = sub v23, v27
+    v40 = gt v32, v39
+    jumpi v40, bb7, bb11
+  bb11:
+    v52 = add v55, 32
+    calldatacopy v52, v27, v32
+    v1 = lt arg1, v32
+    jumpi v1, bb2, bb1
+  bb1:
+    tail_call @_fail
+  bb2:
+    jump bb3
+  bb3:
+    v4 = phi [bb2: arg1], [bb6: v18]
+    v5 = phi [bb2: 0], [bb6: v21]
+    v49 = add v55, v4
+    v50 = add v49, 32
+    v11 = mload v50
+    v12 = byte 0, v11
+    v21 = add v5, v12
+    v22 = lt v21, v5
+    jumpi v22, bb5, bb6
+  bb6:
+    v18 = add v4, 1
+    v20 = lt v18, v32
+    jumpi v20, bb3, bb4
+  bb4:
+    mstore 128, v21
+    returndata 128, 32
+  bb5:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb9:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb7:
+    revert 0, 0
+}
+
+fn @_fail() [pure] {
+  bb0:
+    mstore 0, 0xe143a034 !metadata(memory=scratch)
+    revert 28, 4
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xd9941e3f => bb2]
+  bb2:
+    tail_call @sumFrom
+  bb3:
+    revert 0, 0
+}

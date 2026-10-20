@@ -1,0 +1,90 @@
+//@compile-flags: -Zmir-pipeline=noreturn-calls
+//@filecheck: --enable-var-scope
+
+@module NoreturnCalls
+
+fn @fail() {
+  bb0:
+    revert 0, 0
+}
+
+fn @fail_word() -> i256 {
+  bb0:
+    revert 0, 0
+}
+
+// A call to a function whose every path reverts ends its block, so the failing
+// branch no longer joins the code after the guard.
+// CHECK-LABEL: @guarded
+// CHECK:          icall @fail
+// CHECK-NEXT: -   jump bb2
+// CHECK-NEXT: +   invalid
+fn @guarded(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    jumpi v0, bb2, bb1
+  bb1:
+    icall @fail
+    jump bb2
+  bb2:
+    ret arg0
+}
+
+// A call with a result ends its block as well, without the uses after it.
+// CHECK-LABEL: @after_result
+// CHECK:          v0 = icall @fail_word
+// CHECK-NEXT: -   v1 = add v0, arg0
+// CHECK-NEXT: -   ret v1
+// CHECK-NEXT: +   invalid
+fn @after_result(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @fail_word
+    v1 = add v0, arg0
+    ret v1
+}
+
+// A function whose every path now ends at such a call cannot return either, so
+// the calls to it end their blocks too.
+// CHECK-LABEL: @wrap
+// CHECK:          icall @fail
+// CHECK-NEXT: -   jump bb1
+// CHECK-NEXT: -   bb1:
+// CHECK-NEXT: -     ret
+// CHECK-NEXT: +   invalid
+// CHECK-LABEL: @calls_wrap
+// CHECK:          icall @wrap, arg0
+// CHECK-NEXT: -   ret arg0
+// CHECK-NEXT: +   invalid
+fn @wrap(arg0: i256) {
+  bb0:
+    icall @fail
+    jump bb1
+  bb1:
+    ret
+}
+
+fn @calls_wrap(arg0: i256) -> i256 {
+  bb0:
+    icall @wrap, arg0
+    ret arg0
+}
+
+// A function that returns on some path keeps its callers' continuations.
+// CHECK-LABEL: @calls_maybe
+// CHECK:        icall @maybe_fail, arg0
+// CHECK-NEXT:   ret arg0
+fn @maybe_fail(arg0: i256) {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret
+}
+
+fn @calls_maybe(arg0: i256) -> i256 {
+  bb0:
+    icall @maybe_fail, arg0
+    ret arg0
+}
