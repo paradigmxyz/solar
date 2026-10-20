@@ -10,10 +10,13 @@
 //! header, another allocation, or reserved memory.
 //!
 //! An access keeps its allocation's identity while it stays inside the object: within the
-//! allocation's constant size or within the first word of a checked allocation, a Solidity
-//! object that always reserves one. Any other access to a unique allocation may leave the
-//! object, so it keeps no disjointness from other objects, but it shares the allocation's pointer
-//! and compares with its other accesses by offset.
+//! allocation's constant size, within the first word of a checked allocation, a Solidity object
+//! that always reserves one, or at a runtime index, which `ptradd` keeps inside. Any other access
+//! to a unique allocation may leave the object, so it keeps no disjointness from other objects,
+//! but it shares the allocation's pointer and compares with its other accesses by offset. An
+//! access at the end of an object's payload, `p + 32 + len` in plain additions for a length
+//! stored into `p` before, as a zero word stored to pad a fresh result is, starts past the
+//! object's length word and may leave the object.
 
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
@@ -869,6 +872,82 @@ impl AliasAnalysis {
             address.region = region;
         }
         address
+    }
+
+    /// Returns the memory an access at `address` may touch. Unlike [`Self::memory_location`],
+    /// which names the accessed word, this covers everything at or after `base + k` for an address
+    /// `ptradd (ptradd base, index), k` with a runtime index: `ptradd` does not wrap, so the
+    /// access stays inside the base's object.
+    fn access_extent(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        address: ValueId,
+        size: LocationSize,
+    ) -> Option<MemoryLocation> {
+        let Some(base) = self.runtime_offset_base(func, address) else {
+            return self.memory_location(func, inst_id, address, size);
+        };
+        let base = base?;
+        Some(MemoryLocation::new(Self::refine_region(func, inst_id, base), LocationSize::Unknown))
+    }
+
+    /// Returns the memory an access at `address` may touch, without instruction metadata, as
+    /// [`Self::access_extent`] does.
+    #[must_use]
+    pub(crate) fn bare_access_extent(
+        &self,
+        func: &Function,
+        address: ValueId,
+        size: LocationSize,
+    ) -> Option<MemoryLocation> {
+        match self.runtime_offset_base(func, address) {
+            Some(base) => Some(MemoryLocation::new(base?, LocationSize::Unknown)),
+            None => self.bare_memory_location(func, address, size),
+        }
+    }
+
+    /// Returns the address `base + k` of an address `ptradd (ptradd base, index), k` with a
+    /// runtime index and constant `ptradd`s `k` around it, or `None` without a runtime index.
+    /// The end of an object's payload, `p + 32 + len` for a length stored into `p`, is `p + 32`
+    /// in the same way, though an access there may leave the object.
+    fn runtime_offset_base(
+        &self,
+        func: &Function,
+        address: ValueId,
+    ) -> Option<Option<MemoryAddress>> {
+        if let Some(object) = Self::payload_end(func, address) {
+            return Some((|| {
+                let base =
+                    self.memory_address(func, object)?.checked_add(EvmMemoryLayout::WORD_SIZE)?;
+                match base.base {
+                    MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
+                        Self::unbounded_allocation(func, base, inst)
+                    }
+                    _ => Some(base),
+                }
+            })());
+        }
+        // The canonical address of the chain is the runtime-indexed `ptradd` plus `k`.
+        let address = self.memory_address(func, address)?;
+        let MemoryBase::Value(indexed) = address.base else { return None };
+        let Value::Inst(inst) = func.value(indexed) else { return None };
+        let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else { return None };
+        func.value_u64(index).is_none().then(|| {
+            let base = self.memory_address(func, base)?.checked_add(address.offset)?;
+            // NOTE: `ptradd` keeps the access inside its object, so an indexed access keeps its
+            // allocation. A direct access that may leave a unique allocation compares with it by
+            // offset. A loop allocation of runtime size names both by its pointer value instead,
+            // or every indexed store would clobber the object's header words.
+            match base.base {
+                MemoryBase::DynamicAllocation(inst)
+                    if Self::allocation_size(func, inst).is_none() =>
+                {
+                    Self::unbounded_allocation(func, base, inst)
+                }
+                _ => Some(base),
+            }
+        })
     }
 
     /// Creates a memory location without instruction metadata.
@@ -2418,6 +2497,14 @@ impl AliasAnalysis {
                             .alloc_ptr()
                             .then(|| Self::lower_bound(func, *first, depth + 1, trusted))?
                     })
+                    .or_else(|| {
+                        if !trusted {
+                            return None;
+                        }
+                        let object = Self::payload_end(func, value)?;
+                        Self::lower_bound(func, object, depth + 1, trusted)?
+                            .checked_add(EvmMemoryLayout::WORD_SIZE)
+                    })
             }
             InstKind::Sub(base, offset)
                 if (super::integers::integer_bits(func, value) == 256
@@ -2492,6 +2579,78 @@ impl AliasAnalysis {
             }
             AbiType::FixedArray { .. } | AbiType::Tuple(_) => true,
         }
+    }
+
+    /// Returns the memory object `p` of an address `p + 32 + len`, the end of `p`'s payload, in
+    /// either association, when `len` is a length stored into `p` before the address is computed:
+    /// by `p`'s allocation block, as `new bytes(len)` stores it, or earlier in the address's own
+    /// block, as a trusted `mstore(p, len)` that sets a buffer's length does. Inline assembly
+    /// spells such an address with plain additions, as a zero word stored after a fresh result
+    /// to pad it does.
+    ///
+    /// NOTE: The payload of an object ends before the end of the address space: the `ptradd`
+    /// contract assumes as much when it places every checked access at or after the payload's
+    /// start. So the sum does not wrap, and an access at it stays clear of the length word,
+    /// though it may leave the object.
+    fn payload_end(func: &Function, address: ValueId) -> Option<ValueId> {
+        let Value::Inst(user) = *func.value(address) else { return None };
+        let InstKind::Add(a, b) = func.inst(user).kind else { return None };
+        let add = |value| match *func.value(value) {
+            Value::Inst(inst) => match func.inst(inst).kind {
+                InstKind::Add(c, d) => Some((c, d)),
+                _ => None,
+            },
+            _ => None,
+        };
+        let object = |value| match *func.value(value) {
+            Value::Inst(inst) => match func.inst(inst).kind {
+                InstKind::PtrToInt(object, 256) => Some(object),
+                _ => None,
+            },
+            _ => None,
+        };
+        let word = |value| func.value_u64(value) == Some(EvmMemoryLayout::WORD_SIZE);
+        for (inner, outer) in [(a, b), (b, a)] {
+            let Some((c, d)) = add(inner) else { continue };
+            for (pointer, other) in [(c, d), (d, c)] {
+                let Some(object) = object(pointer) else { continue };
+                // (p + 32) + len, or (p + len) + 32
+                let len = match (word(other), word(outer)) {
+                    (true, _) => outer,
+                    (_, true) => other,
+                    _ => continue,
+                };
+                if Self::stores_length_before(func, object, len, user) {
+                    return Some(object);
+                }
+            }
+        }
+        None
+    }
+
+    /// Whether `len` is stored into the length word of `object` before `user` runs: earlier in
+    /// `user`'s block, or after `object`'s allocation in another block, which control leaves
+    /// before any use of the allocation outside it.
+    fn stores_length_before(func: &Function, object: ValueId, len: ValueId, user: InstId) -> bool {
+        let stores = |inst| func.memory_length_store(inst) == Some((object, len));
+        let alloc = match *func.value(object) {
+            Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::Alloc { .. }) => {
+                Some(inst)
+            }
+            _ => None,
+        };
+        func.blocks.iter().any(|block| {
+            let insts = &block.instructions;
+            match insts.iter().position(|&inst| inst == user) {
+                Some(at) => insts[..at].iter().copied().any(stores),
+                None => alloc.is_some_and(|alloc| {
+                    insts
+                        .iter()
+                        .position(|&inst| inst == alloc)
+                        .is_some_and(|from| insts[from..].iter().copied().any(stores))
+                }),
+            }
+        })
     }
 }
 
