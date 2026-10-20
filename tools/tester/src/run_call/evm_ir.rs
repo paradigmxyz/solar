@@ -36,7 +36,7 @@ use std::{
     io::{Read, Write},
     path::Path,
     process::Command,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
 };
 use ui_test::{build_manager::BuildManager, per_test_config::TestConfig};
 
@@ -225,6 +225,12 @@ pub(super) fn check(
         }
         Ok(())
     };
+    // A fault in the harness, not a program the interpreter cannot run: a skip would turn the
+    // check off without a trace.
+    let broken = |reason: &str| {
+        report("failed", reason);
+        Err(format!("the EVM IR check of `{}` cannot run: {reason}", call.name))
+    };
     let expected = match trace.stop {
         stop if stop.is_success() => Some(Outcome::Success(trace.output.clone())),
         InstrStop::Revert => Some(Outcome::Revert(trace.output.clone())),
@@ -234,6 +240,7 @@ pub(super) fn check(
         | InstrStop::PrecompileOOG
         | InstrStop::InvalidOperandOOG
         | InstrStop::StackOverflow
+        | InstrStop::ReentrancySentryOOG
         | InstrStop::CallTooDeep => {
             return skip(&format!("the EVM ended with {:?}", trace.stop));
         }
@@ -249,10 +256,10 @@ pub(super) fn check(
         let dumps = dumps(config, build_manager);
         let dump = match dumps.as_ref() {
             Ok(dump) => dump,
-            Err(error) => return skip(error),
+            Err(error) => return broken(error),
         };
         let Some(module) = dump.modules.get(call.contract) else {
-            return skip("the EVM IR dump has no scheduled runtime for the contract");
+            return broken("the EVM IR dump has no scheduled runtime for the contract");
         };
         // Every contract a call deploys has a runtime: a dump without it would skip every call.
         let Some(runtime) = dump.runtimes.get(call.contract) else {
@@ -272,7 +279,8 @@ pub(super) fn check(
     let options = interpret::Options { evm_version: call.evm_version, ..Default::default() };
     let execution = match interpret::transact(&program, call.input, &mut host, options) {
         Ok(execution) => execution,
-        Err(reason) => return skip(&reason),
+        Err(reason) if is_evm_ir(config) => return skip(&reason),
+        Err(reason) => return broken(&reason),
     };
     match &execution.outcome {
         Outcome::Unsupported(reason) => return skip(reason),
@@ -391,20 +399,18 @@ fn record(config: &TestConfig, call: &str, status: &str, detail: &str) {
 
 /// Returns what the test's compiler command dumps, compiling once per command.
 fn dumps(config: &TestConfig, build_manager: &BuildManager) -> Dumps {
-    static CACHE: Mutex<Option<HashMap<String, Dumps>>> = Mutex::new(None);
+    static CACHE: Mutex<Option<HashMap<String, Arc<OnceLock<Dumps>>>>> = Mutex::new(None);
     let command = match config.build_command(build_manager) {
         Ok(command) => dump_command(&command),
         Err(error) => return Arc::new(Err(format!("cannot rebuild the command: {error:?}"))),
     };
     let key = format!("{command:?}");
-    let mut cache = CACHE.lock().unwrap_or_else(|poison| poison.into_inner());
-    let cache = cache.get_or_insert_with(HashMap::new);
-    if let Some(dumps) = cache.get(&key) {
-        return dumps.clone();
-    }
-    let dumps = Arc::new(run_dump(command));
-    cache.insert(key, dumps.clone());
-    dumps
+    // The lock covers the lookup only: the compiles of different commands run in parallel.
+    let once = {
+        let mut cache = CACHE.lock().unwrap_or_else(|poison| poison.into_inner());
+        cache.get_or_insert_with(HashMap::new).entry(key).or_default().clone()
+    };
+    once.get_or_init(|| Arc::new(run_dump(command))).clone()
 }
 
 /// Returns `command` with its dumps replaced by a dump of the scheduled runtime EVM IR, also

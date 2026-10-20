@@ -5,6 +5,7 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
+use std::fmt::Write as _;
 
 pub mod word;
 pub use word::eval_opcode;
@@ -552,8 +553,6 @@ impl OpDef {
 /// types EVM IR rules use and one constant per opcode byte.
 #[must_use]
 pub fn isle_prelude() -> String {
-    use std::fmt::Write as _;
-
     let mut out = String::from(
         ";; Generated from the EVM opcode table by `op::isle_prelude`; do not edit.\n\
          ;; `cargo nextest run -p solar-codegen evm_isle_prelude` checks this file and\n\

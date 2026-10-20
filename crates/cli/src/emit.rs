@@ -171,7 +171,8 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
             ir::validate(gcx, &module);
             gcx.dcx().has_errors()?;
 
-            // The disassembly shows the bytecode that `--emit` outputs also come from.
+            // The disassembly shows the program's own bytecode, which `--emit=bin-runtime` outputs
+            // too.
             if has_disasm_dump(gcx) {
                 dump_evm_ir_input_disassembly(gcx, module.clone())?;
             }
@@ -208,7 +209,7 @@ fn emit_evm_ir_input_artifacts(gcx: Gcx<'_>, file: &str, module: ir::Module) -> 
             CompilerOutput::Hashes => emit_hashes = true,
             CompilerOutput::Bin => emit_bin = true,
             CompilerOutput::BinRuntime => emit_bin_runtime = true,
-            output if output.is_codegen() => {
+            output if output.is_codegen() || output == CompilerOutput::EthdebugResources => {
                 let message = format!("`--emit={output}` is not supported for EVM IR input");
                 return Err(sess.dcx.err(message).emit());
             }
@@ -311,7 +312,9 @@ fn emit_mir_pipeline_output(
 }
 
 fn should_print_pipeline_output(gcx: Gcx<'_>, value: &str) -> bool {
-    (!gcx.sess.opts.language.is_evm_ir() || !has_disasm_dump(gcx))
+    // An EVM IR program's pipeline output would precede the JSON of `--emit` on stdout.
+    (!gcx.sess.opts.language.is_evm_ir()
+        || !(has_disasm_dump(gcx) || !gcx.sess.opts.emit.is_empty()))
         && !gcx.sess.opts.unstable.print_after_each
         && (!gcx.sess.opts.unstable.pass_diff || value == "default")
 }
