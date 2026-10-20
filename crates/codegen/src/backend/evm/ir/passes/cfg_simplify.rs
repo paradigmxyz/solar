@@ -42,7 +42,8 @@ use super::{
     EvmPass,
     block_layout::triangle_arm,
     utils::{
-        FreshLabels, instruction_size_lower_bound, is_split_point, remap_block_order, retain_blocks,
+        FreshLabels, count_block_references, instruction_size_lower_bound, is_split_point,
+        remap_block_order, retain_blocks,
     },
 };
 use crate::backend::evm::{
@@ -149,20 +150,7 @@ fn rotate_loop_exits(module: &mut Module, references: &mut IndexVec<BlockId, usi
     }
     // Most CFG cleanups have no candidate. Count references and reserve labels
     // only after the bounded instruction scan finds a possible rotation.
-    references.resize(module.blocks.len(), 0);
-    if let Some(entry) = references.first_mut() {
-        *entry = 1;
-    }
-    for block in &module.blocks {
-        for inst in &block.instructions {
-            if let Some(target) = inst.pushed_block() {
-                references[target] += 1;
-            }
-        }
-        if let Some(term) = &block.terminator {
-            term.kind.visit_targets(|target| references[target] += 1);
-        }
-    }
+    count_block_references(module, references);
     candidates.retain(|&(_, body, _)| references[body] == 1);
     candidates.dedup_by_key(|candidate| candidate.0);
     if candidates.is_empty() {
@@ -176,6 +164,7 @@ fn rotate_loop_exits(module: &mut Module, references: &mut IndexVec<BlockId, usi
         let block = &mut module.blocks[header];
         let mut exit = Block::new(label);
         exit.metadata.hotness = block.metadata.hotness;
+        exit.metadata.repeats = block.metadata.repeats;
         exit.instructions = block.instructions.split_off(index + 3);
         exit.terminator = block.terminator.take();
         let removed = block.instructions.remove(index);
@@ -665,6 +654,7 @@ fn coalesce_blocks(
                 }
             }
             module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
+            module.blocks[predecessor].metadata.repeats |= module.blocks[target].metadata.repeats;
             module.blocks[predecessor].instructions.append(&mut instructions);
             module.blocks[predecessor].terminator = terminator;
             retained.remove(target);

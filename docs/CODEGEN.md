@@ -128,6 +128,27 @@ costs as `Cost { gas, bytes }` (sizing dynamic work from known immediate
 operands), push materialization cost, deposit economics
 (`CODE_DEPOSIT_GAS_PER_BYTE`, `lifetime_gas`), and objective ordering
 (`objective_key`, `cmp`, `improves`).
+Creation code has its own model, `Target::priced_for(true)`, under the gas
+objective. It runs once per deployment, and the deployment transaction pays
+calldata gas (`byte_gas`: 16 per byte, 68 before Istanbul) for each byte instead
+of the code deposit, so costs rank by deployment gas and loop copying stays off.
+A pass builds the `Target` of the function it is optimizing, never one for the
+whole module. MIR function passes ask the function's `FunctionAnalyses`:
+`target` for passes that rank code shapes without weighing blocks by how often
+they run, which prices creation code only without loops, recursion, or a looping
+caller (`Module::creation_pricing_functions`), and `loop_aware_target` for
+passes that multiply by trip counts themselves, which price every creation-only
+function (`Module::creation_only_functions`) as creation code. The inliner counts
+the calls that creation code holds on its own, since it carries its own copy of
+each callee, and only adds inlines to those the runtime model chooses. EVM IR
+passes ask the block (`Block::target`): creation code is the module that the
+runtime follows (`code_follows`), and a block in a loop, or in creation code that
+a loop or recursion calls (`BlockMetadata::repeats`, set from
+`Module::repeated_functions`), keeps the runtime model. The stack planner does
+the same per function. Helpers shared across call sites (`lower-mcopy`,
+`lower-abi-encode`, `outline-reverts`, `specialize`) and lowering from HIR keep
+the runtime model, because one decision serves code of both kinds or the code's
+function and loops are not known yet.
 The stack scheduler plans against a `Target` and orders plans by
 `objective_key`; `target/stack.rs` holds its fixed opcode and frame-sequence
 estimates, built from the opcode table. Never write gas or byte literals in

@@ -232,7 +232,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     v95 = inttoptr i256 v92 to ptr<calldata>
     v96 = make_calldata_slice v95, v89
     v97 = zext i160 v49 to i256
-    v98 = abi_encode [word<uint160>, word, calldata_bytes, word, word], args v97, v63, v96, v25, v27
+    v98 = abi_encode [word<uint160>, word, calldata_bytes, word, word], scratch, args v97, v63, v96, v25, v27
     v99 = extract_value slice<memory>, v98, 0
     v100 = extract_value slice<memory>, v98, 1
     log v99, v100, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v28, v29

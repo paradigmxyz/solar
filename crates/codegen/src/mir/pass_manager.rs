@@ -175,7 +175,7 @@ pub(crate) fn run_passes_inner(
             let pass_changed = if cached {
                 false
             } else {
-                analyses.begin_pass();
+                analyses.begin_pass(gcx.sess.opts.optimization.is_gas());
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
                 analyses.finish_pass(pass_changed);

@@ -61,8 +61,8 @@ impl MirPass for Pre {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass(module, analyses, |func, analyses| {
+            let target = analyses.target(gcx);
             PartialRedundancyEliminator::new(&target).run(func).total() != 0
         })
     }

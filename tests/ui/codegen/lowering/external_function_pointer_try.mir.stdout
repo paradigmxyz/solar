@@ -9,7 +9,7 @@ fn @invoke(arg0: i256, arg1: ptr<memory>) {
     v1 = shl v0, 224
     v2 = shr arg0, 32
     v3 = gas
-    v4 = abi_encode [tuple<word>], selector v1, args arg1
+    v4 = abi_encode [tuple<word>], scratch, selector v1, args arg1
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = extcodesize v2
