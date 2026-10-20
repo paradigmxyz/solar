@@ -13,7 +13,7 @@
 use super::EvmPass;
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, TerminatorKind},
+        ir::{BlockTarget, Instruction, Module, TerminatorKind},
         op,
     },
     target::Target,
@@ -45,9 +45,10 @@ pub(in crate::backend) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> 
         return false;
     }
 
-    let target = Target::new(gcx);
+    let code_follows = module.code_follows;
     let mut changed = false;
     for block in &mut module.blocks {
+        let target = block.target(gcx, code_follows);
         let mut instructions = Vec::with_capacity(block.instructions.len());
         for inst in std::mem::take(&mut block.instructions) {
             let metadata = inst.metadata.clone();

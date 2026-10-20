@@ -45,12 +45,12 @@ use super::{
         is_terminal_boundary,
     },
 };
-use crate::{
-    backend::evm::{
-        ir::{Block, BlockId, Hotness, Instruction, Metadata, Module, Terminator, TerminatorKind},
-        op::{self, StackOp, push_len},
+use crate::backend::evm::{
+    ir::{
+        Block, BlockId, BlockTarget, Hotness, Instruction, Metadata, Module, Terminator,
+        TerminatorKind,
     },
-    target::Target,
+    op::{self, StackOp, push_len},
 };
 use solar_data_structures::{
     index::IndexVec,
@@ -148,7 +148,11 @@ impl RunState {
             let matched = self.longest_common_tail(module, block, keep_branches);
             let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
 
-            let target = Target::new(gcx);
+            // A share also runs the representative's code more than once when it may.
+            let creation = module.code_follows
+                && matched
+                    .is_none_or(|(representative, _)| module.blocks[representative].runs_once());
+            let target = block.target(gcx, creation);
             let transfer_bytes = (target.opcode(op::PUSH2).bytes
                 + target.opcode(op::JUMP).bytes
                 + target.opcode(op::JUMPDEST).bytes) as usize;
@@ -373,6 +377,10 @@ impl RunState {
                 tail.metadata.in_loop = metadata.in_loop
                     || group.sites.iter().any(|&(site, site_common)| {
                         site_common >= common && module.blocks[site].metadata.in_loop
+                    });
+                tail.metadata.repeats = metadata.repeats
+                    || group.sites.iter().any(|&(site, site_common)| {
+                        site_common >= common && module.blocks[site].metadata.repeats
                     });
                 if !metadata.hotness.is_cold()
                     || max_hot_common.is_some_and(|hot_common| common <= hot_common)

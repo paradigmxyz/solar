@@ -643,7 +643,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
 
-        // data = abi_encode(non_indexed_arguments)
+        // data = abi_encode_scratch(non_indexed_arguments)
         let (data_ptr, data_size) = if data_types.is_empty() {
             let zero = self.builder.imm(U256::ZERO);
             (zero, zero)
@@ -659,7 +659,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (self.builder.imm(0), self.builder.imm(32 * data_values.len() as u64))
         } else {
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
-            let encoded = self.builder.abi_encode(layout, None, data_values.into_boxed_slice());
+            let encoded =
+                self.builder.abi_encode_scratch(layout, None, data_values.into_boxed_slice());
             (self.builder.slice_ptr(encoded), self.builder.slice_len(encoded))
         };
         // log data.data, data.length, topics...

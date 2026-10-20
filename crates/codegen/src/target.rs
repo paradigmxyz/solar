@@ -3,9 +3,12 @@
 //! One place answers what code costs on the selected EVM version: the static
 //! gas of every opcode across the fork schedule, the encoded size of pushes
 //! and stack operations, the price of deposited bytes, and how the active
-//! optimization objective ranks gas against bytes. Every pass that chooses
-//! between equivalent code shapes consults [`Target`] instead of carrying its
-//! own constants, so a schedule change or a new EVM version lands here once.
+//! optimization objective ranks gas against bytes. Creation code has its own
+//! model, [`Target::priced_for`]: it runs once, and each of its bytes costs the
+//! calldata gas of the deployment transaction instead of a code deposit.
+//! Every pass that chooses between equivalent code shapes consults [`Target`]
+//! instead of carrying its own constants, so a schedule change or a new EVM
+//! version lands here once.
 //!
 //! Gas is the amount charged before dynamic components such as memory
 //! expansion or copied words. Account and storage accesses are priced cold
@@ -20,6 +23,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
+use solar_evmir::gas::since;
 use solar_sema::Gcx;
 use std::{cmp::Ordering, ops};
 
@@ -107,11 +111,17 @@ pub(crate) struct Target {
     evm_version: EvmVersion,
     optimization: OptimizationMode,
     expected_executions: u64,
+    /// Whether the model prices creation code, which runs once and pays calldata per byte.
+    creation: bool,
 }
 
 impl Target {
     /// Gas charged per deposited byte of runtime code (EIP-170 `CODEDEPOSIT`).
     pub(crate) const CODE_DEPOSIT_GAS_PER_BYTE: u32 = 200;
+    /// Gas of a nonzero calldata byte since Istanbul (EIP-2028).
+    const CALLDATA_NONZERO_BYTE_GAS: u32 = 16;
+    /// Gas of a nonzero calldata byte before Istanbul.
+    const LEGACY_CALLDATA_NONZERO_BYTE_GAS: u32 = 68;
     /// Expected executions per deployment when the optimizer runs are not set;
     /// solc's convention.
     pub(crate) const DEFAULT_EXPECTED_EXECUTIONS: u64 = 200;
@@ -162,7 +172,38 @@ impl Target {
         optimization: OptimizationMode,
         expected_executions: u64,
     ) -> Self {
-        Self { evm_version, optimization, expected_executions }
+        Self { evm_version, optimization, expected_executions, creation: false }
+    }
+
+    /// This model for code that runs only at deployment when `creation` is set, itself
+    /// otherwise. Creation code runs once per deployment, and the transaction that carries it
+    /// pays calldata gas for every byte, so the gas objective ranks it by deployment gas. Initcode
+    /// that a factory embeds is priced the same way, though its bytes then cost the deposit and
+    /// it runs on every `CREATE`. The EIP-3860 charge of two gas per 32 bytes of initcode is not
+    /// priced, and a zero byte of calldata, which costs 4 gas, counts as a nonzero one. Other
+    /// objectives keep the runtime model: size already ranks bytes first, and measurements showed
+    /// no clear gain from pricing creation code differently there.
+    pub(crate) const fn priced_for(self, creation: bool) -> Self {
+        if !creation || !self.optimization.is_gas() {
+            return self;
+        }
+        Self { expected_executions: 1, creation: true, ..self }
+    }
+
+    /// Whether the model prices creation code, which only the gas objective does.
+    pub(crate) const fn is_creation(&self) -> bool {
+        self.creation
+    }
+
+    /// Gas of one deployed byte: calldata for creation code, the code deposit for runtime code.
+    pub(crate) const fn byte_gas(&self) -> u32 {
+        if !self.creation {
+            Self::CODE_DEPOSIT_GAS_PER_BYTE
+        } else if since(self.evm_version, EvmVersion::Istanbul) {
+            Self::CALLDATA_NONZERO_BYTE_GAS
+        } else {
+            Self::LEGACY_CALLDATA_NONZERO_BYTE_GAS
+        }
     }
 
     pub(crate) fn evm_version(&self) -> EvmVersion {
@@ -453,18 +494,22 @@ impl Target {
     }
 
     /// Deployment-lifetime gas of `cost`: expected executions of its runtime
-    /// gas plus the deposit of its bytes.
+    /// gas plus the price of its bytes.
     pub(crate) fn lifetime_gas(&self, cost: Cost) -> u128 {
         u128::from(cost.gas) * u128::from(self.expected_executions)
-            + u128::from(cost.bytes) * u128::from(Self::CODE_DEPOSIT_GAS_PER_BYTE)
+            + u128::from(cost.bytes) * u128::from(self.byte_gas())
     }
 
     /// The objective order of a cost: the dimension optimized first, then
     /// the other one. Gas leads when optimizing for gas, bytes when
-    /// optimizing for size.
+    /// optimizing for size. Creation code ranks by its deployment gas, execution plus
+    /// calldata, when optimizing for gas.
     pub(crate) fn objective_key(&self, cost: Cost) -> [u32; 2] {
         match self.optimization {
             OptimizationMode::Size => [cost.bytes, cost.gas],
+            _ if self.creation => {
+                [u32::try_from(self.lifetime_gas(cost)).unwrap_or(u32::MAX), cost.bytes]
+            }
             _ => [cost.gas, cost.bytes],
         }
     }
@@ -486,14 +531,16 @@ impl Target {
     /// Whether depositing `bytes` fewer bytes outweighs spending `gas` more gas
     /// on each expected execution.
     pub(crate) fn deposit_repays_gas(self, bytes: u64, gas: u64) -> bool {
-        u128::from(bytes) * u128::from(Self::CODE_DEPOSIT_GAS_PER_BYTE)
+        u128::from(bytes) * u128::from(self.byte_gas())
             > u128::from(gas) * u128::from(self.expected_executions)
     }
 
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
     pub(crate) fn improves(&self, gas_saving: i64, byte_saving: i64) -> bool {
-        if self.optimization.is_gas() {
+        if self.creation {
+            i128::from(gas_saving) + i128::from(byte_saving) * i128::from(self.byte_gas()) > 0
+        } else if self.optimization.is_gas() {
             gas_saving > 0 && byte_saving >= 0
         } else {
             byte_saving > 0
@@ -724,6 +771,43 @@ mod tests {
         assert!(gas.improves(1, 0));
         assert!(!gas.improves(1, -1));
         assert!(size.improves(-5, 1));
+    }
+
+    #[test]
+    fn creation_code_pays_calldata_and_runs_once() {
+        let creation = |version, optimization, runs| {
+            Target::with(version, optimization, runs).priced_for(true)
+        };
+        let runtime = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 10_000);
+        let gas = creation(EvmVersion::Osaka, OptimizationMode::Gas, 10_000);
+        assert_eq!((runtime.byte_gas(), runtime.expected_executions()), (200, 10_000));
+        assert_eq!((gas.byte_gas(), gas.expected_executions()), (16, 1));
+        assert_eq!(creation(EvmVersion::Berlin, OptimizationMode::Gas, 200).byte_gas(), 16);
+        assert_eq!(creation(EvmVersion::Petersburg, OptimizationMode::Gas, 200).byte_gas(), 68);
+        assert_eq!(runtime.priced_for(false).byte_gas(), 200);
+        // The checked `p * 3` shapes: a `PUSH32` compare against a division.
+        let compare = Cost::new(9, 35);
+        let divide = Cost::new(17, 6);
+        assert_eq!(runtime.cmp(compare, divide), Ordering::Less);
+        assert_eq!(gas.cmp(compare, divide), Ordering::Greater);
+        assert_eq!(gas.lifetime_gas(compare), 9 + 35 * 16);
+        // Size and unoptimized builds keep the runtime model.
+        let size = creation(EvmVersion::Osaka, OptimizationMode::Size, 10_000);
+        assert_eq!((size.byte_gas(), size.expected_executions()), (200, 10_000));
+        assert_eq!(size.cmp(compare, divide), Ordering::Greater);
+        assert!(!creation(EvmVersion::Osaka, OptimizationMode::None, 200).is_creation());
+        // One execution saves too little gas to copy a loop body at these runs.
+        assert!(runtime.copies_loops());
+        assert!(!gas.copies_loops());
+        assert!(!gas.deposit_repays_gas(0, 1));
+        assert!(gas.deposit_repays_gas(1, 15));
+        assert!(!gas.deposit_repays_gas(1, 16));
+        assert!(runtime.improves(1, 0));
+        assert!(!runtime.improves(1, -1));
+        assert!(gas.improves(-15, 1));
+        assert!(!gas.improves(-16, 1));
+        assert!(gas.improves(17, -1));
+        assert!(!size.improves(100, 0));
     }
 
     #[test]

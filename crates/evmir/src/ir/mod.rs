@@ -207,6 +207,12 @@ impl Block {
             terminator: None,
         }
     }
+
+    /// Whether the block runs at most once per call of its code, outside every loop.
+    #[must_use]
+    pub fn runs_once(&self) -> bool {
+        !self.metadata.in_loop && !self.metadata.repeats
+    }
 }
 
 /// Block-level metadata.
@@ -216,6 +222,10 @@ pub struct BlockMetadata {
     pub hotness: Hotness,
     /// Whether the block contains code from a known natural loop.
     pub in_loop: bool,
+    /// Whether the block may run more than once per deployment although it is not in a loop of
+    /// its own function: it belongs to creation code that a loop or recursion calls. Pricing
+    /// treats such blocks as runtime code.
+    pub repeats: bool,
     /// This label's address is used only for control transfer, never as an observable word.
     /// Hidden return targets and branches separated from their pushed labels by sharing carry
     /// this property. References may be redirected to an

@@ -223,6 +223,6 @@ impl GasTier {
 }
 
 /// Returns whether `evm_version` includes the `fork` schedule.
-const fn since(evm_version: EvmVersion, fork: EvmVersion) -> bool {
+pub const fn since(evm_version: EvmVersion, fork: EvmVersion) -> bool {
     evm_version as u8 >= fork as u8
 }

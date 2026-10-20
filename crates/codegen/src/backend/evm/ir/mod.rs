@@ -10,6 +10,7 @@ use crate::{
         evm::op::{self, StackOp},
     },
     link::{EmbeddedBytecodes, LibraryTable, RelocatableBytecode},
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_sema::Gcx;
@@ -32,6 +33,32 @@ pub(in crate::backend) use passes::{
     data::pack_linked_data,
     legalize_shifts,
 };
+
+/// The cost model of a module's code.
+pub(crate) trait ModuleTarget {
+    /// The cost model of this module's code: the creation model for creation code, which the
+    /// runtime artifact follows.
+    fn target(&self, gcx: Gcx<'_>) -> Target;
+}
+
+impl ModuleTarget for Module {
+    fn target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx).priced_for(self.code_follows)
+    }
+}
+
+/// The cost model of a block's code.
+pub(crate) trait BlockTarget {
+    /// The cost model of this block: the creation model for creation code, which the runtime
+    /// artifact follows (`code_follows`), unless the block may run more than once.
+    fn target(&self, gcx: Gcx<'_>, code_follows: bool) -> Target;
+}
+
+impl BlockTarget for Block {
+    fn target(&self, gcx: Gcx<'_>, code_follows: bool) -> Target {
+        Target::new(gcx).priced_for(code_follows && self.runs_once())
+    }
+}
 
 /// Validates the target-independent invariants of an EVM IR module.
 pub fn validate(gcx: Gcx<'_>, module: &Module) {
