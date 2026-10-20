@@ -112,6 +112,12 @@
 //! recomputed at each use instead of spilled when stable arithmetic over calldata, constants and
 //! stable reads can rebuild it.
 //!
+//! A function that spills is planned a second time as a copy that computes the cheap values
+//! crossing its crowded stretches again: values that differ by a constant from one live base, and
+//! short operation chains over words live at their uses anyway (see `rebuild`). The copy's plan
+//! replaces the original when it is cheaper under the objective, with each plan charged the
+//! target's price of the frame words it spills, which every call that can reach the function pays.
+//!
 //! A recursive function spills to a fixed frame like any other. A call that can start another
 //! activation of it, one into its own recursive component, would overwrite that frame, so the
 //! caller reloads the spilled words it still needs below the call's arguments and stores them
@@ -147,6 +153,7 @@ mod cache;
 pub(in crate::backend::evm) use cache::PlanCache;
 mod emit;
 mod plan;
+mod rebuild;
 mod shuffle;
 
 /// One word of the modeled stack.
@@ -298,6 +305,16 @@ struct FunctionPlan {
     calls: Vec<(FunctionId, usize)>,
     cost: Cost,
     non_loop_gas: u32,
+    /// The copy of the function this plan was made for, when it rebuilds values past crowded
+    /// points instead of keeping them on the stack.
+    rebuilt: Option<Box<Function>>,
+}
+
+impl FunctionPlan {
+    /// Words of the function's fixed frame that hold spilled values and the return address.
+    fn spill_words(&self) -> u32 {
+        self.spilled.count() as u32 + u32::from(self.ret_spilled)
+    }
 }
 
 /// Module-wide facts shared by every function plan.
@@ -686,13 +703,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// that may reach the spill area, and `writers` the functions that may make one and return.
     fn analyze(
         &self,
-        module: &Module,
+        func: &Function,
         info: &ModuleInfo,
         func_id: FunctionId,
         hazards: &FxHashSet<InstId>,
         writers: &DenseBitSet<FunctionId>,
     ) -> Analysis {
-        let func = &module.functions[func_id];
         let liveness = Liveness::compute_live_sets(func);
         let cfg = CfgInfo::new(func);
         let loops = LoopAnalyzer::new().analyze_structure(func);
@@ -748,22 +764,31 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(plan) = cache.get(&key) {
             return Ok(plan);
         }
+        let func = &module.functions[func_id];
         let analysis =
-            analysis.get_or_insert_with(|| self.analyze(module, info, func_id, hazards, writers));
-        let plan = self.plan_function_stackified(module, info, func_id, analysis, call_spill)?;
+            analysis.get_or_insert_with(|| self.analyze(func, info, func_id, hazards, writers));
+        let mut plan = self.plan_function_stackified(func, info, func_id, analysis, call_spill)?;
+        // A first plan that spills competes with one that computes cheap values again instead.
+        if call_spill == CallSpill::None
+            && plan.spill_words() != 0
+            && let Some(rebuilt) =
+                self.plan_rebuilt(func, info, func_id, analysis, hazards, writers)
+            && self.prices_lower(info, func_id, &rebuilt, &plan)
+        {
+            plan = rebuilt;
+        }
         cache.insert(key, &plan);
         Ok(plan)
     }
 
     fn plan_function_stackified(
         &self,
-        module: &Module,
+        func: &Function,
         info: &ModuleInfo,
         func_id: FunctionId,
         analysis: &Analysis,
         call_spill: CallSpill,
     ) -> Result<FunctionPlan, Decline> {
-        let func = &module.functions[func_id];
         let internal = info.internal.contains(func_id);
         let target = self.target(info, func_id);
         let mut spilled = DenseBitSet::new_empty(func.num_values());
@@ -807,7 +832,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             tried.push(hints.clone());
             let Planned { plan, mut natural, first_use } = loop {
                 let planner = Planner::new(
-                    module,
+                    func,
                     info,
                     func_id,
                     analysis,
@@ -872,7 +897,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut best = best.expect("at least one plan");
         let replan = |hints: &FxHashMap<BlockId, Layout>| {
             Planner::new(
-                module,
+                func,
                 info,
                 func_id,
                 analysis,
@@ -917,7 +942,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             trials += 1;
             retained.push(constant);
             if let Ok(planner) = Planner::new(
-                module,
+                func,
                 info,
                 func_id,
                 analysis,
@@ -993,6 +1018,53 @@ impl<'gcx> EvmCodegen<'gcx> {
             func_id = callee;
         }
         Some(chain)
+    }
+
+    /// Plans the copy of `func` that rebuilds cheap values past its crowded points, when it has
+    /// one; see [`rebuild`].
+    fn plan_rebuilt(
+        &self,
+        func: &Function,
+        info: &ModuleInfo,
+        func_id: FunctionId,
+        analysis: &Analysis,
+        hazards: &FxHashSet<InstId>,
+        writers: &DenseBitSet<FunctionId>,
+    ) -> Option<FunctionPlan> {
+        let target = self.target(info, func_id);
+        if !(target.optimization().is_gas() || target.optimization().is_size()) {
+            return None;
+        }
+        let internal = info.internal.contains(func_id);
+        let rebuilt = rebuild::rebuild_crowded_values(
+            func,
+            internal,
+            &analysis.liveness,
+            &analysis.cfg,
+            &analysis.loops,
+            self.gcx.sess.opts.evm_version.reachable_stack_depth(),
+            usize::from(info.returning.contains(func_id)),
+        )?;
+        let analysis = self.analyze(&rebuilt, info, func_id, hazards, writers);
+        let mut plan = self
+            .plan_function_stackified(&rebuilt, info, func_id, &analysis, CallSpill::None)
+            .ok()?;
+        plan.rebuilt = Some(Box::new(rebuilt));
+        Some(plan)
+    }
+
+    /// Whether plan `a` beats plan `b` under the objective once each pays for the frame words it
+    /// spills, priced as the function's code.
+    fn prices_lower(
+        &self,
+        info: &ModuleInfo,
+        func_id: FunctionId,
+        a: &FunctionPlan,
+        b: &FunctionPlan,
+    ) -> bool {
+        let target = self.target(info, func_id);
+        let priced = |plan: &FunctionPlan| plan.cost + target.frame_words(plan.spill_words());
+        target.cmp(priced(a), priced(b)).is_lt()
     }
 }
 
