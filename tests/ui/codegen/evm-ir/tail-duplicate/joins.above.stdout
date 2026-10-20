@@ -74,13 +74,15 @@
     stop
   bb13:
     push 23
-    jump bb15
-  bb14:
-    stop
-  bb15 [loop]:
+-   jump bb15
+- bb14:
+-   stop
+- bb15 [loop]:
     push 3
     add
     jump bb6
++ bb14:
++   stop
   bb16:
     push 29
     jump bb18
@@ -106,4 +108,24 @@
     gas
     pop
     jump bb6
+  bb25 [loop]:
+    jump bb27
+  bb26:
+    stop
+  bb27 [loop]:
+    dup 1
+    push 0
+    gt
+    jumpi bb25, bb6
+  bb28 [loop]:
+    push 37
+-   jump bb30
+- bb29:
+-   stop
+- bb30 [loop]:
+    push 1
+    add
+    jump bb25
++ bb29:
++   stop
   

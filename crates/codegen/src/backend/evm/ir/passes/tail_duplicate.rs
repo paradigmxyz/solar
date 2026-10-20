@@ -7,12 +7,12 @@
 //! these joins can still have fallthrough successors. Size mode does not duplicate joins.
 //!
 //! Only immediate pushes, physical stack operations, and position-independent computations qualify.
-//! Immutable patches and protected predecessor boundaries are excluded. Cold and loop tails stay
-//! shared, and no branches are copied, leaving loop placement to loop layout. Block order
-//! and existing label identities stay intact. A tail left without references is removed, and
-//! assembly omits labels whose last reference disappears. Debug origins remain on the copied
-//! operations and never affect eligibility. Opcodes awaiting fork legalization stay shared
-//! because their expansion is not priced here.
+//! Immutable patches and protected predecessor boundaries are excluded. Cold tails stay shared.
+//! Straight-line loop joins qualify, but no branches are copied: header tests and loop rotation
+//! remain with loop layout. Block order and existing label identities stay intact. A tail left
+//! without references is removed, and assembly omits labels whose last reference disappears.
+//! Debug origins remain on the copied operations and never affect eligibility.
+//! Opcodes awaiting fork legalization stay shared because their expansion is not priced here.
 //! Copies start beyond the one-byte address range, using an instruction-only lower bound on the
 //! prefix size, so they cannot widen the labels and indexed tables packed by block layout.
 
@@ -79,7 +79,6 @@ impl EvmPass for TailDuplicate {
             let Some(term) = &tail.terminator else { continue };
             let TerminatorKind::Jump(successor) = term.kind else { continue };
             if tail.metadata.hotness.is_cold()
-                || tail.metadata.in_loop
                 || successor == callee
                 || successor == caller
                 || Some(successor) == module.next_block(callee)

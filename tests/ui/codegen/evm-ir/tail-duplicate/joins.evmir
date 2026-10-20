@@ -81,7 +81,7 @@ bb11:
 bb12:
   stop
 
-// Loop and cold tails stay shared.
+// Straight-line loop joins qualify, but cold tails stay shared.
 bb13:
   push 23
   jump bb15
@@ -118,3 +118,25 @@ bb24:
   gas
   pop
   jump bb6
+
+// Tails that end in a branch, such as conditional loop headers, stay shared.
+bb25 [loop]:
+  jump bb27
+bb26:
+  stop
+bb27 [loop]:
+  dup 1
+  push 0
+  gt
+  jumpi bb25, bb6
+
+// A straight-line latch is copied into a loop block and keeps its back edge.
+bb28 [loop]:
+  push 37
+  jump bb30
+bb29:
+  stop
+bb30 [loop]:
+  push 1
+  add
+  jump bb25
