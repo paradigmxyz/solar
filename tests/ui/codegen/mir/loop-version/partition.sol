@@ -57,20 +57,26 @@ contract Partition {
     }
 
     // The partition's copy runs behind one test per partition that the elements the median of
-    // three placed at both ends stop the scans; its scans step with no check of the index
-    // against the length, or of `--j` against zero.
+    // three placed at both ends stop the scans. Its scans step pointers with no check of the
+    // index against the length, or of `--j` against zero, its loop compares and swaps through
+    // the pointers, and only its exit rebuilds `j` from how far the pointer moved.
     // CHECK-LABEL: fn @_sort(
     // CHECK: [[EITHER:v[0-9]+]] = or {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK-NEXT: jumpi [[EITHER]], {{bb[0-9]+}}, [[FAST:bb[0-9]+]]
     // CHECK: [[FAST]]:
-    // CHECK: [[I:v[0-9]+]] = add {{v[0-9]+}}, 1
-    // CHECK-NEXT: [[OFFSET:v[0-9]+]] = shl [[I]], 5
-    // CHECK-NEXT: [[ADDRESS:v[0-9]+]] = add {{v[0-9]+}}, [[OFFSET]]
-    // CHECK-NEXT: [[X:v[0-9]+]] = mload [[ADDRESS]]
+    // CHECK: [[P:v[0-9]+]] = add {{v[0-9]+}}, 32
+    // CHECK-NEXT: [[X:v[0-9]+]] = mload [[P]]
     // CHECK-NEXT: [[MORE:v[0-9]+]] = lt [[X]], {{v[0-9]+}}
     // CHECK-NEXT: jumpi [[MORE]], {{bb[0-9]+}}, {{bb[0-9]+}}
-    // CHECK: [[J:v[0-9]+]] = sub {{v[0-9]+}}, 1
-    // CHECK-NEXT: shl [[J]], 5
+    // CHECK: [[Q:v[0-9]+]] = sub {{v[0-9]+}}, 32
+    // CHECK-NEXT: [[Y:v[0-9]+]] = mload [[Q]]
+    // CHECK: [[ORDERED:v[0-9]+]] = lt [[P]], [[Q]]
+    // CHECK-NEXT: jumpi [[ORDERED]], [[SWAP:bb[0-9]+]], [[EXIT:bb[0-9]+]]
+    // CHECK: [[EXIT]]:
+    // CHECK-NEXT: [[MOVED:v[0-9]+]] = sub {{v[0-9]+}}, [[Q]]
+    // CHECK: [[SWAP]]:
+    // CHECK-NEXT: mload [[Q]]
+    // CHECK-NEXT: mload [[P]]
     function _sort(uint256[] memory a, uint256 low, uint256 high) private pure {
         while (high - low > 3) {
             uint256 last = high - 1;

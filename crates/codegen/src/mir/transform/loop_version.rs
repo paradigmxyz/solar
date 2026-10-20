@@ -141,7 +141,11 @@
 //! next iteration starts the scan up at `i'` below its fence `j'`, which lies below the last fence
 //! `j` and so below `n`, and the scan down at `j'` above its fence `i'`, each fence an element
 //! that stops its scan. The copy drops the scan up's checks of its index and both scans'
-//! overflow checks; all others stay, and the copy runs the same instructions otherwise.
+//! overflow checks; all others stay, and the copy runs the same instructions otherwise, except
+//! that it compares the addresses of the elements the scans stopped at instead of `i' < j'`:
+//! both lie in the array, where an element's address grows with its index, so the comparisons
+//! agree. Then no test reads the scans' counters, and induction-variable simplification steps
+//! the copy's scans as pointers that its loop carries.
 //!
 //! The test reads two words and compares twice once per entry into the loop, which a partition of
 //! a dozen elements already repays: every step of either scan saves a compare and a branch.
@@ -256,6 +260,8 @@ struct Fence {
     /// The scans' starts on entry into the loop: the first is below the second.
     low: ValueId,
     high: ValueId,
+    /// The comparison of the scans' last indices, `lt i', j'`, past which the latch runs.
+    order: InstId,
 }
 
 /// What a qualifying loop needs next.
@@ -699,20 +705,19 @@ fn plan_partition(
     // The latch repeats the loop only past `next up < next down`, the scans' order: a branch on
     // it leaves the loop when it fails, and its other edge, the only way into its target,
     // dominates the latch.
-    let ordered = blocks.iter().any(|&block| {
+    let order = blocks.iter().find_map(|&block| {
         let Some(Terminator::Branch { condition, then_block, else_block }) =
             func.blocks[block].terminator
         else {
-            return false;
+            return None;
         };
-        matches!(inst_kind(func, condition), Some(&InstKind::Lt(a, b)) if a == up.next && b == down.next)
+        let Value::Inst(test) = *func.value(condition) else { return None };
+        (matches!(func.inst(test).kind, InstKind::Lt(a, b) if a == up.next && b == down.next)
             && cfg.predecessors(then_block) == [block]
             && cfg.dominators().dominates(then_block, latch)
-            && !l.blocks.contains(else_block)
-    });
-    if !ordered {
-        return None;
-    }
+            && !l.blocks.contains(else_block))
+        .then_some(test)
+    })?;
     // The loop writes memory only in its latch, where it swaps the elements the scans stopped
     // at: `x = mload a[next up]; y = mload a[next down]; mstore a[next down], x; mstore a[next
     // up], y`, both loads before both stores.
@@ -821,7 +826,7 @@ fn plan_partition(
         exits,
         blocks,
         loop_blocks,
-        test: Test::Fence(Box::new(Fence { up, down, low, high })),
+        test: Test::Fence(Box::new(Fence { up, down, low, high, order })),
         latch: None,
     }))
 }
@@ -1423,10 +1428,13 @@ fn fence_continues(builder: &mut FunctionBuilder<'_>, scan: &Scan, index: ValueI
 }
 
 /// Removes from the fast copy the checks the fences make redundant: the scan up's checks of its
-/// index against the bound, and both scans' overflow checks of their updates.
+/// index against the bound, and both scans' overflow checks of their updates. The copy compares
+/// the addresses of the elements the scans stopped at instead of their indices: both lie in the
+/// array, where an element's address grows with its index, so the comparisons agree, and the
+/// scans' counters then step only to address elements.
 fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
-    for scan in [&fence.up, &fence.down] {
-        let block = copy.blocks[&scan.header];
+    let headers = [&fence.up, &fence.down].map(|scan| copy.blocks[&scan.header]);
+    for (scan, block) in [&fence.up, &fence.down].into_iter().zip(headers) {
         // header': ...; panic_if_zero (lt index, bound); ...  =>  header': ...; ...
         if scan.ascending {
             let mut position = 0;
@@ -1446,6 +1454,45 @@ fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
             };
         }
     }
+    // The scans' headers define the addresses beside `i'` and `j'`, so they dominate a
+    // comparison of the two outside them.
+    let addresses = [&fence.up, &fence.down].map(|scan| match func.inst(scan.load).kind {
+        InstKind::Load(address, _) => Some(copy.value(address)),
+        _ => None,
+    });
+    let Some(order) = func.inst_result_value(fence.order) else { return };
+    let Value::Inst(order) = *func.value(copy.value(order)) else { return };
+    let Some(block) = copy
+        .blocks
+        .values()
+        .copied()
+        .find(|&block| func.blocks[block].instructions.contains(&order))
+    else {
+        return;
+    };
+    let [Some(up), Some(down)] = addresses else { return };
+    if headers.contains(&block) {
+        return;
+    }
+    // order': lt i', j'  =>  i'' = ptrtoint &a[i']; j'' = ptrtoint &a[j']; lt i'', j''
+    let words = [up, down].map(|address| match func.value_ty(address) {
+        Some(MirType::I256) | None => (address, None),
+        Some(_) => {
+            let (cast, word) = func.alloc_value_inst(
+                Instruction::new(InstKind::PtrToInt(address, 256), Some(MirType::I256))
+                    .with_debug_info_dropped(),
+            );
+            (word, Some(cast))
+        }
+    });
+    let position = func.blocks[block]
+        .instructions
+        .iter()
+        .position(|&inst| inst == order)
+        .expect("the order's block holds it");
+    let casts = words.iter().filter_map(|&(_, cast)| cast).collect::<Vec<_>>();
+    func.blocks[block].instructions.splice(position..position, casts);
+    func.inst_mut(order).kind = InstKind::Lt(words[0].0, words[1].0);
 }
 
 /// The word of a pointer value, for comparisons.

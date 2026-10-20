@@ -68,10 +68,40 @@
 //! the loop; a value the loop derives from it keeps the counter, and so does a
 //! counter narrower than a word, which the rebuild would replace with a word.
 //!
+//! A loop that leaves on what it reads, such as a partition's scan
+//! `do ++i; while (a[i] < y)` once its bounds checks are gone, tests no counter
+//! at all: the counter only addresses the element and tells the code after the
+//! loop where it stopped. With one address family built from the counter's
+//! update, the pointer then steps beside that update: its phi holds the address
+//! of the counter's previous value and `next = ptr + delta`, right after the
+//! update, the address the iteration reads, which replaces every use of the
+//! family's address, after the loop too. Both copies of the value live across
+//! the back edge as one word, so the latch's branch closes the loop without a
+//! pop. The loop's one exit block, which only the loop enters and the update
+//! dominates, rebuilds the counter's last value as
+//! `start + (next - ptr_start) / scale`, exact whatever the start, since the
+//! pointer moves by whole steps and fewer than `2^MAX_TRIP_COUNT_BITS` of them,
+//! and the counter dies. It pays when the address, the counter's update and the
+//! word an address read after the loop keeps across the exit cost more than the
+//! pointer's update and carried word.
+//!
+//! When the counter starts from a phi of an enclosing block whose input on some
+//! edge is the loop's own update, as each scan of a partition resumes where its
+//! last run stopped, that block gets a pointer phi too: the pointer's last `next`
+//! on those edges, which addresses the same element, and the pointer at the
+//! phi's input, computed at the end of the edge's block, on the others. When the
+//! two phis have the same two edges, the counter equals its entry value plus the
+//! pointer's whole steps from its own entry value at every run, so the rebuild
+//! counts from there; an enclosing counter that then only feeds its own rebuild
+//! dies with it, and a rebuild that only one join's phis read on the edge from
+//! the exit moves onto that edge once every loop is visited, so the iterations
+//! that stay in the enclosing loop skip it.
+//!
 //! Safety contract:
 //! - require canonical loops with a preheader and a single latch
 //! - rewrite only affine address expressions derived from the recognized induction variable
-//! - preserve the original address value when it is still used outside the loop
+//! - preserve the original address value when it is still used outside the loop, unless a pointer
+//!   stepping beside the update replaces it, which equals it wherever it is read
 //! - recognize checked unsigned updates at every width and retain their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
@@ -164,6 +194,10 @@ struct IndVarSimplifier {
     /// Exit edges, from a loop block to a join outside it, whose phis read a counter that
     /// could otherwise die, by the loop header.
     exit_splits: Vec<(BlockId, BlockId, BlockId)>,
+    /// Counter rebuilds that only a join's phis read, on one edge from the block they sit in:
+    /// the block, the join, and the rebuild's instructions, which move onto that edge once every
+    /// loop is visited.
+    rebuild_moves: Vec<(BlockId, BlockId, Vec<InstId>)>,
 }
 
 /// Reads of a counter phi after its loop, which the counter's pointer rebuilds once the
@@ -246,7 +280,12 @@ impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
     fn new(alias: Rc<AliasAnalysis>) -> Self {
-        Self { stats: IndVarSimplifyStats::default(), alias, exit_splits: Vec::new() }
+        Self {
+            stats: IndVarSimplifyStats::default(),
+            alias,
+            exit_splits: Vec::new(),
+            rebuild_moves: Vec::new(),
+        }
     }
 
     /// Runs induction-variable simplification once over `func`.
@@ -289,6 +328,22 @@ impl IndVarSimplifier {
             }
             // NOTE: A second request for the same loop is dropped: its edges were split once.
             self.exit_splits.clear();
+        }
+
+        // block -> join  =>  block -> rebuild -> join, with the rebuild moved off the block
+        for (block, join, rebuild) in std::mem::take(&mut self.rebuild_moves) {
+            let values = rebuild.iter().filter_map(|&inst| func.inst_result_value(inst));
+            let values = values.collect::<Vec<_>>();
+            if !func.blocks[block].terminator.as_ref().is_some_and(|term| term.has_successor(join))
+                || !rebuild.iter().all(|inst| func.blocks[block].instructions.contains(inst))
+                || Self::only_join_reading(func, block, &values) != Some(join)
+            {
+                continue;
+            }
+            let edge = mir_utils::split_edge(func, block, join);
+            self.stats.exit_edges_split += 1;
+            func.blocks[block].instructions.retain(|inst| !rebuild.contains(inst));
+            func.blocks[edge].instructions.extend(rebuild);
         }
 
         &self.stats
@@ -397,6 +452,25 @@ impl IndVarSimplifier {
         // that cannot wrap takes over the exit test and the counter dies; that credit
         // is weighed across all families at once.
         let exit_test = self.counter_exit_test(func, loop_data, iv.value);
+        // A loop that leaves on what it reads, with no test of its counter, keeps the counter
+        // only to address elements and to tell the code after it where it stopped.
+        if exit_test.is_none()
+            && !must_keep_update
+            && let [members] = families.as_slice()
+            && self.reduce_untested_counter(
+                func,
+                cfg,
+                loop_data,
+                preheader,
+                latch,
+                &iv,
+                members,
+                &offset_shared,
+                carried,
+            )
+        {
+            return;
+        }
         // The pointer rebuilds a counter read after the loop as a word, so a narrower counter
         // read there keeps its test until integer lowering widens it.
         let exit_reads = exit_test
@@ -654,6 +728,371 @@ impl IndVarSimplifier {
     /// Operations the counter's phi and update cost per iteration: the increment
     /// and its carried word.
     const COUNTER_COST: usize = 4;
+
+    /// Operations an address the code after the loop reads costs per iteration beyond its
+    /// rebuild: the word it keeps live past the exit branch, which the back edge pops.
+    const ESCAPE_COST: usize = 2;
+
+    /// Replaces a counter that no test reads, as in a scan that leaves on the element it reads,
+    /// with a pointer that steps beside the counter's update: the phi holds the address of the
+    /// counter's previous value and `next = ptr + delta`, right after the update, the address of
+    /// the updated counter, which replaces every use of the family's address, after the loop
+    /// too. The exit block rebuilds the counter's last value from how far the pointer moved,
+    /// `start + (next - ptr_start) / scale`, exact for any start since a loop moves its pointer
+    /// fewer than `2^MAX_TRIP_COUNT_BITS` steps, and the counter dies. Returns whether it did.
+    ///
+    /// The counter's phi may feed only its update, the update only the family's address
+    /// arithmetic and the phi, and the code after the loop only the counter or its update,
+    /// behind the loop's one exit block, which the loop alone enters.
+    #[allow(clippy::too_many_arguments)]
+    fn reduce_untested_counter(
+        &mut self,
+        func: &mut Function,
+        cfg: &CfgInfo,
+        loop_data: &Loop,
+        preheader: BlockId,
+        latch: BlockId,
+        iv: &InductionVariable,
+        members: &[(AddressKey, Vec<ValueId>)],
+        offset_shared: &FxHashSet<ValueId>,
+        carried: usize,
+    ) -> bool {
+        let Some(next) = func.inst_result_value(iv.update_inst) else { return false };
+        let &[exit] = loop_data.exit_blocks.as_slice() else { return false };
+        if cfg.predecessors(exit).iter().any(|&pred| !loop_data.blocks.contains(pred))
+            || func.blocks[exit]
+                .instructions
+                .iter()
+                .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
+            || func.value_ty(iv.value) != Some(MirType::I256)
+        {
+            return false;
+        }
+        let (primary, primary_values) = &members[0];
+        let Some(update_position) = Self::position(func, loop_data, iv.update_inst) else {
+            return false;
+        };
+        // Every way out of the loop passes the update, so the exit can rebuild from its pointer.
+        if !cfg.dominators().dominates(update_position.0, exit) {
+            return false;
+        }
+        let follows_update = |value: ValueId| {
+            let Value::Inst(inst) = *func.value(value) else { return false };
+            Self::position(func, loop_data, inst).is_some_and(|(block, index)| {
+                if block == update_position.0 {
+                    update_position.1 < index
+                } else {
+                    cfg.dominators().dominates(update_position.0, block)
+                }
+            })
+        };
+        // The pointer replaces the family's addresses from the update on.
+        if !members.iter().flat_map(|(_, values)| values).all(|&value| follows_update(value)) {
+            return false;
+        }
+        // In the loop, the counter feeds its update and the update the address arithmetic of
+        // the family, whose members the pointer replaces, and the phi.
+        let addresses = members.iter().flat_map(|(_, values)| values.iter().copied());
+        let addresses = addresses.collect::<FxHashSet<_>>();
+        let mut derived = FxHashSet::default();
+        let mut pending = vec![next];
+        while let Some(value) = pending.pop() {
+            for block in loop_data.blocks.iter() {
+                if func.blocks[block].terminator.as_ref().is_some_and(|term| term.reads(value)) {
+                    return false;
+                }
+                for &inst in &func.blocks[block].instructions {
+                    let kind = &func.inst(inst).kind;
+                    if !kind.reads(value) {
+                        continue;
+                    }
+                    if let InstKind::Phi(incoming) = kind {
+                        // Only the counter's own phi takes the update, on the back edge.
+                        if func.inst_result_value(inst) != Some(iv.value)
+                            || incoming.iter().any(|&(from, read)| read == value && from != latch)
+                        {
+                            return false;
+                        }
+                        continue;
+                    }
+                    let Some(result) = func.inst_result_value(inst) else { return false };
+                    if addresses.contains(&result) {
+                        continue;
+                    }
+                    if !Self::is_address_builder(kind) || !derived.insert(result) {
+                        return false;
+                    }
+                    pending.push(result);
+                }
+            }
+        }
+        for block in loop_data.blocks.iter() {
+            for &inst in &func.blocks[block].instructions {
+                if inst != iv.update_inst && func.inst(inst).kind.reads(iv.value) {
+                    return false;
+                }
+            }
+            if func.blocks[block].terminator.as_ref().is_some_and(|term| term.reads(iv.value)) {
+                return false;
+            }
+        }
+        // After the loop, only the counter, its update, and the family's addresses are read.
+        let reads_outside = |value: ValueId| Self::read_after_loop(func, loop_data, value);
+        if derived.iter().any(|&value| reads_outside(value))
+            || members[1..].iter().flat_map(|(_, values)| values).any(|&value| reads_outside(value))
+        {
+            return false;
+        }
+        let escaping = primary_values.iter().any(|&value| reads_outside(value));
+        let reads_counter = reads_outside(iv.value);
+        let before = Self::family_cost_before(members, offset_shared)
+            + Self::COUNTER_COST
+            + if escaping { Self::ESCAPE_COST } else { 0 };
+        if before <= Self::family_cost_after(members, carried) {
+            return false;
+        }
+        let Some(magnitude) =
+            primary.scale.checked_abs().and_then(|scale| u128::try_from(scale).ok())
+        else {
+            return false;
+        };
+        if !magnitude.is_power_of_two() {
+            return false;
+        }
+        let Some((pointer, stepped)) = self.materialize_stepped_pointer(
+            func,
+            cfg,
+            loop_data,
+            preheader,
+            latch,
+            primary,
+            iv.update_inst,
+        ) else {
+            return false;
+        };
+        let Some(start) = preheader_value(func, pointer, preheader) else { return false };
+        let Some(delta) = self.additive_step(func, iv.value, Some(iv.update_inst)) else {
+            return false;
+        };
+        // The counter and the pointer at the run's start, or, when an enclosing loop carries both
+        // from one entry, where the enclosing loop entered: each later run starts where the last
+        // stopped, the counter and the pointer having moved together by whole steps since.
+        let (counter_start, start) =
+            Self::run_anchor(func, iv.init, start, next).unwrap_or((iv.init, start));
+        // sibling = next + offset
+        let mut replacements = FxHashMap::default();
+        for &value in primary_values {
+            replacements.insert(value, stepped);
+        }
+        for (key, values) in &members[1..] {
+            let Some(offset) = key.constant.checked_sub(primary.constant) else { continue };
+            let Some(magnitude) = offset.checked_abs() else { continue };
+            let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
+            for &value in values {
+                let Value::Inst(inst) = *func.value(value) else { continue };
+                func.inst_mut(inst).kind = if offset >= 0 {
+                    InstKind::Add(stepped, magnitude)
+                } else {
+                    InstKind::Sub(stepped, magnitude)
+                };
+                self.stats.address_uses_replaced += 1;
+            }
+        }
+        self.stats.address_uses_replaced += Self::replace_all_uses(func, &replacements);
+        self.remove_dead_address_arithmetic(func, loop_data);
+        // exit: moved = next - ptr_start; steps = moved >> log2(|scale|); counter' = start + steps
+        // (a pointer stepping down: moved = ptr_start - next; a counter stepping down:
+        // counter' = start - steps)
+        let ascending = primary.scale.checked_mul(delta).is_some_and(|product| product > 0);
+        let phis = func.blocks[exit]
+            .instructions
+            .iter()
+            .take_while(|&&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
+            .count();
+        let body = func.blocks[exit].instructions.split_off(phis);
+        let moved =
+            if ascending { InstKind::Sub(stepped, start) } else { InstKind::Sub(start, stepped) };
+        let moved = self.append_inst_value(func, exit, moved, Some(MirType::I256));
+        let steps = if magnitude == 1 {
+            moved
+        } else {
+            let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(
+                magnitude.trailing_zeros(),
+            ))));
+            self.append_inst_value(func, exit, InstKind::Shr(shift, moved), Some(MirType::I256))
+        };
+        let last = if delta > 0 {
+            InstKind::Add(counter_start, steps)
+        } else {
+            InstKind::Sub(counter_start, steps)
+        };
+        let last = self.append_inst_value(func, exit, last, Some(MirType::I256));
+        // The counter itself is one step behind its update.
+        let step =
+            func.alloc_value(Value::Immediate(Immediate::I256(U256::from(delta.unsigned_abs()))));
+        let previous =
+            if delta > 0 { InstKind::Sub(last, step) } else { InstKind::Add(last, step) };
+        let previous = reads_counter
+            .then(|| self.append_inst_value(func, exit, previous, Some(MirType::I256)));
+        func.blocks[exit].instructions.extend(body);
+        let mut rebuilt = FxHashMap::default();
+        rebuilt.insert(next, last);
+        if let Some(previous) = previous {
+            rebuilt.insert(iv.value, previous);
+        }
+        // ...reads of the counter after the loop  =>  ...reads of counter'
+        for block in func.blocks.indices() {
+            if loop_data.blocks.contains(block) {
+                continue;
+            }
+            for index in 0..func.blocks[block].instructions.len() {
+                let inst = func.blocks[block].instructions[index];
+                self.stats.address_uses_replaced +=
+                    mir_utils::replace_inst_uses(func.inst_mut(inst), &rebuilt);
+            }
+            if let Some(term) = &mut func.blocks[block].terminator {
+                self.stats.address_uses_replaced +=
+                    mir_utils::replace_terminator_uses(term, &rebuilt);
+            }
+        }
+        self.remove_dead_counter(func, loop_data, iv.value, Some(iv.update_inst));
+        // A counter that starts from an enclosing phi fed only by this rebuild, as a partition's
+        // scan up that the enclosing loop no longer compares once it carries the pointer, keeps a
+        // cycle that only feeds itself: remove the phi and the rebuild.
+        let mut cycle = vec![moved, steps, last];
+        cycle.extend(previous);
+        cycle.push(iv.init);
+        Self::remove_dead_cycle(func, &cycle);
+        // A rebuild that only one join's phis read on the edge from the exit, as the index a
+        // partition returns once its loop carries pointers, moves onto that edge, so the
+        // iterations that stay in an enclosing loop skip it.
+        let rebuild = [Some(moved), (steps != moved).then_some(steps), Some(last), previous]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        if let Some(join) = Self::only_join_reading(func, exit, &rebuild) {
+            let insts = rebuild
+                .iter()
+                .filter_map(|&value| match *func.value(value) {
+                    Value::Inst(inst) => Some(inst),
+                    _ => None,
+                })
+                .collect();
+            self.rebuild_moves.push((exit, join, insts));
+        }
+        true
+    }
+
+    /// The one block whose phis are the only readers of `values`, all on the edge from `from`,
+    /// when that block has other predecessors, so the values need an edge block of their own.
+    fn only_join_reading(func: &Function, from: BlockId, values: &[ValueId]) -> Option<BlockId> {
+        let mut join = None;
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst in &block.instructions {
+                let kind = &func.inst(inst).kind;
+                if values.iter().any(|&value| func.inst_result_value(inst) == Some(value)) {
+                    // The rebuild's own instructions read each other.
+                    continue;
+                }
+                match kind {
+                    InstKind::Phi(incoming) => {
+                        for &(pred, input) in incoming {
+                            if values.contains(&input) {
+                                if pred != from || join.is_some_and(|join| join != block_id) {
+                                    return None;
+                                }
+                                join = Some(block_id);
+                            }
+                        }
+                    }
+                    _ if values.iter().any(|&value| kind.reads(value)) => return None,
+                    _ => {}
+                }
+            }
+            if block.terminator.as_ref().is_some_and(|term| values.iter().any(|&v| term.reads(v))) {
+                return None;
+            }
+        }
+        join.filter(|&join| func.blocks[join].predecessors.len() > 1)
+    }
+
+    /// The counter and the pointer where an enclosing loop entered, when the run's starts are
+    /// the phis `counter = phi [entry: c0], [back: next]` and `ptr = phi [entry: p0], [back:
+    /// ...]` of one block with the same two edges: the counter then equals `c0` plus the
+    /// pointer's whole steps from `p0` at every run, so a rebuild can count from the entry.
+    fn run_anchor(
+        func: &Function,
+        counter: ValueId,
+        pointer: ValueId,
+        next: ValueId,
+    ) -> Option<(ValueId, ValueId)> {
+        let phi_inputs = |value: ValueId| match *func.value(value) {
+            Value::Inst(inst) => match &func.inst(inst).kind {
+                InstKind::Phi(incoming) if incoming.len() == 2 => Some(incoming.clone()),
+                _ => None,
+            },
+            _ => None,
+        };
+        let counters = phi_inputs(counter)?;
+        let pointers = phi_inputs(pointer)?;
+        let &(back, _) = counters.iter().find(|&&(_, input)| input == next)?;
+        let &(entry, counter_entry) = counters.iter().find(|&&(from, _)| from != back)?;
+        let &(_, pointer_entry) = pointers.iter().find(|&&(from, _)| from == entry)?;
+        pointers.iter().any(|&(from, _)| from == back).then_some((counter_entry, pointer_entry))
+    }
+
+    /// Removes the instructions defining `values` that nothing outside them reads, phis included,
+    /// as the plain dead-code elimination keeps a cycle that only feeds itself.
+    fn remove_dead_cycle(func: &mut Function, values: &[ValueId]) {
+        let defining = values
+            .iter()
+            .filter_map(|&value| match *func.value(value) {
+                Value::Inst(inst) => Some((value, inst)),
+                _ => None,
+            })
+            .collect::<FxHashMap<_, _>>();
+        let mut live = FxHashSet::default();
+        // A value is live when an instruction or terminator outside the candidates reads it, or
+        // a live candidate does.
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                if defining.values().any(|&candidate| candidate == inst) {
+                    continue;
+                }
+                func.inst(inst).kind.visit_operands(|operand| {
+                    if defining.contains_key(&operand) {
+                        live.insert(operand);
+                    }
+                });
+            }
+            if let Some(term) = &block.terminator {
+                term.visit_operands(|operand| {
+                    if defining.contains_key(&operand) {
+                        live.insert(operand);
+                    }
+                });
+            }
+        }
+        let mut pending = live.iter().copied().collect::<Vec<_>>();
+        while let Some(value) = pending.pop() {
+            func.inst(defining[&value]).kind.visit_operands(|operand| {
+                if defining.contains_key(&operand) && live.insert(operand) {
+                    pending.push(operand);
+                }
+            });
+        }
+        let dead = defining
+            .iter()
+            .filter(|&(value, _)| !live.contains(value))
+            .map(|(_, &inst)| inst)
+            .collect::<FxHashSet<_>>();
+        if dead.is_empty() {
+            return;
+        }
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|inst| !dead.contains(inst));
+        }
+    }
 
     /// The header's exit test when it compares the counter with an invariant.
     fn counter_exit_test(
@@ -1241,6 +1680,186 @@ impl IndVarSimplifier {
         incoming.push((latch, next));
         self.stats.pointer_phis_inserted += 1;
         Some(phi_value)
+    }
+
+    /// Materializes a pointer that steps beside the counter: the phi holds the address of the
+    /// counter's previous value, and `next`, inserted just after the counter's update, the
+    /// address of the updated counter, which is the value `key` describes for the iteration
+    /// and the phi's input from the latch. Returns the phi and `next`.
+    ///
+    /// A counter that starts where its last run stopped, from a phi of an enclosing block whose
+    /// input on some edge is the loop's own last update, as a partition's scans start from their
+    /// last positions, starts its pointer from a phi of that block too: on those edges it takes the
+    /// pointer's last `next`, which addresses the same element, and on the others the pointer at
+    /// the phi's input, computed at the end of the edge's block. The enclosing loop then carries
+    /// the pointer instead of rebuilding it from the counter on every entry.
+    #[allow(clippy::too_many_arguments)]
+    fn materialize_stepped_pointer(
+        &mut self,
+        func: &mut Function,
+        cfg: &CfgInfo,
+        loop_data: &Loop,
+        preheader: BlockId,
+        latch: BlockId,
+        key: &AddressKey,
+        update_inst: InstId,
+    ) -> Option<(ValueId, ValueId)> {
+        let iv = loop_data.induction_vars.iter().find(|iv| iv.value == key.iv)?;
+        let delta =
+            self.additive_step(func, key.iv, Some(iv.update_inst))?.checked_mul(key.scale)?;
+        if delta == 0 {
+            return None;
+        }
+        let update_value = func.inst_result_value(update_inst)?;
+        // The address of the counter one step back: `key` with the step taken off.
+        let previous = AddressKey { constant: key.constant.checked_sub(delta)?, ..key.clone() };
+        let carried =
+            self.carried_start(func, cfg, loop_data, preheader, iv.init, update_value, &previous);
+        // preheader: start = base + sum(invariant * scale) + init * scale + constant - delta
+        let initial = if carried.is_some() {
+            // Replaced by the carried phi below.
+            iv.init
+        } else if let Some(init) = self.value_i128(func, iv.init) {
+            let mut value = previous.base;
+            for term in &previous.invariants {
+                let scaled = self.scale_value(func, preheader, term.value, term.scale)?;
+                value = Some(self.add_values(func, preheader, value, scaled));
+            }
+            let offset = previous.constant.checked_add(init.checked_mul(previous.scale)?)?;
+            self.add_signed_offset(func, preheader, value?, offset)?
+        } else {
+            self.pointer_at(func, preheader, &previous, iv.init)?
+        };
+        let (phi_inst, phi_value) = func.alloc_value_inst(
+            Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::I256))
+                .with_debug_info_dropped(),
+        );
+        self.insert_header_phi(func, loop_data.header, phi_inst);
+        // update block: ...; counter' = update; next = ptr + delta; ...
+        let (update_block, update_index) = Self::position(func, loop_data, update_inst)?;
+        let magnitude = self.offset_value(func, delta.checked_abs()?)?;
+        let kind = if delta > 0 {
+            InstKind::Add(phi_value, magnitude)
+        } else {
+            InstKind::Sub(phi_value, magnitude)
+        };
+        let (next_inst, next) = func.alloc_value_inst(
+            Instruction::new(kind, Some(MirType::I256)).with_debug_info_dropped(),
+        );
+        func.blocks[update_block].instructions.insert(update_index + 1, next_inst);
+        let InstKind::Phi(incoming) = &mut func.inst_mut(phi_inst).kind else {
+            return None;
+        };
+        incoming.push((latch, next));
+        if let Some((block, inputs)) = carried {
+            // block: start = phi [from: next], ..., [other: base + sum(...) + input * scale + ...]
+            let mut starts = Vec::with_capacity(inputs.len());
+            for (from, input) in inputs {
+                let start = if input == update_value {
+                    next
+                } else {
+                    self.pointer_at(func, from, &previous, input)?
+                };
+                starts.push((from, start));
+            }
+            let (start_inst, start) = func.alloc_value_inst(
+                Instruction::new(InstKind::Phi(starts), Some(MirType::I256))
+                    .with_debug_info_dropped(),
+            );
+            self.insert_header_phi(func, block, start_inst);
+            let InstKind::Phi(incoming) = &mut func.inst_mut(phi_inst).kind else {
+                return None;
+            };
+            for (from, value) in incoming.iter_mut() {
+                if *from == preheader {
+                    *value = start;
+                }
+            }
+        }
+        self.stats.pointer_phis_inserted += 1;
+        Some((phi_value, next))
+    }
+
+    /// The block and inputs of the phi a counter starts from, when some of its inputs are the
+    /// loop's own update, so the pointer's last value can start the next run: the phi's block
+    /// dominates the preheader, the loop's header every block that passes the update, and every
+    /// other input's pointer can be computed at the end of its block.
+    #[allow(clippy::too_many_arguments)]
+    fn carried_start(
+        &self,
+        func: &Function,
+        cfg: &CfgInfo,
+        loop_data: &Loop,
+        preheader: BlockId,
+        init: ValueId,
+        update: ValueId,
+        key: &AddressKey,
+    ) -> Option<(BlockId, Vec<(BlockId, ValueId)>)> {
+        let Value::Inst(init_inst) = *func.value(init) else { return None };
+        let InstKind::Phi(incoming) = &func.inst(init_inst).kind else { return None };
+        if !incoming.iter().any(|&(_, input)| input == update) {
+            return None;
+        }
+        let block = func
+            .blocks
+            .indices()
+            .find(|&block| func.blocks[block].instructions.contains(&init_inst))?;
+        let dominators = cfg.dominators();
+        if !dominators.dominates(block, preheader) {
+            return None;
+        }
+        // The key's base and invariants, available wherever their definitions dominate.
+        let available = |value: ValueId, at: BlockId| match func.value(value) {
+            Value::Inst(inst) => func.blocks.indices().any(|defining| {
+                func.blocks[defining].instructions.contains(inst)
+                    && dominators.dominates(defining, at)
+            }),
+            _ => true,
+        };
+        for &(from, input) in incoming {
+            let ok = if input == update {
+                dominators.dominates(loop_data.header, from)
+            } else {
+                key.base.is_none_or(|base| available(base, from))
+                    && key.invariants.iter().all(|term| available(term.value, from))
+            };
+            if !ok {
+                return None;
+            }
+        }
+        Some((block, incoming.clone()))
+    }
+
+    /// The block of the loop holding `inst`, and its index there.
+    fn position(func: &Function, loop_data: &Loop, inst: InstId) -> Option<(BlockId, usize)> {
+        loop_data.blocks.iter().find_map(|block| {
+            let index = func.blocks[block].instructions.iter().position(|&other| other == inst)?;
+            Some((block, index))
+        })
+    }
+
+    /// Whether a block outside the loop reads `value`.
+    fn read_after_loop(func: &Function, loop_data: &Loop, value: ValueId) -> bool {
+        func.blocks.iter_enumerated().any(|(block_id, block)| {
+            !loop_data.blocks.contains(block_id)
+                && (block.instructions.iter().any(|&inst_id| func.inst(inst_id).kind.reads(value))
+                    || block.terminator.as_ref().is_some_and(|term| term.reads(value)))
+        })
+    }
+
+    /// Replaces every use of the keys of `replacements` in the function with their values.
+    fn replace_all_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) -> usize {
+        let mut replaced = 0;
+        for block in func.blocks.indices() {
+            for index in 0..func.blocks[block].instructions.len() {
+                let inst_id = func.blocks[block].instructions[index];
+                replaced += mir_utils::replace_inst_uses(func.inst_mut(inst_id), replacements);
+            }
+            if let Some(term) = &mut func.blocks[block].terminator {
+                replaced += mir_utils::replace_terminator_uses(term, replacements);
+            }
+        }
+        replaced
     }
 
     /// Appends `value + offset` to `block`, as an add or a subtraction by the magnitude.
