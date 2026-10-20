@@ -249,7 +249,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // A fixed-bytes immutable keeps its full word, so assembly can have stored dirty bits
             // that ABI return encoding would otherwise trust as canonical.
             if self.cx.state.raw_scalars.contains(&id)
-                && let Some(size) = calls::fixed_bytes_size(source_ty)
+                && let crate::mir::ValueLayout::FixedBytes(size) =
+                    types::TypeLowerer::value_layout(source_ty)
             {
                 return Some(self.clean_fixed_bytes(value, size.bytes()));
             }

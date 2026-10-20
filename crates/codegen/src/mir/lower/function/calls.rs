@@ -1520,7 +1520,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 }
 
-pub(super) fn fixed_bytes_size(ty: Ty<'_>) -> Option<TypeSize> {
+fn fixed_bytes_size(ty: Ty<'_>) -> Option<TypeSize> {
     match ty.peel_refs().kind {
         TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
         _ => None,

@@ -5,6 +5,7 @@
   flag: uint256
   owner: uint256
   small: uint8
+  wrapped: bytes4
 
 fn @id() -> i256 [selector=0xaf640d0f, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
@@ -32,13 +33,30 @@ fn @small() -> i256 [selector=0x6cf3c25e, view, abi_params=[], abi_returns=[word
     ret v1
 }
 
+fn @wrapped() -> i256 [selector=0x50e70d48, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = loadimmutable wrapped
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = not 0
     v1 = not 0
+    v2 = not 0
     storeimmutable id, v0
     storeimmutable flag, 256
     storeimmutable owner, v1
     storeimmutable small, i8 255
+    storeimmutable wrapped, v2
     ret
+}
+
+fn @unwrapped() -> i1 [selector=0x52e7751f, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable wrapped
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = eq v1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v2
 }
