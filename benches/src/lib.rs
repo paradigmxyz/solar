@@ -18,9 +18,6 @@ use std::{
     process::Stdio,
 };
 
-#[cfg(test)]
-use criterion as _;
-
 #[allow(unexpected_cfgs)]
 pub const IS_CODSPEED: bool = cfg!(codspeed);
 

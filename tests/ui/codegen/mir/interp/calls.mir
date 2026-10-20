@@ -2,14 +2,15 @@
 //@ run-call-fail: twice(uint256)(uint256) 0x8000000000000000000000000000000000000000000000000000000000000000 => Panic(17)
 //@ run-call: divmod(uint256,uint256)(uint256,uint256) 17, 5 => 3, 2
 //@ run-call-fail: divmod(uint256,uint256)(uint256,uint256) 17, 0 => Panic(18)
+//@ run-call: divmodRead(uint256,uint256)(uint256,uint256,uint256) 17, 5 => 3, 2, 17
 //@ run-call: factorial(uint256)(uint256) 0 => 1
 //@ run-call: factorial(uint256)(uint256) 10 => 3628800
 //@ run-call: sumTo(uint256)(uint256) 100 => 5050
 //@ run-call: stopEarly()
 //@ run-call: returnEarly()(uint256) => 7
 // Internal calls, recursion, and a callee returning two values, whose second the caller reads
-// from the buffer the word at 0x20 points to. A callee that stops or returns data ends the
-// transaction, whether it was called or tail called.
+// from the buffer the word at 0x20 points to, also with a read between the buffer loads. A
+// callee that stops or returns data ends the transaction, whether it was called or tail called.
 @module Calls
 @phase lowered
 @types
@@ -19,7 +20,7 @@ fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
     v1 = shr v0, 224
-    switch v1, default bb7, [0x3cf3bbf4 => bb1, 0x8efe1b6c => bb2, 0x83714834 => bb3, 0xef0baad9 => bb4, 0x934fcf39 => bb5, 0x4680b567 => bb6]
+    switch v1, default bb7, [0x3cf3bbf4 => bb1, 0x8efe1b6c => bb2, 0x83714834 => bb3, 0xef0baad9 => bb4, 0x934fcf39 => bb5, 0x4680b567 => bb6, 0xcd0bd889 => bb8]
   bb1:
     tail_call @twice
   bb2:
@@ -34,6 +35,8 @@ fn @entry() [entry] {
     tail_call @return_early
   bb7:
     revert 0, 0
+  bb8:
+    tail_call @divmod_read
 }
 
 fn @twice() [selector=0x3cf3bbf4, abi_wrapper] {
@@ -71,6 +74,19 @@ fn @divmod() [selector=0x8efe1b6c, abi_wrapper] {
     mstore 0, v0
     mstore 32, v3
     returndata 0, 64
+}
+
+fn @divmod_read() [selector=0xcd0bd889, abi_wrapper] {
+  bb0:
+    v0 = icall @quot_rem, arg0, arg1
+    v1 = mload 32
+    v2 = calldataload 4
+    v3 = add v1, 32
+    v4 = mload v3
+    mstore 0, v0
+    mstore 32, v4
+    mstore 64, v2
+    returndata 0, 96
 }
 
 fn @quot_rem(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {

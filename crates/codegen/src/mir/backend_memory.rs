@@ -231,16 +231,21 @@ impl StackReturn {
                 .find(|block| block.instructions.contains(&call))
                 .ok_or("backend call is not in an active block")?;
             let mut previous = block.instructions.iter().position(|&inst| inst == call).unwrap();
-            for &inst in &self.elided {
+            for (index, &inst) in self.elided.iter().enumerate() {
                 let position = block
                     .instructions
                     .iter()
                     .position(|&candidate| candidate == inst)
                     .filter(|&position| position > previous)
                     .ok_or("backend projection crosses a block or precedes its call")?;
+                // Only pure code may run before the buffer pointer is read; reads may follow it,
+                // since nothing writes the buffer before the next call.
+                let allowed = |effect: EffectKind| {
+                    if index == 0 { effect == EffectKind::Pure } else { effect.is_read_only() }
+                };
                 if block.instructions[previous + 1..position]
                     .iter()
-                    .any(|&between| func.inst(between).kind.effect_kind() != EffectKind::Pure)
+                    .any(|&between| !allowed(func.inst(between).kind.effect_kind()))
                 {
                     return Err("backend projection crosses a memory or call effect".into());
                 }
