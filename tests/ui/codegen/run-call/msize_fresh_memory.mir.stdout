@@ -33,20 +33,22 @@ fn @first() -> ptr<memory> [selector=0x3df4ddf4, pure, abi_params=[], abi_return
 
 fn @second() -> struct0 [selector=0x5a8ac02d, pure, abi_params=[], abi_returns=[array<3, word>, word], abi_return_params=[array<3, uint256>, uint256]] {
   bb0:
-    v0 = icall @make
-    v1 = lt 2, 3
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = ptradd v0, 64
-    v4 = mload v3
-    v5 = lt 0, 3
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = mload v0
-    v8 = checked_sub uint256, v4, v7
-    v9 = insert_value struct0, undef struct0, 0, v0
-    v10 = insert_value struct0, v9, 1, v8
-    ret v10
+    v0 = alloc 96 !metadata(preserves_fmp)
+    memory_zero v0, 96
+    v1 = icall @make
+    v2 = lt 2, 3
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v1, 64
+    v5 = mload v4
+    v6 = lt 0, 3
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = mload v1
+    v9 = checked_sub uint256, v5, v8
+    v10 = insert_value struct0, undef struct0, 0, v1
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @bumped(arg0: i256) -> ptr<memory> [selector=0x7ab8a1bd, pure, abi_params=[uint256], abi_returns=[array<3, word>], abi_return_params=[array<3, uint256>]] {

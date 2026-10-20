@@ -2,6 +2,9 @@
 //@ run-call: one 0x112233, false => 0x0000000000000000000000000000000000000000000000000000000000112233, false, 256
 //@ run-call: one 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001122, true => 0x0000000000000000000000000000000000000000000000000000000000001122, true, 256
 //@ run-call: two 0x112233, 0xaabbccddeeff => 0x0000000000000000000000000000000000000000000000000000000000112233, 0x0000000000000000000000000000000000000000000000000000aabbccddeeff, true, 512
+//@ run-call: internalCall => (7, 0)
+//@ run-call: yulCall => (7, 0)
+//@ run-call: pointerCall => (7, 0)
 
 // Reduced from the `_init` function of zondax/solidity-BigNumber. The assembly
 // takes `msize()` as its buffer and then stores that buffer into the memory
@@ -61,5 +64,51 @@ contract BigNumberInit {
         BigNumber memory x = _init(a, false);
         BigNumber memory y = _init(b, true);
         return (x.val, y.val, y.neg, x.bitlen + y.bitlen);
+    }
+}
+
+struct Pair {
+    uint256 a;
+    uint256 b;
+}
+
+// A callee that takes memory at `msize()` must not hand out the address of the
+// caller's return struct, which is allocated at the declaration.
+contract CalleeMsize {
+    function buffer() internal pure returns (uint256 p) {
+        assembly {
+            p := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
+        }
+    }
+
+    function internalCall() external pure returns (Pair memory r) {
+        uint256 p = buffer();
+        r.a = 7;
+        assembly {
+            mstore(p, 99)
+        }
+    }
+
+    function yulCall() external pure returns (Pair memory r) {
+        uint256 p;
+        assembly {
+            function buf() -> q {
+                q := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
+            }
+            p := buf()
+        }
+        r.a = 7;
+        assembly {
+            mstore(p, 99)
+        }
+    }
+
+    function pointerCall() external pure returns (Pair memory r) {
+        function() internal pure returns (uint256) f = buffer;
+        uint256 p = f();
+        r.a = 7;
+        assembly {
+            mstore(p, 99)
+        }
     }
 }

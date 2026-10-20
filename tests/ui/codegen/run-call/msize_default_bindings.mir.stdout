@@ -130,3 +130,73 @@ fn @_init(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [view] {
     mstore v53, v52
     ret v30
 }
+
+// === ROOT/tests/ui/codegen/run-call/msize_default_bindings.sol:CalleeMsize ===
+@module CalleeMsize
+fn @buffer() -> i256 [pure] {
+  bb0:
+    v0 = msize
+    v1 = fmp
+    v2 = ptrtoint ptr<memory> v1 to i256
+    v3 = lt v0, v2
+    v4 = select v3, v2, v0
+    ret v4
+}
+
+fn @internalCall() -> ptr<memory> [selector=0x1427a693, pure, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint256, uint256>]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = icall @buffer
+    mstore v0, 7
+    mstore v2, 99
+    ret v0
+}
+
+fn @yulCall() -> ptr<memory> [selector=0x77c2fb0f, pure, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint256, uint256>]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = icall @buf
+    mstore v0, 7
+    mstore v2, 99
+    ret v0
+}
+
+fn @pointerCall() -> ptr<memory> [selector=0xd74ff6c6, pure, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint256, uint256>]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = icall @internal_dispatcher_p_none_r_uint256, 4
+    mstore v0, 7
+    mstore v2, 99
+    ret v0
+}
+
+fn @buf() -> i256 {
+  bb0:
+    v0 = msize
+    v1 = fmp
+    v2 = ptrtoint ptr<memory> v1 to i256
+    v3 = lt v0, v2
+    v4 = select v3, v2, v0
+    ret v4
+}
+
+fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 4
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @buffer
+    ret v1
+}
