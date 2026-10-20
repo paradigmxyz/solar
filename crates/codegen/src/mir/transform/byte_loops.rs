@@ -14,8 +14,9 @@
 //! byte, so a 32-byte word costs about two thousand gas. This pass replaces such a loop with one
 //! range check and the word operation it spells: `mload` (or `calldataload`) and a mask for a
 //! gather, `mstore` or a masked read-modify-write for a scatter, and `mcopy` (or
-//! `calldatacopy`) for a copy. A copy of word elements between memory arrays,
-//! `out[outOffset + k] = a[offset + k]`, is the same `mcopy` of 32 bytes per element.
+//! `calldatacopy`) for a copy. A copy of word elements into a memory array,
+//! `out[outOffset + k] = a[offset + k]`, is the same `mcopy` (or `calldatacopy` from a calldata
+//! array) of 32 bytes per element.
 //!
 //! # Recognition
 //!
@@ -29,7 +30,8 @@
 //!   `panic_if_zero<0x32> (lt index, length)`, where the length is `mload object` for a memory
 //!   object, the same load hoisted before the loop (behind trivial phis of enclosing loops), or the
 //!   length a fresh allocation stored once load forwarding has replaced that load, and the slice's
-//!   length field for a calldata slice;
+//!   length field for a calldata slice; an index `k` may instead be checked by the header test
+//!   itself, when the bound is the buffer's length from before the loop;
 //! - a gather's `byte 0` of the word at the indexed byte, shifted into place by `8 * k` and ORed
 //!   into an accumulator phi that starts at zero, with optional masks that keep the leading bytes
 //!   of a `bytesN` result;
@@ -39,9 +41,10 @@
 //!   `value`, over at most a word;
 //! - a copy's `mstore8` of a gathered byte into a memory object, whose index check may be the
 //!   header test itself when the destination's length is the bound;
-//! - a word copy's `mstore` of an `mload`, both at `object + (index << 5) + 32` of word arrays,
-//!   counting up, with the same checks as a byte copy. The ranges, offsets and lengths are then
-//!   counted in elements, and the copied bytes are 32 per element.
+//! - a word copy's `mstore` of an `mload`, both at `object + (index << 5) + 32` of word arrays, or
+//!   of a `calldataload` at `slice.ptr + (index << 5)` with the check that the shift keeps the
+//!   index, counting up, with the same checks as a byte copy. The ranges, offsets and lengths are
+//!   then counted in elements, and the copied bytes are 32 per element.
 //!
 //! # Safety
 //!
@@ -51,7 +54,9 @@
 //! addition before its bounds check, but that addition can only overflow at a `k` beyond
 //! `length - offset`, where an earlier iteration's bounds check already failed: a length is
 //! below `2^256`. A gather's shift `8 * k` can only overflow after `2^253` iterations, which the
-//! bounds check or gas ends first. So the first failure is always `Panic(0x32)`, and the
+//! bounds check or gas ends first, and a calldata word's shift `index << 5` only at an index of
+//! `2^251` or more, past the length of every calldata slice, which its decoding or slicing kept
+//! below `2^64`. So the first failure is always `Panic(0x32)`, and the
 //! replacement raises it exactly when the bound is not zero and the bound exceeds the length or
 //! the offset exceeds the length minus the bound, for every buffer, or a scatter's bound
 //! exceeds its value's width. A length the checks read from before the loop is the value the
@@ -490,35 +495,58 @@ fn bounds_check(
 ) -> Option<(Vec<InstId>, Option<ValueId>)> {
     lp.insts.iter().find_map(|&inst| {
         let condition = array_check(func, inst)?;
+        // The loop test `k < bound` itself, when the bound is the buffer's length from before
+        // the loop: it holds in every iteration.
+        if condition == lp.test
+            && idx == lp.counter
+            && !lp.descending
+            && outside_length(func, l, buffer, lp.bound)
+        {
+            return Some((vec![inst], Some(lp.bound)));
+        }
         let (cmp, &InstKind::Lt(a, len)) = body_def(func, lp, condition)? else { return None };
         if a != idx {
             return None;
         }
-        if let Buffer::Memory(object) = buffer
-            && defined_outside(func, l, len)
-        {
-            // A length from before the loop: one an allocation stored, or a load of the length
-            // word that the loop passes hoisted, possibly behind trivial loop phis.
-            let source = through_trivial_phis(func, len);
-            let loaded = matches!(*func.value(source), Value::Inst(load)
-                if func.inst(load).kind == InstKind::Load(object, PtrLocation::Memory));
-            if loaded || stored_length(func, object) == Some(source) {
-                return Some((vec![inst, cmp], Some(len)));
-            }
+        if outside_length(func, l, buffer, len) {
+            return Some((vec![inst, cmp], Some(len)));
         }
         let Value::Inst(len_inst) = *func.value(len) else { return None };
         let matches = match buffer {
             Buffer::Memory(object) => {
                 func.inst(len_inst).kind == InstKind::Load(object, PtrLocation::Memory)
             }
-            Buffer::Calldata(slice) => matches!(
-                func.inst(len_inst).kind,
-                InstKind::ExtractValue { aggregate, index, .. }
-                    if aggregate == slice && index == MirType::SLICE_LEN_FIELD
-            ),
+            Buffer::Calldata(slice) => slice_length(func, slice, len),
         };
         matches.then(|| (vec![inst, cmp, len_inst], None))
     })
+}
+
+/// Whether `len`, defined before the loop, is the buffer's length: for a memory object, the
+/// length an allocation stored, or a load of the length word that the loop passes hoisted,
+/// possibly behind trivial loop phis; for a calldata slice, its length field.
+fn outside_length(func: &Function, l: &Loop, buffer: Buffer, len: ValueId) -> bool {
+    if !defined_outside(func, l, len) {
+        return false;
+    }
+    match buffer {
+        Buffer::Memory(object) => {
+            let source = through_trivial_phis(func, len);
+            let loaded = matches!(*func.value(source), Value::Inst(load)
+                if func.inst(load).kind == InstKind::Load(object, PtrLocation::Memory));
+            loaded || stored_length(func, object) == Some(source)
+        }
+        Buffer::Calldata(slice) => slice_length(func, slice, len),
+    }
+}
+
+/// Whether `len` is the length field of the calldata slice `slice`.
+fn slice_length(func: &Function, slice: ValueId, len: ValueId) -> bool {
+    matches!(*func.value(len), Value::Inst(inst) if matches!(
+        func.inst(inst).kind,
+        InstKind::ExtractValue { aggregate, index, .. }
+            if aggregate == slice && index == MirType::SLICE_LEN_FIELD
+    ))
 }
 
 /// The value `value` stands for once phis whose inputs are only themselves and one other value
@@ -855,6 +883,54 @@ fn word_address(
     (func.value_u64(shift) == Some(5)).then_some((object, idx, [outer, inner, shl]))
 }
 
+/// Matches the calldata word address `ptrtoint(slice.ptr) + (idx << 5)`, with the check that
+/// the shift keeps `idx`. Returns the slice and the index value, and adds the address and check
+/// instructions to `used`.
+///
+/// NOTE: The shift check fails only for an index of `2^251` or more, which the access's bounds
+/// check against the slice's length rules out first: a calldata slice is shorter than `2^64`
+/// elements, as its decoding or slicing checked.
+fn calldata_word_address(
+    func: &Function,
+    lp: &Counted,
+    address: ValueId,
+    used: &mut Vec<InstId>,
+) -> Option<(ValueId, ValueId)> {
+    let (slice, offset, address) = calldata_address(func, lp, address)?;
+    let (shl, &InstKind::Shl(shift, idx)) = body_def(func, lp, offset)? else { return None };
+    if func.value_u64(shift) != Some(5) {
+        return None;
+    }
+    used.extend(address);
+    used.push(shl);
+    // panic_if (ne (shr 5, (shl 5, idx)), idx), 0x41
+    for &inst in &lp.insts {
+        let InstKind::ICall {
+            function:
+                Callee::Builtin(Builtin::Check {
+                    is_zero: false,
+                    failure: RevertKind::Panic(PanicCode::MemoryAllocationOverflow),
+                }),
+            args,
+        } = &func.inst(inst).kind
+        else {
+            continue;
+        };
+        let [condition] = **args else { continue };
+        let Some((ne, &InstKind::Ne(back, original))) = body_def(func, lp, condition) else {
+            continue;
+        };
+        if original == idx
+            && let Some((shr, &InstKind::Shr(amount, shifted))) = body_def(func, lp, back)
+            && shifted == offset
+            && func.value_u64(amount) == Some(5)
+        {
+            used.extend([inst, ne, shr]);
+        }
+    }
+    Some((slice, idx))
+}
+
 /// Matches `dst[dstOffset + k] = src[srcOffset + k]` over arrays of words, counting up.
 fn word_copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     if !lp.phis.is_empty() || lp.descending {
@@ -872,13 +948,20 @@ fn word_copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
         return None;
     };
     used.push(store);
-    let (load, &InstKind::Load(src_ptr, PtrLocation::Memory)) = body_def(func, lp, value)? else {
-        return None;
+    let mut src = match body_def(func, lp, value)? {
+        (load, &InstKind::Load(src_ptr, PtrLocation::Memory)) => {
+            used.push(load);
+            let (src_object, src_idx, address) = word_address(func, lp, src_ptr)?;
+            used.extend(address);
+            checked_access(func, l, lp, Buffer::Memory(src_object), src_idx, &mut used)?
+        }
+        (load, &InstKind::Load(address, PtrLocation::Calldata)) => {
+            used.push(load);
+            let (slice, src_idx) = calldata_word_address(func, lp, address, &mut used)?;
+            checked_access(func, l, lp, Buffer::Calldata(slice), src_idx, &mut used)?
+        }
+        _ => return None,
     };
-    used.push(load);
-    let (src_object, src_idx, address) = word_address(func, lp, src_ptr)?;
-    used.extend(address);
-    let mut src = checked_access(func, l, lp, Buffer::Memory(src_object), src_idx, &mut used)?;
     src.shift = 5;
     let (dst, dst_idx, address) = word_address(func, lp, dst_ptr)?;
     used.extend(address);
@@ -905,8 +988,11 @@ fn word_copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
         }
         None => return None,
     };
-    let overlap =
-        if disjoint_objects(func, src_object, dst) { Overlap::Disjoint } else { Overlap::Guarded };
+    let overlap = match src.buffer {
+        Buffer::Calldata(_) => Overlap::Disjoint,
+        Buffer::Memory(object) if disjoint_objects(func, object, dst) => Overlap::Disjoint,
+        Buffer::Memory(_) => Overlap::Guarded,
+    };
     only_pattern_effects(func, lp, &used).then_some(Shape::Copy {
         src,
         dst: Access { buffer: Buffer::Memory(dst), offset: dst_offset, len: dst_len, shift: 5 },
@@ -1068,7 +1154,8 @@ fn rewrite(func: &mut Function, plan: Plan) {
             let (from, location) = match src.buffer {
                 Buffer::Memory(_) => (memory_data_address(&mut builder, &src), PtrLocation::Memory),
                 Buffer::Calldata(slice) => {
-                    let from = calldata_data_address(&mut builder, slice, src.offset);
+                    let offset = src.offset.map(|offset| scaled(&mut builder, offset, src.shift));
+                    let from = calldata_data_address(&mut builder, slice, offset);
                     (from, PtrLocation::Calldata)
                 }
             };
