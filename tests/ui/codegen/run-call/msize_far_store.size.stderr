@@ -1,8 +1,0 @@
-warning[0059]: `msize` is not exact when optimizing
-   ╭▸ ROOT/tests/ui/codegen/run-call/msize_far_store.sol:LL:CC
-   │
-LL │             let q := msize()
-   │                      ━━━━━
-   │
-   ╰ note: the result is at least the free memory pointer and above every byte written before it
-

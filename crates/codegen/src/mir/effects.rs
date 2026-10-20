@@ -46,8 +46,8 @@ pub(crate) struct InstructionEffects {
 
 impl InstructionEffects {
     /// Whether removing an unused operation could remove required behavior.
-    pub(crate) const fn must_execute(self, observes_msize: bool) -> bool {
-        self.observable || self.control.any() || (observes_msize && self.expands_memory)
+    pub(crate) const fn must_execute(self) -> bool {
+        self.observable || self.control.any()
     }
 
     /// Whether equal operands and unchanged read/write dependencies allow sharing a result.

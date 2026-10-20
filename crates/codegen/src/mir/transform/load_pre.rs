@@ -76,9 +76,8 @@
 //! insertion moves the read to the end of a predecessor, so everything in the join block
 //! above the original load executes after the moved read, and a `gas` read there would
 //! observe the moved load's gas early. A call can also observe storage-access warming even when
-//! it cannot change stored values. `msize` does not block: moving a read earlier can only raise
-//! what `msize` returns. Removal-only (fully redundant) rewrites do not move reads, but we keep
-//! the single conservative scan for these cases for simplicity.
+//! it cannot change stored values. Removal-only (fully redundant) rewrites do not move reads, but
+//! we keep the single conservative scan for these cases for simplicity.
 //!
 //! Before inserting a read, also reject a join prefix that may revert, terminate, or diverge:
 //! the new read could trap or consume gas on a path that did not execute it. Full redundancy

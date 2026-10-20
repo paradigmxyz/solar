@@ -25,12 +25,8 @@ fn @expansion() -> i256 [selector=0x7fce0203, pure, abi_params=[], abi_returns=[
     calldatacopy 256, v0, 64
     mstore 256, 7
     v1 = msize
-    v2 = fmp
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = lt v1, v3
-    v5 = select v4, v3, v1
     mstore 288, 9
-    ret v5
+    ret v1
 }
 
 fn @returndataBounds() [selector=0xa6a0e5ea, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {

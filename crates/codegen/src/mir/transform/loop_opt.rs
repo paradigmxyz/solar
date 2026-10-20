@@ -444,7 +444,7 @@ impl LoopOptimizer {
             return self.slot_hash_scratch_is_private(func, inst_id)
                 && self.hoist_execution_guaranteed(func, inst_id, ctx);
         }
-        if inst.must_execute(false) {
+        if inst.must_execute() {
             return false;
         }
         if matches!(inst.kind, InstKind::Phi(_)) {

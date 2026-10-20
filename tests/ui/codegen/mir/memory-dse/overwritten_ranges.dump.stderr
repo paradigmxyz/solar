@@ -1,8 +1,8 @@
-warning[0059]: `msize` is not exact when optimizing
+warning[0067]: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.sol:LL:CC
    │
 LL │             size := msize()
    │                     ━━━━━
    │
-   ╰ note: the result is at least the free memory pointer and above every byte written before it
+   ╰ note: the optimizer does not preserve the exact value
 

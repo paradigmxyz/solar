@@ -103,8 +103,6 @@ pub(super) struct LoweringState {
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
     raw_scalars: FxHashSet<VariableId>,
     raw_pointer_types: FxHashSet<MirType>,
-    /// Whether inline assembly in the contract calls `msize`.
-    uses_msize: bool,
 }
 
 /// Lowers one HIR function into a typed MIR function.

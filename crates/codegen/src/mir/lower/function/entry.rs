@@ -49,11 +49,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.default_bindings.insert(ret);
             }
         }
-        // Like solc, allocate return variables at entry when `msize` can hand out the memory
-        // above them, in this function or a callee.
-        if self.cx.state.uses_msize {
-            self.materialize_default_bindings();
-        }
         self.returns.extend_from_slice(function.returns);
     }
 

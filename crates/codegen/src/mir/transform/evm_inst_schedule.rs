@@ -7,7 +7,7 @@
 //! inside each basic block immediately before EVM codegen.
 //!
 //! The pass deliberately moves only computations and reads. Memory and state writes, calls,
-//! creation, logs, control effects, `gas`, `msize`, and phis are barriers, so the pass cannot move
+//! creation, logs, control effects, `gas`, and phis are barriers, so the pass cannot move
 //! work across an observable mutation, gas observation, call-gas boundary, or phi definition.
 //! Within each barrier-delimited segment, a deterministic dependency-first traversal emits operand
 //! producers in EVM push order and places values consumed by the following barrier or terminator

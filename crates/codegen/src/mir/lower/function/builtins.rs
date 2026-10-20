@@ -60,11 +60,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .dcx()
                     .warn("`msize` is not exact when optimizing")
                     // solc assigns codes from 1000 to 9999, so a code below 1000 cannot collide.
-                    .code(error_code!(0059))
+                    .code(error_code!(67))
                     .span(callee.span)
-                    .note(
-                        "the result is at least the free memory pointer and above every byte written before it",
-                    )
+                    .note("the optimizer does not preserve the exact value")
                     .emit();
             }
             _ => {}
@@ -833,18 +831,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
             Builtin::YulClz => lower!(clz(value)),
             Builtin::YulMload => load!(PtrLocation::Memory),
-            Builtin::YulMsize => {
-                self.lower_builtin_args::<0>(builtin, &args)?;
-                // size = msize
-                // fmp = ptrtoint ptr<memory> fmp to i256
-                // below = lt size, fmp
-                // result = select below, fmp, size
-                let size = self.builder.msize();
-                let fmp = self.builder.fmp();
-                let fmp = self.builder.cast(fmp, MirType::I256);
-                let below = self.builder.lt(size, fmp);
-                Some(self.builder.select(below, fmp, size))
-            }
+            Builtin::YulMsize => lower!(msize()),
             Builtin::YulSload => lower!(sload(slot)),
             Builtin::YulTload => lower!(tload(slot)),
             Builtin::YulCalldataload => load!(PtrLocation::Calldata),

@@ -678,8 +678,8 @@ pub(crate) struct Instruction {
 
 impl Instruction {
     /// Returns whether an unused instruction must retain its execution.
-    pub(crate) fn must_execute(&self, observes_msize: bool) -> bool {
-        self.kind.effects().must_execute(observes_msize)
+    pub(crate) fn must_execute(&self) -> bool {
+        self.kind.effects().must_execute()
     }
 
     /// Returns the semantic operation that still needs representation lowering.
@@ -980,7 +980,7 @@ impl InstKind {
     /// Returns whether the instruction has required effects, including control effects.
     #[must_use]
     pub(crate) const fn has_side_effects(&self) -> bool {
-        self.effects().must_execute(false)
+        self.effects().must_execute()
     }
 
     /// Returns a conservative effect classification for this instruction.

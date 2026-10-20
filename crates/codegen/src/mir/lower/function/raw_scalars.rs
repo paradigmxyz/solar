@@ -49,7 +49,6 @@ struct Exposure<'gcx> {
     pointer_calls: Vec<PointerCall>,
     returns: &'gcx [VariableId],
     assembly: bool,
-    msize: bool,
 }
 
 /// An internal function pointer call with the pointers it reads.
@@ -369,7 +368,6 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
         if self.assembly {
-            self.msize |= self.gcx.resolved_builtin(expr) == Some(Builtin::YulMsize);
             if matches!(expr.kind, ExprKind::Ident(_))
                 && let Some(hir::Res::Item(hir::ItemId::Variable(id))) =
                     self.gcx.resolved_expr(expr)
@@ -459,7 +457,6 @@ impl LoweringState {
             pointer_calls: Vec::new(),
             returns: &[],
             assembly: false,
-            msize: false,
         };
         for &(id, _) in functions {
             let _ = exposure.visit_nested_function(id);
@@ -557,7 +554,6 @@ impl LoweringState {
             .filter(|ty| ty.integer_bits().is_some())
             .collect();
         self.raw_scalars = exposure.raw;
-        self.uses_msize = exposure.msize;
     }
 
     pub(super) fn pointer_carrier(&self, ty: MirType) -> MirType {

@@ -1,17 +1,7 @@
-//@ revisions: ir run
-//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
-//@[ir] filecheck:
-//@[run] compile-flags: -Ogas
-//@ run-call: 0x354b9a2c => 0x0000000000000000000000000000000000000000000000000000000000000080
+//@ compile-flags: -Ogas
 //@ run-call: 0xececca9f => 0x0000000000000000000000000000000000000000000000000000000000000080
 
 contract EntryFreeMemory {
-    // `msize` is at least the initial free-memory pointer, even when the entry never allocates or
-    // loads the pointer.
-    // CHECK: push 128
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
-    // CHECK: msize
     function observedSize() external pure {
         assembly {
             mstore(0, msize()) //~ WARN: `msize` is not exact when optimizing

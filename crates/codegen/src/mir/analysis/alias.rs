@@ -1201,8 +1201,6 @@ impl AliasAnalysis {
                 effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                 effects.write_any(AddressSpace::Memory);
             }
-            // Every earlier memory access places the memory `msize` hands out above it, so
-            // `msize` keeps them all as a read of the whole space would.
             InstKind::MSize => effects.read_any(AddressSpace::Memory),
             InstKind::Load(slot, PtrLocation::Storage) => {
                 effects.read(Access::Location(Location::Storage(
