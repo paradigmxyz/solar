@@ -794,8 +794,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`, whose runner keeps
-  `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` below 40
-  additional recipients.
+  `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` at 38
+  additional recipients or fewer; 39 already fail.
 
 ### CODEGEN-011: ABI coder v1 is not supported
 

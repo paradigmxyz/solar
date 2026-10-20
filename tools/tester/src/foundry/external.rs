@@ -207,8 +207,8 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
             TestFix {
                 path: "test/foundry/zone/PreAndPostFulfillmentCheck.t.sol",
                 before: "        uint8 numTips\n    ) public {\n        test(\n            this.execBasicStatefulFuzz,",
-                after: "        uint8 numTips\n    ) public {\n        numOriginalAdditional %= 20;\n        numTips %= 20;\n        test(\n            this.execBasicStatefulFuzz,",
-                reason: "keep basic orders below 40 additional recipients, which reach the compiler's memory (CODEGEN-010)",
+                after: "        uint8 numTips\n    ) public {\n        numOriginalAdditional %= 39;\n        numTips %= 39 - numOriginalAdditional;\n        test(\n            this.execBasicStatefulFuzz,",
+                reason: "fuzz basic orders with at most 38 additional recipients; 39 reach the compiler's memory (CODEGEN-010)",
             },
         ],
     },
