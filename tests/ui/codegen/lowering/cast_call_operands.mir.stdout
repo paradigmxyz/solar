@@ -211,7 +211,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v30 = sload 0 !metadata(storage=slot(0))
     v31 = trunc i256 v30 to i160
     v32 = zext i160 v31 to i256
-    v33 = abi_encode [word<uint160>, word], selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v33 = abi_encode [word<uint160>, word], scratch, selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v34 = extract_value slice<memory>, v33, 0
     v35 = extract_value slice<memory>, v33, 1
     v36 = zext i160 v27 to i256
@@ -232,7 +232,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v45 = sload 0 !metadata(storage=slot(0))
     v46 = trunc i256 v45 to i160
     v47 = zext i160 v46 to i256
-    v48 = abi_encode [word<uint160>, word], selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v48 = abi_encode [word<uint160>, word], scratch, selector 0xcd67571c00000000000000000000000000000000000000000000000000000000, args v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v49 = extract_value slice<memory>, v48, 0
     v50 = extract_value slice<memory>, v48, 1
     v51 = zext i160 v28 to i256
@@ -311,7 +311,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v94 = zext i160 v27 to i256
     v95 = zext i160 v28 to i256
     v96 = zext i160 v66 to i256
-    v97 = abi_encode [word<uint160>, word<uint160>, word<uint24>, word<uint160>], selector 0xe235109200000000000000000000000000000000000000000000000000000000, args v94, v95, 0x2710, v96
+    v97 = abi_encode [word<uint160>, word<uint160>, word<uint24>, word<uint160>], scratch, selector 0xe235109200000000000000000000000000000000000000000000000000000000, args v94, v95, 0x2710, v96
     v98 = extract_value slice<memory>, v97, 0
     v99 = extract_value slice<memory>, v97, 1
     v100 = zext i160 v60 to i256

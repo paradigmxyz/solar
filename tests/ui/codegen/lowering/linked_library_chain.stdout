@@ -94,11 +94,6 @@ bb0:
   jumpi
   push 64
   mload
-  push 96
-  dup 2
-  add
-  push 64
-  mstore
   push 0xfaf4836c
   push 224
   shl
@@ -183,11 +178,6 @@ bb0:
   jumpi
   push 64
   mload
-  push 96
-  dup 2
-  add
-  push 64
-  mstore
   push 0x5e0b1cef
   push 224
   shl

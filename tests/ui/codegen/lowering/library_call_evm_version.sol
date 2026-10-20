@@ -159,7 +159,7 @@ contract C {
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 32
     // HOMESTEAD: {{(^|[^a-z_])}}mload
     // BYZANTIUM-LABEL: fn @attached
-    // BYZANTIUM: abi_encode {{.*}}, args 0
+    // BYZANTIUM: mstore 0, {{.*}}
     // BYZANTIUM: delegatecall {{.*}}, 0, 32
     function attached() external view returns (uint256) {
         return nums.total();

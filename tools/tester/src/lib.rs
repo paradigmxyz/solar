@@ -27,8 +27,7 @@ const RUN_CALL_DUMP_STDOUT_FILTER_PATTERN: &str = r#"(?m)(?:^\n)?^\{"contracts".
 
 mod codegen_matrix;
 mod errors;
-#[cfg(test)]
-mod foundry;
+pub mod foundry;
 mod quiet;
 mod run_call;
 mod solc;

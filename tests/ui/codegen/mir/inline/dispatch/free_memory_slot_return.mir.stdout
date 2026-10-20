@@ -1,0 +1,47 @@
+// === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Unwritten ===
+@module Unwritten
+fn @raw() [selector=0xc096a632, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    returndata 64, 32
+}
+
+fn @sum(arg0: i256, arg1: i256) -> i256 [selector=0xcad0899b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_add uint256, arg0, arg1
+    ret v0
+}
+
+// === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Written ===
+@module Written
+fn @raw(arg0: i256) [selector=0x302e678f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    mstore 64, arg0 !metadata(memory=scratch)
+    returndata 64, 32
+}
+
+fn @sum(arg0: i256, arg1: i256) -> i256 [selector=0xcad0899b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_add uint256, arg0, arg1
+    ret v0
+}
+
+// === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Conditional ===
+@module Conditional
+fn @raw(arg0: i256) [selector=0x302e678f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    mstore 64, 9 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    returndata 64, 32
+}
+
+fn @sum(arg0: i256, arg1: i256) -> i256 [selector=0xcad0899b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_add uint256, arg0, arg1
+    ret v0
+}

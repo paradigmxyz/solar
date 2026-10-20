@@ -269,21 +269,19 @@ fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[uint256], ab
     revert_returndata
   bb2:
     v10 = gas
-    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = zext i160 v8 to i256
-    v15 = staticcall v10, v14, v12, v13, 0, 32
-    jumpi v15, bb4, bb3
+    mstore 0, 0xc55699c !metadata(memory=scratch)
+    v11 = zext i160 v8 to i256
+    v12 = staticcall v10, v11, 28, 4, 0, 32
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = mload v15
+    ret v16
 }
 
 fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -305,21 +303,19 @@ fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[uint256], ab
     revert_returndata
   bb2:
     v10 = gas
-    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = zext i160 v8 to i256
-    v15 = staticcall v10, v14, v12, v13, 0, 32
-    jumpi v15, bb4, bb3
+    mstore 0, 0xc55699c !metadata(memory=scratch)
+    v11 = zext i160 v8 to i256
+    v12 = staticcall v10, v11, 28, 4, 0, 32
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = mload v15
+    ret v16
 }
 
 fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
@@ -341,21 +337,19 @@ fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[int256], 
     revert_returndata
   bb2:
     v10 = gas
-    v11 = abi_encode [], selector 0xa56dfe4a00000000000000000000000000000000000000000000000000000000
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = zext i160 v8 to i256
-    v15 = staticcall v10, v14, v12, v13, 0, 32
-    jumpi v15, bb4, bb3
+    mstore 0, 0xa56dfe4a !metadata(memory=scratch)
+    v11 = zext i160 v8 to i256
+    v12 = staticcall v10, v11, 28, 4, 0, 32
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = mload v15
+    ret v16
 }
 
 fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -377,21 +371,19 @@ fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[uint256]
     revert_returndata
   bb2:
     v10 = gas
-    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = zext i160 v8 to i256
-    v15 = staticcall v10, v14, v12, v13, 0, 32
-    jumpi v15, bb4, bb3
+    mstore 0, 0xc55699c !metadata(memory=scratch)
+    v11 = zext i160 v8 to i256
+    v12 = staticcall v10, v11, 28, 4, 0, 32
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = mload v15
+    ret v16
 }
 
 fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -413,21 +405,19 @@ fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[uint256], ab
     revert_returndata
   bb2:
     v10 = gas
-    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = zext i160 v8 to i256
-    v15 = staticcall v10, v14, v12, v13, 0, 32
-    jumpi v15, bb4, bb3
+    mstore 0, 0xc55699c !metadata(memory=scratch)
+    v11 = zext i160 v8 to i256
+    v12 = staticcall v10, v11, 28, 4, 0, 32
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = mload v15
+    ret v16
 }
 
 fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -449,21 +439,19 @@ fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[uint256], ab
     revert_returndata
   bb2:
     v10 = gas
-    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = zext i160 v8 to i256
-    v15 = staticcall v10, v14, v12, v13, 0, 32
-    jumpi v15, bb4, bb3
+    mstore 0, 0xc55699c !metadata(memory=scratch)
+    v11 = zext i160 v8 to i256
+    v12 = staticcall v10, v11, 28, 4, 0, 32
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = mload v15
+    ret v16
 }
 
 fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -485,19 +473,17 @@ fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[uint256], 
     revert_returndata
   bb2:
     v10 = gas
-    v11 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = zext i160 v8 to i256
-    v15 = staticcall v10, v14, v12, v13, 0, 32
-    jumpi v15, bb4, bb3
+    mstore 0, 0xc55699c !metadata(memory=scratch)
+    v11 = zext i160 v8 to i256
+    v12 = staticcall v10, v11, 28, 4, 0, 32
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = mload v15
+    ret v16
 }
