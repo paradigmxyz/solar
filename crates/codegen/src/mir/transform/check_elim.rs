@@ -85,6 +85,24 @@
 //! entry facts and walks again. This establishes `j <= i < length` for a
 //! descending inner index initialized from a bounded outer counter.
 //!
+//! A header phi that its backedges move by other than a constant step can still keep to one side
+//! of its value from outside the loop: a binary search's `h` starts at the length and only ever
+//! takes `m - 1` for a midpoint `m <= h`. Such bounds, `p <= init` or `init <= p`, are proven
+//! together by induction. Every candidate is assumed on entry to its header, and a walk checks
+//! each value a backedge carries into a bounded phi in the scope of the block it leaves; a join
+//! inside the loop keeps the bound when each of its incoming values does. Candidates with a
+//! failing obligation are dropped and the walk repeats, for at most four rounds, until the
+//! remaining bounds hold together: each holds on entry from outside its loop, and on every
+//! backedge while all of them held at the headers before it. Candidates are proven before the
+//! walks that decide folds, so an unproven assumption never reaches a fold. A proven bound joins
+//! its header's entry facts and narrows the phi to the range of its initial value there.
+//!
+//! A midpoint `m = (a + b) / 2`, or `a + (b - a) / 2`, lies between its endpoints once their order
+//! is known and the sum cannot wrap: `a <= m <= b` when `a <= b`, and `m < b` when `a < b`. The
+//! overflow-safe form's checked sum then cannot fail either. Checked sums and differences carry
+//! exact ranges, since they fail rather than wrap, and a division by a positive constant bounds
+//! its quotient from above.
+//!
 //! When both the start and the step of such a phi are constants, the phi also
 //! carries a range bound from the target's trip-count limit: a counter cannot
 //! travel further than `step << MAX_TRIP_COUNT_BITS` because every iteration
@@ -172,7 +190,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::{IndexVec, index_vec},
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use std::rc::Rc;
 
@@ -622,6 +640,55 @@ impl MonotonePhi {
     }
 }
 
+/// A loop header phi held on one side of a value defined before its loop, `p <= limit` when
+/// `upper` and `limit <= p` otherwise: its value from outside the loop, or a value the loop
+/// compares it with. The bound holds on every iteration when the value entering from outside and
+/// every value the backedges carry into the phi keep it.
+#[derive(Clone, Copy, Debug)]
+struct HeaderBound {
+    /// The loop header holding the phi.
+    header: BlockId,
+    /// The phi result.
+    value: ValueId,
+    /// The value bounding the phi, defined before the loop.
+    limit: ValueId,
+    /// Whether the phi stays at or below `limit`, rather than at or above it.
+    upper: bool,
+}
+
+impl HeaderBound {
+    /// The invariant the bound states.
+    fn relation(&self) -> Relation {
+        if self.upper {
+            Relation::Le(self.value, self.limit)
+        } else {
+            Relation::Le(self.limit, self.value)
+        }
+    }
+}
+
+/// A value entering a bounded phi, which must keep the bound in the scope at the end of `block`,
+/// where control leaves for the header or for a join on the way to it.
+#[derive(Clone, Copy, Debug)]
+struct BoundObligation {
+    /// The index of the bound among the bounds under proof.
+    bound: usize,
+    block: BlockId,
+    value: ValueId,
+}
+
+/// A midpoint `value = (low + high) / 2`, or `low + (high - low) / 2`, which lies between its
+/// endpoints once their order is known.
+#[derive(Clone, Copy, Debug)]
+struct Midpoint {
+    value: ValueId,
+    low: ValueId,
+    high: ValueId,
+    /// The sum `low + high` of the first form, which must not wrap. The second form needs only
+    /// `low <= high`, which keeps its difference and its sum exact.
+    sum: Option<ValueId>,
+}
+
 /// Branches to fold to one target, passing checks to remove, and branch conditions to reduce to
 /// one operand, as a dominator walk decides them.
 type Folds = (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>, Vec<(BlockId, ValueId)>);
@@ -691,6 +758,15 @@ struct CheckEliminator<'a> {
     relation_undo: Vec<Relation>,
     /// Scratch states for relation searches, reused across queries.
     relation_seen: FxHashSet<(ValueId, bool)>,
+    /// Header bounds assumed on entry to their headers: the bounds under proof, or the proven
+    /// ones in the final walks.
+    header_bounds: Vec<HeaderBound>,
+    /// What the bounds under proof require of the values their backedges carry.
+    obligations: Vec<BoundObligation>,
+    /// The bounds under proof with an obligation the last walk could not prove.
+    failed_bounds: FxHashSet<usize>,
+    /// Midpoints feeding branches, by the instruction defining them.
+    midpoints: FxIndexMap<InstId, Midpoint>,
 }
 
 impl<'a> CheckEliminator<'a> {
@@ -721,6 +797,10 @@ impl<'a> CheckEliminator<'a> {
         self.monotone_relations.clear();
         self.universal_relations.clear();
         self.trip_bounds.clear();
+        self.header_bounds.clear();
+        self.obligations.clear();
+        self.failed_bounds.clear();
+        self.midpoints.clear();
         if !func.blocks.iter().any(|block| {
             matches!(
                 block.terminator,
@@ -741,6 +821,7 @@ impl<'a> CheckEliminator<'a> {
             return removed;
         }
         self.universal_relations = universal_relations(func, &relevant);
+        self.midpoints = midpoints(func, &relevant);
 
         const MAX_ACYCLIC_JOIN_INSTRUCTIONS: usize = 128;
         let bounded_acyclic_join = cfg.cyclic_blocks().is_empty()
@@ -764,6 +845,7 @@ impl<'a> CheckEliminator<'a> {
         for (value, bound) in counter_bounds(func, &cfg, &relevant) {
             self.trip_bounds.entry(value).or_insert(bound);
         }
+        self.prove_header_bounds(func, &cfg, &relevant, &candidates, &mut facts, selected);
         let mut proven = Vec::new();
         let (mut folds, mut checks, mut reductions) =
             self.collect_folds(func, &cfg, &facts, &candidates, &mut proven, selected);
@@ -906,6 +988,19 @@ impl<'a> CheckEliminator<'a> {
                     if let Some((condition, is_true)) = dominating_edge_fact(func, block) {
                         self.assume(func, condition, is_true, MAX_DEPTH);
                     }
+                    for index in 0..self.header_bounds.len() {
+                        let bound = self.header_bounds[index];
+                        if bound.header == block {
+                            // p <= limit <= hi(limit), or lo(limit) <= limit <= p
+                            let limit = self.range_of(func, bound.limit, MAX_DEPTH);
+                            let range = if bound.upper {
+                                Range::new(U256::ZERO, limit.hi)
+                            } else {
+                                Range::new(limit.lo, U256::MAX)
+                            };
+                            self.narrow(bound.value, range);
+                        }
+                    }
                     for candidate in candidates.iter().filter(|candidate| candidate.home == block) {
                         if self.update_cannot_wrap(func, candidate) {
                             proven.push(*candidate);
@@ -915,6 +1010,17 @@ impl<'a> CheckEliminator<'a> {
                     for &id in &func.blocks[block].instructions {
                         if !self.equalities.is_empty() {
                             self.propagate_equalities_into(func, cfg, id);
+                        }
+                        // `low + (high - low) / 2` stays at most `high`, so its checked sum
+                        // cannot fail once `low <= high`.
+                        let mut unfailing_midpoint = None;
+                        if let Some(&midpoint) = self.midpoints.get(&id)
+                            && self.assume_midpoint(func, midpoint)
+                            && midpoint.sum.is_none()
+                            && let InstKind::CheckedBinary { op: CheckedOp::Add, lhs, rhs, .. } =
+                                func.inst(id).kind
+                        {
+                            unfailing_midpoint = Some(InstKind::Add(lhs, rhs));
                         }
                         if self.collect_masks
                             && let Some(value) = self.redundant_mask(func, id)
@@ -940,11 +1046,13 @@ impl<'a> CheckEliminator<'a> {
                         }
                         if !self.collect_masks
                             && selected.is_none()
-                            && let Some(kind) = self.unfailing_kind(func, &func.inst(id).kind)
+                            && let Some(kind) = unfailing_midpoint
+                                .or_else(|| self.unfailing_kind(func, &func.inst(id).kind))
                         {
                             self.unfailing.push((id, kind));
                         }
                     }
+                    self.check_obligations(func, block);
 
                     if !self.collect_masks
                         && let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -1038,6 +1146,116 @@ impl<'a> CheckEliminator<'a> {
             // `lt (add p, c), p` is the wrap flag of `p + c`.
             self.eval_lt(func, phi.next, phi.value, MAX_DEPTH) == Some(false)
         }
+    }
+
+    /// Proves the header bounds that hold on every iteration and attaches them to their headers'
+    /// entry facts. Every candidate is assumed on entry to its header, and a walk checks each
+    /// value the backedges carry into a bounded phi in the scope of the block it leaves. A bound
+    /// with a failing obligation is dropped, and the walk repeats until the remaining bounds are
+    /// inductive together: each holds on entry from outside its loop, and on every backedge while
+    /// all of them held at the headers before it.
+    fn prove_header_bounds(
+        &mut self,
+        func: &Function,
+        cfg: &CfgInfo,
+        relevant: &DenseBitSet<ValueId>,
+        monotone: &[MonotonePhi],
+        facts: &mut IndexVec<BlockId, Facts>,
+        selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
+    ) {
+        const MAX_ROUNDS: usize = 4;
+        let mut bounds = header_bound_candidates(func, cfg, relevant, monotone);
+        for _ in 0..MAX_ROUNDS {
+            if bounds.is_empty() {
+                break;
+            }
+            self.obligations = bound_obligations(func, cfg, &bounds);
+            self.failed_bounds.clear();
+            let mut assumed = facts.clone();
+            for bound in &bounds {
+                assumed[bound.header].relations.insert(bound.relation());
+            }
+            self.header_bounds = bounds;
+            self.relation_index = None;
+            self.reverse_index = None;
+            self.strict_lower_bounds = None;
+            let _ = self.collect_folds(func, cfg, &assumed, &[], &mut Vec::new(), selected);
+            bounds = std::mem::take(&mut self.header_bounds);
+            if self.failed_bounds.is_empty() {
+                for bound in &bounds {
+                    facts[bound.header].relations.insert(bound.relation());
+                }
+                self.header_bounds = bounds;
+                break;
+            }
+            bounds = bounds
+                .into_iter()
+                .enumerate()
+                .filter(|(index, _)| !self.failed_bounds.contains(index))
+                .map(|(_, bound)| bound)
+                .collect();
+        }
+        self.obligations.clear();
+        self.failed_bounds.clear();
+        self.relation_index = None;
+        self.reverse_index = None;
+        self.strict_lower_bounds = None;
+    }
+
+    /// Checks the obligations of the bounds under proof that fall on `block`, in the scope at its
+    /// end.
+    fn check_obligations(&mut self, func: &Function, block: BlockId) {
+        for index in 0..self.obligations.len() {
+            let BoundObligation { bound, block: home, value } = self.obligations[index];
+            if home != block || self.failed_bounds.contains(&bound) {
+                continue;
+            }
+            let HeaderBound { limit, upper, .. } = self.header_bounds[bound];
+            let (low, high) = if upper { (value, limit) } else { (limit, value) };
+            let holds = values_equal(func, low, high)
+                || self.eval_lt(func, high, low, MAX_DEPTH) == Some(false)
+                || self.eval_lt(func, low, high, MAX_DEPTH) == Some(true);
+            if !holds {
+                self.failed_bounds.insert(bound);
+            }
+        }
+    }
+
+    /// Records that a midpoint lies between its endpoints where the scope orders them and its
+    /// sum cannot wrap: `low <= m <= high` when `low <= high`, and `m < high` when `low < high`.
+    /// Returns whether the endpoints were ordered.
+    fn assume_midpoint(&mut self, func: &Function, midpoint: Midpoint) -> bool {
+        let Midpoint { value, low, high, sum } = midpoint;
+        if let Some(sum) = sum
+            && !matches!(
+                inst_kind(func, sum),
+                Some(InstKind::CheckedBinary {
+                    op: CheckedOp::Add,
+                    arithmetic: ArithmeticKind::Unsigned(_),
+                    ..
+                })
+            )
+            && self.eval_lt(func, sum, low, MAX_DEPTH) != Some(false)
+        {
+            return false;
+        }
+        // The halved sum is symmetric in its operands; the halved difference is not.
+        let orders: &[(ValueId, ValueId)] =
+            if sum.is_some() { &[(low, high), (high, low)] } else { &[(low, high)] };
+        let mut ordered = false;
+        for &(a, b) in orders {
+            if self.eval_lt(func, b, a, MAX_DEPTH) != Some(false) {
+                continue;
+            }
+            ordered = true;
+            // !(m < a) and !(b < m)
+            self.assume_lt(func, value, a, false, MAX_DEPTH);
+            self.assume_lt(func, b, value, false, MAX_DEPTH);
+            if self.eval_lt(func, a, b, MAX_DEPTH) == Some(true) {
+                self.assume_lt(func, value, b, true, MAX_DEPTH);
+            }
+        }
+        ordered
     }
 
     /// Transfers edge facts from unknown, retaining only definitions available
@@ -1479,6 +1697,16 @@ impl<'a> CheckEliminator<'a> {
         for &relation in &self.universal_relations {
             index_relation(&mut index, relation);
         }
+        for bound in &self.header_bounds {
+            index_relation(&mut index, bound.relation());
+        }
+        for &Midpoint { value, low, high, .. } in self.midpoints.values() {
+            for (a, b) in [(low, high), (high, low)] {
+                index_relation(&mut index, Relation::Le(a, value));
+                index_relation(&mut index, Relation::Le(value, b));
+                index_relation(&mut index, Relation::Lt(value, b));
+            }
+        }
         self.relation_index = Some(index);
     }
 
@@ -1808,8 +2036,31 @@ impl<'a> CheckEliminator<'a> {
                 // exceeds the dividend.
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
-                let lo = if rb.lo > U256::ZERO { ra.lo / rb.hi } else { U256::ZERO };
-                Range::new(lo, ra.hi)
+                if rb.lo > U256::ZERO {
+                    Range::new(ra.lo / rb.hi, ra.hi / rb.lo)
+                } else {
+                    Range::new(U256::ZERO, ra.hi)
+                }
+            }
+            // A checked sum or difference fails rather than wrap, so it is exact
+            // wherever it exists.
+            InstKind::CheckedBinary {
+                op: op @ (CheckedOp::Add | CheckedOp::Sub),
+                arithmetic: ArithmeticKind::Unsigned(bits),
+                lhs,
+                rhs,
+            } => {
+                let max = integer_mask(u32::from(bits));
+                let ra = self.range_of(func, lhs, depth);
+                let rb = self.range_of(func, rhs, depth);
+                match op {
+                    CheckedOp::Add => match ra.lo.checked_add(rb.lo).filter(|&lo| lo <= max) {
+                        Some(lo) => Range::new(lo, ra.hi.saturating_add(rb.hi).min(max)),
+                        None => Range::FULL,
+                    },
+                    _ if ra.hi >= rb.lo => Range::new(ra.lo.saturating_sub(rb.hi), ra.hi - rb.lo),
+                    _ => Range::FULL,
+                }
             }
             InstKind::Mod(a, b) => {
                 // EVM modulo by zero yields zero; otherwise the result is
@@ -2031,10 +2282,10 @@ impl<'a> CheckEliminator<'a> {
         // A decremented index stays below a bound its source respects:
         // `x - c < b` follows from `x <= b` when `c >= 1` and `x - c` cannot
         // wrap, which covers `a[j - 1]` after `j <= i < a.length`.
-        if let Some(&InstKind::Sub(x, c)) = inst_kind(func, a)
+        if let Some((x, c, exact)) = difference_operands(func, a)
             && let Some(step) = const_of(func, c)
             && !step.is_zero()
-            && self.range_of(func, x, depth).lo >= step
+            && (exact || self.range_of(func, x, depth).lo >= step)
             && self.has_relation(func, Relation::Le(x, b))
         {
             return Some(true);
@@ -2079,6 +2330,27 @@ impl<'a> CheckEliminator<'a> {
 
         let (x, y) = ordered(a, b);
         if self.has_relation(func, Relation::Lt(a, b)) {
+            return Some(true);
+        }
+        // `a <= b` and `a != b`
+        if self.relations.contains(&Relation::Ne(x, y))
+            && self.has_relation(func, Relation::Le(a, b))
+        {
+            return Some(true);
+        }
+        // `b = s + 1` with `s < a` is at most `a`, and the sum cannot wrap below `a`.
+        if let Some(successor) = successor_of(func, b)
+            && self.has_relation(func, Relation::Lt(successor, a))
+        {
+            return Some(false);
+        }
+        // `b = s + 1` with `a <= s` is above `a` when the sum cannot wrap: a checked sum fails
+        // rather than wrap, and a plain one wraps only from the largest word.
+        if let Some(successor) = successor_of(func, b)
+            && self.has_relation(func, Relation::Le(a, successor))
+            && (matches!(inst_kind(func, b), Some(InstKind::CheckedBinary { .. }))
+                || self.range_of(func, successor, depth).hi < integer_max(func, successor))
+        {
             return Some(true);
         }
         if self.has_relation(func, Relation::Lt(b, a))
@@ -2531,6 +2803,158 @@ fn monotone_phi_candidates(
     candidates
 }
 
+/// Finds header phis with a single incoming value from outside their loop that a backedge may
+/// change other than by a constant step, as candidate bounds on both sides of that value, and on
+/// the side the loop tests of every value defined before the loop that it compares the phi with:
+/// `p < n`, `p == n`, and `p != n` suggest `p <= n`; `n < p` suggests `n <= p`. Monotone phis have
+/// their own proof, and a zero start bounds nothing useful.
+fn header_bound_candidates(
+    func: &Function,
+    cfg: &CfgInfo,
+    relevant: &DenseBitSet<ValueId>,
+    monotone: &[MonotonePhi],
+) -> Vec<HeaderBound> {
+    const MAX_HEADER_BOUNDS: usize = 12;
+    let mut bounds = Vec::new();
+    let dominators = cfg.dominators();
+    let definitions = func.inst_block_table();
+    let cyclic = cfg.cyclic_blocks();
+    // Whether `value` is defined before the loop of `header`, so it is fixed while the loop runs.
+    let before = |value: ValueId, header: BlockId| match func.value(value) {
+        Value::Inst(inst) => definitions[*inst]
+            .is_some_and(|block| block != header && dominators.dominates(block, header)),
+        _ => true,
+    };
+    for header in cyclic.iter() {
+        for &inst in &func.blocks[header].instructions {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+            let Some(value) = func.inst_result_value(inst) else { continue };
+            if !relevant.contains(value) || monotone.iter().any(|phi| phi.value == value) {
+                continue;
+            }
+            let mut outside =
+                incoming.iter().filter(|&&(block, _)| !dominators.dominates(header, block));
+            let (Some(&(_, initial)), None) = (outside.next(), outside.next()) else { continue };
+            if incoming.iter().all(|&(_, incoming)| incoming == value || incoming == initial) {
+                continue;
+            }
+            let mut found = SmallVec::<[(ValueId, bool); 4]>::new();
+            if !const_of(func, initial).is_some_and(|initial| initial.is_zero()) {
+                found.extend([(initial, true), (initial, false)]);
+            }
+            for block in cyclic.iter().filter(|&block| dominators.dominates(header, block)) {
+                for &compare in &func.blocks[block].instructions {
+                    let (limit, upper) = match func.inst(compare).kind {
+                        InstKind::Lt(p, n) | InstKind::Gt(n, p) if p == value => (n, true),
+                        InstKind::Lt(n, p) | InstKind::Gt(p, n) if p == value => (n, false),
+                        InstKind::Eq(a, b) | InstKind::Ne(a, b) if a == value => (b, true),
+                        InstKind::Eq(a, b) | InstKind::Ne(a, b) if b == value => (a, true),
+                        _ => continue,
+                    };
+                    if before(limit, header) && !found.contains(&(limit, upper)) {
+                        found.push((limit, upper));
+                    }
+                }
+            }
+            for (limit, upper) in found {
+                if bounds.len() == MAX_HEADER_BOUNDS {
+                    return bounds;
+                }
+                bounds.push(HeaderBound { header, value, limit, upper });
+            }
+        }
+    }
+    bounds
+}
+
+/// The values entering each bounded phi, with the blocks whose scope must prove they keep the
+/// bound: the value from outside the loop unless it is the limit, and the values the backedges
+/// carry. A phi joining paths inside the loop keeps the bound when each of its incoming values
+/// does at the end of its predecessor; the bounded phi itself keeps it by assumption.
+fn bound_obligations(
+    func: &Function,
+    cfg: &CfgInfo,
+    bounds: &[HeaderBound],
+) -> Vec<BoundObligation> {
+    const MAX_JOIN_DEPTH: usize = 4;
+    let dominators = cfg.dominators();
+    let definitions = func.inst_block_table();
+    let mut obligations = Vec::new();
+    for (bound, &HeaderBound { header, value: phi, limit, .. }) in bounds.iter().enumerate() {
+        let Some(InstKind::Phi(incoming)) = inst_kind(func, phi) else { continue };
+        for &(block, value) in incoming {
+            if !dominators.dominates(header, block) && value != limit {
+                obligations.push(BoundObligation { bound, block, value });
+            }
+        }
+        let mut pending: Vec<_> = incoming
+            .iter()
+            .filter(|&&(block, _)| dominators.dominates(header, block))
+            .map(|&(block, value)| (block, value, 0))
+            .collect();
+        while let Some((block, value, depth)) = pending.pop() {
+            if value == phi {
+                continue;
+            }
+            if depth < MAX_JOIN_DEPTH
+                && let Value::Inst(inst) = func.value(value)
+                && let InstKind::Phi(joined) = &func.inst(*inst).kind
+                && let Some(join) = definitions[*inst]
+                && join != header
+                && dominators.dominates(header, join)
+            {
+                pending.extend(joined.iter().map(|&(block, value)| (block, value, depth + 1)));
+                continue;
+            }
+            obligations.push(BoundObligation { bound, block, value });
+        }
+    }
+    obligations
+}
+
+/// Finds the midpoints feeding branches: `(a + b) / 2` and `(a + b) >> 1`, and the ordered
+/// `a + (b - a) / 2` and `a + ((b - a) >> 1)`.
+fn midpoints(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxIndexMap<InstId, Midpoint> {
+    let halved = |value: ValueId| match *inst_kind(func, value)? {
+        InstKind::Div(x, two) if const_of(func, two) == Some(U256::from(2)) => Some(x),
+        InstKind::Shr(one, x) if const_of(func, one) == Some(U256::ONE) => Some(x),
+        _ => None,
+    };
+    let sum = |value: ValueId| match *inst_kind(func, value)? {
+        InstKind::Add(a, b)
+        | InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(_),
+            lhs: a,
+            rhs: b,
+        } => Some((a, b)),
+        _ => None,
+    };
+    let mut found = FxIndexMap::default();
+    for inst in func.instructions() {
+        let Some(value) = func.inst_result_value(inst) else { continue };
+        if !relevant.contains(value) {
+            continue;
+        }
+        if let Some(total) = halved(value)
+            && let Some((low, high)) = sum(total)
+        {
+            found.insert(inst, Midpoint { value, low, high, sum: Some(total) });
+        } else if let Some((x, y)) = sum(value) {
+            for (low, half) in [(x, y), (y, x)] {
+                if let Some(span) = halved(half)
+                    && let Some((high, base, _)) = difference_operands(func, span)
+                    && base == low
+                {
+                    found.insert(inst, Midpoint { value, low, high, sum: None });
+                    break;
+                }
+            }
+        }
+    }
+    found
+}
+
 /// Returns the fact implied on the unique dominating edge into `block`:
 /// the branch condition of its sole predecessor and whether it is true.
 fn dominating_edge_fact(func: &Function, block: BlockId) -> Option<(ValueId, bool)> {
@@ -2748,4 +3172,40 @@ fn checked_operands(kind: &InstKind) -> Option<(CheckedOp, u16, ValueId, ValueId
     };
     matches!(op, CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul | CheckedOp::Div | CheckedOp::Rem)
         .then_some((op, bits, lhs, rhs))
+}
+
+/// The value `value` is one more than, as `s + 1`, plain or checked.
+fn successor_of(func: &Function, value: ValueId) -> Option<ValueId> {
+    let (a, b) = match *inst_kind(func, value)? {
+        InstKind::Add(a, b)
+        | InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(_),
+            lhs: a,
+            rhs: b,
+        } => (a, b),
+        _ => return None,
+    };
+    if const_of(func, b) == Some(U256::ONE) {
+        Some(a)
+    } else if const_of(func, a) == Some(U256::ONE) {
+        Some(b)
+    } else {
+        None
+    }
+}
+
+/// The minuend and subtrahend of a subtraction, and whether it is exact: a checked one fails
+/// rather than wrap.
+fn difference_operands(func: &Function, value: ValueId) -> Option<(ValueId, ValueId, bool)> {
+    match *inst_kind(func, value)? {
+        InstKind::Sub(x, y) => Some((x, y, false)),
+        InstKind::CheckedBinary {
+            op: CheckedOp::Sub,
+            arithmetic: ArithmeticKind::Unsigned(_),
+            lhs,
+            rhs,
+        } => Some((lhs, rhs, true)),
+        _ => None,
+    }
 }
