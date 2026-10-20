@@ -20,10 +20,10 @@ bb0:
   jumpi
   push 0
   sload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb4 [cold]:
   push 0
@@ -132,10 +132,10 @@ bb8 [loop]:
   push bb10
   jumpi
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb5 [cold]:
   push 0
@@ -179,13 +179,13 @@ bb16 [loop]:
   revert
 bb17:
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb21:
-  push 160
+  push 128
   push 64
   mstore
   push 68
@@ -219,10 +219,10 @@ bb23 [loop]:
   iszero
   push bb25
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb12 [cold]:
   push 17

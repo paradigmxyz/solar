@@ -1,8 +1,8 @@
-//@ run-call: lastByte => 0xa000000000000000000000000000000000000000000000000000000000000000
-//@ run-call: dynamicOffset 0x5f => 0xa000000000000000000000000000000000000000000000000000000000000000
-//@ run-call: dynamicSize 32 => 0xa000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: lastByte => 0x8000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: dynamicOffset 0x5f => 0x8000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: dynamicSize 32 => 0x8000000000000000000000000000000000000000000000000000000000000000
 
-// An entry point stores the initial free memory pointer, here 0xa0, only when
+// An entry point stores the initial free memory pointer, here 0x80, only when
 // it may observe the word at 0x40. Each read below starts at 0x5f, the last
 // byte of that word, so the store must happen. A range whose offset or size
 // is not a constant counts as touching the word.

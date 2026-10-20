@@ -16,8 +16,8 @@
 //! This pass precedes the final e-graph and CFG cleanup, and runs only with
 //! optimization enabled. Dynamic inputs qualify only when their lowered body
 //! needs word operations alone; general dynamic ABI and memory copying retain
-//! the wrapper boundary. Returns must use the bounded ABI buffer and reverts
-//! must fit below the free-memory-pointer slot. Constant writes must stay in
+//! the wrapper boundary. Returns must use the bounded ABI buffer or fit below the
+//! free-memory-pointer slot, and reverts must fit below it. Constant writes must stay in
 //! scratch memory or the route's static ABI return buffer. Arbitrary assembly
 //! memory accesses could otherwise observe or overwrite spills introduced by
 //! the combined dispatcher, or depend on a wrapper's free-memory initialization.
@@ -157,10 +157,13 @@ fn eligible(func: &Function) -> bool {
         })
         && func.blocks.iter().all(|block| match &block.terminator {
             Some(Terminator::ReturnData { offset, size }) => {
-                func.value_u64(*offset) == Some(EvmMemoryLayout::HEAP_START)
-                    && func.value_u64(*size).is_some_and(|size| {
-                        size <= MAX_DISPATCH_INSTRUCTIONS as u64 * EvmMemoryLayout::WORD_SIZE
-                    })
+                func.value_u64(*offset).zip(func.value_u64(*size)).is_some_and(|(offset, size)| {
+                    (offset == EvmMemoryLayout::HEAP_START
+                        && size <= MAX_DISPATCH_INSTRUCTIONS as u64 * EvmMemoryLayout::WORD_SIZE)
+                        || offset
+                            .checked_add(size)
+                            .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT)
+                })
             }
             Some(Terminator::Revert { offset, size }) => func
                 .value_u64(*offset)

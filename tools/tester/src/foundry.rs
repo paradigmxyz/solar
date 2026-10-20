@@ -19,6 +19,8 @@ use std::{
 
 mod external;
 
+pub use external::run_external_suite;
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -236,38 +238,20 @@ fn discover_project_paths(dir: &Path, projects: &mut Vec<PathBuf>) {
     }
 }
 
-/// Gets the path to the compiler binary.
-///
-/// Uses the binary supplied by the compiler test runner when available and
-/// falls back to a binary on disk for this crate's unit tests.
+/// Gets the path to the compiler binary under test, set by the running suite.
 fn get_solar_binary() -> PathBuf {
-    if let Some(path) = SOLAR_BINARY.get() {
-        return path.clone();
-    }
+    SOLAR_BINARY.get().expect("the suite sets the compiler binary before running").clone()
+}
 
-    if let Some(path) = std::env::var_os("SOLAR_FOUNDRY_COMPILER") {
-        let path = PathBuf::from(path);
-        let path = if path.is_absolute() { path } else { workspace_root().join(path) };
-        assert!(path.is_file(), "SOLAR_FOUNDRY_COMPILER is not a file: {}", path.display());
-        return path;
-    }
-
-    if let Some(path) = option_env!("CARGO_BIN_EXE_solar") {
-        return PathBuf::from(path);
-    }
-
-    // `cargo tq foundry` builds the debug binary and `cargo tq foundry-external` the release
-    // one; whichever was built last is the compiler under test, so a release binary left behind
-    // by an earlier run never shadows a fresh debug build.
-    let workspace_root = workspace_root();
-    let release_binary = workspace_root.join("target/release/solar");
-    let debug_binary = workspace_root.join("target/debug/solar");
-    let modified = |path: &Path| std::fs::metadata(path).and_then(|meta| meta.modified()).ok();
-    match (modified(&release_binary), modified(&debug_binary)) {
-        (Some(release), Some(debug)) if release > debug => release_binary,
-        (Some(_), None) => release_binary,
-        _ => debug_binary,
-    }
+/// Picks the compiler under test: `SOLAR_FOUNDRY_COMPILER` if set, else the binary Cargo built.
+fn select_solar_binary(built: &Path) -> PathBuf {
+    let Some(path) = std::env::var_os("SOLAR_FOUNDRY_COMPILER") else {
+        return built.to_path_buf();
+    };
+    let path = PathBuf::from(path);
+    let path = if path.is_absolute() { path } else { workspace_root().join(path) };
+    assert!(path.is_file(), "SOLAR_FOUNDRY_COMPILER is not a file: {}", path.display());
+    path
 }
 
 /// Gets the path to the workspace root.
@@ -942,17 +926,6 @@ fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
 
 /// Main test runner using config.
 fn run_test_with_config(config: &TestConfig) {
-    if !forge_available() {
-        eprintln!("Skipping {}: forge not found in PATH", config.name);
-        return;
-    }
-
-    let solar_binary = get_solar_binary();
-    if !solar_binary.exists() {
-        eprintln!("Skipping {}: Solar binary not found at {:?}", config.name, solar_binary);
-        return;
-    }
-
     let project_dir = &config.path;
     if !project_dir.exists() {
         panic!("Project directory not found: {:?}", project_dir);
@@ -1156,9 +1129,19 @@ fn audit_artifacts(
     errors
 }
 
-/// Runs the default Foundry suite.
-pub(super) fn run_default_suite(solar: &Path) {
-    let _ = SOLAR_BINARY.set(solar.to_path_buf());
+/// Runs the default Foundry suite with the `solar` binary Cargo built for the test.
+pub fn run_default_suite(solar: &Path) {
+    if std::env::var_os("SOLAR_FOUNDRY_SKIP").is_some_and(|v| v != "0") {
+        eprintln!("Skipping the Foundry suite: SOLAR_FOUNDRY_SKIP is set");
+        return;
+    }
+    assert!(
+        forge_available(),
+        "forge not found in PATH; install Foundry, or set SOLAR_FOUNDRY_SKIP=1 to skip the \
+         Foundry suite"
+    );
+
+    let _ = SOLAR_BINARY.set(select_solar_binary(solar));
     let projects = discover_projects(&foundry_root());
     assert!(!projects.is_empty(), "No Foundry projects found");
 
@@ -1225,16 +1208,5 @@ mod tests {
             "methodIdentifiers": {},
         });
         assert!(!is_internal_only_library_stub(&empty_contract, "60806040525f80fdfea26469706673",));
-    }
-
-    #[test]
-    fn foundry() {
-        run_default_suite(&get_solar_binary());
-    }
-
-    #[test]
-    #[ignore = "external Foundry suite; run via `cargo tq foundry-external`"]
-    fn external() {
-        external::run_external_suite(&get_solar_binary());
     }
 }

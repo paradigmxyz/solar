@@ -3,17 +3,17 @@
 @phase lowered
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
-    v16 = mload 64 !metadata(memory=scratch)
-    mstore v16, 1
-    v4 = add v16, 32
+    v15 = mload 64 !metadata(memory=scratch)
+    mstore v15, 1
+    v4 = add v15, 32
     mstore v4, 28
-    v5 = add v16, 64
+    v5 = add v15, 64
     mstore v5, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v6 = add v16, 96
+    v6 = add v15, 96
     mstore v6, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     mstore 0, 0 !metadata(memory=scratch)
     v7 = gas
-    v8 = staticcall v7, 1, v16, 128, 0, 32
+    v8 = staticcall v7, 1, v15, 128, 0, 32
     jumpi v8, bb2, bb1
   bb1:
     v10 = returndatasize
@@ -22,24 +22,24 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     revert 0, v11
   bb2:
     v9 = mload 0 !metadata(memory=scratch)
-    v17 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v17
-    returndata 128, 32
+    v16 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 0, v16
+    returndata 0, 32
 }
 
 fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
   bb0:
-    v16 = mload 64 !metadata(memory=scratch)
-    mstore v16, 0
-    v4 = add v16, 32
+    v15 = mload 64 !metadata(memory=scratch)
+    mstore v15, 0
+    v4 = add v15, 32
     mstore v4, 0
-    v5 = add v16, 64
+    v5 = add v15, 64
     mstore v5, 0
-    v6 = add v16, 96
+    v6 = add v15, 96
     mstore v6, 0
     mstore 0, 0 !metadata(memory=scratch)
     v7 = gas
-    v8 = staticcall v7, 1, v16, 128, 0, 32
+    v8 = staticcall v7, 1, v15, 128, 0, 32
     jumpi v8, bb2, bb1
   bb1:
     v10 = returndatasize
@@ -48,45 +48,45 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     revert 0, v11
   bb2:
     v9 = mload 0 !metadata(memory=scratch)
-    v17 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v17
-    returndata 128, 32
+    v16 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 0, v16
+    returndata 0, 32
 }
 
 fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
-    returndata 128, 32
+    mstore 0, 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @ripemd() [selector=0xa1e754ea, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc000000000000000000000000
-    returndata 128, 32
+    mstore 0, 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc000000000000000000000000 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @shaLiteral() [selector=0x4aa7a4c7, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
-    returndata 128, 32
+    mstore 0, 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc000000000000000000000000
-    returndata 128, 32
+    mstore 0, 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc000000000000000000000000 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-    returndata 128, 32
+    mstore 0, 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0x9c1185a5c5e9fc54612808977ee8f548b2258d31000000000000000000000000
-    returndata 128, 32
+    mstore 0, 0x9c1185a5c5e9fc54612808977ee8f548b2258d31000000000000000000000000 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @shaWord() [selector=0x1a7d61f8, abi_wrapper, pure] {
@@ -95,14 +95,14 @@ fn @shaWord() [selector=0x1a7d61f8, abi_wrapper, pure] {
     v12 = lt v11, 36
     jumpi v12, bb3, bb4
   bb4:
-    v18 = mload 64 !metadata(memory=scratch)
-    v19 = add v18, 64
-    mstore 64, v19 !metadata(memory=scratch)
-    mstore v18, 32
-    v16 = add v18, 32
-    mstore v16, arg0
+    v17 = mload 64 !metadata(memory=scratch)
+    v18 = add v17, 64
+    mstore 64, v18 !metadata(memory=scratch)
+    mstore v17, 32
+    v15 = add v17, 32
+    mstore v15, arg0
     v6 = gas
-    v7 = staticcall v6, 2, v16, 32, 0, 32
+    v7 = staticcall v6, 2, v15, 32, 0, 32
     jumpi v7, bb2, bb1
   bb1:
     v9 = returndatasize
@@ -111,8 +111,8 @@ fn @shaWord() [selector=0x1a7d61f8, abi_wrapper, pure] {
     revert 0, v10
   bb2:
     v8 = mload 0 !metadata(memory=scratch)
-    mstore 128, v8
-    returndata 128, 32
+    mstore 0, v8 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
     revert 0, 0
 }
@@ -123,14 +123,14 @@ fn @ripemdWord() [selector=0x5c2b7c72, abi_wrapper, pure] {
     v13 = lt v12, 36
     jumpi v13, bb3, bb4
   bb4:
-    v19 = mload 64 !metadata(memory=scratch)
-    v20 = add v19, 64
-    mstore 64, v20 !metadata(memory=scratch)
-    mstore v19, 32
-    v17 = add v19, 32
-    mstore v17, arg0
+    v18 = mload 64 !metadata(memory=scratch)
+    v19 = add v18, 64
+    mstore 64, v19 !metadata(memory=scratch)
+    mstore v18, 32
+    v16 = add v18, 32
+    mstore v16, arg0
     v6 = gas
-    v7 = staticcall v6, 3, v17, 32, 0, 32
+    v7 = staticcall v6, 3, v16, 32, 0, 32
     jumpi v7, bb2, bb1
   bb1:
     v10 = returndatasize
@@ -140,8 +140,8 @@ fn @ripemdWord() [selector=0x5c2b7c72, abi_wrapper, pure] {
   bb2:
     v8 = mload 0 !metadata(memory=scratch)
     v9 = shl v8, 96
-    mstore 128, v9
-    returndata 128, 32
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
     revert 0, 0
 }

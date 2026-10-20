@@ -498,9 +498,10 @@ impl LowerAbiCx {
                 }
             }
         }
-        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
-            // Static return data occupies the low-memory ABI buffer. Keep the
-            // backend spill area above it so a cross-block value cannot be
+        let in_scratch = returns_in_scratch(&layout);
+        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) && !in_scratch {
+            // Static return data outside scratch memory occupies the low-memory ABI
+            // buffer. Keep the backend spill area above it so a cross-block value cannot be
             // overwritten while the return tuple is encoded.
             func.external_static_return_size = layout.head_size();
         }
@@ -577,7 +578,14 @@ impl LowerAbiCx {
                 let size = builder.slice_len(encoded);
                 builder.ret_data(offset, size);
             } else {
-                let offset = builder.imm(EvmMemoryLayout::HEAP_START);
+                // A result that fits in scratch memory never reaches the free memory pointer or
+                // the spill area, and `return` ends execution, so nothing reads the scratch again.
+                let start = if in_scratch {
+                    EvmMemoryLayout::SCRATCH_SLOT
+                } else {
+                    EvmMemoryLayout::HEAP_START
+                };
+                let offset = builder.imm(start);
                 let size = super::lower_abi_encode::encode_static_tuple(
                     &mut builder,
                     &values,
@@ -3946,6 +3954,14 @@ fn encode_static_bytes_return(
         builder.store(tail_offset, tail);
     }
     builder.ret_data(offset, size);
+}
+
+/// Returns whether a static return tuple is encoded in the scratch words below the free memory
+/// pointer. Only stack scalars qualify: encoding a memory aggregate loads its fields while
+/// storing earlier ones, and assembly can point such an aggregate into scratch.
+fn returns_in_scratch(layout: &AbiLayout) -> bool {
+    layout.head_size() <= EvmMemoryLayout::FMP_SLOT
+        && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_) | AbiType::Function))
 }
 
 fn materialize_calldata_return(
