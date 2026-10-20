@@ -24,14 +24,16 @@
 //! access, encodes as immediate stores, and its now unused allocation is
 //! removed. The candidates are proven on the original IR, before encoding
 //! emits its own raw accesses.
-//! Literal bytes with observable allocations can still fold into encoder stores,
-//! in slice and scratch encodings alike; their original allocations and initialization
-//! remain for later observers. A scratch encoding that returns or reverts, with no memory access
-//! after it, leaves no observer, so its folded literal's allocation goes too: keeping it would
-//! repeat the payload as stores beside the folded copy.
-//! This is limited to gas-mode encodings before Cancun.
-//! NOTE: Duplicating preserved payloads can grow native-MCOPY encoders and size-mode copies;
-//! keep their copies until their full code shape is priced.
+//! Literal bytes with observable allocations can still fold into encoder
+//! stores, in slice and scratch encodings alike; their original allocations
+//! and initialization remain for later observers. A scratch encoding that
+//! returns or reverts with exactly its bytes, with no memory access after it
+//! and no later allocation to shift, leaves no observer, so its last folded
+//! literal's allocation goes too: keeping it would repeat the payload as
+//! stores beside the folded copy. This is limited to gas-mode encodings
+//! before Cancun.
+//! NOTE: Duplicating preserved payloads can grow native-MCOPY encoders and
+//! size-mode copies; keep their copies until their full code shape is priced.
 //!
 //! Element loops. Full-word memory arrays and calldata word arrays copy as one
 //! block. Memory words that need cleanup use a guarded do-while over a
@@ -1596,8 +1598,9 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
 }
 
 /// Literal objects whose allocation nothing can observe once their scratch encode has run: the
-/// block returns or reverts with exactly the encoded bytes and no instruction after the encode
-/// accesses memory, so no reader sees the free-memory-pointer bump the allocation preserves.
+/// block returns or reverts with exactly the encoded bytes, no instruction after the encode
+/// accesses memory, and no allocation or reserving encode follows the literal's, so the
+/// free-memory-pointer bump it preserves moves no address and has no reader.
 /// `literal_objects_at_encodes` already proved that no access sits between the allocation and
 /// the encode.
 fn terminal_scratch_literals(
@@ -1611,23 +1614,36 @@ fn terminal_scratch_literals(
         else {
             continue;
         };
+        // The latest allocation, or none after an encode that reserves memory.
+        let mut last_allocation = None;
         for (index, &inst) in block.instructions.iter().enumerate() {
-            let InstKind::AbiEncode { mode: AbiEncodeMode::Scratch, args, .. } =
-                &func.inst(inst).kind
-            else {
-                continue;
-            };
-            let Some(encoded) = func.inst_result_value(inst) else { continue };
-            let projects_encoding = |operand: ValueId| {
-                let Value::Inst(projection) = func.value(operand) else { return false };
-                let projection = func.inst(*projection).kind.slice_projection();
-                projection.is_some_and(|(value, _)| value == encoded)
-            };
-            let no_observer = block.instructions[index + 1..].iter().all(|&later| {
-                !literal_opaque_instruction(func, &func.inst(later).kind, &FxHashSet::default())
-            });
-            if projects_encoding(*offset) && projects_encoding(*size) && no_observer {
-                objects.extend(args.iter().copied().filter(|arg| literal_objects.contains(arg)));
+            match &func.inst(inst).kind {
+                InstKind::Alloc { .. } => last_allocation = func.inst_result_value(inst),
+                InstKind::AbiEncode { mode: AbiEncodeMode::Scratch, args, .. } => {
+                    let Some(encoded) = func.inst_result_value(inst) else { continue };
+                    let projects = |operand, field| {
+                        matches!(func.value(operand), Value::Inst(projection)
+                            if func.inst(*projection).kind.slice_projection() == Some((encoded, field)))
+                    };
+                    let no_observer = block.instructions[index + 1..].iter().all(|&later| {
+                        !literal_opaque_instruction(
+                            func,
+                            &func.inst(later).kind,
+                            &FxHashSet::default(),
+                        )
+                    });
+                    if let Some(object) = last_allocation
+                        && args.contains(&object)
+                        && literal_objects.contains(&object)
+                        && projects(*offset, MirType::SLICE_PTR_FIELD)
+                        && projects(*size, MirType::SLICE_LEN_FIELD)
+                        && no_observer
+                    {
+                        objects.insert(object);
+                    }
+                }
+                InstKind::AbiEncode { .. } => last_allocation = None,
+                _ => {}
             }
         }
     }
@@ -1751,8 +1767,8 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
 
 /// Removes a literal object's initialization after its encoding has embedded
 /// the bytes directly in the output. The object must have no active use other
-/// than its allocation and literal stores; otherwise the object remains live. An allocation that
-/// preserves the free-memory pointer goes only if it is in `unobserved`.
+/// than its allocation and literal stores; otherwise the object remains live. An allocation
+/// that preserves the free-memory pointer goes only if it is in `unobserved`.
 fn remove_literal_objects(
     func: &mut Function,
     values: &[ValueId],

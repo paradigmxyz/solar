@@ -128,5 +128,28 @@ fn @revert_reads_allocation() {
     mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
     v3 = abi_encode [memory_bytes], scratch, args v0
     v4 = extract_value slice<memory>, v3, 1
-    revert v0, v4
+    v5 = inttoptr i256 128 to ptr<memory>
+    revert v5, v4
+}
+
+// An allocation after the literal's would move if the literal's went, and its address can
+// reach the return data.
+// CHECK: fn @later_allocation
+// CHECK: alloc 96 !metadata(preserves_fmp)
+// FOLD-NOT: mcopy
+// COPY: + mcopy
+fn @later_allocation() {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 48
+    v1 = ptradd v0, 32
+    mstore v1, 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v2 = ptradd v0, 64
+    mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+    v3 = alloc 64
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = abi_encode [memory_bytes, word], scratch, args v0, v4
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    returndata v6, v7
 }

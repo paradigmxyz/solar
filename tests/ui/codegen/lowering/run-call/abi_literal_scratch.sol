@@ -9,11 +9,13 @@
 //@ run-call: text => "scratch literal that spans two words;"
 //@ run-call-fail: observedRevert 7 => 0x000000000000000000000000000000000000000000000000000000000000002573637261746368206c69746572616c2074686174207370616e732074776f2077
 //@ run-call-fail: fail 7 => 0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002573637261746368206c69746572616c2074686174207370616e732074776f20776f7264732c000000000000000000000000000000000000000000000000000000
+//@ run-call: shifted => 0x616263, 192
 //@ run-call: recycledText => 0xabcd
 
 // A literal folded into a scratch encode: `hash` hashes it, `text` returns it, and `fail`
 // reverts with it. `observed` reads the literal's allocation after the encode, and
-// `observedRevert` reverts with the allocation's bytes, so both allocations must remain. The
+// `observedRevert` reverts with the allocation's bytes, so both allocations must remain, and
+// `shifted` returns the address of a later allocation, which the literal's must not move. The
 // recycled cases overwrite a literal through an older allocation, so its bytes differ from the
 // ones it was initialized with.
 contract C {
@@ -50,6 +52,16 @@ contract C {
 
     function fail(uint256 x) external pure {
         if (x == 7) revert("scratch literal that spans two words,");
+    }
+
+    function shifted() external pure returns (bytes memory, uint256) {
+        bytes memory literal = "abc";
+        bytes memory next = new bytes(0);
+        uint256 address_;
+        assembly {
+            address_ := next
+        }
+        return (literal, address_);
     }
 
     function recycledHash(uint256 x) external pure returns (bytes32) {
