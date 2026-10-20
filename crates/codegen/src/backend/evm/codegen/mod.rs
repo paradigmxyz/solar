@@ -24,8 +24,9 @@ use crate::{
     },
     link::{EmbeddedBytecodes, LibraryRelocation},
     mir::{
-        ArgIdx, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind,
-        MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
+        ArgIdx, BackendMemory, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId,
+        InstId, InstKind, MemoryRegion, MirPhase, MirType, Module, StackReturn, Terminator, Value,
+        ValueId,
         analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Liveness, LoopAnalyzer, MemoryBase},
         immutable::{
             immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
@@ -165,7 +166,7 @@ pub struct EvmCodegen<'gcx> {
     /// Runtime entry FMP initialization constants.
     entry_heap_sites: FxHashMap<FunctionId, DeferredConst>,
     /// Return-buffer protocols removed by the selected stack plan.
-    stack_return_sites: FxHashMap<(FunctionId, InstId), crate::mir::StackReturn>,
+    stack_return_sites: FxHashMap<(FunctionId, InstId), StackReturn>,
     /// The end of the frames and spill slots each runtime entry reaches, retained only when
     /// capturing MIR.
     entry_frame_ends: FxHashMap<FunctionId, u64>,
@@ -368,7 +369,7 @@ enum Body {
 /// Runtime code whose EVM IR pipeline has run in the assembler, waiting for embedded bytecode.
 struct PendingRuntime {
     call_graph: CallGraphInfo,
-    backend_memory: Option<crate::mir::BackendMemory>,
+    backend_memory: Option<BackendMemory>,
 }
 
 /// The artifact produced by the EVM backend.
@@ -395,7 +396,7 @@ pub struct EvmArtifact {
     /// Final runtime instruction locations.
     pub runtime_debug_info: Option<DebugInfo>,
     /// Resolved runtime memory placements for a final MIR dump.
-    pub(crate) backend_memory: Option<crate::mir::BackendMemory>,
+    pub(crate) backend_memory: Option<BackendMemory>,
 }
 
 impl crate::backend::Backend for EvmCodegen<'_> {

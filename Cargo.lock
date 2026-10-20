@@ -4544,6 +4544,7 @@ dependencies = [
 name = "solar-bench"
 version = "0.2.0"
 dependencies = [
+ "alloy-primitives",
  "codspeed-criterion-compat",
  "flate2",
  "semver 1.0.28",

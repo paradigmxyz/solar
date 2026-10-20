@@ -1,9 +1,9 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, Data, DataBytes, DataId, DataRef,
-    Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
-    Terminator, ValueId,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, BackendMemory, Data, DataBytes,
+    DataId, DataRef, Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol, MirType,
+    StructId, StructType, Terminator, ValueId,
 };
 use crate::link::{ContractCode, LibraryTable};
 use alloy_primitives::Bytes;
@@ -113,7 +113,7 @@ pub struct Module {
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
     /// Resolved backend layout, used only by execution tools and final dumps.
-    pub(crate) backend_memory: Option<super::BackendMemory>,
+    pub(crate) backend_memory: Option<BackendMemory>,
 }
 
 impl Module {

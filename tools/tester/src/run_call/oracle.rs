@@ -226,26 +226,26 @@ pub(super) fn check(
     call: &Call<'_>,
     trace: &Trace,
 ) -> Result<(), String> {
-    let skip =
+    let unsupported =
         |reason: &str| Err(format!("the MIR interpreter cannot check `{}`: {reason}", call.name));
     let dumps = dumps(config, build_manager);
     let dump = match dumps.as_ref() {
         Ok(dump) => dump,
         Err(error) => {
-            return skip(error);
+            return unsupported(error);
         }
     };
     let Some(module) = dump.modules.get(call.contract) else {
-        return skip("the MIR dump has no module for the contract");
+        return unsupported("the MIR dump has no module for the contract");
     };
-    // Every contract a call deploys has a runtime: a dump without it would skip every call.
+    // Every contract a call deploys has a runtime: a dump without it would fail every call.
     let Some(runtime) = dump.runtimes.get(call.contract) else {
         return Err(format!("the MIR dump has no runtime for `{}`", call.contract));
     };
     // A constructor may deploy other code, and deployment patches immutables into the runtime.
     let deployed = trace.before.accounts.get(&trace.before.contract).map(|account| &account.code);
     if deployed != Some(runtime) {
-        return skip("the deployed code is not the compiled runtime");
+        return unsupported("the deployed code is not the compiled runtime");
     }
     let expected = match trace.stop {
         stop if stop.is_success() => Outcome::Success(trace.output.clone()),
@@ -260,7 +260,7 @@ pub(super) fn check(
         | InstrStop::InvalidOperandOOG
         | InstrStop::StackOverflow
         | InstrStop::CallTooDeep => {
-            return skip(&format!("the EVM ended with {:?}", trace.stop));
+            return unsupported(&format!("the EVM ended with {:?}", trace.stop));
         }
         stop if expected_halt(stop, trace.last_opcode, call.evm_version) => Outcome::Halt,
         _ => {
@@ -279,7 +279,7 @@ pub(super) fn check(
         Err(reason) => return Err(format!("invalid final MIR for `{}`: {reason}", call.contract)),
     };
     if let Outcome::Unsupported(reason) = &execution.outcome {
-        return skip(reason);
+        return unsupported(reason);
     }
 
     let mut differences = Vec::new();
@@ -457,6 +457,14 @@ fn parse_dump(stdout: &[u8]) -> Result<Dump, String> {
     Ok(dump)
 }
 
+/// Accept only the explicit invalid instruction or REVERT before its activation.
+fn expected_halt(stop: InstrStop, opcode: Option<u8>, version: EvmVersion) -> bool {
+    (stop == InstrStop::InvalidOpcode && opcode == Some(op::INVALID))
+        || (matches!(stop, InstrStop::NotActivated | InstrStop::InvalidOpcode)
+            && opcode == Some(op::REVERT)
+            && version < EvmVersion::Byzantium)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -496,19 +504,6 @@ mod tests {
         let dump = parse_dump(stdout).unwrap();
         assert_eq!(dump.runtimes["a.sol:A"], [0x60, 0x01]);
     }
-}
-
-/// Accept only the explicit invalid instruction or REVERT before its activation.
-fn expected_halt(stop: InstrStop, opcode: Option<u8>, version: EvmVersion) -> bool {
-    (stop == InstrStop::InvalidOpcode && opcode == Some(op::INVALID))
-        || (matches!(stop, InstrStop::NotActivated | InstrStop::InvalidOpcode)
-            && opcode == Some(op::REVERT)
-            && version < EvmVersion::Byzantium)
-}
-
-#[cfg(test)]
-mod halt_tests {
-    use super::*;
 
     #[test]
     fn rejects_unexpected_halts() {

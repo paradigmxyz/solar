@@ -497,13 +497,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         let mut module = lower::lower_contract(gcx, contract_id);
         gcx.dcx().has_errors()?;
         let capture_mir = captures.mir.contains(contract_id);
-        let final_mir = gcx
-            .sess
-            .opts
-            .unstable
-            .dump
-            .as_ref()
-            .is_some_and(|dump| dump.kinds.contains(&DumpKind::MirFinal));
+        let final_mir = dumps_final_mir(gcx);
         let needs_backend = captures.bytecode.contains(contract_id)
             || captures.evm_ir.contains(contract_id)
             || captures.debug_info.contains(contract_id)
@@ -650,14 +644,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         );
         let runtime_link_references =
             collect_library_references(&artifact.runtime_library_relocations, &artifact.libraries);
-        let capture_final = gcx
-            .sess
-            .opts
-            .unstable
-            .dump
-            .as_ref()
-            .is_some_and(|dump| dump.kinds.contains(&DumpKind::MirFinal));
-        let final_mir = (capture_mir && capture_final).then(|| {
+        let final_mir = (capture_mir && dumps_final_mir(gcx)).then(|| {
             let mut snapshot = module.clone();
             snapshot.backend_memory = artifact.backend_memory.clone();
             snapshot
@@ -712,4 +699,14 @@ fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
     if let Some(data) = data.filter(|data| !data.is_empty()) {
         module.append_runtime_data(data.clone(), None);
     }
+}
+
+/// Returns whether `-Zdump=mir-final` asks for the MIR the backend compiles.
+fn dumps_final_mir(gcx: Gcx<'_>) -> bool {
+    gcx.sess
+        .opts
+        .unstable
+        .dump
+        .as_ref()
+        .is_some_and(|dump| dump.kinds.contains(&DumpKind::MirFinal))
 }

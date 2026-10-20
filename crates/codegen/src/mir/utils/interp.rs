@@ -132,7 +132,7 @@ pub(crate) enum Outcome {
 /// A bound on one execution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Limit {
-    /// The fuel budget, or the budget of the run's meter, ran out.
+    /// The fuel budget ran out.
     Fuel,
     /// Calls nested deeper than the call depth.
     Depth,
@@ -169,40 +169,6 @@ pub(crate) struct Effects {
     /// The events it logged, in order.
     pub(crate) logs: Vec<Log>,
 }
-
-/// Observes every operation an execution runs, for example to price it.
-///
-/// Each method runs before the operation it reports, and `operand` reads the values of the
-/// frame running it.
-pub(crate) trait Meter {
-    /// Instruction `inst` of `function` runs, including each phi of a block the run enters.
-    fn instruction(
-        &mut self,
-        function: &Function,
-        inst: InstId,
-        operand: &dyn Fn(ValueId) -> Option<U256>,
-    ) {
-        let _ = (function, inst, operand);
-    }
-
-    /// The terminator of `block` in `function` runs.
-    fn terminator(
-        &mut self,
-        function: &Function,
-        block: BlockId,
-        operand: &dyn Fn(ValueId) -> Option<U256>,
-    ) {
-        let _ = (function, block, operand);
-    }
-
-    /// The instruction [`Self::instruction`] just reported produced `value`. A call's result is
-    /// not reported: the callee's return delivers it.
-    fn result(&mut self, value: U256) {
-        let _ = value;
-    }
-}
-
-impl Meter for () {}
 
 /// Answers what a run reads from its context and cannot know itself.
 pub trait Host {
@@ -357,9 +323,9 @@ impl<'a> Machine<'a> {
         Self { module }
     }
 
-    /// Runs `function` on `args` and `memory` within `limits`, reporting each operation to
-    /// `meter`. With a `host`, the run also reads and writes storage and transient storage, logs
-    /// events, and reads the context values the host answers.
+    /// Runs `function` on `args` and `memory` within `limits`. With a `host`, the run also reads
+    /// and writes storage and transient storage, logs events, and reads the context values the
+    /// host answers.
     #[cfg(test)]
     pub(crate) fn run(
         &self,
@@ -368,7 +334,6 @@ impl<'a> Machine<'a> {
         memory: Memory,
         host: Option<&mut dyn Host>,
         limits: Limits,
-        meter: &mut dyn Meter,
     ) -> Execution {
         let mut run = Run {
             machine: self,
@@ -380,7 +345,7 @@ impl<'a> Machine<'a> {
             transaction: None,
             frames_end: U256::ZERO,
         };
-        let ControlFlow::Break(outcome) = run.execute(function, args, meter);
+        let ControlFlow::Break(outcome) = run.execute(function, args);
         let effects = run.world.map(|world| world.effects).unwrap_or_default();
         let effects = kept_effects(&outcome, effects);
         Execution { outcome, effects }
@@ -394,7 +359,6 @@ impl<'a> Machine<'a> {
         host: &mut dyn Host,
         evm_version: EvmVersion,
         limits: Limits,
-        meter: &mut dyn Meter,
     ) -> TransactionExecution {
         let Some(entry) = self.module.dispatch_entry() else {
             return TransactionExecution {
@@ -417,7 +381,7 @@ impl<'a> Machine<'a> {
             transaction: Some(Transaction { calldata, evm_version }),
             frames_end: U256::ZERO,
         };
-        let ControlFlow::Break(outcome) = run.execute(entry, &[], meter);
+        let ControlFlow::Break(outcome) = run.execute(entry, &[]);
         let outcome = match outcome {
             // return [] => stop
             Outcome::Return(values) if values.is_empty() => Outcome::Stop,
@@ -443,6 +407,7 @@ impl<'a> Machine<'a> {
 
 /// The state of one call.
 struct Frame<'a> {
+    function: FunctionId,
     body: &'a Function,
     /// The original callee whose caller publishes its return buffer, across tail calls.
     return_owner: &'a Function,
@@ -457,9 +422,15 @@ struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
-    fn new(body: &'a Function, args: IndexVec<ArgIdx, U256>, result: Option<ValueId>) -> Self {
+    fn new(
+        function: FunctionId,
+        body: &'a Function,
+        args: IndexVec<ArgIdx, U256>,
+        result: Option<ValueId>,
+    ) -> Self {
         let values = index_vec![None; body.num_values()];
         Self {
+            function,
             body,
             return_owner: body,
             caller_inst: None,
@@ -529,23 +500,18 @@ struct Run<'m, 'a, 't> {
 }
 
 impl<'a> Run<'_, 'a, '_> {
-    fn execute(
-        &mut self,
-        function: FunctionId,
-        args: &[U256],
-        meter: &mut dyn Meter,
-    ) -> ControlFlow<Outcome, Infallible> {
+    fn execute(&mut self, function: FunctionId, args: &[U256]) -> ControlFlow<Outcome, Infallible> {
         let Some(body) = self.machine.body(function) else {
             return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
         };
         self.call(body, args.iter().copied().collect(), None)?;
         loop {
             let frame = self.frame();
-            let (body, block, next) = (frame.body, frame.block, frame.next);
+            let (function, body, block, next) =
+                (frame.function, frame.body, frame.block, frame.next);
             match body.blocks[block].instructions.get(next) {
                 Some(&inst) => {
                     self.frame().next += 1;
-                    let function = self.machine.function_id(body);
                     let elided =
                         self.machine.module.backend_memory.as_ref().is_some_and(|layout| {
                             layout.stack_returns.iter().any(|(&(owner, _), protocol)| {
@@ -553,10 +519,10 @@ impl<'a> Run<'_, 'a, '_> {
                             })
                         });
                     if !elided {
-                        self.instruction(body, inst, meter)?;
+                        self.instruction(body, inst)?;
                     }
                 }
-                None => self.terminator(body, block, meter)?,
+                None => self.terminator(body, block)?,
             }
         }
     }
@@ -620,16 +586,11 @@ impl<'a> Run<'_, 'a, '_> {
                 limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
             }
         }
-        self.frames.push(Frame::new(body, args, result));
+        self.frames.push(Frame::new(function, body, args, result));
         ControlFlow::Continue(())
     }
 
-    fn instruction(
-        &mut self,
-        body: &'a Function,
-        inst: InstId,
-        meter: &mut dyn Meter,
-    ) -> ControlFlow<Outcome> {
+    fn instruction(&mut self, body: &'a Function, inst: InstId) -> ControlFlow<Outcome> {
         self.burn(1)?;
         let instruction = body.inst(inst);
         let mnemonic = instruction.kind.op_def().mnemonic;
@@ -641,10 +602,9 @@ impl<'a> Run<'_, 'a, '_> {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
         let frame = self.frames.last().expect("a run always has a frame");
-        meter.instruction(body, inst, &|value| frame.word(value));
         let result = match semantics {
             Semantics::HeapFloor if self.transaction.is_some() => {
-                let function = self.machine.function_id(body);
+                let function = frame.function;
                 self.machine
                     .module
                     .backend_memory
@@ -695,7 +655,7 @@ impl<'a> Run<'_, 'a, '_> {
             }
             Semantics::Allocate(size, _) if self.transaction.is_some() => {
                 let size = frame.read(size)?;
-                self.allocate(body, inst, size)?
+                self.allocate(frame.function, inst, size)?
             }
             semantics => match eval_semantics(semantics, |value| frame.word(value).ok_or(())) {
                 Ok(Some(word)) => word,
@@ -708,7 +668,6 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(value) = instruction.result() else {
             return ControlFlow::Break(Outcome::Unsupported("result without a value"));
         };
-        meter.result(result);
         self.frame().values[value] = Some(result);
         ControlFlow::Continue(())
     }
@@ -864,7 +823,7 @@ impl<'a> Run<'_, 'a, '_> {
     /// Missing placements are unsupported, since synthetic pointers can change execution.
     fn allocate(
         &mut self,
-        body: &Function,
+        function: FunctionId,
         inst: InstId,
         size: U256,
     ) -> ControlFlow<Outcome, U256> {
@@ -875,7 +834,6 @@ impl<'a> Run<'_, 'a, '_> {
             return ControlFlow::Break(Outcome::Unsupported("alloc"));
         }
         if let Some(layout) = &self.machine.module.backend_memory {
-            let function = self.machine.function_id(body);
             let Some(placement) = layout.allocations.get(&(function, inst)) else {
                 return ControlFlow::Break(Outcome::Unsupported(
                     "missing backend allocation placement",
@@ -926,23 +884,17 @@ impl<'a> Run<'_, 'a, '_> {
         limit(self.memory.store(slot, U256::from(buffer)))
     }
 
-    fn terminator(
-        &mut self,
-        body: &'a Function,
-        block: BlockId,
-        meter: &mut dyn Meter,
-    ) -> ControlFlow<Outcome> {
+    fn terminator(&mut self, body: &'a Function, block: BlockId) -> ControlFlow<Outcome> {
         self.burn(1)?;
         let Some(terminator) = &body.blocks[block].terminator else {
             return ControlFlow::Break(Outcome::Unsupported("block without a terminator"));
         };
         let frame = self.frames.last().expect("a run always has a frame");
-        meter.terminator(body, block, &|value| frame.word(value));
         match terminator {
-            &Terminator::Jump(target) => self.enter(target, meter),
+            &Terminator::Jump(target) => self.enter(target),
             &Terminator::Branch { condition, then_block, else_block } => {
                 let condition = frame.read(condition)?;
-                self.enter(if condition.is_zero() { else_block } else { then_block }, meter)
+                self.enter(if condition.is_zero() { else_block } else { then_block })
             }
             Terminator::Switch { value, default, cases } => {
                 let value = frame.read(*value)?;
@@ -953,7 +905,7 @@ impl<'a> Run<'_, 'a, '_> {
                         break;
                     }
                 }
-                self.enter(target, meter)
+                self.enter(target)
             }
             Terminator::Return { values } => {
                 let values = frame.read_all(values)?.into_iter().collect::<SmallVec<_>>();
@@ -962,8 +914,7 @@ impl<'a> Run<'_, 'a, '_> {
                     return ControlFlow::Break(Outcome::Return(values));
                 }
                 if values.len() > 1 {
-                    let caller_id =
-                        self.machine.function_id(self.frames.last().expect("caller").body);
+                    let caller_id = self.frames.last().expect("caller").function;
                     let protocol = self.machine.module.backend_memory.as_ref().and_then(|layout| {
                         layout.stack_returns.get(&(caller_id, frame.caller_inst?))
                     });
@@ -1031,7 +982,7 @@ impl<'a> Run<'_, 'a, '_> {
     }
 
     /// Enters `target` from the current block, assigning its phis for the edge taken.
-    fn enter(&mut self, target: BlockId, meter: &mut dyn Meter) -> ControlFlow<Outcome> {
+    fn enter(&mut self, target: BlockId) -> ControlFlow<Outcome> {
         let frame = self.frames.last().expect("a run always has a frame");
         let (body, from) = (frame.body, frame.block);
         let Some(block) = body.blocks.get(target) else {
@@ -1046,9 +997,7 @@ impl<'a> Run<'_, 'a, '_> {
             else {
                 return ControlFlow::Break(Outcome::Unsupported("phi without an input"));
             };
-            meter.instruction(body, inst, &|value| frame.word(value));
             let word = frame.read(value)?;
-            meter.result(word);
             incoming.push((result, word));
         }
         self.burn(incoming.len() as u64)?;
@@ -1225,7 +1174,7 @@ fn @storage(arg0: i256) -> i256 {
     }
 
     fn run(module: &Module, function: FunctionId, arg: U256) -> Execution {
-        Machine::new(module).run(function, &[arg], Memory::zeroed(), None, LIMITS, &mut ())
+        Machine::new(module).run(function, &[arg], Memory::zeroed(), None, LIMITS)
     }
 
     fn returned(value: u64) -> Outcome {
@@ -1302,7 +1251,7 @@ fn @storage(arg0: i256) -> i256 {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.enter(|| {
             let module = parse_module(&sess, source).unwrap();
-            Machine::new(&module).transact(calldata, &mut TestHost, evm_version, LIMITS, &mut ())
+            Machine::new(&module).transact(calldata, &mut TestHost, evm_version, LIMITS)
         })
     }
 
@@ -1442,7 +1391,7 @@ fn @world(arg0: i256) -> i256 {
             let machine = Machine::new(&module);
             let args = [U256::from(3)];
             let host: &mut dyn Host = &mut TestHost;
-            let execution = machine.run(id, &args, Memory::zeroed(), Some(host), LIMITS, &mut ());
+            let execution = machine.run(id, &args, Memory::zeroed(), Some(host), LIMITS);
             assert_eq!(execution.outcome, returned(103));
             let effects = execution.effects;
             let mut storage = effects.storage.into_iter().collect::<Vec<_>>();
@@ -1459,7 +1408,7 @@ fn @world(arg0: i256) -> i256 {
             let data = U256::from(5).to_be_bytes::<32>().to_vec();
             assert_eq!(effects.logs, [Log { topics: words(&[103, 3]), data }]);
             // Without a host, the run stops at its first storage access.
-            let outcome = machine.run(id, &args, Memory::zeroed(), None, LIMITS, &mut ()).outcome;
+            let outcome = machine.run(id, &args, Memory::zeroed(), None, LIMITS).outcome;
             assert_eq!(outcome, Outcome::Unsupported("sload"));
         });
     }

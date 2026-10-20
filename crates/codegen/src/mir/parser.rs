@@ -36,10 +36,11 @@
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
     AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
-    BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode, FrameSlotKind,
-    Function, FunctionBuilder, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
-    InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
-    MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator, Value, ValueId,
+    BackendMemory, BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode,
+    FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind,
+    MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator,
+    Value, ValueId,
 };
 use crate::mir::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
 use alloy_primitives::U256;
@@ -66,8 +67,8 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     let arena = Arena::new();
     let mut parser = Parser::new(sess, &arena, source);
     let mut module = parser.parse_module().map_err(PErr::emit)?;
-    module.backend_memory = super::BackendMemory::parse(&module, &source.src)
-        .map_err(|error| sess.dcx.err(error).emit())?;
+    module.backend_memory =
+        BackendMemory::parse(&module, &source.src).map_err(|error| sess.dcx.err(error).emit())?;
     Ok(module)
 }
 

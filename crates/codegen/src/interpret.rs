@@ -96,7 +96,7 @@ pub fn transact(
     with_module(mir, |module| {
         let limits = Limits { fuel: options.fuel, depth: options.depth };
         let machine = Machine::new(module);
-        let execution = machine.transact(calldata, host, options.evm_version, limits, &mut ());
+        let execution = machine.transact(calldata, host, options.evm_version, limits);
         Ok(execution_from(execution.outcome, execution.effects))
     })
 }
