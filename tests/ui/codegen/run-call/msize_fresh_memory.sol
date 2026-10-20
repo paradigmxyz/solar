@@ -12,7 +12,7 @@
 contract Arrays {
     function make() internal pure returns (uint256[3] memory v) {
         assembly {
-            v := msize()
+            v := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
             mstore(v, 11)
             mstore(add(v, 32), 22)
             mstore(add(v, 64), 33)
@@ -31,13 +31,13 @@ contract Arrays {
 
     // The free memory pointer itself becomes `msize()`.
     function bumped(uint256 a) external pure returns (uint256[3] memory out) {
-        assembly { mstore(0x40, msize()) }
+        assembly { mstore(0x40, msize()) } //~[gas,size] WARN: `msize` is not exact when optimizing
         out = [a, a + 1, a + 2];
     }
 
     function makeDynamic(uint256 n) internal pure returns (uint256[] memory v) {
         assembly {
-            v := msize()
+            v := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
             mstore(v, n)
             for { let i := 0 } lt(i, n) { i := add(i, 1) } {
                 mstore(add(add(v, 32), mul(i, 32)), add(i, 100))
@@ -85,7 +85,7 @@ contract Buffer {
     constructor() {
         uint256 p;
         assembly {
-            p := msize()
+            p := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
             for { let i := 0 } lt(i, 0x200) { i := add(i, 32) } { mstore(add(p, i), 0xdead) }
             mstore(0x40, add(p, 0x200))
         }

@@ -19,7 +19,7 @@ contract BigNumberInit {
             let data := add(val, 0x20)
             let length := mload(val)
             let out
-            let freemem := msize()
+            let freemem := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
             switch eq(mod(length, 0x20), 0)
                 case 1 {
                     out := add(freemem, 0x20)

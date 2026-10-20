@@ -16,7 +16,7 @@ contract Idioms {
     modifier note() {
         _;
         assembly {
-            let mark := msize()
+            let mark := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
             mstore(0x40, add(mark, 288))
             mstore(mark, 0x20)
             mstore(add(mark, 0x20), 224)
@@ -36,7 +36,7 @@ contract Idioms {
     function safeMemoryCleaner() internal pure {
         assembly {
             let fmem := mload(0x40)
-            codecopy(fmem, codesize(), sub(msize(), fmem))
+            codecopy(fmem, codesize(), sub(msize(), fmem)) //~[gas,size] WARN: `msize` is not exact when optimizing
         }
     }
 
@@ -60,7 +60,7 @@ contract Idioms {
         bytes32 currentSymbol;
         assembly {
             let start := sub(calldatasize(), add(messageLength, 66))
-            values := msize()
+            values := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
             mstore(values, mload(symbols))
             mstore(0x40, add(add(values, 0x20), mul(mload(symbols), 0x20)))
             for { i := 0 } lt(i, dataSize) { i := add(i, 1) } {
@@ -80,7 +80,7 @@ contract Idioms {
     // Integers `toByte` and `toBytes`: write one byte past `msize()`.
     function toByte(uint8 _base) external pure returns (bytes1 _ret) {
         assembly {
-            let m_alloc := add(msize(), 0x1)
+            let m_alloc := add(msize(), 0x1) //~[gas,size] WARN: `msize` is not exact when optimizing
             mstore8(m_alloc, _base)
             _ret := mload(m_alloc)
         }
@@ -88,7 +88,7 @@ contract Idioms {
 
     function toBytes(uint256 _base) external pure returns (bytes memory _ret) {
         assembly {
-            let m_alloc := add(msize(), 0x1)
+            let m_alloc := add(msize(), 0x1) //~[gas,size] WARN: `msize` is not exact when optimizing
             _ret := mload(m_alloc)
             mstore(_ret, 0x20)
             mstore(add(_ret, 0x20), _base)
@@ -97,7 +97,7 @@ contract Idioms {
 
     // The word at `msize()` is zero.
     function zeroHash() external pure returns (bytes32 h) {
-        assembly { h := keccak256(add(msize(), 0), 0x20) }
+        assembly { h := keccak256(add(msize(), 0), 0x20) } //~[gas,size] WARN: `msize` is not exact when optimizing
     }
 
     // Storage `mcall`: collects the return data of each call at `msize()`.
@@ -109,7 +109,7 @@ contract Idioms {
     function mcall(Call[] memory calls) public returns (uint256 blockNumber, bytes[] memory returnData) {
         assembly {
             blockNumber := number()
-            returnData := msize()
+            returnData := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
             mstore(returnData, mload(calls))
             let retDataOffset := add(returnData, 0x20)
             for { let i := 0 } lt(i, mload(calls)) { i := add(i, 1) } {
@@ -139,7 +139,7 @@ contract Idioms {
     // Optherium `_returnReturnData`: copies the return data to `msize()` and returns it.
     function _returnReturnData(bool _success) internal pure {
         assembly {
-            let returndatastart := msize()
+            let returndatastart := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
             mstore(0x40, add(returndatastart, returndatasize()))
             returndatacopy(returndatastart, 0, returndatasize())
             switch _success case 0 { revert(returndatastart, returndatasize()) } default { return(returndatastart, returndatasize()) }

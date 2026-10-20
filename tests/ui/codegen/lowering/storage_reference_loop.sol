@@ -9,12 +9,12 @@
 contract StorageReferenceLoop {
     function storageLoopMemory(uint256 count) external returns (uint256 delta) {
         assembly {
-            let before := msize()
+            let before := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
             sstore(1, 1)
             for { let i := 0 } lt(i, count) { i := add(i, 1) } {
                 sstore(1, add(sload(1), 1))
             }
-            delta := sub(msize(), before)
+            delta := sub(msize(), before) //~[gas,size] WARN: `msize` is not exact when optimizing
         }
     }
 

@@ -14,7 +14,7 @@ contract EntryFreeMemory {
     // CHECK: msize
     function observedSize() external pure {
         assembly {
-            mstore(0, msize())
+            mstore(0, msize()) //~ WARN: `msize` is not exact when optimizing
             return(0, 32)
         }
     }

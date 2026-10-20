@@ -35,7 +35,7 @@ library Lib {
     // the dispatch left behind exactly as solc's does.
     function probe() external pure returns (uint256 size, uint256 word) {
         assembly {
-            size := msize()
+            size := msize() //~[gas,size,debug] WARN: `msize` is not exact when optimizing
             word := mload(0x80)
         }
     }

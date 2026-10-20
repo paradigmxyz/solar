@@ -50,6 +50,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .map(|()| CallResult::Void);
             }
             Builtin::AbiDecode => return self.lower_abi_decode(args),
+            Builtin::YulMsize
+                if self.cx.gcx.sess.opts.optimization.is_gas()
+                    || self.cx.gcx.sess.opts.optimization.is_size() =>
+            {
+                self.cx
+                    .gcx
+                    .dcx()
+                    .warn("`msize` is not exact when optimizing")
+                    .span(callee.span)
+                    .note(
+                        "the result is at least the free memory pointer and above every byte written before it",
+                    )
+                    .emit();
+            }
             _ => {}
         }
 
