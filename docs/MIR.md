@@ -389,7 +389,9 @@ free-memory pointer and one past every byte read or written before it. It stays 
 barrier that no pass commons or moves, and it reads all of memory, so a write the
 program can see is never dead before it. Frames, spill slots, static allocations,
 scalar-replaced or copy-elided objects, and storage-promotion temporaries lie below
-the free-memory pointer, so passes that remove or move them need no `msize` check.
+the free-memory pointer, so passes that remove or move them need no `msize` check. Moving a
+memory read or hash earlier only raises what a later `msize` returns, so LICM and load PRE need
+none either.
 As in solc, unused storage/account reads and normally returning calls containing
 only those reads may disappear, including their implicit access-list warming.
 Optimization preserves required effects rather than exact gas consumption.

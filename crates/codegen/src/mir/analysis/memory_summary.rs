@@ -295,8 +295,8 @@ impl FunctionMemorySummary {
         self.may_observe_fmp
     }
 
-    /// Returns whether the function may read `msize`, which a call reused across two sites would
-    /// change.
+    /// Returns whether the function may read `msize`, which reusing one call's result at a second
+    /// call site would hide.
     #[must_use]
     pub(crate) const fn may_observe_msize(&self) -> bool {
         self.may_observe_msize

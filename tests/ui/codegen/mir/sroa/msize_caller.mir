@@ -23,7 +23,7 @@ fn @caller(arg0: i256) -> i256 {
 }
 
 // `msize` reads all of memory in the alias model, so a function that reads it, or calls one that
-// does, keeps its objects in memory. No `msize` check in the pass decides this.
+// does, keeps its objects in memory.
 // CHECK-LABEL: fn @touch_then_measure{{[( ]}}
 // CHECK: {{^[ +]+}}mstore
 // CHECK: {{^[ +]+(v[0-9]+ = )?}}mload
