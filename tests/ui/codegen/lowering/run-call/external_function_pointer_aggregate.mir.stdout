@@ -44,28 +44,22 @@ fn @combine(arg0: ptr<memory>, arg1: ptr<memory>) -> struct0 [selector=0x3488ea1
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize ExternalFunctionPointerAggregateTarget_creation_code_0
-    v2 = datasize ExternalFunctionPointerAggregateTarget_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy ExternalFunctionPointerAggregateTarget_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize ExternalFunctionPointerAggregateTarget_creation_code_0
+    v1 = fmp
+    datacopy ExternalFunctionPointerAggregateTarget_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = zext i160 v7 to i256
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = or v11, v13
-    sstore 0, v14 !metadata(storage=slot(0))
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    v7 = zext i160 v2 to i256
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
     ret
 }
 

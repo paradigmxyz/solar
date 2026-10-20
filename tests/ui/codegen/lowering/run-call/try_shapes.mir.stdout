@@ -24,28 +24,22 @@ fn @g(arg0: i256) -> struct0 [selector=0xe420264a, pure, abi_params=[uint256], a
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize Callee_creation_code_0
-    v2 = datasize Callee_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy Callee_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize Callee_creation_code_0
+    v1 = fmp
+    datacopy Callee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = zext i160 v7 to i256
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = or v11, v13
-    sstore 0, v14 !metadata(storage=slot(0))
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    v7 = zext i160 v2 to i256
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
     ret
 }
 
@@ -265,64 +259,58 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     jump bb33
   bb33:
     v119 = phi [bb31: v117], [bb34: v118]
-    v120 = abi_encode []
-    v121 = datasize Callee_creation_code_0
-    v122 = datasize Callee_creation_code_0, 31, aligned
-    v123 = alloc v122
-    datacopy Callee_creation_code_0, v123, v121
-    v124 = extract_value slice<memory>, v120, 0
-    v125 = ptrtoint ptr<memory> v123 to i256
-    v126 = add v125, v121
-    mcopy v126, v124, 0 !metadata(memory=heap)
-    v127 = create 0, v123, v121
-    v128 = ne v127, i160 0
-    jumpi v128, bb36, bb37
+    v120 = datasize Callee_creation_code_0
+    v121 = fmp
+    datacopy Callee_creation_code_0, v121, v120
+    v122 = create 0, v121, v120
+    v123 = ne v122, i160 0
+    jumpi v123, bb36, bb37
   bb37:
     jumpi true, bb39, bb40
   bb40:
     icall revert_if<empty>, true
     invalid
   bb39:
-    v130 = checked_add uint256, v119, 900
+    v125 = checked_add uint256, v119, 900
     jump bb38
   bb36:
-    v129 = checked_add uint256, v119, 800
+    v124 = checked_add uint256, v119, 800
     jump bb38
   bb38:
-    v131 = phi [bb36: v129], [bb39: v130]
-    v132 = sload 0 !metadata(storage=slot(0))
-    v133 = trunc i256 v132 to i160
-    v134 = zext i160 v133 to i256
-    v135 = shl v134, 32
-    v136 = or v135, 0xb3de648b
-    v137 = and v136, 0xffffffff
-    v138 = shl v137, 224
-    v139 = shr v136, 32
-    v140 = gas
-    v141 = shr v138, 224
-    mstore 0, v141 !metadata(memory=scratch)
+    v126 = phi [bb36: v124], [bb39: v125]
+    v127 = sload 0 !metadata(storage=slot(0))
+    v128 = trunc i256 v127 to i160
+    v129 = zext i160 v128 to i256
+    v130 = shl v129, 32
+    v131 = or v130, 0xb3de648b
+    v132 = and v131, 0xffffffff
+    v133 = shl v132, 224
+    v134 = shr v131, 32
+    v135 = gas
+    v136 = shr v133, 224
+    mstore 0, v136 !metadata(memory=scratch)
     mstore 32, 6 !metadata(memory=scratch)
-    v142 = call v140, v139, 0, 28, 36, 0, 32
-    jumpi v142, bb41, bb42
+    v137 = call v135, v134, 0, 28, 36, 0, 32
+    jumpi v137, bb41, bb42
   bb42:
     jumpi true, bb44, bb45
   bb45:
     icall revert_if<empty>, true
     invalid
   bb44:
-    v148 = checked_add uint256, v131, 0x3e8
+    v143 = checked_add uint256, v126, 0x3e8
     jump bb43
   bb41:
-    v143 = returndatasize
-    v144 = lt v143, 32
-    icall revert_if<tuple_data_too_short>, v144
-    v145 = add 0, 0
-    v146 = mload v145
-    v147 = checked_add uint256, v131, v146
+    v138 = returndatasize
+    v139 = lt v138, 32
+    icall revert_if<tuple_data_too_short>, v139
+    v140 = add 0, 0
+    v141 = mload v140
+    v142 = checked_add uint256, v126, v141
     jump bb43
   bb43:
-    v149 = phi [bb41: v147], [bb44: v148]
-    ret v149
+    v144 = phi [bb41: v142], [bb44: v143]
+    ret v144
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {

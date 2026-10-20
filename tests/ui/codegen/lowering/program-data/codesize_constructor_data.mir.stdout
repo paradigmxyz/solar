@@ -44,21 +44,15 @@ fn @sizeMatches() -> i1 [selector=0x6cb0d5a7, view, abi_params=[], abi_returns=[
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize Child_creation_code_0
-    v2 = datasize Child_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy Child_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize Child_creation_code_0
+    v1 = fmp
+    datacopy Child_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    storeimmutable child, v7
+    storeimmutable child, v2
     ret
 }
