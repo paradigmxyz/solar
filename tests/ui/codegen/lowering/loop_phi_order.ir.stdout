@@ -91,6 +91,32 @@ bb9 [loop]:
   push 32
   push 0
   return
+bb19 [loop]:
+  dup 2
+  dup 5
+  push 1
+  add
+  swap 5
+  dup 5
+  add
+  swap 4
+  add
+  swap 2
+  xor
+  dup 5
+  dup 5
+  lt
+  push bb19
+  jumpi
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  mstore
+  push 96
+  push 0
+  return
 bb2 [loop]:
   dup 1
   push 0x82829e9f
@@ -142,30 +168,4 @@ bb3 [loop]:
   mstore
   push 32
   push 0
-  return
-bb19 [loop]:
-  dup 2
-  dup 5
-  push 1
-  add
-  swap 5
-  dup 5
-  add
-  swap 4
-  add
-  swap 2
-  xor
-  dup 5
-  dup 5
-  lt
-  push bb19
-  jumpi
-  push 128
-  mstore
-  push 160
-  mstore
-  push 192
-  mstore
-  push 96
-  push 128
   return

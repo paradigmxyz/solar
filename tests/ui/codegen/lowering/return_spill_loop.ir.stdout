@@ -52,7 +52,7 @@ bb46 [cold]:
   push 65
   jump bb47
 bb7:
-  push 224
+  push 128
   push 64
   mstore
   push 36
@@ -179,18 +179,18 @@ bb10 [continuation]:
   add
   mload
   swap 2
-  push 128
+  push 0
   mstore
   push 0
   byte
-  push 160
+  push 32
   mstore
   push 0
   byte
-  push 192
+  push 64
   mstore
   push 96
-  push 128
+  push 0
   return
 bb17:
   push 128

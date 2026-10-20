@@ -47,13 +47,13 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
     jumpi v3, bb18, bb17
   bb18:
     v5 = shl arg1, 5
-    v149 = add v137, v5
-    v150 = add v149, 32
-    v8 = mload v150
+    v148 = add v137, v5
+    v149 = add v148, 32
+    v8 = mload v149
     v12 = shl v129, 5
-    v152 = add v137, v12
-    v153 = add v152, 32
-    v15 = mload v153
+    v151 = add v137, v12
+    v152 = add v151, 32
+    v15 = mload v152
     v16 = xor v8, v15
     v111 = lt arg1, v129
     jumpi v111, bb16, bb15
@@ -63,7 +63,7 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
     v125 = or v119, v124
     jumpi v125, bb15, bb14
   bb14:
-    v162 = add v137, 32
+    v161 = add v137, 32
     jump bb8
   bb8:
     v90 = phi [bb14: arg1], [bb13: v93]
@@ -73,8 +73,8 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
     v92 = phi [bb8: v90], [bb9: v93]
     v93 = add v92, 1
     v95 = shl v93, 5
-    v144 = add v162, v95
-    v98 = mload v144
+    v143 = add v161, v95
+    v98 = mload v143
     v99 = lt v98, arg2
     jumpi v99, bb9, bb10
   bb10:
@@ -83,21 +83,21 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
     v100 = phi [bb10: v91], [bb11: v101]
     v101 = sub v100, 1
     v103 = shl v101, 5
-    v147 = add v162, v103
-    v106 = mload v147
+    v146 = add v161, v103
+    v106 = mload v146
     v107 = lt arg2, v106
     jumpi v107, bb11, bb12
   bb12:
     v108 = lt v93, v101
     jumpi v108, bb13, bb2
   bb13:
-    v109 = mload v147
-    v110 = mload v144
-    mstore v147, v110
-    mstore v144, v109
+    v109 = mload v146
+    v110 = mload v143
+    mstore v146, v110
+    mstore v143, v109
     jump bb8
   bb15:
-    v161 = add v137, 32
+    v160 = add v137, 32
     jump bb1
   bb1:
     v20 = phi [bb15: arg1], [bb7: v131]
@@ -112,8 +112,8 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
     tail_call @revert_stub
   bb19:
     v33 = shl v131, 5
-    v156 = add v161, v33
-    v36 = mload v156
+    v155 = add v160, v33
+    v36 = mload v155
     v37 = lt v36, arg2
     jumpi v37, bb3, bb4
   bb4:
@@ -125,8 +125,8 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
     jumpi v134, bb20, bb22
   bb22:
     v48 = shl v133, 5
-    v159 = add v161, v48
-    v51 = mload v159
+    v158 = add v160, v48
+    v51 = mload v158
     v52 = lt arg2, v51
     jumpi v52, bb5, bb6
   bb6:
@@ -135,15 +135,15 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
   bb2:
     v127 = phi [bb6: v131], [bb12: v93]
     v128 = phi [bb6: v133], [bb12: v101]
-    mstore 128, v127
-    mstore 160, v128
-    mstore 192, v16
-    returndata 128, 96
+    mstore 0, v127 !metadata(memory=scratch)
+    mstore 32, v128 !metadata(memory=scratch)
+    mstore 64, v16
+    returndata 0, 96
   bb7:
-    v61 = mload v159
-    v68 = mload v156
-    mstore v159, v68
-    mstore v156, v61
+    v61 = mload v158
+    v68 = mload v155
+    mstore v158, v68
+    mstore v155, v61
     jump bb1
   bb20:
     mstore 32, 17 !metadata(memory=scratch)
