@@ -1,0 +1,38 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@ filecheck:
+@module CalldataCopyTailCall
+
+// The callee returns to its caller through a tail call. The caller reads the
+// copy's length through the free-memory pointer it saved, so the callee keeps
+// the copy's length and bytes.
+// CHECK-LABEL: (after lower-abi-encode)
+// CHECK: fn @copy
+// CHECK: {{^ }}[[OBJ:v[0-9]+]] = alloc zeroed checked v
+// CHECK-NEXT: {{^ }}mstore [[OBJ]],
+// CHECK: {{^ }}calldatacopy
+fn @copy(arg0: slice<calldata>) {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = add v0, 32
+    v2 = alloc zeroed checked v1
+    mstore v2, v0
+    v3 = ptradd v2, 32
+    v4 = extract_value slice<calldata>, arg0, 0
+    calldatacopy v3, v4, v0
+    v5 = abi_encode [memory_bytes], object, args v2
+    tail_call @done
+}
+
+fn @done() {
+  bb0:
+    ret
+}
+
+fn @length(arg0: slice<calldata>) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = inttoptr i256 v0 to ptr<memory>
+    icall @copy, arg0
+    v2 = mload v1
+    ret v2
+}

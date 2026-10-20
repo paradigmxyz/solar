@@ -3132,7 +3132,7 @@ fn array_word_object(func: &Function, address: ValueId) -> Option<ValueId> {
 
 /// Returns the calldata slice a copy of `len` bytes from `data` reads whole:
 /// `calldatacopy dest, (extract_value slice, 0), (extract_value slice, 1)`.
-fn calldata_slice_copy(func: &Function, data: ValueId, len: ValueId) -> Option<ValueId> {
+pub(super) fn calldata_slice_copy(func: &Function, data: ValueId, len: ValueId) -> Option<ValueId> {
     let Value::Inst(ptr) = func.value(data) else { return None };
     let Some((slice, MirType::SLICE_PTR_FIELD)) = func.inst(*ptr).kind.slice_projection() else {
         return None;

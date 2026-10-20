@@ -1,0 +1,92 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_copy_enlarged.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_copy_enlarged.mir (after lower-abi-encode) ===
+  @module CalldataCopyEnlarged
+  fn @enlarged(arg0: slice<calldata>) {
+    bb0:
+      v0 = alloc 64
+      mstore v0, 0x3e8
+      v1 = extract_value slice<calldata>, arg0, 1
+      v2 = add v1, 32
+      v3 = alloc v2
+      mstore v3, v1
+      v4 = ptradd v3, 32
+      v5 = extract_value slice<calldata>, arg0, 0
+      calldatacopy v4, v5, v1
+-     v6 = abi_encode [memory_bytes], object, args v3
+-     v7 = abi_encode [memory_bytes, memory_bytes], scratch, args v6, v0
+-     v8 = extract_value slice<memory>, v7, 0
+-     v9 = extract_value slice<memory>, v7, 1
+-     returndata v8, v9
++     v10 = fmp
++     v11 = ptrtoint ptr<memory> v10 to i256
++     v12 = add v11, 32
++     v13 = add v12, 32
++     v14 = sub v13, v12
++     mstore v12, v14
++     v15 = mload v3
++     v16 = not 31
++     v17 = add v15, 31
++     v18 = and v17, v16
++     v19 = add v13, 32
++     v20 = add v13, v18
++     mstore v20, 0
++     mstore v13, v15
++     v21 = ptradd v3, 32
++     v22 = add v19, v18
++     mcopy v19, v21, v15 !metadata(memory=heap, disjoint)
++     v23 = sub v22, v12
++     v24 = add v23, 0
++     v25 = add v24, 63
++     v26 = lt v25, v24
++     jumpi v26, bb1, bb2
++   bb2:
++     v27 = not 31
++     v28 = and v25, v27
++     v29 = alloc v28 !metadata(preserves_fmp)
++     mstore v29, v24
++     v30 = fmp
++     v31 = ptrtoint ptr<memory> v30 to i256
++     v32 = add v31, 64
++     v33 = ptrtoint ptr<memory> v30 to i256
++     v34 = sub v32, v33
++     mstore v30, v34
++     v35 = mload v29
++     v36 = not 31
++     v37 = add v35, 31
++     v38 = and v37, v36
++     v39 = add v32, 32
++     v40 = add v32, v38
++     mstore v40, 0
++     mstore v32, v35
++     v41 = ptradd v29, 32
++     v42 = add v39, v38
++     mcopy v39, v41, v35 !metadata(memory=heap, disjoint)
++     v43 = ptrtoint ptr<memory> v30 to i256
++     v44 = add v43, 32
++     v45 = ptrtoint ptr<memory> v30 to i256
++     v46 = sub v42, v45
++     mstore v44, v46
++     v47 = mload v0
++     v48 = not 31
++     v49 = add v47, 31
++     v50 = and v49, v48
++     v51 = add v42, 32
++     v52 = add v42, v50
++     mstore v52, 0
++     mstore v42, v47
++     v53 = ptradd v0, 32
++     v54 = add v51, v50
++     mcopy v51, v53, v47 !metadata(memory=heap, disjoint)
++     v55 = ptrtoint ptr<memory> v30 to i256
++     v56 = sub v54, v55
++     v57 = add v56, 0
++     v58 = make_memory_slice v30, v57
++     v8 = extract_value slice<memory>, v58, 0
++     v9 = extract_value slice<memory>, v58, 1
++     returndata v30, v57
++   bb1:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  

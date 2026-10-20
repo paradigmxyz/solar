@@ -1,0 +1,28 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@ filecheck:
+@module CalldataCopyMemorySlice
+
+// A memory slice passed for a `calldata_bytes` argument encodes from memory,
+// and its pointer may be the copy's payload. The copy keeps its length and
+// bytes for that read.
+// CHECK-LABEL: (after lower-abi-encode)
+// CHECK: fn @memory_slice
+// CHECK: {{^ }}[[OBJ:v[0-9]+]] = alloc zeroed checked v
+// CHECK-NEXT: {{^ }}mstore [[OBJ]],
+// CHECK: {{^ }}calldatacopy
+fn @memory_slice(arg0: slice<calldata>, arg1: i256) {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = add v0, 32
+    v2 = alloc zeroed checked v1
+    mstore v2, v0
+    v3 = ptradd v2, 32
+    v4 = extract_value slice<calldata>, arg0, 0
+    calldatacopy v3, v4, v0
+    v5 = inttoptr i256 arg1 to ptr<memory>
+    v10 = make_memory_slice v5, v0
+    v6 = abi_encode [memory_bytes, calldata_bytes], scratch, args v2, v10
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    returndata v7, v8
+}

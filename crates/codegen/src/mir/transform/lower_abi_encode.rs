@@ -18,6 +18,11 @@
 //! whose only dynamic values are literal byte strings has a known size, so it
 //! reserves its output before encoding; empty literal tails keep the general
 //! path, whose short encoder needs less stack setup around external calls.
+//! A `bytes` argument that only holds a copy of a calldata slice, as passing
+//! `bytes calldata` to a `bytes memory` parameter makes, encodes from the slice;
+//! the copy's length and bytes go, while its allocation keeps its pointer bump.
+//! This runs only in functions that never return to an internal caller, in
+//! modules that never read `msize`.
 //!
 //! Literal objects. A `bytes memory` argument allocated and initialized with
 //! constant words in the encoding's block, with no intervening opaque memory
@@ -61,13 +66,20 @@ use crate::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
         Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
         MemoryObjectLayout, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-        analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
-        transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CallGraphInfo, Location, LocationSize,
+            MemoryCallSummaries, MemoryLocation, ModRef, module_may_observe_msize,
+        },
+        memory::EvmMemoryLayout,
+        pass::MirPass,
+        transform::utils::redirect_successor_predecessors,
+        utils::resolve_replacement,
     },
     target::Target,
 };
 
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::RevertStrings;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -76,6 +88,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
+use std::sync::Arc;
 
 /// Lowers `abi_encode` after the main optimization pipeline.
 pub(crate) struct LowerAbiEncode;
@@ -93,7 +106,7 @@ impl MirPass for LowerAbiEncode {
         &self,
         gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = Target::new(gcx);
@@ -125,6 +138,11 @@ impl MirPass for LowerAbiEncode {
             ..EncodeHelpers::default()
         };
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
+        // Internal calls share memory, so `msize` anywhere may observe a removed copy's memory
+        // expansion.
+        let summaries =
+            (!module_may_observe_msize(module)).then(|| analyses.call_summaries(module));
+        let returning = module.returning_functions();
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
             // writes there before reserving its output, so an outlined call would overwrite it.
@@ -138,6 +156,7 @@ impl MirPass for LowerAbiEncode {
                 revert_strings,
                 &fresh_object_returns,
                 &destructive_returns[func_id],
+                summaries.as_ref().filter(|_| !returning.contains(func_id)),
             );
         }
         CallGraphInfo::assert_runtime_helpers(
@@ -413,6 +432,7 @@ fn lower_function(
     revert_strings: RevertStrings,
     fresh_object_returns: &DenseBitSet<FunctionId>,
     destructive_returns: &FxHashSet<InstId>,
+    summaries: Option<&Arc<MemoryCallSummaries>>,
 ) -> bool {
     let has_encodes =
         func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }));
@@ -438,6 +458,8 @@ fn lower_function(
             }
         }
     }
+    let calldata_copies =
+        summaries.map(|summaries| calldata_copy_objects(func, summaries)).unwrap_or_default();
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
@@ -456,9 +478,12 @@ fn lower_function(
                 continue;
             };
             let selector = selector.map(|value| resolve_replacement(value, &replacements));
+            // A `bytes` argument that only holds a copy of a calldata slice encodes from the
+            // slice itself, so its bytes are copied once.
             let args = args
                 .iter()
                 .map(|&value| resolve_replacement(value, &replacements))
+                .map(|value| calldata_copies.get(&value).map_or(value, |&(slice, _)| slice))
                 .collect::<Vec<_>>();
             let layout = std::sync::Arc::clone(layout);
             let mode = *mode;
@@ -494,6 +519,15 @@ fn lower_function(
             replacements.insert(result, replacement);
         }
         move_terminator(&mut builder, block, original_terminator, terminator_metadata);
+    }
+    // Every reader of such a copy now reads the slice, so its length and bytes are dead; the
+    // allocation keeps its free-memory-pointer bump.
+    let dead_copies =
+        calldata_copies.values().flat_map(|&(_, writes)| writes).collect::<FxHashSet<_>>();
+    if !dead_copies.is_empty() {
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|inst| !dead_copies.contains(inst));
+        }
     }
     fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
@@ -1752,4 +1786,237 @@ fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> 
     } else {
         builder.add_u64_offset(base, offset)
     }
+}
+
+/// Memory objects that hold nothing but an unmodified copy of a calldata slice and are read only
+/// as top-level `bytes` arguments of encodings, mapped to that slice. No other memory access,
+/// encoding argument, or call in the function may touch them. Materializing such an argument for
+/// a `bytes memory` parameter copies it once from calldata; encoding the copy then copies it
+/// again.
+///
+/// Only the straight-line copy that lowering emits qualifies, in one block and in this order:
+/// `obj = alloc size` with `size` at least `len + 32`, `mstore obj, len`, and
+/// `calldatacopy (ptradd obj, 32), slice.ptr, len`, then the encodings.
+///
+/// NOTE: Internal calls share memory, so a caller could read the copy through a saved
+/// free-memory pointer. The caller must pass only functions that never return to an internal
+/// caller, directly or through tail calls, and skip modules that read `msize`.
+fn calldata_copy_objects(
+    func: &Function,
+    summaries: &Arc<MemoryCallSummaries>,
+) -> FxHashMap<ValueId, (ValueId, [InstId; 2])> {
+    #[derive(Default)]
+    struct Uses {
+        length: Option<(ValueId, InstId, BlockId, usize)>,
+        fill: Option<(ValueId, BlockId, usize)>,
+        encodes: Vec<(BlockId, usize)>,
+        escapes: bool,
+    }
+    let is_object = |value: ValueId| {
+        func.value_ty(value) == Some(MirType::MEMPTR)
+            && matches!(func.value(value), Value::Inst(inst)
+                if matches!(func.inst(*inst).kind, InstKind::Alloc { .. }))
+    };
+    let mut uses = FxHashMap::<ValueId, Uses>::default();
+    for (block, body) in func.blocks.iter_enumerated() {
+        for (position, &inst) in body.instructions.iter().enumerate() {
+            if func.is_object_derivation(inst) {
+                continue;
+            }
+            let mut objects = SmallVec::<[ValueId; 2]>::new();
+            for operand in func.inst(inst).operands() {
+                if let Some((object, _)) = func.object_address(operand)
+                    && is_object(object)
+                    && !objects.contains(&object)
+                {
+                    objects.push(object);
+                }
+            }
+            for object in objects {
+                let entry = uses.entry(object).or_default();
+                match func.inst(inst).kind {
+                    InstKind::Store(address, length, PtrLocation::Memory)
+                        if address == object && entry.length.is_none() =>
+                    {
+                        entry.length = Some((length, inst, block, position));
+                    }
+                    InstKind::Copy(destination, data, len, PtrLocation::Calldata)
+                        if is_payload_address(func, destination, object)
+                            && entry.fill.is_none()
+                            && let Some(slice) =
+                                super::lower_abi::calldata_slice_copy(func, data, len) =>
+                    {
+                        entry.fill = Some((slice, block, position));
+                    }
+                    InstKind::AbiEncode { ref args, ref layout, selector, .. }
+                        if selector != Some(object)
+                            && args.iter().zip(&layout.types).all(|(&arg, ty)| {
+                                func.object_address(arg).is_none_or(|(base, _)| base != object)
+                                    || (arg == object && matches!(ty, AbiType::Bytes(_)))
+                            }) =>
+                    {
+                        entry.encodes.push((block, position));
+                    }
+                    _ => entry.escapes = true,
+                }
+            }
+        }
+        if let Some(terminator) = &body.terminator {
+            for operand in terminator.operands() {
+                if let Some((object, _)) = func.object_address(operand) {
+                    uses.entry(object).or_default().escapes = true;
+                }
+            }
+        }
+    }
+    let mut copies = uses
+        .into_iter()
+        .filter_map(|(object, uses)| {
+            let (length, length_store, block, length_position) = uses.length?;
+            let (slice, fill_block, fill_position) = uses.fill?;
+            let Value::Inst(alloc) = *func.value(object) else { return None };
+            let InstKind::Alloc { size, .. } = func.inst(alloc).kind else { return None };
+            let alloc_position =
+                func.blocks[block].instructions.iter().position(|&inst| inst == alloc)?;
+            let fill = func.blocks[fill_block].instructions[fill_position];
+            let is_length = |value| {
+                let Value::Inst(inst) = *func.value(value) else { return false };
+                func.inst(inst).kind.slice_projection() == Some((slice, MirType::SLICE_LEN_FIELD))
+            };
+            // The allocation, length store, fill, and every encoding run in this order in one
+            // block, the object holds the header and bytes, and nothing else writes, measures,
+            // or passes it on.
+            (!uses.escapes
+                && !uses.encodes.is_empty()
+                && is_length(length)
+                && is_bytes_size(func, size, is_length)
+                && fill_block == block
+                && alloc_position < length_position
+                && length_position < fill_position
+                && uses.encodes.iter().all(|&(encode_block, position)| {
+                    encode_block == block && position > fill_position
+                }))
+            .then_some((object, (slice, [length_store, fill])))
+        })
+        .collect::<Vec<_>>();
+    if copies.is_empty() {
+        return FxHashMap::default();
+    }
+    // Accesses through addresses that do not derive from the object, such as inline assembly
+    // offsets, other encoding arguments, or callees, can still observe or change its bytes.
+    let alias = AliasAnalysis::with_call_summaries(func, Arc::clone(summaries));
+    copies.retain(|&(object, (_, writes))| {
+        let Value::Inst(alloc) = *func.value(object) else { return false };
+        let InstKind::Alloc { size, .. } = func.inst(alloc).kind else { return false };
+        let Some(address) = alias.memory_address(func, object) else { return false };
+        let location = MemoryLocation::new(address, alias.location_size(func, size));
+        let observes = |accesses: &[Access]| {
+            accesses.iter().any(|&access| match access {
+                Access::Any(AddressSpace::Memory) => true,
+                Access::Location(Location::Memory(other)) => {
+                    alias.memory_alias(location, other).may_alias()
+                }
+                _ => false,
+            })
+        };
+        let mod_ref_observes =
+            |mod_ref: ModRef| observes(mod_ref.reads()) || observes(mod_ref.writes());
+        // An encoding after the allocation in its block writes its output above the object, and
+        // the latest such output stays above every instance of the object, so reading from that
+        // output's start, whatever its length, cannot reach the object.
+        let alloc_block = func.blocks.iter().find(|block| block.instructions.contains(&alloc));
+        let above_object = |value: ValueId| {
+            let Value::Inst(encode) = *func.value(value) else { return false };
+            matches!(func.inst(encode).kind, InstKind::AbiEncode { .. })
+                && alloc_block.is_some_and(|block| {
+                    block
+                        .instructions
+                        .iter()
+                        .skip_while(|&&inst| inst != alloc)
+                        .any(|&inst| inst == encode)
+                })
+        };
+        // Every memory read of an encoding names a location of unknown extent, which keeps no
+        // allocation identity. Encodings write only the output they place above every object.
+        let encoding_observes = |args: &[ValueId], layout: &AbiLayout| {
+            !args.iter().zip(&layout.types).all(|(&arg, ty)| match ty {
+                AbiType::Word(_) | AbiType::Function => true,
+                AbiType::Bytes(location) | AbiType::DynamicArray { location, .. }
+                    if effective_slice_location(func, arg, *location) != PtrLocation::Memory =>
+                {
+                    true
+                }
+                AbiType::Bytes(_) => {
+                    arg == object
+                        || above_object(arg)
+                        || alias.bare_memory_location(func, arg, LocationSize::Unknown).is_some_and(
+                            |read| !observes(&[Access::Location(Location::Memory(read))]),
+                        )
+                }
+                _ => false,
+            })
+        };
+        func.blocks.iter().all(|block| {
+            block.instructions.iter().all(|&inst| {
+                if inst == alloc || writes.contains(&inst) {
+                    return true;
+                }
+                match &func.inst(inst).kind {
+                    // Another allocation touches only the free-memory pointer and its own extent.
+                    InstKind::Alloc { .. } => true,
+                    InstKind::AbiEncode { args, layout, .. } => !encoding_observes(args, layout),
+                    _ => !mod_ref_observes(alias.instruction_mod_ref(func, inst)),
+                }
+            }) && block.terminator.as_ref().is_none_or(|terminator| {
+                encoding_output_read(func, terminator).is_some_and(above_object)
+                    || !mod_ref_observes(alias.terminator_mod_ref(func, terminator))
+            })
+        })
+    });
+    copies.into_iter().collect()
+}
+
+/// Returns whether `address` is `ptradd object, 32`, the payload of a bytes object.
+fn is_payload_address(func: &Function, address: ValueId, object: ValueId) -> bool {
+    let Value::Inst(inst) = *func.value(address) else { return false };
+    matches!(func.inst(inst).kind, InstKind::PtrAdd(base, offset)
+        if base == object
+            && func.value_u64(offset) == Some(EvmMemoryLayout::DYNAMIC_HEADER_SIZE))
+}
+
+/// Returns whether `size` is `len + 32` or that rounded up to whole words, `(len + 63) & ~31`,
+/// where `is_length` accepts `len`.
+fn is_bytes_size(func: &Function, size: ValueId, is_length: impl Fn(ValueId) -> bool) -> bool {
+    let kind = |value| match *func.value(value) {
+        Value::Inst(inst) => Some(&func.inst(inst).kind),
+        _ => None,
+    };
+    let length_plus = |value, delta| {
+        matches!(kind(value), Some(&InstKind::Add(lhs, rhs))
+            if (is_length(lhs) && func.value_u64(rhs) == Some(delta))
+                || (is_length(rhs) && func.value_u64(lhs) == Some(delta)))
+    };
+    let word_mask = !U256::from(EvmMemoryLayout::WORD_SIZE - 1);
+    let header = EvmMemoryLayout::DYNAMIC_HEADER_SIZE;
+    length_plus(size, header)
+        || matches!(kind(size), Some(&InstKind::And(lhs, rhs))
+            if (func.value_u256(rhs) == Some(word_mask)
+                && length_plus(lhs, header + EvmMemoryLayout::WORD_SIZE - 1))
+                || (func.value_u256(lhs) == Some(word_mask)
+                    && length_plus(rhs, header + EvmMemoryLayout::WORD_SIZE - 1)))
+}
+
+/// The encoding output `terminator` returns or reverts with whole.
+fn encoding_output_read(func: &Function, terminator: &Terminator) -> Option<ValueId> {
+    let (Terminator::ReturnData { offset, size } | Terminator::Revert { offset, size }) =
+        *terminator
+    else {
+        return None;
+    };
+    let projection = |value| match func.value(value) {
+        Value::Inst(inst) => func.inst(*inst).kind.slice_projection(),
+        _ => None,
+    };
+    let (output, MirType::SLICE_PTR_FIELD) = projection(offset)? else { return None };
+    (projection(size) == Some((output, MirType::SLICE_LEN_FIELD))).then_some(output)
 }

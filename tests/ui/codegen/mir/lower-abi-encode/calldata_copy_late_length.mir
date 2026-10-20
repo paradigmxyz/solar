@@ -1,0 +1,25 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@ filecheck:
+@module CalldataCopyLateLength
+
+// The length store follows the encoding, which reads a zero length. The copy
+// keeps its length and bytes.
+// CHECK-LABEL: (after lower-abi-encode)
+// CHECK: fn @late_length
+// CHECK: {{^ }}[[OBJ:v[0-9]+]] = alloc zeroed checked v
+// CHECK: {{^ }}calldatacopy
+// CHECK: {{^ }}mstore [[OBJ]],
+fn @late_length(arg0: slice<calldata>) {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = add v0, 32
+    v2 = alloc zeroed checked v1
+    v3 = ptradd v2, 32
+    v4 = extract_value slice<calldata>, arg0, 0
+    calldatacopy v3, v4, v0
+    v6 = abi_encode [memory_bytes], scratch, args v2
+    mstore v2, v0
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    returndata v7, v8
+}

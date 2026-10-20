@@ -1,0 +1,60 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_copy_memory_slice.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_copy_memory_slice.mir (after lower-abi-encode) ===
+  @module CalldataCopyMemorySlice
+  fn @memory_slice(arg0: slice<calldata>, arg1: i256) {
+    bb0:
+      v0 = extract_value slice<calldata>, arg0, 1
+      v1 = add v0, 32
+      v2 = alloc zeroed checked v1
+      mstore v2, v0
+      v3 = ptradd v2, 32
+      v4 = extract_value slice<calldata>, arg0, 0
+      calldatacopy v3, v4, v0
+      v5 = inttoptr i256 arg1 to ptr<memory>
+      v6 = make_memory_slice v5, v0
+-     v7 = abi_encode [memory_bytes, calldata_bytes], scratch, args v2, v6
+-     v8 = extract_value slice<memory>, v7, 0
+-     v9 = extract_value slice<memory>, v7, 1
+-     returndata v8, v9
++     v10 = fmp
++     v11 = ptrtoint ptr<memory> v10 to i256
++     v12 = add v11, 64
++     v13 = ptrtoint ptr<memory> v10 to i256
++     v14 = sub v12, v13
++     mstore v10, v14
++     v15 = mload v2
++     v16 = not 31
++     v17 = add v15, 31
++     v18 = and v17, v16
++     v19 = add v12, 32
++     v20 = add v12, v18
++     mstore v20, 0
++     mstore v12, v15
++     v21 = ptradd v2, 32
++     v22 = add v19, v18
++     mcopy v19, v21, v15 !metadata(memory=heap, disjoint)
++     v23 = ptrtoint ptr<memory> v10 to i256
++     v24 = add v23, 32
++     v25 = ptrtoint ptr<memory> v10 to i256
++     v26 = sub v22, v25
++     mstore v24, v26
++     v27 = extract_value slice<memory>, v6, 1
++     v28 = not 31
++     v29 = add v0, 31
++     v30 = and v29, v28
++     v31 = add v22, 32
++     v32 = add v22, v30
++     mstore v32, 0
++     mstore v22, v0
++     v33 = extract_value slice<memory>, v6, 0
++     v34 = add v31, v30
++     mcopy v31, v5, v0 !metadata(disjoint)
++     v35 = ptrtoint ptr<memory> v10 to i256
++     v36 = sub v34, v35
++     v37 = add v36, 0
++     v38 = make_memory_slice v10, v37
++     v8 = extract_value slice<memory>, v38, 0
++     v9 = extract_value slice<memory>, v38, 1
++     returndata v10, v37
+  }
+  
