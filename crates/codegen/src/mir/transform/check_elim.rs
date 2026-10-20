@@ -1362,7 +1362,11 @@ impl<'a> CheckEliminator<'a> {
     /// Substitutes proven constants for operands of `id`, as the module docs describe.
     fn propagate_equalities_into(&mut self, func: &Function, cfg: &CfgInfo, id: InstId) {
         let kind = &func.inst(id).kind;
-        if self.dynamic_memory_operands.contains(&id) {
+        // Inlining and specialization later move a constant argument into the callee's memory
+        // operands, past the guard below.
+        if self.dynamic_memory_operands.contains(&id)
+            || matches!(kind, InstKind::ICall { function: Callee::Function(_), .. })
+        {
             return;
         }
         let mut replaced = Replacements::new();

@@ -256,3 +256,25 @@ fn @merged_address(arg0: i256, arg1: i256, arg2: i1) {
   bb4:
     revert 0, 0
 }
+
+// A call keeps its arguments: inlining or specialization would move a constant into the
+// callee's memory operands, past the guard on this function's own accesses.
+// CHECK-LABEL: {{^[ +].*}}fn @call_argument{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @call_argument(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = eq arg0, 64
+    jumpi v0, bb1, bb2
+  bb1:
+    icall @write, arg1, arg0
+    icall @write, arg1, arg0
+    returndata 0, 0
+  bb2:
+    revert 0, 0
+}
+
+fn @write(arg0: i256, arg1: i256) {
+  bb0:
+    calldatacopy arg0, 0, arg1
+    ret
+}
