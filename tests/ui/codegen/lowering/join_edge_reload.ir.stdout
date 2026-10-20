@@ -13,26 +13,30 @@ bb0:
   sub
   push bb3
   jumpi
-  push 4
-  calldataload
   push 68
   calldatasize
   lt
   push 4
-  dup 3
+  calldataload
+  push 4
+  dup 2
+  add
+  push 32
+  dup 2
   add
   swap 2
-  push 36
-  calldatasize
-  sub
+  push 0xffffffffffffffff
   lt
+  calldatasize
+  dup 4
+  gt
   or
-  dup 2
+  swap 1
+  swap 3
+  or
+  swap 2
   calldataload
   swap 2
-  push 32
-  add
-  swap 1
   dup 2
   calldatasize
   sub

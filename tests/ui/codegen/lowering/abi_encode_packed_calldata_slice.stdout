@@ -44,19 +44,25 @@ bb15:
   push 4
   dup 2
   add
-  swap 1
-  push 36
-  calldatasize
-  sub
+  push 32
+  dup 2
+  add
+  swap 2
+  push 0xffffffffffffffff
   lt
+  calldatasize
+  dup 4
+  gt
+  or
   dup 2
   calldataload
-  push 32
-  dup 4
-  add
+  swap 1
+  swap 3
   calldatasize
   sub
   lt
+  swap 1
+  swap 2
   or
   push bb4
   jumpi
