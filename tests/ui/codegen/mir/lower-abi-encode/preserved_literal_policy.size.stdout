@@ -81,3 +81,175 @@
 +     ret v21
   }
   
+  fn @unobserved_revert() {
+    bb0:
+      v0 = alloc 96 !metadata(preserves_fmp)
+      mstore v0, 48
+      v1 = ptradd v0, 32
+      mstore v1, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+      v2 = ptradd v0, 64
+      mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+-     v3 = abi_encode [memory_bytes], scratch, args v0
+-     v4 = extract_value slice<memory>, v3, 0
+-     v5 = extract_value slice<memory>, v3, 1
+-     revert v4, v5
++     v6 = fmp
++     v7 = ptrtoint ptr<memory> v6 to i256
++     v8 = add v7, 32
++     v9 = ptrtoint ptr<memory> v6 to i256
++     v10 = sub v8, v9
++     mstore v6, v10
++     v11 = mload v0
++     mstore v8, v11
++     v12 = not 31
++     v13 = add v11, 31
++     v14 = and v13, v12
++     v15 = add v8, 32
++     v16 = eq v14, 0
++     jumpi v16, bb2, bb1
++   bb1:
++     v17 = add v8, v14
++     mstore v17, 0
++     jump bb2
++   bb2:
++     v18 = ptradd v0, 32
++     v19 = add v15, v14
++     mcopy v15, v18, v11 !metadata(memory=heap, disjoint)
++     v20 = ptrtoint ptr<memory> v6 to i256
++     v21 = sub v19, v20
++     v22 = add v21, 0
++     v23 = make_memory_slice v6, v22
++     v4 = extract_value slice<memory>, v23, 0
++     v5 = extract_value slice<memory>, v23, 1
++     revert v6, v22
+  }
+  
+  fn @unobserved_return() {
+    bb0:
+      v0 = alloc 96 !metadata(preserves_fmp)
+      mstore v0, 48
+      v1 = ptradd v0, 32
+      mstore v1, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+      v2 = ptradd v0, 64
+      mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+-     v3 = abi_encode [memory_bytes], scratch, args v0
+-     v4 = extract_value slice<memory>, v3, 0
+-     v5 = extract_value slice<memory>, v3, 1
+-     returndata v4, v5
++     v6 = fmp
++     v7 = ptrtoint ptr<memory> v6 to i256
++     v8 = add v7, 32
++     v9 = ptrtoint ptr<memory> v6 to i256
++     v10 = sub v8, v9
++     mstore v6, v10
++     v11 = mload v0
++     mstore v8, v11
++     v12 = not 31
++     v13 = add v11, 31
++     v14 = and v13, v12
++     v15 = add v8, 32
++     v16 = eq v14, 0
++     jumpi v16, bb2, bb1
++   bb1:
++     v17 = add v8, v14
++     mstore v17, 0
++     jump bb2
++   bb2:
++     v18 = ptradd v0, 32
++     v19 = add v15, v14
++     mcopy v15, v18, v11 !metadata(memory=heap, disjoint)
++     v20 = ptrtoint ptr<memory> v6 to i256
++     v21 = sub v19, v20
++     v22 = add v21, 0
++     v23 = make_memory_slice v6, v22
++     v4 = extract_value slice<memory>, v23, 0
++     v5 = extract_value slice<memory>, v23, 1
++     returndata v6, v22
+  }
+  
+  fn @observed_return() {
+    bb0:
+      v0 = alloc 96 !metadata(preserves_fmp)
+      mstore v0, 48
+      v1 = ptradd v0, 32
+      mstore v1, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+      v2 = ptradd v0, 64
+      mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+-     v3 = abi_encode [memory_bytes], scratch, args v0
+-     v4 = extract_value slice<memory>, v3, 0
+-     v5 = extract_value slice<memory>, v3, 1
++     v7 = fmp
++     v8 = ptrtoint ptr<memory> v7 to i256
++     v9 = add v8, 32
++     v10 = ptrtoint ptr<memory> v7 to i256
++     v11 = sub v9, v10
++     mstore v7, v11
++     v12 = mload v0
++     mstore v9, v12
++     v13 = not 31
++     v14 = add v12, 31
++     v15 = and v14, v13
++     v16 = add v9, 32
++     v17 = eq v15, 0
++     jumpi v17, bb2, bb1
++   bb1:
++     v18 = add v9, v15
++     mstore v18, 0
++     jump bb2
++   bb2:
++     v19 = ptradd v0, 32
++     v20 = add v16, v15
++     mcopy v16, v19, v12 !metadata(memory=heap, disjoint)
++     v21 = ptrtoint ptr<memory> v7 to i256
++     v22 = sub v20, v21
++     v23 = add v22, 0
++     v24 = make_memory_slice v7, v23
++     v4 = extract_value slice<memory>, v24, 0
++     v5 = extract_value slice<memory>, v24, 1
+      v6 = fmp
+      mstore v6, 1
+-     returndata v4, v5
++     returndata v7, v23
+  }
+  
+  fn @revert_reads_allocation() {
+    bb0:
+      v0 = alloc 96 !metadata(preserves_fmp)
+      mstore v0, 48
+      v1 = ptradd v0, 32
+      mstore v1, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+      v2 = ptradd v0, 64
+      mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+-     v3 = abi_encode [memory_bytes], scratch, args v0
+-     v4 = extract_value slice<memory>, v3, 1
+-     revert v0, v4
++     v5 = fmp
++     v6 = ptrtoint ptr<memory> v5 to i256
++     v7 = add v6, 32
++     v8 = ptrtoint ptr<memory> v5 to i256
++     v9 = sub v7, v8
++     mstore v5, v9
++     v10 = mload v0
++     mstore v7, v10
++     v11 = not 31
++     v12 = add v10, 31
++     v13 = and v12, v11
++     v14 = add v7, 32
++     v15 = eq v13, 0
++     jumpi v15, bb2, bb1
++   bb1:
++     v16 = add v7, v13
++     mstore v16, 0
++     jump bb2
++   bb2:
++     v17 = ptradd v0, 32
++     v18 = add v14, v13
++     mcopy v14, v17, v10 !metadata(memory=heap, disjoint)
++     v19 = ptrtoint ptr<memory> v5 to i256
++     v20 = sub v18, v19
++     v21 = add v20, 0
++     v22 = make_memory_slice v5, v21
++     v4 = extract_value slice<memory>, v22, 1
++     revert v0, v21
+  }
+  
