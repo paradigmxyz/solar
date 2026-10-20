@@ -35,3 +35,18 @@
       ret v4
   }
   
+  fn @mask(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 3
+      jumpi v0, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+-     v1 = and arg0, 255
+-     mstore 0, v1
+-     mstore 32, arg0
++     mstore 0, 3
++     mstore 32, 3
+      returndata 0, 64
+  }
+  

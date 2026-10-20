@@ -42,3 +42,20 @@ fn @contradiction(arg0: i256) -> i256 {
   bb4:
     ret 0
 }
+
+// A mask that the edge makes redundant leaves the constant, not the value, behind.
+// CHECK-LABEL: fn @mask
+// CHECK: - mstore 0, v1
+// CHECK: + mstore 0, 3
+fn @mask(arg0: i256) {
+  bb0:
+    v0 = eq arg0, 3
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = and arg0, 0xff
+    mstore 0, v1
+    mstore 32, arg0
+    returndata 0, 64
+  bb2:
+    revert 0, 0
+}

@@ -140,3 +140,15 @@
       returndata 0, 96
   }
   
+  fn @unfailing(arg0: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 5
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+-     v1 = checked_add uint256, arg0, 1
++     v1 = add 5, 1
+      ret v1
+  }
+  

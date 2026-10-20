@@ -218,7 +218,7 @@ impl MirPass for IntegerCleanup {
                     let kind = &func.inst(id).kind;
                     low_mask_input(func, kind).is_some()
                         || widened_nonzero_test(func, kind).is_some()
-                        || compares_with_immediate(func, kind)
+                        || compares_with_immediate(func, kind, &target)
                 })
             {
                 return false;
@@ -793,11 +793,11 @@ impl<'a> CheckEliminator<'a> {
         {
             return removed;
         }
-        let propagated = self.apply_equalities(func);
         // checked_op a, b that cannot fail -> op a, b
         for (id, kind) in &unfailing {
             func.inst_mut(*id).replace_kind(kind.clone());
         }
+        let propagated = self.apply_equalities(func);
         // branch proven_condition, keep, discard => jump keep
         for &(block, keep) in &folds {
             // jumpi condition, ..., keep -> jump keep
@@ -906,6 +906,11 @@ impl<'a> CheckEliminator<'a> {
                         if self.collect_masks
                             && let Some(value) = self.redundant_mask(func, id)
                         {
+                            // The mask result is the input, or the constant the input equals.
+                            let value = self
+                                .equalities
+                                .get(&value)
+                                .map_or(value, |equality| equality.constant);
                             self.redundant_masks.push((id, value));
                         }
                         let fact = match &func.inst(id).kind {
@@ -1347,29 +1352,24 @@ impl<'a> CheckEliminator<'a> {
     /// Substitutes proven constants for operands of `id`, as the module docs describe.
     fn propagate_equalities_into(&mut self, func: &Function, cfg: &CfgInfo, id: InstId) {
         let kind = &func.inst(id).kind;
-        let mut operands = SmallVec::<[ValueId; 4]>::new();
-        kind.visit_operands(|operand| operands.push(operand));
-        if matches!(kind, InstKind::Phi(_))
-            || !operands.iter().any(|operand| self.equalities.contains_key(operand))
-        {
+        let mut replaced = Replacements::new();
+        kind.visit_operands(|operand| {
+            if let Some(equality) = self.equalities.get(&operand) {
+                replaced.push((operand, equality.constant));
+            }
+        });
+        if replaced.is_empty() || matches!(kind, InstKind::Phi(_)) {
             return;
         }
         let evaluates = eval::eval_typed_inst(func, kind, |operand| {
-            func.value_u256(operand)
-                .or_else(|| {
-                    let constant = self.equalities.get(&operand)?.constant;
-                    func.value_u256(constant)
-                })
-                .ok_or(())
+            let constant =
+                replaced.iter().find(|&&(from, _)| from == operand).map_or(operand, |&(_, c)| c);
+            func.value_u256(constant).ok_or(())
         })
         .is_ok_and(|value| value.is_some());
-        let replaced = operands
-            .into_iter()
-            .filter_map(|operand| {
-                let constant = self.equalities.get(&operand)?.constant;
-                (evaluates || self.is_repeated(func, cfg, operand)).then_some((operand, constant))
-            })
-            .collect::<Replacements>();
+        if !evaluates {
+            replaced.retain(|&mut (operand, _)| self.is_repeated(func, cfg, operand));
+        }
         if !replaced.is_empty() {
             self.equality_uses.push((id, replaced));
         }
@@ -1378,21 +1378,16 @@ impl<'a> CheckEliminator<'a> {
     /// Whether `value` equals a constant that at least two instructions below its edge read.
     fn is_repeated(&mut self, func: &Function, cfg: &CfgInfo, value: ValueId) -> bool {
         let Some(equality) = self.equalities.get_mut(&value) else { return false };
-        if let Some(repeated) = equality.repeated {
-            return repeated;
-        }
-        let block = equality.block;
-        let readers = self.readers.get_or_insert_with(|| value_readers(func));
-        let repeated = readers
-            .get(value)
-            .iter()
-            .filter(|&&reader| cfg.dominators().dominates(block, reader))
-            .nth(1)
-            .is_some();
-        if let Some(equality) = self.equalities.get_mut(&value) {
-            equality.repeated = Some(repeated);
-        }
-        repeated
+        let (block, readers) = (equality.block, &mut self.readers);
+        *equality.repeated.get_or_insert_with(|| {
+            readers
+                .get_or_insert_with(|| value_readers(func))
+                .get(value)
+                .iter()
+                .filter(|&&reader| cfg.dominators().dominates(block, reader))
+                .nth(1)
+                .is_some()
+        })
     }
 
     /// Replaces the recorded operands by their constants. Returns the number of
@@ -2534,10 +2529,11 @@ fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
     (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
 }
 
-/// An `eq` or `ne` of a value with an immediate, whose edges prove the value a constant.
-fn compares_with_immediate(func: &Function, kind: &InstKind) -> bool {
-    matches!(*kind, InstKind::Eq(a, b) | InstKind::Ne(a, b)
-        if func.value_u256(a).is_some() != func.value_u256(b).is_some())
+/// An `eq` or `ne` of a value with an immediate that `target` prices as cheap to read, whose
+/// edges prove the value that constant.
+fn compares_with_immediate(func: &Function, kind: &InstKind, target: &Target) -> bool {
+    let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = *kind else { return false };
+    func.value_u256(a).xor(func.value_u256(b)).is_some_and(|value| target.is_cheap_immediate(value))
 }
 
 /// The word `v` of `zext(v != 0)`, which is `v` itself whenever `v` is 0 or 1, as a
