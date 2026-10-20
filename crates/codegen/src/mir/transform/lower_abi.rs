@@ -498,8 +498,8 @@ impl LowerAbiCx {
                 }
             }
         }
-        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) && !returns_in_scratch(&layout)
-        {
+        let in_scratch = returns_in_scratch(&layout);
+        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) && !in_scratch {
             // Static return data outside scratch memory occupies the low-memory ABI
             // buffer. Keep the backend spill area above it so a cross-block value cannot be
             // overwritten while the return tuple is encoded.
@@ -580,7 +580,7 @@ impl LowerAbiCx {
             } else {
                 // A result that fits in scratch memory never reaches the free memory pointer or
                 // the spill area, and `return` ends execution, so nothing reads the scratch again.
-                let start = if returns_in_scratch(&layout) {
+                let start = if in_scratch {
                     EvmMemoryLayout::SCRATCH_SLOT
                 } else {
                     EvmMemoryLayout::HEAP_START
