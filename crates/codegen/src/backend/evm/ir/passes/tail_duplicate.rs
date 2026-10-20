@@ -9,24 +9,29 @@
 //! Only immediate pushes, physical stack operations, and position-independent computations qualify.
 //! Immutable patches and protected predecessor boundaries are excluded. Cold and loop tails stay
 //! shared, and no branches are copied, leaving loop placement to loop layout. Block order
-//! and existing label identities stay intact; assembly omits labels whose last reference
-//! disappears. Debug origins remain on the copied operations and never affect eligibility.
-//! Opcodes awaiting fork legalization stay shared because their expansion is not priced here.
+//! and existing label identities stay intact. A tail left without references is removed, and
+//! assembly omits labels whose last reference disappears. Debug origins remain on the copied
+//! operations and never affect eligibility. Opcodes awaiting fork legalization stay shared
+//! because their expansion is not priced here.
 //! Copies start beyond the one-byte address range, using an instruction-only lower bound on the
 //! prefix size, so they cannot widen the labels and indexed tables packed by block layout.
 
 use super::{
     EvmPass,
-    utils::{instruction_size_lower_bound, is_split_point},
+    utils::{instruction_size_lower_bound, is_split_point, retain_blocks},
 };
 use crate::{
     backend::evm::{
-        ir::{BlockId, Module, TerminatorKind},
+        ir::{BlockId, Module, PushValue, TerminatorKind},
         op,
     },
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+};
 use solar_sema::Gcx;
 
 pub(super) struct TailDuplicate;
@@ -46,7 +51,8 @@ impl EvmPass for TailDuplicate {
         let transfer = target.push(U256::ZERO) + target.opcode(op::JUMP);
         let saved_gas = transfer.gas + target.opcode_gas(op::JUMPDEST);
         let copied_transfer = target.label_push() + target.opcode(op::JUMP);
-        let mut changed = false;
+        let mut references = block_references(module);
+        let mut duplicated = Vec::new();
         let mut prefix_bytes = 0;
         for caller in module.blocks.indices() {
             let block = &module.blocks[caller];
@@ -109,12 +115,64 @@ impl EvmPass for TailDuplicate {
             }
             let instructions = tail.instructions.clone();
             let terminator = term.clone();
+            references[callee] -= 1;
+            terminator.kind.visit_targets(|target| references[target] += 1);
+            duplicated.push(callee);
             // NOTE: Removed transfer and label-entry checkpoints are dropped, as in inline-returns.
             // jump tail -> tail.instructions; jump successor
             module.blocks[caller].instructions.extend(instructions);
             module.blocks[caller].terminator = Some(terminator);
-            changed = true;
         }
+        let changed = !duplicated.is_empty();
+        remove_dead_tails(module, &mut references, duplicated);
         changed
+    }
+}
+
+/// Counts the pushed labels and terminator edges targeting each block, plus the program entry.
+fn block_references(module: &Module) -> IndexVec<BlockId, usize> {
+    let mut references = index_vec![0; module.blocks.len()];
+    references[BlockId::ENTRY] = 1;
+    for block in &module.blocks {
+        for inst in &block.instructions {
+            if let Some(PushValue::Block(target)) = &inst.value {
+                references[*target] += 1;
+            }
+        }
+        if let Some(term) = &block.terminator {
+            term.kind.visit_targets(|target| references[target] += 1);
+        }
+    }
+    references
+}
+
+/// Removes duplicated tails left without references, and the blocks only they referenced.
+fn remove_dead_tails(
+    module: &mut Module,
+    references: &mut IndexVec<BlockId, usize>,
+    mut pending: Vec<BlockId>,
+) {
+    let mut dead = DenseBitSet::new_empty(module.blocks.len());
+    while let Some(block) = pending.pop() {
+        if references[block] != 0 || !dead.insert(block) {
+            continue;
+        }
+        let block = &module.blocks[block];
+        for inst in &block.instructions {
+            if let Some(PushValue::Block(target)) = &inst.value {
+                references[*target] -= 1;
+                pending.push(*target);
+            }
+        }
+        if let Some(term) = &block.terminator {
+            term.kind.visit_targets(|target| {
+                references[target] -= 1;
+                pending.push(target);
+            });
+        }
+    }
+    let order = module.blocks.indices().filter(|&block| !dead.contains(block)).collect::<Vec<_>>();
+    if order.len() != module.blocks.len() {
+        retain_blocks(module, &order);
     }
 }

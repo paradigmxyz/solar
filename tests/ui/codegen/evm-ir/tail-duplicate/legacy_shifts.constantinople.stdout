@@ -31,13 +31,13 @@
     push 9
     push 1
 -   jump bb4
-+   sar
-+   jump bb6
-  bb3:
-    stop
-  bb4:
+- bb3:
+-   stop
+- bb4:
     sar
     jump bb6
++ bb3:
++   stop
   bb5:
     stop
   bb6:
@@ -72,19 +72,16 @@ JUMPI
 PUSH1 0x07
 PUSH1 0x01
 SAR
-PUSH2 0x0132 ; bb1
+PUSH2 0x012d ; bb1
 JUMP
 ; bb0
 JUMPDEST
 PUSH1 0x09
 PUSH1 0x01
 SAR
-PUSH2 0x0132 ; bb1
+PUSH2 0x012d ; bb1
 JUMP
 STOP
-SAR
-PUSH2 0x0132 ; bb1
-JUMP
 STOP
 ; bb1
 JUMPDEST
