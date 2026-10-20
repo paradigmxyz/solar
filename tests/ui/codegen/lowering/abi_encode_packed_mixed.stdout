@@ -23,10 +23,10 @@ fn @materialized(arg0: i16, arg1: ptr<memory>, arg2: i1) -> ptr<memory> [selecto
 
 fn @hashArray(arg0: ptr<memory>) -> i256 [selector=0x42233547, pure, abi_params=[array<_, bytes32>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = abi_encode_packed (array<word> memoryarray<1> arg0)
-    v1 = ptradd v0, 32
-    v2 = mload v0
-    v3 = keccak256 v1, v2
+    v0 = ptradd arg0, 32
+    v1 = mload arg0
+    v2 = shl v1, 5
+    v3 = keccak256 v0, v2
     ret v3
 }
 
