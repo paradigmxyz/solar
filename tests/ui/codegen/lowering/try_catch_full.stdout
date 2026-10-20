@@ -224,7 +224,14 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     jumpi v18, bb4, bb5
   bb5:
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v34 = icall @alloc, v20
+    v34 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v35 = add v34, v20 !metadata(alloc_ptr)
+    v36 = lt v35, v34
+    v37 = gt v35, 0xffffffffffffffff
+    v38 = or v36, v37
+    jumpi v38, bb4, bb7
+  bb7:
+    mstore 64, v35 !metadata(memory=scratch)
     mstore v34, v15
     v22 = sub v3, v10
     v23 = gt v15, v22
@@ -265,7 +272,14 @@ fn @decode_aggregate.5(arg0: i256) -> struct0 [may_return_memory, return_abi=[i2
     jumpi v21, bb4, bb5
   bb5:
     v23 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v41 = icall @alloc, v23
+    v41 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v42 = add v41, v23 !metadata(alloc_ptr)
+    v43 = lt v42, v41
+    v44 = gt v42, 0xffffffffffffffff
+    v45 = or v43, v44
+    jumpi v45, bb4, bb7
+  bb7:
+    mstore 64, v42 !metadata(memory=scratch)
     mstore v41, v18
     v25 = sub v3, v13
     v26 = gt v18, v25
@@ -301,21 +315,4 @@ fn @entry() [entry] {
     tail_call @rethrows
   bb1:
     revert 0, 0
-}
-
-fn @alloc(arg0: i256) -> i256 {
-  bb0:
-    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v2 = add v0, arg0 !metadata(alloc_ptr)
-    v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
-  bb2:
-    mstore 64, v2 !metadata(memory=scratch)
-    ret v0
-  bb1:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

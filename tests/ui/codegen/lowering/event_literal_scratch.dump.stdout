@@ -16,18 +16,18 @@ fn @logged() [selector=0xf3f1126a, abi_wrapper] {
   bb2:
     v12 = mload 64 !metadata(memory=scratch)
     v13 = sub v12, v0
-    mstore 128, v13
-    returndata 128, 32
+    mstore 0, v13 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
-    v34 = mload 64 !metadata(memory=scratch)
-    v20 = add v34, 64
-    mstore v34, 64
-    mstore v20, 17
-    v23 = add v20, 32
-    mstore v23, 0x7374616e646172644e6f726d616c576164000000000000000000000000000000
-    v27 = add v34, 32
-    mstore v27, v4
-    log v34, 128, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
+    v33 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v19 = add v33, 64
+    mstore v33, 64
+    mstore v19, 17
+    v22 = add v19, 32
+    mstore v22, 0x7374616e646172644e6f726d616c576164000000000000000000000000000000
+    v26 = add v33, 32
+    mstore v26, v4
+    log v33, 128, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
     v11 = add v4, 1
     jump bb1
   bb4:

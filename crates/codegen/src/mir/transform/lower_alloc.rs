@@ -8,9 +8,11 @@
 //! branches carry those effects. Source metadata stays on the original instruction.
 //!
 //! A checked allocation bumps the pointer only after testing the new end against overflow and
-//! the allocation limit, panicking otherwise. When a module has two or more, one `alloc(size)`
-//! helper owns the pointer load, check, panic, and update, and each site calls it and keeps its
-//! own zeroing; a single checked allocation splits its block around the inline check instead.
+//! the allocation limit, panicking otherwise. When the target prices one shared `alloc(size)`
+//! helper below expanding the check at every site, as the size objective does for two or more,
+//! the helper owns the pointer load, check, panic, and update, and each site calls it and keeps
+//! its own zeroing. Otherwise, as in gas builds, whose call protocol costs more than the check,
+//! each allocation splits its block around the inline check.
 //!
 //! A preserving allocation that reserves bytes an encoder already wrote through an
 //! earlier pointer read in the same block reuses that read instead of loading the
@@ -23,14 +25,17 @@
 //! checked allocation keeps its own inline check rather than calling the shared helper, as the
 //! helper loads the slot; the size objective keeps the call.
 
-use crate::mir::{
-    AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
-    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-    PtrLocation, Value, ValueId,
-    analysis::FreshFmpReads,
-    memory::EvmMemoryLayout,
-    pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
-    transform::utils::redirect_successor_predecessors,
+use crate::{
+    mir::{
+        AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
+        Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
+        PtrLocation, Value, ValueId,
+        analysis::FreshFmpReads,
+        memory::EvmMemoryLayout,
+        pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
+        transform::utils::redirect_successor_predecessors,
+    },
+    target::Target,
 };
 use solar_config::OptimizationMode;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -56,12 +61,12 @@ impl MirPass for LowerAlloc {
         } else {
             FreshFmpReads::new(module, || analyses.call_summaries(module), optimization.is_gas())
         };
-        lower_alloc(module, analyses, &fresh)
+        lower_alloc(gcx, module, analyses, &fresh)
     }
 }
 
-fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &FreshFmpReads) -> bool {
-    let mut changed = share_checked_allocations(module, analyses, fresh);
+fn lower_alloc(gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &FreshFmpReads) -> bool {
+    let mut changed = share_checked_allocations(gcx, module, analyses, fresh);
     changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let id = function_analyses.function();
         lower_function(func, |inst| fresh.contains(id, inst))
@@ -74,7 +79,9 @@ fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &Fresh
 ///
 /// The helper owns only the pointer load, checked bump, panic, and update.
 /// Callers retain their initialization, so allocation ordering stays intact.
+/// The target decides whether the shared helper beats an inline check at every site.
 fn share_checked_allocations(
+    gcx: Gcx<'_>,
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
     fresh: &FreshFmpReads,
@@ -97,8 +104,16 @@ fn share_checked_allocations(
     if count < 2 {
         return false;
     }
+    let function = checked_alloc_helper();
+    let target = Target::new(gcx);
+    let body_bytes = target.code_estimate(&function).bytes;
+    let sites = u32::try_from(count).unwrap_or(u32::MAX);
+    let (shared, expanded) = target.helper_sharing(body_bytes, 1, 1, sites);
+    if !target.cmp(shared, expanded).is_lt() {
+        return false;
+    }
 
-    let helper = create_checked_alloc(module);
+    let helper = module.add_function(function);
     run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let func_id = function_analyses.function();
         let mut replacements = FxHashMap::default();
@@ -132,7 +147,7 @@ fn share_checked_allocations(
     })
 }
 
-fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
+fn checked_alloc_helper() -> Function {
     let mut function = Function::new(Ident::with_dummy_span(sym::alloc));
     {
         let mut builder = FunctionBuilder::new(&mut function);
@@ -159,7 +174,7 @@ fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
         builder.switch_to_block(panic);
         builder.panic(PanicCode::MemoryAllocationOverflow);
     }
-    module.add_function(function)
+    function
 }
 
 fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> bool {

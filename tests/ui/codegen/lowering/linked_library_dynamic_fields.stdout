@@ -17,8 +17,8 @@ bb3 [cold]:
   revert
 bb23 [cold]:
   push 65
-  jump bb26
-bb26 [cold]:
+  jump bb24
+bb24 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -96,15 +96,12 @@ bb1:
   add
   push 5
   shl
-  push bb8
-  jump bb25
-bb25:
   push 64
   mload
-  swap 2
-  dup 3
+  swap 1
+  dup 2
   add
-  dup 3
+  dup 2
   dup 2
   lt
   push 0xffffffffffffffff
@@ -115,29 +112,28 @@ bb25:
   jumpi
   push 64
   mstore
-  jump
-bb8 [continuation]:
-  swap 4
   dup 5
-  dup 3
-  dup 3
-  dup 3
+  dup 2
   mstore
+  dup 5
+  push 5
+  shl
+  swap 5
+  dup 3
   calldatasize
   sub
   push 5
   shr
-  dup 3
-  gt
+  lt
   push bb3
   jumpi
   push 32
+  dup 2
   add
-  swap 1
-  push 5
-  shl
+  swap 5
   swap 2
   swap 1
+  swap 5
   calldatacopy
   dup 3
   push 32
@@ -171,9 +167,22 @@ bb8 [continuation]:
   push 31
   not
   and
-  push bb12
-  jump bb25
-bb12 [continuation]:
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0xffffffffffffffff
+  dup 3
+  gt
+  or
+  push bb23
+  jumpi
+  push 64
+  mstore
   dup 3
   dup 2
   mstore
@@ -210,7 +219,7 @@ bb12 [continuation]:
   add
   mstore
   dup 5
-  push 128
+  dup 4
   dup 5
   add
   mstore
@@ -311,10 +320,10 @@ bb15 [loop]:
   return
 bb22 [cold]:
   push 17
-  jump bb26
+  jump bb24
 bb21 [cold]:
   push 50
-  jump bb26
+  jump bb24
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module C_runtime
 bb0:

@@ -7,17 +7,28 @@ fn @three() [selector=0xae4e757a, abi_wrapper, pure] {
     v18 = lt v17, 100
     jumpi v18, bb1, bb2
   bb2:
-    v28 = icall @alloc, 128
-    mstore v28, 3
-    v22 = add v28, 32
-    mstore v22, arg0
-    v24 = add v28, 64
-    mstore v24, arg1
-    v26 = add v28, 96
-    mstore v26, arg2
-    v16 = keccak256 v22, 96
-    mstore 128, v16
-    returndata 128, 32
+    v26 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v27 = add v26, 128 !metadata(alloc_ptr)
+    v28 = lt v27, v26
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb4, bb3
+  bb3:
+    v32 = calldatasize
+    calldatacopy v26, v32, 128
+    v21 = add v26, 32
+    mstore v21, arg0
+    v23 = add v26, 64
+    mstore v23, arg1
+    v25 = add v26, 96
+    mstore v25, arg2
+    v16 = keccak256 v21, 96
+    mstore 0, v16 !metadata(memory=scratch)
+    returndata 0, 32
+  bb4:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }
@@ -27,8 +38,8 @@ fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
     v1 = mload 96 !metadata(memory=scratch)
     v2 = shl v1, 5
     v3 = keccak256 128, v2
-    mstore 128, v3
-    returndata 128, 32
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @addresses() [selector=0x82d38954, abi_wrapper, pure] {
@@ -37,18 +48,29 @@ fn @addresses() [selector=0x82d38954, abi_wrapper, pure] {
     v13 = shr v12, 160
     v10 = calldatasize
     v11 = lt v10, 36
-    v21 = zext i1 v11 to i256
-    v22 = or v21, v13
-    v23 = ne v22, 0
-    jumpi v23, bb1, bb2
+    v25 = zext i1 v11 to i256
+    v26 = or v25, v13
+    v27 = ne v26, 0
+    jumpi v27, bb1, bb2
   bb2:
-    v20 = icall @alloc, 64
-    mstore v20, 1
-    v18 = add v20, 32
-    mstore v18, arg0
-    v9 = keccak256 v18, 32
-    mstore 128, v9
-    returndata 128, 32
+    v18 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v19 = add v18, 64
+    v20 = lt v19, v18
+    v21 = gt v19, 0xffffffffffffffff
+    v22 = or v20, v21
+    jumpi v22, bb4, bb3
+  bb3:
+    v24 = calldatasize
+    calldatacopy v18, v24, 64
+    v17 = add v18, 32
+    mstore v17, arg0
+    v9 = keccak256 v17, 32
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
+  bb4:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }
@@ -70,21 +92,4 @@ fn @entry() [entry] {
     tail_call @addresses
   bb5:
     revert 0, 0
-}
-
-fn @alloc(arg0: i256) -> i256 {
-  bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
-    v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
-  bb2:
-    mstore 64, v2 !metadata(memory=scratch)
-    ret v0
-  bb1:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
