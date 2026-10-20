@@ -942,17 +942,6 @@ fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
 
 /// Main test runner using config.
 fn run_test_with_config(config: &TestConfig) {
-    if !forge_available() {
-        eprintln!("Skipping {}: forge not found in PATH", config.name);
-        return;
-    }
-
-    let solar_binary = get_solar_binary();
-    if !solar_binary.exists() {
-        eprintln!("Skipping {}: Solar binary not found at {:?}", config.name, solar_binary);
-        return;
-    }
-
     let project_dir = &config.path;
     if !project_dir.exists() {
         panic!("Project directory not found: {:?}", project_dir);
@@ -1158,6 +1147,18 @@ fn audit_artifacts(
 
 /// Runs the default Foundry suite.
 pub(super) fn run_default_suite(solar: &Path) {
+    assert!(
+        forge_available(),
+        "forge not found in PATH; install Foundry, or set SOLAR_FOUNDRY_SKIP=1 to skip the \
+         Foundry suite"
+    );
+    assert!(
+        solar.exists(),
+        "Solar binary not found at {}; build it with \
+         `cargo build --package=solar-compiler --bin=solar` or run `cargo tq foundry`",
+        solar.display(),
+    );
+
     let _ = SOLAR_BINARY.set(solar.to_path_buf());
     let projects = discover_projects(&foundry_root());
     assert!(!projects.is_empty(), "No Foundry projects found");
@@ -1228,7 +1229,12 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "looks for `solar` without `.exe`, so it never ran on Windows")]
     fn foundry() {
+        if std::env::var_os("SOLAR_FOUNDRY_SKIP").is_some_and(|v| v != "0") {
+            eprintln!("Skipping the Foundry suite: SOLAR_FOUNDRY_SKIP is set");
+            return;
+        }
         run_default_suite(&get_solar_binary());
     }
 

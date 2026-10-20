@@ -102,6 +102,8 @@ Environment variables:
   `skip_contracts` (arrays of `{ pattern, reason }`; `reason` is required), and
   `notes`.
 - `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports.
+- `SOLAR_FOUNDRY_SKIP`: skip the default Foundry suite. Without it, a missing
+  `forge` or Solar binary fails the suite instead of passing silently.
 - `SOLAR_FOUNDRY_COMPILER`: Solar executable to use instead of the latest local
   build; relative paths start at the workspace root. A debug build enables MIR
   and EVM IR validation by default.
