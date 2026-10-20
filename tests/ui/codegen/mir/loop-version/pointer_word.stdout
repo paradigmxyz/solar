@@ -1,0 +1,199 @@
+// === ROOT/tests/ui/codegen/mir/loop-version/pointer_word.sol:Test ===
+@module Test
+@phase lowered
+@types
+  struct0: {i1, ptr<memory>}
+
+fn @lastIndicesIn() [selector=0x16134912, abi_wrapper, pure] {
+  bb0:
+    v5 = calldatasize
+    v6 = lt v5, 100
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = icall @decode_calldata_type, 4
+    v8 = icall @decode_calldata_type, 36
+    v9 = icall @decode_calldata_type, 68
+    v0 = alloc 32 !metadata(deferred_alloc)
+    mstore v0, v8
+    v2 = icall @_lastIndicesIn, v0, v7, v9
+    v11 = zext i1 v2 to i256
+    v36 = mload 64 !metadata(memory=scratch)
+    v17 = add v36, 64
+    mstore v36, v11
+    v19 = add v36, 32
+    mstore v19, 64
+    v22 = mload v9
+    mstore v17, v22
+    v23 = shl v22, 5
+    v24 = add v17, 32
+    v26 = add v24, v23
+    v32 = add v9, 32
+    mcopy v24, v32, v23 !metadata(memory=heap, disjoint)
+    v28 = sub v26, v36
+    returndata v36, v28
+  bb1:
+    revert 0, 0
+}
+
+fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory, pure] {
+  bb0:
+    v0 = mload arg1
+    v107 = mload arg0
+    v57 = mload arg2
+    v60 = or arg2, v57
+    v61 = shl v57, 5
+    v62 = add arg2, 1
+    v63 = add v61, 31
+    v65 = sub arg1, v62
+    v66 = lt v65, v63
+    v70 = sub arg0, v62
+    v71 = lt v70, v63
+    v82 = shr v60, 64
+    v84 = or v66, v71
+    v86 = zext i1 v84 to i256
+    v87 = or v82, v86
+    v76 = eq v87, 0
+    jumpi v76, bb8, bb9
+  bb9:
+    jump bb1
+  bb1:
+    v5 = phi [bb9: v0], [bb13: v7]
+    v6 = ne v5, 0
+    jumpi v6, bb3, bb2
+  bb3:
+    v7 = sub v5, 1
+    v8 = mload arg1
+    v9 = lt v7, v8
+    jumpi v9, bb11, bb10
+  bb11:
+    v11 = shl v7, 5
+    v93 = add arg1, v11
+    v94 = add v93, 32
+    v14 = mload v94
+    v15 = eq v14, 0
+    jumpi v15, bb2, bb4
+  bb4:
+    v111 = mload arg0
+    v17 = mload v111
+    v18 = gt v17, 0
+    jumpi v18, bb12, bb10
+  bb12:
+    v96 = add v111, 32
+    v21 = mload v96
+    v78 = add v14, v21
+    v79 = lt v78, v14
+    jumpi v79, bb16, bb17
+  bb17:
+    v23 = and v78, 3
+    v25 = lt v23, v57
+    jumpi v25, bb13, bb10
+  bb13:
+    v27 = shl v23, 5
+    v98 = add arg2, v27
+    v99 = add v98, 32
+    mstore v99, v7
+    jump bb1
+  bb8:
+    jump bb5
+  bb5:
+    v33 = phi [bb8: v0], [bb15: v35]
+    v34 = ne v33, 0
+    jumpi v34, bb6, bb2
+  bb6:
+    v35 = sub v33, 1
+    v38 = shl v35, 5
+    v90 = add arg1, v38
+    v91 = add v90, 32
+    v41 = mload v91
+    v42 = eq v41, 0
+    jumpi v42, bb2, bb7
+  bb7:
+    v44 = mload v107
+    v45 = gt v44, 0
+    jumpi v45, bb14, bb10
+  bb14:
+    v101 = add v107, 32
+    v47 = mload v101
+    v80 = add v41, v47
+    v81 = lt v80, v41
+    jumpi v81, bb16, bb18
+  bb18:
+    v49 = and v80, 3
+    v51 = lt v49, v57
+    jumpi v51, bb15, bb10
+  bb10:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb15:
+    v52 = shl v49, 5
+    v103 = add arg2, v52
+    v104 = add v103, 32
+    mstore v104, v35
+    jump bb5
+  bb16:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    v31 = phi [bb11: true], [bb1: false], [bb6: true], [bb5: false]
+    ret v31
+}
+
+fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v8 = calldataload v2
+    v10 = gt v8, 0x7fffffffffffffe
+    jumpi v10, bb3, bb4
+  bb4:
+    v11 = add v8, 1
+    v12 = shl v11, 5
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, v12
+    v29 = lt v28, v27
+    v30 = gt v28, 0xffffffffffffffff
+    v31 = or v29, v30
+    jumpi v31, bb3, bb6
+  bb6:
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore v27, v8
+    v14 = shl v8, 5
+    v15 = sub v0, v3
+    v16 = shr v15, 5
+    v17 = gt v8, v16
+    jumpi v17, bb1, bb5
+  bb5:
+    v24 = add v27, 32
+    calldatacopy v24, v3, v14
+    ret v27
+  bb3:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x16134912 => bb2]
+  bb2:
+    tail_call @lastIndicesIn
+  bb3:
+    revert 0, 0
+}
