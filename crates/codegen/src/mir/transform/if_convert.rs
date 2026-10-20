@@ -609,15 +609,25 @@ fn select_value(
     }
 }
 
-/// The value a select gives on both edges: `x == C ? K : f(x)`, or `x != C ? f(x) : K`, where
-/// `f` adds, subtracts or exclusive-ors a literal and `f(C)` is `K` at the select's width. The
-/// condition may be such a comparison or its negation.
+/// The value a select gives on both edges: either arm when both add the same amount to one
+/// value at the select's width, as `x > max - k ? x - (max - k + 1) : x + k` does, whatever the
+/// condition; or, for `x == C ? K : f(x)` or `x != C ? f(x) : K`, `f(x)`, where `f` adds,
+/// subtracts or exclusive-ors a literal and `f(C)` is `K` at the select's width. The condition
+/// may be such a comparison or its negation.
 fn agreeing_value(
     func: &Function,
     condition: ValueId,
     then_value: ValueId,
     else_value: ValueId,
 ) -> Option<ValueId> {
+    if let Some(MirType::Int(bits)) = func.value_ty(else_value)
+        && let (Some((a, then_amount)), Some((b, else_amount))) =
+            (added_literal(func, then_value), added_literal(func, else_value))
+        && a == b
+        && then_amount.wrapping_sub(else_amount) & integer_mask(bits.get()) == U256::ZERO
+    {
+        return Some(else_value);
+    }
     let (x, c, equal) = literal_comparison(func, condition, MAX_NEGATIONS)?;
     // The value on the edge taken when `x == c`, and the other edge's.
     let (at_c, other) = if equal { (then_value, else_value) } else { (else_value, then_value) };
@@ -632,6 +642,22 @@ fn agreeing_value(
         _ => return None,
     };
     (result & integer_mask(bits.get()) == literal).then_some(other)
+}
+
+/// `(x, k)` for a value `x + k` or `x - (-k)`, with `k` a literal and `x` not.
+fn added_literal(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
+    let Value::Inst(inst) = func.value(value) else { return None };
+    match func.inst(*inst).kind {
+        InstKind::Add(a, b) => match (func.value_u256(a), func.value_u256(b)) {
+            (None, Some(k)) => Some((a, k)),
+            (Some(k), None) => Some((b, k)),
+            _ => None,
+        },
+        InstKind::Sub(a, b) if func.value_u256(a).is_none() => {
+            Some((a, U256::ZERO.wrapping_sub(func.value_u256(b)?)))
+        }
+        _ => None,
+    }
 }
 
 /// Negations of a comparison a branch condition may wrap.
