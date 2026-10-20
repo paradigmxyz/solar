@@ -106,13 +106,6 @@ bb15:
   add
   push 0
   jump bb17
-bb17 [loop]:
-  dup 3
-  dup 2
-  lt
-  push bb19
-  jumpi
-  stop
 bb19 [loop]:
   dup 1
   dup 5
@@ -180,11 +173,16 @@ bb19 [loop]:
   or
   dup 3
   sstore
-  jump bb28
-bb28 [loop]:
   push 1
   add
   jump bb17
+bb17 [loop]:
+  dup 3
+  dup 2
+  lt
+  push bb19
+  jumpi
+  stop
 bb26 [loop]:
   pop
   dup 4
@@ -204,7 +202,9 @@ bb26 [loop]:
   push 65
   dup 3
   sstore
-  jump bb28
+  push 1
+  add
+  jump bb17
 bb27 [loop]:
   swap 1
   push 2
@@ -245,7 +245,9 @@ bb27 [loop]:
   or
   swap 1
   sstore
-  jump bb28
+  push 1
+  add
+  jump bb17
 bb30:
   caller
   push 0
@@ -714,7 +716,7 @@ bb67:
   add
   swap 1
   return
-bb65:
+bb65 [loop]:
   swap 3
   push 0
   mstore
@@ -729,7 +731,13 @@ bb65:
   add
   swap 3
   pop
-  jump bb66
+  dup 3
+  dup 2
+  sub
+  push bb68
+  jumpi
+  swap 3
+  jump bb67
 bb68 [loop]:
   dup 1
   sload
@@ -740,8 +748,6 @@ bb68 [loop]:
   mstore
   push 1
   add
-  jump bb66
-bb66 [loop]:
   dup 3
   dup 2
   sub

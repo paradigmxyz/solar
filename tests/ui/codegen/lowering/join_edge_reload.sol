@@ -14,9 +14,12 @@ contract JoinEdgeReload {
     // matches, so the header branches on its pointers alone. The length stays
     // on the stack in this loop; a loop that spills it, as an unrolled search
     // does, reloads it on the exit edge after the branch, only when it ends.
+    // The test ends the latch, which advances the pointer and branches back.
     // CHECK-LABEL: @module JoinEdgeReload_runtime
-    // CHECK: [loop]:
-    // CHECK: [loop]:
+    // CHECK: bb{{[0-9]+}} [loop]:
+    // CHECK: bb{{[0-9]+}} [loop]:
+    // CHECK-NEXT: push 32
+    // CHECK-NEXT: add
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: eq
