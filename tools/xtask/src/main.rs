@@ -58,11 +58,6 @@ fn main() -> anyhow::Result<()> {
             // nextest treats arguments after `--` as test-name filters, which match nothing in
             // the single `ui_test` harness test, so filtered runs go to the harness directly.
             let mode = test_name.as_deref().and_then(tester_mode);
-            // The whole workspace includes `solar-tester`'s Foundry suite, which runs the
-            // prebuilt `target/debug/solar` instead of a Cargo-provided binary, so refresh it.
-            if !bless && mode.is_none() {
-                cmd!(sh, "cargo build --package=solar-compiler --bin=solar").run()?;
-            }
             let mut cmd = if bless || (mode.is_some() && !rest.is_empty()) {
                 cmd!(sh, "cargo test")
             } else {
