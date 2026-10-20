@@ -1,0 +1,135 @@
+// === ROOT/tests/ui/codegen/mir/evm-inst-schedule/search_return_index.sol:SearchReturnIndex ===
+@module SearchReturnIndex
+@phase lowered
+fn @last() [selector=0xd75bb746, abi_wrapper, pure] {
+  bb0:
+    v62 = calldatasize
+    v63 = lt v62, 68
+    v64 = calldataload 4
+    v65 = add v64, 4
+    v66 = add v65, 32
+    v67 = gt v64, 0xffffffffffffffff
+    v68 = gt v66, v62
+    v69 = or v67, v68
+    v126 = or v63, v69
+    jumpi v126, bb18, bb19
+  bb19:
+    v71 = calldataload v65
+    v73 = gt v71, 0x7fffffffffffffe
+    jumpi v73, bb20, bb21
+  bb21:
+    v74 = add v71, 1
+    v75 = shl v74, 5
+    v111 = mload 64 !metadata(memory=scratch)
+    v112 = add v111, v75
+    v113 = lt v112, v111
+    v114 = gt v112, 0xffffffffffffffff
+    v115 = or v113, v114
+    jumpi v115, bb20, bb23
+  bb23:
+    mstore 64, v112 !metadata(memory=scratch)
+    mstore v111, v71
+    v78 = sub v62, v66
+    v79 = shr v78, 5
+    v80 = gt v71, v79
+    jumpi v80, bb18, bb22
+  bb22:
+    v77 = shl v71, 5
+    v108 = add v111, 32
+    calldatacopy v108, v66, v77
+    v1 = eq v71, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = sub v71, 1
+    v117 = shl v2, 5
+    v118 = add v111, v117
+    jump bb3
+  bb3:
+    v6 = phi [bb2: v2], [bb13: v47]
+    v119 = phi [bb2: v118], [bb13: v120]
+    v8 = gt v6, 3
+    jumpi v8, bb4, bb5
+  bb5:
+    v121 = shl v6, 5
+    v122 = add v111, v121
+    v123 = add v122, 32
+    jump bb14
+  bb14:
+    v51 = phi [bb5: v6], [bb17: v61]
+    v124 = phi [bb5: v123], [bb17: v125]
+    v58 = mload v124
+    v59 = ne v58, arg1
+    jumpi v59, bb16, bb15
+  bb15:
+    mstore 0, v51 !metadata(memory=scratch)
+    returndata 0, 32
+  bb16:
+    v60 = eq v51, 0
+    jumpi v60, bb1, bb17
+  bb17:
+    v61 = sub v51, 1
+    v125 = sub v124, 32
+    jump bb14
+  bb4:
+    v94 = add v119, 32
+    v15 = mload v94
+    v16 = eq v15, arg1
+    jumpi v16, bb6, bb7
+  bb7:
+    v24 = mload v119
+    v25 = eq v24, arg1
+    jumpi v25, bb8, bb9
+  bb9:
+    v100 = sub v119, 32
+    v34 = mload v100
+    v35 = eq v34, arg1
+    jumpi v35, bb10, bb11
+  bb11:
+    v103 = sub v119, 64
+    v44 = mload v103
+    v45 = eq v44, arg1
+    jumpi v45, bb12, bb13
+  bb13:
+    v47 = sub v6, 4
+    v120 = sub v119, 128
+    jump bb3
+  bb12:
+    v37 = sub v6, 3
+    mstore 0, v37 !metadata(memory=scratch)
+    returndata 0, 32
+  bb10:
+    v27 = sub v6, 2
+    mstore 0, v27 !metadata(memory=scratch)
+    returndata 0, 32
+  bb8:
+    v17 = sub v6, 1
+    mstore 0, v17 !metadata(memory=scratch)
+    returndata 0, 32
+  bb6:
+    mstore 0, v6 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
+    returndata 0, 32
+  bb20:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb18:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xd75bb746 => bb2]
+  bb2:
+    tail_call @last
+  bb3:
+    revert 0, 0
+}

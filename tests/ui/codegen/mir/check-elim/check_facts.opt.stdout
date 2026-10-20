@@ -175,12 +175,12 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb6:
     mstore 64, v28 !metadata(memory=scratch)
     mstore v27, v8
-    v14 = shl v8, 5
     v15 = sub v0, v3
     v16 = shr v15, 5
     v17 = gt v8, v16
     jumpi v17, bb1, bb5
   bb5:
+    v14 = shl v8, 5
     v24 = add v27, 32
     calldatacopy v24, v3, v14
     ret v27

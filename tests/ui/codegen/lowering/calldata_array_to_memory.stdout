@@ -355,16 +355,16 @@ bb19:
   swap 4
   calldatacopy
   mload
-  dup 1
   push 0x1999999999999999999999999999999999999999999999999999999999999999
-  lt
+  dup 2
+  gt
   push bb26
   jumpi
-  push 10
-  mul
   push 4
   calldataload
   swap 1
+  push 10
+  mul
   dup 2
   add
   swap 1
@@ -374,9 +374,9 @@ bb19:
   jumpi
   swap 1
   mload
-  dup 1
   push 0x28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f
-  lt
+  dup 2
+  gt
   push bb26
   jumpi
   push 100

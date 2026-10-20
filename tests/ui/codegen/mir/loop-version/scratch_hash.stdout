@@ -29,12 +29,12 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
   bb6:
     mstore 64, v44 !metadata(memory=scratch)
     mstore v43, v10
-    v16 = shl v10, 5
     v17 = sub v1, v5
     v18 = shr v17, 5
     v19 = gt v10, v18
     jumpi v19, bb1, bb5
   bb5:
+    v16 = shl v10, 5
     v35 = add v43, 32
     calldatacopy v35, v5, v16
     v0 = icall @_level, v43

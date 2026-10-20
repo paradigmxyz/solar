@@ -248,14 +248,13 @@ bb38:
   dup 4
   jump bb40
 bb42 [loop]:
-  dup 4
+  dup 3
   dup 2
-  mul
-  swap 1
-  dup 4
-  lt
+  gt
   push bb45
   jumpi
+  dup 4
+  mul
   dup 5
   dup 2
   add

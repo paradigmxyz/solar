@@ -112,24 +112,25 @@ bb1:
   dup 2
   dup 2
   mstore
-  dup 2
-  push 5
-  shl
-  swap 2
-  dup 4
+  dup 3
   calldatasize
   sub
   push 5
   shr
-  lt
+  dup 3
+  gt
   push bb3
   jumpi
+  swap 1
+  push 5
+  shl
   push 32
-  dup 2
+  dup 3
   add
+  swap 1
+  swap 2
   swap 3
   swap 1
-  swap 3
   calldatacopy
   push 32
   dup 3

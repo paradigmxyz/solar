@@ -36,12 +36,12 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
   bb7:
     mstore 64, v51 !metadata(memory=scratch)
     mstore v50, v14
-    v20 = shl v14, 5
     v21 = sub v4, v9
     v22 = shr v21, 5
     v23 = gt v14, v22
     jumpi v23, bb1, bb6
   bb6:
+    v20 = shl v14, 5
     v44 = add v50, 32
     mcopy v44, v9, v20
     v46 = add v50, 64
@@ -313,12 +313,12 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
   bb10:
     mstore 64, v112 !metadata(memory=scratch)
     mstore v111, v23
-    v29 = shl v23, 5
     v30 = sub v10, v18
     v31 = shr v30, 5
     v32 = gt v23, v31
     jumpi v32, bb1, bb6
   bb6:
+    v29 = shl v23, 5
     v102 = add v111, 32
     mcopy v102, v18, v29
     v39 = add v100, 64

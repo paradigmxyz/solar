@@ -3,11 +3,11 @@
 @phase lowered
 fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
   bb0:
-    v11 = ne arg1, 0
     v27 = sub 0, arg2
     v31 = ne v27, 0
     jumpi v31, bb6, bb9
   bb6:
+    v11 = ne arg1, 0
     jumpi v11, bb7, bb4
   bb4:
     mstore 32, 18 !metadata(memory=scratch)
@@ -84,11 +84,11 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
 
 fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
   bb0:
-    v11 = ne arg1, 0
     v22 = sub 0, arg2
     v26 = ne v22, 0
     jumpi v26, bb6, bb9
   bb6:
+    v11 = ne arg1, 0
     jumpi v11, bb7, bb4
   bb4:
     mstore 32, 18 !metadata(memory=scratch)

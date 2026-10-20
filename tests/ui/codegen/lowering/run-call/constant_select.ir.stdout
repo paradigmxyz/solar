@@ -224,32 +224,31 @@ bb16:
   push bb72
   jumpi
   push 31
-  dup 2
-  add
-  push 5
-  shr
-  push 31
-  dup 6
+  dup 5
   add
   push 5
   shr
   push 32
-  dup 7
+  dup 6
   lt
   swap 1
   dup 2
   iszero
   mul
   swap 3
-  dup 7
-  lt
-  swap 1
-  swap 4
+  dup 6
+  dup 4
+  gt
   and
   iszero
   push bb42
   jumpi
   swap 1
+  push 31
+  add
+  push 5
+  shr
+  dup 3
   push bb23
   push 0
   push 0
@@ -283,7 +282,8 @@ bb69 [loop]:
   pop
   jump
 bb23 [continuation]:
-  swap 3
+  swap 4
+  pop
   pop
   swap 1
   swap 2
@@ -513,9 +513,9 @@ bb38 [loop]:
   swap 2
   jump bb37
 bb42:
+  swap 5
   pop
   pop
-  swap 3
   pop
   swap 1
   swap 2

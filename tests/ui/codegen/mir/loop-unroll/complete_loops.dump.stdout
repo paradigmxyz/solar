@@ -29,14 +29,14 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     v64 = calldataload v63
     v65 = byte 0, v64
     v66 = or v61, v65
-    v71 = shl v66, 8
-    v72 = and v71, 0xffffffff
     v73 = lt 3, arg1
     v81 = and v80, v73
     jumpi v81, bb2, bb1
   bb1:
     tail_call @revert_stub
   bb2:
+    v71 = shl v66, 8
+    v72 = and v71, 0xffffffff
     v74 = add arg0, 3
     v75 = calldataload v74
     v76 = byte 0, v75
@@ -49,22 +49,22 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, 
     v41 = lt arg2, arg1
     v42 = add arg0, arg2
     v43 = calldataload v42
-    v44 = byte 0, v43
-    v45 = or 0, v44
     v46 = add arg2, 1
-    v52 = shl v45, 8
-    v53 = and v52, 0xffff
     v54 = lt v46, arg1
     v61 = and v41, v54
     jumpi v61, bb2, bb1
   bb1:
     tail_call @revert_stub
   bb2:
-    v59 = add v46, 1
+    v44 = byte 0, v43
+    v45 = or 0, v44
+    v52 = shl v45, 8
+    v53 = and v52, 0xffff
     v55 = add arg0, v46
     v56 = calldataload v55
     v57 = byte 0, v56
     v58 = or v53, v57
+    v59 = add v46, 1
     ret v58, v59
 }
 

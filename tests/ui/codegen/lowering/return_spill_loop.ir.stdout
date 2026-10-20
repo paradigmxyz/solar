@@ -52,7 +52,7 @@ bb46 [cold]:
   push 65
   jump bb47
 bb7:
-  push 128
+  push 224
   push 64
   mstore
   push 36
@@ -169,8 +169,6 @@ bb10 [continuation]:
   dup 4
   add
   mload
-  push 0
-  byte
   swap 2
   push 3
   gt
@@ -180,17 +178,19 @@ bb10 [continuation]:
   push 34
   add
   mload
+  swap 2
+  push 128
+  mstore
   push 0
   byte
-  swap 2
+  push 160
+  mstore
   push 0
-  mstore
-  push 32
-  mstore
-  push 64
+  byte
+  push 192
   mstore
   push 96
-  push 0
+  push 128
   return
 bb17:
   push 128

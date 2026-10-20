@@ -99,12 +99,12 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     v120 = add v140, v63
     v121 = add v120, 32
     v26 = mload v121
-    v27 = byte 0, v26
     v30 = lt v17, v59
     jumpi v30, bb10, bb8
   bb8:
     tail_call @revert_stub.6
   bb10:
+    v27 = byte 0, v26
     v123 = add v134, v17
     v124 = add v123, 32
     mstore8 v124, v27

@@ -9,13 +9,13 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
   bb4:
     v32 = icall @decode_calldata_slice
     v33 = calldataload v32
-    v34 = add v32, 32
     v21 = lt v33, 32
     v22 = sub v33, 32
     v23 = gt arg1, v22
     v24 = or v21, v23
     jumpi v24, bb1, bb2
   bb2:
+    v34 = add v32, 32
     v28 = add v34, arg1
     v29 = calldataload v28
     mstore 0, v29 !metadata(memory=scratch)
@@ -237,13 +237,13 @@ fn @between() [selector=0x3fa0467e, abi_wrapper, pure] {
     v86 = add v60, v54
     v87 = add v86, 32
     v13 = mload v87
-    v14 = byte 0, v13
     v17 = mload v61
     v18 = lt v54, v17
     jumpi v18, bb8, bb6
   bb6:
     tail_call @revert_stub.16
   bb8:
+    v14 = byte 0, v13
     v89 = add v61, v54
     v90 = add v89, 32
     mstore8 v90, v14
@@ -747,12 +747,12 @@ fn @fillSome() [selector=0x613646c3, abi_wrapper, pure] {
     jumpi v52, bb3, bb4
   bb4:
     v27 = icall @decode_calldata_type.19, 4
-    v12 = byte 0, arg1
-    v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
     v14 = mload v27
     v15 = lt v14, 4
     jumpi v15, bb1, bb2
   bb2:
+    v12 = byte 0, arg1
+    v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
     v45 = add v27, 32
     v18 = mload v45
     v41 = xor v18, v13
@@ -788,10 +788,10 @@ fn @asciiWords() [selector=0x581c0829, abi_wrapper, pure] {
   bb1:
     v1 = phi [bb9: 0], [bb5: v47]
     v2 = phi [bb9: 0], [bb5: v30]
-    v41 = sub v31, v2
     v42 = lt v31, v2
     jumpi v42, bb6, bb7
   bb7:
+    v41 = sub v31, v2
     v6 = gt v41, 31
     jumpi v6, bb3, bb2
   bb2:
@@ -1164,12 +1164,12 @@ fn @decode_calldata_type.20() -> i256 [may_return_memory] {
   bb6:
     mstore 64, v28 !metadata(memory=scratch)
     mstore v27, v8
-    v14 = shl v8, 5
     v15 = sub v0, v3
     v16 = shr v15, 5
     v17 = gt v8, v16
     jumpi v17, bb1, bb5
   bb5:
+    v14 = shl v8, 5
     v24 = add v27, 32
     calldatacopy v24, v3, v14
     ret v27

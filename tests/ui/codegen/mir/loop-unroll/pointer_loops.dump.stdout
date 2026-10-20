@@ -148,12 +148,12 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
   bb9:
     mstore 64, v48 !metadata(memory=scratch)
     mstore v47, v27
-    v33 = shl v27, 5
     v34 = sub v18, v22
     v35 = shr v34, 5
     v36 = gt v27, v35
     jumpi v36, bb4, bb8
   bb8:
+    v33 = shl v27, 5
     v44 = add v47, 32
     calldatacopy v44, v22, v33
     v5 = add v44, v33

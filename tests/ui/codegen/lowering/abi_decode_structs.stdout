@@ -371,12 +371,12 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
   bb11:
     mstore 64, v77 !metadata(memory=scratch)
     mstore v76, v40
-    v46 = shl v40, 5
     v47 = sub arg2, v35
     v48 = shr v47, 5
     v49 = gt v40, v48
     jumpi v49, bb1, bb9
   bb9:
+    v46 = shl v40, 5
     v62 = add v76, 32
     mcopy v62, v35, v46
     v64 = add v82, 64

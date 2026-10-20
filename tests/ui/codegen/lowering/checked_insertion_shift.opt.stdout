@@ -36,7 +36,6 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     v17 = ne v16, 0
     jumpi v17, bb6, bb5
   bb6:
-    v18 = sub v16, 1
     v25 = mload v91
     v26 = gt v25, v11
     jumpi v26, bb7, bb5
@@ -49,6 +48,7 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     v88 = add v87, 32
     jump bb1
   bb7:
+    v18 = sub v16, 1
     v35 = mload v91
     v83 = add v91, 32
     mstore v83, v35
@@ -129,12 +129,12 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb6:
     mstore 64, v28 !metadata(memory=scratch)
     mstore v27, v8
-    v14 = shl v8, 5
     v15 = sub v0, v3
     v16 = shr v15, 5
     v17 = gt v8, v16
     jumpi v17, bb1, bb5
   bb5:
+    v14 = shl v8, 5
     v24 = add v27, 32
     calldatacopy v24, v3, v14
     ret v27

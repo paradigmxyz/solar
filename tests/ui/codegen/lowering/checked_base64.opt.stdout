@@ -370,10 +370,10 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     jumpi v208, bb42, bb7
   bb7:
     v22 = phi [bb6: v207], [bb4: v198]
-    v209 = sub v0, 2
     v210 = lt v0, 2
     jumpi v210, bb42, bb43
   bb43:
+    v209 = sub v0, 2
     v274 = add arg0, v209
     v275 = add v274, 32
     v29 = mload v275

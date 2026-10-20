@@ -218,7 +218,6 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     v91 = gt v90, 0
     jumpi v91, bb12, bb11
   bb12:
-    v102 = sub v90, 1
     v193 = sub v257, 32
     v108 = mload v193
     v109 = gt v108, v84
@@ -232,6 +231,7 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     v101 = add v78, 1
     jump bb8
   bb13:
+    v102 = sub v90, 1
     v116 = mload v193
     mstore v257, v116
     v199 = sub v253, 32
@@ -268,12 +268,12 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb6:
     mstore 64, v28 !metadata(memory=scratch)
     mstore v27, v8
-    v14 = shl v8, 5
     v15 = sub v0, v3
     v16 = shr v15, 5
     v17 = gt v8, v16
     jumpi v17, bb1, bb5
   bb5:
+    v14 = shl v8, 5
     v24 = add v27, 32
     calldatacopy v24, v3, v14
     ret v27

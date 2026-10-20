@@ -220,12 +220,12 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v153 = shl v152, 5
     v228 = icall @alloc, v153
     mstore v228, v149
-    v155 = shl v149, 5
     v156 = sub v108, v144
     v157 = shr v156, 5
     v158 = gt v149, v157
     jumpi v158, bb6, bb31
   bb31:
+    v155 = shl v149, 5
     v210 = add v228, 32
     mcopy v210, v144, v155
     v164 = shl v140, 5
@@ -360,12 +360,12 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v42 = shl v41, 5
     v77 = icall @alloc, v42
     mstore v77, v38
-    v44 = shl v38, 5
     v45 = sub v0, v33
     v46 = shr v45, 5
     v47 = gt v38, v46
     jumpi v47, bb1, bb12
   bb12:
+    v44 = shl v38, 5
     v68 = add v77, 32
     calldatacopy v68, v33, v44
     v53 = shl v29, 5

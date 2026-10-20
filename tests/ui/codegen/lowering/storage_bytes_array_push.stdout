@@ -155,10 +155,10 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
     v28 = eq v22, v27
     jumpi v28, bb7, bb8
   bb8:
-    v12 = add v26, 31
-    v13 = shr v12, 5
     jumpi v22, bb1, bb2
   bb1:
+    v12 = add v26, 31
+    v13 = shr v12, 5
     mstore 0, v4 !metadata(memory=scratch)
     v29 = keccak256 0, 32 !metadata(memory=scratch)
     v30 = sub 0, v13

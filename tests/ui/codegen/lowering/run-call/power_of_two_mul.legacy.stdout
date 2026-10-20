@@ -177,24 +177,26 @@ bb26:
   dup 2
   dup 2
   mstore
-  push 32
   dup 3
-  mul
-  dup 4
   calldatasize
   sub
   push 32
   swap 1
   div
-  dup 4
+  dup 3
   gt
   push bb8
   jumpi
-  dup 2
-  push 32
-  add
   push 36
   calldataload
+  push 32
+  dup 4
+  mul
+  push 32
+  dup 4
+  add
+  swap 1
+  swap 2
   swap 5
   swap 1
   calldatacopy

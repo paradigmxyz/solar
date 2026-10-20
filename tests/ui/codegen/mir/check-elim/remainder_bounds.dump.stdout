@@ -64,12 +64,12 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
   bb11:
     mstore 64, v52 !metadata(memory=scratch)
     mstore v51, v28
-    v34 = shl v28, 5
     v35 = sub v19, v23
     v36 = shr v35, 5
     v37 = gt v28, v36
     jumpi v37, bb6, bb10
   bb10:
+    v34 = shl v28, 5
     v48 = add v51, 32
     calldatacopy v48, v23, v34
     v57 = add v51, 32
