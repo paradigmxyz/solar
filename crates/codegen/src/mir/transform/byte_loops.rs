@@ -161,6 +161,9 @@ struct Counted {
     /// The header test: `counter < bound`, or `counter > 0` counting down.
     test: ValueId,
     bound: ValueId,
+    /// The value the header test compares the counter with, which the counter equals when the
+    /// loop exits: the bound counting up, zero counting down.
+    limit: ValueId,
     /// Whether the counter runs from `bound` down to one, the iteration
     /// indexing `offset + counter - 1`.
     descending: bool,
@@ -278,9 +281,9 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
         return None;
     }
     let [phis @ .., test_inst] = func.blocks[header].instructions.as_slice() else { return None };
-    let (counter, test_bound, descending) = match func.inst(*test_inst).kind {
-        InstKind::Lt(counter, bound) => (counter, Some(bound), false),
-        InstKind::Gt(counter, zero) if func.value_u64(zero) == Some(0) => (counter, None, true),
+    let (counter, limit, descending) = match func.inst(*test_inst).kind {
+        InstKind::Lt(counter, bound) => (counter, bound, false),
+        InstKind::Gt(counter, zero) if func.value_u64(zero) == Some(0) => (counter, zero, true),
         _ => return None,
     };
     let test = func.inst_result_value(*test_inst)?;
@@ -351,7 +354,7 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
                     || (b == counter && func.value_u64(a) == Some(1)) => {}
             _ => return None,
         }
-        test_bound?
+        limit
     };
     if !defined_outside(func, l, bound) {
         return None;
@@ -369,6 +372,7 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
         counter,
         test,
         bound,
+        limit,
         descending,
         phis: other,
         step,
@@ -1031,8 +1035,8 @@ fn only_pattern_effects(func: &Function, lp: &Counted, used: &[InstId]) -> bool 
 fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
     let Plan { lp, shape } = plan;
     let mut replacements = FxHashMap::default();
-    // The counter leaves the loop equal to its bound.
-    replacements.insert(lp.counter, lp.bound);
+    // The counter leaves the loop equal to its limit: the bound counting up, zero counting down.
+    replacements.insert(lp.counter, lp.limit);
     let literal = lp.literal_bound(func);
     let mut builder = FunctionBuilder::new_semantic(func);
     builder.switch_to_block(lp.preheader);
