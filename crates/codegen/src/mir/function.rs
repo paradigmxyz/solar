@@ -3,7 +3,7 @@
 use super::{
     AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
     InstKind, Instruction, MangledSymbol, MirType, PtrLocation, StorageAlias, Value, ValueId,
-    utils,
+    memory::EvmMemoryLayout, utils,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -362,6 +362,22 @@ impl Function {
     #[must_use]
     pub(crate) fn value_u64(&self, id: ValueId) -> Option<u64> {
         self.value_u256(id).and_then(super::utils::u256_to_u64)
+    }
+
+    /// Returns whether the instruction stores a full word to the free-memory-pointer slot.
+    #[must_use]
+    pub(crate) fn is_fmp_slot_store(&self, id: InstId) -> bool {
+        matches!(
+            self.inst(id).kind,
+            InstKind::Store(ptr, _, PtrLocation::Memory)
+                if self.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT)
+        )
+    }
+
+    /// Returns whether the block stores a full word to the free-memory-pointer slot.
+    #[must_use]
+    pub(crate) fn block_stores_fmp_slot(&self, block: &BasicBlock) -> bool {
+        block.instructions.iter().any(|&id| self.is_fmp_slot_store(id))
     }
 
     /// Returns a possibly replaced immediate value as U256.

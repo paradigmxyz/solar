@@ -17,6 +17,17 @@ pub(super) struct ExternalReturnPlan {
     decode_returndata: bool,
 }
 
+/// Where an external call's input is encoded.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CallInputStaging {
+    /// A fresh allocation.
+    Reserved,
+    /// The free memory pointer, without a bump.
+    Unreserved,
+    /// The scratch words at address 0.
+    Scratch,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ExternalReturnMode {
     First,
@@ -1333,11 +1344,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // mstore(add(fmp(), ret_size), 0)
         let gas = options.and_then(|options| options.gas);
         self.touch_call_output_area(gas, return_tys, overlay_buffer.is_some());
-        // input = abi_encode(selector, args)
-        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-        let input = self.builder.slice_ptr(encoded);
-        let input_size = self.builder.slice_len(encoded);
+        let (input, input_size) = match self.call_input_staging(&types, return_tys) {
+            CallInputStaging::Scratch => {
+                self.encode_call_input_in_scratch(selector, &values, &types)
+            }
+            staging => {
+                // input = abi_encode[, scratch](selector, args)
+                let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+                let values = values.into_boxed_slice();
+                let encoded = if staging == CallInputStaging::Unreserved {
+                    self.builder.abi_encode_scratch(layout, Some(selector), values)
+                } else {
+                    self.builder.abi_encode(layout, Some(selector), values)
+                };
+                (self.builder.slice_ptr(encoded), self.builder.slice_len(encoded))
+            }
+        };
         // zero = 0
         // gas = gas() if can_overcharge_gas_for_call
         let options = options.unwrap_or_else(|| self.default_call_options());
@@ -1370,6 +1392,72 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         (success, plan)
+    }
+
+    /// Encodes a call input of a selector and at most one stack scalar in the scratch words,
+    /// right-aligning the selector so that the input starts at address 28, and returns its
+    /// address and size.
+    fn encode_call_input_in_scratch(
+        &mut self,
+        selector: ValueId,
+        values: &[ValueId],
+        types: &[AbiType],
+    ) -> (ValueId, ValueId) {
+        // mstore(0, selector >> 224)
+        let selector = match self.builder.func().value_u256(selector) {
+            Some(selector) => self.builder.imm(selector >> 224),
+            None => {
+                let shift = self.builder.imm(224);
+                self.builder.shr(selector, shift)
+            }
+        };
+        let slot = self.builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+        self.builder.store(slot, selector);
+        if let (&[value], [ty]) = (values, types) {
+            // mstore(32, arg)
+            let value = if matches!(ty, AbiType::Function) {
+                let shift = self.builder.imm(64);
+                self.builder.shl(value, shift)
+            } else {
+                value
+            };
+            let address = self.builder.imm(EvmMemoryLayout::WORD_SIZE);
+            self.builder.store(address, value);
+        }
+        // input = 28, size = 4 + 32 * args
+        let input = self.builder.imm(EvmMemoryLayout::WORD_SIZE - 4);
+        let size = self.builder.imm(4 + EvmMemoryLayout::WORD_SIZE * values.len() as u64);
+        (input, size)
+    }
+
+    /// Where a call's input is encoded.
+    ///
+    /// Nothing keeps the input after the call, so the reservation is only needed while the return
+    /// plan overlays it: before Byzantium the output area always does, a multi-word return that
+    /// is not decoded reads from the input's address, and a static aggregate return buffer is
+    /// allocated at the unbumped pointer. A dynamic layout keeps the reservation because encoding
+    /// it in place costs more code than the bump saves.
+    ///
+    /// An input of a selector and at most one stack scalar goes to the scratch words instead. The
+    /// call reads its input before it writes its output, so a word returned to scratch can
+    /// overlay it.
+    fn call_input_staging(
+        &mut self,
+        types: &[AbiType],
+        return_tys: &[Ty<'gcx>],
+    ) -> CallInputStaging {
+        if !self.cx.gcx.sess.opts.evm_version.supports_returndata()
+            || return_tys.len() > 1
+            || types.iter().any(AbiType::is_dynamic)
+            || self.static_aggregate_return_layout(return_tys.iter().copied()).is_some()
+        {
+            return CallInputStaging::Reserved;
+        }
+        if matches!(types, [] | [AbiType::Word(_) | AbiType::Function]) {
+            CallInputStaging::Scratch
+        } else {
+            CallInputStaging::Unreserved
+        }
     }
 
     pub(super) fn finish_external_call(

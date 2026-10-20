@@ -30,20 +30,20 @@ fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_re
     v1 = shl v0, 224
     v2 = shr arg0, 32
     v3 = gas
-    v4 = abi_encode [word], selector v1, args 7
-    v5 = extract_value slice<memory>, v4, 0
-    v6 = extract_value slice<memory>, v4, 1
-    v7 = call v3, v2, 0, v5, v6, 0, 32
-    jumpi v7, bb2, bb1
+    v4 = shr v1, 224
+    mstore 0, v4 !metadata(memory=scratch)
+    mstore 32, 7 !metadata(memory=scratch)
+    v5 = call v3, v2, 0, 28, 36, 0, 32
+    jumpi v5, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    ret v11
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = add 0, 0
+    v9 = mload v8
+    ret v9
 }
 
 fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -74,28 +74,28 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     v16 = zext i160 v14 to i256
     v17 = shl v16, 32
     v18 = or v17, 0xcae57913
-    v19 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v18
-    v20 = extract_value slice<memory>, v19, 0
-    v21 = extract_value slice<memory>, v19, 1
-    v22 = zext i160 v5 to i256
-    v23 = extcodesize v22
-    v24 = eq v23, 0
-    icall revert_if<target_contract_has_no_code>, v24
-    v25 = zext i160 v5 to i256
-    v26 = call v6, v25, 0, v20, v21, 0, 0
-    jumpi v26, bb4, bb3
+    mstore 0, 0xf018a0a7 !metadata(memory=scratch)
+    v19 = shl v18, 64
+    mstore 32, v19 !metadata(memory=scratch)
+    v20 = zext i160 v5 to i256
+    v21 = extcodesize v20
+    v22 = eq v21, 0
+    icall revert_if<target_contract_has_no_code>, v22
+    v23 = zext i160 v5 to i256
+    v24 = call v6, v23, 0, 28, 36, 0, 0
+    jumpi v24, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v27 = sload 0 !metadata(storage=slot(0))
-    v28 = trunc i256 v27 to i64
-    v29 = zext i64 v28 to i256
-    v30 = sload 0 !metadata(storage=slot(0))
-    v31 = shr v30, 64
-    v32 = trunc i256 v31 to i192
-    v33 = zext i192 v32 to i256
-    v34 = icall @internal_dispatcher_p_function_r_uint256, v29, v33
-    ret v34
+    v25 = sload 0 !metadata(storage=slot(0))
+    v26 = trunc i256 v25 to i64
+    v27 = zext i64 v26 to i256
+    v28 = sload 0 !metadata(storage=slot(0))
+    v29 = shr v28, 64
+    v30 = trunc i256 v29 to i192
+    v31 = zext i192 v30 to i256
+    v32 = icall @internal_dispatcher_p_function_r_uint256, v27, v31
+    ret v32
 }
 
 fn @internal_dispatcher_p_function_r_uint256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
