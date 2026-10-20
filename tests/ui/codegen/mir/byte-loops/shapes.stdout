@@ -33,10 +33,10 @@ fn @storeSome() [selector=0x713528c9, abi_wrapper, pure] {
     jumpi v38, bb3, bb4
   bb4:
     v39 = icall @decode_calldata_type.19, 4
-    v17 = mload v39
-    v18 = lt v17, arg2
-    v19 = ne arg2, 0
-    v20 = and v18, v19
+    v17 = ne arg2, 0
+    v18 = mload v39
+    v19 = lt v18, arg2
+    v20 = and v19, v17
     v22 = gt arg2, 32
     v25 = or v20, v22
     jumpi v25, bb1, bb2
@@ -52,14 +52,14 @@ fn @storeSome() [selector=0x713528c9, abi_wrapper, pure] {
     v35 = and arg1, v31
     v36 = or v34, v35
     mstore v54, v36
-    v45 = add v17, 31
+    v45 = add v18, 31
     v47 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v49 = add v54, v47
     mstore v49, 0
     v56 = add v39, 64
-    mcopy v56, v54, v17
+    mcopy v56, v54, v18
     mstore v39, 32
-    mstore v54, v17
+    mstore v54, v18
     v51 = add v47, 64
     returndata v39, v51
   bb1:
@@ -70,30 +70,32 @@ fn @storeSome() [selector=0x713528c9, abi_wrapper, pure] {
 
 fn @loadSome() [selector=0x982de5a7, abi_wrapper, pure] {
   bb0:
-    v38 = calldatasize
-    v39 = lt v38, 100
-    jumpi v39, bb3, bb4
+    v40 = calldatasize
+    v41 = lt v40, 100
+    jumpi v41, bb3, bb4
   bb4:
-    v40 = icall @decode_calldata_type.19, 4
-    v19 = mload v40
-    v20 = lt v19, arg2
-    v21 = sub v19, arg2
-    v22 = gt arg1, v21
-    v23 = or v20, v22
-    v25 = ne arg2, 0
-    v28 = and v23, v25
+    v42 = icall @decode_calldata_type.19, 4
+    v19 = ne arg2, 0
+    v20 = mload v42
+    v21 = lt v20, arg2
+    v22 = sub v20, arg2
+    v23 = gt arg1, v22
+    v24 = or v21, v23
+    v28 = and v24, v19
     jumpi v28, bb1, bb2
   bb2:
-    v43 = add v40, arg1
-    v44 = add v43, 32
-    v31 = mload v44
-    v32 = lt arg2, 32
-    v33 = select v32, arg2, 32
-    v34 = shl v33, 3
-    v35 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v34
-    v36 = not v35
-    v37 = and v31, v36
-    mstore 0, v37 !metadata(memory=scratch)
+    v26 = zext i1 v19 to i256
+    v30 = mul arg1, v26
+    v45 = add v42, v30
+    v46 = add v45, 32
+    v33 = mload v46
+    v34 = lt arg2, 32
+    v35 = select v34, arg2, 32
+    v36 = shl v35, 3
+    v37 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v36
+    v38 = not v37
+    v39 = and v33, v38
+    mstore 0, v39 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
     tail_call @revert_stub.16

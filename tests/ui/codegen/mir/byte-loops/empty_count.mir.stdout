@@ -1,0 +1,77 @@
+// === ROOT/tests/ui/codegen/mir/byte-loops/empty_count.sol:Test ===
+@module Test
+fn @loadSome(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [selector=0x982de5a7, pure, abi_params=[bytes, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v17]
+    v4 = phi [bb0: 0], [bb3: v18]
+    v5 = lt v4, v2
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v3
+  bb4:
+    v6 = checked_add uint256, v1, v4
+    v7 = mload v0
+    v8 = lt v6, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = ptradd v0, v6
+    v11 = ptradd v10, 32
+    v12 = mload v11
+    v13 = byte 0, v12
+    v14 = shl v13, 248
+    v15 = checked_mul uint256, 8, v4
+    v16 = shr v14, v15
+    v17 = or v3, v16
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v18 = checked_add uint256, v4, 1
+    jump bb1
+}
+
+fn @storeSome(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selector=0x26843d1f, pure, abi_params=[bytes, uint256, bytes32, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: arg3], [bb3: v3]
+    v4 = phi [bb0: ptr<memory> 96], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v18]
+    v6 = lt v5, v3
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    v7 = lt v5, 32
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = byte v5, v2
+    v10 = shl v9, 248
+    v11 = checked_add uint256, v1, v5
+    v12 = mload v0
+    v13 = lt v11, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = byte 0, v10
+    v16 = ptradd v0, v11
+    v17 = ptradd v16, 32
+    mstore8 v17, v15
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v18 = checked_add uint256, v5, 1
+    jump bb1
+}
