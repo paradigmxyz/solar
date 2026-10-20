@@ -773,7 +773,7 @@ fn plan_partition(
         let element = func.inst_result_value(scan.load)?;
         scan.condition = exit_condition(func, &loop_insts, scan.test, element)?;
     }
-    if up.bound.is_some_and(&in_loop) {
+    if up.bound.is_some_and(in_loop) {
         return None;
     }
     // Loop values read after the loop reach each reading block through the one exit block that
