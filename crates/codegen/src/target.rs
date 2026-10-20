@@ -393,10 +393,15 @@ impl Target {
 
     /// The model of creation code under the same EVM version and objective. Creation code runs
     /// once per deployment, and the transaction that carries it pays calldata gas for every
-    /// byte, so under the gas objective it ranks by deployment gas. A factory's `CREATE` embeds
-    /// the code in its runtime, where the deposit costs more than calldata, so this price is a
-    /// lower bound. The EIP-3860 charge of two gas per 32 bytes of initcode is not priced.
+    /// byte, so the gas objective ranks it by deployment gas. A factory's `CREATE` embeds the
+    /// code in its runtime, where the deposit costs more than calldata, so this price is a lower
+    /// bound. The EIP-3860 charge of two gas per 32 bytes of initcode is not priced. Other
+    /// objectives keep the runtime model: size already ranks bytes first, and measurements showed
+    /// no clear gain from pricing creation code differently there.
     pub(crate) const fn creation(self) -> Self {
+        if !self.optimization.is_gas() {
+            return self;
+        }
         Self { expected_executions: 1, creation: true, ..self }
     }
 
@@ -406,7 +411,7 @@ impl Target {
         if creation_only { self.creation() } else { self }
     }
 
-    /// Whether the model prices creation code.
+    /// Whether the model prices creation code, which only the gas objective does.
     pub(crate) const fn is_creation(&self) -> bool {
         self.creation
     }
@@ -719,7 +724,7 @@ impl Target {
     /// The objective order of a cost: the dimension optimized first, then
     /// the other one. Gas leads when optimizing for gas, bytes when
     /// optimizing for size. Creation code ranks by its deployment gas, execution plus
-    /// calldata, unless optimizing for size.
+    /// calldata, when optimizing for gas.
     pub(crate) fn objective_key(&self, cost: Cost) -> [u32; 2] {
         match self.optimization {
             OptimizationMode::Size => [cost.bytes, cost.gas],
@@ -754,7 +759,7 @@ impl Target {
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
     pub(crate) fn improves(&self, gas_saving: i64, byte_saving: i64) -> bool {
-        if self.creation && self.optimization.is_gas() {
+        if self.creation {
             i128::from(gas_saving) + i128::from(byte_saving) * i128::from(self.byte_gas()) > 0
         } else if self.optimization.is_gas() {
             gas_saving > 0 && byte_saving >= 0
@@ -1007,9 +1012,12 @@ mod tests {
         assert_eq!(runtime.cmp(compare, divide), Ordering::Less);
         assert_eq!(gas.cmp(compare, divide), Ordering::Greater);
         assert_eq!(gas.lifetime_gas(compare), 9 + 35 * 16);
+        // Size and unoptimized builds keep the runtime model.
         let size = creation(EvmVersion::Osaka, OptimizationMode::Size, 10_000);
+        assert_eq!((size.byte_gas(), size.expected_executions()), (200, 10_000));
         assert_eq!(size.cmp(compare, divide), Ordering::Greater);
-        // Copying a loop's body grows the bytes and saves one execution of its overhead.
+        assert!(!creation(EvmVersion::Osaka, OptimizationMode::None, 200).is_creation());
+        // One execution saves too little gas to copy a loop body at these runs.
         assert!(runtime.copies_loops());
         assert!(!gas.copies_loops());
         assert!(!gas.deposit_repays_gas(0, 1));
