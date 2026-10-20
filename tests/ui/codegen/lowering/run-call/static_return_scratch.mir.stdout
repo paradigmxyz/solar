@@ -5,6 +5,10 @@
   struct1: {i256, i256, i256}
   struct2: {ptr<memory>, ptr<memory>}
   struct3: {i256, ptr<memory>}
+  struct4: {i256, i256, i256, i256}
+
+@data
+  literal_0: hex"6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435363738394142434445464748494a4b4c4d4e4f505152535455565758595a2d2b"
 
 fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -61,4 +65,87 @@ fn @scalarThenAlias() -> struct3 [selector=0x69021083, pure, abi_params=[], abi_
     v0 = insert_value struct3, undef struct3, 0, 5
     v1 = insert_value struct3, v0, 1, ptr<memory> 0
     ret v1
+}
+
+fn @four(arg0: i256) -> struct4 [selector=0xe2595336, pure, abi_params=[uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
+  bb0:
+    v0 = checked_add uint256, arg0, 1
+    v1 = checked_add uint256, arg0, 2
+    v2 = checked_add uint256, arg0, 3
+    v3 = insert_value struct4, undef struct4, 0, arg0
+    v4 = insert_value struct4, v3, 1, v0
+    v5 = insert_value struct4, v4, 2, v1
+    v6 = insert_value struct4, v5, 3, v2
+    ret v6
+}
+
+fn @pointerWords() -> struct4 [selector=0x3b5b734e, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
+  bb0:
+    v0 = mload 96 !metadata(memory=scratch)
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = mload 96 !metadata(memory=scratch)
+    v3 = mload 64 !metadata(memory=scratch)
+    v4 = insert_value struct4, undef struct4, 0, v0
+    v5 = insert_value struct4, v4, 1, v1
+    v6 = insert_value struct4, v5, 2, v2
+    v7 = insert_value struct4, v6, 3, v3
+    ret v7
+}
+
+fn @modified(arg0: i256) -> struct1 [selector=0xd492dffb, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = checked_add uint256, arg0, 1
+    v1 = checked_add uint256, arg0, 2
+    jump bb2
+  bb2:
+    mstore 0, 1 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    mstore 64, 3 !metadata(memory=scratch)
+    mstore 96, 4 !metadata(memory=scratch)
+    jump bb1
+  bb1:
+    v2 = insert_value struct1, undef struct1, 0, arg0
+    v3 = insert_value struct1, v2, 1, v0
+    v4 = insert_value struct1, v3, 2, v1
+    ret v4
+}
+
+fn @structFields() -> struct1 [selector=0x94c60039, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = ptradd v0, 64
+    mstore v2, 0
+    mstore 0, 1 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    mstore 64, 3 !metadata(memory=scratch)
+    v3 = add 0, 64
+    v4 = mload v3
+    v5 = add 0, 32
+    v6 = mload v5
+    v7 = mload 0 !metadata(memory=scratch)
+    v8 = insert_value struct1, undef struct1, 0, v4
+    v9 = insert_value struct1, v8, 1, v6
+    v10 = insert_value struct1, v9, 2, v7
+    ret v10
+}
+
+fn @shortString() -> ptr<memory> [selector=0x2f9c7ab1, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 32
+    v1 = ptradd v0, 32
+    mstore v1, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435
+    ret v0
+}
+
+fn @longString() -> ptr<memory> [selector=0x68a55dc0, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 64
+    v1 = ptradd v0, 32
+    datacopy literal_0, v1, 64
+    ret v0
 }

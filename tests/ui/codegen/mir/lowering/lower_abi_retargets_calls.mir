@@ -21,10 +21,10 @@ fn @caller(arg0: i256) -> i256 [selector=0x0a0a0a02, abi_returns=[word]] {
 }
 
 // CHECK: + fn @literal()
-// CHECK: + mstore 128, 32
-// CHECK: + mstore 160, 1
-// CHECK: + mstore 192, 0x3100000000000000000000000000000000000000000000000000000000000000
-// CHECK: + returndata 128, 96
+// CHECK: + mstore 0, 32
+// CHECK: + mstore 32, 1
+// CHECK: + mstore 64, 0x3100000000000000000000000000000000000000000000000000000000000000
+// CHECK: + returndata 0, 96
 fn @literal() -> ptr<memory> [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc 64
@@ -44,11 +44,11 @@ fn @literalCaller() -> ptr<memory> [selector=0x0a0a0a04, abi_params=[], abi_retu
 }
 
 // CHECK-LABEL: + fn @longLiteral()
-// CHECK: + mstore 128, 32
-// CHECK: + mstore 160, 33
-// CHECK: + mstore 192, 5
-// CHECK: + mstore 224, 0x3100000000000000000000000000000000000000000000000000000000000000
-// CHECK: + returndata 128, 128
+// CHECK: + mstore 0, 32
+// CHECK: + mstore 32, 33
+// CHECK: + mstore 64, 5
+// CHECK: + mstore 96, 0x3100000000000000000000000000000000000000000000000000000000000000
+// CHECK: + returndata 0, 128
 fn @longLiteral() -> ptr<memory> [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc 96
@@ -78,11 +78,11 @@ fn @overlappingLiteral() -> ptr<memory> [selector=0x0a0a0a06, abi_params=[], abi
 }
 
 // CHECK-LABEL: + fn @constantEncoding()
-// CHECK: + mstore 128, 32
-// CHECK: + mstore 160, 64
-// CHECK: + mstore 192, 1
-// CHECK: + mstore 224, 2
-// CHECK: + returndata 128, 128
+// CHECK: + mstore 0, 32
+// CHECK: + mstore 32, 64
+// CHECK: + mstore 64, 1
+// CHECK: + mstore 96, 2
+// CHECK: + returndata 0, 128
 fn @constantEncoding() -> ptr<memory> [selector=0x0a0a0a07, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word, word], object, args 1, 2
@@ -90,9 +90,9 @@ fn @constantEncoding() -> ptr<memory> [selector=0x0a0a0a07, abi_params=[], abi_r
 }
 
 // CHECK-LABEL: + fn @emptyEncoding()
-// CHECK: + mstore 128, 32
-// CHECK-NEXT: + mstore 160, 0
-// CHECK-NEXT: + returndata 128, 64
+// CHECK: + mstore 0, 32
+// CHECK-NEXT: + mstore 32, 0
+// CHECK-NEXT: + returndata 0, 64
 fn @emptyEncoding() -> ptr<memory> [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [], object
