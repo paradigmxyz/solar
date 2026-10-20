@@ -24,128 +24,104 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
 
 fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize Child_creation_code_0
-    v2 = datasize Child_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy Child_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize Child_creation_code_0
+    v1 = fmp
+    datacopy Child_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
+    v4 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb4, bb3
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 32
+    jumpi v6, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
 }
 
 fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize Child_creation_code_0
-    v2 = datasize Child_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy Child_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize Child_creation_code_0
+    v1 = fmp
+    datacopy Child_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
+    v4 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb4, bb3
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 32
+    jumpi v6, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
 }
 
 fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize Child_creation_code_0
-    v2 = datasize Child_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy Child_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize Child_creation_code_0
+    v1 = fmp
+    datacopy Child_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = abi_encode []
-    v10 = datasize Child_creation_code_0
-    v11 = datasize Child_creation_code_0, 31, aligned
-    v12 = alloc v11
-    datacopy Child_creation_code_0, v12, v10
-    v13 = extract_value slice<memory>, v9, 0
-    v14 = ptrtoint ptr<memory> v12 to i256
-    v15 = add v14, v10
-    mcopy v15, v13, 0 !metadata(memory=heap)
-    v16 = create 0, v12, v10
-    v17 = ne v16, i160 0
-    jumpi v17, bb4, bb3
+    v4 = datasize Child_creation_code_0
+    v5 = fmp
+    datacopy Child_creation_code_0, v5, v4
+    v6 = create 0, v5, v4
+    v7 = ne v6, i160 0
+    jumpi v7, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = gas
+    v8 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v19 = zext i160 v7 to i256
-    v20 = staticcall v18, v19, 28, 4, 0, 32
-    jumpi v20, bb6, bb5
+    v9 = zext i160 v2 to i256
+    v10 = staticcall v8, v9, 28, 4, 0, 32
+    jumpi v10, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v21 = returndatasize
-    v22 = lt v21, 32
-    icall revert_if<tuple_data_too_short>, v22
-    v23 = add 0, 0
-    v24 = mload v23
-    v25 = gas
+    v11 = returndatasize
+    v12 = lt v11, 32
+    icall revert_if<tuple_data_too_short>, v12
+    v13 = add 0, 0
+    v14 = mload v13
+    v15 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v26 = zext i160 v16 to i256
-    v27 = staticcall v25, v26, 28, 4, 0, 32
-    jumpi v27, bb8, bb7
+    v16 = zext i160 v6 to i256
+    v17 = staticcall v15, v16, 28, 4, 0, 32
+    jumpi v17, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v28 = returndatasize
-    v29 = lt v28, 32
-    icall revert_if<tuple_data_too_short>, v29
-    v30 = add 0, 0
-    v31 = mload v30
-    v32 = checked_add uint256, v24, v31
-    ret v32
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = checked_add uint256, v14, v21
+    ret v22
 }
