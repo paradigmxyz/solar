@@ -1,0 +1,21 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/dispatch_return_free_memory_slot.sol:DispatchReturnFreeMemorySlot ===
+@module DispatchReturnFreeMemorySlot
+@types
+  struct0: {i256, i256, i256}
+
+fn @one() -> i256 [selector=0x901717d1, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 1
+}
+
+fn @pointer() [selector=0x2f5f3b3c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    returndata 64, 32
+}
+
+fn @span() [selector=0x2585581f, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    mstore 0, 1 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    returndata 0, 96
+}

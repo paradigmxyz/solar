@@ -17,16 +17,17 @@
 //! optimization enabled. Dynamic inputs qualify only when their lowered body
 //! needs word operations alone; general dynamic ABI and memory copying retain
 //! the wrapper boundary. Returns must use the bounded ABI buffer or fit below the
-//! heap start, and reverts must fit below the free-memory-pointer slot. Constant writes must
-//! stay below the heap start or in the route's static ABI return buffer. Arbitrary assembly
+//! heap start without reading an uninitialized free-memory-pointer slot, and reverts must fit
+//! below the slot. Constant writes must stay below the heap start or in the route's static ABI
+//! return buffer. Arbitrary assembly
 //! memory accesses could otherwise observe or overwrite spills introduced by
 //! the combined dispatcher, or depend on a wrapper's free-memory initialization.
 
 use crate::{
     backend::evm::select::opcode_lowering,
     mir::{
-        EffectKind, Function, FunctionBuilder, InstKind, MirType, Module, PtrLocation, Terminator,
-        analysis::CallGraphInfo, memory::EvmMemoryLayout,
+        BasicBlock, EffectKind, Function, FunctionBuilder, InstKind, MirType, Module, PtrLocation,
+        Terminator, analysis::CallGraphInfo, memory::EvmMemoryLayout,
     },
     target::Target,
 };
@@ -160,9 +161,12 @@ fn eligible(func: &Function) -> bool {
                 func.value_u64(*offset).zip(func.value_u64(*size)).is_some_and(|(offset, size)| {
                     (offset == EvmMemoryLayout::HEAP_START
                         && size <= MAX_DISPATCH_INSTRUCTIONS as u64 * EvmMemoryLayout::WORD_SIZE)
-                        || offset
-                            .checked_add(size)
-                            .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
+                        || offset.checked_add(size).is_some_and(|end| {
+                            end <= EvmMemoryLayout::HEAP_START
+                                && (end <= EvmMemoryLayout::FMP_SLOT
+                                    || offset >= EvmMemoryLayout::ZERO_SLOT
+                                    || stores_fmp_slot(func, block))
+                        })
                 })
             }
             Some(Terminator::Revert { offset, size }) => func
@@ -180,6 +184,18 @@ fn eligible(func: &Function) -> bool {
             ) => true,
             _ => false,
         })
+}
+
+/// Returns whether the block overwrites the free-memory-pointer word, which the dispatcher never
+/// initializes, so a return range covering it reads the stored word.
+fn stores_fmp_slot(func: &Function, block: &BasicBlock) -> bool {
+    block.instructions.iter().any(|&id| {
+        matches!(
+            func.inst(id).kind,
+            InstKind::Store(ptr, _, PtrLocation::Memory)
+                if func.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT)
+        )
+    })
 }
 
 /// Returns whether a constant word write stays within memory owned by the route.
