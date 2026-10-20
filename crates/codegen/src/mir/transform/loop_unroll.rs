@@ -218,8 +218,8 @@ impl MirPass for LoopUnroll {
         let target = Target::new(gcx);
         let cold = cold_functions(module);
         let returns = return_bounds(module);
-        run_function_pass(module, analyses, |func, _| {
-            unroll_function(func, &cold, &returns, &target)
+        run_function_pass(module, analyses, |func, analyses| {
+            unroll_function(func, &cold, &returns, &target.priced_for(analyses.creation_only()))
         })
     }
 }

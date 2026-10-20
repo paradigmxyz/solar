@@ -5,7 +5,10 @@ use super::{
     Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
     Terminator, ValueId,
 };
-use crate::link::{ContractCode, LibraryTable};
+use crate::{
+    link::{ContractCode, LibraryTable},
+    mir::analysis::direct_callees,
+};
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
 use solar_data_structures::{
@@ -338,6 +341,49 @@ impl Module {
     /// Updates the dispatch entry after remapping function IDs.
     pub(crate) fn remap_dispatch_entry(&mut self, entry: Option<FunctionId>) {
         self.dispatch_entry = entry;
+    }
+
+    /// Returns the functions that the runtime entry, a selector, `receive`, or `fallback`
+    /// reaches through calls.
+    #[must_use]
+    pub(crate) fn runtime_reachable_functions(&self) -> DenseBitSet<FunctionId> {
+        let roots = self.dispatch_entry().into_iter().chain(
+            self.functions.iter_enumerated().filter_map(|(id, func)| {
+                (func.selector.is_some()
+                    || func.attributes.is_fallback
+                    || func.attributes.is_receive)
+                    .then_some(id)
+            }),
+        );
+        self.reachable_from(roots)
+    }
+
+    /// Returns the functions that run only during deployment: the constructor and the functions
+    /// it reaches through calls, less those the runtime also reaches.
+    #[must_use]
+    pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
+        let roots = self
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id));
+        let mut creation = self.reachable_from(roots);
+        creation.subtract(&self.runtime_reachable_functions());
+        creation
+    }
+
+    /// Returns `roots` and every function they reach through calls.
+    fn reachable_from(
+        &self,
+        roots: impl IntoIterator<Item = FunctionId>,
+    ) -> DenseBitSet<FunctionId> {
+        let mut reachable = DenseBitSet::new_empty(self.functions.len());
+        let mut worklist = roots.into_iter().filter(|&id| reachable.insert(id)).collect::<Vec<_>>();
+        while let Some(func_id) = worklist.pop() {
+            worklist.extend(
+                direct_callees(self.function(func_id)).filter(|&callee| reachable.insert(callee)),
+            );
+        }
+        reachable
     }
 
     /// Returns the function for the given ID.

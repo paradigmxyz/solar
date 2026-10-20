@@ -383,6 +383,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// The cost model of the code being planned: creation code inside the constructor.
+    fn target(&self) -> Target {
+        Target::new(self.gcx).priced_for(self.in_constructor)
+    }
+
     fn report_decline(&self, module: &Module, decline: Decline) {
         match decline {
             Decline::StackLimit => self.report_stack_limit_error(),
@@ -631,7 +636,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let recomputable = if pinned.is_empty() {
             FxHashMap::default()
         } else {
-            plan::recomputable(func, &cfg, info.internal.contains(func_id), &Target::new(self.gcx))
+            plan::recomputable(func, &cfg, info.internal.contains(func_id), &self.target())
         };
         Analysis { liveness, cfg, loops, saved, pinned, recomputable }
     }
@@ -646,7 +651,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Result<FunctionPlan, Decline> {
         let func = &module.functions[func_id];
         let internal = info.internal.contains(func_id);
-        let target = Target::new(self.gcx);
+        let target = self.target();
         let mut spilled = DenseBitSet::new_empty(func.num_values());
         if call_spill >= CallSpill::Values {
             // The stack keeps spilled words across a call that overwrites their slots anyway.
@@ -763,8 +768,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 &hints,
             )
             && let Ok(candidate) = planner.retain_constant(constant).plan()
-            && candidate.plan.cost.dominates(best.cost)
-            && candidate.plan.non_loop_gas <= best.non_loop_gas
+            // Creation code pays for every byte it leaves out, so a constant kept on the stack
+            // may cost gas, as long as the deployment gets cheaper.
+            && (target.is_creation()
+                || (candidate.plan.cost.dominates(best.cost)
+                    && candidate.plan.non_loop_gas <= best.non_loop_gas))
             && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
             && (!target.optimization().is_size()
                 || candidate.plan.cost.bytes.saturating_add(target.jump().bytes) < best.cost.bytes)

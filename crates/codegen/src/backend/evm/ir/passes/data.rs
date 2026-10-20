@@ -223,7 +223,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
         a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
     });
 
-    let target = Target::new(gcx);
+    let target = Target::new(gcx).priced_for(module.code_follows);
     let mut pool = DataPool::new(&module.data);
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
@@ -757,7 +757,7 @@ pub(crate) fn data_layout_is_observable(module: &Module) -> bool {
 }
 
 fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
-    let target = Target::new(gcx);
+    let target = Target::new(gcx).priced_for(module.code_follows);
     let mut groups = RewriteGroups::default();
     let mut next_run_start = 0;
     let references = scan_data_references(module, |block_id, index, instructions| {

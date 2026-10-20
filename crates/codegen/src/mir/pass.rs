@@ -618,6 +618,8 @@ pub(crate) struct FunctionAnalyses {
     cfg: Option<Rc<CfgInfo>>,
     /// Whether the transform edited the body while reporting no change.
     unreported_edit: Cell<bool>,
+    /// Whether the function runs only during deployment.
+    creation_only: bool,
 }
 
 impl FunctionAnalyses {
@@ -629,6 +631,12 @@ impl FunctionAnalyses {
     /// Returns the CFG analysis requested by the running transform.
     pub(crate) fn cfg(&self) -> &Rc<CfgInfo> {
         self.cfg.as_ref().expect("function pass must request CFG analysis")
+    }
+
+    /// Returns whether the function runs only during deployment, so that the transform prices
+    /// it with the creation model, [`Target::creation`](crate::target::Target::creation).
+    pub(crate) fn creation_only(&self) -> bool {
+        self.creation_only
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
@@ -673,6 +681,8 @@ pub struct ModuleAnalyses {
     local_summaries: LocalSummaryCache,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
+    /// The functions that run only during deployment, as of the running pass.
+    creation_only: Option<DenseBitSet<FunctionId>>,
 }
 
 impl ModuleAnalyses {
@@ -684,6 +694,7 @@ impl ModuleAnalyses {
     pub(crate) fn begin_pass(&mut self) {
         self.preserved_by_pass = false;
         self.call_summaries_preserved = false;
+        self.creation_only = None;
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {
@@ -725,6 +736,10 @@ impl ModuleAnalyses {
         module: &Module,
         requirements: FunctionAnalysisRequirements,
     ) -> FunctionAnalyses {
+        let creation_only = self
+            .creation_only
+            .get_or_insert_with(|| module.creation_only_functions())
+            .contains(func_id);
         FunctionAnalyses {
             alias: requirements.alias().then(|| {
                 if let Some(alias) = self.alias.get(&func_id) {
@@ -735,6 +750,7 @@ impl ModuleAnalyses {
             }),
             cfg: requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id])),
             unreported_edit: Cell::new(false),
+            creation_only,
         }
     }
 

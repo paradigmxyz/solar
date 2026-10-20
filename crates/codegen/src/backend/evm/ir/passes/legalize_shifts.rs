@@ -45,7 +45,7 @@ pub(in crate::backend) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> 
         return false;
     }
 
-    let target = Target::new(gcx);
+    let target = Target::new(gcx).priced_for(module.code_follows);
     let mut changed = false;
     for block in &mut module.blocks {
         let mut instructions = Vec::with_capacity(block.instructions.len());

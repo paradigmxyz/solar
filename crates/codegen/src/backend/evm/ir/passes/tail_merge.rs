@@ -148,7 +148,7 @@ impl RunState {
             let matched = self.longest_common_tail(module, block, keep_branches);
             let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
 
-            let target = Target::new(gcx);
+            let target = Target::new(gcx).priced_for(module.code_follows);
             let transfer_bytes = (target.opcode(op::PUSH2).bytes
                 + target.opcode(op::JUMP).bytes
                 + target.opcode(op::JUMPDEST).bytes) as usize;

@@ -143,6 +143,7 @@ impl MirPass for LoadPre {
         let target = Target::new(gcx);
         let summaries = analyses.call_summaries(module);
         run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
+            let target = target.priced_for(analyses.creation_only());
             let mut eliminator = LoadRedundancyEliminator {
                 storage_only: matches!(self, Self::Storage),
                 liveness: OnceCell::new(),

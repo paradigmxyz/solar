@@ -98,7 +98,8 @@ impl MirPass for Inline {
         let mut changed = false;
         for _ in 0..4 {
             let calls = MemoryCallSummaries::new_cached(module, &mut LocalSummaryCache::default());
-            let stats = MirInliner { target, physical, calls }.run(module);
+            let creation_only = module.creation_only_functions();
+            let stats = MirInliner { target, physical, calls, creation_only }.run(module);
             if !stats.consumed.is_empty() {
                 super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
             }
@@ -145,6 +146,8 @@ struct MirInliner {
     target: Target,
     physical: bool,
     calls: MemoryCallSummaries,
+    /// The functions that run only during deployment, whose code the creation model prices.
+    creation_only: DenseBitSet<MirFunctionId>,
 }
 
 impl MirInliner {
@@ -561,7 +564,12 @@ impl MirInliner {
             return false;
         }
 
-        self.inline_lifetime_cost_improves(summary, site, single_call)
+        self.inline_lifetime_cost_improves(
+            self.target.priced_for(self.creation_only.contains(caller)),
+            summary,
+            site,
+            single_call,
+        )
     }
 
     /// Compares runtime protocol savings over the expected contract lifetime
@@ -572,19 +580,20 @@ impl MirInliner {
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libevmasm/Inliner.cpp#L139>
     fn inline_lifetime_cost_improves(
         &self,
+        target: Target,
         summary: MirInlineSummary,
         site: CallSite,
         single_call: bool,
     ) -> bool {
         let inlined_bytes = summary.estimated_code_size;
-        let mut removed_bytes = estimated_icall_code_size(&self.target, site);
+        let mut removed_bytes = estimated_icall_code_size(&target, site);
         if single_call {
             removed_bytes = removed_bytes.saturating_add(
                 summary.estimated_code_size
-                    + estimated_internal_return_code_size(&self.target, summary, site),
+                    + estimated_internal_return_code_size(&target, summary, site),
             );
         }
-        let loop_executions = if !self.target.optimization().is_gas() {
+        let loop_executions = if !target.optimization().is_gas() {
             1
         } else if site.loop_depth > 0 && !site.loop_counted {
             Target::UNCOUNTED_LOOP_ITERATIONS
@@ -592,10 +601,10 @@ impl MirInliner {
             site.loop_executions
         };
         profitable(
-            &self.target,
+            &target,
             inlined_bytes,
             removed_bytes,
-            estimated_icall_savings(&self.target, site, summary),
+            estimated_icall_savings(&target, site, summary),
             loop_executions,
         )
     }
@@ -641,7 +650,7 @@ fn profitable(
         && u128::from(saved_gas)
             .saturating_mul(u128::from(target.expected_executions()))
             .saturating_mul(u128::from(executions))
-            > (added_bytes - removed_bytes) as u128 * u128::from(Target::CODE_DEPOSIT_GAS_PER_BYTE)
+            > (added_bytes - removed_bytes) as u128 * u128::from(target.byte_gas())
 }
 
 #[derive(Clone, Copy)]

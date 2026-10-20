@@ -51,7 +51,9 @@ impl MirPass for LoopReduce {
         analyses: &mut ModuleAnalyses,
     ) -> bool {
         let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, _| run_function(func, target))
+        run_function_pass(module, analyses, |func, analyses| {
+            run_function(func, target.priced_for(analyses.creation_only()))
+        })
     }
 }
 

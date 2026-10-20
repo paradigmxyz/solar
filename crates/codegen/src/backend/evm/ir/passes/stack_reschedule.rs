@@ -162,7 +162,7 @@ impl EvmPass for StackReschedule {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let target = Target::new(gcx);
+        let target = Target::new(gcx).priced_for(module.code_follows);
         let mut halts = DenseBitSet::new_empty(module.blocks.len());
         for id in module.blocks.indices() {
             if aborts_without_stack(module, id) {
