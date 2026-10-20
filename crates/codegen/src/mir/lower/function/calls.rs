@@ -97,7 +97,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .zip(function.parameters)
             .map(|(&value, &parameter)| self.materialize_scalar_carrier(parameter, value, span))
             .collect::<Option<Vec<_>>>()?;
-        self.materialize_defaults_before_call();
         let result = self.builder.icall(mir_id, values, result_ty);
         self.dirty_values.insert(result);
         Some(result)
@@ -499,7 +498,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && registry
                 .assembly_widens(self.cx.gcx, &InternalFunctionPointerShape::from_ty(function));
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function, from_assembly);
-        self.materialize_defaults_before_call();
         if function.returns.is_empty() {
             // icall_void(dispatcher, function, args)
             self.builder.icall_void(dispatcher, values);
@@ -864,7 +862,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.lower_pure_struct_constructor(function, &values) {
             return Some(CallResult::Value(value));
         }
-        self.materialize_defaults_before_call();
         if function.returns.is_empty() {
             // icall_void(function, call_args)
             self.builder.icall_void(mir_id, values);

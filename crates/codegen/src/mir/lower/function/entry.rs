@@ -49,6 +49,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.default_bindings.insert(ret);
             }
         }
+        // Like solc, allocate return variables at entry when `msize` can hand out the memory
+        // above them, in this function or a callee.
+        if self.cx.state.uses_msize {
+            self.materialize_default_bindings();
+        }
         self.returns.extend_from_slice(function.returns);
     }
 
@@ -304,14 +309,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = self.default_binding_value(ty);
             let value = self.materialize_raw_scalar(id, value);
             self.values.insert(id, value);
-        }
-    }
-
-    /// Allocates default-initialized memory variables before a call that can run `msize`, so
-    /// the memory it hands out lies above them.
-    pub(super) fn materialize_defaults_before_call(&mut self) {
-        if self.cx.state.uses_msize {
-            self.materialize_default_bindings();
         }
     }
 

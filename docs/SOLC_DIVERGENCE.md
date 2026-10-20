@@ -863,8 +863,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `msize()` behaves the same in both compilers, but code that prints or
   compares the value can see a different number, and the value can differ
   between optimization levels. With the optimizer on, `solc` rejects
-  `msize()` in inline assembly (error 6553). `solar` accepts it and warns,
-  without an error code, at every `msize()`.
+  `msize()` in inline assembly (error 6553). `solar` accepts it and warns
+  with code 0059 at every `msize()`. `solc` assigns its codes from 1000 to 9999,
+  so a code below 1000 cannot collide with one.
 - Rationale: the memory above `0x80` holds spill slots, static frames and
   return buffers that the compiler may not have written yet, so the `MSIZE`
   instruction can return less than the memory the compiler owns. Returning the

@@ -6,10 +6,11 @@
 //@ run-call: yulCall => (7, 0)
 //@ run-call: pointerCall => (7, 0)
 //@ run-call: operatorCall => (7, 0)
+//@ run-call: writtenAtPointer => (1, 0), 4660
 
 // Reduced from the `_init` function of zondax/solidity-BigNumber. The assembly
 // takes `msize()` as its buffer and then stores that buffer into the memory
-// struct `r`. The struct is allocated where it is declared, so the buffer
+// struct `r`. The struct is allocated at function entry, so the buffer
 // starts above it and does not overwrite it.
 struct BigNumber {
     bytes val;
@@ -84,7 +85,7 @@ function addWords(Word x, Word y) pure returns (Word r) {
 using {addWords as +} for Word global;
 
 // A callee that takes memory at `msize()` must not hand out the address of the
-// caller's return struct, which is allocated at the declaration.
+// caller's return struct, which is allocated at function entry.
 contract CalleeMsize {
     function buffer() internal pure returns (uint256 p) {
         assembly {
@@ -129,5 +130,22 @@ contract CalleeMsize {
         assembly {
             mstore(p, 99)
         }
+    }
+}
+
+// A return variable is allocated at entry, so assembly data written at the free memory pointer
+// before `msize()` is not overwritten by a later allocation.
+contract WrittenAtPointer {
+    function writtenAtPointer() external pure returns (Pair memory r, uint256 seen) {
+        uint256 q;
+        assembly {
+            q := mload(0x40)
+            mstore(q, 0x1234)
+            seen := msize() //~[gas,size] WARN: `msize` is not exact when optimizing
+        }
+        assembly {
+            seen := mload(q)
+        }
+        r.a = 1;
     }
 }
