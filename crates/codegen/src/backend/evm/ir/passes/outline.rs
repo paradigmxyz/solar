@@ -84,7 +84,7 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     );
     let mut state = RunState::default();
     // A rejected machine run can veto a push share, so skip runs only when no push can share.
-    let pushes = may_share_pushes(gcx);
+    let pushes = may_share_pushes(gcx, module);
     let runs = pushes || may_share_machine_runs(gcx, module);
     (runs && outline_machine_runs(gcx, module, &mut state))
         | (gcx.sess.opts.optimization.is_size()
@@ -96,11 +96,11 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 ///
 /// A share of `n` pushes, each at most a `PUSH32` and its immediate, saves fewer than
 /// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
-fn may_share_pushes(gcx: Gcx<'_>) -> bool {
+fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
     if !gcx.sess.opts.optimization.is_gas() {
         return true;
     }
-    let target = Target::new(gcx);
+    let target = module.target(gcx);
     let (site_bytes, _, transfer_gas) = push_share_costs(&target);
     target.deposit_repays_gas(
         u64::from(target.opcode(op::PUSH32).bytes).saturating_sub(site_bytes as u64),
@@ -120,7 +120,7 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     if !gcx.sess.opts.optimization.is_gas() {
         return true;
     }
-    let target = Target::new(gcx);
+    let target = module.target(gcx);
     let transfer_size = transfer_size(&target);
     let transfer_gas = transfer_gas(&target);
     let profitable = |size: usize| {
@@ -175,6 +175,11 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     false
 }
 
+/// Whether any of `blocks` may run more than once.
+fn repeats(module: &Module, blocks: impl IntoIterator<Item = BlockId>) -> bool {
+    blocks.into_iter().any(|block| !module.blocks[block].runs_once())
+}
+
 /// Returns the bytes of one call site:
 ///
 /// push2 return
@@ -224,7 +229,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         return false;
     }
     let max_run_length = max_machine_run_length(repeated_instructions);
-    let target = Target::new(gcx);
+    let target = module.target(gcx);
     let transfer_size = transfer_size(&target);
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
@@ -355,6 +360,12 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         // not make the calls cold, even when every site is outside a loop.
         if gcx.sess.opts.optimization.is_gas() {
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
+            // Sites that may run more than once pay the transfer gas at the runtime price.
+            let target = if repeats(module, free.iter().map(|site| site.block)) {
+                Target::new(gcx)
+            } else {
+                target
+            };
             let transfer_gas = transfer_gas(&target)
                 + target.opcode_gas(op::SWAP1)
                     * u32::from(first.outputs.saturating_add(first.inputs));
@@ -408,6 +419,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     let mut stubs = Vec::with_capacity(chosen.len());
     for group in &chosen {
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
+        stub.metadata.repeats = repeats(module, group.sites.iter().map(|site| site.block));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
             stub.instructions.push(
@@ -628,6 +640,7 @@ fn outline_parametric_machine_runs(
     let mut stubs = Vec::with_capacity(chosen.len());
     for group in &chosen {
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
+        stub.metadata.repeats = repeats(module, group.sites.iter().map(|site| site.block));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
             stub.instructions.push(
@@ -744,7 +757,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         }
     }
 
-    let target = Target::new(gcx);
+    let target = module.target(gcx);
     let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
@@ -755,6 +768,14 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
                 return None;
             }
             let push_size = selected_len(gcx, value);
+            // Sites that may run more than once pay the transfer gas at the runtime price.
+            let (target, transfer_gas) =
+                if repeats(module, occurrences.iter().map(|&(block, _)| block)) {
+                    let runtime = Target::new(gcx);
+                    (runtime, push_share_costs(&runtime).2)
+                } else {
+                    (target, transfer_gas)
+                };
             let inline = occurrences.len() * push_size;
             let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
             let saved_bytes = inline.saturating_sub(outlined);
@@ -780,6 +801,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     for (value, _) in values {
         let occurrences = &sites[&value];
         let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
+        stub.metadata.repeats = repeats(module, occurrences.iter().map(|&(block, _)| block));
         let mut push = Instruction::push_value(value).with_debug_info_dropped();
         for &(block, index) in occurrences {
             push.metadata.merge_source_spans(&module.blocks[block].instructions[index].metadata);

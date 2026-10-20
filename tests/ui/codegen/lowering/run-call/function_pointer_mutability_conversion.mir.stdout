@@ -67,35 +67,34 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v74 = shl v73, 224
     v75 = shr v72, 32
     v76 = gas
-    v77 = abi_encode [], selector v74
-    v78 = extract_value slice<memory>, v77, 0
-    v79 = extract_value slice<memory>, v77, 1
-    v80 = call v76, v75, 0, v78, v79, 0, 32
-    jumpi v80, bb14, bb13
+    v77 = shr v74, 224
+    mstore 0, v77 !metadata(memory=scratch)
+    v78 = call v76, v75, 0, 28, 4, 0, 32
+    jumpi v78, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v81 = returndatasize
-    v82 = lt v81, 32
-    icall revert_if<tuple_data_too_short>, v82
-    v83 = add 0, 0
-    v84 = mload v83
-    v85 = lt 0, 1
-    v86 = eq v85, false
-    icall panic_if<0x32>, v86
-    v87 = div 0, 4
-    v88 = add 3, v87
-    v89 = mod 0, 4
-    v90 = mul v89, 8
-    v91 = sload v88 !metadata(storage=offset(v87, 3))
-    v92 = mul v90, 8
-    v93 = shr v91, v92
-    v94 = trunc i256 v93 to i64
-    v95 = zext i64 v94 to i256
-    v96 = icall @internal_dispatcher_p_none_r_uint256, v95
-    v97 = insert_value struct0, undef struct0, 0, v84
-    v98 = insert_value struct0, v97, 1, v96
-    ret v98
+    v79 = returndatasize
+    v80 = lt v79, 32
+    icall revert_if<tuple_data_too_short>, v80
+    v81 = add 0, 0
+    v82 = mload v81
+    v83 = lt 0, 1
+    v84 = eq v83, false
+    icall panic_if<0x32>, v84
+    v85 = div 0, 4
+    v86 = add 3, v85
+    v87 = mod 0, 4
+    v88 = mul v87, 8
+    v89 = sload v86 !metadata(storage=offset(v85, 3))
+    v90 = mul v88, 8
+    v91 = shr v89, v90
+    v92 = trunc i256 v91 to i64
+    v93 = zext i64 v92 to i256
+    v94 = icall @internal_dispatcher_p_none_r_uint256, v93
+    v95 = insert_value struct0, undef struct0, 0, v82
+    v96 = insert_value struct0, v95, 1, v94
+    ret v96
   bb8:
     v37 = div v35, 4
     v38 = add 3, v37
@@ -208,35 +207,34 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v74 = shl v73, 224
     v75 = shr v72, 32
     v76 = gas
-    v77 = abi_encode [], selector v74
-    v78 = extract_value slice<memory>, v77, 0
-    v79 = extract_value slice<memory>, v77, 1
-    v80 = call v76, v75, 0, v78, v79, 0, 32
-    jumpi v80, bb14, bb13
+    v77 = shr v74, 224
+    mstore 0, v77 !metadata(memory=scratch)
+    v78 = call v76, v75, 0, 28, 4, 0, 32
+    jumpi v78, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v81 = returndatasize
-    v82 = lt v81, 32
-    icall revert_if<tuple_data_too_short>, v82
-    v83 = add 0, 0
-    v84 = mload v83
-    v85 = lt 0, 1
-    v86 = eq v85, false
-    icall panic_if<0x32>, v86
-    v87 = div 0, 4
-    v88 = add 3, v87
-    v89 = mod 0, 4
-    v90 = mul v89, 8
-    v91 = sload v88 !metadata(storage=offset(v87, 3))
-    v92 = mul v90, 8
-    v93 = shr v91, v92
-    v94 = trunc i256 v93 to i64
-    v95 = zext i64 v94 to i256
-    v96 = icall @internal_dispatcher_p_none_r_uint256, v95
-    v97 = insert_value struct0, undef struct0, 0, v84
-    v98 = insert_value struct0, v97, 1, v96
-    ret v98
+    v79 = returndatasize
+    v80 = lt v79, 32
+    icall revert_if<tuple_data_too_short>, v80
+    v81 = add 0, 0
+    v82 = mload v81
+    v83 = lt 0, 1
+    v84 = eq v83, false
+    icall panic_if<0x32>, v84
+    v85 = div 0, 4
+    v86 = add 3, v85
+    v87 = mod 0, 4
+    v88 = mul v87, 8
+    v89 = sload v86 !metadata(storage=offset(v85, 3))
+    v90 = mul v88, 8
+    v91 = shr v89, v90
+    v92 = trunc i256 v91 to i64
+    v93 = zext i64 v92 to i256
+    v94 = icall @internal_dispatcher_p_none_r_uint256, v93
+    v95 = insert_value struct0, undef struct0, 0, v82
+    v96 = insert_value struct0, v95, 1, v94
+    ret v96
   bb8:
     v37 = div v35, 4
     v38 = add 3, v37
@@ -349,35 +347,34 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v74 = shl v73, 224
     v75 = shr v72, 32
     v76 = gas
-    v77 = abi_encode [], selector v74
-    v78 = extract_value slice<memory>, v77, 0
-    v79 = extract_value slice<memory>, v77, 1
-    v80 = staticcall v76, v75, v78, v79, 0, 32
-    jumpi v80, bb14, bb13
+    v77 = shr v74, 224
+    mstore 0, v77 !metadata(memory=scratch)
+    v78 = staticcall v76, v75, 28, 4, 0, 32
+    jumpi v78, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v81 = returndatasize
-    v82 = lt v81, 32
-    icall revert_if<tuple_data_too_short>, v82
-    v83 = add 0, 0
-    v84 = mload v83
-    v85 = lt 0, 1
-    v86 = eq v85, false
-    icall panic_if<0x32>, v86
-    v87 = div 0, 4
-    v88 = add 4, v87
-    v89 = mod 0, 4
-    v90 = mul v89, 8
-    v91 = sload v88 !metadata(storage=offset(v87, 4))
-    v92 = mul v90, 8
-    v93 = shr v91, v92
-    v94 = trunc i256 v93 to i64
-    v95 = zext i64 v94 to i256
-    v96 = icall @internal_dispatcher_p_none_r_uint256, v95
-    v97 = insert_value struct0, undef struct0, 0, v84
-    v98 = insert_value struct0, v97, 1, v96
-    ret v98
+    v79 = returndatasize
+    v80 = lt v79, 32
+    icall revert_if<tuple_data_too_short>, v80
+    v81 = add 0, 0
+    v82 = mload v81
+    v83 = lt 0, 1
+    v84 = eq v83, false
+    icall panic_if<0x32>, v84
+    v85 = div 0, 4
+    v86 = add 4, v85
+    v87 = mod 0, 4
+    v88 = mul v87, 8
+    v89 = sload v86 !metadata(storage=offset(v85, 4))
+    v90 = mul v88, 8
+    v91 = shr v89, v90
+    v92 = trunc i256 v91 to i64
+    v93 = zext i64 v92 to i256
+    v94 = icall @internal_dispatcher_p_none_r_uint256, v93
+    v95 = insert_value struct0, undef struct0, 0, v82
+    v96 = insert_value struct0, v95, 1, v94
+    ret v96
   bb8:
     v37 = div v35, 4
     v38 = add 4, v37

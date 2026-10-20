@@ -288,6 +288,8 @@ struct ModuleInfo {
     returns: IndexVec<FunctionId, usize>,
     /// Parameters of each function.
     params: IndexVec<FunctionId, usize>,
+    /// Functions of creation code that run more than once because a loop or recursion calls them.
+    repeated: DenseBitSet<FunctionId>,
     entry: FunctionId,
     /// Whether `entry` is the runtime dispatch entry, whose switch leaves its selector on the
     /// stack.
@@ -381,6 +383,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             Ok((info, plans)) => self.emit_constructor_stackified(module, call_graph, &info, plans),
             Err(decline) => self.report_decline(module, decline),
         }
+    }
+
+    /// The cost model of a function being planned: creation code inside the constructor, unless
+    /// a loop or recursion calls the function. The planner weighs each block by its loop depth,
+    /// so loops inside the function stay priced as creation code, though the choices inside one
+    /// block compare unweighted costs.
+    fn target(&self, info: &ModuleInfo, func_id: FunctionId) -> Target {
+        Target::new(self.gcx).priced_for(self.in_constructor && !info.repeated.contains(func_id))
     }
 
     fn report_decline(&self, module: &Module, decline: Decline) {
@@ -484,7 +494,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        let repeated = if self.in_constructor {
+            let mut domain = DenseBitSet::new_empty(functions);
+            for &func_id in &bodies {
+                domain.insert(func_id);
+            }
+            module.repeated_functions(&domain)
+        } else {
+            DenseBitSet::new_empty(functions)
+        };
         let info = ModuleInfo {
+            repeated,
             internal,
             returning,
             components,
@@ -631,7 +651,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         let recomputable = if pinned.is_empty() {
             FxHashMap::default()
         } else {
-            plan::recomputable(func, &cfg, info.internal.contains(func_id), &Target::new(self.gcx))
+            plan::recomputable(
+                func,
+                &cfg,
+                info.internal.contains(func_id),
+                &self.target(info, func_id),
+            )
         };
         Analysis { liveness, cfg, loops, saved, pinned, recomputable }
     }
@@ -646,7 +671,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Result<FunctionPlan, Decline> {
         let func = &module.functions[func_id];
         let internal = info.internal.contains(func_id);
-        let target = Target::new(self.gcx);
+        let target = self.target(info, func_id);
         let mut spilled = DenseBitSet::new_empty(func.num_values());
         if call_spill >= CallSpill::Values {
             // The stack keeps spilled words across a call that overwrites their slots anyway.
@@ -763,8 +788,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 &hints,
             )
             && let Ok(candidate) = planner.retain_constant(constant).plan()
-            && candidate.plan.cost.dominates(best.cost)
-            && candidate.plan.non_loop_gas <= best.non_loop_gas
+            // Creation code pays for every byte it leaves out, so a constant kept on the stack
+            // may cost gas, as long as the deployment gets cheaper.
+            && (target.is_creation()
+                || (candidate.plan.cost.dominates(best.cost)
+                    && candidate.plan.non_loop_gas <= best.non_loop_gas))
             && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
             && (!target.optimization().is_size()
                 || candidate.plan.cost.bytes.saturating_add(target.jump().bytes) < best.cost.bytes)
