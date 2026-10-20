@@ -8,7 +8,7 @@ fn @sizes() [selector=0xebf5a899, abi_wrapper, pure] {
     v1 = ne v0, 32
     jumpi v1, bb1, bb2
   bb2:
-    mstore 0, 65 !metadata(memory=scratch)
+    mstore 0, 65
     returndata 0, 32
   bb1:
     mstore 0, 0 !metadata(memory=scratch)

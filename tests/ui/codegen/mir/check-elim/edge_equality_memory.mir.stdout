@@ -509,6 +509,68 @@ fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, pur
     ret v44
 }
 
+fn @returned(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdfd2c4db, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = calldataload 100
+    v18 = icall @_size, v17
+    calldatacopy arg2, 0, v18
+    v19 = ne arg1, 0
+    jumpi v19, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v20 = icall @_copy, 0x400
+    v21 = mload v20
+    v22 = shl v21, 0
+    jump bb3
+  bb3:
+    v23 = phi [bb1: v22], [bb2: 0]
+    v24 = xor v0, v1
+    v25 = xor v24, v2
+    v26 = xor v25, v3
+    v27 = xor v26, v4
+    v28 = xor v27, v5
+    v29 = xor v28, v6
+    v30 = xor v29, v7
+    v31 = xor v30, v8
+    v32 = xor v31, v9
+    v33 = xor v32, v10
+    v34 = xor v33, v11
+    v35 = xor v34, v12
+    v36 = xor v35, v13
+    v37 = xor v36, v14
+    v38 = xor v37, v15
+    v39 = xor v38, v16
+    v40 = xor v23, v39
+    ret v40
+}
+
+fn @_size(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 63
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    v2 = checked_add uint256, arg0, 1
+    ret v2
+}
+
 fn @_write(arg0: i256, arg1: i256) [pure] {
   bb0:
     calldatacopy arg0, 0, arg1

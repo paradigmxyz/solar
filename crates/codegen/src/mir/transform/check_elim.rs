@@ -50,13 +50,14 @@
 //! counting its reads above the check too: the constant replaces a stack slot and a `DUP` at each
 //! read, but at a single read it costs what the value does and only makes sites that were
 //! identical, such as inlined copies of one guard body, differ for the tail merging after this
-//! pass. Raw memory addresses and sizes, arguments of internal calls, and the pure expressions
-//! that compute them from a value some branch compares with an immediate keep their values,
-//! wherever the walk finds the comparison: frame and heap layout treat constant addresses as fixed
-//! images, so a constant would move spill slots into the heap, and inlining and specialization
-//! later move a call's constant arguments into its callee's memory operands. An outer edge's
-//! constant wins over a contradicting inner one, whose edge is dead. Phi operands and terminators
-//! keep their values. Removing a redundant mask replaces its result by its input.
+//! pass. Raw memory addresses and sizes, arguments of internal calls, returned values, and the pure
+//! expressions that compute them from a value some branch compares with an immediate keep their
+//! values, wherever the walk finds the comparison: frame and heap layout treat constant addresses
+//! as fixed images, so a constant would move spill slots into the heap, and inlining and
+//! specialization later move a call's constant arguments, and a callee's returned values, into
+//! memory operands. An outer edge's constant wins over a contradicting inner one, whose edge is
+//! dead. Phi operands and terminators keep their values. Removing a redundant mask replaces its
+//! result by its input.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -2261,6 +2262,13 @@ fn memory_feeds(func: &Function) -> FxHashSet<InstId> {
         });
         if let InstKind::ICall { function: Callee::Function(_), args } = kind {
             sinks.extend(args.iter().copied());
+        }
+    }
+    for block in &func.blocks {
+        if let Some(terminator @ (Terminator::Return { .. } | Terminator::TailCall { .. })) =
+            &block.terminator
+        {
+            terminator.visit_operands(|operand| sinks.push(operand));
         }
     }
     for sink in sinks {
