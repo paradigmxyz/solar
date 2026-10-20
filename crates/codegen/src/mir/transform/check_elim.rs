@@ -61,7 +61,10 @@
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
-//! ranges are evaluated in their incoming edge contexts. All states start at
+//! ranges are evaluated in their incoming edge contexts, and so are a phi's
+//! relations to values defined before its join: a bound one edge states of its
+//! input becomes the phi's own when every edge proves it for its input, as
+//! `i = from < n ? from : n - 1` stays below `n`. All states start at
 //! unknown; every round is sound even if the iteration budget expires. Facts
 //! about definitions executed again in a loop are killed at block entry. This
 //! discovers bounded induction ranges without assuming a loop executes or
@@ -740,6 +743,8 @@ struct CheckEliminator<'a> {
     relation_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
     /// Proven header phi invariants, indexed alongside the branch-derived candidates.
     monotone_relations: Vec<Relation>,
+    /// Relations of join phis that every incoming value satisfies, indexed the same way.
+    phi_relations: Vec<Relation>,
     /// Orderings between a derived value and its source that hold wherever the
     /// value exists: shifts, masks, and constant divisions never grow.
     universal_relations: FxHashSet<Relation>,
@@ -795,6 +800,7 @@ impl<'a> CheckEliminator<'a> {
         self.reverse_index = None;
         self.difference_index = None;
         self.monotone_relations.clear();
+        self.phi_relations.clear();
         self.universal_relations.clear();
         self.trip_bounds.clear();
         self.header_bounds.clear();
@@ -1267,6 +1273,8 @@ impl<'a> CheckEliminator<'a> {
         relevant: &DenseBitSet<ValueId>,
     ) -> IndexVec<BlockId, Facts> {
         const MAX_ROUNDS: usize = 8;
+        // Join phi relations tried at one join.
+        const MAX_PHI_CANDIDATES: usize = 8;
         let definitions = func.inst_block_table();
         // A predicate consumed only by this branch cannot be queried after the edge.
         // Preserve its operand facts, but do not copy the dead predicate's own range
@@ -1308,19 +1316,23 @@ impl<'a> CheckEliminator<'a> {
                     continue;
                 }
                 let mut merged: Option<Facts> = None;
+                // A phi of this join stays below a value defined before it when every input
+                // does on its edge, as `i = from < n ? from : n - 1` stays below `n`. Bounds an
+                // edge states of an input are the candidates; every edge must prove them.
+                let phis: Vec<_> = func.blocks[block]
+                    .instructions
+                    .iter()
+                    .filter_map(|&inst| {
+                        let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
+                        let value = func.inst_result_value(inst)?;
+                        (relevant.contains(value) && func.blocks[block].predecessors.len() > 1)
+                            .then_some((value, incoming))
+                    })
+                    .collect();
+                let mut phi_candidates = Vec::<Relation>::new();
                 if block != BlockId::ENTRY {
                     for &pred in &func.blocks[block].predecessors {
-                        cx.ranges.clone_from(&exits[pred].ranges);
-                        cx.relations.clone_from(&exits[pred].relations);
-                        cx.strict_lower_bounds = None;
-                        cx.range_undo.clear();
-                        cx.relation_undo.clear();
-                        if let Some(Terminator::Branch { condition, then_block, else_block }) =
-                            func.blocks[pred].terminator
-                            && then_block != else_block
-                        {
-                            cx.assume(func, condition, then_block == block, MAX_DEPTH);
-                        }
+                        cx.enter_edge(func, block, pred, &exits[pred]);
                         // Evaluate all inputs before assigning any phi: loop
                         // phis describe a simultaneous parallel assignment.
                         let phi_ranges: Vec<_> = func.blocks[block]
@@ -1348,6 +1360,32 @@ impl<'a> CheckEliminator<'a> {
                             }),
                             _ => true,
                         };
+                        for &(phi, incoming) in &phis {
+                            let Some(&(_, input)) =
+                                incoming.iter().find(|&&(from, _)| from == pred)
+                            else {
+                                continue;
+                            };
+                            for &relation in &cx.relations {
+                                let candidate = match relation {
+                                    Relation::Lt(x, bound) if x == input => {
+                                        Relation::Lt(phi, bound)
+                                    }
+                                    Relation::Le(x, bound) if x == input => {
+                                        Relation::Le(phi, bound)
+                                    }
+                                    _ => continue,
+                                };
+                                let (_, bound) = candidate.operands();
+                                if bound != phi
+                                    && available(bound)
+                                    && phi_candidates.len() < MAX_PHI_CANDIDATES
+                                    && !phi_candidates.contains(&candidate)
+                                {
+                                    phi_candidates.push(candidate);
+                                }
+                            }
+                        }
                         cx.ranges.retain(|&value, _| available(value));
                         cx.relations.retain(|relation| {
                             let (a, b) = relation.operands();
@@ -1373,6 +1411,43 @@ impl<'a> CheckEliminator<'a> {
                                 ranges: std::mem::take(&mut cx.ranges),
                                 relations: std::mem::take(&mut cx.relations),
                             });
+                        }
+                    }
+                }
+                if !phi_candidates.is_empty() {
+                    for &pred in &func.blocks[block].predecessors {
+                        cx.enter_edge(func, block, pred, &exits[pred]);
+                        phi_candidates.retain(|&candidate| {
+                            let (phi, bound) = candidate.operands();
+                            let Some(&(_, input)) = phis
+                                .iter()
+                                .find(|&&(value, _)| value == phi)
+                                .and_then(|(_, incoming)| {
+                                    incoming.iter().find(|&&(from, _)| from == pred)
+                                })
+                            else {
+                                return false;
+                            };
+                            match candidate {
+                                Relation::Lt(..) => {
+                                    cx.eval_lt(func, input, bound, MAX_DEPTH) == Some(true)
+                                }
+                                _ => {
+                                    input == bound
+                                        || cx.eval_lt(func, bound, input, MAX_DEPTH) == Some(false)
+                                }
+                            }
+                        });
+                    }
+                    if let Some(merged) = &mut merged {
+                        for &relation in &phi_candidates {
+                            merged.relations.insert(relation);
+                            if !cx.phi_relations.contains(&relation) {
+                                cx.phi_relations.push(relation);
+                                if let Some(index) = &mut cx.relation_index {
+                                    index_relation(index, relation);
+                                }
+                            }
                         }
                     }
                 }
@@ -1415,8 +1490,13 @@ impl<'a> CheckEliminator<'a> {
                 break;
             }
         }
-        self.relation_index = cx.relation_index;
-        self.reverse_index = cx.reverse_index;
+        if cx.phi_relations.is_empty() {
+            self.relation_index = cx.relation_index;
+            self.reverse_index = cx.reverse_index;
+        } else {
+            // The indexes are rebuilt with the join relations.
+            self.phi_relations = cx.phi_relations;
+        }
         self.difference_index = cx.difference_index;
         entries
     }
@@ -1691,7 +1771,7 @@ impl<'a> CheckEliminator<'a> {
             return;
         }
         let mut index = relation_candidates(func);
-        for &relation in &self.monotone_relations {
+        for &relation in self.monotone_relations.iter().chain(&self.phi_relations) {
             index_relation(&mut index, relation);
         }
         for &relation in &self.universal_relations {
@@ -2492,6 +2572,22 @@ impl<'a> CheckEliminator<'a> {
             }
         }
         None
+    }
+
+    /// Resets the scoped facts to `exit`, the facts leaving `pred`, and assumes what
+    /// `pred`'s branch implies on its edge to `block`.
+    fn enter_edge(&mut self, func: &Function, block: BlockId, pred: BlockId, exit: &Facts) {
+        self.ranges.clone_from(&exit.ranges);
+        self.relations.clone_from(&exit.relations);
+        self.strict_lower_bounds = None;
+        self.range_undo.clear();
+        self.relation_undo.clear();
+        if let Some(Terminator::Branch { condition, then_block, else_block }) =
+            func.blocks[pred].terminator
+            && then_block != else_block
+        {
+            self.assume(func, condition, then_block == block, MAX_DEPTH);
+        }
     }
 }
 
