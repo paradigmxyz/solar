@@ -168,6 +168,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         match address.base {
             MemoryBase::Allocation(_)
+            | MemoryBase::UnboundedAllocation(_)
             | MemoryBase::DynamicAllocation(_)
             | MemoryBase::InternalFrame => false,
             MemoryBase::Absolute => address.offset < LOW_MEMORY_BOUND,

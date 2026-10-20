@@ -1012,7 +1012,7 @@ impl<'a> LoadRedundancyEliminator<'a> {
             });
         if !needs_phi
             && matches!(key, LoadKey::Memory(address)
-                if address.is_allocation_base())
+                if address.is_fixed_allocation_base(func))
             && incoming.first().is_some_and(|&(_, value)| {
                 !matches!(func.value(value), Value::Immediate(_))
                     && !self
@@ -1133,7 +1133,7 @@ impl<'a> LoadRedundancyEliminator<'a> {
     ) -> Option<ValueId> {
         let key = cx.analysis.keys[key_idx];
         let prefer_live = matches!(key, LoadKey::Memory(address)
-            if address.is_allocation_base());
+            if address.is_fixed_allocation_base(func));
         let mut found = None;
         for &inst_id in func.blocks[block].instructions.iter().rev() {
             if let Some((gen_key, source)) = self.gen_key_value(func, inst_id)

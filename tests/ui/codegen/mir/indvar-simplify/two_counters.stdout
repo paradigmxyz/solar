@@ -48,8 +48,8 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v178 = gt v175, 0xffffffffffffffff
     v179 = gt v177, v173
     v180 = or v178, v179
-    v274 = or v174, v180
-    jumpi v274, bb18, bb19
+    v271 = or v174, v180
+    jumpi v271, bb18, bb19
   bb19:
     v182 = calldataload v176
     v184 = add v182, 63
@@ -57,27 +57,27 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     jumpi v185, bb10, bb20
   bb20:
     v187 = and v184, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v264 = icall @alloc, v187
-    mstore v264, v182
+    v261 = icall @alloc, v187
+    mstore v261, v182
     v189 = sub v173, v177
     v190 = gt v182, v189
     jumpi v190, bb18, bb21
   bb21:
-    v256 = add v264, 32
+    v256 = add v261, 32
     calldatacopy v256, v177, v182
     v1 = div v182, 3
     v133 = shl v1, 2
     v3 = add v133, 63
     v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v265 = icall @alloc, v6
-    v267 = calldatasize
-    calldatacopy v265, v267, v6
-    mstore v265, v133
-    v117 = mload v264
-    v120 = or v265, v133
-    v122 = add v265, 1
+    v262 = icall @alloc, v6
+    v264 = calldatasize
+    calldatacopy v262, v264, v6
+    mstore v262, v133
+    v117 = mload v261
+    v120 = or v262, v133
+    v122 = add v262, 1
     v123 = add v133, 31
-    v125 = sub v264, v122
+    v125 = sub v261, v122
     v126 = lt v125, v123
     v168 = shr v120, 64
     v170 = zext i1 v126 to i256
@@ -85,12 +85,12 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v131 = eq v171, 0
     jumpi v131, bb8, bb9
   bb9:
-    v268 = add v265, 32
+    v265 = add v262, 32
     jump bb1
   bb1:
     v12 = phi [bb9: 0], [bb14: v154]
     v13 = phi [bb9: 0], [bb14: v156]
-    v269 = phi [bb9: v268], [bb14: v270]
+    v266 = phi [bb9: v265], [bb14: v267]
     v140 = add v12, 2
     v15 = lt v140, v182
     jumpi v15, bb3, bb2
@@ -99,49 +99,46 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v17 = lt v142, v133
     jumpi v17, bb4, bb2
   bb4:
-    v19 = mload v264
-    v20 = lt v12, v19
+    v20 = lt v12, v117
     jumpi v20, bb12, bb11
   bb12:
-    v214 = add v264, v12
+    v214 = add v261, v12
     v215 = add v214, 32
     v24 = mload v215
     v25 = byte 0, v24
-    mstore8 v269, v25
+    mstore8 v266, v25
     v33 = add v12, 1
-    v34 = mload v264
-    v35 = lt v33, v34
+    v35 = lt v33, v117
     jumpi v35, bb13, bb11
   bb13:
-    v220 = add v264, v33
+    v220 = add v261, v33
     v221 = add v220, 32
     v39 = mload v221
     v40 = byte 0, v39
-    v224 = add v269, 1
+    v224 = add v266, 1
     mstore8 v224, v40
-    v50 = mload v264
-    v51 = lt v140, v50
+    v51 = lt v140, v117
     jumpi v51, bb14, bb11
   bb14:
-    v226 = add v264, v140
+    v226 = add v261, v140
     v227 = add v226, 32
     v55 = mload v227
     v56 = byte 0, v55
-    v230 = add v269, 2
+    v230 = add v266, 2
     mstore8 v230, v56
-    v233 = add v269, 3
+    v233 = add v266, 3
     mstore8 v233, 0
     v154 = add v12, 3
     v156 = add v13, 4
-    v270 = add v269, 4
+    v267 = add v266, 4
     jump bb1
   bb8:
-    v271 = add v265, 32
+    v268 = add v262, 32
     jump bb5
   bb5:
     v74 = phi [bb8: 0], [bb17: v164]
     v75 = phi [bb8: 0], [bb17: v166]
-    v272 = phi [bb8: v271], [bb17: v273]
+    v269 = phi [bb8: v268], [bb17: v270]
     v144 = add v74, 2
     v77 = lt v144, v182
     jumpi v77, bb6, bb2
@@ -150,34 +147,34 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v79 = lt v146, v133
     jumpi v79, bb7, bb2
   bb2:
-    v210 = add v265, 32
+    v210 = add v262, 32
     v203 = and v123, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v205 = add v210, v203
     mstore v205, 0
-    v212 = add v265, 64
+    v212 = add v262, 64
     mcopy v212, v210, v133
-    mstore v265, 32
+    mstore v262, 32
     mstore v210, v133
     v207 = add v203, 64
-    returndata v265, v207
+    returndata v262, v207
   bb7:
     v81 = lt v74, v117
     jumpi v81, bb15, bb11
   bb15:
-    v235 = add v264, v74
+    v235 = add v261, v74
     v236 = add v235, 32
     v84 = mload v236
     v85 = byte 0, v84
-    mstore8 v272, v85
+    mstore8 v269, v85
     v89 = add v74, 1
     v91 = lt v89, v117
     jumpi v91, bb16, bb11
   bb16:
-    v241 = add v264, v89
+    v241 = add v261, v89
     v242 = add v241, 32
     v94 = mload v242
     v95 = byte 0, v94
-    v245 = add v272, 1
+    v245 = add v269, 1
     mstore8 v245, v95
     v102 = lt v144, v117
     jumpi v102, bb17, bb11
@@ -186,17 +183,17 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb17:
-    v247 = add v264, v144
+    v247 = add v261, v144
     v248 = add v247, 32
     v105 = mload v248
     v106 = byte 0, v105
-    v251 = add v272, 2
+    v251 = add v269, 2
     mstore8 v251, v106
-    v254 = add v272, 3
+    v254 = add v269, 3
     mstore8 v254, 0
     v164 = add v74, 3
     v166 = add v75, 4
-    v273 = add v272, 4
+    v270 = add v269, 4
     jump bb5
   bb10:
     mstore 32, 65 !metadata(memory=scratch)

@@ -6,12 +6,18 @@
 //! symbolic pointer. Region labels do not prove disjointness: raw pointer operations
 //! and FMP recycling can cross those regions. The analysis exposes the memory,
 //! storage, and transient-storage effects of each instruction.
+//!
+//! An access keeps its allocation's identity while it stays inside the object: within the
+//! allocation's constant size, within the first word of a checked allocation, a Solidity object
+//! that always reserves one, or at a runtime index, which `ptradd` keeps inside. Any other access
+//! to a unique allocation may leave the object, so it keeps no disjointness from other objects,
+//! but it shares the allocation's pointer and compares with its other accesses by offset.
 
 use super::{CfgInfo, MemoryCallSummaries};
 use crate::mir::{
-    AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
-    ImmutableId, InstId, InstKind, MemoryRegion, MirType, PtrLocation, RequireKind, StorageAlias,
-    Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee, FrameMode,
+    FrameSlotKind, Function, ImmutableId, InstId, InstKind, MemoryRegion, MirType, PtrLocation,
+    RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -43,6 +49,10 @@ pub(crate) enum MemoryBase {
     InternalFrame,
     /// One fresh abstract heap allocation.
     Allocation(InstId),
+    /// An access to one fresh heap allocation that may leave its bounds. It keeps no
+    /// disjointness from other objects, but shares its pointer with the allocation's other
+    /// accesses, so offsets still separate it from them.
+    UnboundedAllocation(InstId),
     /// An unrecycled allocation site with multiple dynamic loop instances.
     DynamicAllocation(InstId),
     /// A symbolic MIR value.
@@ -91,6 +101,7 @@ impl MemoryAddress {
             MemoryBase::Absolute => Some(self.offset),
             MemoryBase::InternalFrame
             | MemoryBase::Allocation(_)
+            | MemoryBase::UnboundedAllocation(_)
             | MemoryBase::DynamicAllocation(_)
             | MemoryBase::Value(_) => None,
         }
@@ -103,14 +114,17 @@ impl MemoryAddress {
             MemoryBase::InternalFrame => Some(self.offset),
             MemoryBase::Absolute
             | MemoryBase::Allocation(_)
+            | MemoryBase::UnboundedAllocation(_)
             | MemoryBase::DynamicAllocation(_)
             | MemoryBase::Value(_) => None,
         }
     }
 
-    /// Returns whether this address is the base of a fresh allocation.
-    pub(crate) fn is_allocation_base(self) -> bool {
-        self.offset == 0 && matches!(self.base, MemoryBase::Allocation(_))
+    /// Returns whether this address is the base of a fresh allocation of constant size.
+    pub(crate) fn is_fixed_allocation_base(self, func: &Function) -> bool {
+        self.offset == 0
+            && matches!(self.base, MemoryBase::Allocation(inst)
+                if AliasAnalysis::allocation_size(func, inst).is_some())
     }
 
     /// Returns this address advanced by `offset`, if it fits.
@@ -650,13 +664,12 @@ impl AliasAnalysis {
         let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else { return None };
         func.value_u64(index).is_none().then(|| {
             let base = self.memory_address(func, base)?.checked_add(address.offset)?;
-            // NOTE: `ptradd` keeps the access inside its object, but a direct access to an
-            // allocation of runtime size cannot prove it fits, so `bounded_memory_location` names
-            // that object by its pointer value. Name the indexed access the same way, or the two
-            // would look like different objects and every indexed store would clobber the
-            // object's header words.
+            // NOTE: `ptradd` keeps the access inside its object, so an indexed access keeps its
+            // allocation. A direct access that may leave a unique allocation compares with it by
+            // offset. A loop allocation of runtime size names both by its pointer value instead,
+            // or every indexed store would clobber the object's header words.
             match base.base {
-                MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst)
+                MemoryBase::DynamicAllocation(inst)
                     if Self::allocation_size(func, inst).is_none() =>
                 {
                     Self::unbounded_allocation(func, base, inst)
@@ -684,7 +697,11 @@ impl AliasAnalysis {
         size: LocationSize,
     ) -> Option<MemoryLocation> {
         if let MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) = address.base {
-            let bound = Self::allocation_size(func, inst);
+            let bound = if matches!(address.base, MemoryBase::Allocation(_)) {
+                Self::allocation_min_size(func, inst)
+            } else {
+                Self::allocation_size(func, inst)
+            };
             let within_bounds = size.as_const().is_some_and(|size| {
                 size == 0
                     || address
@@ -708,8 +725,21 @@ impl AliasAnalysis {
         }
     }
 
-    /// Names an access to allocation `inst` that may leave its bounds by the allocation's
-    /// pointer value instead, which keeps no disjointness from other allocations.
+    /// The fewest bytes allocation `inst` reserves: its constant size, or one word for a checked
+    /// allocation of runtime size, a Solidity object whose size includes its header.
+    fn allocation_min_size(func: &Function, inst: InstId) -> Option<u64> {
+        match func.inst(inst).kind {
+            InstKind::Alloc { size, semantics } => {
+                func.value_u64(size).or((semantics.failure == AllocationFailure::Checked)
+                    .then_some(EvmMemoryLayout::WORD_SIZE))
+            }
+            _ => None,
+        }
+    }
+
+    /// Names an access to allocation `inst` that may leave its bounds, which keeps no
+    /// disjointness from other allocations: a unique allocation's access compares with the
+    /// allocation's other accesses by offset, and a loop allocation's goes by its pointer value.
     fn unbounded_allocation(
         func: &Function,
         mut address: MemoryAddress,
@@ -719,8 +749,10 @@ impl AliasAnalysis {
         // staying outside reserved memory. Loop allocations may follow an FMP reset.
         if matches!(address.base, MemoryBase::DynamicAllocation(_)) {
             address.region = MemoryRegion::Unknown;
+            address.base = MemoryBase::Value(func.inst_result_value(inst)?);
+        } else {
+            address.base = MemoryBase::UnboundedAllocation(inst);
         }
-        address.base = MemoryBase::Value(func.inst_result_value(inst)?);
         Some(address)
     }
 
@@ -1448,6 +1480,22 @@ impl AliasAnalysis {
         // loop-instance allocation may hit the same or different instances, so
         // they stay `MayAlias`; a dynamic allocation against a
         // non-allocation base is likewise `MayAlias`.
+        // An access that may leave its allocation shares the allocation's pointer, but nothing
+        // keeps it from other objects.
+        match (first.address.base, second.address.base) {
+            (
+                MemoryBase::UnboundedAllocation(a),
+                MemoryBase::Allocation(b) | MemoryBase::UnboundedAllocation(b),
+            )
+            | (MemoryBase::Allocation(b), MemoryBase::UnboundedAllocation(a)) => {
+                return if a == b {
+                    Self::compare_offsets(first, second)
+                } else {
+                    AliasResult::MayAlias
+                };
+            }
+            _ => {}
+        }
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
         match (first_alloc, second_alloc) {
