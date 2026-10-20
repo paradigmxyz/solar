@@ -33,6 +33,9 @@
 //! - dominated by a `panic_if_zero<0x32> (lt i, n)` check of the same index, where `n` is `mload x`
 //!   or a value defined before the loop, such as the length a fresh allocation stored.
 //!
+//! A packed hash the lowering builds in the scratch space, such as `keccak256(abi.encode(a, b))`,
+//! writes only below `0x40` and may sit in the loop as well.
+//!
 //! The words are the `mload z` of the loop whose pointer `z` is defined before the loop. A block
 //! after the loop that reads a value the loop defines must lie behind exactly one exit block.
 //!
@@ -44,7 +47,9 @@
 //! the data, and `z` at or past its end keeps it above. The word of `x` itself is its length,
 //! below its data. `z` lies strictly between `x` and the range's end exactly when
 //! `z - (x + 1) < (n << s) + 31` in wrapping arithmetic: for `z > x` the difference is exact, and
-//! for `z <= x` it wraps above `2^256 - 2^64`, past every span below `2^69`.
+//! for `z <= x` it wraps above `2^256 - 2^64`, past every span below `2^69`. When the loop hashes
+//! in the scratch space up to `e`, the test also requires every word's pointer `z >= e`, so
+//! `[z, z + 32)` lies above the hash's stores.
 //!
 //! In the clone, the words hold their test-block values on entry. Each store writes inside its
 //! array's data range: its index passed a check against `n`, which is either a value from before
@@ -131,6 +136,8 @@ struct Plan {
     written: Vec<Written>,
     /// Each pointer whose word the loop loads, with those loads.
     words: Vec<(ValueId, Vec<InstId>)>,
+    /// The end of the scratch space the loop's packed hashes write, zero if none.
+    scratch_end: u64,
 }
 
 /// What a qualifying loop needs next.
@@ -265,6 +272,7 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
 
     let mut written = Vec::new();
     let mut words: Vec<(ValueId, Vec<InstId>)> = Vec::new();
+    let mut scratch_end = 0;
     for &block in &blocks {
         for (position, &inst) in func.blocks[block].instructions.iter().enumerate() {
             let kind = &func.inst(inst).kind;
@@ -292,7 +300,14 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
             if !aa.instruction_mod_ref(func, inst).writes_space(AddressSpace::Memory) {
                 continue;
             }
-            // Every write must be a checked element store.
+            // A packed hash built in the scratch space writes only below its end.
+            if let InstKind::AbiEncodePacked { parts, hash: true } = kind
+                && let Some(end) = super::lower_packed::scratch_hash_end(parts)
+            {
+                scratch_end = scratch_end.max(end);
+                continue;
+            }
+            // Every other write must be a checked element store.
             let (address, byte) = match *kind {
                 InstKind::Store(address, _, PtrLocation::Memory) => (address, false),
                 InstKind::Store8(address, _) => (address, true),
@@ -333,7 +348,8 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
     // a loop branch on the same comparison dominates, as a short-circuit loop condition does,
     // folds anyway, and a loop with only such checks would just save the reloads, which a short
     // loop does not repay.
-    let reachable = |word: ValueId| written.iter().any(|written| written.object != word);
+    let reachable =
+        |word: ValueId| scratch_end != 0 || written.iter().any(|written| written.object != word);
     let length_of = |bound: ValueId| match inst_kind(func, bound) {
         Some(&InstKind::Load(word, PtrLocation::Memory))
             if defined_in_loop(bound) && !defined_in_loop(word) =>
@@ -405,6 +421,7 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
         loop_blocks,
         written,
         words,
+        scratch_end,
     }))
 }
 
@@ -528,6 +545,15 @@ fn apply(func: &mut Function, plan: &Plan) {
             let offset = builder.sub(word, first);
             let within = builder.lt(offset, span);
             inside = builder.or(inside, within);
+        }
+    }
+    if plan.scratch_end != 0 {
+        let end = builder.imm(plan.scratch_end);
+        for &(word, _) in &plan.words {
+            // inside = inside || word < scratch_end
+            let word = pointer_word(&mut builder, word);
+            let below = builder.lt(word, end);
+            inside = builder.or(inside, below);
         }
     }
     // ok = bits < 2^64 && !inside

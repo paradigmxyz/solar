@@ -226,34 +226,7 @@ impl PackedEncoder<'_, '_> {
             Some(self.builder.fmp())
         } else {
             let _ = u64::try_from(self.builder.func().value_u256(total)?).ok()?;
-            // Plan the stores the writes below make, merged words included, and find how far
-            // the last word reaches.
-            let mut max_write_end = 0u64;
-            let mut offset = 0u64;
-            let mut index = 0;
-            while index < pieces.len() {
-                if let Some((consumed, length)) = packed_word_group(&pieces[index..]) {
-                    max_write_end = max_write_end.max(offset.checked_add(32)?);
-                    offset = offset.checked_add(length)?;
-                    index += consumed;
-                    continue;
-                }
-                match &pieces[index] {
-                    PackedPiece::Bytes(bytes) => {
-                        for chunk in bytes.chunks(32) {
-                            max_write_end = max_write_end.max(offset.checked_add(32)?);
-                            offset = offset.checked_add(u64::try_from(chunk.len()).ok()?)?;
-                        }
-                    }
-                    PackedPiece::Static { length, .. } => {
-                        max_write_end = max_write_end.max(offset.checked_add(32)?);
-                        offset = offset.checked_add(*length)?;
-                    }
-                    PackedPiece::Dynamic { .. } | PackedPiece::Array { .. } => return None,
-                }
-                index += 1;
-            }
-            (max_write_end > EvmMemoryLayout::FMP_SLOT).then(|| self.builder.fmp())
+            (static_write_end(&pieces)? > EvmMemoryLayout::FMP_SLOT).then(|| self.builder.fmp())
         };
 
         let zero = base.unwrap_or_else(|| self.builder.imm(0));
@@ -535,6 +508,59 @@ impl PackedEncoder<'_, '_> {
         self.builder.memory_store_word(output, offset, value);
         Some((consumed, length))
     }
+}
+
+/// The end of the scratch space a packed hash of `parts` writes, when the hash is built there:
+/// every part is a literal or a scalar, and the word stores the writes make, merged words
+/// included, end by the free memory pointer's slot.
+pub(super) fn scratch_hash_end(parts: &[PackedPart]) -> Option<u64> {
+    let pieces = parts
+        .iter()
+        .map(|part| match part {
+            PackedPart::Literal(bytes) => Some(PackedPiece::Bytes(bytes.clone())),
+            PackedPart::Scalar { value, ty } => Some(PackedPiece::Static {
+                value: *value,
+                length: u64::from(ty.type_size()?.bytes()),
+                fixed_bytes: matches!(ty, ValueLayout::FixedBytes(_)),
+                signed: matches!(ty, ValueLayout::Int(_)),
+            }),
+            PackedPart::Bytes(_) | PackedPart::Array { .. } => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let end = static_write_end(&pieces)?;
+    (end <= EvmMemoryLayout::FMP_SLOT).then_some(end)
+}
+
+/// How far the word stores of a packed encoding of literals and scalars reach from its start,
+/// planned as the writes make them: one word per literal chunk and scalar, or one per group of
+/// pieces that share a word.
+fn static_write_end(pieces: &[PackedPiece]) -> Option<u64> {
+    let mut max_write_end = 0u64;
+    let mut offset = 0u64;
+    let mut index = 0;
+    while index < pieces.len() {
+        if let Some((consumed, length)) = packed_word_group(&pieces[index..]) {
+            max_write_end = max_write_end.max(offset.checked_add(32)?);
+            offset = offset.checked_add(length)?;
+            index += consumed;
+            continue;
+        }
+        match &pieces[index] {
+            PackedPiece::Bytes(bytes) => {
+                for chunk in bytes.chunks(32) {
+                    max_write_end = max_write_end.max(offset.checked_add(32)?);
+                    offset = offset.checked_add(u64::try_from(chunk.len()).ok()?)?;
+                }
+            }
+            PackedPiece::Static { length, .. } => {
+                max_write_end = max_write_end.max(offset.checked_add(32)?);
+                offset = offset.checked_add(*length)?;
+            }
+            PackedPiece::Dynamic { .. } | PackedPiece::Array { .. } => return None,
+        }
+        index += 1;
+    }
+    Some(max_write_end)
 }
 
 /// The leading pieces that share one word store: literal bytes and scalars narrower than a word,
