@@ -769,18 +769,19 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   pointer here. A word that is also read as data, such as one hashed in
   scratch memory, or loaded and then compared, hashed, encoded, stored, or
   used as a key, stays in the slot for those reads, and only the pointer
-  reads see the raised value. Each external function
-  that runs code writing memory at an absolute address computed from calldata,
-  as Seaport lays out a basic order's hashes and event data, keeps its spill
-  slots and the frames it reaches above `0x2080`, and above the constant
-  ranges assembly names there in the functions it runs or that an external
-  function sharing those frames runs. A constant below `0x1000` that stays in the slot until a
-  read of the slot, an internal call, or a return from a helper, because a
-  later pass folded the address or the value and `heap-floor` had no store to
-  clamp, does the same. This costs memory expansion gas; other
+  reads see the raised value. Each external function that runs code writing
+  memory at an absolute address computed from calldata, as Seaport lays out a
+  basic order's hashes and event data, keeps its spill slots and the frames it
+  reaches above `0x2080`, and above the constant ranges assembly names there in
+  the functions it runs or that an external function sharing those frames
+  runs. So does one that leaves a constant in the slot until a read of it, an
+  internal call, a return, or a tail call into code that reads it, when the
+  constant lies below `0x1000` or at or below the spill area, because a later
+  pass folded the address or the value after `heap-floor` ran: the spill area
+  then lies `0x2000` above the constant. This costs memory expansion gas; other
   external functions keep their memory low unless they share those frames, or
   a recursive helper places every frame above all external functions. A copy
-  of constant length to a destination that a parameter chooses protects the
+  of constant length to a destination that an input chooses protects the
   spills as one of variable length does.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so

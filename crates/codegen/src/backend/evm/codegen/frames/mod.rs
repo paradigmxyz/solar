@@ -14,9 +14,9 @@
 
 use super::{
     ArgIdx, Body, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
-    EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
-    MemoryRegion, MirType, Module, RelayoutAddress, Terminator, U256, Value, ValueId, WORD_BYTES,
-    immutable_staging_end, index_vec, ir, op, preserves_push_width,
+    EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstId,
+    InstKind, MemoryRegion, MirType, Module, RelayoutAddress, Terminator, U256, Value, ValueId,
+    WORD_BYTES, immutable_staging_end, index_vec, ir, op, preserves_push_width,
 };
 use crate::mir::{
     BlockId, Callee, EffectKind, PtrLocation, RawMemoryAccess,
@@ -29,8 +29,8 @@ use crate::mir::{
 const SPILL_HAZARD_BOUND: u64 = 0x2000;
 
 /// A constant stored into the free memory pointer from this address up leaves low memory to
-/// the spill area.
-const HEAP_FLOOR_BOUND: u64 = 0x1000;
+/// the spill area, unless the spill area lies above it.
+const LOW_HEAP_POINTER_BOUND: u64 = 0x1000;
 
 /// The address `SPILL_HAZARD_BOUND` above `HEAP_START`, where low memory ends.
 const LOW_MEMORY_BOUND: u64 = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
@@ -1382,86 +1382,101 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
     ) -> u64 {
         let mark = Self::constant_memory_high_water_mark(func);
-        if mark < LOW_MEMORY_BOUND
-            && (Self::writes_absolute_dynamic_memory(func)
-                || Self::stores_constant_free_memory_pointer(module, func))
-        {
-            LOW_MEMORY_BOUND
-        } else {
-            mark
+        let dynamic = mark < LOW_MEMORY_BOUND && Self::writes_absolute_dynamic_memory(func);
+        let mark = if dynamic { LOW_MEMORY_BOUND } else { mark };
+        match Self::folded_free_memory_pointer(module, func, mark) {
+            // The heap grows from the constant, so the spill area clears what it reaches.
+            Some(pointer) => mark.max(pointer + SPILL_HAZARD_BOUND),
+            None => mark,
         }
     }
 
-    /// Returns whether a constant word stored into the free-memory-pointer slot can reach a read
-    /// of the slot, an internal call, or a return from `func`.
+    /// Returns the highest constant stored into the free-memory-pointer slot that can reach a read
+    /// of the slot, an internal call, or a return from `func`, and starts the heap below
+    /// `LOW_HEAP_POINTER_BOUND` or at or below the spill area's start `spill_start`.
     ///
     /// The heap-floor pass clamps the stores that inline assembly writes there, but it runs before
     /// the passes that fold a guarded address or value, so a store that only becomes constant
     /// later keeps its value. Like a calldata-addressed write, it hands the heap to that value,
     /// and the spill area has to lie above the low memory the heap then reaches. A word that
-    /// another store replaces first, as `solady`'s sentinel does, or that only a return or revert
-    /// reads, never becomes the pointer. A constant from `HEAP_FLOOR_BOUND` up leaves low memory
-    /// to the spill area. A tail call counts unless its callee never reads the slot or returns,
-    /// as an outlined revert.
-    fn stores_constant_free_memory_pointer(module: &Module, func: &Function) -> bool {
-        // Whether each block's entry may hold a constant stored by this function.
-        let mut constant_at_entry = DenseBitSet::new_empty(func.blocks.len());
+    /// another store replaces first, as `solady`'s sentinel does, or that only a `return` or
+    /// `revert` opcode reads, never becomes the pointer. A tail call counts unless its callee
+    /// never reads the slot, returns, or tail calls, as an outlined revert.
+    fn folded_free_memory_pointer(
+        module: &Module,
+        func: &Function,
+        spill_start: u64,
+    ) -> Option<u64> {
+        // The highest constant each block's entry may hold, from this function's stores.
+        let mut at_entry = index_vec![None::<u64>; func.blocks.len()];
         let mut pending = vec![BlockId::ENTRY];
         let mut visited = DenseBitSet::new_empty(func.blocks.len());
         visited.insert(BlockId::ENTRY);
+        let mut found = None::<u64>;
         while let Some(block_id) = pending.pop() {
             let block = &func.blocks[block_id];
-            let mut constant = constant_at_entry.contains(block_id);
+            let mut held = at_entry[block_id];
             for &inst_id in &block.instructions {
                 match func.inst(inst_id).kind {
                     InstKind::Store(_, value, _) if func.is_fmp_slot_store(inst_id) => {
-                        constant = func
-                            .value_u256(value)
-                            .is_some_and(|value| value < U256::from(HEAP_FLOOR_BOUND));
+                        held = func.value_u64(value).filter(|&pointer| {
+                            pointer < LOW_HEAP_POINTER_BOUND || pointer <= spill_start
+                        });
                     }
-                    InstKind::Load(ptr, PtrLocation::Memory)
-                        if constant && func.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT) =>
-                    {
-                        return true;
-                    }
-                    InstKind::Fmp | InstKind::Alloc { .. } | InstKind::ICall { .. } if constant => {
-                        return true;
+                    _ if held.is_some() && Self::reads_free_memory_pointer(func, inst_id) => {
+                        found = found.max(held);
                     }
                     _ => {}
                 }
             }
             let Some(terminator) = &block.terminator else { continue };
-            if constant {
+            if held.is_some() {
                 match terminator {
-                    Terminator::Return { .. } => return true,
+                    Terminator::Return { .. } => found = found.max(held),
                     Terminator::TailCall { function, .. }
-                        if Self::reads_free_memory_pointer(&module.functions[*function]) =>
+                        if Self::tail_callee_may_read_free_memory_pointer(
+                            &module.functions[*function],
+                        ) =>
                     {
-                        return true;
+                        found = found.max(held);
                     }
                     _ => {}
                 }
             }
             for successor in terminator.successors() {
-                let changed = constant && constant_at_entry.insert(successor);
-                if changed || visited.insert(successor) {
+                let raised = held > at_entry[successor];
+                if raised {
+                    at_entry[successor] = held;
+                }
+                if raised || visited.insert(successor) {
                     pending.push(successor);
                 }
             }
         }
-        false
+        found
     }
 
-    /// Returns whether `func` can read the free-memory-pointer slot or return to its caller.
-    fn reads_free_memory_pointer(func: &Function) -> bool {
-        func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
-            || func.instructions().any(|inst_id| match func.inst(inst_id).kind {
-                InstKind::Load(ptr, PtrLocation::Memory) => {
-                    func.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT)
-                }
-                InstKind::Fmp | InstKind::Alloc { .. } | InstKind::ICall { .. } => true,
-                _ => false,
-            })
+    /// Returns whether `inst_id` reads the free-memory-pointer slot as the pointer or calls a
+    /// function that may.
+    fn reads_free_memory_pointer(func: &Function, inst_id: InstId) -> bool {
+        match func.inst(inst_id).kind {
+            InstKind::Load(ptr, PtrLocation::Memory) => {
+                func.value_u64(ptr) == Some(EvmMemoryLayout::FMP_SLOT)
+            }
+            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::ICall { .. } => true,
+            _ => false,
+        }
+    }
+
+    /// Returns whether a function entered by a tail call can read the free-memory-pointer slot,
+    /// return, or tail call on.
+    fn tail_callee_may_read_free_memory_pointer(func: &Function) -> bool {
+        func.blocks.iter().any(|block| {
+            matches!(
+                block.terminator,
+                Some(Terminator::Return { .. } | Terminator::TailCall { .. })
+            )
+        }) || func.instructions().any(|inst_id| Self::reads_free_memory_pointer(func, inst_id))
     }
 
     /// Returns whether `func` may write memory at an absolute address that is not a constant: a

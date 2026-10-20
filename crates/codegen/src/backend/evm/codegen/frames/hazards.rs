@@ -25,12 +25,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
         let dynamic_range = |dest, size| {
-            // A guard can fold a copy's length to a constant while a parameter still picks its
-            // destination, so protect it like a variable-length copy. Other constant-length copies
-            // keep the `mstore` contract: calldata-computed destinations moved the spill area, and
-            // a pointer from an allocation or a call is on the heap.
+            // A guard or inlining can fold a copy's length to a constant while the input still
+            // picks its destination, so protect it like a variable-length copy. Other
+            // constant-length copies keep the `mstore` contract: a pointer from an allocation or a
+            // call is on the heap.
             if let Some(size) = func.value_u64(size)
-                && (size == 0 || !Self::is_chosen_by_parameter(func, dest))
+                && (size == 0
+                    || !Self::is_chosen_by_input(
+                        func,
+                        dest,
+                        &mut DenseBitSet::new_empty(func.num_values()),
+                    ))
             {
                 return None;
             }
@@ -93,13 +98,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         starts_low && advances
     }
 
-    /// Whether `value` is an integer parameter, or arithmetic on one.
-    fn is_chosen_by_parameter(func: &Function, value: ValueId) -> bool {
-        let mut visiting = DenseBitSet::new_empty(func.num_values());
-        Self::is_chosen_by_parameter_inner(func, value, &mut visiting)
-    }
-
-    fn is_chosen_by_parameter_inner(
+    /// Whether `value` is an integer parameter, a calldata, returndata, or memory word, or
+    /// arithmetic on one: an address the input chooses rather than a pointer the compiler
+    /// allocated.
+    fn is_chosen_by_input(
         func: &Function,
         value: ValueId,
         visiting: &mut DenseBitSet<ValueId>,
@@ -107,6 +109,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         match func.value(value) {
             Value::Arg(_) => !func.value_ty(value).is_some_and(MirType::is_memory_reference),
             Value::Inst(inst_id) if visiting.insert(value) => match &func.inst(*inst_id).kind {
+                InstKind::ReturnDataSize | InstKind::Load(_, PtrLocation::Memory) => true,
                 InstKind::Add(lhs, rhs)
                 | InstKind::Sub(lhs, rhs)
                 | InstKind::Mul(lhs, rhs)
@@ -121,15 +124,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 | InstKind::Shl(lhs, rhs)
                 | InstKind::Shr(lhs, rhs)
                 | InstKind::Select(_, lhs, rhs) => {
-                    Self::is_chosen_by_parameter_inner(func, *lhs, visiting)
-                        || Self::is_chosen_by_parameter_inner(func, *rhs, visiting)
+                    Self::is_chosen_by_input(func, *lhs, visiting)
+                        || Self::is_chosen_by_input(func, *rhs, visiting)
                 }
                 InstKind::Zext(inner) | InstKind::Not(inner) | InstKind::IntToPtr(inner) => {
-                    Self::is_chosen_by_parameter_inner(func, *inner, visiting)
+                    Self::is_chosen_by_input(func, *inner, visiting)
                 }
-                InstKind::Phi(incoming) => incoming.iter().any(|&(_, incoming)| {
-                    Self::is_chosen_by_parameter_inner(func, incoming, visiting)
-                }),
+                InstKind::Phi(incoming) => incoming
+                    .iter()
+                    .any(|&(_, incoming)| Self::is_chosen_by_input(func, incoming, visiting)),
                 _ => false,
             },
             _ => false,
