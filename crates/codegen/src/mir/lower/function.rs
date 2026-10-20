@@ -441,6 +441,17 @@ impl InternalFunctionPointerShape {
         // `slice<calldata>` -> `slice_calldata`, keeping the name an identifier.
         helper_name(sym::internal_dispatcher, suffix.replace('<', "_").replace('>', ""))
     }
+
+    /// Returns whether a call of `target` through a pointer of this shape reinterprets a memory
+    /// reference as a word of another type, or such a word as a reference.
+    fn reinterprets_reference(&self, target: &Self) -> bool {
+        let reference = |ty: &crate::mir::ValueLayout| ty.mir_type().is_memory_reference();
+        self.params
+            .iter()
+            .zip(&target.params)
+            .chain(self.returns.iter().zip(&target.returns))
+            .any(|(lhs, rhs)| reference(lhs) != reference(rhs))
+    }
 }
 
 fn helper_name(prefix: Symbol, suffix: impl Display) -> Symbol {
@@ -1047,17 +1058,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 }
 
+/// Builds the bodies of the internal function pointer dispatchers. Returns the dispatchers that
+/// reinterpret a memory reference as a word of another type, or such a word as a reference, which
+/// only a pointer that inline assembly retyped can reach.
 pub(super) fn generate_internal_function_pointer_dispatchers(
     gcx: Gcx<'_>,
     module: &mut Module,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     state: &LoweringState,
-) {
+) -> Vec<FunctionId> {
     let dispatchers = module
         .iter_functions()
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
         .map(|(id, _)| (state.pointer_registry.dispatchers[&id].clone(), id))
         .collect::<Vec<_>>();
+    let mut retyping = Vec::new();
     for (InternalFunctionPointerDispatch { shape, from_assembly }, dispatcher) in dispatchers {
         let mut candidates = state
             .pointer_registry
@@ -1082,6 +1097,12 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             })
             .collect::<Vec<_>>();
         candidates.sort_by_key(|(function_id, _, _)| function_id.index());
+        if candidates
+            .iter()
+            .any(|(_, _, candidate_shape)| shape.reinterprets_reference(candidate_shape))
+        {
+            retyping.push(dispatcher);
+        }
 
         let reserved = module.function(dispatcher);
         let mut function = Function::new(Ident::new(reserved.name.symbol, reserved.name_span));
@@ -1182,6 +1203,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         }
         *module.function_mut(dispatcher) = function;
     }
+    retyping
 }
 
 fn arithmetic_kind(ty: Ty<'_>) -> Option<ArithmeticKind> {

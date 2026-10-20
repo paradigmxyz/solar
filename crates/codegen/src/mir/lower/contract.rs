@@ -295,9 +295,17 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
         module.add_function(constructor);
     }
 
-    function::generate_internal_function_pointer_dispatchers(gcx, &mut module, &mir_ids, &state);
+    let retyping = function::generate_internal_function_pointer_dispatchers(
+        gcx,
+        &mut module,
+        &mir_ids,
+        &state,
+    );
     // Calls through internal function pointers reach the dispatchers generated above, so the
-    // scratch blocks are checked only once every body a call may run exists.
+    // scratch blocks are checked only once every body a call may run exists. A dispatcher that
+    // reinterprets references for pointers assembly retyped can pass one on as a word, as
+    // inline assembly can.
+    assembly.extend(retyping);
     function::check_scratch_regions(gcx, &module, &scratch_regions, &assembly);
 
     if contract.kind == hir::ContractKind::Interface {

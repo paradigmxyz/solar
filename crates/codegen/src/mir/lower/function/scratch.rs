@@ -32,9 +32,12 @@
 //! memory, or a pointer it loads. A call escapes when it may store a pointer to the block's memory
 //! into an object the block did not allocate, or into older memory. Callees are summarized over
 //! the call graph to a fixed point, and a callee with inline assembly may store anything anywhere.
-//! Lowering to HIR already rejected inline assembly in the block, and lowering to MIR rejects the
-//! inline assembly of a function body that a modifier's `_` runs inside it. Scalars, such as
-//! hashes, lengths, and loaded words, leave the block freely.
+//! So may the dispatcher of an internal function pointer that inline assembly retyped when it
+//! reinterprets a memory reference as a word of another type, or such a word as a reference:
+//! through it, a reference can leave the block as a plain word, or reach a callee that stores it
+//! as one. Lowering to HIR already rejected inline assembly in the block, and lowering to MIR
+//! rejects the inline assembly of a function body that a modifier's `_` runs inside it. Scalars,
+//! such as hashes, lengths, and loaded words, leave the block freely.
 //!
 //! The check runs on the contract's MIR right after lowering, before any pass, once the internal
 //! function pointer dispatchers exist, so every body a call in the block may run is summarized.
@@ -115,8 +118,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 /// Rejects every reference to the memory of a `@custom:solar-scratch` block that code after the
 /// block could still use.
 ///
-/// `regions` lists each function's regions together, and `assembly` holds the functions whose
-/// code came from inline assembly.
+/// `regions` lists each function's regions together, and `assembly` holds the functions that may
+/// store any word: those whose code came from inline assembly, and the dispatchers that
+/// reinterpret references for pointers it retyped.
 pub(in crate::mir::lower) fn check_scratch_regions(
     gcx: Gcx<'_>,
     module: &Module,
@@ -311,10 +315,14 @@ fn check_region(
         if let Escape::Call(callee) = escape
             && assembly.contains(&callee)
         {
-            err = err.note(format!(
-                "`{}` contains inline assembly, which may store any word",
-                module.function(callee).name
-            ));
+            let callee = module.function(callee);
+            err = err.note(if callee.attributes.is_function_pointer_dispatcher {
+                "inline assembly may have retyped this function pointer, so its callee may take \
+                 or return a reference as a plain word"
+                    .to_string()
+            } else {
+                format!("`{}` contains inline assembly, which may store any word", callee.name)
+            });
         }
         err.help("keep only values past the block, or remove the tag").emit();
     }
@@ -333,8 +341,9 @@ fn allocates(func: &Function, inst: InstId) -> bool {
         | InstKind::ICall {
             function: Callee::Builtin(crate::mir::Builtin::ReturndataBytes), ..
         } => true,
-        // A callee's result may be memory it allocated in the block. Without inline assembly,
-        // which rejects the call anyway, a callee cannot turn a pointer into a word.
+        // A callee's result may be memory it allocated in the block. Only inline assembly, or
+        // the dispatcher of a pointer it retyped, can turn a pointer into a word, and either
+        // rejects the call anyway.
         InstKind::ICall { function: Callee::Function(_), .. } => {
             func.inst_result_value(inst).is_some_and(|result| is_pointer(func.value_ty(result)))
         }
