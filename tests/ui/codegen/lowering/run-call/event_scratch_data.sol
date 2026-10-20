@@ -1,9 +1,14 @@
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard native
+//@[mir] compile-flags: --evm-version paris
+//@[gas] compile-flags: --evm-version paris
+//@[size] compile-flags: --evm-version paris
+//@[native] compile-flags: -Ogas --evm-version cancun
 //@ run-call: keepsHeap 5, 6 => 1
 //@ run-call: aliased => 1
 //@ run-call: threeWords 5 => 5
 //@ run-call: threeWordsKeepsHeap 5 => 1
 //@ run-call: dynamicKeepsHeap 5 => 1
+//@ run-call: literalReused => 50
 
 // Static event data of at most two words is encoded in scratch memory. Wider
 // static data and dynamic data are staged at the free memory pointer without
@@ -18,6 +23,7 @@ contract EventScratchData {
     event Two(uint256 a, uint256 b);
     event Three(uint256 a, uint256 b, uint256 c);
     event Dynamic(uint256 a, bytes b, uint256 c);
+    event Literal(string message, uint256 value);
 
     function keepsHeap(uint256 a, uint256 b) external returns (uint256 ok) {
         uint256[2] memory buffer = [uint256(0x11), 0x22];
@@ -80,5 +86,12 @@ contract EventScratchData {
             first := mload(add(data, 0x20))
         }
         ok = afterEmit == before && first == 0x33 && data.length == 40 ? 1 : 0;
+    }
+
+    // A literal that an event staged is still intact when it is used afterwards.
+    function literalReused() external returns (uint256) {
+        string memory message = "a literal string that is longer than a single word";
+        emit Literal(message, 1);
+        return bytes(message).length;
     }
 }

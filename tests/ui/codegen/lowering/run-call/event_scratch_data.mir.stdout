@@ -176,3 +176,19 @@ fn @dynamicKeepsHeap(arg0: i256) -> i256 [selector=0xb0d4547e, abi_params=[uint2
     v21 = zext i8 v20 to i256
     ret v21
 }
+
+fn @literalReused() -> i256 [selector=0x8af397d5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 50
+    v1 = ptradd v0, 32
+    mstore v1, 0x61206c69746572616c20737472696e672074686174206973206c6f6e67657220
+    v2 = ptradd v0, 64
+    mstore v2, 0x7468616e20612073696e676c6520776f72640000000000000000000000000000
+    v3 = abi_encode [memory_bytes, word], scratch, args v0, 1
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    log v4, v5, 0x40b9d49be01621a3f0f6fab77a7796a3e8cd5e92bdd1e81eb9cf885c2e5a76f5
+    v6 = mload v0
+    ret v6
+}
