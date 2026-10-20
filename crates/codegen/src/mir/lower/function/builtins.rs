@@ -153,6 +153,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ) {
             // An empty input is only read, so it needs no allocation.
             self.zero_slot()
+        } else if is_calldata_bytes(data_ty) {
+            // solc copies calldata `bytes` input into memory without checking that it lies
+            // within the calldata, so the copy reads zeros past its end.
+            // input = bytes(data.len); copy(data, input.data)
+            let slice = self.lower_expr(data)?;
+            if self.is_decoded_external_argument(slice) && !self.dirty_values.contains(&slice) {
+                // ABI decoding bounded the length, so its padded size cannot overflow.
+                let length = self.builder.slice_len(slice);
+                let object =
+                    self.builder.alloc_bounded_bytes_object(length, AllocationSemantics::INTERNAL);
+                self.builder.memory_copy_from_slice(object, slice);
+                object
+            } else {
+                self.materialize_memory_slice(slice)
+            }
         } else {
             // input = materialize_memory(arg)
             let data = self.lower_typed_expr(data, memory_ty)?;
@@ -1052,4 +1067,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .emit();
         None
     }
+}
+
+/// Whether `ty` is `bytes` in calldata, as a reference or a slice.
+fn is_calldata_bytes(ty: Ty<'_>) -> bool {
+    let ty = match ty.kind {
+        TyKind::Slice(inner) => inner,
+        _ => ty,
+    };
+    ty.is_ref_at(DataLocation::Calldata)
+        && matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
 }
