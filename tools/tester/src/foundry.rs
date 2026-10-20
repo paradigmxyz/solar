@@ -260,8 +260,9 @@ fn get_solar_binary() -> PathBuf {
     // one; whichever was built last is the compiler under test, so a release binary left behind
     // by an earlier run never shadows a fresh debug build.
     let workspace_root = workspace_root();
-    let release_binary = workspace_root.join("target/release/solar");
-    let debug_binary = workspace_root.join("target/debug/solar");
+    let exe = format!("solar{}", std::env::consts::EXE_SUFFIX);
+    let release_binary = workspace_root.join("target/release").join(&exe);
+    let debug_binary = workspace_root.join("target/debug").join(&exe);
     let modified = |path: &Path| std::fs::metadata(path).and_then(|meta| meta.modified()).ok();
     match (modified(&release_binary), modified(&debug_binary)) {
         (Some(release), Some(debug)) if release > debug => release_binary,
@@ -1229,7 +1230,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(windows, ignore = "looks for `solar` without `.exe`, so it never ran on Windows")]
     fn foundry() {
         if std::env::var_os("SOLAR_FOUNDRY_SKIP").is_some_and(|v| v != "0") {
             eprintln!("Skipping the Foundry suite: SOLAR_FOUNDRY_SKIP is set");
