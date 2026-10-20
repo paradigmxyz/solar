@@ -37,17 +37,20 @@
 //! per arm and two phis per join are considered, and a site converts only
 //! when running both arms plus the selects on every execution costs no more
 //! than the branch, the arm jump, their labels, and the arm that runs on an
-//! average path. Runs after the late CFG cleanup, so folded conditions never
-//! reach it, and before hot-leaf inlining, so cloned lookup helpers arrive
-//! already branch-free. Converts a sweep of sites with updated predecessor lists before
-//! running CFG cleanup, avoiding a whole-function cleanup for each diamond.
+//! average path. The selects read the condition as a zero-or-one word, one
+//! copy each, while the branch reads a word tested against zero directly, so
+//! such a test pays for its comparison only after conversion. Runs after the
+//! late CFG cleanup, so folded conditions never reach it, and before hot-leaf
+//! inlining, so cloned lookup helpers arrive already branch-free. Converts a
+//! sweep of sites with updated predecessor lists before running CFG cleanup,
+//! avoiding a whole-function cleanup for each diamond.
 
 use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Terminator,
-        Value, ValueId,
+        BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Op,
+        Terminator, Value, ValueId,
         analysis::CfgInfo,
         pass::{MirPass, run_function_pass},
         utils::invalidate_unreachable_blocks,
@@ -345,8 +348,21 @@ fn profitable(func: &Function, target: &Target, site: &Site, selects: &[Select])
     }
     let mut selected = Cost::ZERO;
     let mut joined = Cost::ZERO;
+    // Selects that scale the same amount share one product of the condition.
+    let mut products = Vec::new();
+    let mut reads = 0;
     for select in selects {
-        selected = selected.plus(select_cost(func, target, select));
+        let product = scaled_amount(func, select);
+        let shared = product.is_some_and(|product| products.contains(&product));
+        if let Some(product) = product
+            && !shared
+        {
+            products.push(product);
+        }
+        if !shared && !matches!(select.form, SelectForm::Same) {
+            reads += 1;
+        }
+        selected = selected.plus(select_cost(func, target, select, shared));
         // The join moves one stack slot per phi, and a literal reaching it
         // is pushed on its path.
         joined = joined.plus(target.dup().times(2));
@@ -359,7 +375,8 @@ fn profitable(func: &Function, target: &Target, site: &Site, selects: &[Select])
     // Doubled costs: the transfers and join moves run on every path, each
     // arm and phi literal on one of the two paths.
     let before = transfer_cost(target).plus(arms).plus(joined);
-    let after = kept_arms.plus(selected).times(2);
+    let condition = condition_cost(func, target, site.condition, reads);
+    let after = kept_arms.plus(selected).plus(condition).times(2);
     target.cmp(after, before) != Ordering::Greater
 }
 
@@ -385,23 +402,25 @@ fn inst_cost(func: &Function, target: &Target, inst: InstId) -> Cost {
 
 /// Cost of the instructions a select adds: the pushes of its literal
 /// operands, one duplicate of an operand it uses twice, and its operations.
-fn select_cost(func: &Function, target: &Target, select: &Select) -> Cost {
+/// A scaled select whose product an earlier select computes only combines it.
+fn select_cost(func: &Function, target: &Target, select: &Select, shared: bool) -> Cost {
     let literal = |value| func.value_u256(value).map_or(Cost::ZERO, |literal| target.push(literal));
     let scaled = |derived: Derivation, negated: bool, scaled_value| {
-        let mut cost = target.opcode(op::MUL);
+        let mut product = target.opcode(op::MUL);
         if negated {
-            cost = cost.plus(target.opcode(op::ISZERO));
+            product = product.plus(target.opcode(op::ISZERO));
         }
-        match derived {
+        let (amount, combine) = match derived {
             // c * t
             // NOTE: A boolean product is emitted as `and` but keeps this price, so it converts
             // exactly the sites it converted as a multiplication.
-            Derivation::FromZero => cost.plus(literal(scaled_value)),
+            Derivation::FromZero => (scaled_value, Cost::ZERO),
             // e op c * k
-            Derivation::Add(amount) => cost.plus(literal(amount)).plus(target.opcode(op::ADD)),
-            Derivation::Or(amount) => cost.plus(literal(amount)).plus(target.opcode(op::OR)),
-            Derivation::Shr(amount) => cost.plus(literal(amount)).plus(target.opcode(op::SHR)),
-        }
+            Derivation::Add(amount) => (amount, target.opcode(op::ADD)),
+            Derivation::Or(amount) => (amount, target.opcode(op::OR)),
+            Derivation::Shr(amount) => (amount, target.opcode(op::SHR)),
+        };
+        if shared { combine } else { product.plus(literal(amount)).plus(combine) }
     };
     match select.form {
         SelectForm::Same => Cost::ZERO,
@@ -436,6 +455,28 @@ fn select_cost(func: &Function, target: &Target, select: &Select) -> Cost {
                 .plus(target.opcode(op::MUL))
                 .plus(target.opcode(op::ADD))
         }
+    }
+}
+
+/// Per-execution cost of the condition the selects read: a zero-or-one word,
+/// copied for each read after the first. A nonzero test of a word, which the
+/// branch read directly, or a word that is no boolean also pays for the
+/// comparison that makes it one.
+fn condition_cost(func: &Function, target: &Target, condition: ValueId, reads: u32) -> Cost {
+    let copies = target.dup().times(reads.saturating_sub(1));
+    let nonzero_test = match func.value(condition) {
+        Value::Inst(inst) => {
+            let op = func.inst(*inst).kind.op();
+            matches!(op, Op::Ne { .. })
+                && Target::zero_test_input(&op, |value| func.value_u256(value)).is_some()
+        }
+        _ => false,
+    };
+    if nonzero_test || !is_bool_value(func, condition) {
+        // ne word, 0: iszero iszero
+        copies.plus(target.opcode(op::ISZERO).times(2))
+    } else {
+        copies
     }
 }
 
@@ -637,4 +678,20 @@ fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirTyp
         builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();
     }
     value
+}
+
+/// The negation and amount of the condition product a scaled select adds, by
+/// literal value when the amount is one: selects with the same key share it.
+fn scaled_amount(func: &Function, select: &Select) -> Option<(bool, Result<U256, ValueId>)> {
+    let (negated, derived) = match select.form {
+        SelectForm::Scaled(derived) => (false, derived),
+        SelectForm::ScaledNegated(derived) => (true, derived),
+        _ => return None,
+    };
+    match derived {
+        Derivation::Add(amount) | Derivation::Or(amount) | Derivation::Shr(amount) => {
+            Some((negated, func.value_u256(amount).ok_or(amount)))
+        }
+        Derivation::FromZero => None,
+    }
 }
