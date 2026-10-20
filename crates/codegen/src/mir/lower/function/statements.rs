@@ -643,7 +643,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
 
-        // data = abi_encode(non_indexed_arguments)
+        // data = abi_encode_scratch(non_indexed_arguments)
         let (data_ptr, data_size) = if data_types.is_empty() {
             let zero = self.builder.imm(U256::ZERO);
             (zero, zero)

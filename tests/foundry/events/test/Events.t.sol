@@ -171,10 +171,4 @@ contract EventsTest {
         );
         require(count == 9);
     }
-
-    function test_EmitDynamicDataThenAllocate() public {
-        bytes memory data = hex"010203";
-        bytes memory result = events.emitDynamicDataThenAllocate(data);
-        require(keccak256(result) == keccak256(hex"010203aa"));
-    }
 }

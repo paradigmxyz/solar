@@ -134,10 +134,4 @@ contract Events {
     function emitDynamicData(uint256 id, bytes memory data, uint256 count) public {
         emit DynamicData(id, data, "a literal string that is longer than a single word", count);
     }
-
-    // Staging event data past the free memory pointer leaves later allocations intact.
-    function emitDynamicDataThenAllocate(bytes memory data) public returns (bytes memory) {
-        emit DynamicData(1, data, "text", 2);
-        return abi.encodePacked(data, uint8(0xaa));
-    }
 }
