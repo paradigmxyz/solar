@@ -160,6 +160,17 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
+    v58 = mload 64 !metadata(memory=scratch)
+    mstore v58, v36
+    v53 = add v58, 32
+    calldatacopy v53, v31, v2
+    v55 = add v58, 64
+    mcopy v55, v53, v2
+    mstore v58, 32
+    mstore v53, v36
+    v50 = add v2, 64
+    returndata v58, v50
+  bb1:
     revert 0, 0
 }
 

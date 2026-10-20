@@ -2409,16 +2409,16 @@ impl AliasAnalysis {
         match address.base {
             MemoryBase::Absolute => Some(address.offset),
             // An allocation is a heap pointer.
-            MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_) => {
+            MemoryBase::Allocation(_) | MemoryBase::UnboundedAllocation(_) | MemoryBase::DynamicAllocation(_) => {
                 EvmMemoryLayout::HEAP_START.checked_add(address.offset)
             }
             MemoryBase::Value(base) => {
-                Self::read_lower_bound(func, base)?.checked_add(address.offset)
+                Self::untrusted_read_lower_bound(func, base)?.checked_add(address.offset)
             }
             // The pointer read's result is the symbolic base, bounded only if it is the
             // allocator's own read.
             MemoryBase::FreeMemory(read) => {
-                Self::read_lower_bound(func, func.inst_result_value(read)?)?
+                Self::untrusted_read_lower_bound(func, func.inst_result_value(read)?)?
                     .checked_add(address.offset)
             }
             MemoryBase::InternalFrame => None,
@@ -2439,8 +2439,65 @@ impl AliasAnalysis {
 
     /// Returns a lower bound for a pointer that also holds when assembly forges the free-memory
     /// pointer or a runtime `ptradd` offset wraps, for deciding which slots a read may observe.
-    pub(crate) fn read_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
+    pub(crate) fn untrusted_read_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
         Self::lower_bound(func, value, 0, false)
+    }
+
+    /// Returns the least address `value` can hold when a compiler-owned base, an allocation, a
+    /// frame or a read of the free memory pointer, reaches it through constant additions alone.
+    /// Unlike [`Self::pointer_lower_bound`], which bounds where a write may land, it trusts no
+    /// runtime offset: assembly that forges a length can index an object's element around to
+    /// low memory, and a read there must see what was stored.
+    #[must_use]
+    pub(crate) fn read_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
+        Self::constant_offset_lower_bound(func, value, 0)
+    }
+
+    /// Returns the least address a word at `offset` of the current internal-call frame can
+    /// have. A fixed frame lies at or above the heap start but omits the frame header that MIR
+    /// offsets include, and an external entry's frame starts at the heap start.
+    #[must_use]
+    pub(crate) fn frame_lower_bound(offset: u64) -> u64 {
+        EvmMemoryLayout::HEAP_START
+            .saturating_add(offset.saturating_sub(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE))
+    }
+
+    fn constant_offset_lower_bound(func: &Function, value: ValueId, depth: usize) -> Option<u64> {
+        if depth > 8 {
+            return None;
+        }
+        if let Some(value) = func.value_u64(value) {
+            return Some(value);
+        }
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let bound = |value| Self::constant_offset_lower_bound(func, value, depth + 1);
+        match &func.inst(*inst).kind {
+            InstKind::Fmp
+            | InstKind::Alloc { .. }
+            | InstKind::AbiEncode { .. }
+            | InstKind::AbiDecode { .. } => Some(EvmMemoryLayout::HEAP_START),
+            InstKind::Load(address, PtrLocation::Memory)
+                if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+            {
+                Some(EvmMemoryLayout::HEAP_START)
+            }
+            InstKind::InternalFrameAddr(offset) => Some(Self::frame_lower_bound(*offset)),
+            InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => bound(*value),
+            InstKind::Add(first, second) if super::integers::integer_bits(func, value) == 256 => {
+                bound(*first)
+                    .and_then(|base| base.checked_add(func.value_u64(*second)?))
+                    .or_else(|| bound(*second)?.checked_add(func.value_u64(*first)?))
+            }
+            InstKind::PtrAdd(base, offset) => bound(*base)?.checked_add(func.value_u64(*offset)?),
+            InstKind::Phi(incoming) => incoming
+                .iter()
+                .map(|(_, value)| bound(*value))
+                .collect::<Option<Vec<_>>>()?
+                .into_iter()
+                .min(),
+            InstKind::Select(_, first, second) => Some(bound(*first)?.min(bound(*second)?)),
+            _ => None,
+        }
     }
 
     /// Returns a conservative lower bound for a compiler-owned pointer.
