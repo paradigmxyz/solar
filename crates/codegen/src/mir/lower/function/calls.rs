@@ -1344,12 +1344,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // mstore(add(fmp(), ret_size), 0)
         let gas = options.and_then(|options| options.gas);
         self.touch_call_output_area(gas, return_tys, overlay_buffer.is_some());
-        // input = abi_encode(selector, args)
         let (input, input_size) = match self.call_input_staging(&types, return_tys) {
             CallInputStaging::Scratch => {
                 self.encode_call_input_in_scratch(selector, &values, &types)
             }
             staging => {
+                // input = abi_encode[, scratch](selector, args)
                 let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
                 let values = values.into_boxed_slice();
                 let encoded = if staging == CallInputStaging::Unreserved {
@@ -1394,8 +1394,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         (success, plan)
     }
 
-    /// Encodes a call input of stack scalars in the scratch words, right-aligning the selector so
-    /// that the input starts at address 28, and returns its address and size.
+    /// Encodes a call input of a selector and at most one stack scalar in the scratch words,
+    /// right-aligning the selector so that the input starts at address 28, and returns its
+    /// address and size.
     fn encode_call_input_in_scratch(
         &mut self,
         selector: ValueId,
@@ -1412,22 +1413,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let slot = self.builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
         self.builder.store(slot, selector);
-        // mstore(32 + offset_i, arg_i)
-        let mut head = EvmMemoryLayout::WORD_SIZE;
-        for (&value, ty) in values.iter().zip(types) {
+        if let (&[value], [ty]) = (values, types) {
+            // mstore(32, arg)
             let value = if matches!(ty, AbiType::Function) {
                 let shift = self.builder.imm(64);
                 self.builder.shl(value, shift)
             } else {
                 value
             };
-            let address = self.builder.imm(head);
+            let address = self.builder.imm(EvmMemoryLayout::WORD_SIZE);
             self.builder.store(address, value);
-            head += ty.head_size();
         }
-        // input = 28, size = head - 28
-        let start = EvmMemoryLayout::WORD_SIZE - 4;
-        (self.builder.imm(start), self.builder.imm(head - start))
+        // input = 28, size = 4 + 32 * args
+        let input = self.builder.imm(EvmMemoryLayout::WORD_SIZE - 4);
+        let size = self.builder.imm(4 + EvmMemoryLayout::WORD_SIZE * values.len() as u64);
+        (input, size)
     }
 
     /// Where a call's input is encoded.
@@ -1438,9 +1438,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// allocated at the unbumped pointer. A dynamic layout keeps the reservation because encoding
     /// it in place costs more code than the bump saves.
     ///
-    /// An input of at most 64 bytes, selector included, whose arguments are stack scalars goes to
-    /// the scratch words instead. The call reads its input before it writes its output, so a
-    /// word returned to scratch can overlay it.
+    /// An input of a selector and at most one stack scalar goes to the scratch words instead. The
+    /// call reads its input before it writes its output, so a word returned to scratch can
+    /// overlay it.
     fn call_input_staging(
         &mut self,
         types: &[AbiType],
@@ -1453,9 +1453,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return CallInputStaging::Reserved;
         }
-        let size = 4 + types.iter().map(AbiType::head_size).sum::<u64>();
-        let scalars = types.iter().all(|ty| matches!(ty, AbiType::Word(_) | AbiType::Function));
-        if scalars && size <= 2 * EvmMemoryLayout::WORD_SIZE {
+        if matches!(types, [] | [AbiType::Word(_) | AbiType::Function]) {
             CallInputStaging::Scratch
         } else {
             CallInputStaging::Unreserved
