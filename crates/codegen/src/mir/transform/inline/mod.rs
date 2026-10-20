@@ -312,10 +312,13 @@ impl MirInliner {
                     None
                 }
                 .unwrap_or_else(|| call_counts.get(&site.callee).copied().unwrap_or_default());
-                let grew_too_much = summaries.get(&caller_id).is_some_and(|s| {
-                    s.instruction_count.saturating_sub(base_instructions)
-                        > if site.loop_depth > 0 { 128 } else { 64 }
-                });
+                // `@custom:solar-inline` skips the growth and stack budgets, as every other test.
+                let always = module.function(site.callee).attributes.always_inline;
+                let grew_too_much = !always
+                    && summaries.get(&caller_id).is_some_and(|s| {
+                        s.instruction_count.saturating_sub(base_instructions)
+                            > if site.loop_depth > 0 { 128 } else { 64 }
+                    });
                 let framed_constructor_call = summaries.get(&caller_id).is_some_and(|caller| {
                     caller.is_constructor && summary.internal_frame_size != 0
                 });
@@ -350,10 +353,11 @@ impl MirInliner {
                     continue;
                 }
 
-                if let Some(peak) = (summary.has_phi || site.loop_depth > 0)
-                    .then_some(summary.phi_stack_peak)
-                    .flatten()
-                    .or_else(|| memory_wrappers.get(&site.callee).copied())
+                if !always
+                    && let Some(peak) = (summary.has_phi || site.loop_depth > 0)
+                        .then_some(summary.phi_stack_peak)
+                        .flatten()
+                        .or_else(|| memory_wrappers.get(&site.callee).copied())
                 {
                     let caller = module.function(caller_id);
                     let liveness =
