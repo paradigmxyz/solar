@@ -521,11 +521,6 @@ impl AliasAnalysis {
         Self::with_optional_summaries(func, Some(summaries))
     }
 
-    /// Includes memory-size observations in callees and tail calls.
-    pub(crate) fn may_observe_msize(&self, func: &Function) -> bool {
-        super::may_observe_msize(func, self.call_summaries.as_deref())
-    }
-
     /// Returns whether a fresh snapshot of one function holds the same memoized facts as this
     /// one. Values added since this snapshot, such as immediates a rewrite created and
     /// discarded, must be unresolved.

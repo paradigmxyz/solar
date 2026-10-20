@@ -33,7 +33,8 @@
   
   fn @msize_caller() -> i256 [selector=0x01020307] {
     bb0:
-      v0 = alloc 32
+-     v0 = alloc 32
++     v0 = alloc 32 !metadata(deferred_alloc)
       v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 7
       v2 = icall @measures, v1
@@ -42,7 +43,8 @@
   
   fn @unrelated_msize_caller() -> i256 [selector=0x01020308] {
     bb0:
-      v0 = alloc 32
+-     v0 = alloc 32
++     v0 = alloc 32 !metadata(deferred_alloc)
       v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 7
       v2 = mload v1

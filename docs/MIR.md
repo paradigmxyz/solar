@@ -384,6 +384,12 @@ uncalled bodies need no interprocedural summary. DCE removes unused calls only
 when these summaries prove normal termination and no observable effects. Recursive calls and possible CFG cycles
 remain conservative. DCE and ADCE preserve memory expansion when `msize` in the
 function or a callee can observe it.
+`msize` promises a lower bound, not the exact memory extent: it returns at least the
+free-memory pointer and one past every byte written before it. It stays a barrier that
+no pass commons or moves, and it reads all of memory, so a write that precedes it is
+never dead. Compiler-owned memory lies below the free-memory pointer, so passes that
+remove or move frames, spill slots, static allocations, scalar-replaced or
+copy-elided objects, and storage-promotion temporaries need no `msize` check.
 As in solc, unused storage/account reads and normally returning calls containing
 only those reads may disappear, including their implicit access-list warming.
 Optimization preserves required effects rather than exact gas consumption.
@@ -732,7 +738,8 @@ that the original range is already expanded. The proof stops at inline jump
 destinations. This keeps memory-limit halts and reduces pushes after tail sharing
 has settled. Reads do not establish this proof because later dead-code cleanup
 may remove them. A different return range or an intervening instruction keeps
-the original address, including an `MSIZE` that observes the store.
+the original address, including an `MSIZE` that observes the store, since `msize`
+covers every byte written before it.
 
 Final store cleanup consumes a stack word directly when a duplicate is stored
 and its original is discarded immediately afterward. It preserves the order of

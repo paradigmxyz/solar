@@ -13,8 +13,7 @@
 //! value-local analysis cannot. Every read additionally needs an execution guarantee: its block
 //! dominates every live exit, or the loop runs a verified first iteration that reaches it, and
 //! no semantic check or call that may exit without a CFG edge runs before it in the loop.
-//! Memory reads and hashes expand memory, so they never move in a function that may observe
-//! `msize`. A semantic length read of an existing heap object (a fresh allocation or an object
+//! A semantic length read of an existing heap object (a fresh allocation or an object
 //! argument) reads allocated memory and needs no execution guarantee. Fixed-width slot hashes
 //! move with their scratch writes only when nothing else in the function touches scratch.
 //! Environment reads that calls or creates change (balances, code size and hash, return data
@@ -452,21 +451,19 @@ impl LoopOptimizer {
             return false;
         }
         match inst.kind {
-            // Hoisting memory reads expands memory earlier (and unconditionally), which any
-            // MSIZE in the function could observe; on top of the dependence checks they must
-            // also be guaranteed to execute so a zero-trip loop cannot start trapping (OOG
-            // from speculated memory expansion) or paying for work it never did.
+            // Hoisting memory reads expands memory earlier (and unconditionally); on top of the
+            // dependence checks they must also be guaranteed to execute so a zero-trip loop
+            // cannot start trapping (OOG from speculated memory expansion) or paying for work
+            // it never did.
             InstKind::Load(addr, PtrLocation::Memory) => {
-                return !self.function_observes_msize(func)
-                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
+                return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
             }
             // A frame slot's address is implicit until frame lowering. Keep the load in place so a
             // store in the loop cannot be missed by the dependence check above.
             InstKind::FrameLoad { .. } => return false,
             InstKind::Keccak256(offset, size) => {
-                return !self.function_observes_msize(func)
-                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
+                return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, offset, func.value_u64(size));
             }
             InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
@@ -585,10 +582,6 @@ impl LoopOptimizer {
             }
         }
         exiting
-    }
-
-    fn function_observes_msize(&self, func: &Function) -> bool {
-        self.alias().may_observe_msize(func)
     }
 
     fn loop_contains(
@@ -1059,7 +1052,6 @@ impl LoopOptimizer {
         ));
         let private = |effects: ModRef| {
             !effects.observes_gas()
-                && !effects.observes_memory_size()
                 && !effects.may_read(aa, scratch)
                 && !effects.may_write(aa, scratch)
         };

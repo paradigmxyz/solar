@@ -2,11 +2,13 @@
 //@filecheck:
 @module SroaMsizeCaller
 
-// Internal calls share memory, so `msize` in a caller observes the expansion
-// of the object's store even though `@touch` never reads `msize` itself.
+// `msize` only promises a lower bound, the free-memory pointer and every byte written before it,
+// and the object lies below that bound, so a caller that reads `msize` does not keep the object's
+// store alive.
 // CHECK-LABEL: fn @touch{{[( ]}}
-// CHECK: mstore [[OBJ:v[0-9]+]], arg0
-// CHECK: mload [[OBJ]]
+// CHECK-NOT: {{^[ +]+}}mstore
+// CHECK-NOT: {{^[ +]+}}mload
+// CHECK: {{^[ +]+}}ret arg0
 fn @touch(arg0: i256) -> i256 {
   bb0:
     v0 = alloc 32
@@ -23,10 +25,11 @@ fn @caller(arg0: i256) -> i256 {
     ret v2
 }
 
-// A callee that reads `msize` observes it the same way.
+// A callee that reads `msize` does not keep the object either.
 // CHECK-LABEL: fn @touch_then_measure{{[( ]}}
-// CHECK: mstore [[OBJ:v[0-9]+]], arg0
-// CHECK: mload [[OBJ]]
+// CHECK-NOT: {{^[ +]+}}mstore
+// CHECK-NOT: {{^[ +]+}}mload
+// CHECK: {{^[ +]+(v[0-9]+ = )?}}icall @measure
 fn @touch_then_measure(arg0: i256) -> i256 {
   bb0:
     v0 = alloc 32
@@ -43,10 +46,11 @@ fn @measure() -> i256 {
     ret v0
 }
 
-// `msize` in the function itself observes the object's writes too.
+// `msize` in the function itself does not keep the object's writes.
 // CHECK-LABEL: fn @observe_size{{[( ]}}
-// CHECK: memory_zero
-// CHECK: mstore {{v[0-9]+}}, 7
+// CHECK-NOT: {{^[ +]+}}memory_zero
+// CHECK-NOT: {{^[ +]+}}mstore
+// CHECK: {{^[ +]+(v[0-9]+ = )?}}msize
 fn @observe_size() -> i256 {
   bb0:
     v0 = alloc 32

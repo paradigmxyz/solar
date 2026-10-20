@@ -5,9 +5,10 @@
     bb0:
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
-      mstore v1, arg0
-      v2 = mload v1
-      ret v2
+-     mstore v1, arg0
+-     v2 = mload v1
+-     ret v2
++     ret arg0
   }
   
   fn @caller(arg0: i256) -> i256 {
@@ -22,22 +23,24 @@
     bb0:
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
-      mstore v1, 42
+-     mstore v1, 42
       v2 = msize
-      v3 = mload v1
-      ret v3
+-     v3 = mload v1
+-     ret v3
++     ret 42
   }
   
-  fn @keep_msize_observation() -> i256 {
+  fn @promote_around_msize() -> i256 {
     bb0:
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
-      mstore v1, 9
+-     mstore v1, 9
       v2 = msize
       v3 = internal_frame_addr 128
       v4 = ptrtoint ptr<memory> v3 to i256
-      v5 = mload v4
-      v6 = add v5, v2
+-     v5 = mload v4
+-     v6 = add v5, v2
++     v6 = add 9, v2
       ret v6
   }
   

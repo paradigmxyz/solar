@@ -29,20 +29,6 @@ use std::{
     rc::Rc,
 };
 
-/// Includes observations in callees, conservatively retaining reads without a call summary.
-pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSummaries>) -> bool {
-    let callee_observes = |callee| {
-        summaries.and_then(|summaries| summaries.get(callee)).is_none_or(|s| s.may_observe_msize())
-    };
-    func.instructions().any(|inst| match &func.inst(inst).kind {
-        InstKind::MSize => true,
-        InstKind::ICall { function: Callee::Function(function), .. } => callee_observes(*function),
-        _ => false,
-    }) || func.blocks.iter().any(|block| {
-        matches!(&block.terminator, Some(Terminator::TailCall { function, .. }) if callee_observes(*function))
-    })
-}
-
 /// Returns whether any function in `module` reads `msize`. Internal calls share memory, so such a
 /// read observes the expansion of every memory access that runs before it, in callers and
 /// siblings as well as callees.

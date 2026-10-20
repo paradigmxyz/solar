@@ -2,10 +2,11 @@
 //@filecheck:
 @module MemoryDseMsizeCaller
 
-// No instruction of `@frame` reads its frame slot, but internal calls share
-// memory, so `msize` in the caller observes the store's expansion.
+// No instruction of `@frame` reads its frame slot, and the slot lies below the free-memory pointer,
+// the lower bound `msize` promises, so the store goes even though the caller reads `msize`.
 // CHECK-LABEL: fn @frame{{[( ]}}
-// CHECK: mstore {{v[0-9]+}}, arg0
+// CHECK-NOT: {{^[ +]+}}mstore
+// CHECK: {{^[ +]+}}ret arg0
 fn @frame(arg0: i256) -> i256 {
   bb0:
     v0 = internal_frame_addr 128

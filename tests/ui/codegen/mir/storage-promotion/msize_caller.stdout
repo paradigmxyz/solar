@@ -3,17 +3,22 @@
   @module StoragePromotionMsize
   fn @called_externally(arg0: i256) [selector=0x01020306] {
     bb0:
-      sstore 0, 1
+-     sstore 0, 1
++     mstore 128, 1
       jump bb1
     bb1:
       v0 = lt arg0, 3
       jumpi v0, bb2, bb3
     bb3:
++     v3 = mload 128
++     sstore 0, v3
       ret
     bb2:
-      v1 = sload 0
+-     v1 = sload 0
++     v1 = mload 128
       v2 = mul v1, 2
-      sstore 0, v2
+-     sstore 0, v2
++     mstore 128, v2
       jump bb1
   }
   
@@ -24,37 +29,51 @@
       ret v0
   }
   
-  fn @reject_memory_size_observers(arg0: i1) -> i256 [selector=0x01020304] {
+  fn @promote_around_msize(arg0: i256) -> i256 [selector=0x01020304] {
     bb0:
       v0 = msize
-      sstore 0, 1
+-     sstore 0, 1
++     mstore 128, 1
       jump bb1
     bb1:
-      jumpi arg0, bb2, bb3
+      v1 = lt arg0, 3
+      jumpi v1, bb2, bb3
     bb3:
-      v1 = msize
-      v2 = sub v1, v0
-      ret v2
++     v6 = mload 128
++     sstore 0, v6
+      v4 = msize
+      v5 = sub v4, v0
+      ret v5
     bb2:
-      sstore 0, 2
+-     v2 = sload 0
++     v2 = mload 128
+      v3 = mul v2, 2
+-     sstore 0, v3
++     mstore 128, v3
       jump bb1
   }
   
-  fn @reject_callee_memory_size_observers(arg0: i1) -> i256 [selector=0x01020304] {
+  fn @promote_around_msize_callee(arg0: i256) -> i256 [selector=0x01020305] {
     bb0:
       v0 = icall @observe_memory_size
-      sstore 0, 1
+-     sstore 0, 1
++     mstore 128, 1
       jump bb1
     bb1:
-      jumpi arg0, bb2, bb3
+      v1 = lt arg0, 3
+      jumpi v1, bb2, bb3
     bb3:
-      jump bb4
-    bb4:
-      v1 = icall @observe_memory_size
-      v2 = sub v1, v0
-      ret v2
++     v6 = mload 128
++     sstore 0, v6
+      v4 = icall @observe_memory_size
+      v5 = sub v4, v0
+      ret v5
     bb2:
-      sstore 0, 2
+-     v2 = sload 0
++     v2 = mload 128
+      v3 = mul v2, 2
+-     sstore 0, v3
++     mstore 128, v3
       jump bb1
   }
   

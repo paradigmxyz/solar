@@ -2,11 +2,13 @@
 //@filecheck:
 @module FramePromotionMsizeCaller
 
-// Internal calls share memory, so `msize` in a caller observes the expansion
-// of the frame slot's store even though `@frame` never reads `msize` itself.
+// `msize` only promises a lower bound, the free-memory pointer and every byte written before it,
+// and frame slots lie below that bound, so a caller that reads `msize` does not keep the slot's
+// traffic in memory.
 // CHECK-LABEL: fn @frame{{[( ]}}
-// CHECK: mstore [[SLOT:v[0-9]+]], arg0
-// CHECK: mload [[SLOT]]
+// CHECK-NOT: {{^[ +]+}}mstore
+// CHECK-NOT: {{^[ +]+}}mload
+// CHECK: {{^[ +]+}}ret arg0
 fn @frame(arg0: i256) -> i256 {
   bb0:
     v0 = internal_frame_addr 128
@@ -24,13 +26,12 @@ fn @caller(arg0: i256) -> i256 {
     ret v2
 }
 
-// `msize` observes the memory extent, which removing local-slot traffic
-// changes, so it stays a barrier and the slot keeps its memory form.
+// `msize` stays in place while the slot leaves memory.
 // CHECK-LABEL: @msize_observed
-// CHECK: {{^ +}}mstore [[FRAME:v[0-9]+]], 42
+// CHECK-NOT: {{^[ +]+}}mstore
 // CHECK: {{^ +}}{{v[0-9]+}} = msize
-// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[FRAME]]
-// CHECK: {{^ +}}ret [[LOAD]]
+// CHECK-NOT: {{^[ +]+}}mload
+// CHECK: {{^[ +]+}}ret 42
 fn @msize_observed() -> i256 {
   bb0:
     v17 = internal_frame_addr 128
@@ -41,14 +42,12 @@ fn @msize_observed() -> i256 {
     ret v2
 }
 
-// A store, `msize`, and a load in one function keep the slot in memory.
-// CHECK-LABEL: {{^[ +].*}}fn @keep_msize_observation{{[( ]}}
-// CHECK: {{^[ +].*}}[[SLOT_PTR:v[0-9]+]] = internal_frame_addr 128
-// CHECK: [[SLOT:v[0-9]+]] = ptrtoint ptr<memory> [[SLOT_PTR]] to i256
-// CHECK: {{^[ +].*}}mstore [[SLOT]], 9
+// A store, `msize`, and a load in one function promote the slot too.
+// CHECK-LABEL: {{^[ +].*}}fn @promote_around_msize{{[( ]}}
+// CHECK-NOT: {{^[ +]+}}mstore
 // CHECK: {{^[ +].*}}msize
-// CHECK: {{^[ +](.*[^a-z_])?}}mload
-fn @keep_msize_observation() -> i256 {
+// CHECK-NOT: {{^[ +]+}}mload
+fn @promote_around_msize() -> i256 {
   bb0:
     v10 = internal_frame_addr 128
     v1 = ptrtoint ptr<memory> v10 to i256

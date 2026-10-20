@@ -51,10 +51,12 @@ fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     ret v1
 }
 
-// `msize` sees the elided bump whatever the callee does with the pointer.
+// `msize` only promises a lower bound, the free-memory pointer and every byte written before it, so
+// the placement is kept whatever the callee does with the pointer.
 // CHECK:   fn @msize_caller{{.*}}
 // CHECK-NEXT:     bb0:
-// CHECK-NEXT: {{.*}}v0 = alloc 32{{$}}
+// CHECK-NEXT: - {{.*}}v0 = alloc 32
+// CHECK-NEXT: + {{.*}}v0 = alloc 32 !metadata(deferred_alloc)
 fn @msize_caller() -> i256 [selector=0x01020307] {
   bb0:
     v9 = alloc 32
@@ -65,10 +67,11 @@ fn @msize_caller() -> i256 [selector=0x01020307] {
 }
 
 // The callee need not receive the pointer: `msize` anywhere after the store
-// sees where the object lies.
+// still keeps the placement.
 // CHECK:   fn @unrelated_msize_caller{{.*}}
 // CHECK-NEXT:     bb0:
-// CHECK-NEXT: {{.*}}v0 = alloc 32{{$}}
+// CHECK-NEXT: - {{.*}}v0 = alloc 32
+// CHECK-NEXT: + {{.*}}v0 = alloc 32 !metadata(deferred_alloc)
 fn @unrelated_msize_caller() -> i256 [selector=0x01020308] {
   bb0:
     v9 = alloc 32
