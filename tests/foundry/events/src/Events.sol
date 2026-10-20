@@ -98,7 +98,9 @@ contract Events {
     }
 
     event TwoWords(uint256 first, uint256 second);
+
     event TwoWordsIndexed(uint256 indexed id, address account, bool flag);
+
     event TwoWordsAnonymous(address account, bool flag) anonymous;
 
     function emitTwoWords(uint256 first, uint256 second) public {
@@ -125,6 +127,7 @@ contract Events {
     }
 
     event ThreeWords(uint256 first, uint256 second, uint256 third);
+
     event DynamicData(uint256 indexed id, bytes data, string text, uint256 count);
 
     function emitThreeWords(uint256 first, uint256 second, uint256 third) public {
