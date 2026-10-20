@@ -12,9 +12,9 @@
 //! does not model, or the interpreter ends by overflowing the stack, whose depth the pipeline may
 //! change.
 //!
-//! With `SOLAR_RUN_CALL_EVM_IR=1`, only a disagreement is reported, as a test failure. Any other
-//! value names a file that also receives one line per call: `checked`, `skipped` with the reason,
-//! or `mismatch`.
+//! With `SOLAR_RUN_CALL_EVM_IR=1`, only a disagreement or a harness fault, such as a failed dump,
+//! is reported, as a test failure. Any other value names a file that also receives one line per
+//! call: `checked`, `skipped` with the reason, `mismatch`, or `failed`.
 //!
 //! A test written in EVM IR exists to run its calls both ways, so it is checked without the
 //! variable, and a call the interpreter cannot run fails it instead of being skipped.

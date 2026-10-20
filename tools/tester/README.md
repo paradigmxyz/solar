@@ -56,9 +56,9 @@ interpreter cannot run are skipped: calls to other contracts, contract creation,
 deployed code that is not the compiled runtime. So are calls that run out of gas
 or stack, which the interpreter does not model or the pipeline may change.
 
-`SOLAR_RUN_CALL_EVM_IR=1` reports only disagreements. Any other value names a
-file that receives one line per call, `checked`, `skipped` with the reason, or
-`mismatch`:
+`SOLAR_RUN_CALL_EVM_IR=1` reports only disagreements and harness faults, such as a
+failed dump. Any other value names a file that receives one line per call,
+`checked`, `skipped` with the reason, `mismatch`, or `failed`:
 
 ```console
 SOLAR_RUN_CALL_EVM_IR=target/run-call-evm-ir.log TESTER_MODE=ui cargo test -p solar-compiler --test tests
