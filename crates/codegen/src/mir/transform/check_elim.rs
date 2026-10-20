@@ -137,7 +137,10 @@
 //! fails on zero, or a constant divisor, and otherwise in the scope of its definition when that
 //! scope proves the divisor positive, as an index `r % n` drawn under `n > 1` is below `n`. A
 //! checked difference fails rather than wrap, so it never exceeds its minuend and stays below
-//! it for a nonzero constant subtrahend: a heap's parent `(pos - 1) >> 1` is below `pos`. A value
+//! it for a nonzero constant subtrahend: a heap's parent `(pos - 1) >> 1` is below `pos`. A plain
+//! difference by a nonzero constant stays below its minuend in the scope of its definition when
+//! that scope proves the minuend at least the constant, as the parent a sift computes as
+//! `pos - 1` once `pos != 0`, after check elimination made its difference plain. A value
 //! with a strict path below it in the current scope is at least one, which
 //! folds `length == 0` guards and the `length - 1` underflow check that follow
 //! `i < length / 2`; differences inherit the strict bound of their minuend. Search follows at most
@@ -1052,6 +1055,15 @@ impl<'a> CheckEliminator<'a> {
                             && self.range_of(func, divisor, MAX_DEPTH).lo > U256::ZERO
                         {
                             self.add_relation(Relation::Lt(value, divisor));
+                        }
+                        // x - k < x wherever the definition's scope proves x >= k > 0
+                        if let InstKind::Sub(x, k) = func.inst(id).kind
+                            && let Some(value) = func.inst_result_value(id)
+                            && let Some(k) = const_of(func, k)
+                            && !k.is_zero()
+                            && self.range_of(func, x, MAX_DEPTH).lo >= k
+                        {
+                            self.add_relation(Relation::Lt(value, x));
                         }
                         let fact = match &func.inst(id).kind {
                             InstKind::ICall {
@@ -2962,12 +2974,19 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
             }
         }
         // A remainder's bound by its divisor, which the walk states where the divisor is
-        // positive.
+        // positive, and a difference's by its minuend, where the minuend is at least the
+        // constant subtrahend.
         for &inst in &block.instructions {
             if let InstKind::Mod(_, divisor) = func.inst(inst).kind
                 && let Some(value) = func.inst_result_value(inst)
             {
                 add(Relation::Lt(value, divisor));
+            }
+            if let InstKind::Sub(x, k) = func.inst(inst).kind
+                && let Some(value) = func.inst_result_value(inst)
+                && const_of(func, k).is_some_and(|k| !k.is_zero())
+            {
+                add(Relation::Lt(value, x));
             }
         }
     }
