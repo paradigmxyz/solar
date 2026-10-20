@@ -334,9 +334,9 @@ fn @inlinedXorCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x00288
     v14 = keccak256_packed (uint256 arg0, uint256 14)
     v15 = keccak256_packed (uint256 arg0, uint256 15)
     v16 = keccak256_packed (uint256 arg0, uint256 16)
-    v17 = icall @xor, arg2, 32
+    v17 = icall @_xor, arg2, 32
     icall @_variableCopy, v17, 64
-    v18 = icall @xor, arg2, 32
+    v18 = icall @_xor, arg2, 32
     icall @_variableCopy, v18, 64
     v19 = ne arg1, 0
     jumpi v19, bb1, bb2
@@ -605,13 +605,178 @@ fn @_far(arg0: i256) [pure] {
     ret
 }
 
+fn @twoPointers(arg0: i256, arg1: i256) -> i256 [selector=0x7c9988a0, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    icall @_setPointer, 128
+    v17 = icall @_copy, 0x400
+    v18 = mload v17
+    v19 = shl v18, 0
+    icall @_setPointer, 0x1800
+    v20 = icall @_copy, 32
+    v21 = eq arg1, 0
+    jumpi v21, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v22 = phi [bb1: 0], [bb2: v19]
+    v23 = xor v0, v1
+    v24 = xor v23, v2
+    v25 = xor v24, v3
+    v26 = xor v25, v4
+    v27 = xor v26, v5
+    v28 = xor v27, v6
+    v29 = xor v28, v7
+    v30 = xor v29, v8
+    v31 = xor v30, v9
+    v32 = xor v31, v10
+    v33 = xor v32, v11
+    v34 = xor v33, v12
+    v35 = xor v34, v13
+    v36 = xor v35, v14
+    v37 = xor v36, v15
+    v38 = xor v37, v16
+    v39 = xor v22, v38
+    ret v39
+}
+
+fn @nearSpillPointer(arg0: i256, arg1: i256) -> i256 [selector=0xc2786ba1, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    mstore 0x1800, arg0
+    icall @_setPointer, 0x1840
+    v17 = ne arg1, 0
+    jumpi v17, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v18 = icall @_copy, 0x400
+    v19 = mload v18
+    v20 = shl v19, 0
+    jump bb3
+  bb3:
+    v21 = phi [bb1: v20], [bb2: 0]
+    v22 = xor v0, v1
+    v23 = xor v22, v2
+    v24 = xor v23, v3
+    v25 = xor v24, v4
+    v26 = xor v25, v5
+    v27 = xor v26, v6
+    v28 = xor v27, v7
+    v29 = xor v28, v8
+    v30 = xor v29, v9
+    v31 = xor v30, v10
+    v32 = xor v31, v11
+    v33 = xor v32, v12
+    v34 = xor v33, v13
+    v35 = xor v34, v14
+    v36 = xor v35, v15
+    v37 = xor v36, v16
+    v38 = xor v21, v37
+    ret v38
+}
+
+fn @comparisonPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xcf24dab9, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = calldataload 68
+    v18 = ne v17, 0
+    jumpi v18, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v19 = phi [bb1: 0x800], [bb2: 128]
+    icall @_setPointer, v19
+    v20 = ne arg1, 0
+    jumpi v20, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v21 = icall @_copy, 0x400
+    v22 = mload v21
+    v23 = shl v22, 0
+    jump bb6
+  bb6:
+    v24 = phi [bb4: v23], [bb5: 0]
+    v25 = xor v0, v1
+    v26 = xor v25, v2
+    v27 = xor v26, v3
+    v28 = xor v27, v4
+    v29 = xor v28, v5
+    v30 = xor v29, v6
+    v31 = xor v30, v7
+    v32 = xor v31, v8
+    v33 = xor v32, v9
+    v34 = xor v33, v10
+    v35 = xor v34, v11
+    v36 = xor v35, v12
+    v37 = xor v36, v13
+    v38 = xor v37, v14
+    v39 = xor v38, v15
+    v40 = xor v39, v16
+    v41 = xor v24, v40
+    ret v41
+}
+
 fn @_variableCopy(arg0: i256, arg1: i256) [pure] {
   bb0:
     calldatacopy arg0, 0, arg1
     ret
 }
 
-fn @xor(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @_xor(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = xor arg0, arg1
     ret v0

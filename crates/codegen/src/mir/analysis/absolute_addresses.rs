@@ -48,6 +48,12 @@ pub(crate) fn absolute_address_inputs(func: &Function) -> IndexVec<ValueId, Addr
                 | InstKind::Mod(lhs, rhs)
                 | InstKind::SMod(lhs, rhs)
                 | InstKind::Sar(lhs, rhs)
+                | InstKind::Eq(lhs, rhs)
+                | InstKind::Ne(lhs, rhs)
+                | InstKind::Lt(lhs, rhs)
+                | InstKind::Gt(lhs, rhs)
+                | InstKind::SLt(lhs, rhs)
+                | InstKind::SGt(lhs, rhs)
                 | InstKind::Select(_, lhs, rhs) => inputs[*lhs].max(inputs[*rhs]),
                 InstKind::Zext(inner) | InstKind::Not(inner) | InstKind::IntToPtr(inner) => {
                     inputs[*inner]

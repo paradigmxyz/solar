@@ -24,7 +24,9 @@
 // A pass may fold a calldata-derived address or length into a constant once a guard proves it, and the
 // spill slots and the heap must stay clear of the write as they were for the symbolic operand. Each
 // function holds seventeen values across the guarded write, then allocates: the write and the
-// allocation reach the same low memory unless the compiler keeps its spills out of the way.
+// allocation reach the same low memory unless the compiler keeps its spills out of the way. The
+// guards fold only once a pass proves them, as #1997's equality propagation does, so these cases pass
+// on `main` and guard the backend against such a pass.
 contract FoldedGuardSpills {
     function sized(uint256 a, uint256 flag, uint256) external pure returns (bytes32 result) {
         bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));
@@ -79,7 +81,6 @@ contract FoldedGuardSpills {
         bytes32 h16 = keccak256(abi.encodePacked(a, uint256(16)));
         assembly {
             let o := calldataload(0x44)
-            let n := calldataload(0x64)
             if eq(o, 0x40) {
                 mstore(o, 0x100)
                 mstore(o, 0x80)

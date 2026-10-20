@@ -14,10 +14,14 @@
 //@ run-call: inlinedByteCopy 5, 1, 0x80 => 0xb5a11adf3f4c545585de66ee565ba0cab1cbedf12ce19015194e5a2320dec356
 //@ run-call: inlinedSelectCopy 5, 1 => 0xb5a11adf3f4c545585de66ee565ba0cab1cbedf12ce19015194e5a2320dec356
 //@ run-call: farRaisedPointer 5, 1 => 0xb5a11adf3f4c545585de66ee565ba0cab1cbedf12ce19015194e5a2320dec356
+//@ run-call: twoPointers 5, 1 => 0xb5a11adf3f4c545585de66ee565ba0cab1cbedf12ce19015194e5a2320dec356
+//@ run-call: nearSpillPointer 5, 1 => 0xb5a11adf3f4c545585de66ee565ba0cab1cbedf12ce19015194e5a2320dec356
+//@ run-call: comparisonPointer 5, 1, 0 => 0xb5a11adf3f4c545585de66ee565ba0cab1cbedf12ce19015194e5a2320dec356
 // A constant-length copy to a destination that an input chooses, and a constant that inlining stores
 // into the free memory pointer, are as able to reach a spill slot as their variable forms, whether
 // or not a guard folded them: each function holds seventeen values across the write, then allocates.
-// Every case here fails without the backend rules that keep spills clear of such operands.
+// The copies and the pointer passed to a helper fail on `main`; the pointers near a raised spill area
+// guard the rules that lift it.
 contract FoldedOperandSpills {
     function constantCopy(uint256 a, uint256 flag, uint256 d) external pure returns (bytes32 result) {
         bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));
@@ -207,8 +211,8 @@ contract FoldedOperandSpills {
         bytes32 h14 = keccak256(abi.encodePacked(a, uint256(14)));
         bytes32 h15 = keccak256(abi.encodePacked(a, uint256(15)));
         bytes32 h16 = keccak256(abi.encodePacked(a, uint256(16)));
-        _variableCopy(xor(d, 0x20), 0x40);
-        _variableCopy(xor(d, 0x20), 0x40);
+        _variableCopy(_xor(d, 0x20), 0x40);
+        _variableCopy(_xor(d, 0x20), 0x40);
         if (flag != 0) {
             bytes memory c = _copy(1024);
             result = bytes32(c.length);
@@ -339,13 +343,99 @@ contract FoldedOperandSpills {
         }
     }
 
+    function twoPointers(uint256 a, uint256 flag) external pure returns (bytes32 result) {
+        bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));
+        bytes32 h1 = keccak256(abi.encodePacked(a, uint256(1)));
+        bytes32 h2 = keccak256(abi.encodePacked(a, uint256(2)));
+        bytes32 h3 = keccak256(abi.encodePacked(a, uint256(3)));
+        bytes32 h4 = keccak256(abi.encodePacked(a, uint256(4)));
+        bytes32 h5 = keccak256(abi.encodePacked(a, uint256(5)));
+        bytes32 h6 = keccak256(abi.encodePacked(a, uint256(6)));
+        bytes32 h7 = keccak256(abi.encodePacked(a, uint256(7)));
+        bytes32 h8 = keccak256(abi.encodePacked(a, uint256(8)));
+        bytes32 h9 = keccak256(abi.encodePacked(a, uint256(9)));
+        bytes32 h10 = keccak256(abi.encodePacked(a, uint256(10)));
+        bytes32 h11 = keccak256(abi.encodePacked(a, uint256(11)));
+        bytes32 h12 = keccak256(abi.encodePacked(a, uint256(12)));
+        bytes32 h13 = keccak256(abi.encodePacked(a, uint256(13)));
+        bytes32 h14 = keccak256(abi.encodePacked(a, uint256(14)));
+        bytes32 h15 = keccak256(abi.encodePacked(a, uint256(15)));
+        bytes32 h16 = keccak256(abi.encodePacked(a, uint256(16)));
+        _setPointer(0x80);
+        result = bytes32(_copy(1024).length);
+        _setPointer(0x1800);
+        _copy(32);
+        if (flag == 0) result = 0;
+        result ^= h0 ^ h1 ^ h2 ^ h3 ^ h4 ^ h5 ^ h6 ^ h7 ^ h8 ^ h9 ^ h10 ^ h11 ^ h12 ^ h13 ^ h14 ^ h15 ^ h16;
+    }
+
+    function nearSpillPointer(uint256 a, uint256 flag) external pure returns (bytes32 result) {
+        bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));
+        bytes32 h1 = keccak256(abi.encodePacked(a, uint256(1)));
+        bytes32 h2 = keccak256(abi.encodePacked(a, uint256(2)));
+        bytes32 h3 = keccak256(abi.encodePacked(a, uint256(3)));
+        bytes32 h4 = keccak256(abi.encodePacked(a, uint256(4)));
+        bytes32 h5 = keccak256(abi.encodePacked(a, uint256(5)));
+        bytes32 h6 = keccak256(abi.encodePacked(a, uint256(6)));
+        bytes32 h7 = keccak256(abi.encodePacked(a, uint256(7)));
+        bytes32 h8 = keccak256(abi.encodePacked(a, uint256(8)));
+        bytes32 h9 = keccak256(abi.encodePacked(a, uint256(9)));
+        bytes32 h10 = keccak256(abi.encodePacked(a, uint256(10)));
+        bytes32 h11 = keccak256(abi.encodePacked(a, uint256(11)));
+        bytes32 h12 = keccak256(abi.encodePacked(a, uint256(12)));
+        bytes32 h13 = keccak256(abi.encodePacked(a, uint256(13)));
+        bytes32 h14 = keccak256(abi.encodePacked(a, uint256(14)));
+        bytes32 h15 = keccak256(abi.encodePacked(a, uint256(15)));
+        bytes32 h16 = keccak256(abi.encodePacked(a, uint256(16)));
+        assembly {
+            mstore(0x1800, a)
+        }
+        _setPointer(0x1840);
+        if (flag != 0) {
+            bytes memory c = _copy(1024);
+            result = bytes32(c.length);
+        }
+        result ^= h0 ^ h1 ^ h2 ^ h3 ^ h4 ^ h5 ^ h6 ^ h7 ^ h8 ^ h9 ^ h10 ^ h11 ^ h12 ^ h13 ^ h14 ^ h15 ^ h16;
+    }
+
+    function comparisonPointer(uint256 a, uint256 flag, uint256 d) external pure returns (bytes32 result) {
+        bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));
+        bytes32 h1 = keccak256(abi.encodePacked(a, uint256(1)));
+        bytes32 h2 = keccak256(abi.encodePacked(a, uint256(2)));
+        bytes32 h3 = keccak256(abi.encodePacked(a, uint256(3)));
+        bytes32 h4 = keccak256(abi.encodePacked(a, uint256(4)));
+        bytes32 h5 = keccak256(abi.encodePacked(a, uint256(5)));
+        bytes32 h6 = keccak256(abi.encodePacked(a, uint256(6)));
+        bytes32 h7 = keccak256(abi.encodePacked(a, uint256(7)));
+        bytes32 h8 = keccak256(abi.encodePacked(a, uint256(8)));
+        bytes32 h9 = keccak256(abi.encodePacked(a, uint256(9)));
+        bytes32 h10 = keccak256(abi.encodePacked(a, uint256(10)));
+        bytes32 h11 = keccak256(abi.encodePacked(a, uint256(11)));
+        bytes32 h12 = keccak256(abi.encodePacked(a, uint256(12)));
+        bytes32 h13 = keccak256(abi.encodePacked(a, uint256(13)));
+        bytes32 h14 = keccak256(abi.encodePacked(a, uint256(14)));
+        bytes32 h15 = keccak256(abi.encodePacked(a, uint256(15)));
+        bytes32 h16 = keccak256(abi.encodePacked(a, uint256(16)));
+        uint256 p;
+        assembly {
+            p := 0x80
+            if calldataload(0x44) { p := 0x800 }
+        }
+        _setPointer(p);
+        if (flag != 0) {
+            bytes memory c = _copy(1024);
+            result = bytes32(c.length);
+        }
+        result ^= h0 ^ h1 ^ h2 ^ h3 ^ h4 ^ h5 ^ h6 ^ h7 ^ h8 ^ h9 ^ h10 ^ h11 ^ h12 ^ h13 ^ h14 ^ h15 ^ h16;
+    }
+
     function _variableCopy(uint256 d, uint256 n) internal pure {
         assembly {
             calldatacopy(d, 0, n)
         }
     }
 
-    function xor(uint256 x, uint256 y) internal pure returns (uint256 z) {
+    function _xor(uint256 x, uint256 y) internal pure returns (uint256 z) {
         assembly {
             z := xor(x, y)
         }

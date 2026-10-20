@@ -106,7 +106,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Whether an input may choose `value`: a parameter, or any word that is not a constant, an
     /// allocation, an internal call's result, or the free memory pointer, or arithmetic that
-    /// mixes one in. The compiler's own pointers lie on the heap above the spill area.
+    /// mixes one in. The compiler's own pointers lie on the heap above the spill area, and a
+    /// pointer that a call returns is taken to be one.
     fn is_chosen_by_input(
         func: &Function,
         value: ValueId,
@@ -116,12 +117,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Value::Arg(_) | Value::Undef(_) | Value::Error(_) => true,
             Value::Immediate(_) => false,
             Value::Inst(inst_id) if visiting.insert(value) => match &func.inst(*inst_id).kind {
-                InstKind::ICall { .. } | InstKind::Alloc { .. } | InstKind::Fmp => false,
-                InstKind::Load(ptr, PtrLocation::Memory)
-                    if func.value_u64(*ptr) == Some(EvmMemoryLayout::FMP_SLOT) =>
-                {
-                    false
-                }
+                _ if Self::reads_free_memory_pointer(func, *inst_id) => false,
                 InstKind::Add(lhs, rhs)
                 | InstKind::Sub(lhs, rhs)
                 | InstKind::Mul(lhs, rhs)

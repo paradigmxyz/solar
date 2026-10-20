@@ -775,17 +775,18 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   reaches above `0x2080`, and above the constant ranges assembly names there in
   the functions it runs or that an external function sharing those frames
   runs. So does one that leaves a constant in the slot until a read of it, an
-  internal call, a return, or a tail call into code that reads it, when the
-  constant lies below `0x1000` or at or below the spill area, because a later
-  pass folded the address or the value after `heap-floor` ran: the spill area
-  then lies `0x2000` above the constant. A word that still depends on a
-  parameter after inlining keeps the limitation above. This costs memory
-  expansion gas; other external functions keep their memory low unless they
-  share those frames, or a recursive helper places every frame above all
-  external functions. A copy
-  of constant length to a destination that an input chooses, and a constant
-  address that a `select` or `phi` picks, protect the spills as one of variable
-  length does.
+  internal call, a return, or a tail call into code that reads it, returns, or
+  tail calls on, when the constant lies below `0x1000` or within `0x2000` of a
+  spill area that other layouts raised, because a later pass folded the address
+  or the value after `heap-floor` ran: the spill area then lies at least
+  `0x2000` above the constant. A word that still depends on a parameter after
+  inlining keeps the limitation above, and constructors keep their layout. A
+  copy of constant length to a destination that an input chooses, and a
+  constant address that a `select` or `phi` picks, protect the spills as one of
+  variable length does; a pointer that a call returns is taken to lie on the
+  heap. This costs memory expansion gas; other external functions keep their
+  memory low unless they share those frames, or a recursive helper places every
+  frame above all external functions.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,

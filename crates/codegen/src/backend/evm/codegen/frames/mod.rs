@@ -28,12 +28,12 @@ use crate::mir::{
 /// `HEAP_START` is treated as possibly reaching the spill area.
 const SPILL_HAZARD_BOUND: u64 = 0x2000;
 
-/// A constant stored into the free memory pointer from this address up leaves low memory to
-/// the spill area, unless the spill area lies above it.
-const LOW_HEAP_POINTER_BOUND: u64 = 0x1000;
-
 /// The address `SPILL_HAZARD_BOUND` above `HEAP_START`, where low memory ends.
 const LOW_MEMORY_BOUND: u64 = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
+
+/// A heap pointer from this address up leaves low memory to the spill area, unless the spill
+/// area lies above the start of that memory.
+const LOW_HEAP_POINTER_BOUND: u64 = 0x1000;
 
 mod hazards;
 
@@ -363,7 +363,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Entries reach mostly the same functions, so each function's marks are computed once.
         let mut constant_memory_marks = index_vec![None; module.functions.len()];
         let mut low_memory_marks = index_vec![None; module.functions.len()];
-        let mut folded_pointers = index_vec![None; module.functions.len()];
+        let mut folded_pointers = index_vec![None::<Vec<u64>>; module.functions.len()];
         // An entry's spill area stays above every constant image the functions it reaches lay
         // out, but only a calldata-sized layout it runs before control passes to another entry
         // moves it above low memory. The dispatcher's tail calls into the external functions
@@ -394,19 +394,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                     })
                     .max()
                     .unwrap_or(0);
-                let mark = images.max(own);
-                // A heap that starts at a folded constant grows over a spill area at or above it,
-                // so the area moves `SPILL_HAZARD_BOUND` above the constant.
-                let pointer = reach
+                let pointers = reach
                     .iter()
-                    .filter_map(|func_id| {
-                        *folded_pointers[func_id].get_or_insert_with(|| {
-                            Self::folded_free_memory_pointer(module, &module.functions[func_id])
-                        })
+                    .flat_map(|func_id| {
+                        folded_pointers[func_id]
+                            .get_or_insert_with(|| {
+                                Self::folded_free_memory_pointers(
+                                    module,
+                                    &module.functions[func_id],
+                                )
+                            })
+                            .clone()
                     })
-                    .max()
-                    .filter(|&pointer| pointer < LOW_HEAP_POINTER_BOUND || pointer <= mark);
-                (entry, pointer.map_or(mark, |pointer| mark.max(pointer + SPILL_HAZARD_BOUND)))
+                    .collect::<Vec<_>>();
+                (entry, Self::raise_for_folded_pointers(images.max(own), &pointers))
             })
             .collect::<FxHashMap<_, _>>();
         // Compiler memory that starts at or above the bound must also clear the fixed memory
@@ -1357,6 +1358,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the constants `value` is, or the constants of the `select` or `phi` that chooses
     /// among them, and nothing when any other word can reach it.
     fn constant_leaves(func: &Function, value: ValueId) -> Vec<u64> {
+        if let Some(leaf) = func.value_u64(value) {
+            return vec![leaf];
+        }
         let mut leaves = Vec::new();
         let mut pending = vec![value];
         let mut visited = DenseBitSet::new_empty(func.num_values());
@@ -1428,9 +1432,34 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Returns the highest address the heap may start at after a store into the
-    /// free-memory-pointer slot of `func` that reaches a read of the slot, an internal call, or a
-    /// return, when calldata or constants alone compute the stored word (zero for calldata).
+    /// Raises the spill area start `mark` above the heaps that folded pointers start, as long as
+    /// one of them reaches the area.
+    ///
+    /// A heap from a pointer below `LOW_HEAP_POINTER_BOUND`, or within `SPILL_HAZARD_BOUND` of a
+    /// spill area that other layouts raised, grows over the area, so it moves that far above the
+    /// pointer. Raising it can bring another pointer into reach.
+    fn raise_for_folded_pointers(mut mark: u64, pointers: &[u64]) -> u64 {
+        loop {
+            let start = mark.max(EvmMemoryLayout::HEAP_START);
+            let raised = pointers
+                .iter()
+                .filter(|&&pointer| {
+                    pointer < LOW_HEAP_POINTER_BOUND
+                        || (start > EvmMemoryLayout::HEAP_START
+                            && pointer < start + SPILL_HAZARD_BOUND)
+                })
+                .map(|&pointer| (pointer + SPILL_HAZARD_BOUND).max(LOW_MEMORY_BOUND))
+                .fold(mark, u64::max);
+            if raised == mark {
+                return mark;
+            }
+            mark = raised;
+        }
+    }
+
+    /// Returns the heaps that may start at the words `func` stores into the free-memory-pointer
+    /// slot, when calldata or constants alone compute the word (zero when no constant picks it)
+    /// and it reaches a read of the slot, an internal call, or a return.
     ///
     /// The heap-floor pass clamps the stores that inline assembly writes there, but it runs before
     /// the passes that fold a guarded address or value, or inline a helper that stores its
@@ -1439,56 +1468,62 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// reaches. A word that another store replaces first, as `solady`'s sentinel does, or that
     /// only a `return` or `revert` opcode reads, never becomes the pointer. A tail call counts
     /// unless its callee never reads the slot, returns, or tail calls, as an outlined revert.
-    fn folded_free_memory_pointer(module: &Module, func: &Function) -> Option<u64> {
+    fn folded_free_memory_pointers(module: &Module, func: &Function) -> Vec<u64> {
+        if !func.blocks.iter().any(|block| func.block_stores_fmp_slot(block)) {
+            return Vec::new();
+        }
         let inputs = absolute_address_inputs(func);
-        // The highest pointer each block's entry may hold, from this function's stores.
-        let mut at_entry = index_vec![None::<u64>; func.blocks.len()];
+        // The heaps each block's entry may hold, from this function's stores.
+        let mut at_entry = index_vec![Vec::<u64>::new(); func.blocks.len()];
         let mut pending = vec![BlockId::ENTRY];
         let mut visited = DenseBitSet::new_empty(func.blocks.len());
         visited.insert(BlockId::ENTRY);
-        let mut found = None::<u64>;
+        let mut found = Vec::new();
         while let Some(block_id) = pending.pop() {
             let block = &func.blocks[block_id];
-            let mut held = at_entry[block_id];
+            let mut held = at_entry[block_id].clone();
             for &inst_id in &block.instructions {
                 match func.inst(inst_id).kind {
                     InstKind::Store(_, value, _) if func.is_fmp_slot_store(inst_id) => {
-                        held = if inputs[value] == AddressInput::Other {
-                            None
-                        } else {
-                            Self::constant_leaves(func, value).into_iter().max().or(Some(0))
-                        };
+                        held.clear();
+                        if inputs[value] != AddressInput::Other {
+                            let leaves = Self::constant_leaves(func, value);
+                            held.extend(if leaves.is_empty() { vec![0] } else { leaves });
+                        }
                     }
-                    _ if held.is_some() && Self::reads_free_memory_pointer(func, inst_id) => {
-                        found = found.max(held);
+                    _ if Self::reads_free_memory_pointer(func, inst_id) => {
+                        found.extend_from_slice(&held);
                     }
                     _ => {}
                 }
             }
             let Some(terminator) = &block.terminator else { continue };
-            if held.is_some() {
-                match terminator {
-                    Terminator::Return { .. } => found = found.max(held),
-                    Terminator::TailCall { function, .. }
-                        if Self::tail_callee_may_read_free_memory_pointer(
-                            &module.functions[*function],
-                        ) =>
-                    {
-                        found = found.max(held);
-                    }
-                    _ => {}
+            match terminator {
+                Terminator::Return { .. } => found.extend_from_slice(&held),
+                Terminator::TailCall { function, .. }
+                    if Self::tail_callee_may_read_free_memory_pointer(
+                        &module.functions[*function],
+                    ) =>
+                {
+                    found.extend_from_slice(&held);
                 }
+                _ => {}
             }
             for successor in terminator.successors() {
-                let raised = held > at_entry[successor];
-                if raised {
-                    at_entry[successor] = held;
+                let entry = &mut at_entry[successor];
+                let before = entry.len();
+                for &pointer in &held {
+                    if !entry.contains(&pointer) {
+                        entry.push(pointer);
+                    }
                 }
-                if raised || visited.insert(successor) {
+                if entry.len() != before || visited.insert(successor) {
                     pending.push(successor);
                 }
             }
         }
+        found.sort_unstable();
+        found.dedup();
         found
     }
 
