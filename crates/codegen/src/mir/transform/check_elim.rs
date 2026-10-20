@@ -128,8 +128,11 @@
 //! followed only when its fact is present in the current scope; the index itself
 //! proves nothing. Derived values that never exceed their source (right shifts, masks,
 //! remainders, divisions by a nonzero constant) contribute universal `<=` edges
-//! that hold in every scope, so `i < length / 2` reaches `i < length`. A checked
-//! difference fails rather than wrap, so it never exceeds its minuend and stays below
+//! that hold in every scope, so `i < length / 2` reaches `i < length`. A remainder is also
+//! below its divisor once the divisor is above zero: always for a checked remainder, which
+//! fails on zero, or a constant divisor, and otherwise in the scope of its definition when that
+//! scope proves the divisor positive, as an index `r % n` drawn under `n > 1` is below `n`. A
+//! checked difference fails rather than wrap, so it never exceeds its minuend and stays below
 //! it for a nonzero constant subtrahend: a heap's parent `(pos - 1) >> 1` is below `pos`. A value
 //! with a strict path below it in the current scope is at least one, which
 //! folds `length == 0` guards and the `length - 1` underflow check that follow
@@ -1033,6 +1036,13 @@ impl<'a> CheckEliminator<'a> {
                             && let Some(value) = self.redundant_mask(func, id)
                         {
                             self.redundant_masks.push((id, value));
+                        }
+                        // x % y < y wherever the definition's scope proves y > 0
+                        if let InstKind::Mod(_, divisor) = func.inst(id).kind
+                            && let Some(value) = func.inst_result_value(id)
+                            && self.range_of(func, divisor, MAX_DEPTH).lo > U256::ZERO
+                        {
+                            self.add_relation(Relation::Lt(value, divisor));
                         }
                         let fact = match &func.inst(id).kind {
                             InstKind::ICall {
@@ -2763,8 +2773,14 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
             continue;
         }
         match func.inst(inst_id).kind {
-            InstKind::Shr(_, x) | InstKind::Mod(x, _) | InstKind::Trunc(x, _) => {
+            InstKind::Shr(_, x) | InstKind::Trunc(x, _) => {
                 relations.insert(Relation::Le(value, x));
+            }
+            InstKind::Mod(x, divisor) => {
+                relations.insert(Relation::Le(value, x));
+                if const_of(func, divisor).is_some_and(|c| !c.is_zero()) {
+                    relations.insert(Relation::Lt(value, divisor));
+                }
             }
             InstKind::Zext(x) => {
                 let (a, b) = ordered(value, x);
@@ -2772,6 +2788,17 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
             }
             InstKind::Div(x, divisor) if const_of(func, divisor).is_some_and(|c| !c.is_zero()) => {
                 relations.insert(Relation::Le(value, x));
+            }
+            // A checked remainder fails on a zero divisor, so it is below its divisor wherever it
+            // exists, and so is a remainder by a nonzero constant.
+            InstKind::CheckedBinary {
+                op: CheckedOp::Rem,
+                arithmetic: ArithmeticKind::Unsigned(_),
+                lhs: x,
+                rhs: divisor,
+            } => {
+                relations.insert(Relation::Le(value, x));
+                relations.insert(Relation::Lt(value, divisor));
             }
             // A checked difference fails rather than wrap, so it never exceeds its minuend, and a
             // nonzero constant subtrahend keeps it below.
@@ -2880,6 +2907,15 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
                     pending.extend([b, a]);
                 }
                 _ => {}
+            }
+        }
+        // A remainder's bound by its divisor, which the walk states where the divisor is
+        // positive.
+        for &inst in &block.instructions {
+            if let InstKind::Mod(_, divisor) = func.inst(inst).kind
+                && let Some(value) = func.inst_result_value(inst)
+            {
+                add(Relation::Lt(value, divisor));
             }
         }
     }
