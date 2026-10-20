@@ -1,0 +1,55 @@
+// === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_over_length.sol:PackedHashOverLength ===
+@module PackedHashOverLength
+@types
+  struct0: {i256, ptr<memory>}
+  struct1: {i256, i256}
+
+fn @signed(arg0: ptr<memory>) -> i256 [selector=0x24401e82, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = mload arg0
+    v1 = lt v0, 10
+    v2 = eq v1, false
+    icall revert_if<empty>, v2
+    v3 = mload arg0
+    v4 = checked_add uint256, 48, v3
+    v5 = trunc i256 v4 to i8
+    v6 = keccak256_packed (data hex"19457468657265756d205369676e6564204d6573736167653a0a", uint8 v5, bytes arg0)
+    ret v6
+}
+
+fn @kept(arg0: ptr<memory>) -> struct0 [selector=0xc57c8563, pure, abi_params=[bytes], abi_returns=[word, memory_bytes], abi_return_params=[bytes32, bytes]] {
+  bb0:
+    v0 = keccak256_packed (uint8 i8 7, bytes arg0)
+    v1 = insert_value struct0, undef struct0, 0, v0
+    v2 = insert_value struct0, v1, 1, arg0
+    ret v2
+}
+
+fn @narrow(arg0: ptr<memory>) -> i256 [selector=0x3e18eba5, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = and 0xabcd000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v1 = keccak256_packed (int16 i16 0xfffe, bytes2 v0, bytes arg0)
+    ret v1
+}
+
+fn @empty() -> struct1 [selector=0xf2a75fe4, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
+  bb0:
+    v0 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = keccak256_packed (bytes4 v0, bytes ptr<memory> 96)
+    v2 = mload ptr<memory> 96 !metadata(memory=scratch)
+    v3 = insert_value struct1, undef struct1, 0, v1
+    v4 = insert_value struct1, v3, 1, v2
+    ret v4
+}
+
+fn @whole(arg0: ptr<memory>) -> i256 [selector=0xbbbb2e8a, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (bytes arg0)
+    ret v0
+}
+
+fn @tooLong(arg0: ptr<memory>) -> i256 [selector=0x3db8dd3c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (bytes32 1, uint8 i8 2, bytes arg0)
+    ret v0
+}
