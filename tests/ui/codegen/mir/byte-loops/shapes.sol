@@ -24,6 +24,8 @@
 //@ run-call-fail: sliceCalldata 0x0a0b0c0d0e, 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: freshPair 3 => 0x010203
 //@ run-call: freshPair 0 => 0x
+//@ run-call: wordsFromCalldata [0x0100000000000000000000000000000000000000000000000000000000000000, 0x0200000000000000000000000000000000000000000000000000000000000000] => [0x0100000000000000000000000000000000000000000000000000000000000000, 0x0200000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000]
+//@ run-call: wordsFromCalldata [] => [0x0000000000000000000000000000000000000000000000000000000000000000]
 //@ run-call: fresh 0x0102030405, 1, 3 => 0x00020304
 //@ run-call-fail: fresh 0x0102030405, 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: viaHelper 0x0102030405, 2, 3 => 0x030405
@@ -110,6 +112,13 @@
 // A copy of word elements is an `mcopy` of 32 bytes per element.
 // CHECK-LABEL: fn @copyWords(
 // CHECK: mcopy
+
+// A copy of words out of calldata is one `calldatacopy` after the destination's zeroing.
+// CHECK-LABEL: fn @wordsFromCalldata(
+// CHECK: calldatacopy
+// CHECK: calldatacopy
+// CHECK-NOT: calldataload
+// CHECK: returndata
 
 // Within one array, the copy keeps the loop for a destination that leads into the source.
 // CHECK-LABEL: fn @withinWords(
@@ -217,6 +226,13 @@ contract Test {
         c = new uint256[](n);
         for (uint256 i; i < n; ++i) {
             c[i] = a[from + i];
+        }
+    }
+
+    function wordsFromCalldata(bytes32[] calldata a) external pure returns (bytes32[] memory h) {
+        h = new bytes32[](a.length + 1);
+        for (uint256 i; i < a.length; ++i) {
+            h[i] = a[i];
         }
     }
 
