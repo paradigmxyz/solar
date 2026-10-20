@@ -68,16 +68,16 @@
 //!
 //! A forward byte copy equals `mcopy` unless its destination starts strictly inside its source
 //! range, where the loop copies bytes it already wrote. A calldata source, or a source and a
-//! destination that are distinct allocations or an argument and a fresh allocation, cannot
-//! overlap. Other copies test the addresses at run time and fall back to the original loop
-//! when the destination leads into the source.
+//! destination at distinct allocation sites that the alias analysis keeps apart, cannot overlap.
+//! A memory argument may overlap a fresh allocation, so other copies test the addresses at run
+//! time and fall back to the original loop when the destination leads into the source.
 //!
 //! # Place in the pipeline
 //!
 //! The pass runs on semantic MIR right after `loop-canonicalize`, where checks are still single
 //! instructions and object identities are explicit. `inline-tagged` has already cloned the
-//! `@custom:solar-inline` helpers, so their loops see the callers' objects: a copy into a buffer
-//! the caller just allocated needs no overlap guard. The pass runs before the cost-based
+//! `@custom:solar-inline` helpers, so their loops see the callers' objects: a copy between two
+//! buffers the caller allocated needs no overlap guard. The pass runs before the cost-based
 //! inliner, so any other helper that spells a word access shrinks to a few instructions before
 //! callers decide to inline it. Both optimization objectives run it: the result is smaller and
 //! cheaper.
@@ -98,7 +98,7 @@
 use crate::mir::{
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionBuilder, InstId,
     InstKind, MirType, Module, PanicCode, PtrLocation, RevertKind, Terminator, Value, ValueId,
-    analysis::{Loop, LoopAnalyzer},
+    analysis::{AliasAnalysis, Loop, LoopAnalyzer, MemoryBase},
     pass::{MirPass, ModuleAnalyses, run_function_pass},
     utils::{fold_terminator_to_jump, invalidate_unreachable_block, rebuild_predecessors},
 };
@@ -915,12 +915,16 @@ fn word_copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     })
 }
 
-/// Whether two memory objects are provably distinct allocations, or an argument and an
-/// allocation made in this function, which lies above every object that existed on entry.
+/// Whether two memory objects are distinct allocation sites, which never overlap. A memory
+/// argument may overlap a fresh allocation, and an allocation after a free memory pointer reset
+/// may overlap an earlier one, so only the bases the alias analysis keeps apart count.
 fn disjoint_objects(func: &Function, a: ValueId, b: ValueId) -> bool {
-    let fresh = |v| matches!(*func.value(v), Value::Inst(i) if matches!(func.inst(i).kind, InstKind::Alloc { .. }));
-    let argument = |v| matches!(func.value(v), Value::Arg(..));
-    a != b && ((fresh(a) && (fresh(b) || argument(b))) || (fresh(b) && argument(a)))
+    let aa = AliasAnalysis::new(func);
+    let site = |value| match aa.memory_address(func, value)?.base {
+        MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => Some(inst),
+        _ => None,
+    };
+    matches!((site(a), site(b)), (Some(a), Some(b)) if a != b)
 }
 
 /// Whether every body instruction that may fail or write belongs to the pattern.
