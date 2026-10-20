@@ -1,0 +1,98 @@
+//@ codegen-matrix: standard dump
+//@[dump] compile-flags: -Ogas -Zdump=mir
+//@[dump] filecheck:
+//@ run-call: uncheckedDown 0x0102030405, 1, 3 => 0x020304
+//@ run-call: uncheckedDown 0x0102, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0 => 0x
+//@ run-call-fail: uncheckedDown 0x0102, 1, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: uncheckedDown 0x0102, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: uncheckedDown 0x0102, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: checkedDown 0x0102030405, 1, 3 => 0x020304
+//@ run-call-fail: checkedDown 0x0102, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: mixedDown 0x0102030405, 1, 3 => 0x020304
+//@ run-call-fail: mixedDown 0x01, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: mixedDown 0x0102, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: sourceFirst 0x0102030405, 1, 0, 3 => 0x020304
+//@ run-call-fail: sourceFirst 0x0102, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+
+// A downward copy's first iteration indexes `offset + count - 1`. A checked addition that wraps
+// panics there with `Panic(0x11)`. An unchecked one wraps silently, and the falling index then
+// reaches `2^256 - 1` in some iteration, where its bounds check raises `Panic(0x32)`.
+contract Test {
+    // Unchecked index arithmetic fails with `Panic(0x32)` when it wraps.
+    // CHECK-LABEL: fn @uncheckedDown(
+    // CHECK-NOT: mstore8
+    // CHECK: [[END:v[0-9]+]] = add arg1, arg2
+    // CHECK-NEXT: [[WRAPS:v[0-9]+]] = lt [[END]], arg1
+    // CHECK-NEXT: [[PAST:v[0-9]+]] = gt [[END]], {{v[0-9]+}}
+    // CHECK-NEXT: [[FAILS:v[0-9]+]] = or [[WRAPS]], [[PAST]]
+    // CHECK-NEXT: jumpi [[FAILS]]
+    // CHECK: calldatacopy
+    // CHECK-NOT: mstore 32, 17
+    function uncheckedDown(bytes calldata src, uint256 from, uint256 count)
+        external
+        pure
+        returns (bytes memory out)
+    {
+        out = new bytes(count);
+        unchecked {
+            for (uint256 k = count; k > 0; --k) {
+                out[k - 1] = src[from + k - 1];
+            }
+        }
+    }
+
+    // Checked arithmetic fails with `Panic(0x11)`.
+    // CHECK-LABEL: fn @checkedDown(
+    // CHECK-NOT: mstore8
+    // CHECK: [[END:v[0-9]+]] = add arg1, arg2
+    // CHECK-NEXT: [[WRAPS:v[0-9]+]] = lt [[END]], arg1
+    // CHECK-NEXT: jumpi [[WRAPS]]
+    // CHECK: calldatacopy
+    // CHECK: mstore 32, 17
+    function checkedDown(bytes calldata src, uint256 from, uint256 count)
+        external
+        pure
+        returns (bytes memory out)
+    {
+        out = new bytes(count);
+        for (uint256 k = count; k > 0; --k) {
+            out[k - 1] = src[from + k - 1];
+        }
+    }
+
+    // An unchecked sum whose checked decrement fails where the sum reaches zero stays a loop.
+    // CHECK-LABEL: fn @mixedDown(
+    // CHECK: mstore8
+    function mixedDown(bytes calldata src, uint256 from, uint256 count)
+        external
+        pure
+        returns (bytes memory out)
+    {
+        out = new bytes(count);
+        for (uint256 k = count; k > 0; --k) {
+            uint256 end;
+            unchecked {
+                end = from + k;
+            }
+            out[k - 1] = src[end - 1];
+        }
+    }
+
+    // So does a wrapping source index ahead of a checked destination addition, which fails first.
+    // CHECK-LABEL: fn @sourceFirst(
+    // CHECK: mstore8
+    function sourceFirst(bytes calldata src, uint256 from, uint256 to, uint256 count)
+        external
+        pure
+        returns (bytes memory out)
+    {
+        out = new bytes(count);
+        for (uint256 k = count; k > 0; --k) {
+            uint256 at;
+            unchecked {
+                at = from + k - 1;
+            }
+            out[to + k - 1] = src[at];
+        }
+    }
+}
