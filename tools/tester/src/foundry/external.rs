@@ -162,7 +162,56 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "marketplace core: via-IR build, assembly decoders behind retyped function pointers",
-        test_fixes: &[],
+        test_fixes: &[
+            TestFix {
+                path: "test/foundry/utils/BaseOrderTest.sol",
+                before: "AmountDeriver {\n    using ArithmeticUtil for uint256;\n",
+                after: "AmountDeriver {\n    function blockTimestamp() external view returns (uint256) {\n        return block.timestamp;\n    }\n\n    function locateCurrentAmountNow(\n        uint256 startAmount,\n        uint256 endAmount,\n        uint256 startTime,\n        uint256 endTime,\n        bool roundUp\n    ) external view returns (uint256) {\n        return _locateCurrentAmount(startAmount, endAmount, startTime, endTime, roundUp);\n    }\n\n    using ArithmeticUtil for uint256;\n",
+                reason: "add helpers that read the timestamp after vm.warp in their own call (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/FulfillOrderTest.t.sol",
+                before: "uint256 startTime = block.timestamp;\n        vm.warp(block.timestamp + context.args.warpAmount);\n        uint256 expectedAmount = _locateCurrentAmount(\n            context.args.startAmount.mul(1000),\n            context.args.endAmount.mul(1000),\n            startTime,\n            startTime + 1000,\n            false",
+                after: "vm.warp(block.timestamp + context.args.warpAmount);\n        uint256 startTime = this.blockTimestamp() - context.args.warpAmount;\n        uint256 expectedAmount = this.locateCurrentAmountNow(\n            context.args.startAmount.mul(1000),\n            context.args.endAmount.mul(1000),\n            startTime,\n            startTime + 1000,\n            false",
+                reason: "derive the expected offer amount from the warped timestamp (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/FulfillOrderTest.t.sol",
+                before: "uint256 startTime = block.timestamp;\n        vm.warp(block.timestamp + context.args.warpAmount);\n        uint256 expectedAmount = _locateCurrentAmount(\n            context.args.startAmount.mul(1000),\n            context.args.endAmount.mul(1000),\n            startTime,\n            startTime + 1000,\n            true",
+                after: "vm.warp(block.timestamp + context.args.warpAmount);\n        uint256 startTime = this.blockTimestamp() - context.args.warpAmount;\n        uint256 expectedAmount = this.locateCurrentAmountNow(\n            context.args.startAmount.mul(1000),\n            context.args.endAmount.mul(1000),\n            startTime,\n            startTime + 1000,\n            true",
+                reason: "derive the expected consideration amount from the warped timestamp (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/FulfillAdvancedOrder.t.sol",
+                before: "uint256 startTime = block.timestamp;\n        vm.warp(block.timestamp + context.warpAmount);",
+                after: "vm.warp(block.timestamp + context.warpAmount);\n        uint256 startTime = this.blockTimestamp() - context.warpAmount;",
+                reason: "derive the order start from the warped timestamp (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/FulfillAdvancedOrder.t.sol",
+                before: "uint256 currentAmount = _locateCurrentAmount(\n            context.tokenAmount * 2,",
+                after: "uint256 currentAmount = this.locateCurrentAmountNow(\n            context.tokenAmount * 2,",
+                reason: "read the warped timestamp for the expected offer amount (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/MatchAdvancedOrder.t.sol",
+                before: "vm.warp(startTime + 500);\n\n        // current amount should be mean of start and end amounts\n        uint256 currentAmount = _locateCurrentAmount(\n            context.args.baseStart.mul(20), // start amount\n            context.args.baseEnd.mul(20), // end amount\n            startTime, // startTime\n            startTime + 1000, // endTime\n            false",
+                after: "vm.warp(startTime + 500);\n        startTime = this.blockTimestamp() - 500;\n\n        // current amount should be mean of start and end amounts\n        uint256 currentAmount = this.locateCurrentAmountNow(\n            context.args.baseStart.mul(20), // start amount\n            context.args.baseEnd.mul(20), // end amount\n            startTime, // startTime\n            startTime + 1000, // endTime\n            false",
+                reason: "derive the expected offer amount from the warped timestamp (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/MatchAdvancedOrder.t.sol",
+                before: "vm.warp(startTime + 500);\n\n        // current amount should be mean of start and end amounts\n        uint256 currentAmount = _locateCurrentAmount(\n            context.args.baseStart.mul(20), // start amount\n            context.args.baseEnd.mul(20), // end amount\n            startTime, // startTime\n            startTime + 1000, // endTime\n            true",
+                after: "vm.warp(startTime + 500);\n        startTime = this.blockTimestamp() - 500;\n\n        // current amount should be mean of start and end amounts\n        uint256 currentAmount = this.locateCurrentAmountNow(\n            context.args.baseStart.mul(20), // start amount\n            context.args.baseEnd.mul(20), // end amount\n            startTime, // startTime\n            startTime + 1000, // endTime\n            true",
+                reason: "derive the expected consideration amount from the warped timestamp (CODEGEN-008)",
+            },
+            TestFix {
+                path: "test/foundry/zone/PreAndPostFulfillmentCheck.t.sol",
+                before: "        uint8 numTips\n    ) public {\n        test(\n            this.execBasicStatefulFuzz,",
+                after: "        uint8 numTips\n    ) public {\n        numOriginalAdditional %= 39;\n        numTips %= 39 - numOriginalAdditional;\n        test(\n            this.execBasicStatefulFuzz,",
+                reason: "fuzz basic orders with at most 38 additional recipients; 39 reach the compiler's memory (CODEGEN-010)",
+            },
+        ],
     },
     ExternalProject {
         name: "openzeppelin-contracts",
