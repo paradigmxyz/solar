@@ -359,8 +359,19 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
         });
         if let Some(id) = target {
             let function = self.gcx.hir.function(id);
-            for (&parameter, argument) in function.parameters.iter().zip(modifier.args.exprs()) {
-                self.connect(&[parameter], argument);
+            // Named arguments bind by name, in any written order.
+            let names = matches!(modifier.args.kind, hir::CallArgsKind::Named(_)).then(|| {
+                self.gcx.callable_param_names(CallableParamSource::Function {
+                    id,
+                    skips_receiver: false,
+                })
+            });
+            for (index, &parameter) in function.parameters.iter().enumerate() {
+                if let Some(argument) =
+                    modifier.args.argument_for_parameter(index, names.as_deref())
+                {
+                    self.connect(&[parameter], argument);
+                }
             }
             if self.visited.insert(id) {
                 self.walk_function(function)?;

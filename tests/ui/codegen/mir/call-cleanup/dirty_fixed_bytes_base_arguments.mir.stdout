@@ -14,26 +14,44 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bytes4]] {
     ret
 }
 
+// === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_fixed_bytes_base_arguments.sol:BaseC ===
+@module BaseC
+fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[bytes4, bytes4]] {
+  bb0:
+    sstore 0, arg1 !metadata(storage=slot(0))
+    ret
+}
+
 // === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_fixed_bytes_base_arguments.sol:DirtyFixedBytesBaseArguments ===
 @module DirtyFixedBytesBaseArguments
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @retyped
+    v0 = icall @retypedForC
     v1 = icall @retyped
-    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = icall @retyped
+    sstore 0, v2 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    sstore 1, v0 !metadata(storage=slot(1))
+    sstore 1, v1 !metadata(storage=slot(1))
     jump bb2
   bb2:
+    sstore 2, v0 !metadata(storage=slot(2))
     jump bb3
   bb3:
+    jump bb4
+  bb4:
     ret
 }
 
 fn @seenA() -> i256 [selector=0x8aa81b08, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @seenC() -> i256 [selector=0x4c1c3c28, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
     ret v0
 }
 
@@ -49,6 +67,12 @@ fn @identity(arg0: i256) -> i256 [pure] {
 }
 
 fn @retyped() -> i256 [pure] {
+  bb0:
+    v0 = icall @internal_dispatcher_asm_p_bytes32_r_bytes4, 1, 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @retypedForC() -> i256 [pure] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_bytes32_r_bytes4, 1, 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0

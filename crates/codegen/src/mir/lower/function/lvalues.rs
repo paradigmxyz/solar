@@ -243,7 +243,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = self.cx.module.immutable_type(immutable_id).mir_type();
             let value = self.builder.load_immutable(immutable_id, ty);
             let source_ty = self.cx.gcx.type_of_item(id.into());
-            if ty != types::TypeLowerer::mir_type(source_ty) {
+            // A raw immutable stores the raw bits of its initializer.
+            if ty != types::TypeLowerer::mir_type(source_ty)
+                || self.cx.state.raw_scalars.contains(&id)
+            {
                 self.dirty_values.insert(value);
             }
             return Some(value);
