@@ -578,9 +578,7 @@ impl LowerAbiCx {
                 let size = builder.slice_len(encoded);
                 builder.ret_data(offset, size);
             } else {
-                // A result that fits below the heap start never reaches the spill area, and
-                // `return` ends execution, so nothing reads the free memory pointer or zero slot
-                // again.
+                // A result that fits below the heap start never reaches the spill area.
                 let start = if in_scratch {
                     EvmMemoryLayout::SCRATCH_SLOT
                 } else {
