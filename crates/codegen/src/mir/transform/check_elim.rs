@@ -2145,7 +2145,14 @@ impl<'a> CheckEliminator<'a> {
                 if ra.lo >= rb.hi {
                     Range::new(ra.lo - rb.hi, ra.hi - rb.lo)
                 } else if self.has_relation(func, Relation::Le(b, a)) {
-                    Range::new(U256::ZERO, ra.hi.saturating_sub(rb.lo))
+                    // A strictly ordered difference is at least one.
+                    let hi = ra.hi.saturating_sub(rb.lo);
+                    let lo = if hi >= U256::ONE && self.has_relation(func, Relation::Lt(b, a)) {
+                        U256::ONE
+                    } else {
+                        U256::ZERO
+                    };
+                    Range::new(lo, hi)
                 } else {
                     Range::FULL
                 }
@@ -2185,7 +2192,18 @@ impl<'a> CheckEliminator<'a> {
                         Some(lo) => Range::new(lo, ra.hi.saturating_add(rb.hi).min(max)),
                         None => Range::FULL,
                     },
-                    _ if ra.hi >= rb.lo => Range::new(ra.lo.saturating_sub(rb.hi), ra.hi - rb.lo),
+                    _ if ra.hi >= rb.lo => {
+                        // A strictly ordered difference is at least one.
+                        let hi = ra.hi - rb.lo;
+                        let mut lo = ra.lo.saturating_sub(rb.hi);
+                        if lo.is_zero()
+                            && hi >= U256::ONE
+                            && self.has_relation(func, Relation::Lt(rhs, lhs))
+                        {
+                            lo = U256::ONE;
+                        }
+                        Range::new(lo, hi)
+                    }
                     _ => Range::FULL,
                 }
             }
