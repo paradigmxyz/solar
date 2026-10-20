@@ -170,3 +170,26 @@ fn @aliased_argument(arg0: ptr<memory>) {
     v5 = extract_value slice<memory>, v3, 1
     revert v4, v5
 }
+
+// An earlier literal that does not fold is copied from memory by its length, which may reach the
+// removed literal.
+// CHECK: fn @unfolded_literal
+// CHECK: {{^ .*}}alloc 96 !metadata(preserves_fmp)
+fn @unfolded_literal() {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 2
+    v1 = ptradd v0, 32
+    mstore v1, 0x6162000000000000000000000000000000000000000000000000000000000000
+    mstore v0, 64
+    v2 = alloc 96 !metadata(preserves_fmp)
+    mstore v2, 48
+    v3 = ptradd v2, 32
+    mstore v3, 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v4 = ptradd v2, 64
+    mstore v4, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+    v5 = abi_encode [memory_bytes, memory_bytes], scratch, args v0, v2
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    revert v6, v7
+}

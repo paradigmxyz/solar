@@ -1600,10 +1600,10 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
 /// Literal objects whose allocation nothing can observe once their scratch encode has run: the
 /// block returns or reverts with exactly the encoded bytes, nothing after the encode accesses
 /// memory or allocates, no allocation or reserving encode follows the literal's, and every
-/// other argument is a word or another literal, so the free-memory-pointer bump it preserves
-/// moves no address and has no reader. Any other argument may point at memory the encoding
-/// would then overwrite before reading it. `literal_objects_at_encodes` already proved that
-/// no access sits between the allocation and the encode.
+/// other argument is a word, so the free-memory-pointer bump it preserves moves no address
+/// and has no reader. Another memory argument, even a literal that does not fold, reads
+/// memory the encoding would then overwrite first. `literal_objects_at_encodes` already
+/// proved that no access sits between the allocation and the encode.
 fn terminal_scratch_literals(
     func: &Function,
     literal_objects: &FxHashSet<ValueId>,
@@ -1631,9 +1631,9 @@ fn terminal_scratch_literals(
                         !matches!(kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
                             && !literal_opaque_instruction(func, kind, &FxHashSet::default())
                     });
-                    let reads_no_memory = layout.types.iter().zip(args).all(|(ty, arg)| {
+                    let reads_no_memory = layout.types.iter().zip(args).all(|(ty, &arg)| {
                         matches!(ty, AbiType::Word(_) | AbiType::Function)
-                            || literal_objects.contains(arg)
+                            || Some(arg) == last_allocation
                     });
                     if let Some(object) = last_allocation
                         && args.contains(&object)
