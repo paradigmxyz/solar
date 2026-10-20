@@ -78,6 +78,27 @@
 //! A memory argument may overlap a fresh allocation, so other copies test the addresses at run
 //! time and fall back to the original loop when the destination leads into the source.
 //!
+//! # Fresh destinations
+//!
+//! A copy of the whole of a buffer that `new bytes(bound)` allocated, zeroed, right before the
+//! loop overwrites what that zeroing wrote, but for the padding after the copied bytes. When a
+//! zero word stored at the end of the copied bytes follows the loop, as a port pads its result for
+//! legacy solc, or the source's length read before the allocation proves the copy's range, the
+//! allocation stops zeroing: that word, or else a zero store to the allocation's last word before
+//! the copy, clears the padding. Nothing between the allocation and the loop may touch memory but
+//! the store of its length, so nothing reads the bytes unzeroed. The bound must be the length the
+//! allocation's block stores, and the allocation's size `(bound + 63) & ~31`, so the padding fits
+//! in one word.
+//!
+//! An argument source may overlap the allocation, and the loop would then read its zeroed bytes.
+//! So a guarded copy takes its fast path only when the source the loop reads, its length word and
+//! its bytes up to the copied range's end, stays off the allocation. A fast path that checks the
+//! source's range against its length from before the allocation proves it in advance and drops
+//! the check; its test also keeps the source off the free memory pointer, below the zero slot, so
+//! that length is still the source's. The slow path zeroes the buffer as the allocation would
+//! have, then copies as the guarded copy above does. Its loop is entered through that test, not a
+//! preheader, so no loop pass takes it up again.
+//!
 //! The loop's header test skips its body for a zero bound. A copy keeps that test in gas builds,
 //! as [`crate::target::Target::tests_empty_copies`] prices it: a copy of nothing then skips the
 //! overlap test, the checks and the copy, whose checks no longer need the `bound != 0` masks. Size
@@ -108,16 +129,21 @@
 
 use crate::{
     mir::{
-        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function, FunctionBuilder, InstId,
-        InstKind, MirType, Module, PanicCode, PtrLocation, RevertKind, Terminator, Value, ValueId,
-        analysis::{AliasAnalysis, Loop, LoopAnalyzer, MemoryBase},
+        AllocationInitialization, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function,
+        FunctionBuilder, InstId, InstKind, MirType, Module, PanicCode, PtrLocation, RevertKind,
+        Terminator, Value, ValueId,
+        analysis::{AddressSpace, AliasAnalysis, CfgInfo, Loop, LoopAnalyzer, MemoryBase},
+        memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_function_pass},
         utils::{fold_terminator_to_jump, invalidate_unreachable_block, rebuild_predecessors},
     },
     target::Target,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 
 /// One in the low bit of every byte, which spreads a byte over a word.
 const LANES_01: U256 = U256::from_limbs([0x0101_0101_0101_0101; 4]);
@@ -238,6 +264,24 @@ enum Scattered {
 struct Plan {
     lp: Counted,
     shape: Shape,
+    /// The copy's destination, when `new bytes(bound)` just allocated it for the copy to fill.
+    fresh: Option<FreshDestination>,
+}
+
+/// A copy's destination that `new bytes(bound)` allocated right before the loop, so the copy
+/// overwrites every byte of it but its length word and the padding after the copied bytes.
+struct FreshDestination {
+    /// The allocation, which stops zeroing the bytes the copy writes.
+    alloc: InstId,
+    /// The bytes it reserves: the length word, `bound` bytes, and the padding to a whole word.
+    size: ValueId,
+    /// Whether the loop's exit first stores a zero word at the end of the copied bytes, as a
+    /// port that pads its result for legacy solc does, and so clears the padding itself.
+    padded: bool,
+    /// Whether the source's length as read before the allocation proves the copy's range: on the
+    /// fast path, whose test keeps the source off the allocation and the free memory pointer, the
+    /// length word still holds that value.
+    source_fits: bool,
 }
 
 fn plan(func: &Function, l: &Loop) -> Option<Plan> {
@@ -272,7 +316,8 @@ fn plan(func: &Function, l: &Loop) -> Option<Plan> {
             return None;
         }
     }
-    Some(Plan { lp, shape })
+    let fresh = fresh_destination(func, l, &lp, &shape);
+    Some(Plan { lp, shape, fresh })
 }
 
 fn counted(func: &Function, l: &Loop) -> Option<Counted> {
@@ -1035,8 +1080,243 @@ fn only_pattern_effects(func: &Function, lp: &Counted, used: &[InstId]) -> bool 
     lp.insts.iter().all(|inst| used.contains(inst) || !func.inst(*inst).kind.has_side_effects())
 }
 
+/// Matches a byte copy, counting up, of the whole of a destination that `new bytes(bound)`
+/// allocated, zeroed, on the only way into the loop: its size is `(bound + 63) & ~31`, its
+/// block stores `bound` into its length word last, and nothing between the allocation and the
+/// loop touches memory but that store.
+fn fresh_destination(
+    func: &Function,
+    l: &Loop,
+    lp: &Counted,
+    shape: &Shape,
+) -> Option<FreshDestination> {
+    let Shape::Copy { src, dst, overlap, .. } = shape else { return None };
+    let Buffer::Memory(object) = dst.buffer else { return None };
+    if lp.descending
+        || dst.offset.is_some_and(|offset| func.value_u64(offset) != Some(0))
+        || src.shift != 0
+    {
+        return None;
+    }
+    let Value::Inst(alloc) = *func.value(object) else { return None };
+    let InstKind::Alloc { size, semantics } = func.inst(alloc).kind else { return None };
+    if semantics.initialization != AllocationInitialization::Zeroed
+        || !bytes_size(func, size, lp.bound)
+        || !stored_length(func, object).is_some_and(|len| same_value(func, len, lp.bound, 2))
+    {
+        return None;
+    }
+    let aa = AliasAnalysis::new(func);
+    let touches_memory = |inst| {
+        let effects = aa.instruction_mod_ref(func, inst);
+        effects.reads_space(AddressSpace::Memory) || effects.writes_space(AddressSpace::Memory)
+    };
+    // The blocks from the allocation's to the preheader, each the only way into the next.
+    let mut chain = vec![lp.preheader];
+    while !func.blocks[*chain.last()?].instructions.contains(&alloc) {
+        let block = *chain.last()?;
+        let [pred] = func.blocks[block].predecessors.as_slice() else { return None };
+        if chain.len() > 8
+            || l.blocks.contains(*pred)
+            || func.blocks[*pred].terminator != Some(Terminator::Jump(block))
+        {
+            return None;
+        }
+        chain.push(*pred);
+    }
+    let first = &func.blocks[*chain.last()?].instructions;
+    let after = first.iter().position(|&inst| inst == alloc)? + 1;
+    let quiet = chain[..chain.len() - 1]
+        .iter()
+        .flat_map(|&block| func.blocks[block].instructions.iter().copied())
+        .chain(first[after..].iter().copied())
+        .all(|inst| {
+            func.memory_length_store(inst).is_some_and(|(stored, _)| stored == object)
+                || !touches_memory(inst)
+        });
+    if !quiet {
+        return None;
+    }
+    // A zero word stored at the end of the copied bytes before anything after the loop touches
+    // memory but a read of the destination's length word, through the jumps that lead on from
+    // the loop's exit.
+    let header = |inst| func.inst(inst).kind == InstKind::Load(object, PtrLocation::Memory);
+    let mut padded = false;
+    let mut block = lp.exit;
+    for _ in 0..8 {
+        if let Some(inst) = func.blocks[block]
+            .instructions
+            .iter()
+            .copied()
+            .find(|&inst| !header(inst) && touches_memory(inst))
+        {
+            padded = match func.inst(inst).kind {
+                InstKind::Store(address, zero, PtrLocation::Memory) => {
+                    func.value_u64(zero) == Some(0) && payload_end(func, address, object, lp.bound)
+                }
+                _ => false,
+            };
+            break;
+        }
+        let Some(Terminator::Jump(next)) = func.blocks[block].terminator else { break };
+        block = next;
+    }
+    let source_fits = match (overlap, src.buffer) {
+        (Overlap::Guarded, Buffer::Memory(source)) => length_before(func, &aa, alloc, source)
+            .is_some_and(|len| range_fits(func, src.offset, lp.bound, len)),
+        _ => false,
+    };
+    // Without either, the copy only trades the allocation's zeroing for a store of its own.
+    (padded || source_fits).then_some(FreshDestination { alloc, size, padded, source_fits })
+}
+
+/// Whether `bound` bytes from `offset` fit in a length `len`: `len` itself from offset zero, or
+/// the checked `len - offset` from `offset`.
+fn range_fits(func: &Function, offset: Option<ValueId>, bound: ValueId, len: ValueId) -> bool {
+    match offset.filter(|&offset| func.value_u64(offset) != Some(0)) {
+        None => same_value(func, bound, len, 2),
+        Some(offset) => matches!(*func.value(bound), Value::Inst(inst) if matches!(
+            func.inst(inst).kind,
+            InstKind::CheckedBinary {
+                op: CheckedOp::Sub,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs,
+                rhs,
+            } if same_value(func, lhs, len, 2) && same_value(func, rhs, offset, 2)
+        )),
+    }
+}
+
+/// A load of `object`'s length word that runs before the allocation `alloc`, when nothing that
+/// may run before the allocation writes memory: the length word then still holds that value at
+/// the allocation.
+fn length_before(
+    func: &Function,
+    aa: &AliasAnalysis,
+    alloc: InstId,
+    object: ValueId,
+) -> Option<ValueId> {
+    let cfg = CfgInfo::new(func);
+    let home = func.blocks.iter_enumerated().find(|(_, b)| b.instructions.contains(&alloc))?.0;
+    if cfg.cyclic_blocks().contains(home) {
+        return None;
+    }
+    let writes = |inst| aa.instruction_mod_ref(func, inst).writes_space(AddressSpace::Memory);
+    let before_alloc = &func.blocks[home].instructions;
+    let before_alloc = &before_alloc[..before_alloc.iter().position(|&inst| inst == alloc)?];
+    if before_alloc.iter().copied().any(writes) {
+        return None;
+    }
+    // Every block that may run before the allocation's.
+    let mut earlier = DenseBitSet::new_empty(func.blocks.len());
+    let mut stack = cfg.predecessors(home).to_vec();
+    while let Some(block) = stack.pop() {
+        if earlier.insert(block) {
+            if func.blocks[block].instructions.iter().copied().any(writes) {
+                return None;
+            }
+            stack.extend_from_slice(cfg.predecessors(block));
+        }
+    }
+    let load = |inst| func.inst(inst).kind == InstKind::Load(object, PtrLocation::Memory);
+    before_alloc
+        .iter()
+        .copied()
+        .find(|&inst| load(inst))
+        .or_else(|| {
+            earlier
+                .iter()
+                .filter(|&block| cfg.dominators().dominates(block, home))
+                .flat_map(|block| func.blocks[block].instructions.iter().copied())
+                .find(|&inst| load(inst))
+        })
+        .and_then(|inst| func.inst_result_value(inst))
+}
+
+/// Whether `size` is `(len + 63) & ~31`, the bytes `new bytes(len)` reserves: the length word
+/// and `len` bytes padded to whole words. `len` may itself come padded to whole words, as a
+/// buffer allocated in words and cut to its length by a trusted `mstore(b, len)` allocates.
+fn bytes_size(func: &Function, size: ValueId, len: ValueId) -> bool {
+    let words = |value| {
+        let Value::Inst(and) = *func.value(value) else { return None };
+        let InstKind::And(a, b) = func.inst(and).kind else { return None };
+        let mask = |mask| func.value_u256(mask) == Some(!U256::from(31));
+        if mask(b) { Some(a) } else { mask(a).then_some(b) }
+    };
+    let plus = |value, constant| {
+        let Value::Inst(add) = *func.value(value) else { return None };
+        let InstKind::Add(x, y) = func.inst(add).kind else { return None };
+        if func.value_u64(y) == Some(constant) {
+            Some(x)
+        } else {
+            (func.value_u64(x) == Some(constant)).then_some(y)
+        }
+    };
+    let Some(padded) = words(size).and_then(|sum| plus(sum, 63)) else { return false };
+    same_value(func, padded, len, 2)
+        || words(padded).and_then(|sum| plus(sum, 31)).is_some_and(|x| same_value(func, x, len, 2))
+}
+
+/// Whether `address` is `object + 32 + len` in either association, the end of the object's
+/// first `len` bytes, with `len` itself or the object's length word.
+fn payload_end(func: &Function, address: ValueId, object: ValueId, len: ValueId) -> bool {
+    let add = |value| match *func.value(value) {
+        Value::Inst(inst) => match func.inst(inst).kind {
+            InstKind::Add(a, b) => Some((a, b)),
+            _ => None,
+        },
+        _ => None,
+    };
+    let base = |value| {
+        matches!(*func.value(value), Value::Inst(inst)
+            if func.inst(inst).kind == InstKind::PtrToInt(object, 256))
+    };
+    let length = |value| {
+        same_value(func, value, len, 2)
+            || matches!(*func.value(value), Value::Inst(inst)
+                if func.inst(inst).kind == InstKind::Load(object, PtrLocation::Memory))
+    };
+    let Some((a, b)) = add(address) else { return false };
+    [(a, b), (b, a)].into_iter().any(|(inner, outer)| {
+        add(inner).is_some_and(|(c, d)| {
+            [(c, d), (d, c)].into_iter().any(|(pointer, other)| {
+                base(pointer)
+                    && ((func.value_u64(other) == Some(32) && length(outer))
+                        || (func.value_u64(outer) == Some(32) && length(other)))
+            })
+        })
+    })
+}
+
+/// Whether `a` and `b` hold the same value wherever both are defined: one SSA value, one
+/// constant, or the same arithmetic of operands that are, as the two spellings of `end - start`
+/// that checked arithmetic leaves apart until it is lowered. Looks `depth` operations deep.
+fn same_value(func: &Function, a: ValueId, b: ValueId, depth: u32) -> bool {
+    if a == b || func.value_u256(a).is_some_and(|value| func.value_u256(b) == Some(value)) {
+        return true;
+    }
+    let (&Value::Inst(x), &Value::Inst(y)) = (func.value(a), func.value(b)) else { return false };
+    let Some(depth) = depth.checked_sub(1) else { return false };
+    let same = |a, b| same_value(func, a, b, depth);
+    match (&func.inst(x).kind, &func.inst(y).kind) {
+        (
+            &InstKind::CheckedBinary { op, arithmetic, lhs, rhs },
+            &InstKind::CheckedBinary { op: op2, arithmetic: arithmetic2, lhs: lhs2, rhs: rhs2 },
+        ) => op == op2 && arithmetic == arithmetic2 && same(lhs, lhs2) && same(rhs, rhs2),
+        (&InstKind::Add(a1, b1), &InstKind::Add(a2, b2))
+        | (&InstKind::Sub(a1, b1), &InstKind::Sub(a2, b2)) => same(a1, a2) && same(b1, b2),
+        _ => false,
+    }
+}
+
 fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
-    let Plan { lp, shape } = plan;
+    let Plan { lp, shape, fresh } = plan;
+    if let Some(fresh) = &fresh
+        && let InstKind::Alloc { semantics, .. } = &mut func.inst_mut(fresh.alloc).kind
+    {
+        // The copy writes the bytes the allocation would clear; each path below clears the rest.
+        semantics.initialization = AllocationInitialization::Uninitialized;
+    }
     let mut replacements = FxHashMap::default();
     // The counter leaves the loop equal to its limit: the bound counting up, zero counting down.
     replacements.insert(lp.counter, lp.limit);
@@ -1120,18 +1400,15 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 builder.branch(empty, skip, setup);
                 builder.switch_to_block(setup);
                 // A guarded copy still enters the loop, now from the setup.
-                for &inst in &builder.func().blocks[lp.header].instructions.clone() {
-                    if let InstKind::Phi(incoming) = &mut builder.func_mut().inst_mut(inst).kind {
-                        for (block, _) in incoming.iter_mut() {
-                            if *block == lp.preheader {
-                                *block = setup;
-                            }
-                        }
-                    }
-                }
+                enter_from(builder.func_mut(), lp.header, lp.preheader, setup);
             }
             // size = shl bound, shift
             let size = scaled(&mut builder, lp.bound, src.shift);
+            if let (Some(fresh), Overlap::Guarded) = (&fresh, &overlap) {
+                fresh_guarded_copy(&mut builder, &lp, &src, &dst, fresh, tested);
+                rebuild_predecessors(func);
+                return;
+            }
             let fast = match overlap {
                 Overlap::Disjoint => None,
                 Overlap::Guarded => {
@@ -1186,8 +1463,9 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 }
             } else {
                 // panic_if (bound != 0 && (src range does not fit || dst range does not fit)), 0x32
+                // A fresh destination's length is the bound, so its range always fits.
                 let mut fails = range_fails(&mut builder, &src, lp.bound, false);
-                if dst_checked {
+                if dst_checked && fresh.is_none() {
                     let dst_fails = range_fails(&mut builder, &dst, lp.bound, false);
                     fails = builder.or(fails, dst_fails);
                 }
@@ -1196,6 +1474,9 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                     fails = builder.and(fails, nonzero);
                 }
                 builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
+            }
+            if let Some(fresh) = &fresh {
+                clear_padding(&mut builder, &dst, fresh);
             }
             // mcopy|calldatacopy dst data + offset, src data + offset, bound
             let to = memory_data_address(&mut builder, &dst);
@@ -1228,6 +1509,102 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
         let _ = invalidate_unreachable_block(func, block);
     }
     func.blocks[lp.header].instructions.clear();
+}
+
+/// Emits a copy into a fresh destination whose source may overlap the allocation. The fast path
+/// copies into the unzeroed buffer when the source the loop reads, its length word and its bytes
+/// up to the copied range's end, stays off the whole allocation, whose bytes the loop would read
+/// as zeros. When the source's length read before the allocation proves its range check, the
+/// fast path drops the check and the test also keeps the source off the free memory pointer,
+/// below the zero slot. Otherwise the zeroing runs late, and the copy goes as before: the loop
+/// for a destination that leads into its source, and `mcopy` for any other.
+///
+/// ```text
+/// start = ptrtoint src; base = ptrtoint dst; limit = ptrtoint (ptradd dst, size)
+/// overlaps = start < limit && base < from + bound [|| start < 0x60]
+/// branch overlaps, slow, fast
+/// fast:  [panic_if src range does not fit, 0x32]; [mstore (ptradd dst, size - 32), 0]
+///        mcopy to, from, bound; jump exit
+/// slow:  memory_zero to, size - 32; branch (from < to && to < from + bound), header, again
+/// again: panic_if src range does not fit, 0x32; mcopy to, from, bound; jump exit
+/// ```
+///
+/// The loop's header keeps a branch for its entry, so no loop pass takes the slow path's loop for
+/// a preheader-shaped one to version or rewrite again.
+fn fresh_guarded_copy(
+    builder: &mut FunctionBuilder<'_>,
+    lp: &Counted,
+    src: &Access,
+    dst: &Access,
+    fresh: &FreshDestination,
+    tested: bool,
+) {
+    let (Buffer::Memory(source), Buffer::Memory(object)) = (src.buffer, dst.buffer) else {
+        unreachable!("a guarded copy reads and writes memory")
+    };
+    let entry = builder.current_block();
+    let from = memory_data_address(builder, src);
+    let data = memory_data_address(builder, dst);
+    let from = builder.cast(from, MirType::I256);
+    let to = builder.cast(data, MirType::I256);
+    let end = builder.add(from, lp.bound);
+    let start = builder.cast(source, MirType::I256);
+    let base = builder.cast(object, MirType::I256);
+    let limit = builder.ptradd(object, fresh.size);
+    let limit = builder.cast(limit, MirType::I256);
+    let below = builder.lt(start, limit);
+    let inside = builder.lt(base, end);
+    let mut overlaps = builder.and(below, inside);
+    if fresh.source_fits {
+        let zero_slot = builder.imm(EvmMemoryLayout::ZERO_SLOT);
+        let reserved = builder.lt(start, zero_slot);
+        overlaps = builder.or(overlaps, reserved);
+    }
+    let fast = builder.create_block();
+    let slow = builder.create_block();
+    builder.branch(overlaps, slow, fast);
+    let source_check = |builder: &mut FunctionBuilder<'_>| {
+        // panic_if (bound != 0 && src range does not fit), 0x32
+        let fails = range_fails(builder, src, lp.bound, !tested);
+        builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
+    };
+    builder.switch_to_block(fast);
+    if !fresh.source_fits {
+        source_check(builder);
+    }
+    clear_padding(builder, dst, fresh);
+    builder.copy(data, from, lp.bound, PtrLocation::Memory);
+    builder.jump(lp.exit);
+    builder.switch_to_block(slow);
+    let header = builder.imm(EvmMemoryLayout::WORD_SIZE);
+    let bytes = builder.sub(fresh.size, header);
+    builder.memory_zero(data, bytes);
+    let after = builder.lt(from, to);
+    let inside = builder.lt(to, end);
+    let ahead = builder.and(after, inside);
+    // The fast path's block stays its own: entering it from here too costs its stack layout.
+    let again = builder.create_block();
+    builder.branch(ahead, lp.header, again);
+    enter_from(builder.func_mut(), lp.header, entry, slow);
+    builder.switch_to_block(again);
+    source_check(builder);
+    builder.copy(data, from, lp.bound, PtrLocation::Memory);
+    builder.jump(lp.exit);
+}
+
+/// Unless a zero word stored at the end of the copied bytes clears it, clears the padding of a
+/// fresh destination, the rest of its allocation's last word, before a copy of its bytes writes
+/// the bytes before it: `mstore (ptradd dst, size - 32), 0`.
+fn clear_padding(builder: &mut FunctionBuilder<'_>, dst: &Access, fresh: &FreshDestination) {
+    let Buffer::Memory(object) = dst.buffer else { return };
+    if fresh.padded {
+        return;
+    }
+    let word = builder.imm(EvmMemoryLayout::WORD_SIZE);
+    let offset = builder.sub(fresh.size, word);
+    let last = builder.ptradd(object, offset);
+    let zero = builder.imm(0);
+    builder.store(last, zero);
 }
 
 /// Emits whether `count` bytes from the access's offset do not fit in its buffer:
@@ -1351,6 +1728,20 @@ fn leading_mask(
 fn defined_outside(func: &Function, l: &Loop, value: ValueId) -> bool {
     let Value::Inst(inst) = *func.value(value) else { return true };
     !l.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst))
+}
+
+/// Renames the entry edge `from` of the loop `header` to `to` in its phis, for a `to` that
+/// enters the loop in place of `from`.
+fn enter_from(func: &mut Function, header: BlockId, from: BlockId, to: BlockId) {
+    for &inst in &func.blocks[header].instructions.clone() {
+        if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
+            for (block, _) in incoming.iter_mut() {
+                if *block == from {
+                    *block = to;
+                }
+            }
+        }
+    }
 }
 
 fn escapes(func: &Function, l: &Loop, value: ValueId) -> bool {
