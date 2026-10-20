@@ -104,7 +104,9 @@
 //! is known and the sum cannot wrap: `a <= m <= b` when `a <= b`, and `m < b` when `a < b`. The
 //! overflow-safe form's checked sum then cannot fail either. Checked sums and differences carry
 //! exact ranges, since they fail rather than wrap, and a division by a positive constant bounds
-//! its quotient from above.
+//! its quotient from above. A range a sum `x + c` with a constant `c` takes on narrows `x` when
+//! the sum cannot have wrapped, so the size checks of an allocation, `(length + 1) << 5 >> 5`
+//! keeping `length + 1`, bound its length for the arithmetic that follows.
 //!
 //! When both the start and the step of such a phi are constants, the phi also
 //! carries a range bound from the target's trip-count limit: a counter cannot
@@ -120,11 +122,15 @@
 //! that walk, as an inner loop's header, gives no bound.
 //!
 //! Transitive relational queries lazily index candidate edges once per function,
-//! when a query needs to combine facts. An edge is followed only
-//! when its fact is present in the current scope; the index itself proves
-//! nothing. Derived values that never exceed their source (right shifts, masks,
+//! when a query needs to combine facts: the conditions of branches and of semantic
+//! checks, whose passing states the condition for all later execution, so
+//! `assert(pos < length)` bounds the positions a loop derives from `pos`. An edge is
+//! followed only when its fact is present in the current scope; the index itself
+//! proves nothing. Derived values that never exceed their source (right shifts, masks,
 //! remainders, divisions by a nonzero constant) contribute universal `<=` edges
-//! that hold in every scope, so `i < length / 2` reaches `i < length`. A value
+//! that hold in every scope, so `i < length / 2` reaches `i < length`. A checked
+//! difference fails rather than wrap, so it never exceeds its minuend and stays below
+//! it for a nonzero constant subtrahend: a heap's parent `(pos - 1) >> 1` is below `pos`. A value
 //! with a strict path below it in the current scope is at least one, which
 //! folds `length == 0` guards and the `length - 1` underflow check that follow
 //! `i < length / 2`; differences inherit the strict bound of their minuend. Search follows at most
@@ -1582,6 +1588,8 @@ impl<'a> CheckEliminator<'a> {
             let hi_a = self.range_of(func, a, depth).hi;
             self.narrow(b, Range::new(U256::ZERO, hi_a));
         }
+        self.narrow_summand(func, a, depth);
+        self.narrow_summand(func, b, depth);
     }
 
     /// Refines signed bounds without treating a cross-sign comparison as unsigned.
@@ -1630,6 +1638,8 @@ impl<'a> CheckEliminator<'a> {
             self.narrow(b, range);
             let range = self.range_of(func, b, depth);
             self.narrow(a, range);
+            self.narrow_summand(func, a, depth);
+            self.narrow_summand(func, b, depth);
         } else {
             self.add_relation(Relation::Ne(x, y));
             self.exclude_boundary(func, a, b, depth);
@@ -1722,6 +1732,33 @@ impl<'a> CheckEliminator<'a> {
             });
         }
         uses.len()
+    }
+
+    /// Narrows `x` to the range its sum `value = x + c` with a constant `c` now has, when the sum
+    /// cannot have wrapped: a checked sum fails rather than wrap, and a plain word sum wrapped only
+    /// if it is below both `c` and `x`. This carries the bound an allocation's size checks put on
+    /// `length + 1` back to the length.
+    fn narrow_summand(&mut self, func: &Function, value: ValueId, depth: usize) {
+        let (x, c, checked) = match inst_kind(func, value) {
+            Some(&InstKind::Add(a, b)) if integer_bits(func, value) == 256 => (a, b, false),
+            Some(&InstKind::CheckedBinary {
+                op: CheckedOp::Add,
+                arithmetic: ArithmeticKind::Unsigned(_),
+                lhs,
+                rhs,
+            }) => (lhs, rhs, true),
+            _ => return,
+        };
+        let (x, c) = match (const_of(func, c), const_of(func, x)) {
+            (Some(c), _) => (x, c),
+            (None, Some(constant)) => (c, constant),
+            (None, None) => return,
+        };
+        let range = self.range_of(func, value, depth);
+        let exact = checked || range.lo >= c || self.has_relation(func, Relation::Le(x, value));
+        if exact && range.hi >= c {
+            self.narrow(x, Range::new(range.lo.saturating_sub(c), range.hi - c));
+        }
     }
 
     /// Given `a != b` with `b` a known singleton at a boundary of `a`'s
@@ -2741,6 +2778,20 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
             InstKind::Div(x, divisor) if const_of(func, divisor).is_some_and(|c| !c.is_zero()) => {
                 relations.insert(Relation::Le(value, x));
             }
+            // A checked difference fails rather than wrap, so it never exceeds its minuend, and a
+            // nonzero constant subtrahend keeps it below.
+            InstKind::CheckedBinary {
+                op: CheckedOp::Sub,
+                arithmetic: ArithmeticKind::Unsigned(_),
+                lhs: x,
+                rhs: y,
+            } => {
+                if const_of(func, y).is_some_and(|c| !c.is_zero()) {
+                    relations.insert(Relation::Lt(value, x));
+                } else {
+                    relations.insert(Relation::Le(value, x));
+                }
+            }
             InstKind::And(x, y) => {
                 relations.insert(Relation::Le(value, x));
                 relations.insert(Relation::Le(value, y));
@@ -2798,6 +2849,18 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
             && then_block != else_block
         {
             pending.push(condition);
+        }
+        // A passing check states its condition for all later execution, as a branch does for
+        // the blocks it dominates.
+        for &inst in &block.instructions {
+            if let InstKind::ICall {
+                function: Callee::Builtin(Builtin::Check { .. } | Builtin::Require(_)),
+                args,
+            } = &func.inst(inst).kind
+                && let Some(&condition) = args.first()
+            {
+                pending.push(condition);
+            }
         }
         while let Some(value) = pending.pop() {
             if !visited.insert(value) {
