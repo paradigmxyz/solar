@@ -43,17 +43,17 @@ contract StorageBytesMember {
     // CHECK: push 0x72bd964d
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[WHOLE:bb[0-9]+]]
+    // The body precedes the test it falls through into.
     // CHECK: [[PUSH_RANGE]]:
     // CHECK: keccak256
     // CHECK: jump [[LOOP:bb[0-9]+]]
-    // CHECK: [[LOOP]]{{( \[[a-z]+\])?}}:
-    // CHECK: push [[LOOP_BODY:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: [[LOOP_BODY]]{{( \[[a-z]+\])?}}:
+    // CHECK: [[LOOP_BODY:bb[0-9]+]]{{( \[[a-z]+\])?}}:
     // CHECK: sload
     // CHECK-NOT: mcopy
     // CHECK: sstore
-    // CHECK: jump [[LOOP]]
+    // CHECK: [[LOOP]]{{( \[[a-z]+\])?}}:
+    // CHECK: push [[LOOP_BODY]]
+    // CHECK-NEXT: jumpi
     function pushRange(uint8 from, uint8 count) external {
         KeccakState storage state = states[msg.sender];
         for (uint256 i = 0; i < count; i++) {
