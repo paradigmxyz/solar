@@ -9,10 +9,13 @@
 //!
 //! The loop is expanded at every site, or built once per loop shape (direction
 //! and whole-word length) as an internal function `mcopy_words(dest, src, len)`
-//! that eligible runtime sites of that shape call. A helper is built when the
-//! objective ranks the calls above the expanded loops: bytes first in size
-//! mode, and in gas mode the lifetime cost of the call protocol's gas over the
-//! optimizer runs against the deposit of the repeated bytes.
+//! that eligible runtime sites call. A site may call the helper of a more
+//! general shape, whose loop checks the direction at runtime or merges a partial
+//! word, so copies of different shapes can share one loop. The pass prices every
+//! set of helpers and keeps the cheapest under the objective: bytes first in size
+//! mode, and in gas mode the lifetime cost of the call protocol's and the more
+//! general loops' gas over the optimizer runs against the deposit of the
+//! repeated bytes.
 //! Constructor-reachable sites remain inline because their ABI output may
 //! occupy the free-memory pointer where an internal call would stage its frame.
 //! Copies through raw or symbolic memory bases also remain inline because the
@@ -97,22 +100,27 @@ impl MirPass for LowerMCopy {
             .map(|(id, func)| copy_sites(func, !constructor_reachable.contains(id), &summaries))
             .collect::<IndexVec<FunctionId, _>>();
 
-        // One helper per copy shape, when its sites are worth sharing.
+        // Sites of each shape call one helper when the objective ranks the shared loops above
+        // the expanded ones.
         let mut counts = BTreeMap::<CopyShape, u32>::new();
         for site in sites.iter().flatten().filter(|site| site.shareable) {
             *counts.entry(site.shape).or_default() += 1;
         }
-        let mut helpers = FxHashMap::default();
-        for (shape, count) in counts {
-            if let Some(helper) = shared_copy_helper(&target, shape, count) {
-                helpers.insert(shape, module.add_function(helper));
-            }
-        }
+        let mut functions = BTreeMap::new();
+        let helpers = choose_copy_helpers(&target, &counts)
+            .into_iter()
+            .map(|(site, helper)| {
+                let function = *functions
+                    .entry(helper)
+                    .or_insert_with(|| module.add_function(copy_helper(helper)));
+                (site, function)
+            })
+            .collect::<FxHashMap<_, _>>();
 
         for (func_id, sites) in sites.into_iter_enumerated() {
             lower_function(module.function_mut(func_id), &sites, &helpers);
         }
-        CallGraphInfo::assert_runtime_helpers(module, helpers.into_values());
+        CallGraphInfo::assert_runtime_helpers(module, functions.into_values());
         true
     }
 }
@@ -126,6 +134,24 @@ fn is_mcopy(func: &Function, inst: InstId) -> bool {
 struct CopyShape {
     direction: CopyDirection,
     whole_words: bool,
+}
+
+impl CopyShape {
+    /// Every shape, more specific loops first.
+    const ALL: [Self; 6] = [
+        Self { direction: CopyDirection::Forward, whole_words: true },
+        Self { direction: CopyDirection::Forward, whole_words: false },
+        Self { direction: CopyDirection::Reverse, whole_words: true },
+        Self { direction: CopyDirection::Reverse, whole_words: false },
+        Self { direction: CopyDirection::Dynamic, whole_words: true },
+        Self { direction: CopyDirection::Dynamic, whole_words: false },
+    ];
+
+    /// Returns whether this shape's loop also performs copies of `site`'s shape.
+    fn covers(self, site: Self) -> bool {
+        (self.direction == site.direction || self.direction == CopyDirection::Dynamic)
+            && (site.whole_words || !self.whole_words)
+    }
 }
 
 /// One `mcopy` and the loop it expands to.
@@ -167,40 +193,73 @@ fn copy_sites(
         .collect()
 }
 
-/// Builds the helper for `sites` copies of one shape when the objective ranks
-/// calling it above expanding the loop at every site.
-fn shared_copy_helper(target: &Target, shape: CopyShape, sites: u32) -> Option<Function> {
-    if sites < 2 {
-        return None;
-    }
+/// Builds the helper `mcopy_words(dest, src, len)` that copies with the loop of `shape`.
+fn copy_helper(shape: CopyShape) -> Function {
     // fn @mcopy_words(dest, src, len) { copy_loop<shape>(dest, src, len); ret }
     let mut function = Function::new(Ident::with_dummy_span(sym::mcopy_words));
-    {
-        let mut builder = FunctionBuilder::new(&mut function);
-        let dest = builder.add_param(MirType::I256);
-        let src = builder.add_param(MirType::I256);
-        let len = builder.add_param(MirType::I256);
-        let exit = builder.create_block();
-        emit_copy_loop(&mut builder, dest, src, len, exit, shape);
-        builder.switch_to_block(exit);
-        builder.ret([]);
+    let mut builder = FunctionBuilder::new(&mut function);
+    let dest = builder.add_param(MirType::I256);
+    let src = builder.add_param(MirType::I256);
+    let len = builder.add_param(MirType::I256);
+    let exit = builder.create_block();
+    emit_copy_loop(&mut builder, dest, src, len, exit, shape);
+    builder.switch_to_block(exit);
+    builder.ret([]);
+    function
+}
+
+/// Maps each site shape in `counts` to the shape of the helper its sites call; unmapped shapes
+/// expand at every site.
+///
+/// A site may call the helper of a more general shape: the runtime direction check covers both
+/// directions, and the partial-word merge covers whole-word lengths. Every set of helpers is
+/// priced with each site calling the covering helper that adds the least estimated gas over its
+/// own loop, and the cheapest set under the objective wins. The loops run in every alternative,
+/// so a helper costs its call protocol and its bytes once, and a more general loop costs the
+/// difference of the estimates at every execution. The estimate counts the code a call skips,
+/// such as the other direction's loop, which overstates that difference.
+fn choose_copy_helpers(
+    target: &Target,
+    counts: &BTreeMap<CopyShape, u32>,
+) -> BTreeMap<CopyShape, CopyShape> {
+    let bodies = CopyShape::ALL.map(|shape| target.code_estimate(&copy_helper(shape)));
+    let index = |shape| CopyShape::ALL.iter().position(|&other| other == shape).unwrap();
+    let params = 3;
+    let mut best_cost = counts
+        .iter()
+        .map(|(&site, &count)| Cost::new(0, bodies[index(site)].bytes).times(count))
+        .sum::<Cost>();
+    let mut best = BTreeMap::new();
+    for set in 1u32..1 << CopyShape::ALL.len() {
+        let in_set = |helper: usize| set & (1 << helper) != 0;
+        let mut users = [0; CopyShape::ALL.len()];
+        let mut cost = Cost::ZERO;
+        let mut choice = BTreeMap::new();
+        for (&site, &count) in counts {
+            let own = bodies[index(site)];
+            let helper = (0..CopyShape::ALL.len())
+                .filter(|&helper| in_set(helper) && CopyShape::ALL[helper].covers(site))
+                .min_by_key(|&helper| bodies[helper].gas);
+            if let Some(helper) = helper {
+                users[helper] += count;
+                cost += Cost::new(bodies[helper].gas.saturating_sub(own.gas), 0).times(count);
+                choice.insert(site, CopyShape::ALL[helper]);
+            } else {
+                cost += Cost::new(0, own.bytes).times(count);
+            }
+        }
+        if (0..CopyShape::ALL.len()).any(|helper| in_set(helper) && users[helper] == 0) {
+            continue;
+        }
+        for helper in (0..CopyShape::ALL.len()).filter(|&helper| in_set(helper)) {
+            cost += target.helper_sharing(bodies[helper].bytes, params, 0, users[helper]).0;
+        }
+        if target.cmp_lifetime(cost, best_cost).is_lt() {
+            best_cost = cost;
+            best = choice;
+        }
     }
-    let params = function.params.len();
-    let body = target.code_estimate(&function);
-    // The loop itself runs in both shapes. Sharing it costs a call and a return at every
-    // execution and a call at every site; expanding it repeats its bytes at every site.
-    let frame_words =
-        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE + params as u64;
-    let call = target.icall(params, 0, frame_words);
-    let ret = target.internal_return(params, 0);
-    let shared = Cost::new(call.gas, 0)
-        .plus(Cost::new(ret.gas, 0))
-        .times(sites)
-        .plus(Cost::new(0, call.bytes).times(sites))
-        .plus(Cost::new(0, body.bytes))
-        .plus(Cost::new(0, ret.bytes));
-    let expanded = Cost::new(0, body.bytes).times(sites);
-    target.cmp_lifetime(shared, expanded).is_lt().then_some(function)
+    best
 }
 
 fn lower_function(
@@ -574,9 +633,10 @@ fn emit_partial_copy(
 
     // partial = len & 31
     // shift = (32 - (len & 31)) << 3
-    // source_top = (mload(src + partial_offset) >> shift) << shift
-    // destination_low = mload(dest + partial_offset) & ((1 << shift) - 1)
-    // mstore(dest + partial_offset, source_top | destination_low)
+    // source = mload(src + partial_offset)
+    // destination = mload(dest + partial_offset)
+    // changed_top = ((source ^ destination) >> shift) << shift
+    // mstore(dest + partial_offset, destination ^ changed_top)
     // jump continuation
     let word_size = builder.imm(32);
     let thirty_one = builder.imm(31);
@@ -586,15 +646,12 @@ fn emit_partial_copy(
     let shift = builder.shl(gap, three);
     let src_tail_ptr = builder.add(src, partial_offset);
     let src_word = builder.load(src_tail_ptr, PtrLocation::Memory);
-    let src_shifted = builder.shr(src_word, shift);
-    let src_top = builder.shl(src_shifted, shift);
     let dest_tail_ptr = builder.add(dest, partial_offset);
     let dest_word = builder.load(dest_tail_ptr, PtrLocation::Memory);
-    let one = builder.imm(1);
-    let low_bound = builder.shl(one, shift);
-    let low_mask = builder.sub(low_bound, one);
-    let dest_low = builder.and(dest_word, low_mask);
-    let merged = builder.or(src_top, dest_low);
+    let changed = builder.xor(src_word, dest_word);
+    let changed_shifted = builder.shr(changed, shift);
+    let changed_top = builder.shl(changed_shifted, shift);
+    let merged = builder.xor(dest_word, changed_top);
     builder.store(dest_tail_ptr, merged);
     builder.jump(continuation);
 }
