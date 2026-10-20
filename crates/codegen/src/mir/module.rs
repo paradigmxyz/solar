@@ -380,20 +380,21 @@ impl Module {
         creation
     }
 
-    /// Returns the functions of `creation`, from [`Self::creation_only_functions`], whose
-    /// instructions run a bounded number of times per deployment: those without loops that
-    /// [`Self::repeated_functions`] does not report. A loop, or a call from one, repeats an
-    /// instruction by more than the creation model's one execution.
+    /// Returns the creation-only functions that no loop or recursion calls, and the subset of
+    /// those without loops of their own. The creation model's single execution holds for the
+    /// instructions of the second set, and for the whole of the first when a transform weighs
+    /// the function's own loops.
     #[must_use]
-    pub(crate) fn straight_line_creation_functions(
+    pub(crate) fn creation_pricing_functions(
         &self,
-        creation: &DenseBitSet<FunctionId>,
-    ) -> DenseBitSet<FunctionId> {
-        let (looping, repeated) = self.loops_and_repeats(creation);
-        let mut straight = creation.clone();
+    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
+        let creation = self.creation_only_functions();
+        let (looping, repeated) = self.loops_and_repeats(&creation);
+        let mut called_once = creation;
+        called_once.subtract(&repeated);
+        let mut straight = called_once.clone();
         straight.subtract(&looping);
-        straight.subtract(&repeated);
-        straight
+        (called_once, straight)
     }
 
     /// Returns the functions of `domain` that run more than once per deployment because they

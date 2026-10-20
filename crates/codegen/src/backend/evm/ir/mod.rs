@@ -92,11 +92,6 @@ impl Module {
         Target::new(gcx).priced_for(self.code_follows)
     }
 
-    /// The cost model of one block of this module.
-    pub(crate) fn block_target(&self, gcx: Gcx<'_>, block: &Block) -> Target {
-        block.target(gcx, self.code_follows)
-    }
-
     /// Links embedded contract bytecode into deferred data, interning the bytecode's libraries
     /// into `libraries`.
     ///

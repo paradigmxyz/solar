@@ -145,7 +145,11 @@ impl RunState {
             let matched = self.longest_common_tail(module, block, keep_branches);
             let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
 
-            let target = module.block_target(gcx, block);
+            // A share also runs the representative's code more than once when it may.
+            let creation = module.code_follows
+                && matched
+                    .is_none_or(|(representative, _)| module.blocks[representative].runs_once());
+            let target = block.target(gcx, creation);
             let transfer_bytes = (target.opcode(op::PUSH2).bytes
                 + target.opcode(op::JUMP).bytes
                 + target.opcode(op::JUMPDEST).bytes) as usize;

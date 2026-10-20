@@ -122,7 +122,7 @@ pub(crate) struct Assembler<'gcx> {
     /// Labels whose blocks run once per loop iteration.
     pub(in crate::backend) loop_labels: GrowableBitSet<Label>,
     /// Whether the code being emitted may run more than once, as the creation code that a loop
-    /// calls does: its blocks are marked as loop blocks.
+    /// calls does: its blocks are marked `repeats`.
     pub(in crate::backend) repeating_code: bool,
     /// Unresolved block references emitted as push operands.
     /// Ordered by (block, instruction); EVM IR construction uses binary search.

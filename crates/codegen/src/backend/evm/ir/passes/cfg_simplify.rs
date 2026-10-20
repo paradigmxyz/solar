@@ -176,6 +176,7 @@ fn rotate_loop_exits(module: &mut Module, references: &mut IndexVec<BlockId, usi
         let block = &mut module.blocks[header];
         let mut exit = Block::new(label);
         exit.metadata.hotness = block.metadata.hotness;
+        exit.metadata.repeats = block.metadata.repeats;
         exit.instructions = block.instructions.split_off(index + 3);
         exit.terminator = block.terminator.take();
         let removed = block.instructions.remove(index);

@@ -9,6 +9,7 @@
 //@ run-call: Shared::v; constructor=[5] => 33
 //@ run-call: Shared::f 2; constructor=[5] => 15
 //@ run-call: Looped::arr 5; constructor=[1] => 18
+//@ run-call: LoopCalled::g 7; constructor=[1] => 0xe5911188c23b5df9927b4d3fc62cc87e06c9374664016f91a70f29bdb41a4252
 
 // Creation code runs once and pays calldata for every byte, so gas builds weigh the bytes of the
 // constructor against its execution gas at 16 to 1. The checked `p * 3` divides to test for
@@ -68,5 +69,35 @@ contract Looped {
         for (uint256 i; i < 100; ++i) {
             arr[i] = (s + i) * 3;
         }
+    }
+}
+
+// A helper that a constructor loop calls runs once per iteration, so it keeps its four pushes of
+// the constant instead of sharing them through a stub that costs gas on every call.
+// DEPLOY-LABEL: // === {{.*}}:LoopCalled (deployment) ===
+// DEPLOY-COUNT-4: PUSH32 0x1234567812345678123456781234567812345678123456781234567812345678
+contract LoopCalled {
+    uint256[50] public arr;
+    uint256 public total;
+
+    constructor(uint256 s) {
+        for (uint256 i; i < 50; ++i) {
+            unchecked {
+                arr[i] = h(s + i) + h(s + 2 * i) + h(s + 3 * i);
+            }
+        }
+    }
+
+    function h(uint256 x) internal returns (uint256 r) {
+        unchecked {
+            r = (x ^ 0x1234567812345678123456781234567812345678123456781234567812345678) + total;
+            total = r ^ 0x1234567812345678123456781234567812345678123456781234567812345678;
+            r += (x * 3) ^ 0x1234567812345678123456781234567812345678123456781234567812345678;
+            total += (r * 5) ^ 0x1234567812345678123456781234567812345678123456781234567812345678;
+        }
+    }
+
+    function g(uint256 x) external returns (uint256) {
+        return h(x);
     }
 }

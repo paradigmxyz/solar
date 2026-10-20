@@ -99,7 +99,7 @@ impl MirPass for Inline {
         for _ in 0..4 {
             let calls = MemoryCallSummaries::new_cached(module, &mut LocalSummaryCache::default());
             let straight_line = if target.priced_for(true).is_creation() {
-                module.straight_line_creation_functions(&module.creation_only_functions())
+                module.creation_pricing_functions().1
             } else {
                 DenseBitSet::new_empty(module.functions.len())
             };

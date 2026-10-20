@@ -17,11 +17,11 @@ contract ConstructorSharedHelper {
 
     // CHECK-LABEL: fn @constructor()
     // CHECK-NOT: icall @store_storage_bytes_literal
-    // CHECK-LABEL: fn @f()
     constructor() {
         s.b = hex"010203";
     }
 
+    // CHECK-LABEL: fn @f()
     function f() external returns (uint256, uint256) {
         delete s;
         s.b = hex"010203";
