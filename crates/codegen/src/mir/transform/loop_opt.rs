@@ -1059,7 +1059,6 @@ impl LoopOptimizer {
         ));
         let private = |effects: ModRef| {
             !effects.observes_gas()
-                && !effects.observes_memory_size()
                 && !effects.may_read(aa, scratch)
                 && !effects.may_write(aa, scratch)
         };

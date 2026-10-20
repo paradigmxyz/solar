@@ -944,8 +944,7 @@ impl MemoryStoreEliminator {
         overwritten: &mut FxHashSet<MemAddrKey>,
     ) {
         let effects = self.alias().instruction_mod_ref(func, inst_id);
-        if effects.observes_memory_size()
-            || effects.observes_gas()
+        if effects.observes_gas()
             || effects.reads_anywhere(AddressSpace::Memory)
             || effects.writes_anywhere(AddressSpace::Memory)
         {
@@ -1530,7 +1529,6 @@ impl MemoryStoreEliminator {
         let effects = self.alias().instruction_mod_ref(func, inst_id);
         effects.reads_space(AddressSpace::Memory)
             || effects.writes_space(AddressSpace::Memory)
-            || effects.observes_memory_size()
             || effects.observes_gas()
     }
 
@@ -1539,7 +1537,6 @@ impl MemoryStoreEliminator {
             || func.instructions().any(|inst_id| {
                 let effects = self.alias().instruction_mod_ref(func, inst_id);
                 effects.observes_gas()
-                    || effects.observes_memory_size()
                     || matches!(
                         func.inst(inst_id).kind,
                         InstKind::ICall { function: Callee::Function(_), .. }

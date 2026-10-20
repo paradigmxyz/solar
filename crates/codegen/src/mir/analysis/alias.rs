@@ -246,7 +246,6 @@ impl Access {
 pub(crate) struct ModRef {
     reads: SmallVec<[Access; 4]>,
     writes: SmallVec<[Access; 4]>,
-    observes_memory_size: bool,
     observes_gas: bool,
 }
 
@@ -261,12 +260,6 @@ impl ModRef {
     #[must_use]
     pub(crate) fn writes(&self) -> &[Access] {
         &self.writes
-    }
-
-    /// Returns whether the operation observes the active memory size.
-    #[must_use]
-    pub(crate) const fn observes_memory_size(&self) -> bool {
-        self.observes_memory_size
     }
 
     /// Returns whether the operation observes remaining gas.
@@ -1213,7 +1206,9 @@ impl AliasAnalysis {
                 effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                 effects.write_any(AddressSpace::Memory);
             }
-            InstKind::MSize => effects.observes_memory_size = true,
+            // Every earlier memory access places the memory `msize` hands out above it, so
+            // `msize` keeps them all as a read of the whole space would.
+            InstKind::MSize => effects.read_any(AddressSpace::Memory),
             InstKind::Load(slot, PtrLocation::Storage) => {
                 effects.read(Access::Location(Location::Storage(
                     self.storage_alias_after_replacements(func, inst_id, slot, replacements),
@@ -1289,13 +1284,11 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    effects.observes_memory_size = summary.may_observe_msize();
                     effects.observes_gas = summary.may_observe_gas();
                     let args =
                         kind.operands().into_iter().map(resolve).collect::<SmallVec<[_; 8]>>();
                     effects.merge_call_summary(summary, func, self, &args);
                 } else {
-                    effects.observes_memory_size = true;
                     effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
@@ -1349,11 +1342,9 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    effects.observes_memory_size = summary.may_observe_msize();
                     effects.observes_gas = summary.may_observe_gas();
                     effects.merge_call_summary(summary, func, self, &terminator.operands());
                 } else {
-                    effects.observes_memory_size = true;
                     effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
