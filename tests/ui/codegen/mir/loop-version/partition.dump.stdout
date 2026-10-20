@@ -1,0 +1,444 @@
+// === ROOT/tests/ui/codegen/mir/loop-version/partition.sol:Partition ===
+@module Partition
+@phase lowered
+@types
+  struct0: {i256, i256, i256}
+
+fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
+  bb0:
+    v3 = calldatasize
+    v4 = lt v3, 36
+    jumpi v4, bb3, bb4
+  bb4:
+    v5 = icall @decode_calldata_type
+    v0 = mload v5
+    v1 = gt v0, 1
+    jumpi v1, bb1, bb2
+  bb1:
+    icall @_sort, v5, 0, v0
+    jump bb2
+  bb2:
+    v9 = mload v5
+    v16 = add v5, 32
+    v11 = shl v9, 5
+    v18 = add v5, 64
+    mcopy v18, v16, v11
+    mstore v5, 32
+    mstore v16, v9
+    v13 = add v11, 64
+    returndata v5, v13
+  bb3:
+    revert 0, 0
+}
+
+fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
+  bb0:
+    v135 = calldatasize
+    v136 = lt v135, 100
+    jumpi v136, bb23, bb24
+  bb24:
+    v137 = icall @decode_calldata_type
+    v0 = mload v137
+    v129 = sub v0, 1
+    v130 = eq v0, 0
+    jumpi v130, bb20, bb21
+  bb21:
+    v3 = lt arg1, v0
+    jumpi v3, bb18, bb17
+  bb18:
+    v5 = shl arg1, 5
+    v149 = add v137, v5
+    v150 = add v149, 32
+    v8 = mload v150
+    v12 = shl v129, 5
+    v152 = add v137, v12
+    v153 = add v152, 32
+    v15 = mload v153
+    v16 = xor v8, v15
+    v111 = lt arg1, v129
+    jumpi v111, bb16, bb15
+  bb16:
+    v119 = lt v15, arg2
+    v124 = lt arg2, v8
+    v125 = or v119, v124
+    jumpi v125, bb15, bb14
+  bb14:
+    v162 = add v137, 32
+    jump bb8
+  bb8:
+    v90 = phi [bb14: arg1], [bb13: v93]
+    v91 = phi [bb14: v129], [bb13: v101]
+    jump bb9
+  bb9:
+    v92 = phi [bb8: v90], [bb9: v93]
+    v93 = add v92, 1
+    v95 = shl v93, 5
+    v144 = add v162, v95
+    v98 = mload v144
+    v99 = lt v98, arg2
+    jumpi v99, bb9, bb10
+  bb10:
+    jump bb11
+  bb11:
+    v100 = phi [bb10: v91], [bb11: v101]
+    v101 = sub v100, 1
+    v103 = shl v101, 5
+    v147 = add v162, v103
+    v106 = mload v147
+    v107 = lt arg2, v106
+    jumpi v107, bb11, bb12
+  bb12:
+    v108 = lt v93, v101
+    jumpi v108, bb13, bb2
+  bb13:
+    v109 = mload v147
+    v110 = mload v144
+    mstore v147, v110
+    mstore v144, v109
+    jump bb8
+  bb15:
+    v161 = add v137, 32
+    jump bb1
+  bb1:
+    v20 = phi [bb15: arg1], [bb7: v131]
+    v21 = phi [bb15: v129], [bb7: v133]
+    jump bb3
+  bb3:
+    v26 = phi [bb1: v20], [bb19: v131]
+    v131 = add v26, 1
+    v31 = lt v131, v0
+    jumpi v31, bb19, bb17
+  bb17:
+    tail_call @revert_stub
+  bb19:
+    v33 = shl v131, 5
+    v156 = add v161, v33
+    v36 = mload v156
+    v37 = lt v36, arg2
+    jumpi v37, bb3, bb4
+  bb4:
+    jump bb5
+  bb5:
+    v42 = phi [bb4: v21], [bb22: v133]
+    v133 = sub v42, 1
+    v134 = eq v42, 0
+    jumpi v134, bb20, bb22
+  bb22:
+    v48 = shl v133, 5
+    v159 = add v161, v48
+    v51 = mload v159
+    v52 = lt arg2, v51
+    jumpi v52, bb5, bb6
+  bb6:
+    v53 = lt v131, v133
+    jumpi v53, bb7, bb2
+  bb2:
+    v127 = phi [bb6: v131], [bb12: v93]
+    v128 = phi [bb6: v133], [bb12: v101]
+    mstore 128, v127
+    mstore 160, v128
+    mstore 192, v16
+    returndata 128, 96
+  bb7:
+    v61 = mload v159
+    v68 = mload v156
+    mstore v159, v68
+    mstore v156, v61
+    jump bb1
+  bb20:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb23:
+    revert 0, 0
+}
+
+fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg1], [bb19: v153]
+    v2 = phi [bb0: arg2], [bb19: v154]
+    v245 = sub v2, v1
+    v246 = lt v2, v1
+    jumpi v246, bb42, bb43
+  bb43:
+    v4 = gt v245, 3
+    jumpi v4, bb3, bb2
+  bb2:
+    v247 = add v1, 1
+    v248 = eq v247, 0
+    jumpi v248, bb42, bb44
+  bb44:
+    v300 = shl v247, 5
+    v301 = add arg0, v300
+    v302 = add v301, 32
+    jump bb20
+  bb20:
+    v159 = phi [bb44: v247], [bb24: v206]
+    v303 = phi [bb44: v302], [bb24: v304]
+    v160 = lt v159, v2
+    jumpi v160, bb22, bb21
+  bb21:
+    ret
+  bb22:
+    v161 = mload arg0
+    v162 = lt v159, v161
+    jumpi v162, bb41, bb36
+  bb41:
+    v167 = mload v303
+    v305 = shl v159, 5
+    v306 = add arg0, v305
+    jump bb23
+  bb23:
+    v173 = phi [bb41: v159], [bb26: v175]
+    v307 = phi [bb41: v306], [bb26: v308]
+    v174 = gt v173, v1
+    jumpi v174, bb25, bb24
+  bb25:
+    v182 = mload v307
+    v183 = gt v182, v167
+    jumpi v183, bb26, bb24
+  bb24:
+    v203 = shl v173, 5
+    v264 = add arg0, v203
+    v265 = add v264, 32
+    mstore v265, v167
+    v206 = add v159, 1
+    v304 = add v303, 32
+    jump bb20
+  bb26:
+    v175 = sub v173, 1
+    v271 = add v307, 32
+    mstore v271, v182
+    v308 = sub v307, 32
+    jump bb23
+  bb3:
+    v5 = sub v2, 1
+    v7 = shr v245, 1
+    v251 = add v1, v7
+    v9 = mload arg0
+    v10 = lt v1, v9
+    jumpi v10, bb37, bb36
+  bb37:
+    v12 = shl v1, 5
+    v279 = add arg0, v12
+    v280 = add v279, 32
+    v15 = mload v280
+    v17 = lt v251, v9
+    jumpi v17, bb38, bb36
+  bb38:
+    v19 = shl v251, 5
+    v282 = add arg0, v19
+    v283 = add v282, 32
+    v22 = mload v283
+    v24 = lt v5, v9
+    jumpi v24, bb39, bb36
+  bb39:
+    v26 = shl v5, 5
+    v285 = add arg0, v26
+    v286 = add v285, 32
+    v29 = mload v286
+    v30 = lt v22, v15
+    jumpi v30, bb5, bb4
+  bb4:
+    jump bb5
+  bb5:
+    v31 = phi [bb39: v22], [bb4: v15]
+    v32 = phi [bb39: v15], [bb4: v22]
+    v33 = lt v29, v32
+    jumpi v33, bb6, bb7
+  bb6:
+    v34 = lt v29, v31
+    jumpi v34, bb9, bb8
+  bb8:
+    jump bb9
+  bb9:
+    v35 = phi [bb6: v29], [bb8: v31]
+    v36 = phi [bb6: v31], [bb8: v29]
+    jump bb7
+  bb7:
+    v37 = phi [bb9: v35], [bb5: v31]
+    v38 = phi [bb9: v36], [bb5: v32]
+    v39 = phi [bb9: v32], [bb5: v29]
+    mstore v286, v39
+    mstore v283, v38
+    mstore v280, v37
+    v228 = lt v1, v5
+    jumpi v228, bb35, bb34
+  bb35:
+    v235 = mload v286
+    v236 = lt v235, v38
+    v240 = mload v280
+    v241 = lt v38, v240
+    v242 = or v236, v241
+    jumpi v242, bb34, bb33
+  bb33:
+    v299 = add arg0, 32
+    jump bb27
+  bb27:
+    v207 = phi [bb33: v1], [bb32: v210]
+    v208 = phi [bb33: v5], [bb32: v218]
+    jump bb28
+  bb28:
+    v209 = phi [bb27: v207], [bb28: v210]
+    v210 = add v209, 1
+    v212 = shl v210, 5
+    v274 = add v299, v212
+    v215 = mload v274
+    v216 = lt v215, v38
+    jumpi v216, bb28, bb29
+  bb29:
+    jump bb30
+  bb30:
+    v217 = phi [bb29: v208], [bb30: v218]
+    v218 = sub v217, 1
+    v220 = shl v218, 5
+    v277 = add v299, v220
+    v223 = mload v277
+    v224 = lt v38, v223
+    jumpi v224, bb30, bb31
+  bb31:
+    v225 = lt v210, v218
+    jumpi v225, bb32, bb11
+  bb32:
+    v226 = mload v277
+    v227 = mload v274
+    mstore v277, v227
+    mstore v274, v226
+    jump bb27
+  bb34:
+    v298 = add arg0, 32
+    jump bb10
+  bb10:
+    v66 = phi [bb34: v1], [bb16: v255]
+    v67 = phi [bb34: v5], [bb16: v257]
+    jump bb12
+  bb12:
+    v76 = phi [bb10: v66], [bb40: v255]
+    v255 = add v76, 1
+    v80 = lt v255, v9
+    jumpi v80, bb40, bb36
+  bb36:
+    tail_call @revert_stub
+  bb40:
+    v82 = shl v255, 5
+    v289 = add v298, v82
+    v85 = mload v289
+    v86 = lt v85, v38
+    jumpi v86, bb12, bb13
+  bb13:
+    jump bb14
+  bb14:
+    v96 = phi [bb13: v67], [bb46: v257]
+    v257 = sub v96, 1
+    v258 = eq v96, 0
+    jumpi v258, bb42, bb46
+  bb46:
+    v101 = shl v257, 5
+    v295 = add v298, v101
+    v104 = mload v295
+    v105 = lt v38, v104
+    jumpi v105, bb14, bb15
+  bb15:
+    v106 = lt v255, v257
+    jumpi v106, bb16, bb11
+  bb11:
+    v244 = phi [bb15: v257], [bb31: v218]
+    v144 = add v244, 1
+    v254 = lt v144, v1
+    jumpi v254, bb42, bb45
+  bb45:
+    v253 = sub v144, v1
+    v146 = sub v2, v244
+    v147 = sub v146, 1
+    v148 = lt v253, v147
+    jumpi v148, bb17, bb18
+  bb18:
+    icall @_sort, arg0, v144, v2
+    jump bb19
+  bb17:
+    icall @_sort, arg0, v1, v144
+    jump bb19
+  bb19:
+    v153 = phi [bb17: v144], [bb18: v1]
+    v154 = phi [bb17: v2], [bb18: v144]
+    jump bb1
+  bb16:
+    v114 = mload v295
+    v121 = mload v289
+    mstore v295, v121
+    mstore v289, v114
+    jump bb10
+  bb42:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_type() -> i256 [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload 4
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v8 = calldataload v2
+    v10 = gt v8, 0x7fffffffffffffe
+    jumpi v10, bb3, bb4
+  bb4:
+    v11 = add v8, 1
+    v12 = shl v11, 5
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, v12
+    v29 = lt v28, v27
+    v30 = gt v28, 0xffffffffffffffff
+    v31 = or v29, v30
+    jumpi v31, bb3, bb6
+  bb6:
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore v27, v8
+    v15 = sub v0, v3
+    v16 = shr v15, 5
+    v17 = gt v8, v16
+    jumpi v17, bb1, bb5
+  bb5:
+    v14 = shl v8, 5
+    v24 = add v27, 32
+    calldatacopy v24, v3, v14
+    ret v27
+  bb3:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x9ec8b026 => bb2, 0xb99bdcfc => bb3]
+  bb3:
+    tail_call @partition
+  bb2:
+    tail_call @sort
+  bb4:
+    revert 0, 0
+}
