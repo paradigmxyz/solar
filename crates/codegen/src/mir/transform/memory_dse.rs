@@ -19,19 +19,20 @@
 //!   the words they cover.
 //! - Store narrowing: when a later full-word store overwrites the last 31 bytes of a word store
 //!   before any read, `msize`, or gas observation, only the first byte of the earlier store is
-//!   observable, so the same backward scan shortens it to an `mstore8` of that byte. `mstore8`
-//!   demands only the low 8 bits of its operand, so the operand needs the top byte of the stored
-//!   word in its low bits: that is `v` for `shl v, 248` over a 256-bit `v`, and `c >> 248` for a
-//!   nonzero constant `c` whose low 248 bits are zero. Other values stay whole, since a `shr` would
-//!   cost what the shift saves, and so does a store whose tail is read or never overwritten, such
-//!   as a one-character string literal. The later store already expands memory past the narrowed
-//!   one, so the size and the final contents do not change. The rewrite applies after the
-//!   cross-block rewrites, which a full-word store feeds and a byte store does not. This follows
-//!   the partial-overwrite classification of LLVM's dead store elimination, which only shortens
-//!   `memset` and `memcpy` because a narrower scalar store needs a new value; `mstore8` is as cheap
-//!   as `mstore` and the operand already exists. Deliberate limits: it needs one later store at the
-//!   next byte, not the union of several later overwrites; it leaves a store whose only surviving
-//!   byte is the last; and it leaves a store whose word another block also stores to.
+//!   observable, so it shortens the store to an `mstore8` of that byte, after the scan has recorded
+//!   it. `mstore8` demands only the low 8 bits of its operand, so the operand needs the top byte of
+//!   the stored word in its low bits: that is `v` for `shl v, 248` over a 256-bit `v`, and `c >>
+//!   248` for a nonzero constant `c` whose low 248 bits are zero. Other values stay whole, since a
+//!   `shr` would cost what the shift saves, and so does a store whose tail is read or never
+//!   overwritten, such as a one-character string literal. The later store already expands memory
+//!   past the narrowed one, so the size and the final contents do not change. The rewrite applies
+//!   after the cross-block rewrites, which a full-word store feeds and a byte store does not. This
+//!   follows the partial-overwrite classification of LLVM's dead store elimination, which only
+//!   shortens `memset` and `memcpy` because a narrower scalar store needs a new value; `mstore8` is
+//!   as cheap as `mstore` and the operand already exists. Deliberate limits: it needs one later
+//!   store at the next byte, not the union of several later overwrites; it leaves a store whose
+//!   only surviving byte is the last; and it leaves a store whose word another block also stores
+//!   to.
 //! - Write-only deferred allocations: a deferred allocation whose pointer only ever addresses
 //!   stores, as a decoded struct does once forwarding has replaced the reads of its used fields,
 //!   loses those stores. Static placement already keeps every other way to reach its words out of
@@ -1013,7 +1014,9 @@ impl MemoryStoreEliminator {
         }
 
         for &NarrowableStore { block, inst, key } in &scratch.narrowed {
-            if store_blocks.get(&key) != Some(&Some(block)) {
+            if store_blocks.get(&key) != Some(&Some(block))
+                || !func.blocks[block].instructions.contains(&inst)
+            {
                 continue;
             }
             let InstKind::Store(addr, value, PtrLocation::Memory) = func.inst(inst).kind else {
@@ -1197,9 +1200,17 @@ impl MemoryStoreEliminator {
                             }
                         }
                     }
+                    // A byte store invalidates the remembered words that contain its byte.
+                    InstKind::Store8(addr, _) => {
+                        match self.mem_addr_key(func, *addr, 1).and_then(|key| key.0.as_absolute())
+                        {
+                            Some(a) => known.retain(|&word, _| {
+                                a < word || a - word >= EvmMemoryLayout::WORD_SIZE
+                            }),
+                            None => known.clear(),
+                        }
+                    }
                     _ if self.can_mutate_memory(func, inst_id) => known.clear(),
-                    // A byte store may touch any slot.
-                    InstKind::Store8(..) => known.clear(),
                     // Loads and keccak read memory but never write it.
                     _ => {}
                 }
