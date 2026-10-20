@@ -73,14 +73,20 @@
 //! until the call runs out of gas. A scatter below 32 bytes reads and rewrites the bytes after
 //! the ones it writes, and a copy's `mcopy` reads and writes exactly the copied ranges; memory
 //! expansion can differ, which only `msize` sees. A loop's own stores
-//! never reach a length word, which lies below every checked range, or feed a gather, which
-//! stores nothing.
+//! never reach the length word of the buffer they write, which lies below its checked range, or
+//! feed a gather, which stores nothing. A copy's stores may reach its source's length word,
+//! which the next paragraph covers.
 //!
 //! A forward byte copy equals `mcopy` unless its destination starts strictly inside its source
 //! range, where the loop copies bytes it already wrote. A calldata source, or a source and a
 //! destination at distinct allocation sites that the alias analysis keeps apart, cannot overlap.
 //! A memory argument may overlap a fresh allocation, so other copies test the addresses at run
-//! time and fall back to the original loop when the destination leads into the source.
+//! time and fall back to the original loop when the destination leads into the source. Such a
+//! destination may also cover the source's length word, which the loop's checks reload after
+//! every store unless they compare with a length from before the loop, while the copy reads it
+//! once. For a source other than the destination, the test therefore keeps the loop whenever
+//! the destination range meets the span from the source's length word to the end of its range,
+//! which also catches every overlap the plain test does, in either direction.
 //!
 //! # Fresh destinations
 //!
@@ -1457,14 +1463,33 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                     let to = memory_data_address(&mut builder, &dst);
                     let from = builder.cast(from, MirType::I256);
                     let to = builder.cast(to, MirType::I256);
-                    // A downward copy goes wrong the other way round, when its source starts
-                    // inside the destination range:
-                    // behind = to < from && from < to + bound
-                    let (lead, trail) = if lp.descending { (to, from) } else { (from, to) };
-                    let end = builder.add(lead, size);
-                    let after = builder.lt(lead, trail);
-                    let inside = builder.lt(trail, end);
-                    let ahead = builder.and(after, inside);
+                    let ahead = if let Buffer::Memory(object) = src.buffer
+                        && src.len.is_none()
+                        && src.buffer != dst.buffer
+                    {
+                        // The loop reloads the source's length after every store, and the copy
+                        // reads it once, so the loop also stays for a destination that meets
+                        // the source's length word. That word lies below the source's data, so
+                        // a test of the span from it to the end of the source range also
+                        // catches every overlap of either direction:
+                        // start = ptrtoint src
+                        // ahead = to < from + bound && start < to + bound
+                        let start = builder.cast(object, MirType::I256);
+                        let end = builder.add(from, size);
+                        let last = builder.add(to, size);
+                        let below = builder.lt(to, end);
+                        let above = builder.lt(start, last);
+                        builder.and(below, above)
+                    } else {
+                        // A downward copy goes wrong the other way round, when its source starts
+                        // inside the destination range:
+                        // behind = to < from && from < to + bound
+                        let (lead, trail) = if lp.descending { (to, from) } else { (from, to) };
+                        let end = builder.add(lead, size);
+                        let after = builder.lt(lead, trail);
+                        let inside = builder.lt(trail, end);
+                        builder.and(after, inside)
+                    };
                     let fast = builder.create_block();
                     builder.branch(ahead, lp.header, fast);
                     builder.switch_to_block(fast);
