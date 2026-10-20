@@ -732,7 +732,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `vm.getBlockNumber() - 1` passes the reproduced case and 256 fixed-seed fuzz
   cases under both compilers. The external runner applies this test-only
   correction to both compiler legs and keeps the test enabled. It checks the
-  expected source text before applying the correction.
+  expected source text before applying the correction. The pinned Seaport
+  suite's ascending and descending amount tests save `block.timestamp` before
+  `vm.warp` and compute the expected amount from it afterwards; the runner
+  reads the warped timestamp through an external helper instead, so the five
+  affected tests pass under both compilers.
 
 ### CODEGEN-009: Static frames sit below the initial free memory pointer
 
@@ -789,7 +793,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
-  `cargo tq foundry-external seaport`.
+  `cargo tq foundry-external seaport`, whose runner keeps
+  `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` below 40
+  additional recipients.
 
 ### CODEGEN-011: ABI coder v1 is not supported
 
