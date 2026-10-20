@@ -385,7 +385,6 @@ fn @sliceCalldata() [selector=0xa10bf2ab, abi_wrapper, pure] {
     v76 = or v74, v75
     jumpi v76, bb10, bb9
   bb9:
-    mstore 64, v73 !metadata(memory=scratch)
     v78 = calldatasize
     calldatacopy v72, v78, v3
     mstore v72, arg2
@@ -564,7 +563,6 @@ fn @freshPair() [selector=0xded17a67, abi_wrapper, pure] {
     v89 = or v87, v88
     jumpi v89, bb13, bb12
   bb12:
-    mstore 64, v86 !metadata(memory=scratch)
     v97 = calldatasize
     calldatacopy v85, v97, v3
     mstore v85, arg0
@@ -956,7 +954,6 @@ fn @wordsFromCalldata() [selector=0xd35cf802, abi_wrapper, pure] {
     v93 = or v91, v92
     jumpi v93, bb6, bb5
   bb5:
-    mstore 64, v90 !metadata(memory=scratch)
     v95 = calldatasize
     calldatacopy v89, v95, v11
     mstore v89, v54

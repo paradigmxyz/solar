@@ -18,7 +18,6 @@ fn @echo() [selector=0x6279e43c, abi_wrapper, pure] {
     v29 = or v27, v28
     jumpi v29, bb4, bb3
   bb3:
-    mstore 64, v26 !metadata(memory=scratch)
     v31 = calldatasize
     calldatacopy v25, v31, v3
     v21 = add v25, 32
@@ -45,8 +44,6 @@ fn @measure() [selector=0x1abe4f5a, abi_wrapper] {
     v0: i256 = address
     v1 = gas
     v23 = mload 64 !metadata(memory=scratch)
-    v24 = add v23, 96
-    mstore 64, v24 !metadata(memory=scratch)
     mstore v23, 36
     v19 = add v23, 32
     mstore v19, 0x6279e43c00000000000000000000000000000000000000000000000000000000
@@ -156,7 +153,6 @@ fn @allocatedBetween() [selector=0x6b854ea5, abi_wrapper] {
     v55 = or v53, v54
     jumpi v55, bb2, bb1
   bb1:
-    mstore 64, v52 !metadata(memory=scratch)
     mstore v51, 1
     v46 = add v51, 32
     mstore v46, 1

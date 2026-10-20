@@ -3,10 +3,11 @@
 
 // A `@custom:solar-scratch` block writes the free memory pointer it started
 // with back when it ends, so each iteration's encoding reuses the memory of
-// the one before, instead of growing memory with every iteration.
+// the one before, instead of growing memory with every iteration. Nothing in
+// the block reads the pointer after the encoding bumps it, so the bump goes.
 // CHECK-LABEL: fn @digests
 // CHECK: [[START:v[0-9]+]] = mload 64
-// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK-NOT: mstore 64,
 // CHECK: keccak256
 // CHECK: mstore 64, [[START]]
 // CHECK-LABEL: fn @plain

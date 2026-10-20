@@ -14,7 +14,6 @@ fn @three() [selector=0xae4e757a, abi_wrapper, pure] {
     v31 = or v29, v30
     jumpi v31, bb4, bb3
   bb3:
-    mstore 64, v28 !metadata(memory=scratch)
     mstore v27, 3
     v21 = add v27, 32
     mstore v21, arg0

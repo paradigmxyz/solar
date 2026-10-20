@@ -50,7 +50,6 @@ fn @allocated() [selector=0x6649a3b9, abi_wrapper, pure] {
     v29 = or v27, v28
     jumpi v29, bb4, bb3
   bb3:
-    mstore 64, v26 !metadata(memory=scratch)
     v21 = add v25, 32
     mstore v21, arg0
     v23 = add v25, 64

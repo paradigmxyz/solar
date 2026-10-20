@@ -144,10 +144,7 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v61 = or v60, v12
     jumpi v61, bb1, bb2
   bb2:
-    v20 = add v2, 32
     v58 = mload 64 !metadata(memory=scratch)
-    v59 = add v58, v20
-    mstore 64, v59 !metadata(memory=scratch)
     mstore v58, v36
     v53 = add v58, 32
     calldatacopy v53, v31, v2

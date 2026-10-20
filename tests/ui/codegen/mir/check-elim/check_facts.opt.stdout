@@ -134,7 +134,6 @@ fn @afterAllocation() [selector=0x510dcf1e, abi_wrapper, pure] {
     v27 = or v25, v26
     jumpi v27, bb1, bb6
   bb6:
-    mstore 64, v24 !metadata(memory=scratch)
     v29 = calldatasize
     calldatacopy v23, v29, v9
     mstore v23, arg0

@@ -56,8 +56,6 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
   bb2:
     v0 = gas
     v29 = mload 64 !metadata(memory=scratch)
-    v30 = add v29, 128
-    mstore 64, v30 !metadata(memory=scratch)
     mstore v29, 68
     v25 = add v29, 32
     mstore v25, 0xa9059cbb00000000000000000000000000000000000000000000000000000000

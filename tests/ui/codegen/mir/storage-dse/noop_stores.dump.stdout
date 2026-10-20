@@ -126,8 +126,6 @@ fn @staticTouch() [selector=0x7a96c521, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v21 = mload 64 !metadata(memory=scratch)
-    v22 = add v21, 128
-    mstore 64, v22 !metadata(memory=scratch)
     mstore v21, 68
     v17 = add v21, 32
     mstore v17, 0x7cb6ded300000000000000000000000000000000000000000000000000000000

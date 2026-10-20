@@ -30,7 +30,6 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v58 = or v56, v57
     jumpi v58, bb5, bb8
   bb8:
-    mstore 64, v55 !metadata(memory=scratch)
     mstore v54, v19
     v26 = sub v10, v14
     v27 = gt v19, v26

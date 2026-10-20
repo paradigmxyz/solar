@@ -19,7 +19,6 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v60 = or v58, v59
     jumpi v60, bb10, bb9
   bb9:
-    mstore 64, v57 !metadata(memory=scratch)
     v62 = calldatasize
     calldatacopy v56, v62, v9
     mstore v56, arg0
@@ -139,7 +138,6 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v69 = or v67, v68
     jumpi v69, bb8, bb7
   bb7:
-    mstore 64, v66 !metadata(memory=scratch)
     v71 = calldatasize
     calldatacopy v65, v71, v10
     mstore v65, v41
