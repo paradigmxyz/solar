@@ -334,17 +334,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             },
         )?;
         let (values, types): (Vec<_>, Vec<_>) = arguments.into_iter().unzip();
-        // arguments = abi_encode(constructor_args), none without constructor arguments
+        // arguments = abi_encode(constructor_args) if constructor_args
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = (!layout.types.is_empty())
             .then(|| self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice()));
         let static_len = (!layout.types.iter().any(AbiType::is_dynamic))
             .then(|| layout.head_size())
             .filter(|&len| EvmMemoryLayout::align_word(len).is_some());
-        let encoded_len = match (static_len, encoded) {
-            (Some(len), _) => self.builder.imm(len),
-            (None, Some(encoded)) => self.builder.slice_len(encoded),
-            (None, None) => unreachable!("empty constructor arguments have a static length"),
+        let encoded_len = match static_len {
+            Some(len) => self.builder.imm(len),
+            None => {
+                self.builder.slice_len(encoded.expect("dynamic constructor arguments are encoded"))
+            }
         };
 
         // len = datasize initcode(C)

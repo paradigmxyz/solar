@@ -3,7 +3,7 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 
 // Both arrays stay on the stack across the low-memory copy, so staging the
-// child's creation code reaches its size and destination with shallow `dup`s.
+// child's creation code reaches its size and destination with `dup`s alone, no `pop`.
 // CHECK: push_data Child_creation_code_0
 // CHECK-NEXT: dup 5
 // CHECK-NEXT: codecopy
