@@ -343,166 +343,177 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     v156 = alloc checked 64
     jump bb1
   bb1:
-    v157 = phi [bb0: 0], [bb6: v178]
+    v157 = phi [bb0: 0], [bb6: v183]
     v158 = lt v157, 2
     jumpi v158, bb2, bb3
   bb3:
-    v179 = ptrtoint ptr<memory> v156 to i256
-    jump bb7
-  bb7:
-    v180 = phi [bb3: 0], [bb12: v244]
-    v181 = lt v180, 3
-    jumpi v181, bb8, bb9
-  bb9:
-    v245 = lt 0, 3
-    v246 = eq v245, false
-    icall panic_if<0x32>, v246
-    v247 = mul 0, 3
-    v248 = add 14, v247
-    v249 = lt 4, 6
-    v250 = eq v249, false
-    icall panic_if<0x32>, v250
-    v251 = div 4, 2
-    v252 = add v248, v251
-    v253 = mod 4, 2
-    v254 = mul v253, 15
-    v255 = sload v252 !metadata(storage=symbolic(v252))
-    v256 = mul v254, 8
-    v257 = shr v255, v256
-    v258 = trunc i256 v257 to i120
-    v259 = checked_add uint120, i120 3, v258
-    v260 = zext i120 v259 to i256
-    ret v260
-  bb8:
-    v182 = mul v180, 3
-    v183 = add 14, v182
-    v184 = lt v180, 2
-    jumpi v184, bb10, bb11
-  bb11:
-    v216 = alloc 192
-    memory_zero v216, 192
-    jump bb19
-  bb19:
-    v217 = phi [bb11: 0], [bb24: v243]
-    v218 = lt v217, 6
-    jumpi v218, bb20, bb21
-  bb21:
-    jump bb12
-  bb20:
-    v219 = div v217, 2
-    v220 = add v183, v219
-    v221 = mod v217, 2
-    v222 = mul v221, 15
-    v223 = lt v217, 6
-    jumpi v223, bb22, bb23
-  bb23:
-    v235 = mul v222, 8
-    v236 = shl 0xffffffffffffffffffffffffffffff, v235
-    v237 = sload v220 !metadata(storage=symbolic(v220))
-    v238 = not v236
-    v239 = and v237, v238
-    v240 = and 0, 0xffffffffffffffffffffffffffffff
-    v241 = shl v240, v235
-    v242 = or v239, v241
-    sstore v220, v242 !metadata(storage=symbolic(v220))
-    jump bb24
-  bb22:
-    v224 = shl v217, 5
-    v225 = ptradd v216, v224
-    v226 = mload v225
-    v227 = mul v222, 8
-    v228 = shl 0xffffffffffffffffffffffffffffff, v227
-    v229 = sload v220 !metadata(storage=symbolic(v220))
-    v230 = not v228
-    v231 = and v229, v230
-    v232 = and v226, 0xffffffffffffffffffffffffffffff
-    v233 = shl v232, v227
-    v234 = or v231, v233
-    sstore v220, v234 !metadata(storage=symbolic(v220))
-    jump bb24
-  bb24:
-    v243 = add v217, 1
-    jump bb19
+    v184 = ptrtoint ptr<memory> v156 to i256
+    jump bb10
   bb10:
-    v185 = shl v180, 5
-    v186 = ptradd v156, v185
-    v187 = mload v186
-    jump bb13
-  bb13:
-    v188 = phi [bb10: 0], [bb18: v215]
-    v189 = lt v188, 6
-    jumpi v189, bb14, bb15
-  bb15:
-    jump bb12
+    v185 = phi [bb3: 0], [bb15: v249]
+    v186 = lt v185, 3
+    jumpi v186, bb11, bb12
   bb12:
-    v244 = add v180, 1
-    jump bb7
+    v250 = lt 0, 3
+    v251 = eq v250, false
+    icall panic_if<0x32>, v251
+    v252 = mul 0, 3
+    v253 = add 14, v252
+    v254 = lt 4, 6
+    v255 = eq v254, false
+    icall panic_if<0x32>, v255
+    v256 = div 4, 2
+    v257 = add v253, v256
+    v258 = mod 4, 2
+    v259 = mul v258, 15
+    v260 = sload v257 !metadata(storage=symbolic(v257))
+    v261 = mul v259, 8
+    v262 = shr v260, v261
+    v263 = trunc i256 v262 to i120
+    v264 = checked_add uint120, i120 3, v263
+    v265 = zext i120 v264 to i256
+    ret v265
+  bb11:
+    v187 = mul v185, 3
+    v188 = add 14, v187
+    v189 = lt v185, 2
+    jumpi v189, bb13, bb14
   bb14:
-    v190 = div v188, 2
-    v191 = add v183, v190
-    v192 = mod v188, 2
-    v193 = mul v192, 15
-    v194 = lt v188, 5
-    jumpi v194, bb16, bb17
-  bb17:
-    v207 = mul v193, 8
-    v208 = shl 0xffffffffffffffffffffffffffffff, v207
-    v209 = sload v191 !metadata(storage=symbolic(v191))
-    v210 = not v208
-    v211 = and v209, v210
-    v212 = and 0, 0xffffffffffffffffffffffffffffff
-    v213 = shl v212, v207
-    v214 = or v211, v213
-    sstore v191, v214 !metadata(storage=symbolic(v191))
-    jump bb18
+    v221 = alloc 192
+    memory_zero v221, 192
+    jump bb22
+  bb22:
+    v222 = phi [bb14: 0], [bb27: v248]
+    v223 = lt v222, 6
+    jumpi v223, bb23, bb24
+  bb24:
+    jump bb15
+  bb23:
+    v224 = div v222, 2
+    v225 = add v188, v224
+    v226 = mod v222, 2
+    v227 = mul v226, 15
+    v228 = lt v222, 6
+    jumpi v228, bb25, bb26
+  bb26:
+    v240 = mul v227, 8
+    v241 = shl 0xffffffffffffffffffffffffffffff, v240
+    v242 = sload v225 !metadata(storage=symbolic(v225))
+    v243 = not v241
+    v244 = and v242, v243
+    v245 = and 0, 0xffffffffffffffffffffffffffffff
+    v246 = shl v245, v240
+    v247 = or v244, v246
+    sstore v225, v247 !metadata(storage=symbolic(v225))
+    jump bb27
+  bb25:
+    v229 = shl v222, 5
+    v230 = ptradd v221, v229
+    v231 = mload v230
+    v232 = mul v227, 8
+    v233 = shl 0xffffffffffffffffffffffffffffff, v232
+    v234 = sload v225 !metadata(storage=symbolic(v225))
+    v235 = not v233
+    v236 = and v234, v235
+    v237 = and v231, 0xffffffffffffffffffffffffffffff
+    v238 = shl v237, v232
+    v239 = or v236, v238
+    sstore v225, v239 !metadata(storage=symbolic(v225))
+    jump bb27
+  bb27:
+    v248 = add v222, 1
+    jump bb22
+  bb13:
+    v190 = shl v185, 5
+    v191 = ptradd v156, v190
+    v192 = mload v191
+    jump bb16
   bb16:
-    v195 = shl v188, 5
-    v196 = inttoptr i256 v187 to ptr<memory>
-    v197 = ptradd v196, v195
-    v198 = mload v197
-    v199 = mul v193, 8
-    v200 = shl 0xffffffffffffffffffffffffffffff, v199
-    v201 = sload v191 !metadata(storage=symbolic(v191))
-    v202 = not v200
-    v203 = and v201, v202
-    v204 = and v198, 0xffffffffffffffffffffffffffffff
-    v205 = shl v204, v199
-    v206 = or v203, v205
-    sstore v191, v206 !metadata(storage=symbolic(v191))
-    jump bb18
+    v193 = phi [bb13: 0], [bb21: v220]
+    v194 = lt v193, 6
+    jumpi v194, bb17, bb18
   bb18:
-    v215 = add v188, 1
-    jump bb13
+    jump bb15
+  bb15:
+    v249 = add v185, 1
+    jump bb10
+  bb17:
+    v195 = div v193, 2
+    v196 = add v188, v195
+    v197 = mod v193, 2
+    v198 = mul v197, 15
+    v199 = lt v193, 5
+    jumpi v199, bb19, bb20
+  bb20:
+    v212 = mul v198, 8
+    v213 = shl 0xffffffffffffffffffffffffffffff, v212
+    v214 = sload v196 !metadata(storage=symbolic(v196))
+    v215 = not v213
+    v216 = and v214, v215
+    v217 = and 0, 0xffffffffffffffffffffffffffffff
+    v218 = shl v217, v212
+    v219 = or v216, v218
+    sstore v196, v219 !metadata(storage=symbolic(v196))
+    jump bb21
+  bb19:
+    v200 = shl v193, 5
+    v201 = inttoptr i256 v192 to ptr<memory>
+    v202 = ptradd v201, v200
+    v203 = mload v202
+    v204 = mul v198, 8
+    v205 = shl 0xffffffffffffffffffffffffffffff, v204
+    v206 = sload v196 !metadata(storage=symbolic(v196))
+    v207 = not v205
+    v208 = and v206, v207
+    v209 = and v203, 0xffffffffffffffffffffffffffffff
+    v210 = shl v209, v204
+    v211 = or v208, v210
+    sstore v196, v211 !metadata(storage=symbolic(v196))
+    jump bb21
+  bb21:
+    v220 = add v193, 1
+    jump bb16
   bb2:
     v159 = add 12, v157
     v160 = alloc checked 160
     jump bb4
   bb4:
-    v161 = phi [bb2: 0], [bb5: v174]
-    v162 = lt v161, 5
+    v161 = phi [bb2: 0], [bb9: v179]
+    v162 = lt v161, 1
     jumpi v162, bb5, bb6
   bb6:
-    v175 = ptrtoint ptr<memory> v160 to i256
-    v176 = shl v157, 5
-    v177 = ptradd v156, v176
-    mstore v177, v175
-    v178 = add v157, 1
+    v180 = ptrtoint ptr<memory> v160 to i256
+    v181 = shl v157, 5
+    v182 = ptradd v156, v181
+    mstore v182, v180
+    v183 = add v157, 1
     jump bb1
   bb5:
-    v163 = div v161, 5
-    v164 = add v159, v163
-    v165 = mod v161, 5
-    v166 = mul v165, 6
-    v167 = sload v164 !metadata(storage=symbolic(v164))
-    v168 = mul v166, 8
-    v169 = shr v167, v168
-    v170 = trunc i256 v169 to i48
-    v171 = zext i48 v170 to i256
-    v172 = shl v161, 5
-    v173 = ptradd v160, v172
-    mstore v173, v171
-    v174 = add v161, 1
+    v163 = add v159, v161
+    v164 = sload v163 !metadata(storage=symbolic(v163))
+    v165 = mul v161, 5
+    v166 = sub 5, v165
+    v167 = lt v166, 5
+    v168 = select v167, v166, 5
+    jump bb7
+  bb7:
+    v169 = phi [bb5: 0], [bb8: v178]
+    v170 = lt v169, v168
+    jumpi v170, bb8, bb9
+  bb9:
+    v179 = add v161, 1
     jump bb4
+  bb8:
+    v171 = mul v169, 48
+    v172 = shr v164, v171
+    v173 = trunc i256 v172 to i48
+    v174 = zext i48 v173 to i256
+    v175 = add v165, v169
+    v176 = shl v175, 5
+    v177 = ptradd v160, v176
+    mstore v177, v174
+    v178 = add v169, 1
+    jump bb7
 }
 
 fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
