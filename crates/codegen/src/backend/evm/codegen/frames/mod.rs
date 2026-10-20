@@ -1355,34 +1355,78 @@ impl<'gcx> EvmCodegen<'gcx> {
         mark
     }
 
-    /// Returns the constants `value` is, or the constants of the `select` or `phi` that chooses
-    /// among them, and nothing when any other word can reach it.
+    /// Returns the constants `value` may be, and nothing when any other word can reach it.
+    ///
+    /// Selects and phis pick among constants, and the small arithmetic that if-conversion turns
+    /// them into computes over the sets, as a comparison gives zero or one.
     fn constant_leaves(func: &Function, value: ValueId) -> Vec<u64> {
-        if let Some(leaf) = func.value_u64(value) {
-            return vec![leaf];
+        let mut visiting = DenseBitSet::new_empty(func.num_values());
+        Self::constant_set(func, value, &mut visiting, 8).unwrap_or_default()
+    }
+
+    fn constant_set(
+        func: &Function,
+        value: ValueId,
+        visiting: &mut DenseBitSet<ValueId>,
+        depth: u32,
+    ) -> Option<Vec<u64>> {
+        const MAX_CONSTANTS: usize = 16;
+        if let Some(constant) = func.value_u64(value) {
+            return Some(vec![constant]);
         }
-        let mut leaves = Vec::new();
-        let mut pending = vec![value];
-        let mut visited = DenseBitSet::new_empty(func.num_values());
-        while let Some(value) = pending.pop() {
-            if let Some(leaf) = func.value_u64(value) {
-                leaves.push(leaf);
-            } else if let Value::Inst(inst_id) = func.value(value) {
-                if !visited.insert(value) {
-                    continue;
-                }
-                match &func.inst(*inst_id).kind {
-                    InstKind::Select(_, lhs, rhs) => pending.extend([*lhs, *rhs]),
-                    InstKind::Phi(incoming) => {
-                        pending.extend(incoming.iter().map(|&(_, incoming)| incoming));
-                    }
-                    _ => return Vec::new(),
-                }
-            } else {
-                return Vec::new();
+        let Value::Inst(inst_id) = func.value(value) else { return None };
+        if depth == 0 || !visiting.insert(value) {
+            return None;
+        }
+        let mut set = |value| Self::constant_set(func, value, visiting, depth - 1);
+        let mut combine = |lhs, rhs, op: fn(u64, u64) -> Option<u64>| {
+            let (lhs, rhs) = (set(lhs)?, set(rhs)?);
+            lhs.iter().flat_map(|&lhs| rhs.iter().map(move |&rhs| op(lhs, rhs))).collect()
+        };
+        let result = match &func.inst(*inst_id).kind {
+            InstKind::Select(_, lhs, rhs) => set(*lhs).zip(set(*rhs)).map(|(mut lhs, rhs)| {
+                lhs.extend(rhs);
+                lhs
+            }),
+            InstKind::Phi(incoming) => {
+                let mut all = Vec::new();
+                incoming.iter().try_for_each(|&(_, incoming)| {
+                    all.extend(set(incoming)?);
+                    Some(())
+                })?;
+                Some(all)
             }
-        }
-        leaves
+            InstKind::Add(lhs, rhs) => combine(*lhs, *rhs, u64::checked_add),
+            InstKind::Sub(lhs, rhs) => combine(*lhs, *rhs, u64::checked_sub),
+            InstKind::Mul(lhs, rhs) => combine(*lhs, *rhs, u64::checked_mul),
+            InstKind::And(lhs, rhs) => combine(*lhs, *rhs, |lhs, rhs| Some(lhs & rhs)),
+            InstKind::Or(lhs, rhs) => combine(*lhs, *rhs, |lhs, rhs| Some(lhs | rhs)),
+            InstKind::Xor(lhs, rhs) => combine(*lhs, *rhs, |lhs, rhs| Some(lhs ^ rhs)),
+            InstKind::Shl(shift, value) => combine(*shift, *value, |shift, value| {
+                u32::try_from(shift).ok().and_then(|shift| value.checked_shl(shift))
+            }),
+            InstKind::Shr(shift, value) => combine(*shift, *value, |shift, value| {
+                Some(
+                    u32::try_from(shift)
+                        .ok()
+                        .and_then(|shift| value.checked_shr(shift))
+                        .unwrap_or(0),
+                )
+            }),
+            InstKind::Zext(inner) => set(*inner),
+            InstKind::Eq(..)
+            | InstKind::Ne(..)
+            | InstKind::Lt(..)
+            | InstKind::Gt(..)
+            | InstKind::SLt(..)
+            | InstKind::SGt(..) => Some(vec![0, 1]),
+            _ => None,
+        };
+        visiting.remove(value);
+        let mut set = result?;
+        set.sort_unstable();
+        set.dedup();
+        (set.len() <= MAX_CONSTANTS).then_some(set)
     }
 
     /// Returns the highest end address of a constant memory range in `func` that starts at or
@@ -1446,9 +1490,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .filter(|&&pointer| {
                     pointer < LOW_HEAP_POINTER_BOUND
                         || (start > EvmMemoryLayout::HEAP_START
-                            && pointer < start + SPILL_HAZARD_BOUND)
+                            && pointer < start.saturating_add(SPILL_HAZARD_BOUND))
                 })
-                .map(|&pointer| (pointer + SPILL_HAZARD_BOUND).max(LOW_MEMORY_BOUND))
+                .map(|&pointer| pointer.saturating_add(SPILL_HAZARD_BOUND).max(LOW_MEMORY_BOUND))
                 .fold(mark, u64::max);
             if raised == mark {
                 return mark;
