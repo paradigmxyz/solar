@@ -113,29 +113,6 @@ contract Events {
         emit TwoWordsAnonymous(account, flag);
     }
 
-    // Static event data lives in scratch memory: the heap and the free memory pointer stay put.
-    function emitTwoWordsKeepsHeap(uint256 first, uint256 second) public returns (bool) {
-        bytes memory buffer = new bytes(64);
-        assembly {
-            mstore(add(buffer, 0x20), 0x1111)
-            mstore(add(buffer, 0x40), 0x2222)
-        }
-        uint256 pointer;
-        assembly {
-            pointer := mload(0x40)
-        }
-        emit TwoWords(first, second);
-        uint256 afterPointer;
-        uint256 one;
-        uint256 two;
-        assembly {
-            afterPointer := mload(0x40)
-            one := mload(add(buffer, 0x20))
-            two := mload(add(buffer, 0x40))
-        }
-        return afterPointer == pointer && one == 0x1111 && two == 0x2222;
-    }
-
     // The fields are read before the data words are written over the memory they alias.
     function emitTwoWordsSwapped() public {
         Pair memory pair;

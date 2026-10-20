@@ -652,13 +652,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             // mstore 0, a
             // mstore 32, b
-            // log 0, 64, topics...
-            let zero = self.builder.imm(0);
             for (index, &value) in data_values.iter().enumerate() {
                 let offset = self.builder.imm(32 * index as u64);
                 self.builder.store(offset, value);
             }
-            (zero, self.builder.imm(32 * data_values.len() as u64))
+            (self.builder.imm(0), self.builder.imm(32 * data_values.len() as u64))
         } else {
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
             let encoded = self.builder.abi_encode(layout, None, data_values.into_boxed_slice());

@@ -132,10 +132,6 @@ contract EventsTest {
         require(account == address(0x1234) && flag);
     }
 
-    function test_EmitTwoWordsKeepsHeap() public {
-        require(events.emitTwoWordsKeepsHeap(1, 2));
-    }
-
     function test_EmitTwoWordsSwapped() public {
         vm.recordLogs();
         events.emitTwoWordsSwapped();

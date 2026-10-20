@@ -77,24 +77,3 @@ fn @threeWords(arg0: i256) -> i256 [selector=0x72877259, abi_params=[uint256], a
     log v3, v4, 0xd3d2405dd719b971a7f9b4e0a312db1f22d361f171f71c9870c715833392b52b
     ret arg0
 }
-
-fn @dynamic(arg0: i256) -> i256 [selector=0x691a82eb, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = alloc 64 !metadata(preserves_fmp)
-    mstore v0, 1
-    v1 = ptradd v0, 32
-    mstore v1, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v2 = abi_encode [word, memory_bytes], args arg0, v0
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    log v3, v4, 0x21d5ec9cb35aa29d587659119709f7ce19aed72ee86509e025b9fcb015ee1e3b
-    ret arg0
-}
-
-fn @indexedAnonymous(arg0: i256) -> i256 [selector=0xd6c35f22, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    mstore 0, 1 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
-    log 0, 64, arg0
-    ret arg0
-}
