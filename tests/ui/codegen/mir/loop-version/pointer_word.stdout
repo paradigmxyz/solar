@@ -38,13 +38,51 @@ fn @lastIndicesIn() [selector=0x16134912, abi_wrapper, pure] {
 fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory, pure] {
   bb0:
     v0 = mload arg1
-    v107 = mload arg0
-    v57 = mload arg2
-    v60 = or arg2, v57
-    v61 = shl v57, 5
     v62 = add arg2, 1
-    v63 = add v61, 31
     v65 = sub arg1, v62
+    jump bb1
+  bb1:
+    v5 = phi [bb0: v0], [bb12: v7]
+    v6 = ne v5, 0
+    jumpi v6, bb3, bb2
+  bb3:
+    v7 = sub v5, 1
+    v8 = mload arg1
+    v9 = lt v7, v8
+    jumpi v9, bb10, bb9
+  bb10:
+    v11 = shl v7, 5
+    v90 = add arg1, v11
+    v91 = add v90, 32
+    v14 = mload v91
+    v15 = eq v14, 0
+    jumpi v15, bb2, bb4
+  bb4:
+    v108 = mload arg0
+    v17 = mload v108
+    v18 = gt v17, 0
+    jumpi v18, bb11, bb9
+  bb11:
+    v93 = add v108, 32
+    v21 = mload v93
+    v78 = add v14, v21
+    v79 = lt v78, v14
+    jumpi v79, bb16, bb17
+  bb17:
+    v23 = and v78, 3
+    v24 = mload arg2
+    v25 = lt v23, v24
+    jumpi v25, bb12, bb9
+  bb12:
+    v27 = shl v23, 5
+    v95 = add arg2, v27
+    v96 = add v95, 32
+    mstore v96, v7
+    v55 = mload arg1
+    v112 = mload arg0
+    v60 = or arg2, v24
+    v61 = shl v24, 5
+    v63 = add v61, 31
     v66 = lt v65, v63
     v70 = sub arg0, v62
     v71 = lt v70, v63
@@ -53,82 +91,46 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     v86 = zext i1 v84 to i256
     v87 = or v82, v86
     v76 = eq v87, 0
-    jumpi v76, bb8, bb9
-  bb9:
-    jump bb1
-  bb1:
-    v5 = phi [bb9: v0], [bb13: v7]
-    v6 = ne v5, 0
-    jumpi v6, bb3, bb2
-  bb3:
-    v7 = sub v5, 1
-    v8 = mload arg1
-    v9 = lt v7, v8
-    jumpi v9, bb11, bb10
-  bb11:
-    v11 = shl v7, 5
-    v93 = add arg1, v11
-    v94 = add v93, 32
-    v14 = mload v94
-    v15 = eq v14, 0
-    jumpi v15, bb2, bb4
-  bb4:
-    v111 = mload arg0
-    v17 = mload v111
-    v18 = gt v17, 0
-    jumpi v18, bb12, bb10
-  bb12:
-    v96 = add v111, 32
-    v21 = mload v96
-    v78 = add v14, v21
-    v79 = lt v78, v14
-    jumpi v79, bb16, bb17
-  bb17:
-    v23 = and v78, 3
-    v25 = lt v23, v57
-    jumpi v25, bb13, bb10
-  bb13:
-    v27 = shl v23, 5
-    v98 = add arg2, v27
-    v99 = add v98, 32
-    mstore v99, v7
-    jump bb1
+    jumpi v76, bb8, bb1
   bb8:
+    v114 = add arg2, 32
     jump bb5
   bb5:
-    v33 = phi [bb8: v0], [bb15: v35]
+    v33 = phi [bb8: v7], [bb15: v35]
     v34 = ne v33, 0
     jumpi v34, bb6, bb2
   bb6:
     v35 = sub v33, 1
+    v37 = lt v35, v55
+    jumpi v37, bb13, bb9
+  bb13:
     v38 = shl v35, 5
-    v90 = add arg1, v38
-    v91 = add v90, 32
-    v41 = mload v91
+    v98 = add arg1, v38
+    v99 = add v98, 32
+    v41 = mload v99
     v42 = eq v41, 0
     jumpi v42, bb2, bb7
   bb7:
-    v44 = mload v107
+    v44 = mload v112
     v45 = gt v44, 0
-    jumpi v45, bb14, bb10
+    jumpi v45, bb14, bb9
   bb14:
-    v101 = add v107, 32
+    v101 = add v112, 32
     v47 = mload v101
     v80 = add v41, v47
     v81 = lt v80, v41
     jumpi v81, bb16, bb18
   bb18:
     v49 = and v80, 3
-    v51 = lt v49, v57
-    jumpi v51, bb15, bb10
-  bb10:
+    v51 = lt v49, v24
+    jumpi v51, bb15, bb9
+  bb9:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb15:
     v52 = shl v49, 5
-    v103 = add arg2, v52
-    v104 = add v103, 32
+    v104 = add v114, v52
     mstore v104, v35
     jump bb5
   bb16:
@@ -136,7 +138,7 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v31 = phi [bb11: true], [bb1: false], [bb6: true], [bb5: false]
+    v31 = phi [bb10: true], [bb1: false], [bb13: true], [bb5: false]
     ret v31
 }
 
@@ -166,12 +168,12 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb6:
     mstore 64, v28 !metadata(memory=scratch)
     mstore v27, v8
-    v14 = shl v8, 5
     v15 = sub v0, v3
     v16 = shr v15, 5
     v17 = gt v8, v16
     jumpi v17, bb1, bb5
   bb5:
+    v14 = shl v8, 5
     v24 = add v27, 32
     calldatacopy v24, v3, v14
     ret v27

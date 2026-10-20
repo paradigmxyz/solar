@@ -8,17 +8,17 @@
 // The early `return false` and the end of the loop share one block, which the
 // loop leaves into besides its match. The loop's edge into that block gets a
 // block of its own, and the loop is versioned like one with its own exits. The
-// clone reads `a`'s length from before the loop, where `n` was read, so its
-// reads of `a` keep no check.
+// loop reads `last`'s length only after the first element's check and match,
+// so the test runs on the back edge, and the clone reloads no length.
 // CHECK-LABEL: fn @_lastIndices(
+// CHECK: jump [[HEADER:bb[0-9]+]]
+// CHECK-NEXT: [[HEADER]]:
 // CHECK: shr {{v[0-9]+}}, 64
-// CHECK: jumpi {{v[0-9]+}}, [[FAST:bb[0-9]+]], [[SLOW:bb[0-9]+]]
+// CHECK: jumpi {{v[0-9]+}}, [[FAST:bb[0-9]+]], [[HEADER]]
 // CHECK: [[FAST]]:
-// CHECK-NEXT: jump [[CLONE:bb[0-9]+]]
+// CHECK: jump [[CLONE:bb[0-9]+]]
 // CHECK: [[CLONE]]:
 // CHECK-NOT: mload arg
-// CHECK: [[I:v[0-9]+]] = sub {{v[0-9]+}}, 1
-// CHECK-NEXT: shl [[I]], 5
 // CHECK: ret
 
 contract Test {

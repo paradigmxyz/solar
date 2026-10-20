@@ -7,11 +7,12 @@
 //! checked access. Check elimination cannot relate those fresh loads to the loop's counters, so
 //! every access keeps its bounds check.
 //!
-//! This pass clones such a loop. A new block before it reads each word the loop loads from a
-//! pointer defined before the loop, tests that no array the loop writes can reach any of those
-//! words, and enters the clone when the test holds. The clone uses the test block's values in
-//! place of the loads, so later passes see loop-invariant lengths; the original loop runs when
-//! the test fails.
+//! This pass clones such a loop. A new block reads each word the loop loads from a pointer
+//! defined before the loop, tests that no array the loop writes can reach any of those words,
+//! and enters the clone when the test holds. The clone uses the test block's values in place of
+//! the loads, so later passes see loop-invariant lengths; the original loop runs when the test
+//! fails. The test runs before the loop, or, when the loop reads a word only behind its trip test
+//! or a check, on the loop's back edge after the first iteration (see Safety).
 //!
 //! ```text
 //! test: lz = mload z ...; ok = (x | lx | ...) < 2^64 && !(z - (x + 1) < (lx << s) + 31 || ...)
@@ -36,10 +37,23 @@
 //! A packed hash the lowering builds in the scratch space, such as `keccak256(abi.encode(a, b))`,
 //! writes only below `0x40` and may sit in the loop as well.
 //!
-//! The words are the `mload z` of the loop whose pointer `z` is defined before the loop. A block
-//! after the loop that reads a value the loop defines must lie behind exactly one exit block.
+//! The words are the `mload z` of the loop whose pointer `z` is defined before the loop and that
+//! the test may read where it runs. A block after the loop that reads a value the loop defines
+//! must lie behind exactly one exit block.
 //!
 //! # Safety
+//!
+//! The test must not read memory the loop would not. A read expands memory up to its address,
+//! which may be an offset the caller chooses, as for an element at a loop-invariant index behind
+//! its bounds check, and a pointer does not prove that it addresses a real object. Before the
+//! loop, the loop may run no iteration, or fail or leave before its first read of a word. So a
+//! test before the loop reads a word only when every path to the loop already loaded or stored
+//! it, which memory then covers, or when the loop reads it on every entry before anything that
+//! may fail, end the call, leave the loop, or read the memory size. Otherwise the test sits on the
+//! loop's one back edge, after the first iteration's trip test and checks, and reads only words
+//! that every iteration reads before it reaches that edge, or that every path to the loop
+//! accessed. The loop's other loads stay loads in both copies, and a loop whose written array's
+//! own length word the test cannot read is not versioned.
 //!
 //! The test requires every written array's pointer and bound below `2^64`, one comparison of
 //! their bitwise OR, so its data range `[x + 32, x + 32 + (n << s))` does not wrap, and every
@@ -56,7 +70,10 @@
 //! the loop or the array's own length word, still at its test-block value. So no store of an
 //! iteration changes a word, and by induction every replaced load returns what the original load
 //! would have returned. The two copies run the same instructions otherwise, with the same effects
-//! and failures. A check that compared with a replaced load now compares with the same value.
+//! and failures. A check that compared with a replaced load now compares with the same value. A
+//! test on the back edge enters the clone's header with the values the back edge carries, so the
+//! clone runs the remaining iterations; when it fails, the original loop runs the next iteration
+//! and tests again after it.
 //!
 //! Values the loop defines and the code after it reads reach that code through a phi in the one
 //! exit block that every reading block lies behind, which merges the two copies; existing phis in
@@ -70,11 +87,15 @@
 //! short-circuit loop condition does, folds without a copy; a loop with only such checks would
 //! save just the reloads, which a short loop does not repay, and stays as it is.
 //!
-//! Gas builds only, since the loop's code doubles. The test runs once per entry into the loop, and
-//! the outermost qualifying loop is versioned, so its inner loops are covered; loops nested in a
-//! versioned loop's original copy are left alone. The pass runs after the semantic check
-//! elimination and jump threading, on the threaded graph where short-circuit conditions dominate
-//! the checks they cover.
+//! Gas builds only, since the loop's code doubles. The test runs once per entry into the loop:
+//! before it, or after its first iteration, which then keeps its reloads and checks, while a loop
+//! that never runs skips the test. A test on the back edge that fails, for arrays that overlap,
+//! runs again after every further iteration. The test goes before the loop whenever the words it
+//! can read there make the copy pay, since the clone's counters then start from values before the
+//! loop, which check elimination relates to the lengths read there. The outermost qualifying loop
+//! is versioned, so its inner loops are covered; loops nested in either copy of a versioned loop
+//! are left alone. The pass runs after the semantic check elimination and jump threading, on the
+//! threaded graph where short-circuit conditions dominate the checks they cover.
 
 use super::loop_split::{clone_loop, retarget};
 use crate::mir::{
@@ -134,10 +155,12 @@ struct Plan {
     blocks: Vec<BlockId>,
     loop_blocks: FxHashSet<BlockId>,
     written: Vec<Written>,
-    /// Each pointer whose word the loop loads, with those loads.
+    /// Each pointer whose word the test reads, with the loop's loads of it.
     words: Vec<(ValueId, Vec<InstId>)>,
     /// The end of the scratch space the loop's packed hashes write, zero if none.
     scratch_end: u64,
+    /// The block whose back edge the test sits on, or `None` for a test before the loop.
+    latch: Option<BlockId>,
 }
 
 /// What a qualifying loop needs next.
@@ -151,7 +174,7 @@ enum Planned {
 
 fn version_function(func: &mut Function) -> bool {
     let mut changed = false;
-    // Blocks of loops already versioned, whose original copies are not versioned again.
+    // Blocks of loops already versioned, whose copies are not versioned again.
     let mut done = FxHashSet::default();
     // Headers of loops whose shared exits were split. A loop asks once: a second request means
     // the split did not give it exits of its own, and it is left alone.
@@ -175,7 +198,7 @@ fn version_function(func: &mut Function) -> bool {
         match planned {
             Planned::Version(plan) => {
                 done.extend(plan.blocks.iter().copied());
-                apply(func, &plan);
+                done.extend(apply(func, &plan));
             }
             // from -> exit  =>  from -> split -> exit, after which the loop's exits are its own
             // and the next round plans it again.
@@ -344,44 +367,68 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
         }
     }
     // The copy pays when a bounds check still compares with a word another array's stores
-    // might reach: against the preheader's value, check elimination can fold it. A check that
-    // a loop branch on the same comparison dominates, as a short-circuit loop condition does,
-    // folds anyway, and a loop with only such checks would just save the reloads, which a short
-    // loop does not repay.
+    // might reach: against the test's value, check elimination can fold it. A check that a loop
+    // branch on the same comparison dominates, as a short-circuit loop condition does, folds
+    // anyway, and a loop with only such checks would just save the reloads, which a short loop
+    // does not repay. A written array's own length word must be among the words when its checks
+    // read it.
     let reachable =
         |word: ValueId| scratch_end != 0 || written.iter().any(|written| written.object != word);
-    let length_of = |bound: ValueId| match inst_kind(func, bound) {
-        Some(&InstKind::Load(word, PtrLocation::Memory))
-            if defined_in_loop(bound) && !defined_in_loop(word) =>
-        {
-            Some(word)
-        }
-        _ => None,
+    let pays = |words: &[(ValueId, Vec<InstId>)]| {
+        let read = |word: ValueId| words.iter().any(|&(read, _)| read == word);
+        let length_of = |bound: ValueId| match inst_kind(func, bound) {
+            Some(&InstKind::Load(word, PtrLocation::Memory))
+                if defined_in_loop(bound) && read(word) =>
+            {
+                Some(word)
+            }
+            _ => None,
+        };
+        let covered = |index: ValueId, word: ValueId, block: BlockId| {
+            blocks.iter().any(|&branch| {
+                branch != block
+                    && cfg.dominators().dominates(branch, block)
+                    && matches!(func.blocks[branch].terminator, Some(Terminator::Branch { condition, .. })
+                        if matches!(inst_kind(func, condition), Some(&InstKind::Lt(i, b))
+                            if i == index && length_of(b) == Some(word)))
+            })
+        };
+        let rechecked = checks.iter().any(|(&index, checks)| {
+            checks.iter().any(|&(block, _, bound)| {
+                length_of(bound).is_some_and(|word| reachable(word) && !covered(index, word, block))
+            })
+        });
+        rechecked
+            && written.iter().all(|written| written.bound != Bound::Length || read(written.object))
     };
-    let covered = |index: ValueId, word: ValueId, block: BlockId| {
-        blocks.iter().any(|&branch| {
-            branch != block
-                && cfg.dominators().dominates(branch, block)
-                && matches!(func.blocks[branch].terminator, Some(Terminator::Branch { condition, .. })
-                    if matches!(inst_kind(func, condition), Some(&InstKind::Lt(i, b))
-                        if i == index && length_of(b) == Some(word)))
-        })
+    // The test reads only words the program reads anyway, so it expands no memory the loop would
+    // not: words every path to the loop accessed, and, before the loop, words the loop reads
+    // first on every entry, or, on the one back edge, words every iteration reads before that
+    // edge. A word the loop reads only behind its trip test or a check, such as an element at a
+    // loop-invariant index, may lie at an offset the caller chooses.
+    let accessed = accessed_words(func, cfg, preheader);
+    let readable = |ran: &dyn Fn(InstId) -> bool| {
+        words
+            .iter()
+            .filter(|(word, loads)| accessed.contains(word) || loads.iter().any(|&load| ran(load)))
+            .cloned()
+            .collect::<Vec<_>>()
     };
-    let rechecked = checks.iter().any(|(&index, checks)| {
-        checks.iter().any(|&(block, _, bound)| {
-            length_of(bound).is_some_and(|word| reachable(word) && !covered(index, word, block))
-        })
-    });
-    if !rechecked {
-        return None;
-    }
-    // A written array's own length word is loaded in the loop when its checks read it.
-    for written in &written {
-        if written.bound == Bound::Length && !words.iter().any(|(word, _)| *word == written.object)
-        {
+    let before = readable(&|load| read_first(func, cfg, l, &blocks, load));
+    let (words, latch) = if pays(&before) {
+        (before, None)
+    } else {
+        let &[latch] = &l.back_edges[..] else { return None };
+        let after = readable(&|load| {
+            let block =
+                blocks.iter().find(|&&block| func.blocks[block].instructions.contains(&load));
+            block.is_some_and(|&block| cfg.dominators().dominates(block, latch))
+        });
+        if !pays(&after) {
             return None;
         }
-    }
+        (after, Some(latch))
+    };
     // Loop values read after the loop reach each reading block through the one exit block that
     // lies before it; an exit block's phis take them on the loop's edges.
     for (block, body) in func.blocks.iter_enumerated() {
@@ -422,6 +469,7 @@ fn plan(func: &Function, cfg: &CfgInfo, aa: &AliasAnalysis, l: &Loop) -> Option<
         written,
         words,
         scratch_end,
+        latch,
     }))
 }
 
@@ -443,7 +491,59 @@ fn predecessors(func: &Function, block: BlockId) -> Vec<BlockId> {
         .collect()
 }
 
-fn apply(func: &mut Function, plan: &Plan) {
+/// The addresses of the memory words that every path to `preheader` loads or stores, which
+/// memory already covers there.
+fn accessed_words(func: &Function, cfg: &CfgInfo, preheader: BlockId) -> FxHashSet<ValueId> {
+    let mut accessed = FxHashSet::default();
+    for block in cfg.dominators().self_and_dominators(preheader) {
+        for &inst in &func.blocks[block].instructions {
+            if let InstKind::Load(address, PtrLocation::Memory)
+            | InstKind::Store(address, _, PtrLocation::Memory) = func.inst(inst).kind
+            {
+                accessed.insert(address);
+            }
+        }
+    }
+    accessed
+}
+
+/// Whether the loop runs `load` on every entry before anything that may leave it or read the
+/// memory size: every edge out of the loop leaves from a block behind the load's block, and
+/// nothing before the load may fail or end the call, in its block or in a loop block that may
+/// run before it.
+fn read_first(func: &Function, cfg: &CfgInfo, l: &Loop, blocks: &[BlockId], load: InstId) -> bool {
+    let dominators = cfg.dominators();
+    let Some(&block) =
+        blocks.iter().find(|&&block| func.blocks[block].instructions.contains(&load))
+    else {
+        return false;
+    };
+    let exits_behind = blocks.iter().all(|&exiting| {
+        let leaves = func.blocks[exiting].terminator.as_ref().is_some_and(|terminator| {
+            terminator.successors().into_iter().any(|successor| !l.blocks.contains(successor))
+        });
+        !leaves || dominators.dominates(block, exiting)
+    });
+    exits_behind
+        && blocks.iter().all(|&other| {
+            let instructions = &func.blocks[other].instructions;
+            let before = if other == block {
+                let position = instructions.iter().position(|&inst| inst == load);
+                &instructions[..position.expect("the load is in its block")]
+            } else if dominators.dominates(block, other) {
+                return true;
+            } else {
+                &instructions[..]
+            };
+            before.iter().all(|&inst| {
+                let kind = &func.inst(inst).kind;
+                !kind.effects().control.any() && !matches!(kind, InstKind::MSize)
+            })
+        })
+}
+
+/// Versions the loop and returns the blocks of its clone.
+fn apply(func: &mut Function, plan: &Plan) -> Vec<BlockId> {
     // Loop values the code after the loop reads, other than through the exits' phis, with the
     // exit block each reading block lies behind.
     let cfg = CfgInfo::new(func);
@@ -496,13 +596,14 @@ fn apply(func: &mut Function, plan: &Plan) {
 
     let copy = clone_loop(func, &plan.blocks);
 
-    // preheader: ... jump test
+    // preheader | latch: ... jump test
     // test: lz = mload z, ...; ok = ...; jumpi ok, fast, slow
     let test = func.alloc_block();
-    let (terminator, metadata) = func.blocks[plan.preheader].take_terminator();
-    let mut terminator = terminator.expect("the preheader is terminated");
+    let entry = plan.latch.unwrap_or(plan.preheader);
+    let (terminator, metadata) = func.blocks[entry].take_terminator();
+    let mut terminator = terminator.expect("the block entering the test is terminated");
     retarget(&mut terminator, |successor| if successor == plan.header { test } else { successor });
-    func.blocks[plan.preheader].set_terminator(terminator, metadata);
+    func.blocks[entry].set_terminator(terminator, metadata);
     let mut builder = FunctionBuilder::new_semantic(func);
     builder.switch_to_block(test);
     let mut values = FxHashMap::default();
@@ -568,20 +669,55 @@ fn apply(func: &mut Function, plan: &Plan) {
     builder.switch_to_block(slow);
     builder.jump(plan.header);
 
-    // header: v = phi [preheader: init], ... -> [slow: init] / header': [fast: init]
-    for (header, entry) in [(plan.header, slow), (copy.blocks[&plan.header], fast)] {
-        for inst in func.blocks[header].instructions.clone() {
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
-                for (from, _) in incoming.iter_mut() {
+    let header_copy = copy.blocks[&plan.header];
+    match plan.latch {
+        // header: v = phi [preheader: init], ... -> [slow: init] / header': [fast: init]
+        None => {
+            for (header, entry) in [(plan.header, slow), (header_copy, fast)] {
+                for inst in func.blocks[header].instructions.clone() {
+                    if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
+                        for (from, _) in incoming.iter_mut() {
+                            if *from == plan.preheader {
+                                *from = entry;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // header: v = phi [preheader: init], [latch: x] -> [preheader: init], [slow: x]
+        // header': v' = phi [preheader: init], [latch': x'] -> [fast: x], [latch': x']
+        Some(latch) => {
+            let phis = func.blocks[plan.header]
+                .instructions
+                .iter()
+                .copied()
+                .zip(func.blocks[header_copy].instructions.iter().copied())
+                .collect::<Vec<_>>();
+            for (phi, phi_copy) in phis {
+                let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind else { continue };
+                let mut carried = None;
+                for (from, value) in incoming.iter_mut() {
+                    if *from == latch {
+                        *from = slow;
+                        carried = Some(*value);
+                    }
+                }
+                let carried = carried.expect("the latch enters the header");
+                let InstKind::Phi(incoming) = &mut func.inst_mut(phi_copy).kind else {
+                    unreachable!("the copy of a phi is a phi")
+                };
+                for (from, value) in incoming.iter_mut() {
                     if *from == plan.preheader {
-                        *from = entry;
+                        *from = fast;
+                        *value = carried;
                     }
                 }
             }
         }
     }
 
-    // The clone reads the preheader's words.
+    // The clone reads the test's words.
     let mut replacements = FxHashMap::default();
     for (word, loads) in &plan.words {
         for &load in loads {
@@ -695,6 +831,7 @@ fn apply(func: &mut Function, plan: &Plan) {
         }
     }
     rebuild_predecessors(func);
+    copy.blocks.into_values().collect()
 }
 
 /// The word of a pointer value, for comparisons.

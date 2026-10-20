@@ -9,10 +9,12 @@
 // A loop with an early return leaves through two exits besides its failed
 // checks. Each exit merges the two copies' values in a phi of its own.
 // CHECK-LABEL: fn @_splitUntilZero(
+// CHECK: shr {{v[0-9]+}}, 64
 // CHECK: jumpi {{v[0-9]+}}, [[FAST:bb[0-9]+]], [[SLOW:bb[0-9]+]]
 // CHECK: [[FAST]]:
 // CHECK-NEXT: jump [[CLONE:bb[0-9]+]]
 // CHECK: [[CLONE]]:
+// CHECK-NEXT: phi
 // CHECK-NOT: mload arg
 // CHECK: phi [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK-NEXT: ret
