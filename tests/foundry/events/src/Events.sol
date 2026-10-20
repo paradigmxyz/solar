@@ -98,7 +98,9 @@ contract Events {
     }
 
     event TwoWords(uint256 first, uint256 second);
+
     event TwoWordsIndexed(uint256 indexed id, address account, bool flag);
+
     event TwoWordsAnonymous(address account, bool flag) anonymous;
 
     function emitTwoWords(uint256 first, uint256 second) public {
@@ -122,5 +124,17 @@ contract Events {
             pair := 0
         }
         emit TwoWords(pair.second, pair.first);
+    }
+
+    event ThreeWords(uint256 first, uint256 second, uint256 third);
+
+    event DynamicData(uint256 indexed id, bytes data, string text, uint256 count);
+
+    function emitThreeWords(uint256 first, uint256 second, uint256 third) public {
+        emit ThreeWords(first, second, third);
+    }
+
+    function emitDynamicData(uint256 id, bytes memory data, uint256 count) public {
+        emit DynamicData(id, data, "a literal string that is longer than a single word", count);
     }
 }
