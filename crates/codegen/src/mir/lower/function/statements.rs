@@ -647,10 +647,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (data_ptr, data_size) = if data_types.is_empty() {
             let zero = self.builder.imm(U256::ZERO);
             (zero, zero)
-        } else if matches!(data_types.as_slice(), [AbiType::Word(_)]) {
-            let zero = self.builder.imm(0);
-            self.builder.store(zero, data_values[0]);
-            (zero, self.builder.imm(32))
+        } else if data_types.len() <= 2
+            && data_types.iter().all(|ty| matches!(ty, AbiType::Word(_)))
+        {
+            // mstore 0, a
+            // mstore 32, b
+            for (index, &value) in data_values.iter().enumerate() {
+                let offset = self.builder.imm(32 * index as u64);
+                self.builder.store(offset, value);
+            }
+            (self.builder.imm(0), self.builder.imm(32 * data_values.len() as u64))
         } else {
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
             let encoded = self.builder.abi_encode(layout, None, data_values.into_boxed_slice());

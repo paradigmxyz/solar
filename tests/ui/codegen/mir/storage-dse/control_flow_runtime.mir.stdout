@@ -5,7 +5,7 @@ fn @halted(arg0: i256, arg1: i1) -> i256 [selector=0x85726af7, abi_params=[uint2
     v0 = address
     v1 = gas
     v2 = zext i1 arg1 to i256
-    v3 = abi_encode [word, word<bool>], selector 0x4db2264e00000000000000000000000000000000000000000000000000000000, args arg0, v2
+    v3 = abi_encode [word, word<bool>], scratch, selector 0x4db2264e00000000000000000000000000000000000000000000000000000000, args arg0, v2
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v0 to i256
@@ -96,22 +96,20 @@ fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], 
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x5cd82f400000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 32
-    jumpi v6, bb2, bb1
+    mstore 0, 0x5cd82f4 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 4, 0, 32
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
     sstore 0, 2 !metadata(storage=slot(0))
-    ret v10
+    ret v7
 }
 
 fn @readWord() -> i256 [selector=0x05cd82f4, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
