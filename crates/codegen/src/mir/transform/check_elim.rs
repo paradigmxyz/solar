@@ -100,6 +100,10 @@
 //! walks that decide folds, so an unproven assumption never reaches a fold. A proven bound joins
 //! its header's entry facts and narrows the phi to the range of its initial value there.
 //!
+//! Constant offsets keep an order: `x + c < y + d` follows from `x < y` when `c <= d` and `y + d`
+//! cannot wrap, as a copy's destination index against its length. Every `calldatasize` read
+//! equals the first, so a bound read once covers the reads a loop makes again.
+//!
 //! A midpoint `m = (a + b) / 2`, or `a + (b - a) / 2`, lies between its endpoints once their order
 //! is known and the sum cannot wrap: `a <= m <= b` when `a <= b`, and `m < b` when `a < b`. The
 //! overflow-safe form's checked sum then cannot fail either. Checked sums and differences carry
@@ -2414,6 +2418,21 @@ impl<'a> CheckEliminator<'a> {
             return self.eval_lt(func, x, y, reduced_depth);
         }
 
+        // Offsets keep an order: `x + c < y + d` follows from `x < y` when `c <= d` and
+        // `y + d` cannot wrap, as a copy's destination index `k + offset` against the
+        // destination's length `n + offset` while `k < n`.
+        if let (Some((x, c)), Some((y, d))) = (constant_offset(func, a), constant_offset(func, b))
+            && c <= d
+            && self
+                .range_of(func, y, depth)
+                .hi
+                .checked_add(d)
+                .is_some_and(|hi| hi <= integer_max(func, b))
+            && self.has_relation(func, Relation::Lt(x, y))
+        {
+            return Some(true);
+        }
+
         // A doubled index stays below a doubled bound its source respects:
         // `2x < 2y` and `2x + 1 < 2y` follow from `x < y` when `2y` cannot wrap,
         // which covers `out[2 * i]` and `out[2 * i + 1]` against `2 * n`.
@@ -2790,12 +2809,22 @@ fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
 /// derives from. Only values feeding branches are indexed.
 fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHashSet<Relation> {
     let mut relations = FxHashSet::default();
+    // Every `calldatasize` read gives the call's one size, so each equals the first; the IR keeps
+    // them apart, which keeps decoding's live ranges short.
+    let mut calldata_size = None;
     for inst_id in func.instructions() {
         let Some(value) = func.inst_result_value(inst_id) else { continue };
         if !relevant.contains(value) {
             continue;
         }
         match func.inst(inst_id).kind {
+            InstKind::CalldataSize => match calldata_size {
+                Some(first) => {
+                    let (a, b) = ordered(first, value);
+                    relations.insert(Relation::Eq(a, b));
+                }
+                None => calldata_size = Some(value),
+            },
             InstKind::Shr(_, x) | InstKind::Trunc(x, _) => {
                 relations.insert(Relation::Le(value, x));
             }
@@ -3365,6 +3394,16 @@ fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
 }
 
 /// Returns true if both values are the same SSA value or the same constant.
+/// The value and constant of a sum `value + constant` with a nonzero constant.
+fn constant_offset(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
+    let InstKind::Add(x, y) = *inst_kind(func, value)? else { return None };
+    match (const_of(func, x), const_of(func, y)) {
+        (None, Some(c)) if !c.is_zero() => Some((x, c)),
+        (Some(c), None) if !c.is_zero() => Some((y, c)),
+        _ => None,
+    }
+}
+
 fn values_equal(func: &Function, a: ValueId, b: ValueId) -> bool {
     if a == b {
         return true;

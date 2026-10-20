@@ -427,13 +427,13 @@ fn @fresh() [selector=0xe9b29099, abi_wrapper, pure] {
   bb0:
     v62 = calldatasize
     v63 = lt v62, 100
-    jumpi v63, bb15, bb16
-  bb16:
+    jumpi v63, bb14, bb15
+  bb15:
     v64 = icall @decode_calldata_type.19, 4
     v58 = add arg2, 1
     v59 = eq v58, 0
-    jumpi v59, bb12, bb13
-  bb13:
+    jumpi v59, bb11, bb12
+  bb12:
     v1 = add v58, 63
     v2 = lt v1, v58
     jumpi v2, bb6, bb7
@@ -444,8 +444,8 @@ fn @fresh() [selector=0xe9b29099, abi_wrapper, pure] {
     v100 = lt v99, v98
     v101 = gt v99, 0xffffffffffffffff
     v102 = or v100, v101
-    jumpi v102, bb18, bb17
-  bb17:
+    jumpi v102, bb17, bb16
+  bb16:
     mstore 64, v99 !metadata(memory=scratch)
     v104 = calldatasize
     calldatacopy v98, v104, v4
@@ -467,33 +467,30 @@ fn @fresh() [selector=0xe9b29099, abi_wrapper, pure] {
     v43 = sub v41, arg2
     v44 = gt arg1, v43
     v45 = or v42, v44
-    jumpi v45, bb8, bb11
-  bb11:
+    jumpi v45, bb8, bb10
+  bb10:
     mcopy v87, v84, arg2
     jump bb2
   bb1:
-    v10 = phi [bb4: 0], [bb10: v21]
+    v10 = phi [bb4: 0], [bb9: v21]
     v11 = lt v10, arg2
     jumpi v11, bb3, bb2
   bb3:
     v60 = add arg1, v10
     v61 = lt v60, arg1
-    jumpi v61, bb12, bb14
-  bb14:
+    jumpi v61, bb11, bb13
+  bb13:
     v13 = mload v64
     v14 = lt v60, v13
     jumpi v14, bb9, bb8
+  bb8:
+    tail_call @revert_stub.16
   bb9:
     v89 = add v64, v60
     v90 = add v89, 32
     v18 = mload v90
     v19 = byte 0, v18
     v21 = add v10, 1
-    v23 = lt v21, v58
-    jumpi v23, bb10, bb8
-  bb8:
-    tail_call @revert_stub.16
-  bb10:
     v92 = add v98, v21
     v93 = add v92, 32
     mstore8 v93, v19
@@ -510,17 +507,17 @@ fn @fresh() [selector=0xe9b29099, abi_wrapper, pure] {
     mstore v79, v58
     v76 = add v72, 64
     returndata v98, v76
-  bb18:
+  bb17:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb6:
     tail_call @revert_stub.17
-  bb12:
+  bb11:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb15:
+  bb14:
     revert 0, 0
 }
 
