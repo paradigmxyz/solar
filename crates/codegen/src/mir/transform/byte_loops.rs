@@ -120,9 +120,14 @@
 //!
 //! A copy may also run downwards, from `offset + bound - 1` to `offset`, as a memmove toward
 //! higher addresses is written. Its first iteration touches the highest indices, so it alone
-//! decides whether and how the loop fails: the addition `offset + bound` panics with
+//! decides whether and how the loop fails: a checked addition `offset + bound` panics with
 //! `Panic(0x11)` when it wraps and the index with `Panic(0x32)` when it is past the end, the
-//! source's checks before the destination's. A downward loop equals `mcopy` unless its source
+//! source's checks before the destination's. When an unchecked addition wraps, the falling index
+//! wraps from zero to `2^256 - 1` in some iteration, whose bounds check fails, so the replacement
+//! raises `Panic(0x32)` for it. That holds only if no `Panic(0x11)` can come first, so the pass
+//! leaves alone a wrapping source index before a checked destination addition, which raises it
+//! in the first iteration, and an index that adds unchecked but subtracts its one with a check,
+//! which raises it where the sum reaches zero. A downward loop equals `mcopy` unless its source
 //! starts strictly inside the destination range, which the run-time test checks instead.
 //!
 //! Not handled yet: fills longer than a word, and loops that compare or gather into an integer
@@ -230,6 +235,8 @@ struct Access {
     len: Option<ValueId>,
     /// The element size as a power of two: zero for bytes, five for words.
     shift: u8,
+    /// Whether the index adds its offset with unchecked arithmetic, which wraps silently.
+    wrapping: bool,
 }
 
 /// How a copy's ranges relate.
@@ -440,48 +447,56 @@ fn body_def<'f>(
 }
 
 /// Matches the byte index `offset + k`, or `k`, counting up, and `offset + k - 1`, or `k - 1`,
-/// counting down. Returns the offset and the defining instructions.
+/// counting down. Returns the offset, whether its addition is unchecked, and the defining
+/// instructions.
 fn index(
     func: &Function,
     l: &Loop,
     lp: &Counted,
     value: ValueId,
-) -> Option<(Option<ValueId>, Vec<InstId>)> {
+) -> Option<(Option<ValueId>, bool, Vec<InstId>)> {
     let mut insts = Vec::new();
     let mut value = value;
+    let mut checked_decrement = false;
     if lp.descending {
         // index = sub (offset + k), 1
         let (inst, kind) = body_def(func, lp, value)?;
-        let (InstKind::Sub(a, b)
-        | InstKind::CheckedBinary {
-            op: CheckedOp::Sub,
-            arithmetic: ArithmeticKind::Unsigned(256),
-            lhs: a,
-            rhs: b,
-        }) = *kind
-        else {
-            return None;
+        let (a, b, checked) = match *kind {
+            InstKind::Sub(a, b) => (a, b, false),
+            InstKind::CheckedBinary {
+                op: CheckedOp::Sub,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs,
+                rhs,
+            } => (lhs, rhs, true),
+            _ => return None,
         };
         if func.value_u64(b) != Some(1) {
             return None;
         }
         insts.push(inst);
         value = a;
+        checked_decrement = checked;
     }
     if value == lp.counter {
-        return Some((None, insts));
+        return Some((None, false, insts));
     }
     let (inst, kind) = body_def(func, lp, value)?;
-    let (a, b) = match *kind {
-        InstKind::Add(a, b) => (a, b),
+    let (a, b, wrapping) = match *kind {
+        InstKind::Add(a, b) => (a, b, true),
         InstKind::CheckedBinary {
             op: CheckedOp::Add,
             arithmetic: ArithmeticKind::Unsigned(256),
             lhs,
             rhs,
-        } => (lhs, rhs),
+        } => (lhs, rhs, false),
         _ => return None,
     };
+    // Counting down, an unchecked sum that wraps reaches zero in some iteration, where a checked
+    // decrement raises `Panic(0x11)` unless a bounds check failed first.
+    if wrapping && checked_decrement {
+        return None;
+    }
     let offset = if a == lp.counter {
         b
     } else if b == lp.counter {
@@ -490,7 +505,7 @@ fn index(
         return None;
     };
     insts.push(inst);
-    defined_outside(func, l, offset).then_some((Some(offset), insts))
+    defined_outside(func, l, offset).then_some((Some(offset), wrapping, insts))
 }
 
 /// Matches the memory byte address `object + idx + 32` in either association. Returns the
@@ -705,11 +720,11 @@ fn checked_access(
     if !defined_outside(func, l, object) {
         return None;
     }
-    let (offset, index_insts) = index(func, l, lp, idx)?;
+    let (offset, wrapping, index_insts) = index(func, l, lp, idx)?;
     used.extend(index_insts);
     let (check, len) = bounds_check(func, l, lp, buffer, idx)?;
     used.extend(check);
-    Some(Access { buffer, offset, len, shift: 0 })
+    Some(Access { buffer, offset, len, shift: 0, wrapping })
 }
 
 /// Accepts `and value, mask` when the mask keeps the leading bytes of a word. Returns the
@@ -892,8 +907,13 @@ fn copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     if !defined_outside(func, l, dst) {
         return None;
     }
-    let (dst_offset, dst_index) = index(func, l, lp, dst_idx)?;
+    let (dst_offset, dst_wrapping, dst_index) = index(func, l, lp, dst_idx)?;
     used.extend(dst_index);
+    // Counting down, a wrapping source index fails its bounds check only in some later
+    // iteration, after a checked destination addition could raise `Panic(0x11)` in the first.
+    if lp.descending && src.wrapping && dst_offset.is_some() && !dst_wrapping {
+        return None;
+    }
     let mut dst_len = None;
     let dst_checked = match bounds_check(func, l, lp, Buffer::Memory(dst), dst_idx) {
         Some((check, len)) => {
@@ -919,7 +939,13 @@ fn copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     };
     only_pattern_effects(func, lp, &used).then_some(Shape::Copy {
         src,
-        dst: Access { buffer: Buffer::Memory(dst), offset: dst_offset, len: dst_len, shift: 0 },
+        dst: Access {
+            buffer: Buffer::Memory(dst),
+            offset: dst_offset,
+            len: dst_len,
+            shift: 0,
+            wrapping: dst_wrapping,
+        },
         dst_checked,
         overlap,
     })
@@ -1030,7 +1056,7 @@ fn word_copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     if !defined_outside(func, l, dst) {
         return None;
     }
-    let (dst_offset, dst_index) = index(func, l, lp, dst_idx)?;
+    let (dst_offset, dst_wrapping, dst_index) = index(func, l, lp, dst_idx)?;
     used.extend(dst_index);
     let mut dst_len = None;
     let dst_checked = match bounds_check(func, l, lp, Buffer::Memory(dst), dst_idx) {
@@ -1057,7 +1083,13 @@ fn word_copy(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
     };
     only_pattern_effects(func, lp, &used).then_some(Shape::Copy {
         src,
-        dst: Access { buffer: Buffer::Memory(dst), offset: dst_offset, len: dst_len, shift: 5 },
+        dst: Access {
+            buffer: Buffer::Memory(dst),
+            offset: dst_offset,
+            len: dst_len,
+            shift: 5,
+            wrapping: dst_wrapping,
+        },
         dst_checked,
         overlap,
     })
@@ -1442,26 +1474,36 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
             if lp.descending {
                 // The first iteration indexes `offset + bound - 1`, the highest of all, so it
                 // fails exactly when the loop does, with its own order of panics: the source
-                // index's addition, then its bounds check, then the destination's.
-                // panic_if (bound != 0 && offset + bound wraps), 0x11
-                // panic_if (bound != 0 && offset + bound > len), 0x32
+                // index's addition, then its bounds check, then the destination's. An unchecked
+                // addition that wraps fails instead at the bounds check of the iteration whose
+                // index wraps to `2^256 - 1`, which no `Panic(0x11)` precedes, as `copy` checked.
                 // A tested bound is not zero here.
                 let nonzero = (!tested).then(|| builder.ne_zero(lp.bound));
                 for access in [Some(&src), dst_checked.then_some(&dst)].into_iter().flatten() {
                     let len = buffer_len(&mut builder, access);
-                    let end = match access.offset {
+                    let mut past = match access.offset {
                         Some(offset) => {
+                            // end = add offset, bound; wraps = lt end, offset
                             let end = builder.add(offset, lp.bound);
-                            let mut wraps = builder.lt(end, offset);
-                            if let Some(nonzero) = nonzero {
-                                wraps = builder.and(wraps, nonzero);
+                            let wraps = builder.lt(end, offset);
+                            if access.wrapping {
+                                // past = or wraps, (gt end, len)
+                                let past = builder.gt(end, len);
+                                builder.or(wraps, past)
+                            } else {
+                                // panic_if (bound != 0 && wraps), 0x11; past = gt end, len
+                                let wraps = match nonzero {
+                                    Some(nonzero) => builder.and(wraps, nonzero),
+                                    None => wraps,
+                                };
+                                builder.panic_if(wraps, PanicCode::ArithmeticOverflowUnderflow);
+                                builder.gt(end, len)
                             }
-                            builder.panic_if(wraps, PanicCode::ArithmeticOverflowUnderflow);
-                            end
                         }
-                        None => lp.bound,
+                        // past = gt bound, len
+                        None => builder.gt(lp.bound, len),
                     };
-                    let mut past = builder.gt(end, len);
+                    // panic_if (bound != 0 && past), 0x32
                     if let Some(nonzero) = nonzero {
                         past = builder.and(past, nonzero);
                     }
