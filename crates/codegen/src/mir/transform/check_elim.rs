@@ -654,6 +654,9 @@ struct CheckEliminator<'a> {
     /// Blocks of the instructions reading each value, built on the first query.
     readers: Option<IndexLists<ValueId, BlockId>>,
 
+    /// Instructions computing a raw memory address or size that a proven equality would make
+    /// constant. A phi's incoming values can be visited after the memory access.
+    dynamic_memory_operands: FxHashSet<InstId>,
     /// Instructions that read an equal value, with the operands that become its constant.
     equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
@@ -856,6 +859,7 @@ impl<'a> CheckEliminator<'a> {
         let mut reductions = Vec::new();
         self.unfailing.clear();
         self.equality_uses.clear();
+        self.dynamic_memory_operands.clear();
         self.readers = None;
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
@@ -1358,6 +1362,9 @@ impl<'a> CheckEliminator<'a> {
     /// Substitutes proven constants for operands of `id`, as the module docs describe.
     fn propagate_equalities_into(&mut self, func: &Function, cfg: &CfgInfo, id: InstId) {
         let kind = &func.inst(id).kind;
+        if self.dynamic_memory_operands.contains(&id) {
+            return;
+        }
         let mut replaced = Replacements::new();
         kind.visit_operands(|operand| {
             if let Some(equality) = self.equalities.get(&operand) {
@@ -1389,9 +1396,8 @@ impl<'a> CheckEliminator<'a> {
         }
     }
 
-    /// Drops the recorded replacements that would make a raw memory address or size operand of
-    /// `id` constant: the operand is an expression of pure operations over immediates and values
-    /// the scope proves equal to one.
+    /// Drops the recorded replacements in the pure expressions behind a raw memory address or
+    /// size operand of `id`, when a value the scope proves equal to a constant feeds them.
     fn keep_memory_operands_dynamic(&mut self, func: &Function, id: InstId) {
         let mut operands = SmallVec::<[ValueId; 4]>::new();
         func.inst(id).kind.visit_raw_memory(|_, address, size| {
@@ -1401,41 +1407,38 @@ impl<'a> CheckEliminator<'a> {
             }
         });
         for operand in operands {
-            if let Some(expression) = self.constant_expression(func, operand) {
+            if let Some(expression) = self.equality_expression(func, operand) {
                 self.equality_uses.retain(|(user, _)| !expression.contains(user));
+                self.dynamic_memory_operands.extend(expression);
             }
         }
     }
 
-    /// The instructions computing `value`, when only immediates and values the scope proves
-    /// equal to one feed it.
-    fn constant_expression(&self, func: &Function, value: ValueId) -> Option<FxHashSet<InstId>> {
+    /// The instructions computing `value` through pure operations, when a value the scope proves
+    /// equal to a constant feeds them. Later passes fold more than constants: a product with a
+    /// zero, a select or phi whose arms agree. Any such feed can make the operand constant.
+    fn equality_expression(&self, func: &Function, value: ValueId) -> Option<FxHashSet<InstId>> {
         let mut expression = FxHashSet::default();
         let mut visited = FxHashSet::default();
         let mut pending = vec![value];
+        let mut fed = false;
         while let Some(value) = pending.pop() {
-            if func.value_u256(value).is_some()
-                || self.equalities.contains_key(&value)
-                || !visited.insert(value)
-            {
+            if func.value_u256(value).is_some() || !visited.insert(value) {
                 continue;
             }
-            let Value::Inst(id) = func.value(value) else { return None };
-            let inst = func.inst(*id);
-            if matches!(inst.kind, InstKind::Phi(_))
-                || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
-            {
-                return None;
+            if self.equalities.contains_key(&value) {
+                fed = true;
+                continue;
             }
-            let operands = pending.len();
-            inst.kind.visit_operands(|operand| pending.push(operand));
-            // An instruction without operands, such as `calldatasize`, is not a constant.
-            if pending.len() == operands {
-                return None;
+            let Value::Inst(id) = func.value(value) else { continue };
+            let inst = func.inst(*id);
+            if inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure) {
+                continue;
             }
             expression.insert(*id);
+            inst.kind.visit_operands(|operand| pending.push(operand));
         }
-        Some(expression)
+        fed.then_some(expression)
     }
 
     /// Whether `value` equals a constant that at least two instructions below its edge read.
