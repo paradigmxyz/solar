@@ -97,10 +97,7 @@ bb4 [loop]:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -113,30 +110,26 @@ bb4 [loop]:
   jumpi
   swap 1
   calldataload
+  dup 1
   push 0x7fffffffffffffe
-  dup 2
-  gt
+  lt
   push bb13
   jumpi
-  push 1
+  push 64
+  mload
   dup 2
+  push 1
   add
   push 5
   shl
-  push 64
-  mload
-  swap 1
   dup 2
   add
   dup 2
   dup 2
   lt
-  push 0
-  not
-  dup 4
-  shr
-  dup 3
-  gt
+  dup 2
+  push 0xffffffffffffffff
+  lt
   or
   push bb13
   jumpi

@@ -80,10 +80,7 @@ bb73:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -114,10 +111,7 @@ bb80:
   dup 3
   dup 2
   lt
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   dup 3
   gt
   or
@@ -449,9 +443,7 @@ bb60 [loop]:
   mload
   push 0
   byte
-  push 0x30313233343536373839616263646566
-  push 128
-  shl
+  push 0x3031323334353637383961626364656600000000000000000000000000000000
   dup 2
   push 4
   shr
@@ -471,9 +463,7 @@ bb60 [loop]:
   swap 1
   push 15
   and
-  push 0x30313233343536373839616263646566
-  push 128
-  shl
+  push 0x3031323334353637383961626364656600000000000000000000000000000000
   swap 1
   byte
   swap 1

@@ -793,6 +793,22 @@ impl Target {
             > u128::from(gas) * u128::from(self.expected_executions)
     }
 
+    /// Whether a compact recipe for an immediate, `saved_bytes` shorter than its literal push and
+    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas builds
+    /// take them when the deposit they save repays the extra gas over the expected executions,
+    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a loop, so a hot loop
+    /// pushes a mask as a literal rather than rebuilding it on every iteration.
+    pub(crate) fn compacts_immediate(
+        &self,
+        saved_bytes: u64,
+        extra_gas: u64,
+        in_loop: bool,
+    ) -> bool {
+        let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
+        !self.optimization.is_gas()
+            || self.deposit_repays_gas(saved_bytes, extra_gas.saturating_mul(iterations))
+    }
+
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
     pub(crate) fn improves(&self, gas_saving: i64, byte_saving: i64) -> bool {
@@ -1193,6 +1209,22 @@ mod tests {
         assert!(!target(Target::LOOP_COPY_MIN_RUNS - 1).copies_loops());
         assert!(target(Target::LOOP_COPY_MIN_RUNS).copies_loops());
         assert!(target(u64::from(u32::MAX)).copies_loops());
+    }
+
+    #[test]
+    fn compact_immediates_repay_their_gas() {
+        // `type(uint128).max`: `PUSH16` is 17 bytes for 3 gas, `PUSH0 NOT PUSH1 128 SHR` 5 bytes
+        // for 11: 12 bytes deposit 2,400 gas against 8 gas on 200 executions, 1,600, or 16,000
+        // ten times over in a loop.
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        assert!(target.compacts_immediate(12, 8, false));
+        assert!(!target.compacts_immediate(12, 8, true));
+        // `type(uint64).max`: 4 bytes, 800 gas, do not repay 8 gas on 200 executions.
+        assert!(!target.compacts_immediate(4, 8, false));
+        // A recipe that costs no more gas always wins.
+        assert!(target.compacts_immediate(1, 0, true));
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        assert!(size.compacts_immediate(12, 8, true));
     }
 
     #[test]

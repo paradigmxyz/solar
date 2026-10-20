@@ -74,10 +74,7 @@ bb1:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -107,10 +104,7 @@ bb24:
   dup 3
   dup 2
   lt
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   dup 3
   gt
   or
@@ -159,10 +153,7 @@ bb8 [continuation]:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -397,10 +388,7 @@ bb8:
   push 32
   dup 2
   add
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   swap 3
   dup 4
   lt
