@@ -19,20 +19,19 @@
 //!   the words they cover.
 //! - Store narrowing: when a later full-word store overwrites the last 31 bytes of a word store
 //!   before any read, `msize`, or gas observation, only the first byte of the earlier store is
-//!   observable, so it shortens the store to an `mstore8` of that byte, after the scan has recorded
-//!   it. `mstore8` demands only the low 8 bits of its operand, so the operand needs the top byte of
-//!   the stored word in its low bits: that is `v` for `shl v, 248` over a 256-bit `v`, and `c >>
-//!   248` for a nonzero constant `c` whose low 248 bits are zero. Other values stay whole, since a
-//!   `shr` would cost what the shift saves, and so does a store whose tail is read or never
-//!   overwritten, such as a one-character string literal. The later store already expands memory
-//!   past the narrowed one, so the size and the final contents do not change. The rewrite applies
-//!   after the cross-block rewrites, which a full-word store feeds and a byte store does not. This
-//!   follows the partial-overwrite classification of LLVM's dead store elimination, which only
-//!   shortens `memset` and `memcpy` because a narrower scalar store needs a new value; `mstore8` is
-//!   as cheap as `mstore` and the operand already exists. Deliberate limits: it needs one later
-//!   store at the next byte, not the union of several later overwrites; it leaves a store whose
-//!   only surviving byte is the last; and it leaves a store whose word another block also stores
-//!   to.
+//!   observable, so the backward scan shortens the store to an `mstore8` of that byte. `mstore8`
+//!   demands only the low 8 bits of its operand, so the operand needs the top byte of the stored
+//!   word in its low bits: that is `v` for `shl v, 248` over a 256-bit `v`, and `c >> 248` for a
+//!   nonzero constant `c` whose low 248 bits are zero. Other values stay whole, since a `shr` would
+//!   cost what the shift saves, and so does a store whose tail is read or never overwritten, such
+//!   as a one-character string literal. The later store already expands memory past the narrowed
+//!   one, so the size and the final contents do not change. This follows the partial-overwrite
+//!   classification of LLVM's dead store elimination, which only shortens `memset` and `memcpy`
+//!   because a narrower scalar store needs a new value; `mstore8` is as cheap as `mstore` and the
+//!   operand already exists. Deliberate limits: it needs one later store at the next byte, not the
+//!   union of several later overwrites, and it leaves a store whose only surviving byte is the
+//!   last. A byte store kills nothing across blocks, so narrowing can hide an earlier dead store of
+//!   the same word in another block from the cross-block rewrites.
 //! - Write-only deferred allocations: a deferred allocation whose pointer only ever addresses
 //!   stores, as a decoded struct does once forwarding has replaced the reads of its used fields,
 //!   loses those stores. Static placement already keeps every other way to reach its words out of
@@ -418,18 +417,8 @@ struct BlockScratch {
     stored_words: SlotMap<U256>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
-    /// Word stores the backward scans found narrowable in this function. Narrowing waits until the
-    /// cross-block passes ran: a full-word store kills earlier stores to its word and a byte store
-    /// does not.
-    narrowed: Vec<NarrowableStore>,
-}
-
-/// A word store whose tail a later store in its block overwrites. Rewrites between the scan and the
-/// narrowing may replace the store's operands, so the narrowing reads them again.
-struct NarrowableStore {
-    block: BlockId,
-    inst: InstId,
-    key: MemAddrKey,
+    /// Word stores of the current block that the backward scan narrows: store, address, and byte.
+    narrowed: Vec<(InstId, ValueId, TopByte)>,
 }
 
 /// The byte a word store writes to its first address, whose other 31 bytes are zero.
@@ -481,7 +470,6 @@ impl MemoryStoreEliminator {
         self.alias().clear_cached_addresses();
         self.remove_unused_internal_frame_stores(func);
 
-        scratch.narrowed.clear();
         let block_ids = func.blocks.indices();
         let has_precise_reads = func
             .instructions()
@@ -494,7 +482,6 @@ impl MemoryStoreEliminator {
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
         self.remove_dead_memory_stores(func);
-        self.narrow_overwritten_stores(func, scratch);
 
         self.eliminated_count
     }
@@ -892,13 +879,9 @@ impl MemoryStoreEliminator {
                             // other 31 bytes before any read.
                             if Self::offset_mem_addr_key(key, 1)
                                 .is_some_and(|tail| scratch.overwritten.contains(&tail))
-                                && Self::top_byte(func, *value).is_some()
+                                && let Some(byte) = Self::top_byte(func, *value)
                             {
-                                scratch.narrowed.push(NarrowableStore {
-                                    block: block_id,
-                                    inst: inst_id,
-                                    key,
-                                });
+                                scratch.narrowed.push((inst_id, *addr, byte));
                             }
                             scratch.overwritten.insert(key);
                         }
@@ -982,47 +965,7 @@ impl MemoryStoreEliminator {
             }
         }
 
-        if scratch.dead.is_empty() {
-            return;
-        }
-
-        func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
-    }
-
-    /// Narrows the recorded word stores that survived the other rewrites to byte stores. A store
-    /// stays whole while a store to its word sits in another block: the cross-block rewrites may
-    /// still remove that store once the later full-word store kills it, and they no longer could
-    /// after narrowing.
-    fn narrow_overwritten_stores(&mut self, func: &mut Function, scratch: &BlockScratch) {
-        if scratch.narrowed.is_empty() {
-            return;
-        }
-
-        // The only block storing to each word, or `None` when several blocks do.
-        let mut store_blocks = FxHashMap::<MemAddrKey, Option<BlockId>>::default();
-        for (block, data) in func.blocks.iter_enumerated() {
-            for &inst in &data.instructions {
-                if let InstKind::Store(addr, _, PtrLocation::Memory) = func.inst(inst).kind
-                    && let Some(key) = self.mem_addr_key(func, addr, 32)
-                {
-                    let only = store_blocks.entry(key).or_insert(Some(block));
-                    if *only != Some(block) {
-                        *only = None;
-                    }
-                }
-            }
-        }
-
-        for &NarrowableStore { block, inst, key } in &scratch.narrowed {
-            if store_blocks.get(&key) != Some(&Some(block))
-                || !func.blocks[block].instructions.contains(&inst)
-            {
-                continue;
-            }
-            let InstKind::Store(addr, value, PtrLocation::Memory) = func.inst(inst).kind else {
-                continue;
-            };
-            let Some(byte) = Self::top_byte(func, value) else { continue };
+        for (inst, addr, byte) in scratch.narrowed.drain(..) {
             let byte = match byte {
                 TopByte::Shifted(byte) => byte,
                 TopByte::Constant(byte) => {
@@ -1033,6 +976,11 @@ impl MemoryStoreEliminator {
             func.inst_mut(inst).replace_kind(InstKind::Store8(addr, byte));
             self.eliminated_count += 1;
         }
+        if scratch.dead.is_empty() {
+            return;
+        }
+
+        func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
     }
 
     /// Returns the byte a word store of `value` writes first when the other bytes are zero:

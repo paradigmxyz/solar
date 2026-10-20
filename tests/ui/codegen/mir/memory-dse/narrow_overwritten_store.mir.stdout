@@ -18,24 +18,6 @@ fn @hashWide(arg0: i256, arg1: i256) -> i256 [selector=0xcdd7e94c, pure, abi_par
     ret v1
 }
 
-fn @crossBlock(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xabbb34c8, abi_params=[uint256, bytes32, bool], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    mstore 128, 7
-    v0 = ne arg2, 0
-    jumpi v0, bb1, bb2
-  bb2:
-    jump bb3
-  bb1:
-    sstore 0, 1 !metadata(storage=slot(0))
-    jump bb3
-  bb3:
-    v1 = shl arg0, 248
-    mstore 128, v1
-    mstore 129, arg1
-    v2 = keccak256 128, 33
-    ret v2
-}
-
 fn @hashConst(arg0: i256) -> i256 [selector=0x227e2968, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = shl 97, 248

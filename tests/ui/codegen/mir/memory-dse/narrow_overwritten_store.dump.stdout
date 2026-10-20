@@ -10,16 +10,16 @@ fn @hashU8() [selector=0xe99643f7, abi_wrapper, pure] {
     v7 = shr v6, 8
     v4 = calldatasize
     v5 = lt v4, 68
-    v11 = zext i1 v5 to i256
-    v12 = or v11, v7
-    v13 = ne v12, 0
-    jumpi v13, bb1, bb2
+    v10 = zext i1 v5 to i256
+    v11 = or v10, v7
+    v12 = ne v11, 0
+    jumpi v12, bb1, bb2
   bb2:
     mstore8 0, arg0
     mstore 1, arg1
     v3 = keccak256 0, 33 !metadata(memory=scratch)
-    mstore 128, v3
-    returndata 128, 32
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -33,34 +33,9 @@ fn @hashWide() [selector=0xcdd7e94c, abi_wrapper, pure] {
     mstore8 128, arg0
     mstore 129, arg1
     v1 = keccak256 128, 33
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
-    revert 0, 0
-}
-
-fn @crossBlock() [selector=0xabbb34c8, abi_wrapper] {
-  bb0:
-    v3 = calldatasize
-    v4 = lt v3, 100
-    jumpi v4, bb3, bb4
-  bb4:
-    v5 = calldataload 68
-    v6 = lt v5, 2
-    jumpi v6, bb5, bb3
-  bb5:
-    v0 = ne arg2, 0
-    jumpi v0, bb1, bb2
-  bb1:
-    sstore 0, 1 !metadata(storage=slot(0))
-    jump bb2
-  bb2:
-    mstore8 128, arg0
-    mstore 129, arg1
-    v2 = keccak256 128, 33
-    mstore 128, v2
-    returndata 128, 32
-  bb3:
     revert 0, 0
 }
 
@@ -73,8 +48,8 @@ fn @hashConst() [selector=0x227e2968, abi_wrapper, pure] {
     mstore8 128, 97
     mstore 129, arg0
     v1 = keccak256 128, 33
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -113,23 +88,21 @@ fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb8, bb1
+    jumpi v1, bb7, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb8, [0x227e2968 => bb2, 0x41d012fd => bb3, 0x8c0dcc20 => bb4, 0xabbb34c8 => bb5, 0xcdd7e94c => bb6, 0xe99643f7 => bb7]
-  bb7:
-    tail_call @hashU8
+    switch v3, default bb7, [0x227e2968 => bb2, 0x41d012fd => bb3, 0x8c0dcc20 => bb4, 0xcdd7e94c => bb5, 0xe99643f7 => bb6]
   bb6:
-    tail_call @hashWide
+    tail_call @hashU8
   bb5:
-    tail_call @crossBlock
+    tail_call @hashWide
   bb4:
     tail_call @tailRead
   bb3:
     tail_call @literal
   bb2:
     tail_call @hashConst
-  bb8:
+  bb7:
     revert 0, 0
 }
