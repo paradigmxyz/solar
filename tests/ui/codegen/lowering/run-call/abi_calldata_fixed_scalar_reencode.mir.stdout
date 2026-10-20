@@ -27,7 +27,7 @@ fn @g(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x1fd55338, vi
     v14 = add v13, v6
     v15 = inttoptr i256 v14 to ptr<calldata>
     v16 = make_calldata_slice v15, 3
-    v17 = abi_encode [array<3, word>], selector 0x5dc1289100000000000000000000000000000000000000000000000000000000, args v16
+    v17 = abi_encode [array<3, word>], scratch, selector 0x5dc1289100000000000000000000000000000000000000000000000000000000, args v16
     v18 = extract_value slice<memory>, v17, 0
     v19 = extract_value slice<memory>, v17, 1
     v20 = zext i160 v0 to i256
@@ -103,7 +103,7 @@ fn @i(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x18e849a4, vi
     v19 = lt v18, 3
     jumpi v19, bb2, bb3
   bb3:
-    v28 = abi_encode [array<3, word<uint8>>], selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v16
+    v28 = abi_encode [array<3, word<uint8>>], scratch, selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v16
     v29 = extract_value slice<memory>, v28, 0
     v30 = extract_value slice<memory>, v28, 1
     v31 = zext i160 v0 to i256

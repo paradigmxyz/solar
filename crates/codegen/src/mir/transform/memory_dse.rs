@@ -15,6 +15,21 @@
 //!   write overwrites goes too. Returndata copies stay because their source bounds check can
 //!   revert. Reads over constant ranges, such as hashes, logs, and call inputs, only keep the words
 //!   they cover.
+//! - Store narrowing: when a later full-word store overwrites the last 31 bytes of a word store
+//!   before any read or gas observation, only the first byte of the earlier store is observable, so
+//!   the backward scan shortens the store to an `mstore8` of that byte. `mstore8` demands only the
+//!   low 8 bits of its operand, so the operand needs the top byte of the stored word in its low
+//!   bits: that is `v` for `shl v, 248` over a 256-bit `v`, and `c >> 248` for a nonzero constant
+//!   `c` whose low 248 bits are zero. Other values stay whole, since a `shr` would cost what the
+//!   shift saves, and so does a store whose tail is read or never overwritten, such as a
+//!   one-character string literal. The later store already expands memory past the narrowed one, so
+//!   the size and the final contents do not change. This follows the partial-overwrite
+//!   classification of LLVM's dead store elimination, which only shortens `memset` and `memcpy`
+//!   because a narrower scalar store needs a new value; `mstore8` is as cheap as `mstore` and the
+//!   operand already exists. Deliberate limits: it needs one later store at the next byte, not the
+//!   union of several later overwrites, and it leaves a store whose only surviving byte is the
+//!   last. A byte store kills nothing across blocks, so narrowing can hide an earlier dead store of
+//!   the same word in another block from the cross-block rewrites.
 //! - Write-only deferred allocations: a deferred allocation whose pointer only ever addresses
 //!   stores, as a decoded struct does once forwarding has replaced the reads of its used fields,
 //!   loses those stores. Static placement already keeps every other way to reach its words out of
@@ -37,8 +52,8 @@
 //! turns them into copies or loops.
 
 use crate::mir::{
-    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, Module, PtrLocation,
-    Terminator, Value, ValueId,
+    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, MirType, Module,
+    PtrLocation, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
         MemoryAddress, MemoryBase, MemoryLocation,
@@ -393,6 +408,17 @@ struct BlockScratch {
     stored_words: SlotMap<U256>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
+    /// Word stores of the current block that the backward scan narrows: store, address, and byte.
+    narrowed: Vec<(InstId, ValueId, TopByte)>,
+}
+
+/// The byte a word store writes to its first address, whose other 31 bytes are zero.
+#[derive(Clone, Copy)]
+enum TopByte {
+    /// The store value is `shl byte, 248`.
+    Shifted(ValueId),
+    /// The store value is a constant with only its top byte set.
+    Constant(U256),
 }
 
 impl BlockScratch {
@@ -403,6 +429,7 @@ impl BlockScratch {
             stored_words: SlotMap::default(),
             replacements: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.num_insts()),
+            narrowed: Vec::new(),
         }
     }
 
@@ -833,12 +860,20 @@ impl MemoryStoreEliminator {
         for &inst_id in func.blocks[block_id].instructions.iter().rev() {
             let inst = func.inst(inst_id);
             match &inst.kind {
-                InstKind::Store(addr, _, PtrLocation::Memory) => {
+                InstKind::Store(addr, value, PtrLocation::Memory) => {
                     if let Some(key) = self.mem_addr_key(func, *addr, 32) {
                         if scratch.overwritten.contains(&key) {
                             scratch.dead.insert(inst_id);
                             self.eliminated_count += 1;
                         } else {
+                            // The store writes byte `key`, and a later store overwrites the
+                            // other 31 bytes before any read.
+                            if Self::offset_mem_addr_key(key, 1)
+                                .is_some_and(|tail| scratch.overwritten.contains(&tail))
+                                && let Some(byte) = Self::top_byte(func, *value)
+                            {
+                                scratch.narrowed.push((inst_id, *addr, byte));
+                            }
                             scratch.overwritten.insert(key);
                         }
                     } else {
@@ -921,11 +956,37 @@ impl MemoryStoreEliminator {
             }
         }
 
+        for (inst, addr, byte) in scratch.narrowed.drain(..) {
+            let byte = match byte {
+                TopByte::Shifted(byte) => byte,
+                TopByte::Constant(byte) => {
+                    func.alloc_value(Value::Immediate(Immediate::I256(byte)))
+                }
+            };
+            // mstore addr, byte << 248 -> mstore8 addr, byte
+            func.inst_mut(inst).replace_kind(InstKind::Store8(addr, byte));
+            self.eliminated_count += 1;
+        }
         if scratch.dead.is_empty() {
             return;
         }
 
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
+    }
+
+    /// Returns the byte a word store of `value` writes first when the other bytes are zero:
+    /// `shl byte, 248` or a nonzero constant with only its top byte set.
+    fn top_byte(func: &Function, value: ValueId) -> Option<TopByte> {
+        const TOP_BYTE_SHIFT: usize = 248;
+        if let Some(word) = func.value_u256(value) {
+            return (!word.is_zero() && word.trailing_zeros() >= TOP_BYTE_SHIFT)
+                .then(|| TopByte::Constant(word >> TOP_BYTE_SHIFT));
+        }
+        let Value::Inst(shl) = func.value(value) else { return None };
+        let InstKind::Shl(shift, byte) = func.inst(*shl).kind else { return None };
+        (func.value_u256(shift) == Some(U256::from(TOP_BYTE_SHIFT))
+            && func.value_ty(byte) == Some(MirType::I256))
+        .then_some(TopByte::Shifted(byte))
     }
 
     fn apply_memory_effects(
@@ -1077,9 +1138,17 @@ impl MemoryStoreEliminator {
                             }
                         }
                     }
+                    // A byte store invalidates the remembered words that contain its byte.
+                    InstKind::Store8(addr, _) => {
+                        match self.mem_addr_key(func, *addr, 1).and_then(|key| key.0.as_absolute())
+                        {
+                            Some(a) => known.retain(|&word, _| {
+                                a < word || a - word >= EvmMemoryLayout::WORD_SIZE
+                            }),
+                            None => known.clear(),
+                        }
+                    }
                     _ if self.can_mutate_memory(func, inst_id) => known.clear(),
-                    // A byte store may touch any slot.
-                    InstKind::Store8(..) => known.clear(),
                     // Loads and keccak read memory but never write it.
                     _ => {}
                 }
@@ -1199,6 +1268,13 @@ impl MemoryStoreEliminator {
                     scratch.stored_words.invalidate(key, 32);
                     if let Some(value) = func.value_u256(*value) {
                         scratch.stored_words.insert(key, value);
+                    }
+                }
+                InstKind::Store8(addr, _) => {
+                    if let Some(key) = self.mem_addr_key(func, *addr, 1) {
+                        scratch.stored_words.invalidate(key, 1);
+                    } else {
+                        scratch.stored_words.clear();
                     }
                 }
                 InstKind::Keccak256(offset, size) => {

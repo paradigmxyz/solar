@@ -42,21 +42,19 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     v11 = create 0, v10, v8
     v12 = zext i160 v11 to i256
     v13 = gas
-    v14 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v15 = extract_value slice<memory>, v14, 0
-    v16 = extract_value slice<memory>, v14, 1
-    v17 = zext i160 v11 to i256
-    v18 = staticcall v13, v17, v15, v16, 0, 32
-    jumpi v18, bb2, bb1
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v14 = zext i160 v11 to i256
+    v15 = staticcall v13, v14, 28, 4, 0, 32
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v19 = returndatasize
-    v20 = lt v19, 32
-    icall revert_if<tuple_data_too_short>, v20
-    v21 = add 0, 0
-    v22 = mload v21
-    ret v22
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
