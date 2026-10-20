@@ -1,0 +1,191 @@
+// === ROOT/tests/ui/codegen/mir/lower-builtins/returndata_length.sol:ReturndataLength ===
+@module ReturndataLength
+@phase lowered
+@types
+  struct0: {i256, i256}
+
+fn @echo() [selector=0x6279e43c, abi_wrapper, pure] {
+  bb0:
+    v0 = add arg0, 63
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v25 = icall @alloc, v3
+    v27 = calldatasize
+    calldatacopy v25, v27, v3
+    v21 = add v25, 32
+    v12 = add arg0, 31
+    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v21, v14
+    mstore v16, 0
+    v23 = add v25, 64
+    mcopy v23, v21, arg0
+    mstore v25, 32
+    mstore v21, arg0
+    v18 = add v14, 64
+    returndata v25, v18
+  bb1:
+    tail_call @revert_stub
+}
+
+fn @measure() [selector=0x1abe4f5a, abi_wrapper] {
+  bb0:
+    v0: i256 = address
+    v1 = gas
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, 96
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, 36
+    v20 = add v24, 32
+    mstore v20, 0x6279e43c00000000000000000000000000000000000000000000000000000000
+    v22 = add v24, 36
+    mstore v22, arg0
+    v11 = call v1, v0, 0, v20, 36, 0, 0
+    v7 = returndatasize
+    jumpi v11, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, v7
+    returndata 128, 32
+}
+
+fn @decoded() [selector=0xf6c9206c, abi_wrapper] {
+  bb0:
+    v0: i256 = address
+    v1 = gas
+    v67 = mload 64 !metadata(memory=scratch)
+    v68 = add v67, 96
+    mstore 64, v68 !metadata(memory=scratch)
+    mstore v67, 36
+    v56 = add v67, 32
+    mstore v56, 0x6279e43c00000000000000000000000000000000000000000000000000000000
+    v58 = add v67, 36
+    mstore v58, arg0
+    v10 = call v1, v0, 0, v56, 36, 0, 0
+    v11 = returndatasize
+    v12 = add v11, 63
+    v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v69 = mload 64 !metadata(memory=scratch)
+    v70 = add v69, v15
+    mstore 64, v70 !metadata(memory=scratch)
+    mstore v69, v11
+    v60 = add v69, 32
+    returndatacopy v60, 0, v11
+    v24 = add v60, v11
+    v25 = slt v11, 32
+    jumpi v25, bb1, bb2
+  bb2:
+    v26 = mload v60
+    v28 = add v60, v26
+    v29 = add v28, 32
+    v30 = gt v26, 0xffffffffffffffff
+    v31 = gt v29, v24
+    v32 = or v30, v31
+    jumpi v32, bb1, bb3
+  bb3:
+    v34 = mload v28
+    v36 = add v34, 63
+    v37 = lt v36, v34
+    jumpi v37, bb4, bb5
+  bb5:
+    v39 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v66 = icall @alloc, v39
+    mstore v66, v34
+    v41 = sub v24, v29
+    v42 = gt v34, v41
+    jumpi v42, bb1, bb6
+  bb6:
+    v62 = add v66, 32
+    mcopy v62, v29, v34
+    mstore 128, v34
+    returndata 128, 32
+  bb4:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @allocatedBetween() [selector=0x6b854ea5, abi_wrapper] {
+  bb0:
+    v0: i256 = address
+    v1 = gas
+    v53 = mload 64 !metadata(memory=scratch)
+    v54 = add v53, 96
+    mstore 64, v54 !metadata(memory=scratch)
+    mstore v53, 36
+    v41 = add v53, 32
+    mstore v41, 0x6279e43c00000000000000000000000000000000000000000000000000000000
+    v43 = add v53, 36
+    mstore v43, arg0
+    v21 = call v1, v0, 0, v41, 36, 0, 0
+    v22 = returndatasize
+    v23 = add v22, 63
+    v26 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v55 = mload 64 !metadata(memory=scratch)
+    v56 = add v55, v26
+    mstore 64, v56 !metadata(memory=scratch)
+    mstore v55, v22
+    v45 = add v55, 32
+    returndatacopy v45, 0, v22
+    v52 = icall @alloc, 64
+    mstore v52, 1
+    v47 = add v52, 32
+    mstore v47, 1
+    v10 = mload v55
+    mstore 128, v10
+    mstore 160, 1
+    returndata 128, 64
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x1abe4f5a => bb3, 0x6279e43c => bb4, 0x6b854ea5 => bb5, 0xf6c9206c => bb6]
+  bb6:
+    tail_call @decoded
+  bb5:
+    tail_call @allocatedBetween
+  bb4:
+    tail_call @echo
+  bb3:
+    tail_call @measure
+  bb1:
+    revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v0
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
