@@ -380,3 +380,52 @@
 +     revert v8, v35
   }
   
+  fn @encode_between() {
+    bb0:
+      v0 = alloc 96 !metadata(preserves_fmp)
+      mstore v0, 48
+      v1 = ptradd v0, 32
+      mstore v1, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+      v2 = ptradd v0, 64
+      mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+-     v3 = abi_encode [word], scratch, args 7
+-     v4 = extract_value slice<memory>, v3, 0
+-     v5 = ptrtoint ptr<memory> v4 to i256
+-     v6 = abi_encode [memory_bytes, word], scratch, args v0, v5
+-     v7 = extract_value slice<memory>, v6, 0
+-     v8 = extract_value slice<memory>, v6, 1
+-     revert v7, v8
++     v9 = fmp
++     mstore v9, 7
++     v10 = make_memory_slice v9, 32
++     v4 = extract_value slice<memory>, v10, 0
++     v5 = ptrtoint ptr<memory> v9 to i256
++     v11 = fmp
++     v12 = ptrtoint ptr<memory> v11 to i256
++     v13 = add v12, 64
++     v14 = ptrtoint ptr<memory> v11 to i256
++     v15 = sub v13, v14
++     mstore v11, v15
++     v16 = mload v0
++     v17 = not 31
++     v18 = add v16, 31
++     v19 = and v18, v17
++     v20 = add v13, 32
++     v21 = add v13, v19
++     mstore v21, 0
++     mstore v13, v16
++     v22 = ptradd v0, 32
++     v23 = add v20, v19
++     mcopy v20, v22, v16 !metadata(memory=heap, disjoint)
++     v24 = ptrtoint ptr<memory> v11 to i256
++     v25 = add v24, 32
++     mstore v25, v5
++     v26 = ptrtoint ptr<memory> v11 to i256
++     v27 = sub v23, v26
++     v28 = add v27, 0
++     v29 = make_memory_slice v11, v28
++     v7 = extract_value slice<memory>, v29, 0
++     v8 = extract_value slice<memory>, v29, 1
++     revert v11, v28
+  }
+  

@@ -26,12 +26,11 @@
 //! emits its own raw accesses.
 //! Literal bytes with observable allocations can still fold into encoder
 //! stores, in slice and scratch encodings alike; their original allocations
-//! and initialization remain for later observers. A scratch encoding that
-//! returns or reverts with exactly its bytes, with no memory access after it
-//! and no later allocation to shift, leaves no observer, so its last folded
-//! literal's allocation goes too: keeping it would repeat the payload as
-//! stores beside the folded copy. This is limited to gas-mode encodings
-//! before Cancun.
+//! and initialization remain for later observers. A revert or return of a
+//! scratch encoding of words and one literal, with nothing between them, has
+//! no observer, so the literal's allocation goes too rather than repeating the
+//! payload as stores beside the folded copy. This is limited to gas-mode
+//! encodings before Cancun.
 //! NOTE: Duplicating preserved payloads can grow native-MCOPY encoders and
 //! size-mode copies; keep their copies until their full code shape is priced.
 //!
@@ -1598,12 +1597,11 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
 }
 
 /// Literal objects whose allocation nothing can observe once their scratch encode has run: the
-/// block returns or reverts with exactly the encoded bytes, nothing after the encode accesses
-/// memory or allocates, no allocation or reserving encode follows the literal's, and every
-/// other argument is a word, so the free-memory-pointer bump it preserves moves no address
-/// and has no reader. Another memory argument, even a literal that does not fold, reads
-/// memory the encoding would then overwrite first. `literal_objects_at_encodes` already
-/// proved that no access sits between the allocation and the encode.
+/// block returns or reverts with exactly the encoded bytes right after it, so no later access
+/// reads the allocation or the free-memory pointer it moved. The literal's allocation is the
+/// last one before the encode and no other argument reads memory, so no address shifts and no
+/// argument reaches into the literal. `literal_objects_at_encodes` already proved that no access
+/// sits between the allocation and the encode.
 fn terminal_scratch_literals(
     func: &Function,
     literal_objects: &FxHashSet<ValueId>,
@@ -1615,40 +1613,33 @@ fn terminal_scratch_literals(
         else {
             continue;
         };
-        // The latest allocation, or none after an encode that reserves memory.
-        let mut last_allocation = None;
-        for (index, &inst) in block.instructions.iter().enumerate() {
-            match &func.inst(inst).kind {
-                InstKind::Alloc { .. } => last_allocation = func.inst_result_value(inst),
-                InstKind::AbiEncode { mode: AbiEncodeMode::Scratch, args, layout, .. } => {
-                    let Some(encoded) = func.inst_result_value(inst) else { continue };
-                    let projects = |operand, field| {
-                        matches!(func.value(operand), Value::Inst(projection)
-                            if func.inst(*projection).kind.slice_projection() == Some((encoded, field)))
-                    };
-                    let no_observer = block.instructions[index + 1..].iter().all(|&later| {
-                        let kind = &func.inst(later).kind;
-                        !matches!(kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
-                            && !literal_opaque_instruction(func, kind, &FxHashSet::default())
-                    });
-                    let reads_no_memory = layout.types.iter().zip(args).all(|(ty, &arg)| {
-                        matches!(ty, AbiType::Word(_) | AbiType::Function)
-                            || Some(arg) == last_allocation
-                    });
-                    if let Some(object) = last_allocation
-                        && args.contains(&object)
-                        && literal_objects.contains(&object)
-                        && projects(*offset, MirType::SLICE_PTR_FIELD)
-                        && projects(*size, MirType::SLICE_LEN_FIELD)
-                        && no_observer
-                        && reads_no_memory
-                    {
-                        objects.insert(object);
-                    }
-                }
-                InstKind::AbiEncode { .. } => last_allocation = None,
-                _ => {}
-            }
+        // The last two allocations or encodes of the block, latest first.
+        let mut reservers = block.instructions.iter().enumerate().rev().filter(|&(_, &inst)| {
+            matches!(func.inst(inst).kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
+        });
+        if let Some((index, &encode)) = reservers.next()
+            && let Some((_, &allocation)) = reservers.next()
+            && let InstKind::AbiEncode { mode: AbiEncodeMode::Scratch, args, layout, .. } =
+                &func.inst(encode).kind
+            && matches!(func.inst(allocation).kind, InstKind::Alloc { .. })
+            && let Some(object) = func.inst_result_value(allocation)
+            && let Some(encoded) = func.inst_result_value(encode)
+            && literal_objects.contains(&object)
+            && args.contains(&object)
+            && layout.types.iter().zip(args).all(|(ty, &arg)| {
+                arg == object || matches!(ty, AbiType::Word(_) | AbiType::Function)
+            })
+            && [(*offset, MirType::SLICE_PTR_FIELD), (*size, MirType::SLICE_LEN_FIELD)].iter().all(
+                |&(operand, field)| {
+                    matches!(func.value(operand), Value::Inst(projection)
+                        if func.inst(*projection).kind.slice_projection() == Some((encoded, field)))
+                },
+            )
+            && block.instructions[index + 1..].iter().all(|&later| {
+                !literal_opaque_instruction(func, &func.inst(later).kind, &FxHashSet::default())
+            })
+        {
+            objects.insert(object);
         }
     }
     objects

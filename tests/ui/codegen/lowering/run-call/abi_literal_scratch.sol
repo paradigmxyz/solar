@@ -15,11 +15,9 @@
 //@ run-call: recycledText => 0xabcd
 
 // A literal folded into a scratch encode: `hash` hashes it, `text` returns it, and `fail`
-// reverts with it. `observed` reads the literal's allocation after the encode, and
-// `observedRevert` reverts with the allocation's bytes, so both allocations must remain, and
-// `shifted` returns the address of a later allocation, which the literal's must not move, and
-// `aliased` reverts with a pointer to the literal's memory, which its stores must fill. `grown`
-// lengthens an earlier literal, so that its copy reaches the last one. The
+// reverts with it. `observed` and `observedRevert` read its allocation after the encode.
+// `shifted` returns the address of a later allocation, `aliased` reverts with a pointer into the
+// literal, and `grown` lengthens an earlier literal so that its copy reaches the last one. The
 // recycled cases overwrite a literal through an older allocation, so its bytes differ from the
 // ones it was initialized with.
 error E(bytes a, string b);
