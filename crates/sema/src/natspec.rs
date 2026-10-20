@@ -572,6 +572,7 @@ impl<'gcx> Resolver<'gcx> {
                 gcx.hir.contract(id).kind,
                 hir::ContractKind::Contract | hir::ContractKind::Library
             ),
+            (SolarTag::Terminates, _) => terminates_applies(gcx, item_id),
             _ => false,
         };
         if !applies {
@@ -925,6 +926,8 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-optimize <gas|size>`: optimized builds of the contract optimize its code for
     /// this objective instead of the one the build selects.
     Optimize,
+    /// `@custom:solar-terminates`: the function ends the call on every path.
+    Terminates,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -938,6 +941,7 @@ impl SolarTag {
             sym::solar_dash_safe => Some(Self::Safe),
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_optimize => Some(Self::Optimize),
+            sym::solar_dash_terminates => Some(Self::Terminates),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -978,13 +982,19 @@ pub(crate) fn report_misplaced_solar_tag(
                  `@custom:solar-optimize size`",
             )
             .emit(),
+        SolarTag::Terminates => dcx
+            .err("`@custom:solar-terminates` must document an internal or private function")
+            .span(span)
+            .help("put it on a function with a body that ends the call on every path")
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown tag `@custom:{name}`"))
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
                 "the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, \
-                 `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`",
+                 `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-terminates`, and \
+                 `@custom:solar-trusted`",
             )
             .emit(),
     }
@@ -1030,4 +1040,14 @@ fn optimize_objective(natspec: &ast::NatSpecItem) -> Option<OptimizationMode> {
         (Some("size"), None) => Some(OptimizationMode::Size),
         _ => None,
     }
+}
+
+/// Whether `@custom:solar-terminates` can document `item`: an internal or private function with a
+/// body, which a caller reaches only through an internal call.
+pub(crate) fn terminates_applies(gcx: Gcx<'_>, item: hir::ItemId) -> bool {
+    let hir::ItemId::Function(id) = item else { return false };
+    let function = gcx.hir.function(id);
+    function.kind == hir::FunctionKind::Function
+        && matches!(function.visibility, hir::Visibility::Internal | hir::Visibility::Private)
+        && function.body.is_some()
 }
