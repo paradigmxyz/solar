@@ -7,12 +7,12 @@
 use super::compact_pushes::selected_len;
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, PushValue, TerminatorKind},
+        ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
         op,
     },
     target::Target,
 };
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::{index::IndexVec, map::FxHashSet};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
