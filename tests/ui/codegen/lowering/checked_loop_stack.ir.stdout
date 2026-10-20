@@ -185,9 +185,6 @@ bb17:
   push 0
   return
 bb21:
-  push 128
-  push 64
-  mstore
   push 68
   calldatasize
   lt

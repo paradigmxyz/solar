@@ -49,7 +49,7 @@ bb48 [cold]:
   push 28
   revert
 bb7:
-  push 224
+  push 128
   push 64
   mstore
   push 36
@@ -189,14 +189,14 @@ bb10 [continuation]:
   push 0
   byte
   swap 2
-  push 128
+  push 0
   mstore
-  push 160
+  push 32
   mstore
-  push 192
+  push 64
   mstore
   push 96
-  push 128
+  push 0
   return
 bb16:
   push 128

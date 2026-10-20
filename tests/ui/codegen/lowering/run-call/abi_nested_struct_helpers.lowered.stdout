@@ -7,18 +7,18 @@
 fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb0:
     v15 = icall @decode_calldata_type.3, 4, 4
-    v25 = mload v15
-    v1 = mload v25
-    v21 = add v15, 32
-    v26 = mload v21
-    v4 = mload v26
-    v23 = add v26, 32
-    v27 = mload v23
-    v9 = mload v27
-    mstore 128, v1
-    mstore 160, v4
-    mstore 192, v9
-    returndata 128, 96
+    v24 = mload v15
+    v1 = mload v24
+    v20 = add v15, 32
+    v25 = mload v20
+    v4 = mload v25
+    v22 = add v25, 32
+    v26 = mload v22
+    v9 = mload v26
+    mstore 0, v1 !metadata(memory=scratch)
+    mstore 32, v4 !metadata(memory=scratch)
+    mstore 64, v9
+    returndata 0, 96
 }
 
 fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
