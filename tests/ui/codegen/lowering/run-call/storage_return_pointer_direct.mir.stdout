@@ -14,7 +14,7 @@ fn @pick(arg0: i1) -> i256 [view] {
     ret 1
 }
 
-fn @test(arg0: i1, arg1: i256) -> struct0 [selector=0xc6a64c1f, abi_params=[bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @test(arg0: i1, arg1: i256) -> struct0 [selector=0xc6a64c1f, abi_params=[bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @pick, arg0
     sstore v0, arg1 !metadata(storage=symbolic(v0))

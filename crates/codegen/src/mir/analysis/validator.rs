@@ -1431,11 +1431,7 @@ impl<'a> Validator<'a> {
                             inst_id,
                         );
                     }
-                    let semantic_op = func
-                        .inst(inst_id)
-                        .unlowered_reason(func)
-                        .or_else(|| kind.phase_violation(phase, &func.inst(inst_id).metadata));
-                    if let Some(semantic_op) = semantic_op {
+                    if let Some(semantic_op) = func.inst(inst_id).unlowered_reason(func) {
                         self.emit_at_inst(
                             format_args!(
                                 "{semantic_op} instruction `{}` survives the `{}` phase boundary",

@@ -10,15 +10,15 @@ fn @constructor() [constructor] {
 fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes6>], abi_return_params=[bytes6]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = shl 208, v0
+    v1 = shl v0, 208
     ret v1
 }
 
-fn @leftByteShift(arg0: i256, arg1: i256) -> i256 [selector=0x49858898, pure, abi_params=[bytes6, u256], abi_returns=[word<bytes6>], abi_return_params=[bytes6]] {
+fn @leftByteShift(arg0: i256, arg1: i256) -> i256 [selector=0x49858898, pure, abi_params=[bytes6, uint256], abi_returns=[word<bytes6>], abi_return_params=[bytes6]] {
   bb0:
     v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    v1 = checked_mul u256, arg1, 8
-    v2 = shl v1, v0
+    v1 = checked_mul uint256, arg1, 8
+    v2 = shl v0, v1
     v3 = and v2, 0xffffffffffff0000000000000000000000000000000000000000000000000000
     ret v3
 }
@@ -26,13 +26,13 @@ fn @leftByteShift(arg0: i256, arg1: i256) -> i256 [selector=0x49858898, pure, ab
 fn @applyShift(arg0: i256, arg1: i256) {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = shl 208, v0
-    v2 = icall @internal_dispatcher_p_bytes6_u256_r_bytes6, arg0, v1, arg1
+    v1 = shl v0, 208
+    v2 = icall @internal_dispatcher_p_bytes6_uint256_r_bytes6, arg0, v1, arg1
     v3 = and v2, 0xffffffffffff0000000000000000000000000000000000000000000000000000
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = not 0xffffffffffff
     v6 = and v4, v5
-    v7 = shr 208, v3
+    v7 = shr v3, 208
     v8 = and v7, 0xffffffffffff
     v9 = or v6, v8
     sstore 0, v9 !metadata(storage=slot(0))
@@ -45,7 +45,7 @@ fn @setName(arg0: i256) {
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = not 0xffffffffffff
     v3 = and v1, v2
-    v4 = shr 208, v0
+    v4 = shr v0, 208
     v5 = and v4, 0xffffffffffff
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
@@ -64,7 +64,7 @@ fn @internal_dispatcher_p_bytes6_r_none(arg0: i256, arg1: i256) [function_pointe
     ret
 }
 
-fn @internal_dispatcher_p_bytes6_u256_r_bytes6(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_bytes6_uint256_r_bytes6(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 4
     jumpi v0, bb1, bb2

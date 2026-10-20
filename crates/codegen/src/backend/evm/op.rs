@@ -389,14 +389,16 @@ opcodes! {
     0x33 => CALLER => caller => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(160);
     0x34 => CALLVALUE => callvalue => stack_io(0, 1) => traits() => gas(base) => available(legacy);
     0x35 => CALLDATALOAD => calldataload => stack_io(1, 1) => traits() => gas(verylow) => available(legacy);
-    0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    // Calldata and code lengths are gas-bounded, even before code-size caps, and fit in 64 bits.
+    0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(64);
     0x37 => CALLDATACOPY => calldatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
-    0x38 => CODESIZE => codesize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x38 => CODESIZE => codesize => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(64);
     0x39 => CODECOPY => codecopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
     0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy) => input_bits(160);
+    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy) => result_bits(64) => input_bits(160);
     0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => gas(extcode) => available(legacy) => input_bits(160);
-    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits() => gas(base) => available(since Byzantium);
+    // Return data comes from gas-bounded EVM memory or precompile output, so its length fits in 64 bits.
+    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits() => gas(base) => available(since Byzantium) => result_bits(64);
     0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Byzantium);
     0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => gas(extcodehash) => available(since Constantinople) => input_bits(160);
     0x40 => BLOCKHASH => blockhash => stack_io(1, 1) => traits() => gas(blockhash) => available(legacy);
@@ -569,6 +571,17 @@ impl OpDef {
     #[must_use]
     pub(crate) const fn observes_gas(self) -> bool {
         self.traits.contains(OpcodeTraits::OBSERVES_GAS)
+    }
+
+    /// Returns whether this operation behaves the same wherever it runs: it has a fixed stack
+    /// effect and neither transfers control nor observes its code position or the gas left. Code
+    /// may move such an operation to another position, such as a shared body or a copied tail.
+    #[must_use]
+    pub(crate) const fn is_position_independent(self) -> bool {
+        self.stack_io.is_some()
+            && !self.is_terminal()
+            && !self.observes_gas()
+            && !matches!(self.opcode, JUMPI | JUMPDEST | PC)
     }
 }
 
@@ -917,43 +930,21 @@ pub(crate) const fn is_pure(op: u8) -> bool {
 
 /// Returns whether inserting a push immediately before this opcode preserves its behavior.
 ///
-/// This includes opcodes that expand memory or warm an account or storage slot because the push
-/// does not affect those changes. Position and gas observations are excluded.
+/// This holds for position-independent operations that produce one word without writing state.
+/// It includes opcodes that expand memory or warm an account or storage slot because the push does
+/// not affect those changes.
 #[must_use]
 pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
-    is_pure(op)
-        || matches!(
-            op,
-            KECCAK256
-                | ADDRESS
-                | BALANCE
-                | ORIGIN
-                | CALLER
-                | CALLVALUE
-                | CALLDATALOAD
-                | CALLDATASIZE
-                | CODESIZE
-                | GASPRICE
-                | EXTCODESIZE
-                | RETURNDATASIZE
-                | EXTCODEHASH
-                | BLOCKHASH
-                | COINBASE
-                | TIMESTAMP
-                | NUMBER
-                | PREVRANDAO
-                | GASLIMIT
-                | CHAINID
-                | SELFBALANCE
-                | BASEFEE
-                | BLOBHASH
-                | BLOBBASEFEE
-                | MLOAD
-                | SLOAD
-                | MSIZE
-                | TLOAD
-                | PUSH0
-        )
+    match definition(op) {
+        Some(definition) => {
+            definition.is_position_independent()
+                && matches!(definition.stack_io, Some((_, 1)))
+                && !definition.writes_memory()
+                && !definition.writes_storage()
+                && !matches!(op, PUSH1..=PUSH32)
+        }
+        None => false,
+    }
 }
 
 /// Returns whether an opcode may write to memory, invalidating cached memory reads.

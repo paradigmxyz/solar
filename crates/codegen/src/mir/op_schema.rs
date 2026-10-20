@@ -31,14 +31,61 @@ use alloy_primitives::Bytes;
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationSemantics,
-    ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
+    ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
     FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
     MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, Semantics,
-    StorageLayoutRef, StructId, ValueId, ValueLayout, typing,
+    StructId, ValueId, ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
 #[cfg(test)]
 use std::fmt::Write as _;
+
+/// The semantic operation family that a phase does not admit, named in phase-boundary
+/// diagnostics. Each family has one required pass that removes it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum PhaseCategory {
+    AbiDecoding,
+    AbiEncoding,
+    AbiValidation,
+    AbstractAllocation,
+    /// Expanded by `lower-builtins`.
+    Builtin,
+    CheckedArithmetic,
+    /// Expanded by `lower-checks`.
+    ConditionalCheck,
+    FrameSlot,
+    ImmutableAssignment,
+    IntegerConversion,
+    MemoryZero,
+    NarrowIntegerArithmetic,
+    PointerArithmetic,
+    Slice,
+    StorageSlot,
+    StructValue,
+}
+
+impl std::fmt::Display for PhaseCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::AbiDecoding => "ABI decoding",
+            Self::AbiEncoding => "ABI encoding",
+            Self::AbiValidation => "ABI validation",
+            Self::AbstractAllocation => "abstract allocation",
+            Self::Builtin => "builtin",
+            Self::CheckedArithmetic => "checked arithmetic",
+            Self::ConditionalCheck => "conditional check",
+            Self::FrameSlot => "frame slot",
+            Self::ImmutableAssignment => "immutable assignment",
+            Self::IntegerConversion => "integer conversion",
+            Self::MemoryZero => "memory zero",
+            Self::NarrowIntegerArithmetic => "narrow integer arithmetic",
+            Self::PointerArithmetic => "pointer arithmetic",
+            Self::Slice => "slice",
+            Self::StorageSlot => "storage slot",
+            Self::StructValue => "struct value",
+        })
+    }
+}
 
 /// A compact set of MIR phases in which an operation is structurally valid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -633,7 +680,6 @@ opaque_attributes! {
     Bytes, Callee, RevertKind,
     AbiLayoutRef,
     AbiParamLayoutRef,
-    StorageLayoutRef,
 }
 
 /// Emits a wildcard for a named tuple field in a generated match.
@@ -743,7 +789,7 @@ macro_rules! define_mir_ops {
             /// Whether the operation must remain observable to DCE.
             pub(crate) has_side_effects: bool,
             /// Diagnostic category used when a phase boundary is violated.
-            pub(crate) phase_category: Option<&'static str>,
+            pub(crate) phase_category: Option<PhaseCategory>,
         }
 
         impl $inst_name {
@@ -921,23 +967,22 @@ macro_rules! define_mir_ops {
                 }
             }
 
-            /// Returns the operation's phase-boundary diagnostic category.
-            #[inline]
+            /// Returns the diagnostic category of an operation that `phase` does not admit.
             #[must_use]
             pub(crate) fn phase_violation(
                 &self,
                 phase: MirPhase,
                 metadata: &InstructionMetadata,
-            ) -> Option<&'static str> {
+            ) -> Option<PhaseCategory> {
                 let definition = self.op_def();
                 if !definition.phases.contains(phase) {
                     return definition.phase_category;
                 }
-                if matches!(self, Self::Alloc { .. })
+                if let Self::Alloc { semantics, .. } = self
                     && phase >= MirPhase::Lowered
-                    && !metadata.deferred_alloc()
+                    && (!metadata.deferred_alloc() || *semantics != AllocationSemantics::INTERNAL)
                 {
-                    return Some("abstract allocation");
+                    return Some(PhaseCategory::AbstractAllocation);
                 }
                 None
             }
@@ -1167,11 +1212,14 @@ impl Op {
 define_mir_ops! {
     enum InstKind {
     #[mir_op(mnemonic = "insert_value", result = Custom, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
+        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::StructValue))]
     #[operand_types(func => None)]
     InsertValue { ty: MirType, aggregate: ValueId, index: u32, value: ValueId },
     #[mir_op(mnemonic = "extract_value", result = Custom, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
+        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::StructValue))]
+    #[when(InstKind::ExtractValue { ty: MirType::Slice(_), .. } => {
+        phase_category: Some(PhaseCategory::Slice),
+    })]
     #[operand_types(func => None)]
     ExtractValue { ty: MirType, aggregate: ValueId, index: u32 },
     #[mir_op(mnemonic = "zext", result = Custom, phases = PhaseSet::ALL,
@@ -1179,18 +1227,22 @@ define_mir_ops! {
     #[operand_types(func => None)]
     #[semantics(word(operand0))]
     Zext(operand0: ValueId),
-    #[mir_op(mnemonic = "trunc", result = Custom, phases = PhaseSet::ALL,
-        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    #[mir_op(mnemonic = "trunc", result = Custom, phases = PhaseSet::SEMANTIC,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = Some(PhaseCategory::IntegerConversion))]
     #[operand_types(func => None)]
     #[semantics(low_bits(operand0, bits))]
     Trunc(operand0: ValueId, bits: u32),
-    #[mir_op(mnemonic = "sext", result = Custom, phases = PhaseSet::ALL,
-        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    #[mir_op(mnemonic = "sext", result = Custom, phases = PhaseSet::SEMANTIC,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = Some(PhaseCategory::IntegerConversion))]
     #[operand_types(func => None)]
     #[semantics(sign_extend(operand0, from_bits, to_bits))]
     Sext(operand0: ValueId, from_bits: u32, to_bits: u32),
     #[mir_op(mnemonic = "ptrtoint", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    #[when(InstKind::PtrToInt(_, 0..=255) => {
+        phases: PhaseSet::SEMANTIC,
+        phase_category: Some(PhaseCategory::IntegerConversion),
+    })]
     #[operand_types(func => None)]
     #[semantics(low_bits(operand0, bits))]
     PtrToInt(operand0: ValueId, bits: u32),
@@ -1203,11 +1255,11 @@ define_mir_ops! {
     /// LLVM `getelementptr inbounds nuw`, the sum does not wrap: semantic lowering emits it only
     /// for addresses inside the object, so a runtime offset leaves the pointer at or after `ptr`.
     #[mir_op(mnemonic = "ptradd", result = Pointer, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("pointer arithmetic"))]
+        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::PointerArithmetic))]
     #[operand_types(func => Some(smallvec![typing::pointer(func, *ptr), MirType::I256]))]
     PtrAdd(ptr: ValueId, offset: ValueId),
     #[mir_op(mnemonic = "checked_binary", result = Custom, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+        effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::CheckedArithmetic))]
     #[operand_types(func => Some(smallvec![arithmetic.ty().mir_type(), if *op == CheckedOp::Pow { MirType::I256 } else { arithmetic.ty().mir_type() }]))]
     #[semantics(checked(op, arithmetic, lhs, rhs))]
     CheckedBinary {
@@ -1217,39 +1269,39 @@ define_mir_ops! {
         rhs: ValueId,
     },
     #[mir_op(mnemonic = "validate_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+        effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
     ValidateStorageBytes(operand0: ValueId),
     #[mir_op(mnemonic = "load_storage_bytes", result = Custom, phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+        effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
     StorageBytesLoad(operand0: ValueId),
     #[mir_op(mnemonic = "load_storage_array", result = Custom, phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+        effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
     StorageArrayLoad { slot: ValueId, element: ValueLayout, enum_variants: Option<u64> },
     #[mir_op(mnemonic = "store_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
-        effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+        effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::MEMPTR]))]
     StorageBytesStore(operand0: ValueId, operand1: ValueId),
     #[mir_op(mnemonic = "store_storage_bytes_literal", result = None, phases = PhaseSet::SEMANTIC,
-        effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+        effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
     StorageBytesStoreLiteral { slot: ValueId, bytes: Bytes },
     #[mir_op(mnemonic = "clear_storage_words", result = None, phases = PhaseSet::SEMANTIC,
-        effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+        effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     StorageClearWords(operand0: ValueId, operand1: ValueId, operand2: ValueId),
     #[mir_op(mnemonic = "validate_abi", result = None, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+        effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::AbiValidation))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
     ValidateAbi(operand0: ValueId),
     #[mir_op(mnemonic = "abi_encode_packed", result = Custom, phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+        effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::packed_types(func, parts)))]
     AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
     #[mir_op(mnemonic = "address_call", result = I1, phases = PhaseSet::SEMANTIC,
-        effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+        effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::address_call_types(gas.is_some(), value.is_some())))]
     AddressCall {
         kind: AddressCallKind,
@@ -1479,7 +1531,10 @@ define_mir_ops! {
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 1]))]
     #[semantics(opcode(CLZ))]
     Clz(a: ValueId),
-    /// Left shift: `a << b`
+    /// Left shift: `value << shift`.
+    ///
+    /// Shift operands are stored in EVM stack order, `shift` first, so selection and rewrite rules
+    /// match the opcodes directly. The builder, printer, and parser use `value, shift`.
     #[mir_op(
         mnemonic = "shl",
         result = Integer,
@@ -1489,11 +1544,10 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
-    #[builder(shl)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     #[semantics(opcode(SHL))]
     Shl(shift: ValueId, value: ValueId),
-    /// Logical right shift: `a >> b`
+    /// Logical right shift: `value >> shift`, with shift operands stored like [`Self::Shl`].
     #[mir_op(
         mnemonic = "shr",
         result = Integer,
@@ -1503,11 +1557,11 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
-    #[builder(shr)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     #[semantics(opcode(SHR))]
     Shr(shift: ValueId, value: ValueId),
-    /// Arithmetic right shift: `a >> b` (signed)
+    /// Arithmetic right shift: `value >> shift` (signed), with shift operands stored like
+    /// [`Self::Shl`].
     #[mir_op(
         mnemonic = "sar",
         result = Integer,
@@ -1517,7 +1571,6 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
-    #[builder(sar)]
     #[operand_types(func => Some(smallvec![typing::integer_type(func, *shift); 2]))]
     #[semantics(opcode(SAR))]
     Sar(shift: ValueId, value: ValueId),
@@ -1702,7 +1755,7 @@ define_mir_ops! {
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
-        category = Some("memory zero")
+        category = Some(PhaseCategory::MemoryZero)
     )]
     #[builder(memory_zero, void)]
     #[raw_memory(Write(offset, size))]
@@ -1730,7 +1783,7 @@ define_mir_ops! {
         effect = MemoryRead,
         traits = OpTraits::NONE,
         side_effects = false,
-        category = Some("abstract allocation")
+        category = Some(PhaseCategory::AbstractAllocation)
     )]
     #[builder(fmp)]
     #[operand_types(func => Some(smallvec![]))]
@@ -1743,7 +1796,7 @@ define_mir_ops! {
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
-        category = Some("abstract allocation")
+        category = Some(PhaseCategory::AbstractAllocation)
     )]
     #[operand_types(func => Some(smallvec![MirType::MEMPTR]))]
     SetFmp(value: ValueId),
@@ -1770,7 +1823,7 @@ define_mir_ops! {
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
-        category = Some("abstract allocation")
+        category = Some(PhaseCategory::AbstractAllocation)
     )]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
     #[semantics(allocate(size, semantics))]
@@ -1788,7 +1841,7 @@ define_mir_ops! {
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
-        category = Some("ABI encoding")
+        category = Some(PhaseCategory::AbiEncoding)
     )]
     #[operand_types(func => Some(typing::abi_encode_types(func, selector.is_some(), args, layout)))]
     AbiEncode {
@@ -1813,69 +1866,14 @@ define_mir_ops! {
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
-        category = Some("ABI decoding")
+        category = Some(PhaseCategory::AbiDecoding)
     )]
-    #[operand_types(func => Some(smallvec![typing::memory_object(func, *data)]))]
+    #[operand_types(func => Some(smallvec![typing::read_object(func, *data)]))]
     AbiDecode {
-        /// ABI-encoded bytes object, or a memory slice of the encoding.
+        /// ABI-encoded bytes object, or a memory or calldata slice of the encoding.
         data: ValueId,
         /// Interned ABI input layout, including scalar validation types.
         layout: AbiParamLayoutRef,
-    },
-    /// Copy a statically shaped aggregate from storage into an existing memory allocation.
-    #[mir_op(
-        mnemonic = "storage_to_memory",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = Some("aggregate")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::MEMPTR]))]
-    StorageToMemory {
-        /// Base storage slot.
-        storage: ValueId,
-        /// Destination memory pointer.
-        memory: ValueId,
-        /// Aggregate layout.
-        layout: StorageLayoutRef,
-    },
-    /// Copy a statically shaped aggregate from memory into storage.
-    #[mir_op(
-        mnemonic = "memory_to_storage",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = StorageWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = Some("aggregate")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::MEMPTR, MirType::I256]))]
-    MemoryToStorage {
-        /// Source memory pointer.
-        memory: ValueId,
-        /// Base storage slot.
-        storage: ValueId,
-        /// Aggregate layout.
-        layout: StorageLayoutRef,
-    },
-    /// Clear every storage slot occupied by a statically shaped aggregate.
-    #[mir_op(
-        mnemonic = "clear_storage",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = StorageWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = Some("aggregate")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256]))]
-    ClearStorage {
-        /// Base storage slot.
-        storage: ValueId,
-        /// Aggregate layout.
-        layout: StorageLayoutRef,
     },
     /// Copy `len` bytes from `src` in memory, calldata, or returndata to `dest` in memory.
     #[mir_op(
@@ -1917,7 +1915,7 @@ define_mir_ops! {
         effect = Pure,
         traits = OpTraits::NONE,
         side_effects = false,
-        category = Some("slice")
+        category = Some(PhaseCategory::Slice)
     )]
     #[when(InstKind::MakeSlice { location: PtrLocation::Calldata, .. } => {
         mnemonic: "make_calldata_slice",
@@ -1958,7 +1956,7 @@ define_mir_ops! {
         effect = MemoryRead,
         traits = OpTraits::NONE,
         side_effects = false,
-        category = Some("frame slot")
+        category = Some(PhaseCategory::FrameSlot)
     )]
     #[operand_types(func => Some(smallvec![]))]
     FrameLoad {
@@ -1977,7 +1975,7 @@ define_mir_ops! {
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
-        category = Some("frame slot")
+        category = Some(PhaseCategory::FrameSlot)
     )]
     #[operand_types(func => Some(smallvec![kind.result_type()]))]
     FrameStore {
@@ -2129,7 +2127,7 @@ define_mir_ops! {
         effect = ImmutableWrite,
         traits = OpTraits::NONE,
         side_effects = true,
-        category = Some("immutable assignment")
+        category = Some(PhaseCategory::ImmutableAssignment)
     )]
     #[operand_types(func => None)]
     StoreImmutable(id: ImmutableId, value: ValueId),
@@ -2474,7 +2472,7 @@ define_mir_ops! {
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = false,
-        category = Some("storage slot")
+        category = Some(PhaseCategory::StorageSlot)
     )]
     #[builder(mapping_slot)]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
@@ -2491,7 +2489,7 @@ define_mir_ops! {
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = false,
-        category = Some("storage slot")
+        category = Some(PhaseCategory::StorageSlot)
     )]
     #[builder(mapping_slot_bytes)]
     #[operand_types(func => Some(smallvec![typing::bytes_key(func, *key), MirType::I256]))]
@@ -2506,7 +2504,7 @@ define_mir_ops! {
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = false,
-        category = Some("storage slot")
+        category = Some(PhaseCategory::StorageSlot)
     )]
     #[builder(storage_array_data_slot)]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
@@ -2523,7 +2521,7 @@ define_mir_ops! {
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = false,
-        category = Some("storage slot")
+        category = Some(PhaseCategory::StorageSlot)
     )]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     StorageArrayElementSlot { slot: ValueId, index: ValueId, element_slots: u64 },
@@ -2627,6 +2625,17 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[when(InstKind::ICall {
+        function: Callee::Builtin(Builtin::Check { .. } | Builtin::Require(_)),
+        ..
+    } => {
+        phases: PhaseSet::SEMANTIC,
+        phase_category: Some(PhaseCategory::ConditionalCheck),
+    })]
+    #[when(InstKind::ICall { function: Callee::Builtin(_), .. } => {
+        phases: PhaseSet::SEMANTIC,
+        phase_category: Some(PhaseCategory::Builtin),
+    })]
     #[operand_types(func => typing::callee_types(func, function, args))]
     #[semantics(call(function, args))]
     ICall { function: Callee, args: Box<[ValueId]> },

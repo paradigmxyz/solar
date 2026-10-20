@@ -12,10 +12,9 @@
 +   bb1:
       v0 = add arg0, 1
 -     ret v0
-+     mstore 128, v0
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
++     mstore 0, v0 !metadata(memory=scratch)
++     v3 = sub 32, 0
++     returndata 0, v3
 +   bb2:
 +     revert 0, 0
   }
@@ -32,10 +31,9 @@
 +     jump bb1
 +   bb1:
 +     v0 = icall @pub.body, arg0
-+     mstore 128, v0
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
++     mstore 0, v0 !metadata(memory=scratch)
++     v3 = sub 32, 0
++     returndata 0, v3
 +   bb2:
 +     revert 0, 0
   }
@@ -61,7 +59,7 @@
 -     v0 = icall @literal
 -     ret v0
 +     v0 = icall @literal.body
-+     v1 = abi_encode [memory_bytes], args v0
++     v1 = abi_encode [memory_bytes], scratch, args v0
 +     v2 = extract_value slice<memory>, v1, 0
 +     v3 = extract_value slice<memory>, v1, 1
 +     returndata v2, v3
@@ -98,7 +96,7 @@
       v4 = add v3, 16
       mstore v4, 7
 -     ret v0
-+     v5 = abi_encode [memory_bytes], args v0
++     v5 = abi_encode [memory_bytes], scratch, args v0
 +     v6 = extract_value slice<memory>, v5, 0
 +     v7 = extract_value slice<memory>, v5, 1
 +     returndata v6, v7
@@ -129,9 +127,9 @@
 - fn @narrowEncoding() -> ptr<memory> [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @narrowEncoding() [selector=0x0a0a0a09, abi_wrapper] {
     bb0:
-      v0 = abi_encode [word<u8>], object, args 0x1234
+      v0 = abi_encode [word<uint8>], object, args 0x1234
 -     ret v0
-+     v1 = abi_encode [memory_bytes], args v0
++     v1 = abi_encode [memory_bytes], scratch, args v0
 +     v2 = extract_value slice<memory>, v1, 0
 +     v3 = extract_value slice<memory>, v1, 1
 +     returndata v2, v3
@@ -141,7 +139,7 @@
 + fn @prefixedEncoding() [selector=0x0a0a0a0a, abi_wrapper] {
     bb0:
       v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args 1
-+     v1 = abi_encode [memory_bytes], args v0
++     v1 = abi_encode [memory_bytes], scratch, args v0
 +     v2 = extract_value slice<memory>, v1, 0
 +     v3 = extract_value slice<memory>, v1, 1
 +     returndata v2, v3
@@ -150,19 +148,17 @@
 + fn @sliceBody() [selector=0x0a0a0a0b, abi_wrapper] {
 +   bb0:
 +     v3 = icall @sliceBody.body
-+     mstore 128, v3
-+     v4 = add 128, 32
-+     v5 = sub v4, 128
-+     returndata 128, v5
++     mstore 0, v3 !metadata(memory=scratch)
++     v4 = sub 32, 0
++     returndata 0, v4
 + }
 + 
 + fn @sliceCaller() [selector=0x0a0a0a0c, abi_wrapper] {
 +   bb0:
 +     v0 = icall @sliceBody.body
-+     mstore 128, v0
-+     v1 = add 128, 32
-+     v2 = sub v1, 128
-+     returndata 128, v2
++     mstore 0, v0 !metadata(memory=scratch)
++     v1 = sub 32, 0
++     returndata 0, v1
 + }
 + 
 + fn @pub.body(arg0: i256) -> i256 {

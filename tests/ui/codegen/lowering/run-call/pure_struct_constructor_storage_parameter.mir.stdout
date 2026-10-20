@@ -15,12 +15,12 @@ fn @constructor() [constructor] {
     v6 = or v4, v5
     sstore v1, v6 !metadata(storage=offset(v0, 1))
     v7 = add v0, 1
-    v8 = shl 160, 255
+    v8 = shl 255, 160
     v9 = sload v7 !metadata(storage=offset(v0, 1))
     v10 = not v8
     v11 = and v9, v10
     v12 = and 1, 255
-    v13 = shl 160, v12
+    v13 = shl v12, 160
     v14 = or v11, v13
     sstore v7, v14 !metadata(storage=offset(v0, 1))
     ret
@@ -51,7 +51,7 @@ fn @build(arg0: i256, arg1: i256) -> ptr<memory> [pure] {
     mstore v13, v12
     v14 = add arg1, 1
     v15 = sload v14 !metadata(storage=offset(arg1, 1))
-    v16 = shr 160, v15
+    v16 = shr v15, 160
     v17 = trunc i256 v16 to i8
     v18 = zext i8 v17 to i256
     v19 = ptradd v7, 64
@@ -63,7 +63,7 @@ fn @build(arg0: i256, arg1: i256) -> ptr<memory> [pure] {
     ret v6
 }
 
-fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[u256], abi_returns=[word, word<u160>, word<bool>], abi_return_params=[u256, address, bool]] {
+fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[uint256], abi_returns=[word, word<uint160>, word<bool>], abi_return_params=[uint256, address, bool]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = alloc 64
@@ -78,7 +78,7 @@ fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[u256], abi_
     mstore v8, v7
     v9 = add v0, 1
     v10 = sload v9 !metadata(storage=offset(v0, 1))
-    v11 = shr 160, v10
+    v11 = shr v10, 160
     v12 = trunc i256 v11 to i8
     v13 = zext i8 v12 to i256
     v14 = ptradd v2, 64
@@ -91,7 +91,7 @@ fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[u256], abi_
     v18 = ptradd v1, 32
     v19 = mload v18, ptr<memory>
     v20 = mload v19
-    v21 = checked_add u256, v17, v20
+    v21 = checked_add uint256, v17, v20
     v22 = ptradd v1, 32
     v23 = mload v22, ptr<memory>
     v24 = ptradd v23, 32
@@ -101,10 +101,9 @@ fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[u256], abi_
     v28 = mload v27, ptr<memory>
     v29 = ptradd v28, 64
     v30 = mload v29
-    v31 = eq v30, 0
-    v32 = eq v31, false
-    v33 = insert_value struct0, undef struct0, 0, v21
-    v34 = insert_value struct0, v33, 1, v26
-    v35 = insert_value struct0, v34, 2, v32
-    ret v35
+    v31 = ne v30, 0
+    v32 = insert_value struct0, undef struct0, 0, v21
+    v33 = insert_value struct0, v32, 1, v26
+    v34 = insert_value struct0, v33, 2, v31
+    ret v34
 }

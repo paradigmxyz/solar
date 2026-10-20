@@ -49,11 +49,12 @@
 // `range` runs while `i <= end` from any start, so its main loop tests
 // `i < end` without an addition, two copies at a time.
 // CHECK: lt {{v[0-9]+}}, 68
-// CHECK: [[R:v[0-9]+]] = phi [{{bb[0-9]+}}: {{v[0-9]+}}], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
-// CHECK-NEXT: phi
+// CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK-NEXT: [[R:v[0-9]+]] = phi
 // CHECK-NEXT: {{v[0-9]+}} = lt [[R]], {{v[0-9]+}}
 // CHECK: phi [{{bb[0-9]+}}: [[R]]]
-// CHECK: [[J:v[0-9]+]] = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK-NEXT: [[J:v[0-9]+]] = phi
 // CHECK: [[J_AHEAD:v[0-9]+]] = add [[J]], 3
 // CHECK-NEXT: {{v[0-9]+}} = lt [[J_AHEAD]], {{v[0-9]+}}
 // CHECK: phi [{{bb[0-9]+}}: [[J]]]
@@ -63,7 +64,8 @@
 // CHECK-NEXT: [[K_AHEAD:v[0-9]+]] = add [[K]], 3
 // CHECK-NEXT: {{v[0-9]+}} = gt [[K_AHEAD]], {{v[0-9]+}}
 // CHECK: phi [{{bb[0-9]+}}: [[K]]]
-// CHECK: [[L:v[0-9]+]] = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK-NEXT: [[L:v[0-9]+]] = phi
 // CHECK: [[L_AHEAD:v[0-9]+]] = add [[L]], 3
 // CHECK-NEXT: {{v[0-9]+}} = lt [[L_AHEAD]], {{v[0-9]+}}
 // CHECK: phi [{{bb[0-9]+}}: [[L]]]

@@ -95,6 +95,8 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/projects/uniswap-v2-pair.json.gz",
                 Capabilities::lex_only(),
             ),
+            include_source("../testdata/projects/tempo-zones.json.gz", Capabilities::all())
+                .no_codspeed_codegen(),
         ]);
 
         sources

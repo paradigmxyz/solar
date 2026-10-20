@@ -50,24 +50,23 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = eq false, false
-    v4 = eq v3, false
-    v5 = zext i1 v4 to i256
-    v6 = abi_encode [word<bool>], selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v5
-    v7 = extract_value slice<memory>, v6, 0
-    v8 = extract_value slice<memory>, v6, 1
-    v9 = zext i160 v1 to i256
-    v10 = extcodesize v9
-    v11 = eq v10, 0
-    icall revert_if<target_contract_has_no_code>, v11
-    v12 = zext i160 v1 to i256
-    v13 = staticcall v2, v12, v7, v8, 0, 0
-    jumpi v13, bb1, bb2
+    v3 = ne false, false
+    v4 = zext i1 v3 to i256
+    v5 = abi_encode [word<bool>], selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v4
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    v8 = zext i160 v1 to i256
+    v9 = extcodesize v8
+    v10 = eq v9, 0
+    icall revert_if<target_contract_has_no_code>, v10
+    v11 = zext i160 v1 to i256
+    v12 = staticcall v2, v11, v6, v7, 0, 0
+    jumpi v12, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -81,24 +80,23 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=
     ret 0
 }
 
-fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = eq true, false
-    v4 = eq v3, false
-    v5 = zext i1 v4 to i256
-    v6 = abi_encode [word<bool>], selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v5
-    v7 = extract_value slice<memory>, v6, 0
-    v8 = extract_value slice<memory>, v6, 1
-    v9 = zext i160 v1 to i256
-    v10 = extcodesize v9
-    v11 = eq v10, 0
-    icall revert_if<target_contract_has_no_code>, v11
-    v12 = zext i160 v1 to i256
-    v13 = staticcall v2, v12, v7, v8, 0, 0
-    jumpi v13, bb1, bb2
+    v3 = ne true, false
+    v4 = zext i1 v3 to i256
+    v5 = abi_encode [word<bool>], selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v4
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    v8 = zext i160 v1 to i256
+    v9 = extcodesize v8
+    v10 = eq v9, 0
+    icall revert_if<target_contract_has_no_code>, v10
+    v11 = zext i160 v1 to i256
+    v12 = staticcall v2, v11, v6, v7, 0, 0
+    jumpi v12, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -112,7 +110,7 @@ fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=
     ret 0
 }
 
-fn @constructorStop() -> i256 [selector=0x2114ee15, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @constructorStop() -> i256 [selector=0x2114ee15, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize StopsInConstructor_creation_code_1
@@ -146,10 +144,10 @@ fn @stopHelper() [pure] {
     stop
 }
 
-fn @scalarFailure(arg0: i256) -> i256 [selector=0x97ca1c76, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @scalarFailure(arg0: i256) -> i256 [selector=0x97ca1c76, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @failScalar, arg0
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     ret v1
 }
 
@@ -159,13 +157,13 @@ fn @failScalar(arg0: i256) -> i256 [pure] {
     revert 0, 32
 }
 
-fn @pairFailure(arg0: i256) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pairFailure(arg0: i256) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @failPair, arg0
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
-    v3 = checked_add u256, v1, 1
-    v4 = checked_add u256, v2, 2
+    v3 = checked_add uint256, v1, 1
+    v4 = checked_add uint256, v2, 2
     v5 = insert_value struct0, undef struct0, 0, v3
     v6 = insert_value struct0, v5, 1, v4
     ret v6
@@ -177,23 +175,23 @@ fn @failPair(arg0: i256) -> struct0 [pure] {
     revert 0, 32
 }
 
-fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v1 = checked_sub u256, arg0, 1
+    v1 = checked_sub uint256, arg0, 1
     v2 = icall @recursiveFailure, v1, arg1
-    v3 = checked_add u256, v2, 1
+    v3 = checked_add uint256, v2, 1
     ret v3
   bb1:
     mstore 0, arg1 !metadata(memory=scratch)
     revert 0, 32
 }
 
-fn @constructorFailure(arg0: i256) -> i160 [selector=0x61e5bcd1, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @constructorFailure(arg0: i256) -> i160 [selector=0x61e5bcd1, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = datasize RevertsInConstructor_creation_code_2
@@ -226,38 +224,37 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v6 = add v5, v1
     mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
-    v8 = eq v7, i160 0
-    v9 = eq v8, false
-    jumpi v9, bb1, bb2
+    v8 = ne v7, i160 0
+    jumpi v8, bb1, bb2
   bb2:
-    v10 = icall returndata_bytes<>
-    v11 = ptradd v10, 32
-    v12 = mload v10
-    v13 = make_memory_slice v11, v12
-    v14 = extract_value slice<memory>, v13, 0
-    v15 = extract_value slice<memory>, v13, 1
-    v16 = extract_value slice<memory>, v13, 0
-    v17 = mload v16
-    v18 = shr 224, v17
+    v9 = icall returndata_bytes<>
+    v10 = ptradd v9, 32
+    v11 = mload v9
+    v12 = make_memory_slice v10, v11
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
+    v15 = extract_value slice<memory>, v12, 0
+    v16 = mload v15
+    v17 = shr v16, 224
     jumpi true, bb4, bb5
   bb5:
-    revert v14, v15
+    revert v13, v14
   bb4:
-    v19 = ptradd v10, 32
-    v20 = mload v10
-    v21 = keccak256 v19, v20
-    v22 = number
-    v23 = checked_add u256, v22, 11
-    v24 = timestamp
-    v25 = checked_add u256, v24, 22
-    v26 = chainid
-    v27 = checked_add u256, v26, 33
-    v28 = abi_encode [word, word, word], scratch, args v23, v25, v27
-    v29 = extract_value slice<memory>, v28, 0
-    v30 = extract_value slice<memory>, v28, 1
-    v31 = keccak256 v29, v30
-    v32 = eq v21, v31
-    ret v32
+    v18 = ptradd v9, 32
+    v19 = mload v9
+    v20 = keccak256 v18, v19
+    v21 = number
+    v22 = checked_add uint256, v21, 11
+    v23 = timestamp
+    v24 = checked_add uint256, v23, 22
+    v25 = chainid
+    v26 = checked_add uint256, v25, 33
+    v27 = abi_encode [word, word, word], scratch, args v22, v24, v26
+    v28 = extract_value slice<memory>, v27, 0
+    v29 = extract_value slice<memory>, v27, 1
+    v30 = keccak256 v28, v29
+    v31 = eq v20, v30
+    ret v31
   bb1:
     ret false
   bb3:
@@ -276,40 +273,40 @@ fn @unaffordableReturn() [selector=0x0acfbfd5, pure, abi_params=[], abi_returns=
     returndata 0x123456789abcdef0, 32
 }
 
-fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb10: v0]
-    v1 = phi [bb0: 0], [bb10: v14]
-    v2 = phi [bb0: arg0], [bb10: v2]
-    v3 = phi [bb0: 0], [bb10: v6]
+    v0 = phi [bb0: arg0], [bb10: v0]
+    v1 = phi [bb0: arg1], [bb10: v1]
+    v2 = phi [bb0: 0], [bb10: v6]
+    v3 = phi [bb0: 0], [bb10: v14]
     v4 = returndatasize
     v5 = mul v4, 3
-    v6 = add v3, v5
-    v7 = eq v0, 0
+    v6 = add v2, v5
+    v7 = eq v1, 0
     jumpi v7, bb4, bb5
   bb5:
-    v10 = eq v0, 1
+    v10 = eq v1, 1
     jumpi v10, bb7, bb8
   bb8:
     v13 = icall ecrecover<>, 1, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     jump bb9
   bb7:
-    v11 = abi_encode [word], object, args v1
+    v11 = abi_encode [word], object, args v3
     v12 = icall ripemd160<>, v11
     jump bb9
   bb9:
     jump bb6
   bb4:
-    v8 = abi_encode [word], object, args v1
+    v8 = abi_encode [word], object, args v3
     v9 = icall sha256<>, v8
     jump bb6
   bb6:
-    v14 = checked_add u256, v1, 1
+    v14 = checked_add uint256, v3, 1
     jump bb3
   bb3:
-    v15 = lt v14, v2
+    v15 = lt v14, v0
     jumpi v15, bb10, bb11
   bb11:
     jump bb2
@@ -344,7 +341,7 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v15 = extract_value slice<memory>, v13, 1
     v16 = extract_value slice<memory>, v13, 0
     v17 = mload v16
-    v18 = shr 224, v17
+    v18 = shr v17, 224
     jumpi true, bb4, bb5
   bb5:
     revert v14, v15
@@ -360,7 +357,7 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     ret false
 }
 
-fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
@@ -386,7 +383,7 @@ fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[u256], ab
   bb6:
     jump bb3
   bb3:
-    v7 = checked_add u256, v1, 1
+    v7 = checked_add uint256, v1, 1
     jump bb1
   bb7:
     v6 = load_storage_bytes 0
@@ -394,10 +391,10 @@ fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[u256], ab
     invalid
 }
 
-fn @maybeFailure(arg0: i1) -> i256 [selector=0x5f6d6eda, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @maybeFailure(arg0: i1) -> i256 [selector=0x5f6d6eda, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @maybeFail, arg0
-    v1 = checked_add u256, v0, 1
+    v1 = checked_add uint256, v0, 1
     ret v1
 }
 
@@ -413,42 +410,42 @@ fn @maybeFail(arg0: i1) -> i256 [pure] {
     invalid
 }
 
-fn @breakSkipsTail() -> i256 [selector=0xa299c6cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @breakSkipsTail() -> i256 [selector=0xa299c6cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0]
     v1 = phi [bb0: 0]
-    v2 = lt v0, 1
+    v2 = lt v1, 1
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
   bb4:
     jump bb2
   bb2:
-    ret v1
+    ret v0
   bb3:
     invalid
   bb6:
     invalid
 }
 
-fn @continueSkipsTail() -> i256 [selector=0xc45ef923, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @continueSkipsTail() -> i256 [selector=0xc45ef923, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v3]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = lt v0, 1
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v3]
+    v2 = lt v1, 1
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v0
   bb4:
     jump bb3
   bb3:
-    v3 = checked_add u256, v0, 1
+    v3 = checked_add uint256, v1, 1
     jump bb1
   bb6:
     invalid
@@ -461,14 +458,14 @@ fn @constructor() [constructor] {
     stop
 }
 
-fn @present() -> i256 [selector=0xe735afb2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @present() -> i256 [selector=0xe735afb2, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsInConstructor ===
 @module RevertsInConstructor
-fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     v0 = icall @fail, arg0
     sstore 0, v0 !metadata(storage=slot(0))
@@ -493,11 +490,11 @@ fn @constructor() [constructor] {
 fn @fail() -> i256 [view] {
   bb0:
     v0 = number
-    v1 = checked_add u256, v0, 11
+    v1 = checked_add uint256, v0, 11
     v2 = timestamp
-    v3 = checked_add u256, v2, 22
+    v3 = checked_add uint256, v2, 22
     v4 = chainid
-    v5 = checked_add u256, v4, 33
+    v5 = checked_add uint256, v4, 33
     v6 = gas
     v7 = gt v6, 0
     jumpi v7, bb1, bb2

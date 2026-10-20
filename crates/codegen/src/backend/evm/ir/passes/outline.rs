@@ -92,24 +92,19 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
         | (pushes && outline_repeated_pushes(gcx, module, &mut state))
 }
 
-/// Byte length of the widest push, `PUSH32` and its immediate.
-const MAX_PUSH_LEN: usize = 33;
-
 /// Returns whether any repeated push could repay its call and return gas in gas mode.
 ///
-/// A share of `n` pushes of at most [`MAX_PUSH_LEN`] bytes saves fewer than
-/// `n * (MAX_PUSH_LEN - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
+/// A share of `n` pushes, each at most a `PUSH32` and its immediate, saves fewer than
+/// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
 fn may_share_pushes(gcx: Gcx<'_>) -> bool {
     if !gcx.sess.opts.optimization.is_gas() {
         return true;
     }
     let target = Target::new(gcx);
-    let (site_bytes, _, transfer_gas) = push_share_costs(target);
-    sharing_improves_lifetime(
-        MAX_PUSH_LEN.saturating_sub(site_bytes),
-        1,
-        transfer_gas,
-        target.expected_executions(),
+    let (site_bytes, _, transfer_gas) = push_share_costs(&target);
+    target.deposit_repays_gas(
+        u64::from(target.opcode(op::PUSH32).bytes).saturating_sub(site_bytes as u64),
+        u64::from(transfer_gas),
     )
 }
 
@@ -126,15 +121,11 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
         return true;
     }
     let target = Target::new(gcx);
-    let transfer_size = transfer_size(target);
-    let transfer_gas = transfer_gas(target);
+    let transfer_size = transfer_size(&target);
+    let transfer_gas = transfer_gas(&target);
     let profitable = |size: usize| {
-        sharing_improves_lifetime(
-            size.saturating_sub(transfer_size),
-            1,
-            transfer_gas,
-            target.expected_executions(),
-        )
+        target
+            .deposit_repays_gas(size.saturating_sub(transfer_size) as u64, u64::from(transfer_gas))
     };
     let mut metrics = Vec::new();
     let mut prefixes = FxHashSet::default();
@@ -145,7 +136,7 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
         }
         metrics.clear();
         metrics.extend(block.instructions.iter().map(|inst| {
-            whitelisted_effect(inst).map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
+            shared_body_effect(inst).map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
         }));
         let mut remaining = metrics.iter().flatten().map(|&(_, size)| size).sum::<usize>();
         for start in 0..metrics.len() {
@@ -190,21 +181,21 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
 /// push2 body
 /// jump
 /// jumpdest
-fn transfer_size(target: Target) -> usize {
+fn transfer_size(target: &Target) -> usize {
     (target.opcode(op::PUSH2).bytes * 2
         + target.opcode(op::JUMP).bytes
         + target.opcode(op::JUMPDEST).bytes) as usize
 }
 
 /// Returns the gas of one call and return, excluding the shared body's rotations.
-fn transfer_gas(target: Target) -> u32 {
+fn transfer_gas(target: &Target) -> u32 {
     target.opcode_gas(op::PUSH2) * 2
         + target.opcode_gas(op::JUMP) * 2
         + target.opcode_gas(op::JUMPDEST) * 2
 }
 
 /// Returns the per-site bytes, shared body bytes, and transfer gas of a push share.
-fn push_share_costs(target: Target) -> (usize, usize, u32) {
+fn push_share_costs(target: &Target) -> (usize, usize, u32) {
     // The shared body around the push:
     // jumpdest
     // swap1
@@ -234,7 +225,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     }
     let max_run_length = max_machine_run_length(repeated_instructions);
     let target = Target::new(gcx);
-    let transfer_size = transfer_size(target);
+    let transfer_size = transfer_size(&target);
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
     let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[Site; 2]>>::default();
@@ -250,7 +241,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             hashes
                 .repeats(block_id, index)
                 .then(|| {
-                    whitelisted_effect(inst)
+                    shared_body_effect(inst)
                         .map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
                 })
                 .flatten()
@@ -364,15 +355,12 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         // not make the calls cold, even when every site is outside a loop.
         if gcx.sess.opts.optimization.is_gas() {
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
-            let transfer_gas = transfer_gas(target)
+            let transfer_gas = transfer_gas(&target)
                 + target.opcode_gas(op::SWAP1)
                     * u32::from(first.outputs.saturating_add(first.inputs));
-            if !sharing_improves_lifetime(
-                saved_bytes,
-                free.len(),
-                transfer_gas,
-                target.expected_executions(),
-            ) {
+            if !target
+                .deposit_repays_gas(saved_bytes as u64, free.len() as u64 * u64::from(transfer_gas))
+            {
                 if matches!(run.get(..3), Some([value, address, store])
                     if value.is_encoded_push() && address.is_encoded_push()
                         && matches!(store.opcode, op::MSTORE | op::MSTORE8))
@@ -441,17 +429,6 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     true
 }
 
-/// Whether deposited bytes repay a repeated dynamic transfer over a deployment.
-const fn sharing_improves_lifetime(
-    saved_bytes: usize,
-    occurrences: usize,
-    transfer_gas: u32,
-    expected_executions: u64,
-) -> bool {
-    saved_bytes as u128 * Target::CODE_DEPOSIT_GAS_PER_BYTE as u128
-        > occurrences as u128 * transfer_gas as u128 * expected_executions as u128
-}
-
 fn max_machine_run_length(repeated_instructions: usize) -> usize {
     debug_assert_ne!(repeated_instructions, 0);
     debug_assert!(repeated_instructions <= MAX_MACHINE_RUN_CANDIDATES);
@@ -479,7 +456,7 @@ fn outline_parametric_machine_runs(
             hashes
                 .repeats(block_id, index)
                 .then(|| {
-                    whitelisted_effect(inst).map(|effect| (effect, parameterizable_push(inst)))
+                    shared_body_effect(inst).map(|effect| (effect, parameterizable_push(inst)))
                 })
                 .flatten()
         }));
@@ -706,7 +683,7 @@ fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<I
             delta += 1;
             continue;
         }
-        let (_, pops, pushes) = whitelisted_effect(inst)?;
+        let (_, pops, pushes) = shared_body_effect(inst)?;
         delta = delta - i32::from(pops) + i32::from(pushes);
         if delta < 0 {
             return None;
@@ -768,7 +745,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     }
 
     let target = Target::new(gcx);
-    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(target);
+    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()
@@ -784,33 +761,13 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             (occurrences.len() >= 2
                 && inline >= outlined + MIN_SAVING
                 && (!gcx.sess.opts.optimization.is_gas()
-                    || sharing_improves_lifetime(
-                        saved_bytes,
-                        occurrences.len(),
-                        transfer_gas,
-                        target.expected_executions(),
+                    || target.deposit_repays_gas(
+                        saved_bytes as u64,
+                        occurrences.len() as u64 * u64::from(transfer_gas),
                     )))
             .then_some((value, push_size))
         })
         .collect();
-    if values.is_empty() {
-        return false;
-    }
-    values.retain(|(value, push_size)| {
-        let occurrences = &sites[value];
-        let inline = occurrences.len() * push_size;
-        let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
-        let saved_bytes = inline.saturating_sub(outlined);
-        occurrences.len() >= 2
-            && inline >= outlined + MIN_SAVING
-            && (!gcx.sess.opts.optimization.is_gas()
-                || sharing_improves_lifetime(
-                    saved_bytes,
-                    occurrences.len(),
-                    transfer_gas,
-                    target.expected_executions(),
-                ))
-    });
     if values.is_empty() {
         return false;
     }
@@ -935,7 +892,9 @@ fn split_outline_site(
     module.blocks[block].terminator = Some(terminator);
 }
 
-fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
+/// The words an instruction reads, pops, and pushes, when it may run in a shared body: a push, a
+/// stack operation, or a position-independent operation.
+fn shared_body_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
     if inst.is_encoded_push() {
         return Some((0, 0, 1));
     }
@@ -946,26 +905,9 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
         let outputs = u16::try_from(growth.max(0)).ok()?;
         return Some((required, inputs, outputs));
     }
-    Some(match inst.opcode {
-        op::CALLDATASIZE | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => (0, 0, 1),
-        op::ISZERO | op::NOT | op::CALLDATALOAD | op::MLOAD => (1, 1, 1),
-        op::ADD
-        | op::SUB
-        | op::MUL
-        | op::AND
-        | op::OR
-        | op::XOR
-        | op::SHL
-        | op::SHR
-        | op::LT
-        | op::GT
-        | op::SLT
-        | op::SGT
-        | op::EQ
-        | op::DIV => (2, 2, 1),
-        op::MSTORE => (2, 2, 0),
-        _ => return None,
-    })
+    let definition = inst.definition().filter(|definition| definition.is_position_independent())?;
+    let (inputs, outputs) = definition.stack_io?;
+    Some((u16::from(inputs), u16::from(inputs), u16::from(outputs)))
 }
 
 fn lower_bound(gcx: Gcx<'_>, instructions: &[Instruction]) -> usize {

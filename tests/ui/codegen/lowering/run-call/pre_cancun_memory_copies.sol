@@ -9,14 +9,15 @@
 //@ run-call: recycled => true
 //@ run-call: fresh => [1, 2, 3]
 //@ run-call: freshEmpty => []
+//@ run-call: recycledTail => 0x2222222222222222222222222222222222222222222222222222222222222233
+//@ run-call: pair 0x010203 => 0x6434eef45d1cf9636a9110e89819a6e75faf47621e0cf3d88b23b7903b0eed83
 
 // Without `MCOPY`, memory copies lower to word loops: whole-word lengths skip
 // the partial-word merge, and a partial tail changes exactly the copied bytes.
 // Returning a fresh array encodes it in place, a backward whole-word copy.
 // In size mode, the forward byte copies of ABI encoding share one helper, which
 // needs no runtime direction check, even for an object that assembly allocates.
-// Concatenation keeps a runtime direction check when the loaded length does not
-// prove that the whole copy fits its allocation.
+// Concatenation of bounded heap literals uses the same forward helper.
 // Once assembly moves the free memory pointer back, a new object can overlap a
 // live one, and the copy between them must check its direction at runtime.
 contract PreCancunMemoryCopies {
@@ -45,9 +46,8 @@ contract PreCancunMemoryCopies {
     }
 
     // SHARED-LABEL: fn @concat(
-    // SHARED: [[SOURCE:v[0-9]+]] = add {{v[0-9]+}}, 32
-    // SHARED: [[REVERSE:v[0-9]+]] = lt [[SOURCE]], {{v[0-9]+}}
-    // SHARED-NEXT: jumpi [[REVERSE]],
+    // SHARED: icall @[[FORWARD]], {{v[0-9]+}}, {{v[0-9]+}}, 33
+    // SHARED: icall @[[FORWARD]], {{v[0-9]+}}, {{v[0-9]+}}, 2
     function concat() external pure returns (bool) {
         bytes memory first = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021";
         bytes memory second = hex"2223";
@@ -103,6 +103,24 @@ contract PreCancunMemoryCopies {
 
     function freshEmpty() external pure returns (uint256[] memory) {
         return new uint256[](0);
+    }
+
+    function recycledTail() external pure returns (bytes32 last) {
+        bytes memory source = new bytes(63);
+        assembly {
+            mstore(add(source, 32), 0x1111111111111111111111111111111111111111111111111111111111111111)
+            mstore(add(source, 64), 0x2222222222222222222222222222222222222222222222222222222222222222)
+            mstore(add(source, 96), 0x3333333333333333333333333333333333333333333333333333333333333333)
+            mstore(0x40, add(source, 32))
+        }
+        bytes memory copy = bytes.concat(source, "");
+        assembly {
+            last := mload(add(copy, 64))
+        }
+    }
+
+    function pair(bytes memory payload) external pure returns (bytes32) {
+        return keccak256(abi.encode(payload, payload));
     }
 
     // SHARED: {{^}}fn @[[FORWARD]](

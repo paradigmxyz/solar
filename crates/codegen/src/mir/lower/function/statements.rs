@@ -554,11 +554,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, index, argument| {
                 let parameter_ty = this.cx.gcx.type_of_item(event.parameters[index].into());
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
-                if let Some(argument_ty) = this.cx.gcx.type_of_expr(argument.id)
-                    && let Some(argument_abi_type) = this.types.abi_type(argument_ty)
-                {
-                    this.validate_calldata_bytes_argument(value, &argument_abi_type);
-                }
                 Some((argument, value))
             },
         )?;
@@ -625,7 +620,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // data_values += argument
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
                 abi_type = self.abi_type_for_value(value, abi_type);
+                self.check_calldata_array_size(value, parameter_ty, &abi_type);
                 let validated_static = self.validate_calldata_static_argument(value, parameter_ty);
+                // The dispatcher validates the elements of an argument that only ABI decoding
+                // passes when an encoding takes it.
+                if Self::is_calldata_word_array(&abi_type)
+                    && self.needs_calldata_aggregate_validation(value, parameter_ty)
+                    && !self.is_decoded_external_argument(value)
+                {
+                    self.validate_calldata_word_array(value, parameter_ty);
+                }
                 if self.needs_calldata_materialization(value, &abi_type) && !validated_static {
                     value =
                         self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
@@ -727,7 +731,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
         {
             let shift = self.builder.imm(64);
-            return self.builder.shl(shift, value);
+            return self.builder.shl(value, shift);
         }
         if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
             let layout = types::TypeLowerer::value_layout(ty);

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_hazard_loaded_pointer.sol:C ===
 @module C
-fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6b9, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6b9, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
@@ -10,7 +10,7 @@ fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v7 = shl 5, arg3
+    v7 = shl arg3, 5
     v8 = ptrtoint ptr<memory> v0 to i256
     v9 = add v8, 32
     v10 = add v9, v7
@@ -20,133 +20,67 @@ fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = ptradd v0, 32
-    v15 = mload v14
-    v16 = inttoptr i256 v15 to ptr<memory>
-    v17 = eq v15, 0
-    jumpi v17, bb4, bb5
-  bb4:
-    v18 = alloc 32
-    mstore v18, 0
-    v19 = ptradd v0, 32
-    v20 = ptrtoint ptr<memory> v18 to i256
-    mstore v19, v20
-    jump bb5
-  bb5:
-    v21 = phi [bb3: v16], [bb4: v18]
-    v22 = checked_add u256, arg2, 1
-    v23 = abi_encode [word], scratch, args v22
-    v24 = extract_value slice<memory>, v23, 0
-    v25 = extract_value slice<memory>, v23, 1
-    v26 = keccak256 v24, v25
-    v27 = checked_add u256, arg2, 2
-    v28 = abi_encode [word], scratch, args v27
-    v29 = extract_value slice<memory>, v28, 0
-    v30 = extract_value slice<memory>, v28, 1
-    v31 = keccak256 v29, v30
-    v32 = checked_add u256, arg2, 3
-    v33 = abi_encode [word], scratch, args v32
-    v34 = extract_value slice<memory>, v33, 0
-    v35 = extract_value slice<memory>, v33, 1
-    v36 = keccak256 v34, v35
-    v37 = checked_add u256, arg2, 4
-    v38 = abi_encode [word], scratch, args v37
-    v39 = extract_value slice<memory>, v38, 0
-    v40 = extract_value slice<memory>, v38, 1
-    v41 = keccak256 v39, v40
-    v42 = checked_add u256, arg2, 5
-    v43 = abi_encode [word], scratch, args v42
-    v44 = extract_value slice<memory>, v43, 0
-    v45 = extract_value slice<memory>, v43, 1
-    v46 = keccak256 v44, v45
-    v47 = checked_add u256, arg2, 6
-    v48 = abi_encode [word], scratch, args v47
-    v49 = extract_value slice<memory>, v48, 0
-    v50 = extract_value slice<memory>, v48, 1
-    v51 = keccak256 v49, v50
-    v52 = checked_add u256, arg2, 7
-    v53 = abi_encode [word], scratch, args v52
-    v54 = extract_value slice<memory>, v53, 0
-    v55 = extract_value slice<memory>, v53, 1
-    v56 = keccak256 v54, v55
-    v57 = checked_add u256, arg2, 8
-    v58 = abi_encode [word], scratch, args v57
-    v59 = extract_value slice<memory>, v58, 0
-    v60 = extract_value slice<memory>, v58, 1
-    v61 = keccak256 v59, v60
-    v62 = checked_add u256, arg2, 9
-    v63 = abi_encode [word], scratch, args v62
-    v64 = extract_value slice<memory>, v63, 0
-    v65 = extract_value slice<memory>, v63, 1
-    v66 = keccak256 v64, v65
-    v67 = checked_add u256, arg2, 10
-    v68 = abi_encode [word], scratch, args v67
-    v69 = extract_value slice<memory>, v68, 0
-    v70 = extract_value slice<memory>, v68, 1
-    v71 = keccak256 v69, v70
-    v72 = checked_add u256, arg2, 11
-    v73 = abi_encode [word], scratch, args v72
-    v74 = extract_value slice<memory>, v73, 0
-    v75 = extract_value slice<memory>, v73, 1
-    v76 = keccak256 v74, v75
-    v77 = checked_add u256, arg2, 12
-    v78 = abi_encode [word], scratch, args v77
-    v79 = extract_value slice<memory>, v78, 0
-    v80 = extract_value slice<memory>, v78, 1
-    v81 = keccak256 v79, v80
-    v82 = checked_add u256, arg2, 13
-    v83 = abi_encode [word], scratch, args v82
-    v84 = extract_value slice<memory>, v83, 0
-    v85 = extract_value slice<memory>, v83, 1
-    v86 = keccak256 v84, v85
-    v87 = checked_add u256, arg2, 14
-    v88 = abi_encode [word], scratch, args v87
-    v89 = extract_value slice<memory>, v88, 0
-    v90 = extract_value slice<memory>, v88, 1
-    v91 = keccak256 v89, v90
-    v92 = checked_add u256, arg2, 15
-    v93 = abi_encode [word], scratch, args v92
-    v94 = extract_value slice<memory>, v93, 0
-    v95 = extract_value slice<memory>, v93, 1
-    v96 = keccak256 v94, v95
-    v97 = checked_add u256, arg2, 16
-    v98 = abi_encode [word], scratch, args v97
-    v99 = extract_value slice<memory>, v98, 0
-    v100 = extract_value slice<memory>, v98, 1
-    v101 = keccak256 v99, v100
-    v102 = checked_add u256, arg2, 17
-    v103 = abi_encode [word], scratch, args v102
-    v104 = extract_value slice<memory>, v103, 0
-    v105 = extract_value slice<memory>, v103, 1
-    v106 = keccak256 v104, v105
-    v107 = checked_add u256, arg2, 18
-    v108 = abi_encode [word], scratch, args v107
-    v109 = extract_value slice<memory>, v108, 0
-    v110 = extract_value slice<memory>, v108, 1
-    v111 = keccak256 v109, v110
-    v112 = calldatasize
-    v113 = ptrtoint ptr<memory> v21 to i256
-    v114 = add v113, 32
-    calldatacopy v114, v112, arg1
-    v115 = xor v26, v31
-    v116 = xor v115, v36
-    v117 = xor v116, v41
-    v118 = xor v117, v46
-    v119 = xor v118, v51
-    v120 = xor v119, v56
-    v121 = xor v120, v61
-    v122 = xor v121, v66
-    v123 = xor v122, v71
-    v124 = xor v123, v76
-    v125 = xor v124, v81
-    v126 = xor v125, v86
-    v127 = xor v126, v91
-    v128 = xor v127, v96
-    v129 = xor v128, v101
-    v130 = xor v129, v106
-    v131 = xor v130, v111
-    ret v131
+    v15 = mload v14, ptr<memory>
+    v16 = checked_add uint256, arg2, 1
+    v17 = keccak256_packed (uint256 v16)
+    v18 = checked_add uint256, arg2, 2
+    v19 = keccak256_packed (uint256 v18)
+    v20 = checked_add uint256, arg2, 3
+    v21 = keccak256_packed (uint256 v20)
+    v22 = checked_add uint256, arg2, 4
+    v23 = keccak256_packed (uint256 v22)
+    v24 = checked_add uint256, arg2, 5
+    v25 = keccak256_packed (uint256 v24)
+    v26 = checked_add uint256, arg2, 6
+    v27 = keccak256_packed (uint256 v26)
+    v28 = checked_add uint256, arg2, 7
+    v29 = keccak256_packed (uint256 v28)
+    v30 = checked_add uint256, arg2, 8
+    v31 = keccak256_packed (uint256 v30)
+    v32 = checked_add uint256, arg2, 9
+    v33 = keccak256_packed (uint256 v32)
+    v34 = checked_add uint256, arg2, 10
+    v35 = keccak256_packed (uint256 v34)
+    v36 = checked_add uint256, arg2, 11
+    v37 = keccak256_packed (uint256 v36)
+    v38 = checked_add uint256, arg2, 12
+    v39 = keccak256_packed (uint256 v38)
+    v40 = checked_add uint256, arg2, 13
+    v41 = keccak256_packed (uint256 v40)
+    v42 = checked_add uint256, arg2, 14
+    v43 = keccak256_packed (uint256 v42)
+    v44 = checked_add uint256, arg2, 15
+    v45 = keccak256_packed (uint256 v44)
+    v46 = checked_add uint256, arg2, 16
+    v47 = keccak256_packed (uint256 v46)
+    v48 = checked_add uint256, arg2, 17
+    v49 = keccak256_packed (uint256 v48)
+    v50 = checked_add uint256, arg2, 18
+    v51 = keccak256_packed (uint256 v50)
+    v52 = calldatasize
+    v53 = ptrtoint ptr<memory> v15 to i256
+    v54 = add v53, 32
+    calldatacopy v54, v52, arg1
+    v55 = xor v17, v19
+    v56 = xor v55, v21
+    v57 = xor v56, v23
+    v58 = xor v57, v25
+    v59 = xor v58, v27
+    v60 = xor v59, v29
+    v61 = xor v60, v31
+    v62 = xor v61, v33
+    v63 = xor v62, v35
+    v64 = xor v63, v37
+    v65 = xor v64, v39
+    v66 = xor v65, v41
+    v67 = xor v66, v43
+    v68 = xor v67, v45
+    v69 = xor v68, v47
+    v70 = xor v69, v49
+    v71 = xor v70, v51
+    ret v71
   bb2:
-    v3 = shl 5, v1
+    v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
     mstore v5, 96

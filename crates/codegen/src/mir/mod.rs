@@ -30,9 +30,6 @@ pub(crate) use abi::{
 mod packed;
 pub(crate) use packed::{PackedArraySource, PackedPart, packed_element_bytes};
 
-mod storage;
-pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
-
 mod value;
 pub(crate) use value::{Immediate, Value};
 
@@ -52,7 +49,7 @@ mod effects;
 pub(crate) use effects::ControlEffects;
 mod op_schema;
 pub(crate) use op_schema::{
-    InstKind, LogTopics, Op, OpTraits, RawMemoryAccess, RawMemorySize, ResultKind,
+    InstKind, LogTopics, Op, OpTraits, PhaseCategory, RawMemoryAccess, RawMemorySize, ResultKind,
 };
 
 mod semantics;

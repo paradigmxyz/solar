@@ -13,8 +13,6 @@ use solar_sema::{Gcx, hir::ContractId};
 
 use crate::mir::Module;
 
-pub(crate) use data::data_copy_cost;
-
 /// Lowers a contract from HIR to MIR.
 ///
 /// The bytecode of contracts that this contract embeds stays deferred data that

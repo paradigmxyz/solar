@@ -34,6 +34,8 @@ from cases import (
     MAX_UINT256,
     TEST_CASES,
     ZERO_ADDRESS,
+    ZONES_KEY_X,
+    ZONES_TOKEN,
     TestCase,
     gas_calls,
     runtime_checks,
@@ -860,7 +862,6 @@ def start_anvil(rpc_url: str) -> subprocess.Popen[bytes]:
             "anvil",
             "--port",
             match.group(1),
-            "--steps-tracing",
             "--disable-code-size-limit",
             "--gas-limit",
             "100000000",
@@ -1553,7 +1554,182 @@ def run_cold_path_checks(
         )
     if test_case.test_id == "nitro-one-step-proof":
         return run_nitro_cold_paths(address, rpc_url)
+    if test_case.test_id == "tempo-zones-portal":
+        sender, error = private_key_address(private_key)
+        if sender is None:
+            return [runtime_error("zones-sender", error)]
+        observations = []
+        for label, target, signature, args, expected in (
+            ("zones-deposit-count", address, "depositCount()(uint64)", (), 2),
+            (
+                "zones-escrow",
+                ZONES_TOKEN,
+                "balanceOf(address)(uint256)",
+                (address,),
+                20_000_000,
+            ),
+            (
+                "zones-sender-balance",
+                ZONES_TOKEN,
+                "balanceOf(address)(uint256)",
+                (sender,),
+                80_000_000,
+            ),
+        ):
+            value, error = read_uint(target, signature, args, rpc_url)
+            observations.append(
+                runtime_error(label, error)
+                if value is None
+                else checked_value(label, value, expected)
+            )
+        return observations
     return []
+
+
+def prepare_zones_portal(
+    implementation: str,
+    rpc_url: str,
+    private_key: str,
+) -> tuple[str | None, int | None, str]:
+    """Initialize a fresh proxy with identical token/registry code on local Anvil."""
+    if re.fullmatch(r"http://(?:127\.0\.0\.1|localhost):\d+", rpc_url) is None:
+        return None, None, "Zones fixtures require a local Anvil RPC"
+    sender, error = private_key_address(private_key)
+    if sender is None:
+        return None, None, error
+    fixtures = json.loads((RUNTIME_FIXTURES.parent / "Zones.json").read_text())
+
+    for name, target in (
+        ("RuntimeZoneToken", ZONES_TOKEN),
+        ("RuntimeZoneRegistry", "0x403c000000000000000000000000000000000000"),
+    ):
+        bytecode = fixtures["creation_bytecode"][name]
+        fixture, _, error = deploy_creation_code(
+            bytecode, (), None, rpc_url, private_key
+        )
+        if fixture is None:
+            return None, None, error
+        code, error = rpc_request("eth_getCode", (fixture, "latest"), rpc_url)
+        if error or not isinstance(code, str) or code == "0x":
+            return None, None, error or f"empty {name} runtime"
+        _, error = rpc_request("anvil_setCode", (target, code), rpc_url)
+        if error:
+            return None, None, error
+
+    proxy_code = (
+        "3d602d80600a3d3981f3363d3d373d3d3d363d73"
+        + implementation.removeprefix("0x")
+        + "5af43d82803e903d91602b57fd5bf3"
+    )
+    proxy, proxy_gas, error = deploy_creation_code(
+        proxy_code, (), None, rpc_url, private_key
+    )
+    if proxy is None:
+        return None, None, error
+
+    factory = "0x5af2000000000000000000000000000000000000"
+    signature = (
+        "initialize(uint32,address,bool,bool,address[],address[],address,address,"
+        "address[],uint8,address,string)"
+    )
+    args = (
+        "1",
+        ZONES_TOKEN,
+        "false",
+        "false",
+        "[]",
+        "[]",
+        ZERO_ADDRESS,
+        sender,
+        f"[{sender}]",
+        "1",
+        ZERO_ADDRESS,
+        "",
+    )
+    calldata, error = encode_calldata(signature, args)
+    if calldata is None:
+        return None, None, error
+    for method, params in (
+        ("anvil_setBalance", (factory, hex(10**20))),
+        ("anvil_impersonateAccount", (factory,)),
+    ):
+        _, error = rpc_request(method, params, rpc_url)
+        if error:
+            return None, None, error
+    try:
+        proc = run(
+            [
+                "cast",
+                "send",
+                proxy,
+                "--data",
+                calldata,
+                "--from",
+                factory,
+                "--unlocked",
+                "--rpc-url",
+                rpc_url,
+                "--gas-limit",
+                CAST_GAS_LIMIT,
+                "--json",
+            ],
+            timeout=CAST_TX_TIMEOUT,
+        )
+        if proc.returncode != 0:
+            return None, None, (proc.stderr or proc.stdout)[:1000]
+        receipt = json.loads(proc.stdout)
+        if parse_receipt_int(receipt.get("status")) != 1:
+            return None, None, "Zones initialization reverted"
+    finally:
+        _, cleanup_error = rpc_request(
+            "anvil_stopImpersonatingAccount", (factory,), rpc_url
+        )
+    if cleanup_error:
+        return None, None, cleanup_error
+
+    # Public test key 1 proves possession of the secp256k1 generator point.
+    encoded = abi_encode_constructor(
+        (proxy, ZONES_KEY_X, "2"), "key(address,bytes32,uint8)"
+    )
+    if encoded is None:
+        return None, None, "cannot encode Zones encryption key proof"
+    digest = run(["cast", "keccak", "0x" + encoded], timeout=30)
+    if digest.returncode != 0:
+        return None, None, digest.stderr[:1000]
+    proof = run(
+        [
+            "cast",
+            "wallet",
+            "sign",
+            "--no-hash",
+            "--private-key",
+            "0x" + "00" * 31 + "01",
+            digest.stdout.strip(),
+        ],
+        timeout=30,
+    )
+    if proof.returncode != 0:
+        return None, None, proof.stderr[:1000]
+    proof_hex = proof.stdout.strip().removeprefix("0x")
+    for target, signature, args in (
+        (
+            proxy,
+            "setSequencerEncryptionKey(bytes32,uint8,uint8,bytes32,bytes32)",
+            (
+                ZONES_KEY_X,
+                "2",
+                str(int(proof_hex[128:130], 16)),
+                "0x" + proof_hex[:64],
+                "0x" + proof_hex[64:128],
+            ),
+        ),
+        (ZONES_TOKEN, "setBalance(address,uint256)", (sender, "100000000")),
+        (ZONES_TOKEN, "approve(address,uint256)", (proxy, MAX_UINT256)),
+    ):
+        gas, error = call_contract(target, signature, args, rpc_url, private_key)
+        if gas is None:
+            return None, None, error
+    return proxy, proxy_gas, ""
 
 
 def compare_runtime_results(
@@ -1824,6 +2000,7 @@ def run_test_case(
             "openzeppelin-vesting-wallet",
             "nitro-one-step-proof",
             "lilweb3-fractional",
+            "tempo-zones-portal",
         }
         if compiled["status"] != "ok" or not include_gas:
             continue
@@ -1847,6 +2024,17 @@ def run_test_case(
 
         compiler_entry["deploy_status"] = "ok"
         compiler_entry["deploy_gas"] = deploy_gas
+        if test_case.test_id == "tempo-zones-portal":
+            compiler_entry["implementation_address"] = address
+            address, proxy_gas, error = prepare_zones_portal(
+                address, rpc_url, private_key
+            )
+            compiler_entry["proxy_deploy_gas"] = proxy_gas
+            if address is None:
+                compiler_entry["deploy_status"] = "failed"
+                compiler_entry["runtime_status"] = "failed"
+                compiler_entry["deploy_error"] = error
+                continue
         compiler_entry["address"] = address
         gas_results = []
         total_gas = 0

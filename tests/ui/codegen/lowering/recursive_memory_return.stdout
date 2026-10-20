@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive_memory_return.sol:C ===
 @module C
-fn @build(arg0: i256) -> ptr<memory> [selector=0x77fc2b19, pure, abi_params=[u256], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u256, u256>]] {
+fn @build(arg0: i256) -> ptr<memory> [selector=0x77fc2b19, pure, abi_params=[uint256], abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint256, uint256>]] {
   bb0:
     v0 = eq arg0, 0
     v1 = alloc 64 !metadata(preserves_fmp)
@@ -11,14 +11,14 @@ fn @build(arg0: i256) -> ptr<memory> [selector=0x77fc2b19, pure, abi_params=[u25
   bb2:
     jump bb3
   bb3:
-    v5 = checked_sub u256, arg0, 1
+    v5 = checked_sub uint256, arg0, 1
     v6 = icall @build, v5
     v7 = alloc 64
     v8 = mload v6
-    v9 = checked_add u256, v8, arg0
+    v9 = checked_add uint256, v8, arg0
     v10 = ptradd v6, 32
     v11 = mload v10
-    v12 = checked_add u256, v11, 1
+    v12 = checked_add uint256, v11, 1
     mstore v7, v9
     v13 = ptradd v7, 32
     mstore v13, v12
@@ -31,7 +31,7 @@ fn @build(arg0: i256) -> ptr<memory> [selector=0x77fc2b19, pure, abi_params=[u25
     ret v3
 }
 
-fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -57,30 +57,30 @@ fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[u25
     jump bb1
   bb1:
     v17 = phi [bb0: arg0], [bb3: v17]
-    v18 = phi [bb0: v16], [bb3: v18]
-    v19 = phi [bb0: ptr<memory> 96], [bb3: v19]
+    v18 = phi [bb0: ptr<memory> 96], [bb3: v18]
+    v19 = phi [bb0: v16], [bb3: v19]
     v20 = phi [bb0: 0], [bb3: v29]
     v21 = lt v20, v17
     jumpi v21, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v18
+    ret v19
   bb4:
-    v22 = checked_mul u256, v20, 10
-    v23 = mload v18
+    v22 = checked_mul uint256, v20, 10
+    v23 = mload v19
     v24 = lt v20, v23
     v25 = eq v24, false
     icall panic_if<0x32>, v25
-    v26 = shl 5, v20
-    v27 = ptradd v18, v26
+    v26 = shl v20, 5
+    v27 = ptradd v19, v26
     v28 = ptradd v27, 32
     mstore v28, v22
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v29 = checked_add u256, v20, 1
+    v29 = checked_add uint256, v20, 1
     jump bb1
 }
 
@@ -92,23 +92,23 @@ fn @fillImpl(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
   bb2:
     jump bb3
   bb3:
-    v2 = checked_mul u256, arg1, arg1
+    v2 = checked_mul uint256, arg1, arg1
     v3 = mload arg0
     v4 = lt arg1, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = shl 5, arg1
+    v6 = shl arg1, 5
     v7 = ptradd arg0, v6
     v8 = ptradd v7, 32
     mstore v8, v2
-    v9 = checked_add u256, arg1, 1
+    v9 = checked_add uint256, arg1, 1
     v10 = icall @fillImpl, arg0, v9
     ret v10
   bb1:
     ret arg0
 }
 
-fn @squares(arg0: i256) -> ptr<memory> [selector=0x1d1d15d4, pure, abi_params=[u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @squares(arg0: i256) -> ptr<memory> [selector=0x1d1d15d4, pure, abi_params=[uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0

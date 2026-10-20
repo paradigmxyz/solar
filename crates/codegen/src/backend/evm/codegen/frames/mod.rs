@@ -1016,7 +1016,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         break;
                     }
                 }
-                kind if kind.effect_kind() == EffectKind::Pure => {}
+                kind if kind.effect_kind().is_read_only() => {}
                 _ => return None,
             }
         }
@@ -1472,18 +1472,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         self.record_runtime_entry_reachability(call_graph, entry);
         let reachable = &self.runtime_entry_reachability[&entry];
-        let needs_free_memory = reachable.iter().any(|func_id| {
-            call_graph.is_recursive(func_id)
-                || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
-                || module.functions[func_id].instructions().any(|inst_id| {
-                    matches!(
-                        module.functions[func_id].inst(inst_id).kind,
-                        InstKind::ICall { function: Callee::Function(function), .. }
-                            if module.function(function).return_components().len() > 1
-                    )
-                })
-        });
-        if !needs_free_memory {
+        if !Self::functions_need_free_memory(module, call_graph, reachable.iter()) {
             return;
         }
 
@@ -1495,6 +1484,26 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.capture_mir {
             self.entry_heap_sites.insert(entry, id);
         }
+    }
+
+    /// Whether any of `functions` reads the free memory pointer, directly or through the frame
+    /// and multi-word return conventions that allocate above it.
+    pub(in crate::backend::evm::codegen) fn functions_need_free_memory(
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        mut functions: impl Iterator<Item = FunctionId>,
+    ) -> bool {
+        functions.any(|func_id| {
+            call_graph.is_recursive(func_id)
+                || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
+                || module.functions[func_id].instructions().any(|inst_id| {
+                    matches!(
+                        module.functions[func_id].inst(inst_id).kind,
+                        InstKind::ICall { function: Callee::Function(function), .. }
+                            if module.function(function).return_components().len() > 1
+                    )
+                })
+        })
     }
 
     /// Records every function whose memory bounds contribute to one runtime entry.
@@ -1625,13 +1634,13 @@ mod tests {
         // divided = (add / 32) * 32
         // mixed_alignment = (add >> 5) * 32
         let shift = builder.imm(5);
-        let quotient = builder.shr(shift, add);
-        let shifted_alignment = builder.shl(shift, quotient);
+        let quotient = builder.shr(add, shift);
+        let shifted_alignment = builder.shl(quotient, shift);
         let mixed_alignment = builder.mul(word, quotient);
         let quotient = builder.div(add, word);
         let divided_alignment = builder.mul(quotient, word);
         let commuted_divided = builder.mul(word, quotient);
-        let mixed_shift = builder.shl(shift, quotient);
+        let mixed_shift = builder.shl(quotient, shift);
         // opaque_alignment = (opaque / 32) * 32
         // mismatched = (add / 32) * 16
         let opaque_quotient = builder.div(opaque, word);

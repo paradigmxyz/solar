@@ -9,24 +9,24 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
     ret
 }
 
-fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 42
 }
 
-fn @paid() -> i256 [selector=0x295b4e17, payable, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @paid() -> i256 [selector=0x295b4e17, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 7
 }
 
-fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 1
     v1 = insert_value struct0, v0, 1, 2
     ret v1
 }
 
-fn @eight() -> struct1 [selector=0xcb94343e, pure, abi_params=[], abi_returns=[word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256]] {
+fn @eight() -> struct1 [selector=0xcb94343e, pure, abi_params=[], abi_returns=[word, word, word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, 1
     v1 = insert_value struct1, v0, 1, 2
@@ -39,7 +39,7 @@ fn @eight() -> struct1 [selector=0xcb94343e, pure, abi_params=[], abi_returns=[w
     ret v7
 }
 
-fn @agg() -> ptr<memory> [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @agg() -> ptr<memory> [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -69,7 +69,7 @@ fn @receive() [receive, payable] {
 @data
   CallGasCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCallee"
 
-fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
@@ -103,7 +103,7 @@ fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], 
     ret 1
 }
 
-fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
@@ -140,7 +140,7 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
     ret v20
 }
 
-fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
@@ -177,7 +177,7 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
     ret v20
 }
 
-fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
@@ -218,11 +218,11 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
     v25 = insert_value struct0, v24, 1, v23
     v26 = extract_value struct0, v25, 0
     v27 = extract_value struct0, v25, 1
-    v28 = checked_add u256, v26, v27
+    v28 = checked_add uint256, v26, v27
     ret v28
 }
 
-fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
@@ -293,17 +293,17 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
     v55 = extract_value struct1, v49, 5
     v56 = extract_value struct1, v49, 6
     v57 = extract_value struct1, v49, 7
-    v58 = checked_add u256, v50, v51
-    v59 = checked_add u256, v58, v52
-    v60 = checked_add u256, v59, v53
-    v61 = checked_add u256, v60, v54
-    v62 = checked_add u256, v61, v55
-    v63 = checked_add u256, v62, v56
-    v64 = checked_add u256, v63, v57
+    v58 = checked_add uint256, v50, v51
+    v59 = checked_add uint256, v58, v52
+    v60 = checked_add uint256, v59, v53
+    v61 = checked_add uint256, v60, v54
+    v62 = checked_add uint256, v61, v55
+    v63 = checked_add uint256, v62, v56
+    v64 = checked_add uint256, v63, v57
     ret v64
 }
 
-fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
@@ -337,7 +337,7 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
   bb4:
     mcopy v10, v12, 64
     v19 = make_memory_slice v10, 64
-    v20 = abi_decode [array<2, u256>], v19
+    v20 = abi_decode [array<2, uint256>], v19
     v21 = lt 0, 2
     v22 = eq v21, false
     icall panic_if<0x32>, v22
@@ -347,11 +347,11 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     icall panic_if<0x32>, v25
     v26 = ptradd v20, 32
     v27 = mload v26
-    v28 = checked_add u256, v23, v27
+    v28 = checked_add uint256, v23, v27
     ret v28
 }
 
-fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
@@ -382,7 +382,7 @@ fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
     ret v13
 }
 
-fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0

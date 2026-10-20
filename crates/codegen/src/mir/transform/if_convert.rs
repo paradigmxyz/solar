@@ -19,7 +19,10 @@
 //!   among constant table words needs no branch;
 //! - a literal chosen over a select the condition implies, `x < a ? A : (x < b ? B : C)` with `a <=
 //!   b`, becomes `C + [x < b] * (B - C) + [x < a] * (A - B)`, so a ladder of literal selections on
-//!   one value collapses one level at a time; and
+//!   one value collapses one level at a time;
+//! - a boolean merged with `true`, `c ? true : e` and `c ? t : true`, becomes `c | e` and `!c | t`,
+//!   the shape a chain of `||` operands leaves at its last join;
+//! - a boolean merged with `false`, `c ? t : false` or `c ? false : e`, becomes an `and`; and
 //! - any other pair becomes `f + c * (t - f)`.
 //!
 //! Conditions are canonical booleans and cast to words before arithmetic.
@@ -70,7 +73,7 @@ impl MirPass for IfConvert {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, _| if_convert_function(func, target))
+        run_function_pass(module, analyses, |func, _| if_convert_function(func, &target))
     }
 }
 
@@ -116,9 +119,11 @@ enum SelectForm {
     /// `else + c * (then - else)`, with the difference folded when both are
     /// literals.
     General(Option<U256>),
+    /// A boolean merged with `true`: `c | e`, or `!c | t` when `else` is the literal.
+    Or { negated: bool },
 }
 
-fn if_convert_function(func: &mut Function, target: Target) -> bool {
+fn if_convert_function(func: &mut Function, target: &Target) -> bool {
     let cfg = CfgInfo::new(func);
     let mut changed = invalidate_unreachable_blocks(func, cfg.reachable()) != 0;
     loop {
@@ -138,7 +143,7 @@ fn if_convert_function(func: &mut Function, target: Target) -> bool {
     changed
 }
 
-fn find_site(func: &Function, target: Target, block: BlockId) -> Option<Site> {
+fn find_site(func: &Function, target: &Target, block: BlockId) -> Option<Site> {
     let body = &func.blocks[block];
     let Some(Terminator::Branch { condition, then_block, else_block }) = body.terminator else {
         return None;
@@ -232,6 +237,13 @@ fn select_form(
     if then_value == else_value {
         return SelectForm::Same;
     }
+    // c ? true : e => c | e, c ? t : true => !c | t
+    if func.value_ty(then_value) == Some(MirType::I1) {
+        let is_true = |value| func.value_u256(value).is_some_and(|value| !value.is_zero());
+        if is_true(then_value) || is_true(else_value) {
+            return SelectForm::Or { negated: !is_true(then_value) };
+        }
+    }
     if let Some(derived) = derivation(func, then_value, else_value) {
         return SelectForm::Scaled(derived);
     }
@@ -309,7 +321,7 @@ fn implies(func: &Function, first: ValueId, mut second: ValueId) -> bool {
 /// more under the objective than the branch, the arm jump, their labels,
 /// one stack move per phi at the join, and the arm and phi literal an
 /// average path executes.
-fn profitable(func: &Function, target: Target, site: &Site, selects: &[Select]) -> bool {
+fn profitable(func: &Function, target: &Target, site: &Site, selects: &[Select]) -> bool {
     // Arm instructions whose results the scaled forms recompute are dropped.
     let replaced: Vec<ValueId> = selects
         .iter()
@@ -353,16 +365,13 @@ fn profitable(func: &Function, target: Target, site: &Site, selects: &[Select]) 
 /// Doubled per-execution cost of the transfers a site removes: the branch
 /// and the join label on every path, and the arm jump with its label on one
 /// of the two paths.
-fn transfer_cost(target: Target) -> Cost {
-    let label = target.opcode(op::PUSH2);
-    let every_path = target.opcode(op::JUMPI).plus(label).plus(target.opcode(op::JUMPDEST));
-    let one_path = target.opcode(op::JUMP).plus(label).plus(target.opcode(op::JUMPDEST));
-    every_path.times(2).plus(one_path)
+fn transfer_cost(target: &Target) -> Cost {
+    target.branch().times(2).plus(target.jump())
 }
 
 /// Cost of one instruction: its operation and the pushes that materialize
 /// its literal operands.
-fn inst_cost(func: &Function, target: Target, inst: InstId) -> Cost {
+fn inst_cost(func: &Function, target: &Target, inst: InstId) -> Cost {
     let kind = &func.inst(inst).kind;
     let mut cost = target.op(&kind.op(), |value| func.value_u256(value));
     kind.visit_operands(|operand| {
@@ -375,7 +384,7 @@ fn inst_cost(func: &Function, target: Target, inst: InstId) -> Cost {
 
 /// Cost of the instructions a select adds: the pushes of its literal
 /// operands, one duplicate of an operand it uses twice, and its operations.
-fn select_cost(func: &Function, target: Target, select: &Select) -> Cost {
+fn select_cost(func: &Function, target: &Target, select: &Select) -> Cost {
     let literal = |value| func.value_u256(value).map_or(Cost::ZERO, |literal| target.push(literal));
     let scaled = |derived: Derivation, negated: bool, scaled_value| {
         let mut cost = target.opcode(op::MUL);
@@ -384,6 +393,8 @@ fn select_cost(func: &Function, target: Target, select: &Select) -> Cost {
         }
         match derived {
             // c * t
+            // NOTE: A boolean product is emitted as `and` but keeps this price, so it converts
+            // exactly the sites it converted as a multiplication.
             Derivation::FromZero => cost.plus(literal(scaled_value)),
             // e op c * k
             Derivation::Add(amount) => cost.plus(literal(amount)).plus(target.opcode(op::ADD)),
@@ -405,6 +416,11 @@ fn select_cost(func: &Function, target: Target, select: &Select) -> Cost {
             .plus(target.push(delta))
             .plus(target.opcode(op::ADD))
             .plus(literal(select.else_value)),
+        // c | e, or !c | t
+        SelectForm::Or { negated } => {
+            let cost = target.opcode(op::OR);
+            if negated { cost.plus(target.opcode(op::ISZERO)) } else { cost }
+        }
         // f + c * (t - f), with f used twice
         SelectForm::General(None) => {
             let reused = if func.value_u256(select.else_value).is_some() {
@@ -514,6 +530,16 @@ fn select_value(
             let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::I256));
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
+        // c ? true : e => c | e
+        SelectForm::Or { negated: false } => {
+            append(func, block, InstKind::Or(condition, else_value), ty)
+        }
+        // c ? t : true => (c == 0) | t
+        SelectForm::Or { negated: true } => {
+            let zero = literal(func, U256::ZERO);
+            let negated = append(func, block, InstKind::Eq(condition, zero), Some(MirType::I1));
+            append(func, block, InstKind::Or(negated, then_value), ty)
+        }
         // c ? t : f => f + c * (t - f)
         SelectForm::General(delta) => {
             let delta = match delta {
@@ -567,6 +593,10 @@ fn scaled_select(
         append(func, block, InstKind::Mul(condition, amount), Some(MirType::I256))
     };
     match derived {
+        // c ? t : false => c & t
+        Derivation::FromZero if ty == Some(MirType::I1) => {
+            append(func, block, InstKind::And(condition, then_value), ty)
+        }
         // c ? t : 0 => c * t
         Derivation::FromZero => append(func, block, InstKind::Mul(condition, then_value), ty),
         // c ? e + k : e => e + c * k

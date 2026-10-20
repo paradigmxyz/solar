@@ -2,7 +2,7 @@
 //~? ERROR: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `lowered` phase boundary
 //~? ERROR: [fn0] [bb0, inst1] slice instruction `extract_value` survives the `lowered` phase boundary
 //~? ERROR: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `lowered` phase boundary
-//~? ERROR: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `lowered` phase boundary
+//~? ERROR: [fn2] [bb0, inst0] memory zero instruction `memory_zero` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `lowered` phase boundary
@@ -40,9 +40,9 @@ fn @abi(arg0: i256) -> slice<memory> {
     v1 = abi_encode [word], args arg0
     ret v1
 }
-fn @aggregate(arg0: i256, arg1: ptr<memory>) {
+fn @memory_zero(arg0: i256, arg1: ptr<memory>) {
   bb0:
-    storage_to_memory struct<word>, arg0, arg1
+    memory_zero arg1, arg0
     stop
 }
 fn @allocation() {
@@ -94,7 +94,7 @@ fn @unlowered_precompile() -> i256 {
 //~? ERROR: [fn10] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
 fn @unlowered_arithmetic(arg0: i256) -> i256 {
   bb0:
-    v0 = checked_add u256, arg0, 1
+    v0 = checked_add uint256, arg0, 1
     ret v0
 }
 

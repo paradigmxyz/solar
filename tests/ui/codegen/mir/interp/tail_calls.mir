@@ -14,7 +14,7 @@
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
-    v1 = shr 224, v0
+    v1 = shr v0, 224
     switch v1, default bb4, [0x3cf3bbf4 => bb1, 0x8efe1b6c => bb2, 0x83714834 => bb3]
   bb1:
     tail_call @twice

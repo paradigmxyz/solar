@@ -84,8 +84,6 @@ pub(crate) fn aborts(func: &Function, block: BlockId, cold: &DenseBitSet<Functio
             func.inst(inst).kind,
             InstKind::ICall { function: Callee::Function(function), .. } if cold.contains(function)
         )
-    }) || matches!(
-        body.terminator,
-        Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
-    ) || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if cold.contains(function))
+    }) || body.terminator.as_ref().is_some_and(Terminator::reverts)
+        || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if cold.contains(function))
 }

@@ -12,12 +12,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v6 = mod v0, 6
     v7 = mul v6, 5
     v8 = mul v7, 8
-    v9 = shl v8, 0xffffffffff
+    v9 = shl 0xffffffffff, v8
     v10 = sload v5 !metadata(storage=symbolic(v5))
     v11 = not v9
     v12 = and v10, v11
     v13 = and 42, 0xffffffffff
-    v14 = shl v8, v13
+    v14 = shl v13, v8
     v15 = or v12, v14
     sstore v5, v15 !metadata(storage=symbolic(v5))
     sstore 0, v2 !metadata(storage=slot(0))
@@ -31,12 +31,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v22 = mod v16, 6
     v23 = mul v22, 5
     v24 = mul v23, 8
-    v25 = shl v24, 0xffffffffff
+    v25 = shl 0xffffffffff, v24
     v26 = sload v21 !metadata(storage=symbolic(v21))
     v27 = not v25
     v28 = and v26, v27
     v29 = and 42, 0xffffffffff
-    v30 = shl v24, v29
+    v30 = shl v29, v24
     v31 = or v28, v30
     sstore v21, v31 !metadata(storage=symbolic(v21))
     sstore 0, v18 !metadata(storage=slot(0))
@@ -50,12 +50,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v38 = mod v32, 6
     v39 = mul v38, 5
     v40 = mul v39, 8
-    v41 = shl v40, 0xffffffffff
+    v41 = shl 0xffffffffff, v40
     v42 = sload v37 !metadata(storage=symbolic(v37))
     v43 = not v41
     v44 = and v42, v43
     v45 = and 42, 0xffffffffff
-    v46 = shl v40, v45
+    v46 = shl v45, v40
     v47 = or v44, v46
     sstore v37, v47 !metadata(storage=symbolic(v37))
     sstore 0, v34 !metadata(storage=slot(0))
@@ -69,12 +69,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v54 = mod v48, 6
     v55 = mul v54, 5
     v56 = mul v55, 8
-    v57 = shl v56, 0xffffffffff
+    v57 = shl 0xffffffffff, v56
     v58 = sload v53 !metadata(storage=symbolic(v53))
     v59 = not v57
     v60 = and v58, v59
     v61 = and 42, 0xffffffffff
-    v62 = shl v56, v61
+    v62 = shl v61, v56
     v63 = or v60, v62
     sstore v53, v63 !metadata(storage=symbolic(v53))
     sstore 0, v50 !metadata(storage=slot(0))
@@ -88,12 +88,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v70 = mod v64, 6
     v71 = mul v70, 5
     v72 = mul v71, 8
-    v73 = shl v72, 0xffffffffff
+    v73 = shl 0xffffffffff, v72
     v74 = sload v69 !metadata(storage=symbolic(v69))
     v75 = not v73
     v76 = and v74, v75
     v77 = and 42, 0xffffffffff
-    v78 = shl v72, v77
+    v78 = shl v77, v72
     v79 = or v76, v78
     sstore v69, v79 !metadata(storage=symbolic(v69))
     sstore 0, v66 !metadata(storage=slot(0))
@@ -107,12 +107,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v86 = mod v80, 6
     v87 = mul v86, 5
     v88 = mul v87, 8
-    v89 = shl v88, 0xffffffffff
+    v89 = shl 0xffffffffff, v88
     v90 = sload v85 !metadata(storage=symbolic(v85))
     v91 = not v89
     v92 = and v90, v91
     v93 = and 42, 0xffffffffff
-    v94 = shl v88, v93
+    v94 = shl v93, v88
     v95 = or v92, v94
     sstore v85, v95 !metadata(storage=symbolic(v85))
     sstore 0, v82 !metadata(storage=slot(0))
@@ -126,12 +126,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v102 = mod v96, 6
     v103 = mul v102, 5
     v104 = mul v103, 8
-    v105 = shl v104, 0xffffffffff
+    v105 = shl 0xffffffffff, v104
     v106 = sload v101 !metadata(storage=symbolic(v101))
     v107 = not v105
     v108 = and v106, v107
     v109 = and 42, 0xffffffffff
-    v110 = shl v104, v109
+    v110 = shl v109, v104
     v111 = or v108, v110
     sstore v101, v111 !metadata(storage=symbolic(v101))
     sstore 0, v98 !metadata(storage=slot(0))
@@ -145,12 +145,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v118 = mod v112, 6
     v119 = mul v118, 5
     v120 = mul v119, 8
-    v121 = shl v120, 0xffffffffff
+    v121 = shl 0xffffffffff, v120
     v122 = sload v117 !metadata(storage=symbolic(v117))
     v123 = not v121
     v124 = and v122, v123
     v125 = and 42, 0xffffffffff
-    v126 = shl v120, v125
+    v126 = shl v125, v120
     v127 = or v124, v126
     sstore v117, v127 !metadata(storage=symbolic(v117))
     sstore 0, v114 !metadata(storage=slot(0))
@@ -164,12 +164,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v134 = mod v128, 6
     v135 = mul v134, 5
     v136 = mul v135, 8
-    v137 = shl v136, 0xffffffffff
+    v137 = shl 0xffffffffff, v136
     v138 = sload v133 !metadata(storage=symbolic(v133))
     v139 = not v137
     v140 = and v138, v139
     v141 = and 42, 0xffffffffff
-    v142 = shl v136, v141
+    v142 = shl v141, v136
     v143 = or v140, v142
     sstore v133, v143 !metadata(storage=symbolic(v133))
     sstore 0, v130 !metadata(storage=slot(0))
@@ -183,12 +183,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v150 = mod v144, 6
     v151 = mul v150, 5
     v152 = mul v151, 8
-    v153 = shl v152, 0xffffffffff
+    v153 = shl 0xffffffffff, v152
     v154 = sload v149 !metadata(storage=symbolic(v149))
     v155 = not v153
     v156 = and v154, v155
     v157 = and 42, 0xffffffffff
-    v158 = shl v152, v157
+    v158 = shl v157, v152
     v159 = or v156, v158
     sstore v149, v159 !metadata(storage=symbolic(v149))
     sstore 0, v146 !metadata(storage=slot(0))
@@ -202,12 +202,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v166 = mod v160, 6
     v167 = mul v166, 5
     v168 = mul v167, 8
-    v169 = shl v168, 0xffffffffff
+    v169 = shl 0xffffffffff, v168
     v170 = sload v165 !metadata(storage=symbolic(v165))
     v171 = not v169
     v172 = and v170, v171
     v173 = and 42, 0xffffffffff
-    v174 = shl v168, v173
+    v174 = shl v173, v168
     v175 = or v172, v174
     sstore v165, v175 !metadata(storage=symbolic(v165))
     sstore 0, v162 !metadata(storage=slot(0))
@@ -221,12 +221,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v182 = mod v176, 6
     v183 = mul v182, 5
     v184 = mul v183, 8
-    v185 = shl v184, 0xffffffffff
+    v185 = shl 0xffffffffff, v184
     v186 = sload v181 !metadata(storage=symbolic(v181))
     v187 = not v185
     v188 = and v186, v187
     v189 = and 42, 0xffffffffff
-    v190 = shl v184, v189
+    v190 = shl v189, v184
     v191 = or v188, v190
     sstore v181, v191 !metadata(storage=symbolic(v181))
     sstore 0, v178 !metadata(storage=slot(0))
@@ -240,12 +240,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v198 = mod v192, 6
     v199 = mul v198, 5
     v200 = mul v199, 8
-    v201 = shl v200, 0xffffffffff
+    v201 = shl 0xffffffffff, v200
     v202 = sload v197 !metadata(storage=symbolic(v197))
     v203 = not v201
     v204 = and v202, v203
     v205 = and 42, 0xffffffffff
-    v206 = shl v200, v205
+    v206 = shl v205, v200
     v207 = or v204, v206
     sstore v197, v207 !metadata(storage=symbolic(v197))
     sstore 0, v194 !metadata(storage=slot(0))
@@ -259,12 +259,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v214 = mod v208, 6
     v215 = mul v214, 5
     v216 = mul v215, 8
-    v217 = shl v216, 0xffffffffff
+    v217 = shl 0xffffffffff, v216
     v218 = sload v213 !metadata(storage=symbolic(v213))
     v219 = not v217
     v220 = and v218, v219
     v221 = and 42, 0xffffffffff
-    v222 = shl v216, v221
+    v222 = shl v221, v216
     v223 = or v220, v222
     sstore v213, v223 !metadata(storage=symbolic(v213))
     sstore 0, v210 !metadata(storage=slot(0))
@@ -278,12 +278,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v230 = mod v224, 6
     v231 = mul v230, 5
     v232 = mul v231, 8
-    v233 = shl v232, 0xffffffffff
+    v233 = shl 0xffffffffff, v232
     v234 = sload v229 !metadata(storage=symbolic(v229))
     v235 = not v233
     v236 = and v234, v235
     v237 = and 42, 0xffffffffff
-    v238 = shl v232, v237
+    v238 = shl v237, v232
     v239 = or v236, v238
     sstore v229, v239 !metadata(storage=symbolic(v229))
     sstore 0, v226 !metadata(storage=slot(0))
@@ -297,12 +297,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v246 = mod v240, 6
     v247 = mul v246, 5
     v248 = mul v247, 8
-    v249 = shl v248, 0xffffffffff
+    v249 = shl 0xffffffffff, v248
     v250 = sload v245 !metadata(storage=symbolic(v245))
     v251 = not v249
     v252 = and v250, v251
     v253 = and 42, 0xffffffffff
-    v254 = shl v248, v253
+    v254 = shl v253, v248
     v255 = or v252, v254
     sstore v245, v255 !metadata(storage=symbolic(v245))
     sstore 0, v242 !metadata(storage=slot(0))
@@ -316,12 +316,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v262 = mod v256, 6
     v263 = mul v262, 5
     v264 = mul v263, 8
-    v265 = shl v264, 0xffffffffff
+    v265 = shl 0xffffffffff, v264
     v266 = sload v261 !metadata(storage=symbolic(v261))
     v267 = not v265
     v268 = and v266, v267
     v269 = and 42, 0xffffffffff
-    v270 = shl v264, v269
+    v270 = shl v269, v264
     v271 = or v268, v270
     sstore v261, v271 !metadata(storage=symbolic(v261))
     sstore 0, v258 !metadata(storage=slot(0))
@@ -335,12 +335,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v278 = mod v272, 6
     v279 = mul v278, 5
     v280 = mul v279, 8
-    v281 = shl v280, 0xffffffffff
+    v281 = shl 0xffffffffff, v280
     v282 = sload v277 !metadata(storage=symbolic(v277))
     v283 = not v281
     v284 = and v282, v283
     v285 = and 42, 0xffffffffff
-    v286 = shl v280, v285
+    v286 = shl v285, v280
     v287 = or v284, v286
     sstore v277, v287 !metadata(storage=symbolic(v277))
     sstore 0, v274 !metadata(storage=slot(0))
@@ -354,12 +354,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v294 = mod v288, 6
     v295 = mul v294, 5
     v296 = mul v295, 8
-    v297 = shl v296, 0xffffffffff
+    v297 = shl 0xffffffffff, v296
     v298 = sload v293 !metadata(storage=symbolic(v293))
     v299 = not v297
     v300 = and v298, v299
     v301 = and 42, 0xffffffffff
-    v302 = shl v296, v301
+    v302 = shl v301, v296
     v303 = or v300, v302
     sstore v293, v303 !metadata(storage=symbolic(v293))
     sstore 0, v290 !metadata(storage=slot(0))
@@ -373,12 +373,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v310 = mod v304, 6
     v311 = mul v310, 5
     v312 = mul v311, 8
-    v313 = shl v312, 0xffffffffff
+    v313 = shl 0xffffffffff, v312
     v314 = sload v309 !metadata(storage=symbolic(v309))
     v315 = not v313
     v316 = and v314, v315
     v317 = and 42, 0xffffffffff
-    v318 = shl v312, v317
+    v318 = shl v317, v312
     v319 = or v316, v318
     sstore v309, v319 !metadata(storage=symbolic(v309))
     sstore 0, v306 !metadata(storage=slot(0))
@@ -416,7 +416,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     jumpi v366, bb10, bb9
   bb9:
     v367 = mul v365, 40
-    v368 = shl v367, 1
+    v368 = shl 1, v367
     v369 = sub v368, 1
     v370 = storage_array_data_slot 0
     v371 = add v370, v364
@@ -437,7 +437,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v381 = mul v380, 5
     v382 = sload v379 !metadata(storage=symbolic(v379))
     v383 = mul v381, 8
-    v384 = shr v383, v382
+    v384 = shr v382, v383
     v385 = trunc i256 v384 to i40
     v386 = eq v385, i40 23
     v387 = eq v386, false
@@ -453,7 +453,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v395 = mul v394, 5
     v396 = sload v393 !metadata(storage=symbolic(v393))
     v397 = mul v395, 8
-    v398 = shr v397, v396
+    v398 = shr v396, v397
     v399 = trunc i256 v398 to i40
     v400 = eq v399, i40 0
     v401 = eq v400, false
@@ -469,7 +469,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v409 = mul v408, 5
     v410 = sload v407 !metadata(storage=symbolic(v407))
     v411 = mul v409, 8
-    v412 = shr v411, v410
+    v412 = shr v410, v411
     v413 = trunc i256 v412 to i40
     v414 = eq v413, i40 0
     v415 = eq v414, false
@@ -485,7 +485,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v423 = mul v422, 5
     v424 = sload v421 !metadata(storage=symbolic(v421))
     v425 = mul v423, 8
-    v426 = shr v425, v424
+    v426 = shr v424, v425
     v427 = trunc i256 v426 to i40
     v428 = eq v427, i40 0
     v429 = eq v428, false
@@ -501,7 +501,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v437 = mul v436, 5
     v438 = sload v435 !metadata(storage=symbolic(v435))
     v439 = mul v437, 8
-    v440 = shr v439, v438
+    v440 = shr v438, v439
     v441 = trunc i256 v440 to i40
     v442 = eq v441, i40 0
     v443 = eq v442, false
@@ -517,7 +517,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v451 = mul v450, 5
     v452 = sload v449 !metadata(storage=symbolic(v449))
     v453 = mul v451, 8
-    v454 = shr v453, v452
+    v454 = shr v452, v453
     v455 = trunc i256 v454 to i40
     v456 = eq v455, i40 0
     v457 = eq v456, false
@@ -533,7 +533,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v465 = mul v464, 5
     v466 = sload v463 !metadata(storage=symbolic(v463))
     v467 = mul v465, 8
-    v468 = shr v467, v466
+    v468 = shr v466, v467
     v469 = trunc i256 v468 to i40
     v470 = eq v469, i40 0
     v471 = eq v470, false
@@ -549,7 +549,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v479 = mul v478, 5
     v480 = sload v477 !metadata(storage=symbolic(v477))
     v481 = mul v479, 8
-    v482 = shr v481, v480
+    v482 = shr v480, v481
     v483 = trunc i256 v482 to i40
     v484 = eq v483, i40 0
     v485 = eq v484, false
@@ -565,7 +565,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v493 = mul v492, 5
     v494 = sload v491 !metadata(storage=symbolic(v491))
     v495 = mul v493, 8
-    v496 = shr v495, v494
+    v496 = shr v494, v495
     v497 = trunc i256 v496 to i40
     v498 = eq v497, i40 0
     v499 = eq v498, false
@@ -581,7 +581,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v507 = mul v506, 5
     v508 = sload v505 !metadata(storage=symbolic(v505))
     v509 = mul v507, 8
-    v510 = shr v509, v508
+    v510 = shr v508, v509
     v511 = trunc i256 v510 to i40
     v512 = eq v511, i40 0
     v513 = eq v512, false
@@ -597,7 +597,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v521 = mul v520, 5
     v522 = sload v519 !metadata(storage=symbolic(v519))
     v523 = mul v521, 8
-    v524 = shr v523, v522
+    v524 = shr v522, v523
     v525 = trunc i256 v524 to i40
     v526 = eq v525, i40 0
     v527 = eq v526, false
@@ -613,7 +613,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v535 = mul v534, 5
     v536 = sload v533 !metadata(storage=symbolic(v533))
     v537 = mul v535, 8
-    v538 = shr v537, v536
+    v538 = shr v536, v537
     v539 = trunc i256 v538 to i40
     v540 = eq v539, i40 0
     v541 = eq v540, false
@@ -629,7 +629,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v549 = mul v548, 5
     v550 = sload v547 !metadata(storage=symbolic(v547))
     v551 = mul v549, 8
-    v552 = shr v551, v550
+    v552 = shr v550, v551
     v553 = trunc i256 v552 to i40
     v554 = eq v553, i40 0
     v555 = eq v554, false
@@ -645,7 +645,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v563 = mul v562, 5
     v564 = sload v561 !metadata(storage=symbolic(v561))
     v565 = mul v563, 8
-    v566 = shr v565, v564
+    v566 = shr v564, v565
     v567 = trunc i256 v566 to i40
     v568 = eq v567, i40 0
     v569 = eq v568, false
@@ -661,7 +661,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v577 = mul v576, 5
     v578 = sload v575 !metadata(storage=symbolic(v575))
     v579 = mul v577, 8
-    v580 = shr v579, v578
+    v580 = shr v578, v579
     v581 = trunc i256 v580 to i40
     v582 = eq v581, i40 0
     v583 = eq v582, false
@@ -677,7 +677,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v591 = mul v590, 5
     v592 = sload v589 !metadata(storage=symbolic(v589))
     v593 = mul v591, 8
-    v594 = shr v593, v592
+    v594 = shr v592, v593
     v595 = trunc i256 v594 to i40
     v596 = eq v595, i40 0
     v597 = eq v596, false
@@ -693,7 +693,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v605 = mul v604, 5
     v606 = sload v603 !metadata(storage=symbolic(v603))
     v607 = mul v605, 8
-    v608 = shr v607, v606
+    v608 = shr v606, v607
     v609 = trunc i256 v608 to i40
     v610 = eq v609, i40 0
     v611 = eq v610, false
@@ -709,7 +709,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v619 = mul v618, 5
     v620 = sload v617 !metadata(storage=symbolic(v617))
     v621 = mul v619, 8
-    v622 = shr v621, v620
+    v622 = shr v620, v621
     v623 = trunc i256 v622 to i40
     v624 = eq v623, i40 0
     v625 = eq v624, false
@@ -725,7 +725,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v633 = mul v632, 5
     v634 = sload v631 !metadata(storage=symbolic(v631))
     v635 = mul v633, 8
-    v636 = shr v635, v634
+    v636 = shr v634, v635
     v637 = trunc i256 v636 to i40
     v638 = eq v637, i40 0
     v639 = eq v638, false
@@ -741,14 +741,14 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v647 = mul v646, 5
     v648 = sload v645 !metadata(storage=symbolic(v645))
     v649 = mul v647, 8
-    v650 = shr v649, v648
+    v650 = shr v648, v649
     v651 = trunc i256 v650 to i40
     v652 = eq v651, i40 0
     v653 = eq v652, false
     icall panic_if<0x1>, v653
     ret true
   bb7:
-    v346 = shl 5, v344
+    v346 = shl v344, 5
     v347 = ptradd v320, v346
     v348 = ptradd v347, 32
     v349 = mload v348
@@ -758,12 +758,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v353 = mod v344, 6
     v354 = mul v353, 5
     v355 = mul v354, 8
-    v356 = shl v355, 0xffffffffff
+    v356 = shl 0xffffffffff, v355
     v357 = sload v352 !metadata(storage=symbolic(v352))
     v358 = not v356
     v359 = and v357, v358
     v360 = and v349, 0xffffffffff
-    v361 = shl v355, v360
+    v361 = shl v360, v355
     v362 = or v359, v361
     sstore v352, v362 !metadata(storage=symbolic(v352))
     v363 = add v344, 1
@@ -775,12 +775,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v333 = mod v328, 6
     v334 = mul v333, 5
     v335 = mul v334, 8
-    v336 = shl v335, 0xffffffffff
+    v336 = shl 0xffffffffff, v335
     v337 = sload v332 !metadata(storage=symbolic(v332))
     v338 = not v336
     v339 = and v337, v338
     v340 = and 0, 0xffffffffff
-    v341 = shl v335, v340
+    v341 = shl v340, v335
     v342 = or v339, v341
     sstore v332, v342 !metadata(storage=symbolic(v332))
     v343 = add v328, 1

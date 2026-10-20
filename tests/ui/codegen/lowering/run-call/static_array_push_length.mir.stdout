@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @pushLength() -> struct0 [selector=0x755a645b, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pushLength() -> struct0 [selector=0x755a645b, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -19,7 +19,7 @@ fn @pushLength() -> struct0 [selector=0x755a645b, abi_params=[], abi_returns=[wo
     ret v8
 }
 
-fn @discardLength() -> i256 [selector=0x92a2122d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @discardLength() -> i256 [selector=0x92a2122d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff

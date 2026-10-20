@@ -38,8 +38,8 @@ contract UserDefinedOperators {
     }
 
     // The constant user-defined operator folds before code generation.
-    // UDO: mstore 128, 7
-    // UDO: returndata 128, 32
+    // UDO: mstore 0, 7
+    // UDO: returndata 0, 32
     function doFlip(int256 x) public pure returns (int256) {
         return BalanceDelta.unwrap(~BalanceDelta.wrap(x));
     }

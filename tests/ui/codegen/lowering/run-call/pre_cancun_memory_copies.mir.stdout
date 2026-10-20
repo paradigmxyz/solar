@@ -38,15 +38,15 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     mstore v2, 33
     jump bb1
   bb1:
-    v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v17]
-    v5 = phi [bb0: 0], [bb3: v5]
-    v6 = lt v4, 33
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: v2], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v17]
+    v6 = lt v5, 33
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v18 = abi_encode [memory_bytes], object, args v3
+    v18 = abi_encode [memory_bytes], object, args v4
     v19 = ptrtoint ptr<memory> v18 to i256
     v20 = add v19, 128
     v21 = mload v20
@@ -63,7 +63,7 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     v27 = ptradd v18, 96
     v28 = mload v27
     v29 = byte 0, v28
-    v30 = shl 248, v29
+    v30 = shl v29, 248
     v31 = eq v30, 0x100000000000000000000000000000000000000000000000000000000000000
     jump bb9
   bb9:
@@ -78,23 +78,23 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     v34 = phi [bb10: v33], [bb11: false]
     ret v34
   bb4:
-    v7 = checked_add u256, v4, 1
+    v7 = checked_add uint256, v5, 1
     v8 = trunc i256 v7 to i8
     v9 = zext i8 v8 to i256
-    v10 = shl 248, v9
-    v11 = mload v3
-    v12 = lt v4, v11
+    v10 = shl v9, 248
+    v11 = mload v4
+    v12 = lt v5, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = byte 0, v10
-    v15 = ptradd v3, v4
+    v15 = ptradd v4, v5
     v16 = ptradd v15, 32
     mstore8 v16, v14
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v17 = checked_add u256, v4, 1
+    v17 = checked_add uint256, v5, 1
     jump bb1
 }
 
@@ -173,7 +173,7 @@ fn @recycled() -> i1 [selector=0xa163996f, pure, abi_params=[], abi_returns=[wor
     ret v13
 }
 
-fn @fresh() -> ptr<memory> [selector=0xb466b76f, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @fresh() -> ptr<memory> [selector=0xb466b76f, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = alloc zeroed checked 128
     mstore v0, 3
@@ -198,9 +198,43 @@ fn @fresh() -> ptr<memory> [selector=0xb466b76f, pure, abi_params=[], abi_return
     ret v0
 }
 
-fn @freshEmpty() -> ptr<memory> [selector=0x2f9cb906, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @freshEmpty() -> ptr<memory> [selector=0x2f9cb906, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = alloc zeroed checked 32
     mstore v0, 0
     ret v0
+}
+
+fn @recycledTail() -> i256 [selector=0x52eea5e4, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = not 31
+    v1 = and 126, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 63
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = add v3, 32
+    mstore v4, 0x1111111111111111111111111111111111111111111111111111111111111111
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, 64
+    mstore v6, 0x2222222222222222222222222222222222222222222222222222222222222222
+    v7 = ptrtoint ptr<memory> v2 to i256
+    v8 = add v7, 96
+    mstore v8, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v9 = ptrtoint ptr<memory> v2 to i256
+    v10 = add v9, 32
+    mstore 64, v10 !metadata(memory=scratch)
+    v11 = abi_encode_packed (bytes v2, data hex"")
+    v12 = ptrtoint ptr<memory> v11 to i256
+    v13 = add v12, 64
+    v14 = mload v13
+    ret v14
+}
+
+fn @pair(arg0: ptr<memory>) -> i256 [selector=0x9f4b9fa0, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [memory_bytes, memory_bytes], scratch, args arg0, arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
 }

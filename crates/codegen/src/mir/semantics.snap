@@ -52,9 +52,6 @@ heap_floor: heap_floor()
 alloc: allocate(size, semantics)
 abi_encode: -
 abi_decode: -
-storage_to_memory: -
-memory_to_storage: -
-clear_storage: -
 mcopy: opcode(match location { Memory => MCOPY, Calldata => CALLDATACOPY, Returndata => RETURNDATACOPY })
 calldatasize: opcode(CALLDATASIZE)
 make_memory_slice: -

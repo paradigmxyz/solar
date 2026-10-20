@@ -5,7 +5,7 @@
 // CHECK: + v{{[0-9]+}} = calldatasize
 @module LowerAbiParams
 
-fn @read(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345678, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
+fn @read(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345678, abi_params=[array<3, uint256>, uint256], abi_returns=[word]] {
   bb0:
     ret arg1
 }
@@ -19,7 +19,7 @@ fn @read(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345678, abi_params
 // CHECK: + calldatacopy [[DATA]],
 // CHECK-NEXT: + [[ARR_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[ARR]] to i256
 // CHECK-NEXT: + mstore [[TUPLE]], [[ARR_WORD]]
-fn @read_words(arg0: ptr<memory>) -> i256 [selector=0x12345679, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
+fn @read_words(arg0: ptr<memory>) -> i256 [selector=0x12345679, abi_params=[tuple<array<_, uint256>, uint256>], abi_returns=[word]] {
   bb0:
     v1 = mload arg0
     v6 = inttoptr i256 v1 to ptr<memory>
@@ -33,11 +33,11 @@ fn @read_words(arg0: ptr<memory>) -> i256 [selector=0x12345679, abi_params=[tupl
 // The address follows three physical head words, so its proof belongs to arg3.
 // CHECK: + fn @read_address()
 // CHECK: + [[RAW:v[0-9]+]] = calldataload 100
-// CHECK: + [[HIGH:v[0-9]+]] = shr 160, [[RAW]]
+// CHECK: + [[HIGH:v[0-9]+]] = shr [[RAW]], 160
 // CHECK: + {{v[0-9]+}} = eq [[HIGH]], 0
 // CHECK-NOT: {{^[ +].*}}= zext
-// CHECK: + mstore 128, arg3
-fn @read_address(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345680, abi_params=[array<3, u256>, address], abi_returns=[word]] {
+// CHECK: + mstore 0, arg3
+fn @read_address(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345680, abi_params=[array<3, uint256>, address], abi_returns=[word]] {
   bb0:
     v0 = trunc i256 arg1 to i160
     v1 = zext i160 v0 to i256
@@ -48,8 +48,8 @@ fn @read_address(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345680, ab
 // lazy argument for every head word before it.
 // CHECK: + fn @read_after_huge()
 // CHECK: + [[WORD:v[0-9]+]] = calldataload 0xffffffe4
-// CHECK: + mstore 128, [[WORD]]
-fn @read_after_huge(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345686, abi_params=[array<134217727, u256>, u256], abi_returns=[word]] {
+// CHECK: + mstore 0, [[WORD]]
+fn @read_after_huge(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345686, abi_params=[array<134217727, uint256>, uint256], abi_returns=[word]] {
   bb0:
     ret arg1
 }
@@ -68,7 +68,7 @@ fn @address_is_zero(arg0: i256) -> i1 [selector=0x12345681, abi_params=[address]
 // CHECK: + fn @dirty_address()
 // CHECK: = trunc i256 arg0 to i160
 // CHECK: = zext i160
-fn @dirty_address(arg0: i256) -> i256 [selector=0x12345682, abi_params=[u256], abi_returns=[word]] {
+fn @dirty_address(arg0: i256) -> i256 [selector=0x12345682, abi_params=[uint256], abi_returns=[word]] {
   bb0:
     v0 = trunc i256 arg0 to i160
     v1 = zext i160 v0 to i256
@@ -98,7 +98,7 @@ fn @validated_mixed(arg0: i256) -> i256 [selector=0x12345684, abi_params=[addres
     ret v0
 }
 
-fn @unvalidated_mixed(arg0: i256) -> i256 [selector=0x12345685, abi_params=[u256], abi_returns=[word]] {
+fn @unvalidated_mixed(arg0: i256) -> i256 [selector=0x12345685, abi_params=[uint256], abi_returns=[word]] {
   bb0:
     v0 = icall @mixed_leaf, arg0
     ret v0

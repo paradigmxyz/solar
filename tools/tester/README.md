@@ -3,8 +3,9 @@
 Integration test support for the compiler.
 
 `crates/solar/tests.rs` passes the freshly built `solar` binary to the UI, MIR,
-EVM IR, standard JSON, and upstream compatibility runners. The Foundry runner is
-a separate test in this crate that runs in the workspace's default
+EVM IR, standard JSON, and upstream compatibility runners, and
+`crates/solar/tests/it/foundry.rs` passes it to the Foundry runner. The Foundry runner is
+a separate test that runs in the workspace's default
 `cargo nextest run` and discovers every project under `tests/foundry` with a
 `foundry.toml`. Run one suite with a `cargo tq` alias, such as `cargo tq ui`,
 `cargo tq solc-solidity`, or `cargo tq foundry`. Set `SOLAR_FOUNDRY_PROJECT` to
@@ -12,8 +13,10 @@ run one discovered project.
 
 Arguments after a UI-mode suite name (`ui`, `mir`, `evm-ir`, `standard-json`,
 `solc-solidity`, `solc-yul`) filter tests by path substring, as in
-`cargo uitest tests/ui/typeck` or `cargo uibless tests/ui/typeck`. Filtered runs
-use `cargo test`, since nextest would read the filters as test names.
+`cargo tq ui tests/ui/typeck` or `cargo bless ui tests/ui/typeck`. Filtered runs
+use `cargo test`, since nextest would read the filters as test names. `cargo t`
+runs every suite and `cargo bless` blesses every UI-mode suite, including
+standard JSON.
 
 ## Runtime directives
 
@@ -117,9 +120,11 @@ Environment variables:
   `skip_contracts` (arrays of `{ pattern, reason }`; `reason` is required), and
   `notes`.
 - `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports.
-- `SOLAR_FOUNDRY_COMPILER`: Solar executable to use instead of the latest local
-  build; relative paths start at the workspace root. A debug build enables MIR
-  and EVM IR validation by default.
+- `SOLAR_FOUNDRY_SKIP`: skip the default Foundry suite. Without it, a missing
+  `forge` or Solar binary fails the suite instead of passing silently.
+- `SOLAR_FOUNDRY_COMPILER`: Solar executable to use instead of the one Cargo
+  builds for the test; relative paths start at the workspace root. A debug
+  build enables MIR and EVM IR validation by default.
 - `SOLAR_FOUNDRY_OPTIMIZATION`: compile the Solar leg with `none`, `gas`, or
   `size`, keeping the project's solc optimizer settings, so the unoptimized
   Solar leg can run projects that need solc's optimizer to compile.

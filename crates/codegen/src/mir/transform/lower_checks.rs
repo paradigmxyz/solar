@@ -10,15 +10,25 @@
 //! fail after memory writes emit their payload in place, exposing those writes to dead-store
 //! elimination. Other failures retain shared helpers. Instructions after an unconditional
 //! failure move to an unreachable continuation.
+//!
+//! Revert payloads are never read after the revert, so none of them reserves memory. Panics,
+//! constant and short error strings, and custom errors of at most `MAX_SCRATCH_ERROR_WORDS` words
+//! stage in the reserved low memory through `FunctionBuilder::revert_scratch`. Other custom errors
+//! and error strings encode at the free-memory pointer without advancing it.
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
-    FunctionId, InstKind, InstructionMetadata, MirType, Module, PtrLocation, RequireKind,
-    RevertKind, RevertPayload, pass::MirPass, transform::utils::redirect_successor_predecessors,
+    FunctionId, InstKind, InstructionMetadata, MirType, Module, PhaseCategory, PtrLocation,
+    RequireKind, RevertKind, RevertPayload, pass::MirPass, transform::utils::expand_block,
 };
 use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
 use std::sync::Arc;
+
+/// Word arguments of a custom error staged in scratch memory. The payload spans
+/// `[28, 32 * (words + 1))`; a longer one would end above the heap start at `0x80`, and a
+/// constant memory range there moves the spill area of every entry reaching it.
+const MAX_SCRATCH_ERROR_WORDS: usize = 3;
 
 pub(crate) struct LowerChecks;
 
@@ -87,15 +97,9 @@ fn lower_function(
         {
             continue;
         }
-        let instructions = std::mem::take(&mut builder.func_mut().blocks[block].instructions);
-        let (terminator, metadata) = builder.func_mut().blocks[block].take_terminator();
-        builder.switch_to_block(block);
-        for id in instructions {
+        expand_block(&mut builder, block, |builder, id| {
             if !is_check(&builder.func().inst(id).kind) {
-                // continuation: original instruction
-                let current = builder.current_block();
-                builder.func_mut().blocks[current].instructions.push(id);
-                continue;
+                return false;
             }
             let inst = builder.func().inst(id).clone();
             builder.set_debug_context(&inst.metadata);
@@ -139,30 +143,19 @@ fn lower_function(
                     let continuation = builder.create_block();
                     builder.branch(condition, continuation, failure);
                     builder.switch_to_block(failure);
-                    emit_payload(&mut builder, payload, helper);
+                    emit_payload(builder, payload, helper);
                     builder.switch_to_block(continuation);
                 }
                 _ => unreachable!(),
             }
-        }
-        // continuation: original terminator
-        let end = builder.current_block();
-        if let Some(terminator) = terminator {
-            builder.func_mut().blocks[end].set_terminator(terminator, metadata);
-        }
-        if end != block {
-            redirect_successor_predecessors(builder.func_mut(), block, end);
-        }
+            true
+        });
     }
     true
 }
 
 fn is_check(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
-            | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. }
-    )
+    kind.op_def().phase_category == Some(PhaseCategory::ConditionalCheck)
 }
 
 fn emit_payload(
@@ -177,35 +170,36 @@ fn emit_payload(
             builder.invalid();
         }
         RevertPayload::EmptyString => {
-            // mstore(0, Error.selector); mstore(4, 32); mstore(36, 0); revert(0, 68)
-            let selector = builder.imm(ERROR_SELECTOR);
-            let zero = builder.imm(0);
-            builder.store(zero, selector);
-            let offset = builder.imm(4);
+            // revert_scratch(Error.selector, [32, 0])
             let tuple_offset = builder.imm(32);
-            builder.store(offset, tuple_offset);
-            let length = builder.imm(36);
-            builder.store(length, zero);
-            let size = builder.imm(68);
-            builder.revert(zero, size);
+            let length = builder.imm(0);
+            builder.revert_scratch(ERROR_SELECTOR, &[tuple_offset, length]);
         }
         RevertPayload::ErrorString(value) => {
-            // payload = abi_encode(Error.selector, value)
+            // payload = abi_encode_scratch(Error.selector, value)
             // revert(payload.ptr, payload.len)
             let selector = builder.imm(ERROR_SELECTOR);
             let layout = Arc::new(AbiLayout::new(
                 vec![AbiType::Bytes(PtrLocation::Memory)].into_boxed_slice(),
             ));
             let encoded =
-                builder.abi_encode(layout, Some(selector), vec![value].into_boxed_slice());
+                builder.abi_encode_scratch(layout, Some(selector), vec![value].into_boxed_slice());
             let pointer = builder.slice_ptr(encoded);
             let length = builder.slice_len(encoded);
             builder.revert(pointer, length);
         }
         RevertPayload::CustomError { selector, layout, values } => {
-            // payload = abi_encode(selector, values)
+            if let Some(selector) = builder.func().value_u256(selector)
+                && values.len() <= MAX_SCRATCH_ERROR_WORDS
+                && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_)))
+            {
+                // revert_scratch(selector, values)
+                builder.revert_scratch(selector, &values);
+                return;
+            }
+            // payload = abi_encode_scratch(selector, values)
             // revert(payload.ptr, payload.len)
-            let encoded = builder.abi_encode(layout, Some(selector), values);
+            let encoded = builder.abi_encode_scratch(layout, Some(selector), values);
             let pointer = builder.slice_ptr(encoded);
             let length = builder.slice_len(encoded);
             builder.revert(pointer, length);
@@ -217,21 +211,10 @@ fn create_short_string_helper(module: &mut Module, context: &InstructionMetadata
     let mut function = Function::new(Ident::with_dummy_span(sym::revert_error));
     let mut builder = FunctionBuilder::new(&mut function);
     builder.set_debug_context(context);
-    // mstore(0, Error.selector); mstore(4, 32)
-    // mstore(36, length); mstore(68, data); revert(0, 100)
+    // revert_scratch(Error.selector, [32, length, data])
     let length = builder.add_param(MirType::I256);
     let value = builder.add_param(MirType::I256);
-    let selector = builder.imm(ERROR_SELECTOR);
-    let zero = builder.imm(0);
-    builder.store(zero, selector);
-    let offset = builder.imm(4);
     let tuple_offset = builder.imm(32);
-    builder.store(offset, tuple_offset);
-    let length_offset = builder.imm(36);
-    builder.store(length_offset, length);
-    let data_offset = builder.imm(68);
-    builder.store(data_offset, value);
-    let size = builder.imm(100);
-    builder.revert(zero, size);
+    builder.revert_scratch(ERROR_SELECTOR, &[tuple_offset, length, value]);
     module.add_function(function)
 }

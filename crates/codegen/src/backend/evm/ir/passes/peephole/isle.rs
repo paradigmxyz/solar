@@ -5,10 +5,13 @@
 //! the opcode table into `isle/evm-ir/prelude.isle`. This module implements the
 //! window extractors, instruction facets, and opcode classes the rules call.
 
-use super::{Edit, is_block_push, materialization_cost, raw_opcode};
+use super::{
+    super::utils::{SymbolicStackOp, symbolic_stack_op},
+    Edit, is_block_push,
+};
 use crate::{
     backend::evm::{
-        ir::{ImmediateMaterialization, Instruction},
+        ir::{ImmediateMaterialization, Instruction, immediate_materialization_cost},
         op,
         op::*,
     },
@@ -54,7 +57,7 @@ pub(crate) fn invert_comparison(
                 && ImmediateMaterialization::new(evm_version, bound).stack_peak()
                     <= ImmediateMaterialization::new(evm_version, value).stack_peak()
                 && op::push_len(evm_version, bound)
-                    <= super::immediate_materialization_cost(evm_version, value).0 + 1
+                    <= immediate_materialization_cost(evm_version, value).0 + 1
             {
                 return Some((start, bound, opposite));
             }
@@ -119,21 +122,6 @@ enum KnownStackWord {
     Zero,
 }
 
-/// A stack operation as the symbolic simulation sees it. A removable push is a
-/// stack operation for this purpose: deleting it deletes the word it pushes.
-#[derive(Clone, Copy)]
-enum SymbolicStackOp {
-    Push,
-    Physical(StackOp),
-}
-
-fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
-    if inst.is_encoded_push() {
-        return Some(SymbolicStackOp::Push);
-    }
-    inst.as_stack_op().map(SymbolicStackOp::Physical)
-}
-
 /// Returns whether the sequence leaves the stack exactly as it found it.
 fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
     let mut depth = 0usize;
@@ -195,7 +183,7 @@ fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
                     above -= 1;
                 }
             }
-        } else if let Some(opcode) = raw_opcode(inst)
+        } else if let Some(opcode) = inst.as_evm_opcode()
             && op::is_unaffected_by_preceding_push(opcode)
             && let Some((inputs, outputs)) = op::stack_io(opcode)
         {
@@ -317,7 +305,7 @@ impl<'a> PeepContext<'a> {
         if !late {
             return self.final_rewrite().or_else(|| self.select_by_tail());
         }
-        if self.instructions.len() < 5 || raw_opcode(self.instructions.last()?) != Some(SUB) {
+        if self.instructions.len() < 5 || self.instructions.last()?.as_evm_opcode() != Some(SUB) {
             return None;
         }
         let first = self.instructions.len().saturating_sub(MAX_STACK_WINDOW);
@@ -386,7 +374,7 @@ impl generated::Context for PeepContext<'_> {
                     return false;
                 }
                 depth = depth.checked_add_signed(op.net_growth()).expect("sufficient stack");
-            } else if let Some(opcode) = raw_opcode(inst)
+            } else if let Some(opcode) = inst.as_evm_opcode()
                 && op::is_unaffected_by_preceding_push(opcode)
                 && let Some((inputs, outputs)) = op::stack_io(opcode)
             {
@@ -568,11 +556,11 @@ impl generated::Context for PeepContext<'_> {
         let [.., lhs, rhs, instruction] = self.instructions else { return None };
         let lhs_value = lhs.concrete_immediate()?;
         let rhs_value = rhs.concrete_immediate()?;
-        let opcode = raw_opcode(instruction)?;
+        let opcode = instruction.as_evm_opcode()?;
         let result = op::eval(opcode, &[rhs_value, lhs_value])?;
-        let (lhs_size, lhs_gas) = materialization_cost(self.evm_version, lhs_value);
-        let (rhs_size, rhs_gas) = materialization_cost(self.evm_version, rhs_value);
-        let (result_size, result_gas) = materialization_cost(self.evm_version, result);
+        let (lhs_size, lhs_gas) = immediate_materialization_cost(self.evm_version, lhs_value);
+        let (rhs_size, rhs_gas) = immediate_materialization_cost(self.evm_version, rhs_value);
+        let (result_size, result_gas) = immediate_materialization_cost(self.evm_version, result);
         let input_size = lhs_size + rhs_size + 1;
         let target = Target::with(
             self.evm_version,
@@ -596,15 +584,15 @@ impl generated::Context for PeepContext<'_> {
     fn fold_unary_constant(&mut self, _: Window) -> Option<U256> {
         let [value, instruction] = self.unprotected_tail()?;
         let value = self.instructions[value].concrete_immediate()?;
-        let opcode = raw_opcode(&self.instructions[instruction])?;
+        let opcode = self.instructions[instruction].as_evm_opcode()?;
         let result = op::eval(opcode, &[value])?;
         let target = Target::with(
             self.evm_version,
             OptimizationMode::Gas,
             Target::DEFAULT_EXPECTED_EXECUTIONS,
         );
-        let (input_size, input_gas) = materialization_cost(self.evm_version, value);
-        let (result_size, result_gas) = materialization_cost(self.evm_version, result);
+        let (input_size, input_gas) = immediate_materialization_cost(self.evm_version, value);
+        let (result_size, result_gas) = immediate_materialization_cost(self.evm_version, result);
         let input_size = input_size + 1;
         let input_gas =
             input_gas + target.opcode_with_immediates(opcode, &[Some(value)]).gas as usize;
@@ -620,7 +608,7 @@ impl generated::Context for PeepContext<'_> {
         let [condition, destination, instruction] = self.unprotected_tail()?;
         (self.instructions[condition].concrete_immediate()?.is_zero()
             && is_block_push(&self.instructions[destination])
-            && raw_opcode(&self.instructions[instruction]) == Some(JUMPI))
+            && self.instructions[instruction].as_evm_opcode() == Some(JUMPI))
         .then_some(())
     }
 
@@ -704,28 +692,12 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn is_noncommutative_binop(&mut self, opcode: u8) -> bool {
-        matches!(
-            opcode,
-            SUB | DIV
-                | SDIV
-                | MOD
-                | SMOD
-                | EXP
-                | SIGNEXTEND
-                | LT
-                | GT
-                | SLT
-                | SGT
-                | BYTE
-                | SHL
-                | SHR
-                | SAR
-                | KECCAK256
-        )
+        op::stack_io(opcode) == Some((2, 1)) && !op::is_commutative(opcode)
     }
 
     fn is_sink(&mut self, opcode: u8) -> bool {
-        matches!(opcode, MSTORE | MSTORE8 | SSTORE | TSTORE | LOG0)
+        // A taken `JUMPI` leaves the stack to its target, which may read the word below.
+        op::stack_io(opcode) == Some((2, 0)) && !op::is_terminal(opcode) && opcode != JUMPI
     }
 
     fn u8_add(&mut self, a: u8, b: u8) -> u8 {

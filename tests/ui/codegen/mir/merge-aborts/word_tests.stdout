@@ -1,0 +1,78 @@
+- // === ROOT/tests/ui/codegen/mir/merge-aborts/word_tests.mir (before merge-aborts) ===
++ // === ROOT/tests/ui/codegen/mir/merge-aborts/word_tests.mir (after merge-aborts) ===
+  @module WordTests
+  fn @entry_guards() -> i256 {
+    bb0:
+      v0 = callvalue
+      v1 = ne v0, 0
+-     jumpi v1, bb3, bb1
++     jump bb1
+    bb1:
+      v2 = calldatasize
+      v3 = lt v2, 36
+-     jumpi v3, bb3, bb2
++     v5 = zext i1 v3 to i256
++     v6 = or v0, v5
++     v7 = ne v6, 0
++     jumpi v7, bb3, bb2
+    bb2:
+      v4 = calldataload 4
+      ret v4
+    bb3:
+      revert 0, 0
+  }
+  
+  fn @three_words(arg0: i256, arg1: i256, arg2: i256) {
+    bb0:
+      v0 = shr arg0, 160
+      v1 = ne v0, 0
+-     jumpi v1, bb4, bb1
++     jump bb1
+    bb1:
+      v2 = shr arg1, 160
+      v3 = eq v2, 0
+-     jumpi v3, bb2, bb4
++     v6 = or v0, v2
++     v7 = ne v6, 0
++     jump bb2
+    bb2:
+      v4 = shr arg2, 160
+      v5 = ne v4, 0
+-     jumpi v5, bb4, bb3
++     v8 = or v6, v4
++     v9 = ne v8, 0
++     jumpi v9, bb4, bb3
+    bb3:
+      stop
+    bb4:
+      revert 0, 0
+  }
+  
+  fn @aborts_on_zero(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = eq arg0, 0
+      jumpi v0, bb3, bb1
+    bb1:
+      v1 = lt arg1, 4
+      jumpi v1, bb3, bb2
+    bb2:
+      stop
+    bb3:
+      revert 0, 0
+  }
+  
+  fn @latch(arg0: i256) {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: arg0], [bb2: v3]
+      v1 = ne v0, 0
+      jumpi v1, bb3, bb2
+    bb2:
+      v2 = lt v0, 4
+      v3 = add v0, 1
+      jumpi v2, bb3, bb1
+    bb3:
+      revert 0, 0
+  }
+  

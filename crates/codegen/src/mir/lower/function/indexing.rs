@@ -128,10 +128,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.cx.report_unsupported(expr.span, "array index");
                 };
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_load_element(object, layout, index);
                 if self.types.memory_layout(element).is_some() {
-                    return self.materialize_array_element(object, layout, index, element, value);
+                    return Some(self.builder.memory_load_element_as(
+                        object,
+                        layout,
+                        index,
+                        MirType::MEMPTR,
+                    ));
                 }
+                let value = self.builder.memory_load_element(object, layout, index);
                 Some(self.normalize_memory_scalar(element, value))
             }
             MemoryObjectLayout::Bytes => {

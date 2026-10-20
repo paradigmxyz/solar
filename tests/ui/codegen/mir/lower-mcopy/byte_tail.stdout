@@ -1,0 +1,171 @@
+- // === ROOT/tests/ui/codegen/mir/lower-mcopy/byte_tail.mir (before lower-mcopy) ===
++ // === ROOT/tests/ui/codegen/mir/lower-mcopy/byte_tail.mir (after lower-mcopy) ===
+  @module ByteTail
+  fn @copy_byte(arg0: i256, arg1: i256) {
+    bb0:
+-     mcopy arg0, arg1, 1
++     v0 = eq 1, 0
++     jumpi v0, bb1, bb2
++   bb2:
++     v1 = not 31
++     v2 = and 1, v1
++     jump bb3
++   bb3:
++     v3 = phi [bb2: 0], [bb4: v8]
++     v4 = lt v3, v2
++     jumpi v4, bb4, bb5
++   bb5:
++     v9 = lt v2, 1
++     jumpi v9, bb6, bb1
++   bb6:
++     v10 = add arg1, v2
++     v11 = mload v10
++     v12 = byte 0, v11
++     v13 = add arg0, v2
++     mstore8 v13, v12
++     jump bb1
++   bb4:
++     v5 = add arg1, v3
++     v6 = mload v5
++     v7 = add arg0, v3
++     mstore v7, v6
++     v8 = add v3, 32
++     jump bb3
++   bb1:
+      ret
+  }
+  
+  fn @copy_word_and_byte(arg0: i256, arg1: i256) {
+    bb0:
+-     mcopy arg0, arg1, 33
++     v0 = eq 33, 0
++     jumpi v0, bb1, bb2
++   bb2:
++     v1 = not 31
++     v2 = and 33, v1
++     v3 = lt arg1, arg0
++     jumpi v3, bb4, bb3
++   bb3:
++     jump bb5
++   bb5:
++     v4 = phi [bb3: 0], [bb6: v9]
++     v5 = lt v4, v2
++     jumpi v5, bb6, bb7
++   bb7:
++     v10 = lt v2, 33
++     jumpi v10, bb8, bb1
++   bb8:
++     v11 = add arg1, v2
++     v12 = mload v11
++     v13 = byte 0, v12
++     v14 = add arg0, v2
++     mstore8 v14, v13
++     jump bb1
++   bb6:
++     v6 = add arg1, v4
++     v7 = mload v6
++     v8 = add arg0, v4
++     mstore v8, v7
++     v9 = add v4, 32
++     jump bb5
++   bb4:
++     v15 = lt v2, 33
++     jumpi v15, bb12, bb11
++   bb11:
++     jump bb9
++   bb12:
++     v16 = add arg1, v2
++     v17 = mload v16
++     v18 = byte 0, v17
++     v19 = add arg0, v2
++     mstore8 v19, v18
++     jump bb9
++   bb9:
++     v20 = phi [bb11: v2], [bb12: v2], [bb10: v22]
++     v21 = eq v20, 0
++     jumpi v21, bb1, bb10
++   bb10:
++     v22 = sub v20, 32
++     v23 = add arg1, v22
++     v24 = mload v23
++     v25 = add arg0, v22
++     mstore v25, v24
++     jump bb9
++   bb1:
+      ret
+  }
+  
+  fn @copy_word_and_two_bytes(arg0: i256, arg1: i256) {
+    bb0:
+-     mcopy arg0, arg1, 34
++     v0 = eq 34, 0
++     jumpi v0, bb1, bb2
++   bb2:
++     v1 = not 31
++     v2 = and 34, v1
++     v3 = lt arg1, arg0
++     jumpi v3, bb4, bb3
++   bb3:
++     jump bb5
++   bb5:
++     v4 = phi [bb3: 0], [bb6: v9]
++     v5 = lt v4, v2
++     jumpi v5, bb6, bb7
++   bb7:
++     v10 = lt v2, 34
++     jumpi v10, bb8, bb1
++   bb8:
++     v11 = and 34, 31
++     v12 = sub 32, v11
++     v13 = shl v12, 3
++     v14 = add arg1, v2
++     v15 = mload v14
++     v16 = add arg0, v2
++     v17 = mload v16
++     v18 = xor v15, v17
++     v19 = shr v18, v13
++     v20 = shl v19, v13
++     v21 = xor v17, v20
++     mstore v16, v21
++     jump bb1
++   bb6:
++     v6 = add arg1, v4
++     v7 = mload v6
++     v8 = add arg0, v4
++     mstore v8, v7
++     v9 = add v4, 32
++     jump bb5
++   bb4:
++     v22 = lt v2, 34
++     jumpi v22, bb12, bb11
++   bb11:
++     jump bb9
++   bb12:
++     v23 = and 34, 31
++     v24 = sub 32, v23
++     v25 = shl v24, 3
++     v26 = add arg1, v2
++     v27 = mload v26
++     v28 = add arg0, v2
++     v29 = mload v28
++     v30 = xor v27, v29
++     v31 = shr v30, v25
++     v32 = shl v31, v25
++     v33 = xor v29, v32
++     mstore v28, v33
++     jump bb9
++   bb9:
++     v34 = phi [bb11: v2], [bb12: v2], [bb10: v36]
++     v35 = eq v34, 0
++     jumpi v35, bb1, bb10
++   bb10:
++     v36 = sub v34, 32
++     v37 = add arg1, v36
++     v38 = mload v37
++     v39 = add arg0, v36
++     mstore v39, v38
++     jump bb9
++   bb1:
+      ret
+  }
+  

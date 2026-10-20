@@ -333,7 +333,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             let mask = self.builder.imm(u32::MAX);
                             let selector = self.builder.and(value, mask);
                             let shift = self.builder.imm(224);
-                            Some(self.builder.shl(shift, selector))
+                            Some(self.builder.shl(selector, shift))
                         }
                         false => self.cx.report_unsupported(expr.span, "function selector"),
                     },
@@ -487,7 +487,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn external_function_address(&mut self, value: ValueId) -> ValueId {
         let shift = self.builder.imm(32);
-        let address = self.builder.shr(shift, value);
+        let address = self.builder.shr(value, shift);
         let mask = self.builder.imm(U256::MAX >> 96);
         self.builder.and(address, mask)
     }
@@ -593,6 +593,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncode)
                 {
                     let exprs = self.variadic_builtin_args(Builtin::AbiEncode, encode_args)?;
+                    if let Some(hash) = self.lower_keccak_abi_encode_words(exprs) {
+                        return Some(hash);
+                    }
                     let encoded = self.lower_abi_encode_scratch(exprs, None)?;
                     let pointer = self.builder.slice_ptr(encoded);
                     let length = self.builder.slice_len(encoded);
@@ -777,6 +780,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.load(offset, $location))
             }};
         }
+        macro_rules! shift {
+            ($method:ident) => {{
+                // Yul takes the shift amount first; the builder takes the shifted value first.
+                let [shift, value] = self.lower_builtin_args(builtin, &args)?;
+                let value = self.builder.$method(value, shift);
+                Some(self.builder.cast(value, MirType::I256))
+            }};
+        }
         match builtin {
             Builtin::YulAdd => lower!(add(lhs, rhs)),
             Builtin::YulSub => lower!(sub(lhs, rhs)),
@@ -797,9 +808,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulXor => lower!(xor(lhs, rhs)),
             Builtin::YulNot => lower!(not(value)),
             Builtin::YulByte => lower!(byte(index, value)),
-            Builtin::YulShl => lower!(shl(shift, value)),
-            Builtin::YulShr => lower!(shr(shift, value)),
-            Builtin::YulSar => lower!(sar(shift, value)),
+            Builtin::YulShl => shift!(shl),
+            Builtin::YulShr => shift!(shr),
+            Builtin::YulSar => shift!(sar),
             Builtin::YulIszero => lower!(eq_zero(value)),
             Builtin::YulAddmod => lower!(addmod(a, b, modulus)),
             Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),

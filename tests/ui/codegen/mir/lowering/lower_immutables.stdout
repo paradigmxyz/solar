@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_immutables.mir (after lower-immutables) ===
   @module LowerImmutables
   @immutables
-    first: u8
+    first: uint8
     second: bool
   
   fn @constructor(arg0: i256, arg1: i1) -> i256 [constructor] {

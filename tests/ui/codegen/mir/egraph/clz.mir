@@ -29,8 +29,8 @@ fn @simplify_clz_predicates(arg0: i256) -> struct3 [return_abi=[i1, i1, i1, i1, 
 fn @simplify_clz_range_ops(arg0: i256) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256]] {
   bb0:
     v1 = clz arg0
-    v2 = shr 8, v1
-    v3 = shr 9, v1
+    v2 = shr v1, 8
+    v3 = shr v1, 9
     v4 = and v1, 511
     v5 = and 1023, v1
     v6 = signextend 1, v1
@@ -46,7 +46,7 @@ fn @simplify_clz_range_ops(arg0: i256) -> struct2 [return_abi=[i256, i256, i256,
 fn @preserve_clz_range_boundaries(arg0: i256) -> struct1 [return_abi=[i256, i256, i256, i256, i256]] {
   bb0:
     v1 = clz arg0
-    v2 = shr 7, v1
+    v2 = shr v1, 7
     v3 = and v1, 255
     v4 = signextend 0, v1
     v5 = byte 31, v1
@@ -58,9 +58,9 @@ fn @fold_clz_known_sign(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i2
   bb0:
     v2 = or arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     v3 = clz v2
-    v4 = sar arg1, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v4 = sar 0x8000000000000000000000000000000000000000000000000000000000000000, arg1
     v5 = clz v4
-    v6 = sar arg1, v2
+    v6 = sar v2, arg1
     v7 = clz v6
     ret v3, v5, v7
 }

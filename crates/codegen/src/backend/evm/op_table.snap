@@ -32,14 +32,14 @@
 0x33 caller           io=0/1 bits=[]/160 since=homestead gas=2
 0x34 callvalue        io=0/1 since=homestead gas=2
 0x35 calldataload     io=1/1 since=homestead gas=3
-0x36 calldatasize     io=0/1 since=homestead gas=2
+0x36 calldatasize     io=0/1 bits=[]/64 since=homestead gas=2
 0x37 calldatacopy     io=3/0 since=homestead gas=3 +3 writes_memory
-0x38 codesize         io=0/1 since=homestead gas=2
+0x38 codesize         io=0/1 bits=[]/64 since=homestead gas=2
 0x39 codecopy         io=3/0 since=homestead gas=3 +3 writes_memory
 0x3a gasprice         io=0/1 since=homestead gas=2
-0x3b extcodesize      io=1/1 bits=[160]/256 since=homestead gas=20 tangerineWhistle=700 berlin=2600
+0x3b extcodesize      io=1/1 bits=[160]/64 since=homestead gas=20 tangerineWhistle=700 berlin=2600
 0x3c extcodecopy      io=4/0 bits=[160]/256 since=homestead gas=20 tangerineWhistle=700 berlin=2600 writes_memory
-0x3d returndatasize   io=0/1 since=byzantium gas=2
+0x3d returndatasize   io=0/1 bits=[]/64 since=byzantium gas=2
 0x3e returndatacopy   io=3/0 since=byzantium gas=3 +3 writes_memory
 0x3f extcodehash      io=1/1 bits=[160]/256 since=constantinople gas=400 istanbul=700 berlin=2600
 0x40 blockhash        io=1/1 since=homestead gas=20

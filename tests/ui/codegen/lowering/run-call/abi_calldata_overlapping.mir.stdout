@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_overlapping.sol:AbiCalldataOverlapping ===
 @module AbiCalldataOverlapping
-fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -41,51 +41,27 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     v69 = eq v68, false
     icall panic_if<0x32>, v69
     v70 = ptradd v22, 32
-    v71 = mload v70
-    v72 = inttoptr i256 v71 to ptr<memory>
-    v73 = eq v71, 0
-    jumpi v73, bb4, bb5
-  bb4:
-    v74 = alloc 32
-    mstore v74, 0
-    v75 = ptradd v22, 32
-    v76 = ptrtoint ptr<memory> v74 to i256
-    mstore v75, v76
-    jump bb5
-  bb5:
-    v77 = phi [bb3: v72], [bb4: v74]
-    v78 = mload v77
-    v79 = lt 0, v78
-    v80 = eq v79, false
-    icall panic_if<0x32>, v80
-    v81 = ptradd v77, 32
+    v71 = mload v70, ptr<memory>
+    v72 = mload v71
+    v73 = lt 0, v72
+    v74 = eq v73, false
+    icall panic_if<0x32>, v74
+    v75 = ptradd v71, 32
+    v76 = mload v75
+    v77 = mload v22
+    v78 = lt 1, v77
+    v79 = eq v78, false
+    icall panic_if<0x32>, v79
+    v80 = ptradd v22, 64
+    v81 = mload v80, ptr<memory>
     v82 = mload v81
-    v83 = mload v22
-    v84 = lt 1, v83
-    v85 = eq v84, false
-    icall panic_if<0x32>, v85
-    v86 = ptradd v22, 64
-    v87 = mload v86
-    v88 = inttoptr i256 v87 to ptr<memory>
-    v89 = eq v87, 0
-    jumpi v89, bb6, bb7
-  bb6:
-    v90 = alloc 32
-    mstore v90, 0
-    v91 = ptradd v22, 64
-    v92 = ptrtoint ptr<memory> v90 to i256
-    mstore v91, v92
-    jump bb7
-  bb7:
-    v93 = phi [bb5: v88], [bb6: v90]
-    v94 = mload v93
-    v95 = lt 1, v94
-    v96 = eq v95, false
-    icall panic_if<0x32>, v96
-    v97 = ptradd v93, 64
-    v98 = mload v97
-    v99 = checked_add u256, v82, v98
-    ret v99
+    v83 = lt 1, v82
+    v84 = eq v83, false
+    icall panic_if<0x32>, v84
+    v85 = ptradd v81, 64
+    v86 = mload v85
+    v87 = checked_add uint256, v76, v86
+    ret v87
   bb2:
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
@@ -133,7 +109,7 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     v61 = extract_value slice<calldata>, v58, 1
     calldatacopy v59, v60, v61
     v62 = ptrtoint ptr<memory> v56 to i256
-    v63 = shl 5, v23
+    v63 = shl v23, 5
     v64 = ptradd v22, v63
     v65 = ptradd v64, 32
     mstore v65, v62
@@ -141,7 +117,7 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     jump bb1
 }
 
-fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
@@ -227,7 +203,7 @@ fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_
     v61 = extract_value slice<calldata>, v58, 1
     calldatacopy v59, v60, v61
     v62 = ptrtoint ptr<memory> v56 to i256
-    v63 = shl 5, v23
+    v63 = shl v23, 5
     v64 = ptradd v22, v63
     v65 = ptradd v64, 32
     mstore v65, v62

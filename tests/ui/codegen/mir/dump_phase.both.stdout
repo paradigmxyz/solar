@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/mir/dump_phase.sol:DumpPhase ===
 @module DumpPhase
-fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add u256, arg0, 0
+    v0 = checked_add uint256, arg0, 0
     ret v0
 }
 
@@ -10,6 +10,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[u256], abi_ret
 @module DumpPhase
 @phase lowered
 // backend-memory-v1
+// backend-entry 0 0x80
 
 fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
   bb0:
@@ -23,10 +24,9 @@ fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
     v2 = lt v1, arg0
     jumpi v2, bb2, bb3
   bb3:
-    mstore 128, v1
-    v5 = add 128, 32
-    v6 = sub v5, 128
-    returndata 128, v6
+    mstore 0, v1 !metadata(memory=scratch)
+    v5 = sub 32, 0
+    returndata 0, v5
   bb2:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -42,7 +42,7 @@ fn @entry() [entry] {
     jumpi v1, bb3, bb1
   bb1:
     v2 = calldataload 0
-    v3 = shr 224, v2
+    v3 = shr v2, 224
     switch v3, default bb3, [0xb3de648b => bb2]
   bb2:
     tail_call @f

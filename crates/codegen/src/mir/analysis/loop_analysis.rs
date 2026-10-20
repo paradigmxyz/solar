@@ -357,7 +357,13 @@ impl LoopAnalyzer {
                     if loop_info.invariant_insts.contains(inst_id) {
                         continue;
                     }
-                    if inst.kind.has_side_effects() {
+                    // Fixed-width slot hashes have invariant results when their word inputs do.
+                    // LICM separately proves that moving their scratch writes is safe.
+                    let slot_hash = matches!(
+                        inst.kind,
+                        InstKind::StorageArrayDataSlot(_) | InstKind::MappingSlot(..)
+                    );
+                    if inst.kind.has_side_effects() && !slot_hash {
                         continue;
                     }
                     if matches!(inst.kind, InstKind::Phi(_)) {

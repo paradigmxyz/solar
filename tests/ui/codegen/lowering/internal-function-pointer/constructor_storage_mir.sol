@@ -23,8 +23,8 @@ contract ConstructorStoredFunctionPointer {
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: [[NARROW:v[0-9]+]] = trunc i256 [[WORD]] to i64
     // CHECK: [[STORED_ONLY:v[0-9]+]] = zext i64 [[NARROW]] to i256
-    // CHECK: icall @internal_dispatcher_p_none_r_u256, [[STORED_ONLY]]
-    // CHECK-LABEL: fn @internal_dispatcher_p_none_r_u256(
+    // CHECK: icall @internal_dispatcher_p_none_r_uint256, [[STORED_ONLY]]
+    // CHECK-LABEL: fn @internal_dispatcher_p_none_r_uint256(
     // CHECK: eq arg0, [[ONLY_STORED]]
     // CHECK: icall @onlyStored
     function callStoredOnly() public returns (uint256) {
