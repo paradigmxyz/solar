@@ -29,9 +29,10 @@
 //! - each access's index `offset + k` (`checked_add`, or `k` itself) and its bounds check
 //!   `panic_if_zero<0x32> (lt index, length)`, where the length is `mload object` for a memory
 //!   object, the same load hoisted before the loop (behind trivial phis of enclosing loops), or the
-//!   length a fresh allocation stored once load forwarding has replaced that load, and the slice's
-//!   length field for a calldata slice; an index `k` may instead be checked by the header test
-//!   itself, when the bound is the buffer's length from before the loop;
+//!   length a fresh allocation's block last stored, as a trusted `mstore(b, n)` after `new bytes`
+//!   sets it, once load forwarding has replaced that load, and the slice's length field for a
+//!   calldata slice; an index `k` may instead be checked by the header test itself, when the bound
+//!   is the buffer's length from before the loop;
 //! - a gather's `byte 0` of the word at the indexed byte, shifted into place by `8 * k` and ORed
 //!   into an accumulator phi that starts at zero, with optional masks that keep the leading bytes
 //!   of a `bytesN` result;
@@ -571,16 +572,18 @@ fn through_trivial_phis(func: &Function, mut value: ValueId) -> ValueId {
     value
 }
 
-/// The length a fresh allocation's block first stores into its length word, as `new bytes(n)`
-/// does. Load forwarding gives the object's checks that value in place of the length load.
+/// The length a fresh allocation's block leaves in its length word: the last value stored there,
+/// as `new bytes(n)` does, or a trusted `mstore(b, n)` after it that sets the length of a buffer
+/// allocated in whole words. Load forwarding gives the object's checks that value in place of the
+/// length load.
 fn stored_length(func: &Function, object: ValueId) -> Option<ValueId> {
     let Value::Inst(alloc) = *func.value(object) else { return None };
     if !matches!(func.inst(alloc).kind, InstKind::Alloc { .. }) {
         return None;
     }
     let block = func.blocks.iter().find(|block| block.instructions.contains(&alloc))?;
-    block.instructions.iter().find_map(|&inst| match func.inst(inst).kind {
-        InstKind::Store(ptr, len, PtrLocation::Memory) if ptr == object => Some(len),
+    block.instructions.iter().rev().find_map(|&inst| match func.memory_length_store(inst) {
+        Some((ptr, len)) if ptr == object => Some(len),
         _ => None,
     })
 }
