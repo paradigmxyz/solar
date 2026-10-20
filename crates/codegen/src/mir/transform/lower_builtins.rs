@@ -11,7 +11,9 @@
 //! Payable sends and transfers expand to stipend-limited calls; transfers branch to a semantic
 //! returndata revert on failure, leaving payload expansion to revert lowering. Low-level address
 //! calls expose their bytes input only here and retain explicit gas/value options. Return-data
-//! capture allocates and copies after the call, before any later call can replace the data.
+//! capture allocates and copies after the call, before any later call can replace the data. A
+//! capture whose bytes are only measured, its length loaded on the one quiet path after it, is
+//! `returndatasize` instead.
 
 use crate::mir::{
     AddressCallKind, AllocationSemantics, Builtin, Callee, EffectKind, Function, FunctionBuilder,
