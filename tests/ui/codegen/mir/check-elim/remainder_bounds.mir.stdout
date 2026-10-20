@@ -55,3 +55,20 @@ fn @pickDown(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xe4bcb1d7, pure, 
   bb5:
     jump bb1
 }
+
+fn @pickRest(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x74dbbcbe, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg1, arg0
+    v1 = eq v0, false
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = checked_sub uint256, arg0, arg1
+    v3 = checked_rem uint256, arg2, v2
+    v4 = checked_add uint256, v3, arg1
+    ret v4
+  bb1:
+    icall revert_if<empty>, true
+    invalid
+}
