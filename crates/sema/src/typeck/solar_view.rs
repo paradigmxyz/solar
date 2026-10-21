@@ -167,6 +167,18 @@ impl<'gcx> Checker<'gcx> {
     fn read(&mut self, expr: &hir::Expr<'_>) {
         self.in_place.insert(expr.peel_parens().id);
     }
+
+    /// Records `expr` as written, and every component of a tuple it assigns to, so an index of a
+    /// view inside a destructuring assignment is a write rather than a read in place.
+    fn write(&mut self, expr: &hir::Expr<'_>) {
+        let expr = expr.peel_parens();
+        self.writes.insert(expr.id);
+        if let ExprKind::Tuple(components) = expr.kind {
+            for component in components.iter().flatten() {
+                self.write(component);
+            }
+        }
+    }
 }
 
 impl<'gcx> Visit<'gcx> for Checker<'gcx> {
@@ -198,12 +210,8 @@ impl<'gcx> Visit<'gcx> for Checker<'gcx> {
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         match expr.kind {
             // A write through an index, or one that reads and writes.
-            ExprKind::Assign(lhs, ..) | ExprKind::Delete(lhs) => {
-                self.writes.insert(lhs.peel_parens().id);
-            }
-            ExprKind::Unary(op, operand) if op.kind.has_side_effects() => {
-                self.writes.insert(operand.peel_parens().id);
-            }
+            ExprKind::Assign(lhs, ..) | ExprKind::Delete(lhs) => self.write(lhs),
+            ExprKind::Unary(op, operand) if op.kind.has_side_effects() => self.write(operand),
             ExprKind::Member(receiver, name) if name.name == sym::length => self.read(receiver),
             ExprKind::Index(receiver, Some(_)) if !self.writes.contains(&expr.id) => {
                 self.read(receiver);
