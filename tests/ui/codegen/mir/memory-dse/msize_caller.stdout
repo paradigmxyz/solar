@@ -1,22 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/msize_caller.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/msize_caller.mir (after memory-dse) ===
   @module MemoryDseMsizeCaller
-  fn @frame(arg0: i256) -> i256 {
-    bb0:
-      v0 = internal_frame_addr 128
-      v1 = ptrtoint ptr<memory> v0 to i256
-      mstore v1, arg0
-      ret arg0
-  }
-  
-  fn @caller(arg0: i256) -> i256 {
-    bb0:
-      v0 = icall @frame, arg0
-      v1 = msize
-      v2 = add v0, v1
-      ret v2
-  }
-  
   fn @icall_msize_barrier() -> i256 {
     bb0:
       mstore 0x1000, 42

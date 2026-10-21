@@ -339,7 +339,7 @@ impl IndVarSimplifier {
         let Some(step) = self.additive_step(func, iv.value, Some(iv.update_inst)) else {
             return;
         };
-        let must_keep_update = func.inst(iv.update_inst).kind.effects().must_execute(false);
+        let must_keep_update = func.inst(iv.update_inst).kind.has_side_effects();
 
         let scev = ScalarEvolution::analyze(func, loop_data);
         let carried = Self::carried_words(func, loop_data);

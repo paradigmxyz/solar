@@ -100,7 +100,7 @@ contract Test {
     }
 
     function readSize() private pure returns (uint256 size) {
-        assembly { size := msize() }
+        assembly { size := msize() } //~ WARN: `msize` is not exact when optimizing
     }
 
     function copyObject(bytes memory source, uint256 length) private pure returns (bytes memory out) {

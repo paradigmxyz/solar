@@ -55,8 +55,8 @@
 //! Every intervening memory write invalidates these entries. Calls never sink or
 //! inherit a cached result across blocks; no read-footprint disjointness is assumed.
 //! Calls to pure leaf functions are the exception: a `pure` single-result leaf that
-//! touches no storage, writes no memory a caller sees, observes neither gas,
-//! `msize`, nor return data, and reads memory only on paths that revert depends
+//! touches no storage, writes no memory a caller sees, observes neither gas
+//! nor return data, and reads memory only on paths that revert depends
 //! on its arguments alone, so its result is reused like pure arithmetic, across dominating blocks
 //! and after any write. Such calls still never sink, which would move their revert.
 //! After a `gas` read, state-dependent expressions remain explicit so a later
@@ -1669,7 +1669,7 @@ impl CommonSubexprEliminator {
 /// `pure` keeps environment, state, and gas reads out of the source, inline assembly included,
 /// except for the return data, which the function must not read. The memory summary proves that
 /// the function never touches storage or transient storage, writes no memory a caller sees, and
-/// never observes gas or `msize`, and no block that can still return reads memory: a revert path
+/// never observes gas, and no block that can still return reads memory: a revert path
 /// may read the error data it staged, but whether a call returns, and what, then depends on its
 /// arguments alone. A repeated call with the same arguments returns the
 /// same word, and when it would revert the dominating call already reverted. A leaf calls no other
@@ -1692,7 +1692,6 @@ fn pure_leaf_functions(
             || !untouched
             || summary.writes(AddressSpace::Memory)
             || summary.may_observe_gas()
-            || summary.may_observe_msize()
             // `pure` assembly may read the return data, which an external call between two
             // calls replaces.
             || func.instructions().any(|inst| {

@@ -1655,7 +1655,6 @@ fn literal_opaque_instruction(
         InstKind::Store(address, _, PtrLocation::Memory) => {
             !literal_word_in_bounds(func, *address, available)
         }
-        InstKind::MSize => true,
         _ => matches!(
             kind.effect_kind(),
             EffectKind::MemoryRead

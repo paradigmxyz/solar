@@ -12,7 +12,7 @@
 //! saved value marks the word clean again. Pure instructions and word loads are
 //! also accepted. Calls, allocation, environment observations, and other exits
 //! are excluded. This keeps temporary writes unobservable outside the function.
-//! Reads and FMP/MSIZE/capture flags remain conservative in the caller summary:
+//! Reads and FMP/capture flags remain conservative in the caller summary:
 //! restoring bytes does not undo memory expansion or erase pointer observations.
 //! No instructions are removed here; callers may reuse memory facts across the
 //! call. The analysis is capped at 32 blocks and 128 live instructions.
