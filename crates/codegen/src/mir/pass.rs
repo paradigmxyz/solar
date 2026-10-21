@@ -499,7 +499,7 @@ fn run_function_pass_with(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
     requirements: FunctionAnalysisRequirements,
-    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
+    run: FunctionRun<'_>,
 ) -> bool {
     run_function_pass_with_cache(module, analyses, None, requirements, None, run)
 }
@@ -510,7 +510,7 @@ fn run_function_pass_with_cache(
     selected: Option<&DenseBitSet<FunctionId>>,
     requirements: FunctionAnalysisRequirements,
     cache_key: Option<TypeId>,
-    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
+    run: FunctionRun<'_>,
 ) -> bool {
     if let Some(changed) =
         run_parallel_function_pass(module, analyses, selected, requirements, cache_key, run)
@@ -606,6 +606,10 @@ pub(crate) fn run_selected_function_pass_without_analyses_cached<P: 'static>(
         &run,
     )
 }
+
+/// A function-local transform. The runners take it as a trait object so that each pass does not
+/// instantiate them again.
+type FunctionRun<'a> = &'a (dyn Fn(&mut Function, &FunctionAnalyses) -> bool + Sync);
 
 /// Per-function analysis snapshots handed to a pass run.
 pub(crate) struct FunctionAnalyses {
@@ -895,7 +899,7 @@ fn run_function_pass_cached(
     func_id: FunctionId,
     requirements: FunctionAnalysisRequirements,
     cache_key: Option<TypeId>,
-    run: &impl Fn(&mut Function, &FunctionAnalyses) -> bool,
+    run: FunctionRun<'_>,
 ) -> bool {
     if let Some(key) = cache_key
         && analyses.function_cached(key, func_id, module.functions.len())
@@ -941,7 +945,7 @@ fn run_parallel_function_pass(
     selected: Option<&DenseBitSet<FunctionId>>,
     requirements: FunctionAnalysisRequirements,
     cache_key: Option<TypeId>,
-    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
+    run: FunctionRun<'_>,
 ) -> Option<bool> {
     if !analyses.parallel {
         return None;
