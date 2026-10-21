@@ -24,8 +24,6 @@
 // A constant-length copy to a destination that an input chooses, and a constant that inlining stores
 // into the free memory pointer, are as able to reach a spill slot as their variable forms, whether
 // or not a guard folded them: each function holds seventeen values across the write, then allocates.
-// The copies and the pointer passed to a helper fail on `main`; the pointers near a raised spill area
-// guard the rules that lift it.
 contract FoldedOperandSpills {
     function constantCopy(uint256 a, uint256 flag, uint256 d) external pure returns (bytes32 result) {
         bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));

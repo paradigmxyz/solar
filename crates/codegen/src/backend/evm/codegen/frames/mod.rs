@@ -24,8 +24,8 @@ use crate::mir::{
     utils::{eval::eval_inst, u256_to_u64},
 };
 
-/// Where the low memory ends that an entry running code writing memory at an address calldata
-/// computes keeps its spill area and frames out of.
+/// The end of the low memory that an entry keeps its spill area and frames out of when it runs
+/// code that writes memory at an address calldata computes.
 const LOW_MEMORY_BOUND: u64 = EvmMemoryLayout::HEAP_START + 0x2000;
 
 mod hazards;
@@ -807,11 +807,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Hand-written assembly may own low memory through constant addresses, such as the
     /// ERC-6551 registry's proxy initcode at `[0x55, 0x10c)`, which it reads back after other
     /// code ran. A spill slot there would end up in the image, and a reload would read a byte of
-    /// it. An entry's region ends at the highest of its spill area and allocations, the
-    /// frames it reaches above the highest end of all entries, and its heap prefix. A range that
-    /// starts below that end and ends above the entry's base moves the base to the range's end,
-    /// which moves the end, until no range intersects: a range beyond the final region costs
-    /// nothing.
+    /// it. An entry's region ends at the higher of its spill area with its allocations and the
+    /// frames it reaches above the highest end of all entries, plus its heap prefix guard. A range
+    /// that starts below that end and ends above the entry's base moves the base to the range's
+    /// end, which moves the end, until no range intersects: a range beyond the final region
+    /// costs nothing.
     fn entry_spill_bases(
         &self,
         module: &Module,
@@ -1230,7 +1230,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 })
             }
             Value::Inst(inst_id) => match &func.inst(*inst_id).kind {
-                InstKind::Fmp | InstKind::Alloc { .. } => Some(0),
+                InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => Some(0),
                 InstKind::Load(address, PtrLocation::Memory)
                     if Self::heap_prefix_constant(func, *address, 0)
                         == Some(U256::from(EvmMemoryLayout::FMP_SLOT)) =>

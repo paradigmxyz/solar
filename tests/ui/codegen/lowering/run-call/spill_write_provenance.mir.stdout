@@ -648,6 +648,383 @@ fn @forgedByLoop(arg0: i256, arg1: i256) -> i256 [selector=0x0173241e, pure, abi
     jump bb4
 }
 
+fn @stepFromFloor(arg0: i256, arg1: i256) -> i256 [selector=0x6f4b828c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = keccak256_packed (uint256 arg0, uint256 17)
+    v18 = keccak256_packed (uint256 arg0, uint256 18)
+    v19 = keccak256_packed (uint256 arg0, uint256 19)
+    v20 = keccak256_packed (uint256 arg0, uint256 20)
+    v21 = keccak256_packed (uint256 arg0, uint256 21)
+    v22 = keccak256_packed (uint256 arg0, uint256 22)
+    v23 = keccak256_packed (uint256 arg0, uint256 23)
+    v24 = ne arg1, 0
+    jumpi v24, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    mstore 64, arg1 !metadata(memory=scratch)
+    v25 = mload 64 !metadata(memory=scratch)
+    v26 = sub v25, 32
+    mstore v26, 0
+    jump bb3
+  bb3:
+    v27 = xor v0, v1
+    v28 = xor v27, v2
+    v29 = xor v28, v3
+    v30 = xor v29, v4
+    v31 = xor v30, v5
+    v32 = xor v31, v6
+    v33 = xor v32, v7
+    v34 = xor v33, v8
+    v35 = xor v34, v9
+    v36 = xor v35, v10
+    v37 = xor v36, v11
+    v38 = xor v37, v12
+    v39 = xor v38, v13
+    v40 = xor v39, v14
+    v41 = xor v40, v15
+    v42 = xor v41, v16
+    v43 = xor v42, v17
+    v44 = xor v43, v18
+    v45 = xor v44, v19
+    v46 = xor v45, v20
+    v47 = xor v46, v21
+    v48 = xor v47, v22
+    v49 = xor v48, v23
+    ret v49
+}
+
+fn @lowerPointer(arg0: i256, arg1: i256) -> i256 [selector=0x05a6b998, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = keccak256_packed (uint256 arg0, uint256 17)
+    v18 = keccak256_packed (uint256 arg0, uint256 18)
+    v19 = keccak256_packed (uint256 arg0, uint256 19)
+    v20 = keccak256_packed (uint256 arg0, uint256 20)
+    v21 = keccak256_packed (uint256 arg0, uint256 21)
+    v22 = keccak256_packed (uint256 arg0, uint256 22)
+    v23 = keccak256_packed (uint256 arg0, uint256 23)
+    v24 = ne arg1, 0
+    jumpi v24, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v25 = mload 64 !metadata(memory=scratch)
+    v26 = sub v25, 32
+    mstore 64, v26 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    v27 = ne arg1, 0
+    jumpi v27, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v28 = icall @_copy, 0x400
+    v29 = mload v28
+    v30 = shl v29, 0
+    jump bb6
+  bb6:
+    v31 = phi [bb4: v30], [bb5: 0]
+    v32 = xor v0, v1
+    v33 = xor v32, v2
+    v34 = xor v33, v3
+    v35 = xor v34, v4
+    v36 = xor v35, v5
+    v37 = xor v36, v6
+    v38 = xor v37, v7
+    v39 = xor v38, v8
+    v40 = xor v39, v9
+    v41 = xor v40, v10
+    v42 = xor v41, v11
+    v43 = xor v42, v12
+    v44 = xor v43, v13
+    v45 = xor v44, v14
+    v46 = xor v45, v15
+    v47 = xor v46, v16
+    v48 = xor v47, v17
+    v49 = xor v48, v18
+    v50 = xor v49, v19
+    v51 = xor v50, v20
+    v52 = xor v51, v21
+    v53 = xor v52, v22
+    v54 = xor v53, v23
+    v55 = xor v31, v54
+    ret v55
+}
+
+fn @recursiveStepBack(arg0: i256, arg1: i256) -> i256 [selector=0x5c31a411, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = keccak256_packed (uint256 arg0, uint256 17)
+    v18 = keccak256_packed (uint256 arg0, uint256 18)
+    v19 = keccak256_packed (uint256 arg0, uint256 19)
+    v20 = keccak256_packed (uint256 arg0, uint256 20)
+    v21 = keccak256_packed (uint256 arg0, uint256 21)
+    v22 = keccak256_packed (uint256 arg0, uint256 22)
+    v23 = keccak256_packed (uint256 arg0, uint256 23)
+    v24 = ne arg1, 0
+    jumpi v24, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v25 = mload 64 !metadata(memory=scratch)
+    icall @_stepBack, v25, 12
+    jump bb3
+  bb3:
+    v26 = xor v0, v1
+    v27 = xor v26, v2
+    v28 = xor v27, v3
+    v29 = xor v28, v4
+    v30 = xor v29, v5
+    v31 = xor v30, v6
+    v32 = xor v31, v7
+    v33 = xor v32, v8
+    v34 = xor v33, v9
+    v35 = xor v34, v10
+    v36 = xor v35, v11
+    v37 = xor v36, v12
+    v38 = xor v37, v13
+    v39 = xor v38, v14
+    v40 = xor v39, v15
+    v41 = xor v40, v16
+    v42 = xor v41, v17
+    v43 = xor v42, v18
+    v44 = xor v43, v19
+    v45 = xor v44, v20
+    v46 = xor v45, v21
+    v47 = xor v46, v22
+    v48 = xor v47, v23
+    ret v48
+}
+
+fn @retaggedResult(arg0: i256, arg1: i256) -> i256 [selector=0x1e208f71, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = keccak256_packed (uint256 arg0, uint256 17)
+    v18 = keccak256_packed (uint256 arg0, uint256 18)
+    v19 = keccak256_packed (uint256 arg0, uint256 19)
+    v20 = keccak256_packed (uint256 arg0, uint256 20)
+    v21 = keccak256_packed (uint256 arg0, uint256 21)
+    v22 = keccak256_packed (uint256 arg0, uint256 22)
+    v23 = keccak256_packed (uint256 arg0, uint256 23)
+    v24 = ne arg1, 0
+    jumpi v24, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v25 = icall @_retag, 128, 3
+    v26 = ptrtoint ptr<memory> v25 to i256
+    mstore 64, v26 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    v27 = ne arg1, 0
+    jumpi v27, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v28 = icall @_copy, 0x400
+    v29 = mload v28
+    v30 = shl v29, 0
+    jump bb6
+  bb6:
+    v31 = phi [bb4: v30], [bb5: 0]
+    v32 = xor v0, v1
+    v33 = xor v32, v2
+    v34 = xor v33, v3
+    v35 = xor v34, v4
+    v36 = xor v35, v5
+    v37 = xor v36, v6
+    v38 = xor v37, v7
+    v39 = xor v38, v8
+    v40 = xor v39, v9
+    v41 = xor v40, v10
+    v42 = xor v41, v11
+    v43 = xor v42, v12
+    v44 = xor v43, v13
+    v45 = xor v44, v14
+    v46 = xor v45, v15
+    v47 = xor v46, v16
+    v48 = xor v47, v17
+    v49 = xor v48, v18
+    v50 = xor v49, v19
+    v51 = xor v50, v20
+    v52 = xor v51, v21
+    v53 = xor v52, v22
+    v54 = xor v53, v23
+    v55 = xor v31, v54
+    ret v55
+}
+
+fn @misalignedStore(arg0: i256, arg1: i256) -> i256 [selector=0x208da339, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = keccak256_packed (uint256 arg0, uint256 17)
+    v18 = keccak256_packed (uint256 arg0, uint256 18)
+    v19 = keccak256_packed (uint256 arg0, uint256 19)
+    v20 = keccak256_packed (uint256 arg0, uint256 20)
+    v21 = keccak256_packed (uint256 arg0, uint256 21)
+    v22 = keccak256_packed (uint256 arg0, uint256 22)
+    v23 = keccak256_packed (uint256 arg0, uint256 23)
+    v24 = ne arg1, 0
+    jumpi v24, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v25 = mload 64 !metadata(memory=scratch)
+    mstore 80, v25 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    v26 = ne arg1, 0
+    jumpi v26, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v27 = icall @_copy, 0x400
+    v28 = mload v27
+    v29 = shl v28, 0
+    jump bb6
+  bb6:
+    v30 = phi [bb4: v29], [bb5: 0]
+    v31 = xor v0, v1
+    v32 = xor v31, v2
+    v33 = xor v32, v3
+    v34 = xor v33, v4
+    v35 = xor v34, v5
+    v36 = xor v35, v6
+    v37 = xor v36, v7
+    v38 = xor v37, v8
+    v39 = xor v38, v9
+    v40 = xor v39, v10
+    v41 = xor v40, v11
+    v42 = xor v41, v12
+    v43 = xor v42, v13
+    v44 = xor v43, v14
+    v45 = xor v44, v15
+    v46 = xor v45, v16
+    v47 = xor v46, v17
+    v48 = xor v47, v18
+    v49 = xor v48, v19
+    v50 = xor v49, v20
+    v51 = xor v50, v21
+    v52 = xor v51, v22
+    v53 = xor v52, v23
+    v54 = xor v30, v53
+    ret v54
+}
+
+fn @_stepBack(arg0: i256, arg1: i256) [pure] {
+  bb0:
+    v0 = eq arg1, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v1 = sub arg0, 32
+    mstore v1, 0
+    v2 = checked_sub uint256, arg0, 32
+    v3 = checked_sub uint256, arg1, 1
+    icall @_stepBack, v2, v3
+    ret
+  bb1:
+    ret
+}
+
+fn @_retag(arg0: i256, arg1: i256) -> ptr<memory> [pure] {
+  bb0:
+    v0 = ne arg1, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = inttoptr i256 arg0 to ptr<memory>
+    ret v3
+  bb1:
+    v1 = checked_sub uint256, arg1, 1
+    v2 = icall @_retag, arg0, v1
+    ret v2
+}
+
 fn @_copy(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

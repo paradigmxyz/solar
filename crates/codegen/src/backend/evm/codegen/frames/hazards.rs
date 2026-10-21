@@ -19,11 +19,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// The spill area's bounds are only fixed at frame layout, after the stackifier decides
     /// which values to keep out of it, so a write is protected unless its range is disjoint from
     /// the area whatever the layout: below the heap start, or a constant range, which layout
-    /// keeps the area clear of. A copy of a constant length is as unbounded as one of any other
+    /// keeps the area clear of, except in the constructor, whose layout only keeps it above
+    /// `constructor_floor`. A copy of a constant length is as unbounded as one of any other
     /// length when an input picks its destination, so a pass that folds the length changes
     /// nothing. [`Self::write_dest_may_reach_spills`] drops the destinations that provably lie
     /// on the heap or in a frame.
-    pub(in crate::backend::evm::codegen) fn dynamic_spill_write_dest(
+    pub(in crate::backend::evm::codegen) fn spill_write_dest(
         func: &Function,
         inst_id: InstId,
         constructor_floor: Option<u64>,
@@ -131,8 +132,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let candidates = func
             .instructions()
             .filter_map(|inst_id| {
-                Self::dynamic_spill_write_dest(func, inst_id, constructor_floor)
-                    .map(|dest| (inst_id, dest))
+                Self::spill_write_dest(func, inst_id, constructor_floor).map(|dest| (inst_id, dest))
             })
             .collect::<Vec<_>>();
         if candidates.is_empty() {
@@ -263,6 +263,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                         value,
                         &helpers,
                         &args[func_id],
+                        // A step back that a helper or a call chain repeats has no bound.
+                        0,
                         &mut visiting,
                         &mut memo,
                     ) == Some(true)
@@ -312,7 +314,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Returns `Some(grounded)` for a heap-pointer derivation. Recursive phi
     /// edges are provisionally valid but ungrounded; every accepted cycle must
-    /// also contain a concrete FMP, allocation, or qualified-helper origin.
+    /// also contain a root the match below accepts: the free memory pointer, an allocation, the
+    /// heap floor, a qualified helper's result, or a trusted argument.
     ///
     /// A pointer plus an offset stays on the heap only through the operands [`pointer_bases`]
     /// accepts.
@@ -329,6 +332,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             value,
             &self.heap_pointer_return_functions,
             &self.heap_pointer_args[func_id],
+            u64::MAX,
             visiting,
             memo,
         )
@@ -339,6 +343,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         value: ValueId,
         helper_returns: &DenseBitSet<FunctionId>,
         heap_args: &DenseBitSet<ArgIdx>,
+        max_step_back: u64,
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut FxHashMap<ValueId, bool>,
     ) -> Option<bool> {
@@ -361,6 +366,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 value,
                 helper_returns,
                 heap_args,
+                max_step_back,
                 visiting,
                 memo,
             )
@@ -387,7 +393,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::Add(..) | InstKind::PtrAdd(..) | InstKind::Sub(..) => {
                     // The heap prefix guard keeps a constant step back from a heap pointer clear
                     // of the spill area.
-                    let bases = pointer_bases(func, value, u64::MAX);
+                    let bases = pointer_bases(func, value, max_step_back);
                     bases.into_iter().find_map(|base| derive(base, visiting, memo))
                 }
                 InstKind::IntToPtr(base) | InstKind::PtrToInt(base, 256) => {

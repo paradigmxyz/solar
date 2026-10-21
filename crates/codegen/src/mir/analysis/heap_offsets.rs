@@ -31,7 +31,7 @@ pub(crate) fn pointer_bases(
     let mut bases = SmallVec::new();
     match func.inst(*inst).kind {
         // The compiler checked a memory object's offset against its bounds.
-        InstKind::Add(a, b) if func.inst(*inst).metadata.object_address() => {
+        InstKind::Add(a, b) if func.inst(*inst).metadata.checked_object_offset() => {
             bases.push(a);
             bases.push(b);
         }

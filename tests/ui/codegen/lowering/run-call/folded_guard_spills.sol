@@ -25,8 +25,7 @@
 // spill slots and the heap must stay clear of the write as they were for the symbolic operand. Each
 // function holds seventeen values across the guarded write, then allocates: the write and the
 // allocation reach the same low memory unless the compiler keeps its spills out of the way. The
-// guards fold only once a pass proves them, as #1997's equality propagation does, so these cases pass
-// on `main` and guard the backend against such a pass.
+// guards fold only once a pass proves them, so these cases guard the backend against such a pass.
 contract FoldedGuardSpills {
     function sized(uint256 a, uint256 flag, uint256) external pure returns (bytes32 result) {
         bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));

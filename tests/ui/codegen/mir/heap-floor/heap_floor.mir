@@ -781,8 +781,8 @@ fn @object_from_scratch() -> i256 [selector=0x12345692] {
     ret v3
 }
 
-// A word that a parameter, memory, or a call supplies is not proven to be a heap pointer: inlining
-// may fold it into a constant after this pass, so it is raised as a constant is.
+// A parameter that not every call fills with a heap pointer is not proven to be one: inlining may
+// fold it into a constant after this pass, so it is raised as a constant is.
 // CHECK-LABEL: {{^[ +].*}}fn @param_stored_as_pointer{{[( ]}}
 // CHECK: - mstore 64, arg0
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
