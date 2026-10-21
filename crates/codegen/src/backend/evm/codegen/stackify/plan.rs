@@ -1428,6 +1428,9 @@ impl<'a> Planner<'a> {
             return Ok(0);
         }
         bump(0);
+        CNT[11].fetch_add(sim.stack.len() as u64, Relaxed);
+        CNT[9].fetch_add(orders[0].len() as u64, Relaxed);
+        CNT[8].fetch_add(orders.len() as u64, Relaxed);
         // Every order holds the same operands.
         let dying_ops: SmallVec<[ValueId; 8]> =
             orders[0].iter().copied().filter(|&value| dying(value)).collect();
