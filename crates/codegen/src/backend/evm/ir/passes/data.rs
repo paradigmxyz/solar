@@ -191,14 +191,14 @@ impl DataPool {
         }
     }
 
-    fn placement(&self, data: &[u8]) -> Placement {
+    fn placement(&self, data: &Bytes) -> Placement {
         if let Some(&data) = self.exact.get(data) {
             return Placement::Existing(data);
         }
         if self.entries.len() >= MAX_DATA_SUBSTRING_ENTRIES {
             return Placement::New;
         }
-        let mut finder = NeedleFinder::new(data);
+        let mut finder = NeedleFinder::new(data.clone());
         for entry in &self.entries {
             if let Some(offset) = finder.find(&entry.bytes) {
                 return Placement::Existing(DataRef::new(entry.id, data_offset(offset)));
@@ -234,7 +234,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     };
     let mut pool = DataPool::new(&module.data);
     let mut prepared = Vec::new();
-    let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
+    let mut rejected = Vec::<(NeedleFinder, Vec<Rewrite>)>::new();
     for (data, rewrites) in groups {
         if data.iter().all(|&byte| byte == 0) {
             // Zero fills need no data, so each site stands alone.
@@ -254,9 +254,9 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
         let mut repeats = rewrites.iter().any(|rewrite| rewrite.repeats);
         let mut absorbed = Vec::new();
         for (index, (contained, contained_rewrites)) in
-            rejected.iter().take(MAX_DATA_SUBSTRING_ENTRIES).enumerate()
+            rejected.iter_mut().take(MAX_DATA_SUBSTRING_ENTRIES).enumerate()
         {
-            let Some(offset) = memmem::find(&data, contained) else {
+            let Some(offset) = contained.find(&data) else {
                 continue;
             };
             let contained_improvement = rewrite_improvement(contained_rewrites, 0);
@@ -267,7 +267,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
             }
         }
         if !is_profitable(&if repeats { runtime } else { creation }, improvement) {
-            rejected.push((data, rewrites));
+            rejected.push((NeedleFinder::new(data), rewrites));
             continue;
         }
 
@@ -709,7 +709,7 @@ fn find_data(
     needle_id: DataId,
 ) -> Option<DataRef> {
     let needle_bytes = needle.bytes.known()?;
-    let mut finder = NeedleFinder::new(needle_bytes);
+    let mut finder = NeedleFinder::new(needle_bytes.clone());
     data.iter_enumerated().find_map(|(id, known)| {
         if sources[id] >= needle_id {
             return None;
@@ -943,22 +943,27 @@ fn data_copy_is_bounded(module: &Module, data: DataRef, size: usize) -> bool {
 
 /// Finds one needle in several haystacks, building the long-haystack searcher that
 /// [`memmem::find`] would build for each at most once.
-struct NeedleFinder<'n> {
-    needle: &'n [u8],
-    finder: Option<memmem::Finder<'n>>,
+struct NeedleFinder {
+    needle: Bytes,
+    finder: Option<memmem::Finder<'static>>,
 }
 
-impl<'n> NeedleFinder<'n> {
-    fn new(needle: &'n [u8]) -> Self {
+impl NeedleFinder {
+    fn new(needle: Bytes) -> Self {
         Self { needle, finder: None }
     }
 
     fn find(&mut self, haystack: &[u8]) -> Option<usize> {
+        if haystack.len() < self.needle.len() {
+            return None;
+        }
         // `memmem::find` uses Rabin-Karp below this haystack length.
         if haystack.len() < 64 {
-            return memmem::find(haystack, self.needle);
+            return memmem::find(haystack, &self.needle);
         }
-        self.finder.get_or_insert_with(|| memmem::Finder::new(self.needle)).find(haystack)
+        self.finder
+            .get_or_insert_with(|| memmem::Finder::new(&self.needle).into_owned())
+            .find(haystack)
     }
 }
 
