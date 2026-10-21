@@ -229,6 +229,7 @@ pub(super) struct Planner<'a> {
     pending: FxHashMap<BlockId, Vec<Pending>>,
     /// The latest plain plan of a placement decision.
     plain_trial: Option<PlainTrial>,
+    /// The cost of each stack operation the planner emits most.
     stack_costs: StackOpCosts,
     /// The fork `place_result` tries each swap on.
     place_sim: Sim,
