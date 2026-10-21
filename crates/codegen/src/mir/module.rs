@@ -131,6 +131,9 @@ pub struct Module {
     /// The objective the contract's `@custom:solar-optimize` tag selects, which replaces the
     /// build's in optimized builds.
     pub(crate) optimize: Option<OptimizationMode>,
+    /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
+    /// of its runs.
+    pub(crate) tagged_inline_growth: usize,
 }
 
 impl Module {
@@ -195,6 +198,7 @@ impl Module {
             debug_info_tracked: false,
             lowered_checked: false,
             optimize: None,
+            tagged_inline_growth: 0,
         }
     }
 
