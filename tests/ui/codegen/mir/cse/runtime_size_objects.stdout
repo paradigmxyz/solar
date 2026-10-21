@@ -10,9 +10,8 @@
       v3 = ptradd v1, v2
       v4 = ptradd v3, 32
       mstore v4, 7
--     v5 = mload v0
--     ret v5
-+     ret arg1
+      v5 = mload v0
+      ret v5
   }
   
   fn @unchecked_header_may_overlap(arg0: i256, arg1: i256, arg2: i256) -> i256 {

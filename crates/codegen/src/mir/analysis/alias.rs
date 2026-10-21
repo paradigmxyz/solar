@@ -9,9 +9,11 @@
 //!
 //! An access keeps its allocation's identity while it stays inside the object: within the
 //! allocation's constant size, within the first word of a checked allocation, a Solidity object
-//! that always reserves one, or at a runtime index, which `ptradd` keeps inside. Any other access
-//! to a unique allocation may leave the object, so it keeps no disjointness from other objects,
-//! but it shares the allocation's pointer and compares with its other accesses by offset. An
+//! that always reserves one, or at a runtime index into an object of constant size, which `ptradd`
+//! keeps inside. An index into an object of runtime size is checked against a length word that
+//! inline assembly can enlarge past the allocation. That access, and any other that may leave a
+//! unique allocation, keeps no disjointness from other objects, but it shares the allocation's
+//! pointer and compares with its other accesses by offset. An
 //! access at the end of an object's payload, `p + 32 + len` in plain additions for a length
 //! stored into `p` before, as a zero word stored to pad a fresh result is, starts past the
 //! object's length word and may leave the object.
@@ -681,12 +683,14 @@ impl AliasAnalysis {
         let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else { return None };
         func.value_u64(index).is_none().then(|| {
             let base = self.memory_address(func, base)?.checked_add(address.offset)?;
-            // NOTE: `ptradd` keeps the access inside its object, so an indexed access keeps its
-            // allocation. A direct access that may leave a unique allocation compares with it by
-            // offset. A loop allocation of runtime size names both by its pointer value instead,
-            // or every indexed store would clobber the object's header words.
+            // NOTE: `ptradd` keeps the access inside its object, but the bounds check of an
+            // object of runtime size reads its length word, which inline assembly can enlarge past
+            // the allocation, so an indexed access may reach the next object. It is named by the
+            // allocation's pointer value, as a direct access that may leave a unique allocation
+            // is, which keeps no disjointness from other objects but compares with the
+            // allocation's other accesses by offset, so indexed stores leave the header words.
             match base.base {
-                MemoryBase::DynamicAllocation(inst)
+                MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst)
                     if Self::allocation_size(func, inst).is_none() =>
                 {
                     Self::unbounded_allocation(func, base, inst)

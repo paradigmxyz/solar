@@ -9,6 +9,14 @@
 //@ run-call: siftUp 7, 9 => [3, 7, 2, 10, 6, 105, 9], [2, 1, 5, 3, 4, 0, 6]
 //@ run-call: siftUp 16, 17 => [3, 7, 2, 10, 6, 0, 9, 5, 1, 8, 4, 111, 7, 3, 10, 6], [2, 1, 5, 3, 4, 11, 6, 7, 8, 9, 10, 0, 12, 13, 14, 15]
 //@ run-call-fail: siftUp 3, 6 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: siftValues 7, 7 => [3, 7, 2, 10, 6, 105, 9]
+//@ run-call: siftValues 7, 5 => [3, 7, 102, 10, 6, 2, 9]
+//@ run-call: siftValues 1, 1 => [100]
+//@ run-call: siftValues 12, 12 => [3, 7, 2, 10, 6, 0, 9, 5, 1, 8, 4, 111]
+//@ run-call: siftValues 12, 9 => [3, 7, 2, 10, 6, 105, 9, 5, 1, 8, 4, 0]
+//@ run-call: siftValues 7, 9 => [3, 7, 2, 10, 6, 105, 9]
+//@ run-call: siftValues 16, 17 => [3, 7, 2, 10, 6, 0, 9, 5, 1, 8, 4, 111, 7, 3, 10, 6]
+//@ run-call-fail: siftValues 3, 6 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 pragma solidity ^0.8.0;
 
 // A counted loop whose bound is not the length of the arrays it checks its accesses against
@@ -16,20 +24,42 @@ pragma solidity ^0.8.0;
 // A bound past a length runs the original loop, with its checks.
 contract Bounds {
     // A heap's sift loop runs up to the queue's size `e`, while every access checks its index
-    // against the length of an array that holds the queue. The copy runs behind
-    // `e <= values.length && e <= keys.length`, which both lengths read before the loop.
-    // CHECK-LABEL: fn @siftUp(
-    // CHECK: {{v[0-9]+}} = gt [[VALUES:v[0-9]+]], 0{{$}}
-    // CHECK-NEXT: jumpi {{v[0-9]+}}, {{bb[0-9]+}}, [[PANIC:bb[0-9]+]]
-    // CHECK: {{v[0-9]+}} = gt [[KEYS:v[0-9]+]], 0{{$}}
-    // CHECK: [[SHORT_VALUES:v[0-9]+]] = lt [[VALUES]], arg1
-    // CHECK-NEXT: [[SHORT_KEYS:v[0-9]+]] = lt [[KEYS]], arg1
-    // CHECK-NEXT: [[SHORT:v[0-9]+]] = or [[SHORT_VALUES]], [[SHORT_KEYS]]
+    // against the length of the array that holds the queue. The copy runs behind
+    // `e <= values.length`, which the loop reads before it starts; the array's own stores compare
+    // with its length word by offset, so they leave it unchanged.
+    // CHECK-LABEL: fn @siftValues(
+    // CHECK: [[SHORT:v[0-9]+]] = lt arg0, arg1
     // CHECK-NEXT: jumpi [[SHORT]], [[SLOW:bb[0-9]+]], [[FAST:bb[0-9]+]]
     // CHECK-NEXT: [[FAST]]:
-    // CHECK-NOT: [[PANIC]]
+    // CHECK-NOT: lt {{v[0-9]+}}, arg0
     // CHECK: [[SLOW]]:
-    // CHECK: jumpi {{v[0-9]+}}, {{bb[0-9]+}}, [[PANIC]]
+    // CHECK: lt {{v[0-9]+}}, arg0
+    function siftValues(uint256 m, uint256 e) external pure returns (uint256[] memory values) {
+        values = new uint256[](m);
+        for (uint256 i; i < m; ++i) {
+            values[i] = (i * 7) % 11;
+        }
+        values[0] = 100;
+        uint256 p;
+        for (uint256 c = 1; c < e; c = (p << 1) | 1) {
+            uint256 h = c >> 1;
+            uint256 cv = values[c];
+            if (c + 1 < e) {
+                uint256 rv = values[c + 1];
+                if (cv > rv) {
+                    cv = rv;
+                    ++c;
+                }
+            }
+            values[h] = cv;
+            p = c;
+        }
+        values[p] = 100 + p;
+    }
+
+    // With a second array of runtime size, a store into one array may reach the other's length
+    // word once inline assembly has enlarged a length past its allocation, so neither length is
+    // invariant in the loop and it keeps its checks.
     function siftUp(uint256 m, uint256 e)
         external
         pure

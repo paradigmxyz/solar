@@ -4,12 +4,14 @@
 @module RuntimeSizeObjects
 
 // A checked allocation is a Solidity object of at least one word, so its header
-// stays inside it even at a runtime size, and an indexed store, which `ptradd`
-// keeps inside the other object, cannot reach it.
+// stays inside it even at a runtime size. An indexed store into another object of
+// runtime size is checked against a length word that inline assembly can enlarge
+// past its allocation, though, so it may reach the header, which is loaded again.
 // CHECK-LABEL: @header_past_indexed_store
 // CHECK:       mstore [[HEADER:v[0-9]+]], arg1
-// CHECK: -     {{v[0-9]+}} = mload [[HEADER]]
-// CHECK: +     ret arg1
+// CHECK:       mstore {{v[0-9]+}}, 7
+// CHECK-NEXT:  [[LOAD:v[0-9]+]] = mload [[HEADER]]
+// CHECK-NEXT:  ret [[LOAD]]
 fn @header_past_indexed_store(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = alloc checked arg0
