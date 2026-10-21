@@ -164,9 +164,9 @@ const MAX_HEIGHT: usize = 21;
 /// Blocks an abort may span through direct jumps.
 const MAX_ABORT_JUMPS: usize = 4;
 /// Shards of the cache shared by all programs.
-const SHARED_SHARDS: usize = 16;
+const SHARED_SHARDS: usize = 64;
 /// Searches each shard of the shared cache keeps, which bounds its memory in a long-lived process.
-const SHARED_SHARD_CAPACITY: usize = 1 << 14;
+const SHARED_SHARD_CAPACITY: usize = 1 << 12;
 
 pub(super) struct StackReschedule;
 
@@ -398,11 +398,18 @@ fn reschedule_block(
 /// The schedules found for runs, by their instructions and search budget.
 type Schedules = FxHashMap<(SmallVec<[RunKey; 24]>, Budget), Option<Vec<Move>>>;
 
-/// The results of every search in the process, by [`search_key`]. A search is a function of its
-/// key, so threads may race to fill an entry and every program may read any entry.
-static SHARED_SCHEDULES: LazyLock<
-    [RwLock<FxHashMap<Box<[u8]>, Option<Box<[Move]>>>>; SHARED_SHARDS],
-> = LazyLock::new(|| std::array::from_fn(|_| RwLock::default()));
+/// One shard of the schedules shared by all programs: moves by [`search_key`]. Each shard has
+/// cache lines of its own, so threads on different shards do not contend.
+#[derive(Default)]
+#[repr(align(128))]
+struct SharedShard(RwLock<SharedMoves>);
+
+type SharedMoves = FxHashMap<Box<[u8]>, Option<Box<[Move]>>>;
+
+/// The results of every search in the process. A search is a function of its key, so threads may
+/// race to fill an entry and every program may read any entry.
+static SHARED_SCHEDULES: LazyLock<[SharedShard; SHARED_SHARDS]> =
+    LazyLock::new(|| std::array::from_fn(|_| SharedShard::default()));
 
 /// What the pass keeps across runs: the schedules found and the search's buffers.
 #[derive(Default)]
@@ -1307,11 +1314,11 @@ fn shared_search(
 ) -> Option<Vec<Move>> {
     let key = search_key(summary, target, budget);
     let shard = &SHARED_SCHEDULES[FxBuildHasher.hash_one(&key[..]) as usize % SHARED_SHARDS];
-    if let Some(moves) = shard.read().unwrap().get(&key[..]) {
+    if let Some(moves) = shard.0.read().unwrap().get(&key[..]) {
         return moves.as_deref().map(<[Move]>::to_vec);
     }
     let moves = search(summary, target, budget, buffers);
-    let mut shard = shard.write().unwrap();
+    let mut shard = shard.0.write().unwrap();
     if shard.len() < SHARED_SHARD_CAPACITY {
         shard.insert(key.as_slice().into(), moves.as_deref().map(Box::from));
     }
@@ -1335,7 +1342,7 @@ fn search_key(run: &Run, target: &Target, budget: Budget) -> SmallVec<[u8; 192]>
     for operation in &run.operations {
         key.extend([
             u8::from(operation.produces) | u8::from(operation.swapped.is_some()) << 1,
-            operation.after.map_or(u8::MAX, |after| after),
+            operation.after.unwrap_or(u8::MAX),
             operation.operands.len() as u8,
         ]);
         for &operand in &operation.operands {
