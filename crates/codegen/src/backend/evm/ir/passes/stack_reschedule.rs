@@ -165,8 +165,10 @@ const WORD_BITS: u32 = 6;
 const MAX_HEIGHT: usize = 21;
 /// Blocks an abort may span through direct jumps.
 const MAX_ABORT_JUMPS: usize = 4;
+/// Bits of a key's hash that pick its shard of the cache shared by all programs.
+const SHARED_SHARD_BITS: u32 = 6;
 /// Shards of the cache shared by all programs.
-const SHARED_SHARDS: usize = 64;
+const SHARED_SHARDS: usize = 1 << SHARED_SHARD_BITS;
 /// Searches each shard of the shared cache keeps, which bounds its memory in a long-lived process.
 const SHARED_SHARD_CAPACITY: usize = 1 << 12;
 
@@ -814,7 +816,9 @@ fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> 
     }
     // Runs the search would take up are looked up, and stored after it, in the shared schedules.
     let key = search_key(run, [dup, swap, pop, budget], limits);
-    let shard = &SHARED_SCHEDULES[FxBuildHasher.hash_one(&key[..]) as usize % SHARED_SHARDS];
+    // The shard takes the hash's high bits, as its table indexes by the low ones.
+    let shard = &SHARED_SCHEDULES
+        [(FxBuildHasher.hash_one(&key[..]) >> (u64::BITS - SHARED_SHARD_BITS)) as usize];
     if let Some(moves) = shard.0.read().get(&key[..]) {
         return moves.as_deref().map(<[Move]>::to_vec);
     }
@@ -1323,8 +1327,8 @@ fn schedule(
 
 /// Everything [`search`] reads of a run, its budget and its target, as bytes: the operands,
 /// ordering and exit words, the prices of moves, the run and its constants, and the budget's
-/// limits. It leaves
-/// out which opcodes and immediates the run holds, which a schedule does not depend on.
+/// limits. It leaves out which opcodes and immediates the run holds, which a schedule does not
+/// depend on.
 fn search_key(run: &Run, prices: [u64; 4], budget: Budget) -> SmallVec<[u8; 192]> {
     let mut key = SmallVec::new();
     let word = |key: &mut SmallVec<[u8; 192]>, word: Word| match word {
