@@ -2,54 +2,98 @@
 //@ filecheck:
 @module PayloadEnd
 
-// A word stored at the end of a fresh object's payload, `p + 32 + len` for a length its
-// allocation's block stored, as a port pads its result with a zero word, starts past the length
-// word: the length stays known.
+// A word stored at the end of a fresh object's payload, `p + 32 + len` for a length below `2^64`
+// its allocation's block stored, as a port pads its result with a zero word, starts past the
+// length word: the length stays known.
 // CHECK-LABEL: fn @pad_fresh
+// CHECK: [[LEN:v[0-9]+]] = and arg0, 0xffffffffffffffff
 // CHECK: mstore {{v[0-9]+}}, 0
 // CHECK-NEXT: -{{ +}}{{v[0-9]+}} = mload
-// CHECK: +{{ +}}ret arg0
+// CHECK: +{{ +}}ret [[LEN]]
 fn @pad_fresh(arg0: i256) -> i256 {
   bb0:
-    v0 = add arg0, 63
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v2 = alloc zeroed checked v1
-    mstore v2, arg0
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    v5 = add v4, arg0
-    mstore v5, 0
-    v6 = mload v2
-    ret v6
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = add v0, 63
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    mstore v3, v0
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v4, 32
+    v6 = add v5, v0
+    mstore v6, 0
+    v7 = mload v3
+    ret v7
 }
 
 // The padding may spell the length as a load of the length word, in the other association.
 // CHECK-LABEL: fn @pad_length_word
+// CHECK: [[LEN:v[0-9]+]] = and arg0, 0xffffffffffffffff
 // CHECK: mstore {{v[0-9]+}}, 0
 // CHECK-NEXT: -{{ +}}{{v[0-9]+}} = mload
-// CHECK: +{{ +}}ret arg0
+// CHECK: +{{ +}}ret [[LEN]]
 fn @pad_length_word(arg0: i256) -> i256 {
   bb0:
-    v0 = add arg0, 63
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v2 = alloc zeroed checked v1
-    mstore v2, arg0
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = add v0, 63
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    mstore v3, v0
     jump bb1
   bb1:
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = mload v2
-    v5 = add v3, v4
-    v6 = add v5, 32
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = mload v3
+    v6 = add v4, v5
+    v7 = add v6, 32
+    mstore v7, 0
+    v8 = mload v3
+    ret v8
+}
+
+// A trusted assembly block that shortens an object to a length it bounds stores the length, then
+// pads it.
+// CHECK-LABEL: fn @truncate_bounded
+// CHECK: [[LEN:v[0-9]+]] = and arg1, 0xffffffff
+// CHECK: mstore {{v[0-9]+}}, 0
+// CHECK-NEXT: -{{ +}}{{v[0-9]+}} = mload arg0
+// CHECK: +{{ +}}ret [[LEN]]
+fn @truncate_bounded(arg0: ptr<memory>, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg1, 0xffffffff
+    mstore arg0, v0
+    v1 = ptrtoint ptr<memory> arg0 to i256
+    v2 = add v1, 32
+    v3 = add v2, v0
+    mstore v3, 0
+    v4 = mload arg0
+    ret v4
+}
+
+// So does a length an opcode declares narrower than a word, as `calldatasize`.
+// CHECK-LABEL: fn @pad_calldata
+// CHECK: [[LEN:v[0-9]+]] = calldatasize
+// CHECK: mstore {{v[0-9]+}}, 0
+// CHECK-NEXT: -{{ +}}{{v[0-9]+}} = mload
+// CHECK: +{{ +}}ret [[LEN]]
+fn @pad_calldata() -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = add v0, 63
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    mstore v3, v0
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v4, 32
+    v6 = add v5, v0
     mstore v6, 0
-    v7 = mload v2
+    v7 = mload v3
     ret v7
 }
 
-// A trusted assembly block that shortens an object stores its new length, then pads it.
-// CHECK-LABEL: fn @truncate
-// CHECK: mstore {{v[0-9]+}}, 0
-// CHECK-NEXT: -{{ +}}{{v[0-9]+}} = mload arg0
-// CHECK: +{{ +}}ret arg1
+// A length nothing bounds may be any word: from `2^256 - 32 - p` on, the padding wraps around
+// onto the length word, which is read again.
+// CHECK-LABEL: fn @truncate(
+// CHECK-NOT: -{{ +}}{{v[0-9]+}} = mload
+// CHECK: ret
 fn @truncate(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
     mstore arg0, arg1
@@ -61,12 +105,11 @@ fn @truncate(arg0: ptr<memory>, arg1: i256) -> i256 {
     ret v3
 }
 
-// A store past the padding keeps no length known, and nor does an offset that no stored length
-// gives: either may wrap around onto the length word.
-// CHECK-LABEL: fn @unknown_offset
+// So may a fresh object's, whose allocation bounds the length only behind a panic.
+// CHECK-LABEL: fn @pad_unbounded
 // CHECK-NOT: -{{ +}}{{v[0-9]+}} = mload
 // CHECK: ret
-fn @unknown_offset(arg0: i256, arg1: i256) -> i256 {
+fn @pad_unbounded(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 63
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -74,15 +117,35 @@ fn @unknown_offset(arg0: i256, arg1: i256) -> i256 {
     mstore v2, arg0
     v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    v5 = add v4, arg1
+    v5 = add v4, arg0
     mstore v5, 0
     v6 = mload v2
-    v7 = add v3, 64
-    v8 = add v7, arg0
-    mstore v8, 0
-    v9 = mload v2
-    v10 = add v6, v9
-    ret v10
+    ret v6
+}
+
+// A store past the padding keeps no length known, and nor does an offset that no stored length
+// gives: either may wrap around onto the length word.
+// CHECK-LABEL: fn @unknown_offset
+// CHECK-NOT: -{{ +}}{{v[0-9]+}} = mload
+// CHECK: ret
+fn @unknown_offset(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = add v0, 63
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    mstore v3, v0
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v4, 32
+    v6 = add v5, arg1
+    mstore v6, 0
+    v7 = mload v3
+    v8 = add v4, 64
+    v9 = add v8, v0
+    mstore v9, 0
+    v10 = mload v3
+    v11 = add v7, v10
+    ret v11
 }
 
 // The length must be stored before the address is formed.
@@ -91,39 +154,42 @@ fn @unknown_offset(arg0: i256, arg1: i256) -> i256 {
 // CHECK: ret
 fn @stored_after(arg0: i256) -> i256 {
   bb0:
-    v0 = add arg0, 63
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v2 = alloc zeroed checked v1
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    v5 = add v4, arg0
-    mstore v2, arg0
-    mstore v5, 0
-    v6 = mload v2
-    ret v6
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = add v0, 63
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v4, 32
+    v6 = add v5, v0
+    mstore v3, v0
+    mstore v6, 0
+    v7 = mload v3
+    ret v7
 }
 
 // The padding may reach the next object, whose length must be read again.
 // CHECK-LABEL: fn @next_object
+// CHECK: [[LEN:v[0-9]+]] = and arg0, 0xffffffffffffffff
 // CHECK: mstore {{v[0-9]+}}, 0
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = mload
-// CHECK: +{{ +}}{{v[0-9]+}} = add arg0, {{v[0-9]+}}
+// CHECK: +{{ +}}{{v[0-9]+}} = add [[LEN]], {{v[0-9]+}}
 fn @next_object(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v0 = add arg0, 63
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v2 = alloc zeroed checked v1
-    v3 = alloc 32
-    mstore v2, arg0
-    mstore v3, arg1
-    v4 = ptrtoint ptr<memory> v2 to i256
-    v5 = add v4, 32
-    v6 = add v5, arg0
-    mstore v6, 0
-    v7 = mload v3
-    v8 = mload v2
-    v9 = add v8, v7
-    ret v9
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = add v0, 63
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    v4 = alloc 32
+    mstore v3, v0
+    mstore v4, arg1
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, 32
+    v7 = add v6, v0
+    mstore v7, 0
+    v8 = mload v4
+    v9 = mload v3
+    v10 = add v9, v8
+    ret v10
 }
 
 // The padding stays above the free memory pointer, so allocations after it keep their own
@@ -133,18 +199,19 @@ fn @next_object(arg0: i256, arg1: i256) -> i256 {
 // CHECK: +{{ +}}ret arg1
 fn @later_allocations(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = add arg0, 63
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v2 = alloc zeroed checked v1
-    mstore v2, arg0
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    v5 = add v4, arg0
-    mstore v5, 0
-    v6 = alloc 32
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = add v0, 63
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc zeroed checked v2
+    mstore v3, v0
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v4, 32
+    v6 = add v5, v0
+    mstore v6, 0
     v7 = alloc 32
-    mstore v6, arg1
-    mstore v7, arg2
-    v8 = mload v6
-    ret v8
+    v8 = alloc 32
+    mstore v7, arg1
+    mstore v8, arg2
+    v9 = mload v7
+    ret v9
 }
