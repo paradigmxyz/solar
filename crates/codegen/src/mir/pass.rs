@@ -25,11 +25,12 @@ use crate::{
     },
     target::Target,
 };
+use either::Either;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap, sync};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_sema::Gcx;
-use std::{any::TypeId, cell::Cell, rc::Rc, sync::Arc};
+use std::{any::TypeId, cell::Cell, convert::Infallible, rc::Rc, sync::Arc};
 
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
 
@@ -498,18 +499,28 @@ fn run_function_pass_with(
     requirements: FunctionAnalysisRequirements,
     run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> bool {
-    run_function_pass_with_cache(module, analyses, requirements, None, run)
+    run_function_pass_with_cache(module, analyses, None, requirements, None, run)
 }
 
 fn run_function_pass_with_cache(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
+    selected: Option<&DenseBitSet<FunctionId>>,
     requirements: FunctionAnalysisRequirements,
     cache_key: Option<TypeId>,
     run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> bool {
+    if let Some(changed) =
+        run_parallel_function_pass(module, analyses, selected, requirements, cache_key, run)
+    {
+        return changed;
+    }
+    let functions = match selected {
+        Some(selected) => Either::Left(selected.iter()),
+        None => Either::Right(module.functions.indices()),
+    };
     let mut changed = false;
-    for func_id in module.functions.indices() {
+    for func_id in functions {
         if module.functions[func_id].blocks.is_empty() {
             continue;
         }
@@ -528,10 +539,10 @@ pub(crate) fn run_selected_function_pass(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_selected_function_pass_with(
+    run_function_pass_with_cache(
         module,
         analyses,
-        selected,
+        Some(selected),
         FunctionAnalysisRequirements::CFG,
         None,
         &run,
@@ -546,10 +557,10 @@ pub(crate) fn run_selected_function_pass_with_alias_and_cfg(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_selected_function_pass_with(
+    run_function_pass_with_cache(
         module,
         analyses,
-        selected,
+        Some(selected),
         FunctionAnalysisRequirements::ALL,
         None,
         &run,
@@ -566,10 +577,10 @@ pub(crate) fn run_selected_function_pass_cached<P: 'static>(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_selected_function_pass_with(
+    run_function_pass_with_cache(
         module,
         analyses,
-        selected,
+        Some(selected),
         FunctionAnalysisRequirements::CFG,
         Some(TypeId::of::<P>()),
         &run,
@@ -584,34 +595,14 @@ pub(crate) fn run_selected_function_pass_without_analyses_cached<P: 'static>(
     selected: &DenseBitSet<FunctionId>,
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
-    run_selected_function_pass_with(
+    run_function_pass_with_cache(
         module,
         analyses,
-        selected,
+        Some(selected),
         FunctionAnalysisRequirements::NONE,
         Some(TypeId::of::<P>()),
         &run,
     )
-}
-
-fn run_selected_function_pass_with(
-    module: &mut Module,
-    analyses: &mut ModuleAnalyses,
-    selected: &DenseBitSet<FunctionId>,
-    requirements: FunctionAnalysisRequirements,
-    cache_key: Option<TypeId>,
-    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
-) -> bool {
-    let mut changed = false;
-    for func_id in selected.iter() {
-        if module.functions[func_id].blocks.is_empty() {
-            continue;
-        }
-        changed |=
-            run_function_pass_cached(analyses, module, func_id, requirements, cache_key, run);
-    }
-    analyses.preserved_by_pass = true;
-    changed
 }
 
 /// Per-function analysis snapshots handed to a pass run.
@@ -661,6 +652,10 @@ impl FunctionAnalyses {
     }
 }
 
+/// The fewest instructions, summed over the functions a pass runs on, that repay handing them
+/// to idle workers.
+const MIN_PARALLEL_INSTRUCTIONS: usize = 1024;
+
 #[derive(Clone, Copy)]
 struct FunctionAnalysisRequirements(u8);
 
@@ -695,6 +690,8 @@ pub struct ModuleAnalyses {
     local_summaries: LocalSummaryCache,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
+    /// Whether function-local passes may run on several threads.
+    parallel: bool,
     /// Whether the running pass prices creation code differently, which only the gas objective
     /// does.
     prices_creation: bool,
@@ -705,6 +702,11 @@ pub struct ModuleAnalyses {
 }
 
 impl ModuleAnalyses {
+    /// Creates empty analyses; `parallel` lets function-local passes use idle workers.
+    pub(crate) fn new(parallel: bool) -> Self {
+        Self { parallel, ..Default::default() }
+    }
+
     /// Stops this pipeline after a pass emits a diagnostic.
     pub fn fail(&mut self, error: ErrorGuaranteed) {
         self.error = Some(error);
@@ -756,13 +758,7 @@ impl ModuleAnalyses {
         module: &Module,
         requirements: FunctionAnalysisRequirements,
     ) -> FunctionAnalyses {
-        let (creation_only, straight_line_creation) = if self.prices_creation {
-            let (creation, straight) =
-                self.creation_functions.get_or_insert_with(|| module.creation_pricing_functions());
-            (creation.contains(func_id), straight.contains(func_id))
-        } else {
-            (false, false)
-        };
+        let (creation_only, straight_line_creation) = self.creation_pricing(func_id, module);
         FunctionAnalyses {
             alias: requirements.alias().then(|| {
                 if let Some(alias) = self.alias.get(&func_id) {
@@ -776,6 +772,17 @@ impl ModuleAnalyses {
             creation_only,
             straight_line_creation,
         }
+    }
+
+    /// Returns whether a function is creation-only and whether, besides, it has no loop, when
+    /// the running pass prices creation code differently.
+    fn creation_pricing(&mut self, func_id: FunctionId, module: &Module) -> (bool, bool) {
+        if !self.prices_creation {
+            return (false, false);
+        }
+        let (creation, straight) =
+            self.creation_functions.get_or_insert_with(|| module.creation_pricing_functions());
+        (creation.contains(func_id), straight.contains(func_id))
     }
 
     /// Returns the module call summaries, computing them on first use. A pass that changes
@@ -910,4 +917,150 @@ fn run_function_pass_cached(
     }
     analyses.record_function_result(func_id, module.functions.len(), cache_key, changed);
     changed
+}
+
+/// What a function task hands back to the thread that owns the caches.
+struct FunctionOutcome {
+    changed: bool,
+    unreported_edit: bool,
+    keep_alias: bool,
+    cfg: Option<CfgInfo>,
+    alias: Option<AliasAnalysis>,
+}
+
+/// Runs a function-local transform on its functions with the help of idle workers, when the
+/// pipeline is parallel and the functions are large enough. Returns `None` to run serially.
+///
+/// The results equal the serial ones: each task owns its function's analysis snapshots, and
+/// the caches change in function order after the tasks finish.
+fn run_parallel_function_pass(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    selected: Option<&DenseBitSet<FunctionId>>,
+    requirements: FunctionAnalysisRequirements,
+    cache_key: Option<TypeId>,
+    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
+) -> Option<bool> {
+    if !analyses.parallel {
+        return None;
+    }
+    let functions = module.functions.len();
+    let mut runnable = DenseBitSet::new_empty(functions);
+    let mut work = 0;
+    for (id, func) in module.functions.iter_enumerated() {
+        if !func.blocks.is_empty()
+            && selected.is_none_or(|selected| selected.contains(id))
+            && !cache_key.is_some_and(|key| analyses.function_cached(key, id, functions))
+        {
+            runnable.insert(id);
+            work += func.num_insts();
+        }
+    }
+    if work < MIN_PARALLEL_INSTRUCTIONS || runnable.count() < 2 {
+        return None;
+    }
+    // A snapshot that a pass still shares cannot move to a task.
+    if requirements.alias()
+        && runnable
+            .iter()
+            .any(|id| analyses.alias.get(&id).is_some_and(|alias| Rc::strong_count(alias) != 1))
+    {
+        return None;
+    }
+
+    // Creation pricing is the module's at the pass's start, as in a serial pass.
+    let pricing = module
+        .functions
+        .indices()
+        .map(|id| analyses.creation_pricing(id, module))
+        .collect::<IndexVec<FunctionId, _>>();
+    // A serial pass builds the call summaries when it first meets a function without an alias
+    // snapshot, from the module as the functions before it left it.
+    let first_missing = requirements
+        .alias()
+        .then(|| runnable.iter().find(|id| !analyses.alias.contains_key(id)))
+        .flatten();
+    let mut changed = false;
+    if analyses.call_summaries.is_none()
+        && let Some(first_missing) = first_missing
+    {
+        for id in runnable.iter().take_while(|&id| id < first_missing).collect::<Vec<_>>() {
+            changed |= run_function_pass_cached(analyses, module, id, requirements, cache_key, run);
+            runnable.remove(id);
+        }
+    }
+    let summaries = first_missing.map(|_| analyses.call_summaries(module));
+
+    let tasks = module
+        .functions
+        .iter_mut_enumerated()
+        .filter(|&(id, _)| runnable.contains(id))
+        .map(|(id, func)| {
+            let cfg = requirements.cfg().then(|| {
+                analyses.cfg.remove(&id).map_or_else(|| CfgInfo::new(func), Rc::unwrap_or_clone)
+            });
+            let alias = requirements.alias().then(|| {
+                analyses.alias.remove(&id).map_or_else(
+                    || AliasAnalysis::empty_with_summaries(Arc::clone(summaries.as_ref().unwrap())),
+                    |alias| Rc::try_unwrap(alias).ok().expect("alias snapshot is unshared"),
+                )
+            });
+            (id, func, alias, cfg, pricing[id])
+        })
+        .collect::<Vec<_>>();
+    let results = sync::par_try_map(
+        true,
+        tasks,
+        |(id, func, alias, cfg, (creation_only, straight_line_creation))| {
+            let bundle = FunctionAnalyses {
+                alias: alias.map(Rc::new),
+                cfg: cfg.map(Rc::new),
+                unreported_edit: Cell::new(false),
+                creation_only,
+                straight_line_creation,
+            };
+            let insts_before = func.num_insts();
+            let changed = run(func, &bundle);
+            let (keep_alias, keep_cfg) = match &bundle.cfg {
+                _ if !changed => (true, true),
+                Some(cfg) => verified_preservation(func, cfg, insts_before),
+                None => (false, false),
+            };
+            let alias = bundle.alias.filter(|_| keep_alias).map(|alias| {
+                if changed {
+                    alias.clear_cached_addresses();
+                }
+                Rc::try_unwrap(alias).ok().expect("pass released its alias snapshot")
+            });
+            Ok::<_, Infallible>((
+                id,
+                FunctionOutcome {
+                    changed,
+                    unreported_edit: bundle.unreported_edit.get(),
+                    keep_alias,
+                    cfg: bundle.cfg.filter(|_| keep_cfg).map(Rc::unwrap_or_clone),
+                    alias,
+                },
+            ))
+        },
+    )
+    .unwrap_or_else(|never| match never {});
+    for (id, outcome) in results {
+        if outcome.unreported_edit {
+            analyses.local_summaries.invalidate(id);
+        }
+        if outcome.changed {
+            analyses.retain(id, outcome.keep_alias, false);
+        }
+        if let Some(cfg) = outcome.cfg {
+            analyses.cfg.insert(id, Rc::new(cfg));
+        }
+        if let Some(alias) = outcome.alias {
+            analyses.alias.insert(id, Rc::new(alias));
+        }
+        analyses.record_function_result(id, functions, cache_key, outcome.changed);
+        changed |= outcome.changed;
+    }
+    analyses.preserved_by_pass = true;
+    Some(changed)
 }
