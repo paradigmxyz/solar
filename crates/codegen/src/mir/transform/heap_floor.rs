@@ -192,7 +192,7 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
                         }
                         (false, _) => {}
                     }
-                } else if uses.may_write_slot(func_id, inst_id) {
+                } else if module.has_inline_assembly() && uses.may_write_slot(func_id, inst_id) {
                     // The write may leave any word in the slot, which only the pointer reads
                     // after it can clamp.
                     uses.clamp_pointer_reads(func_id, block, index + 1, &mut clamps);

@@ -790,7 +790,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   a heap pointer only when every return of its callee is one, and a word loaded
   from memory never does. The constructor's spill area lies above its staging
   area and not above fixed ranges, so a write to one above that area counts
-  as such a write there. This costs memory expansion gas and code size.
+  as such a write there. A contract without inline assembly has none of these
+  writes, as the compiler places each write it makes at a computed address on
+  the heap or in a frame, so it pays nothing. This costs memory expansion gas
+  and code size.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,

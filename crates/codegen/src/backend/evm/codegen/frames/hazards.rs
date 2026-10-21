@@ -115,18 +115,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         bound
     }
 
-    /// Collects symbolic low-memory clobbers that can overwrite the spill
-    /// area. This includes variable-length copy opcodes and call return
-    /// buffers. Alias analysis excludes destinations rooted at the free-memory
-    /// pointer, allocations, or internal frames. A single-word store does not
-    /// need the forwarding-buffer protocol: its exact runtime address does
-    /// not create an unbounded clobber range, unless it is repeated through a
-    /// loop-carried pointer that starts below the spill area and sweeps it.
+    /// Collects the writes that can overwrite the spill area: stores, zeroing, copies of any
+    /// length, and call return buffers whose destination [`Self::write_dest_may_reach_spills`]
+    /// cannot place on the heap or in a frame. A module without inline assembly keeps only the
+    /// writes to constant destinations, since the compiler places its own writes.
     pub(in crate::backend::evm::codegen) fn compute_spill_hazard_insts(
         &self,
         func_id: FunctionId,
         func: &Function,
         constructor_floor: Option<u64>,
+        inline_assembly: bool,
     ) -> FxHashSet<InstId> {
         let mut hazards = FxHashSet::default();
         let candidates = func
@@ -134,6 +132,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             .filter_map(|inst_id| {
                 Self::spill_write_dest(func, inst_id, constructor_floor).map(|dest| (inst_id, dest))
             })
+            // Without inline assembly, the compiler places every write it makes at a computed
+            // address on the heap or in a frame.
+            .filter(|&(_, dest)| inline_assembly || func.value_u64(dest).is_some())
             .collect::<Vec<_>>();
         if candidates.is_empty() {
             return hazards;

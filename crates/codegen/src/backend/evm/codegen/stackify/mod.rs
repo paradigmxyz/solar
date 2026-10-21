@@ -531,7 +531,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         summaries.resize(functions, None);
         for &func_id in &bodies {
             let func = &module.functions[func_id];
-            hazards[func_id] = self.compute_spill_hazard_insts(func_id, func, constructor_floor);
+            hazards[func_id] = self.compute_spill_hazard_insts(
+                func_id,
+                func,
+                constructor_floor,
+                module.has_inline_assembly(),
+            );
             if !info.returning.contains(func_id) {
                 continue;
             }
