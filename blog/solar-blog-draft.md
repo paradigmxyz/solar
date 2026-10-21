@@ -33,13 +33,13 @@ We compiled popular codebases with every Solidity compiler we could find, using 
 
 *Median of five runs on a dedicated AMD EPYC 9254 server. Every compiler gets the same settings: the via-IR pipeline and the Cancun EVM target, the one configuration they all accept. "Fails" means the compiler gave up, mostly with "stack too deep".*
 
-Solar is 80× faster than solc on average with these settings, and still 30× faster when each project keeps its own settings, where many use solc's quicker legacy pipeline. It also needs a fraction of the memory: 322 MiB to build Solady, where solc needs 2.7 GiB. Solar uses all your cores, but even on a single thread it compiles Morpho Blue 27× faster than solc.
+Across eight projects, including smaller ones not shown here, Solar is 80× faster than solc on average with these settings, and still 30× faster when each project keeps its own settings, where many use solc's quicker legacy pipeline. It also needs a fraction of the memory: 322 MiB to build Solady, where solc needs 2.7 GiB. Solar uses all your cores, but even on a single thread it compiles Morpho Blue over 20× faster than solc.
 
 # Solar makes your contracts cheaper.
 
 A fast compiler is only useful if its output is good. So we built a [benchmark suite](https://github.com/paradigmxyz/solar/tree/main/benches/runtime) from real contracts by OpenZeppelin, Solady, Aave, Arbitrum, Maple, Tempo and others. For each one, we deploy every compiler's bytecode to a local node, replay the same transactions, and check that all of them return the same results.
 
-With each project's own settings, Solar beats solc on every one of these workloads. Its contracts cost 26% less to deploy and are 30% smaller, and each transaction uses 4.1% less gas, even counting the 21,000 gas every transaction pays before running any code. The more work a contract does, the bigger the savings: OpenZeppelin's P256 signature verification uses 15% less gas, and Solady's string library 13.5% less.
+With each project's own settings, Solar beats solc on every one of these workloads. Its contracts cost 26% less to deploy and are 30% smaller, and each transaction uses 4.1% less gas, even counting the 21,000 gas every transaction pays before running any code. Compute-heavy code gains the most: OpenZeppelin's P256 signature verification uses 15% less gas, and Solady's string library 13.5% less.
 
 Developers have learned to hand-optimize around the compiler, and Solar makes much of that unnecessary. Take the first example from [solx's launch post](https://paragraph.com/@zksync/solx-the-new-solidity-compiler-why-it-matters-to-you), a factorial that writes to storage on every iteration:
 
@@ -60,7 +60,7 @@ solx needed `unchecked` math to move the storage write out of the loop. Solar do
 
 # How does Solar compare?
 
-We are glad to see more teams investing in Solidity compilers. We measured solc, [solx](https://github.com/NomicFoundation/solx) from the Nomic Foundation (the team behind Hardhat), the October preview of its upcoming Slang-based rewrite, and [oksolc](https://github.com/okcontract/oksolc), a port of solc to Zig, all on the same inputs. Solar compiles whole projects 14–19× faster than each of them, and produces cheaper and smaller code on average. The full results are in our [benchmark suite](https://github.com/paradigmxyz/solar/tree/main/benches/runtime).
+We are glad to see more teams investing in Solidity compilers. We measured solc, [solx](https://github.com/NomicFoundation/solx) from the Nomic Foundation (the team behind Hardhat), the October preview of its upcoming Slang-based rewrite, and [oksolc](https://github.com/okcontract/oksolc), a port of solc to Zig, all on the same inputs. With the shared settings above, Solar compiles whole projects 14–19× faster than solx, its Slang preview and oksolc, and 80× faster than solc, and produces cheaper and smaller code on average. The full results are in our [benchmark suite](https://github.com/paradigmxyz/solar/tree/main/benches/runtime).
 
 # With Solar, safe Solidity beats assembly.
 
@@ -68,7 +68,7 @@ Today, the cheapest Solidity is written in inline assembly with `unchecked` math
 
 To test that idea, we rewrote Solady in plain, checked Solidity ([safe Solady](https://github.com/djolertrk/solady/tree/feat/safe-solady-natspec) [move to paradigmxyz before publishing]). Assembly and `unchecked` remain only in small functions tagged for review, which do what Solidity cannot express, such as reading a raw storage slot or bubbling up a revert. The rewrite keeps every function Solady exposes.
 
-We then ran Solady's own test suite against both versions. They produce the same results, and compiled with Solar, safe Solady uses **19% less gas** than the original assembly compiled with solc, cheaper in nearly every test.
+We then ran Solady's own test suite against both versions. They produce the same results. Compiled with Solar, safe Solady uses **19% less gas** per test on average than the original assembly compiled with solc, and it is cheaper in nearly every test.
 
 Readable, checked code that is cheaper than hand-written assembly. That is what a compiler should give you.
 
