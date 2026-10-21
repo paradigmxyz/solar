@@ -39,19 +39,29 @@
 //! rejects the inline assembly of a function body that a modifier's `_` runs inside it. Scalars,
 //! such as hashes, lengths, and loaded words, leave the block freely.
 //!
+//! The free memory pointer that code before the block reads, as inline assembly does, points at
+//! the memory the block then allocates. The check rejects a use of it, or of a value derived from
+//! it, that may run after the block ends normally, unless the path there reads the pointer again.
+//! It does not follow whether assembly reserved memory at that pointer first.
+//!
 //! The check runs on the contract's MIR right after lowering, before any pass, once the internal
 //! function pointer dispatchers exist, so every body a call in the block may run is summarized.
 //! It only reads the MIR: code without the tag lowers as before.
 //!
 //! NOTE: reading `msize` after the block sees the memory the block used, as it would without
-//! reuse.
+//! reuse. Only the function's own reads of the free memory pointer are followed: a pointer to free
+//! memory that a callee returns, or that assembly derives from other addresses, such as past an
+//! object's end, may point at the block's memory as well.
 
 use super::{memory_facts::Analyzed, *};
 use crate::mir::{
     ArgIdx, Callee, EffectKind, InstId, Terminator,
     analysis::{LocalSummaryCache, MemoryBase, MemoryCallSummaries},
 };
-use solar_data_structures::{bit_set::GrowableBitSet, smallvec::SmallVec};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    smallvec::SmallVec,
+};
 
 /// A `@custom:solar-scratch` block after lowering.
 pub(in crate::mir::lower) struct ScratchRegion {
@@ -234,13 +244,7 @@ fn check_region(
             let is_late = was_late || !inside(inst);
             let result = func.inst_result_value(inst);
             let derived = if kind.effect_kind() == EffectKind::Pure {
-                // A length, a comparison, or a scalar field of a reference is a value.
-                match kind {
-                    InstKind::ExtractValue { .. } => {
-                        result.is_some_and(|result| is_pointer(func.value_ty(result)))
-                    }
-                    _ => result.is_some_and(|result| may_hold_pointer(func.value_ty(result))),
-                }
+                pure_derivation(func, inst).is_some()
             } else if is_late {
                 escapes.push((instruction.metadata.source_span(), Escape::Outlives));
                 continue;
@@ -261,6 +265,49 @@ fn check_region(
                 && destination.is_none_or(|destination| !allocated(destination))
             {
                 escapes.push((instruction.metadata.source_span(), Escape::Stored));
+            }
+        }
+    }
+
+    // A pointer to free memory read before the block, as inline assembly reads one, points at the
+    // memory the block allocates, which code after the block's normal exit reuses. So a use of
+    // one that may run after that exit is late, unless the path there reads the pointer again.
+    let restore = func.blocks.iter_enumerated().find_map(|(block, data)| {
+        let restores = |&inst: &InstId| {
+            matches!(func.inst(inst).kind, InstKind::SetFmp(value) if value == region.saved)
+        };
+        Some((block, data.instructions.iter().position(restores)?))
+    });
+    if let Some(restore) = restore {
+        for (block, data) in func.blocks.iter_enumerated() {
+            for (index, &read) in data.instructions.iter().enumerate() {
+                let Some(pointer) = func.inst_result_value(read) else { continue };
+                if inside(read) || saved.contains(&pointer) || !reads_free_pointer(func, read) {
+                    continue;
+                }
+                let (later, later_terminators) = runs_after(func, restore, (block, index));
+                let mut derived = FxHashSet::from_iter([pointer]);
+                let mut stack = vec![pointer];
+                while let Some(value) = stack.pop() {
+                    for &block in terminators.get(&value).into_iter().flatten() {
+                        if later_terminators.contains(block) {
+                            let span = func.blocks[block].terminator_metadata.source_span();
+                            escapes.push((span, Escape::Outlives));
+                        }
+                    }
+                    for &inst in users.get(&value).into_iter().flatten() {
+                        if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
+                            if let Some(result) = pure_derivation(func, inst)
+                                && derived.insert(result)
+                            {
+                                stack.push(result);
+                            }
+                        } else if later.contains(inst) {
+                            escapes
+                                .push((func.inst(inst).metadata.source_span(), Escape::Outlives));
+                        }
+                    }
+                }
             }
         }
     }
@@ -391,6 +438,63 @@ fn store_operands(kind: &InstKind) -> Option<(Option<ValueId>, ValueId)> {
         InstKind::Store(_, value, _) | InstKind::StoreImmutable(_, value) => Some((None, value)),
         _ => None,
     }
+}
+
+/// The result of a pure instruction that may still hold a pointer its operands hold: a length, a
+/// comparison, or a scalar field of a reference is a value.
+fn pure_derivation(func: &Function, inst: InstId) -> Option<ValueId> {
+    let result = func.inst_result_value(inst)?;
+    let ty = func.value_ty(result);
+    match func.inst(inst).kind {
+        InstKind::ExtractValue { .. } => is_pointer(ty),
+        _ => may_hold_pointer(ty),
+    }
+    .then_some(result)
+}
+
+/// Whether `inst` reads the free memory pointer.
+fn reads_free_pointer(func: &Function, inst: InstId) -> bool {
+    match func.inst(inst).kind {
+        InstKind::Fmp => true,
+        InstKind::Load(address, PtrLocation::Memory) => {
+            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        }
+        _ => false,
+    }
+}
+
+/// The instructions, and the blocks whose terminators, may run after the instruction at `from` on
+/// a path that does not run the one at `barrier` first.
+fn runs_after(
+    func: &Function,
+    (from_block, from): (BlockId, usize),
+    (barrier_block, barrier): (BlockId, usize),
+) -> (DenseBitSet<InstId>, DenseBitSet<BlockId>) {
+    let mut instructions = DenseBitSet::new_empty(func.num_insts());
+    let mut terminators = DenseBitSet::new_empty(func.blocks.len());
+    let mut entered = DenseBitSet::new_empty(func.blocks.len());
+    let mut stack = vec![(from_block, from + 1)];
+    while let Some((block, start)) = stack.pop() {
+        let data = &func.blocks[block];
+        let end = if block == barrier_block && start <= barrier {
+            barrier
+        } else {
+            data.instructions.len()
+        };
+        for &inst in &data.instructions[start..end] {
+            instructions.insert(inst);
+        }
+        if end < data.instructions.len() {
+            continue;
+        }
+        terminators.insert(block);
+        for successor in data.terminator.iter().flat_map(Terminator::successors) {
+            if entered.insert(successor) {
+                stack.push((successor, 0));
+            }
+        }
+    }
+    (instructions, terminators)
 }
 
 /// The memory pointers a function may store somewhere: ones derived from which of its parameters,
