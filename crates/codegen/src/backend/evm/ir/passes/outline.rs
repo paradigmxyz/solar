@@ -235,7 +235,6 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
 
     let is_size = gcx.sess.opts.optimization.is_size();
     let mut metrics = vec![None; hashes.ids.len()];
-    let mut walks = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
         if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
             continue;
@@ -248,17 +247,14 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 && let Some(effect) = shared_body_effect(inst)
             {
                 metrics[first + index] = Some((effect, instruction_size_lower_bound(gcx, inst)));
-                if is_split_point(&block.instructions, index) {
-                    let max_len = (block.instructions.len() - index).min(max_run_length);
-                    walks.push(Walk::new(block_id, first + index, max_len, Default::default()));
-                }
             }
         }
     }
     let mut groups = repeated_runs(
+        module,
         &hashes,
         &metrics,
-        walks,
+        max_run_length,
         MIN_MACHINE_RUN,
         |(stack, run_size): &mut (StackDelta, usize), (effect, size)| {
             stack.apply(effect);
@@ -442,7 +438,6 @@ fn outline_parametric_machine_runs(
 
     let hashes = RunHashes::new(module, ParamInstKey::new);
     let mut metrics = vec![None; hashes.ids.len()];
-    let mut walks = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
         // Overlapping candidate windows revisit each instruction, so classify it once.
         let first = hashes.starts[block_id];
@@ -451,17 +446,14 @@ fn outline_parametric_machine_runs(
                 && let Some(effect) = shared_body_effect(inst)
             {
                 metrics[first + index] = Some((effect, parameterizable_push(inst)));
-                if is_split_point(&block.instructions, index) {
-                    let max_len = (block.instructions.len() - index).min(MAX_RUN_LENGTH);
-                    walks.push(Walk::new(block_id, first + index, max_len, Default::default()));
-                }
             }
         }
     }
     let mut groups = repeated_runs(
+        module,
         &hashes,
         &metrics,
-        walks,
+        MAX_RUN_LENGTH,
         MIN_RUN_LENGTH,
         |(stack, immediate_pushes): &mut (StackDelta, usize), (effect, parameter)| {
             stack.apply(effect);
@@ -1037,12 +1029,6 @@ struct Walk<S> {
     state: S,
 }
 
-impl<S> Walk<S> {
-    fn new(block: BlockId, first: usize, max_len: usize, state: S) -> Self {
-        Self { block, first, len: 0, max_len, hash: 0, state }
-    }
-}
-
 /// Returns the runs of at least `min_len` instructions that occur at least twice, each with its
 /// sites ordered by block and start.
 ///
@@ -1053,19 +1039,67 @@ impl<S> Walk<S> {
 /// result matches grouping every window.
 ///
 /// `metrics` holds each instruction's per-run data by flat index, with `None` for an instruction
-/// no run may contain. `step` adds one to a walk's state and returns whether longer runs may
-/// still qualify, and `accept` turns a counted run into a candidate site.
-fn repeated_runs<'h, M: Copy, S: Copy>(
+/// no run may contain. Runs start at a split point and have at most `max_len` instructions.
+/// `step` adds one instruction to a walk's state and returns whether longer runs may still
+/// qualify, and `accept` turns a counted run into a candidate site.
+fn repeated_runs<'h, M: Copy, S: Copy + Default>(
+    module: &Module,
     hashes: &'h RunHashes,
     metrics: &[Option<M>],
-    mut walks: Vec<Walk<S>>,
+    max_len: usize,
     min_len: usize,
     step: impl Fn(&mut S, M) -> bool,
     accept: impl Fn(&S, BlockId, usize, usize) -> Option<Site>,
 ) -> Vec<(RunSlice<'h>, SmallVec<[Site; 2]>)> {
+    // Starts that cannot take their first instruction never become walks.
+    let mut walks = Vec::new();
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        let first = hashes.starts[block_id];
+        for index in 0..block.instructions.len() {
+            let mut state = S::default();
+            if let Some(metric) = metrics[first + index]
+                && is_split_point(&block.instructions, index)
+                && step(&mut state, metric)
+            {
+                let max_len = (block.instructions.len() - index).min(max_len);
+                walks.push(Walk {
+                    block: block_id,
+                    first: first + index,
+                    len: 1,
+                    max_len,
+                    hash: 0,
+                    state,
+                });
+            }
+        }
+    }
     let mut groups = FxHashMap::<RunSlice<'_>, SmallVec<[Site; 2]>>::default();
     let mut counts = Vec::new();
-    while !walks.is_empty() {
+    while let Some(len) = walks.first().map(|walk| walk.len) {
+        if len >= min_len {
+            // Count each run's hash in a table with eight slots per walk, saturating at two.
+            let slots = (walks.len() * 8).next_power_of_two();
+            let shift = 64 - slots.trailing_zeros();
+            let slot = |hash: u64| (hash.wrapping_mul(0x9e37_79b9_7f4a_7c15) >> shift) as usize;
+            counts.clear();
+            counts.resize(slots, 0u8);
+            for walk in &mut walks {
+                walk.hash = hashes.range(walk.block, walk.first, walk.len);
+                let count = &mut counts[slot(walk.hash)];
+                *count += u8::from(*count < 2);
+            }
+            walks.retain(|walk| counts[slot(walk.hash)] >= 2);
+            for walk in &walks {
+                let start = walk.first - hashes.starts[walk.block];
+                if let Some(site) = accept(&walk.state, walk.block, start, walk.len) {
+                    let key = RunSlice {
+                        hash: walk.hash,
+                        ids: &hashes.ids[walk.first..walk.first + walk.len],
+                    };
+                    groups.entry(key).or_default().push(site);
+                }
+            }
+        }
         walks.retain_mut(|walk| {
             let Some(metric) =
                 (walk.len < walk.max_len).then(|| metrics[walk.first + walk.len]).flatten()
@@ -1075,31 +1109,6 @@ fn repeated_runs<'h, M: Copy, S: Copy>(
             walk.len += 1;
             step(&mut walk.state, metric)
         });
-        if walks.first().is_none_or(|walk| walk.len < min_len) {
-            continue;
-        }
-        // Count each run's hash in a table with eight slots per walk, saturating at two.
-        let slots = (walks.len() * 8).next_power_of_two();
-        let shift = 64 - slots.trailing_zeros();
-        let slot = |hash: u64| (hash.wrapping_mul(0x9e37_79b9_7f4a_7c15) >> shift) as usize;
-        counts.clear();
-        counts.resize(slots, 0u8);
-        for walk in &mut walks {
-            walk.hash = hashes.range(walk.block, walk.first, walk.len);
-            let count = &mut counts[slot(walk.hash)];
-            *count += u8::from(*count < 2);
-        }
-        walks.retain(|walk| counts[slot(walk.hash)] >= 2);
-        for walk in &walks {
-            let start = walk.first - hashes.starts[walk.block];
-            if let Some(site) = accept(&walk.state, walk.block, start, walk.len) {
-                let key = RunSlice {
-                    hash: walk.hash,
-                    ids: &hashes.ids[walk.first..walk.first + walk.len],
-                };
-                groups.entry(key).or_default().push(site);
-            }
-        }
     }
     groups.into_iter().filter(|(_, sites)| sites.len() >= 2).collect()
 }
