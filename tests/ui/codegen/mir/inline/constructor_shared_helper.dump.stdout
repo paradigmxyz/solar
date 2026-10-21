@@ -51,11 +51,10 @@ fn @f() [selector=0x26121ff0, abi_wrapper] {
     v71 = eq v65, v70
     jumpi v71, bb7, bb8
   bb8:
-    v7 = add v69, 31
-    v8 = shr v7, 5
     jumpi v65, bb1, bb2
   bb1:
-    mstore 0, 0 !metadata(memory=scratch)
+    v7 = add v69, 31
+    v8 = shr v7, 5
     v118 = sub 0, v8
     jump bb9
   bb9:
