@@ -74,8 +74,8 @@
 //! negations are discarded. Operand ranges and relations remain available;
 //! predicates referenced by instructions, phis, or other terminators stay live.
 //! Dead blocks are cleared before analysis, so joins use the maintained predecessor lists.
-//! Fact copies clone the tables: the sets are small, and a clone costs less than inserting each
-//! entry again.
+//! Fact copies clone the tables, which costs less than inserting each entry again but keeps the
+//! source's spare capacity.
 //!
 //! Loop header phis of the form `p = phi [pre: init], [latch: p - c]` with a
 //! constant nonzero step are monotone when the update provably cannot wrap at
