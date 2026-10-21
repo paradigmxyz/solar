@@ -1043,6 +1043,13 @@ fn run_function_pass_cached(
     let changed = run(func, &bundle);
     if bundle.unreported_edit.get() {
         analyses.local_summaries.invalidate(func_id);
+        // The snapshot predates the edit, so a module pass must not keep it.
+        match analyses.alias.get_mut(&func_id) {
+            Some(entry) if !entry.revalidate => entry.approximate = true,
+            _ => {
+                analyses.alias.remove(&func_id);
+            }
+        }
     }
     if changed {
         if let Some(cfg) = &bundle.cfg {
