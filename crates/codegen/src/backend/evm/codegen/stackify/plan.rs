@@ -30,7 +30,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::cell::Cell;
+use std::cell::RefCell;
 
 /// The modeled stack of a block being planned and the steps that produced it.
 #[derive(Clone, Default)]
@@ -97,13 +97,6 @@ impl Sim {
         self.cost = fork.cost;
         self.peak = fork.peak;
     }
-}
-
-/// Buffers `prepare_any` reuses across calls.
-#[derive(Default)]
-struct Scratch {
-    candidate: Sim,
-    best_sim: Sim,
 }
 
 /// An instruction of the block being planned with its operands.
@@ -239,9 +232,10 @@ pub(super) struct Planner<'a> {
     stack_costs: StackOpCosts,
     /// The fork `place_result` tries each swap on.
     place_sim: Sim,
-    scratch: Cell<Scratch>,
+    /// The candidate and the cheapest arrangement `prepare_any` keeps, reused across calls.
+    scratch: RefCell<[Sim; 2]>,
     /// The fork a `trial` plans on.
-    trial_sim: Cell<Sim>,
+    trial_sim: RefCell<Sim>,
     peak: usize,
     calls: Vec<(FunctionId, usize)>,
     cost: Cost,
@@ -584,8 +578,8 @@ impl<'a> Planner<'a> {
             plain_trial: None,
             stack_costs: StackOpCosts::new(target),
             place_sim: Sim::default(),
-            scratch: Cell::default(),
-            trial_sim: Cell::default(),
+            scratch: RefCell::default(),
+            trial_sim: RefCell::default(),
             peak: 0,
             calls: Vec::new(),
             cost: Cost::ZERO,
@@ -879,7 +873,7 @@ impl<'a> Planner<'a> {
     #[allow(clippy::too_many_arguments)]
     fn trial(
         &self,
-        sim: &Sim,
+        base: &Sim,
         block: BlockId,
         window: &[PlannedInst],
         uses: &mut Uses,
@@ -887,25 +881,9 @@ impl<'a> Planner<'a> {
         pre: &[ValueId],
         bound: Option<Cost>,
     ) -> Option<Cost> {
-        let mut fork = self.trial_sim.take();
-        fork.refork(sim);
-        let price = self.trial_in(&mut fork, block, window, uses, offset, pre, bound);
-        self.trial_sim.set(fork);
-        price
-    }
-
-    /// Plans the trial on `sim`, a fork of the caller's state.
-    #[allow(clippy::too_many_arguments)]
-    fn trial_in(
-        &self,
-        sim: &mut Sim,
-        block: BlockId,
-        window: &[PlannedInst],
-        uses: &mut Uses,
-        offset: usize,
-        pre: &[ValueId],
-        bound: Option<Cost>,
-    ) -> Option<Cost> {
+        let mut fork = self.trial_sim.borrow_mut();
+        let sim = &mut *fork;
+        sim.refork(base);
         // Plan on the caller's counts and give back what the window consumed.
         let mut planned = 0;
         for (index, step) in window.iter().enumerate() {
@@ -1489,8 +1467,8 @@ impl<'a> Planner<'a> {
         let mut best: Option<(Cost, usize)> = None;
         // Whether the cheapest arrangement so far swaps at least twice.
         let mut best_swaps = false;
-        let Scratch { mut candidate, mut best_sim } = self.scratch.take();
-        candidate.refork(sim);
+        let mut scratch = self.scratch.borrow_mut();
+        let [mut candidate, mut best_sim] = scratch.each_mut();
         let mut failure = None;
         for (index, ops) in orders.iter().enumerate() {
             let in_place = self.consumed_in_place(&sim.stack, ops, dying);
@@ -1530,12 +1508,9 @@ impl<'a> Planner<'a> {
                 }
             }
         }
-        let chosen = best.map(|(_, index)| index);
-        if chosen.is_some() {
-            sim.join(&mut best_sim);
-        }
-        self.scratch.set(Scratch { candidate, best_sim });
-        chosen.ok_or_else(|| failure.expect("a failed candidate"))
+        let Some((_, index)) = best else { return Err(failure.expect("a failed candidate")) };
+        sim.join(best_sim);
+        Ok(index)
     }
 
     /// Builds the operands bottom up: keeps values already in place at the top of the stack,
