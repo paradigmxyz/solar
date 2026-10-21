@@ -65,20 +65,6 @@ pub(super) fn shuffle(
     let needed = |slot: Slot| need.get(&slot).copied().unwrap_or(0);
 
     // Phase 1: counts.
-    let surplus_count = |stack: &[Slot]| -> usize {
-        let mut seen = FxHashMap::<Slot, usize>::default();
-        stack
-            .iter()
-            .filter(|&&slot| {
-                if slot == Slot::Junk {
-                    return true;
-                }
-                let count = seen.entry(slot).or_default();
-                *count += 1;
-                *count > needed(slot)
-            })
-            .count()
-    };
     // Whether the word at `index` is one of its value's surplus copies; the shallowest copies
     // count as surplus, so deeper copies stay in place.
     let is_surplus = |stack: &[Slot], index: usize| -> bool {
@@ -90,7 +76,7 @@ pub(super) fn shuffle(
         deeper >= needed(slot)
     };
     loop {
-        let surplus = surplus_count(&state.stack);
+        let surplus = (0..state.stack.len()).filter(|&i| is_surplus(&state.stack, i)).count();
         if surplus <= open {
             break;
         }
