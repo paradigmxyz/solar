@@ -334,10 +334,14 @@ impl ContractGraph {
         Ok(())
     }
 
-    /// Starts the estimated longest dependency chains first. Completing a
-    /// contract waits for the contracts it embeds, so their work is on the path
-    /// to every embedding contract. Source-body sizes are a cheap scheduling
-    /// estimate; they do not affect what gets compiled.
+    /// Starts the jobs on the estimated longest remaining path first.
+    ///
+    /// Scheduling a contract runs concurrently with scheduling the contracts it embeds; only
+    /// its short completion waits for them. A contract is therefore done at
+    /// `max(schedule end, embedded contracts done) + finish`, and the path from the start of a
+    /// contract's scheduling is its own cost plus the finish of itself and of the chain of
+    /// contracts that embed it. Source-body sizes are a cheap cost estimate; they do not affect
+    /// what gets compiled.
     fn scheduling_priorities(&self, gcx: Gcx<'_>) -> IndexVec<ContractId, u64> {
         let mut costs = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
         for id in self.reachable.iter() {
@@ -351,13 +355,17 @@ impl ContractGraph {
                 .sum::<u64>()
                 .max(1);
         }
+        // The finish chain from the end of a contract's scheduling through the longest path of
+        // contracts that embed it.
+        let mut after = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
         let mut priorities = costs.clone();
         let mut remaining = IndexVec::from_vec(self.dependents.iter().map(Vec::len).collect());
         let mut ready = self.reachable.iter().filter(|&id| remaining[id] == 0).collect::<Vec<_>>();
         while let Some(id) = ready.pop() {
+            let tail = (costs[id] / FINISH_COST_DIVISOR).saturating_add(after[id]);
+            priorities[id] = costs[id].saturating_add(tail);
             for child in self.dependencies[id].iter() {
-                priorities[child] =
-                    priorities[child].max(costs[child].saturating_add(priorities[id]));
+                after[child] = after[child].max(tail);
                 remaining[child] -= 1;
                 if remaining[child] == 0 {
                     ready.push(child);
@@ -367,6 +375,10 @@ impl ContractGraph {
         priorities
     }
 }
+
+/// A contract's completion costs about this fraction of its scheduling, from traces of the heavy
+/// projects (2 to 6 percent).
+const FINISH_COST_DIVISOR: u64 = 32;
 
 /// One unit of contract code generation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
