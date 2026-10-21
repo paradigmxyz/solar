@@ -71,7 +71,7 @@ fn @addresses() [selector=0x82d38954, abi_wrapper, pure] {
     v72 = add v67, 32
     jump bb1
   bb1:
-    v31 = phi [bb6: 0], [bb2: v42]
+    v31 = phi [bb6: 0], [bb2: 1]
     v70 = phi [bb6: v69], [bb2: v71]
     v73 = phi [bb6: v72], [bb2: v74]
     v32 = eq v31, 0
@@ -85,7 +85,6 @@ fn @addresses() [selector=0x82d38954, abi_wrapper, pure] {
     v38 = mload v70
     v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffff
     mstore v73, v39
-    v42 = add v31, 1
     v71 = add v70, 32
     v74 = add v73, 32
     jump bb1
