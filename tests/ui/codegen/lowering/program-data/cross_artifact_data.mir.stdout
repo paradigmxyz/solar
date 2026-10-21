@@ -10,7 +10,7 @@ fn @constructor() [constructor] {
     mstore v0, 224
     v1 = ptradd v0, 32
     datacopy literal_0, v1, 224
-    v2 = abi_encode [memory_bytes], args v0
+    v2 = abi_encode [memory_bytes], scratch, args v0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     log v3, v4, 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df

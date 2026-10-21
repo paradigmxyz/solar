@@ -112,15 +112,10 @@ bb26 [cold]:
   push 0
   revert
 bb6:
+  push 192
+  push 64
+  mstore
   push 128
-  dup 1
-  push 64
-  mstore
-  push 64
-  dup 2
-  add
-  push 64
-  mstore
   push 32
   dup 2
   mstore
@@ -131,11 +126,6 @@ bb6:
   mstore
   push 64
   mload
-  push 352
-  dup 2
-  add
-  push 64
-  mstore
   push 319
   push_data ChildWithArg_creation_code_0
   dup 3
@@ -156,23 +146,14 @@ bb28:
   iszero
   push bb26
   jumpi
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
-  push 224
-  shl
-  dup 2
-  mstore
-  push 4
   push 0
-  swap 2
+  mstore
   push 32
-  swap 4
+  push 0
+  push 4
+  push 28
+  dup 5
   gas
   staticcall
   iszero
@@ -191,15 +172,10 @@ bb28:
   push 0
   return
 bb12:
+  push 192
+  push 64
+  mstore
   push 128
-  dup 1
-  push 64
-  mstore
-  push 64
-  dup 2
-  add
-  push 64
-  mstore
   push 32
   dup 2
   mstore
@@ -210,11 +186,6 @@ bb12:
   mstore
   push 64
   mload
-  push 352
-  dup 2
-  add
-  push 64
-  mstore
   push 319
   push_data ChildWithArg_creation_code_0
   dup 3
@@ -251,11 +222,6 @@ bb18:
   mstore
   push 64
   mload
-  push 352
-  dup 2
-  add
-  push 64
-  mstore
   push 319
   push_data ChildWithArg_creation_code_0
   dup 3
@@ -291,11 +257,6 @@ bb18:
   mstore
   push 64
   mload
-  push 352
-  dup 2
-  add
-  push 64
-  mstore
   push 319
   push_data ChildWithArg_creation_code_0
   dup 3
@@ -314,30 +275,19 @@ bb18:
   iszero
   push bb26
   jumpi
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
-  push 224
-  shl
-  dup 2
-  mstore
-  push 4
   push 0
-  swap 2
+  mstore
   push 32
-  swap 4
-  swap 6
+  push 0
+  push 4
+  push 28
+  dup 7
   gas
   staticcall
   iszero
   push bb26
   jumpi
-  pop
   returndatasize
   push 32
   gt
@@ -345,24 +295,14 @@ bb18:
   jumpi
   push 0
   mload
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
-  push 224
-  shl
-  dup 2
-  mstore
-  push 4
   push 0
-  swap 2
+  mstore
   push 32
-  swap 4
-  swap 5
+  push 0
+  push 4
+  push 28
+  dup 6
   gas
   staticcall
   iszero

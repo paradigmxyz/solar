@@ -33,16 +33,16 @@ bb0:
   dup 2
   dup 2
   and
-  push 128
+  push 0
   mstore
   xor
-  push 160
+  push 32
   mstore
   or
-  push 192
+  push 64
   mstore
   push 96
-  push 128
+  push 0
   return
 bb11 [cold]:
   push 0
@@ -58,16 +58,16 @@ bb2:
   dup 2
   dup 2
   and
-  push 128
+  push 0
   mstore
   or
-  push 160
+  push 32
   mstore
   add
-  push 192
+  push 64
   mstore
   push 96
-  push 128
+  push 0
   return
 bb4:
   dup 1
@@ -81,16 +81,16 @@ bb4:
   dup 2
   dup 2
   or
-  push 128
+  push 0
   mstore
   xor
-  push 160
+  push 32
   mstore
   and
-  push 192
+  push 64
   mstore
   push 96
-  push 128
+  push 0
   return
 bb5:
   push 0x9ed41ba1
@@ -102,14 +102,14 @@ bb5:
   dup 2
   dup 2
   and
-  push 128
+  push 0
   mstore
   or
-  push 160
+  push 32
   mstore
   xor
-  push 192
+  push 64
   mstore
   push 96
-  push 128
+  push 0
   return

@@ -55,36 +55,6 @@
       jump bb1
   }
   
-  fn @memory_observer() -> i256 {
-    bb0:
-      icall @reads_memory
-      v0 = msize
-      ret v0
-  }
-  
-  fn @reads_memory() -> i256 {
-    bb0:
-      v0 = mload 0x1000
-      ret v0
-  }
-  
-  fn @callee_observes_memory(arg0: i1) -> i256 {
-    bb0:
-      jumpi arg0, bb1, bb2
-    bb1:
-      v0 = mload 0x1000
-      jump bb2
-    bb2:
-      v1 = icall @observe_memory
-      ret v1
-  }
-  
-  fn @observe_memory() -> i256 {
-    bb0:
-      v0 = msize
-      ret v0
-  }
-  
   fn @abi_dependency(arg0: ptr<memory>) {
     bb0:
       v0 = mload arg0
@@ -114,14 +84,6 @@
   fn @unused_storage_array(arg0: i256) {
     bb0:
       v0 = load_storage_array enum<3>, arg0
-      ret
-  }
-  
-  fn @dead_memory_observer() {
-    bb0:
-      v0 = mload 0x1000
--     v1 = msize
--     v2 = add v1, v1
       ret
   }
   

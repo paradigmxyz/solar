@@ -142,7 +142,7 @@ fn @decodeIt() -> i256 [selector=0xd2549072, pure, abi_params=[], abi_returns=[w
 fn @eventIt() [selector=0x3af46c3b, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = icall @b
-    v1 = abi_encode [calldata_bytes], args v0
+    v1 = abi_encode [calldata_bytes], scratch, args v0
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
     log v2, v3, 0x1a948835e19c6a208bbb0d247d13c5cc94e0d0663badcbaba4abf920ae29e9b1

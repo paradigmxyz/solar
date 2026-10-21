@@ -12,16 +12,16 @@
 // GAS-NEXT: dup 2
 // GAS-NEXT: dup 2
 // GAS-NEXT: and
-// GAS-NEXT: push 128
+// GAS-NEXT: push 0
 // GAS-NEXT: mstore
 // GAS-NEXT: xor
-// GAS-NEXT: push 160
+// GAS-NEXT: push 32
 // GAS-NEXT: mstore
 // GAS-NEXT: {{^ *}}or{{$}}
-// GAS-NEXT: push 192
+// GAS-NEXT: push 64
 // GAS-NEXT: mstore
 // GAS-NEXT: push 96
-// GAS-NEXT: push 128
+// GAS-NEXT: push 0
 // GAS-NEXT: return
 // SIZE-LABEL: @module StackWords_runtime
 // In size mode the dispatched functions share their ABI return tail.
@@ -34,7 +34,7 @@
 // SIZE-NEXT: {{^ *}}or{{$}}
 // SIZE-NEXT: jump [[COMMON:bb[0-9]+]]
 // SIZE-NEXT: [[COMMON]]:
-// SIZE-NEXT: push 128
+// SIZE-NEXT: push 0
 // SIZE-NEXT: mstore
 // SIZE: {{^ *}}add{{$}}
 // SIZE-NEXT: swap 4

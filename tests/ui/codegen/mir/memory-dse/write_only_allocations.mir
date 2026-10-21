@@ -48,8 +48,9 @@ fn @escapes(arg0: i256) {
     returndata 128, 32
 }
 
-// Fewer writes can mean less memory expansion, which `msize` reports.
-// CHECK-NOT: {{^-}} mstore
+// The allocation lies below the free-memory pointer, so `msize` does not keep its stores.
+// CHECK: alloc 32 !metadata(deferred_alloc)
+// CHECK-NEXT: - mstore
 // CHECK-LABEL: {{^[ +].*}}fn @heap_allocation{{[( ]}}
 fn @observes_msize(arg0: i256) {
   bb0:

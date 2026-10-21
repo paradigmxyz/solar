@@ -2,7 +2,7 @@
 @module EventEncoding
 fn @emitArray(arg0: ptr<memory>) [selector=0x86cb3475, abi_params=[array<2, uint256>], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = abi_encode [array<2, word>], args arg0
+    v0 = abi_encode [array<2, word>], scratch, args arg0
     v1 = extract_value slice<memory>, v0, 0
     v2 = extract_value slice<memory>, v0, 1
     log v1, v2, 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
@@ -57,9 +57,8 @@ fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[], abi_return_par
 
 fn @emitNamed() [selector=0x4135d839, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = abi_encode [word, word], args 1, 2
-    v1 = extract_value slice<memory>, v0, 0
-    v2 = extract_value slice<memory>, v0, 1
-    log v1, v2, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
+    mstore 0, 1 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    log 0, 64, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
     ret
 }

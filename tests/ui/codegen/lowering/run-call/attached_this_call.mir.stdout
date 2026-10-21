@@ -59,20 +59,18 @@ fn @selfAddress(arg0: i160) -> i160 [pure] {
 fn @addValue(arg0: i160, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v2 = extract_value slice<memory>, v1, 0
-    v3 = extract_value slice<memory>, v1, 1
-    v4 = zext i160 arg0 to i256
-    v5 = staticcall v0, v4, v2, v3, 0, 32
-    jumpi v5, bb2, bb1
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v1 = zext i160 arg0 to i256
+    v2 = staticcall v0, v1, 28, 4, 0, 32
+    jumpi v2, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = lt v6, 32
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    v10 = checked_add uint256, v9, arg1
-    ret v10
+    v3 = returndatasize
+    v4 = lt v3, 32
+    icall revert_if<tuple_data_too_short>, v4
+    v5 = add 0, 0
+    v6 = mload v5
+    v7 = checked_add uint256, v6, arg1
+    ret v7
 }

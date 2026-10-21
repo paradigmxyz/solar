@@ -18,16 +18,15 @@ fn @f(arg0: i1) -> i1 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word
     v1 = abi_encode [word<bool>], args v0
     v2 = datasize TryCreationChild_creation_code_0
     v3 = datasize TryCreationChild_creation_code_0, 32
-    v4 = datasize TryCreationChild_creation_code_0, 63, aligned
-    v5 = alloc v4
-    datacopy TryCreationChild_creation_code_0, v5, v2
-    v6 = extract_value slice<memory>, v1, 0
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = add v7, v2
-    mcopy v8, v6, 32 !metadata(memory=heap)
-    v9 = create 0, v5, v3
-    v10 = ne v9, i160 0
-    jumpi v10, bb1, bb2
+    v4 = fmp
+    datacopy TryCreationChild_creation_code_0, v4, v2
+    v5 = extract_value slice<memory>, v1, 0
+    v6 = ptrtoint ptr<memory> v4 to i256
+    v7 = add v6, v2
+    mcopy v7, v5, 32 !metadata(memory=heap)
+    v8 = create 0, v4, v3
+    v9 = ne v8, i160 0
+    jumpi v9, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -36,8 +35,8 @@ fn @f(arg0: i1) -> i1 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word
   bb4:
     ret false
   bb1:
-    v11 = ne v9, i160 0
-    ret v11
+    v10 = ne v8, i160 0
+    ret v10
   bb3:
     ret false
 }

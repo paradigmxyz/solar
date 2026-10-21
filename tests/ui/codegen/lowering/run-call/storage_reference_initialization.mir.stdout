@@ -114,34 +114,33 @@ fn @tryBind(arg0: i1, arg1: i256) -> i256 [selector=0x9a0c8f93, abi_params=[bool
   bb0:
     v0 = address
     v1 = gas
+    mstore 0, 0x8aef7752 !metadata(memory=scratch)
     v2 = zext i1 arg0 to i256
-    v3 = abi_encode [word<bool>], selector 0x8aef775200000000000000000000000000000000000000000000000000000000, args v2
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
+    mstore 32, v2 !metadata(memory=scratch)
+    v3 = zext i160 v0 to i256
+    v4 = extcodesize v3
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = zext i160 v0 to i256
-    v7 = extcodesize v6
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = zext i160 v0 to i256
-    v10 = staticcall v1, v9, v4, v5, 0, 0
-    jumpi v10, bb1, bb2
+    v7 = staticcall v1, v6, 28, 36, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
     icall revert_if<empty>, true
     invalid
   bb4:
-    v12 = mapping_slot 2, 0
+    v9 = mapping_slot 2, 0
     jump bb3
   bb1:
-    v11 = mapping_slot 1, 0
+    v8 = mapping_slot 1, 0
     jump bb3
   bb3:
-    v13 = phi [bb1: v11], [bb4: v12]
-    v14 = add v13, 1
-    sstore v14, arg1 !metadata(storage=offset(v13, 1))
-    v15 = icall @readB, v13
-    ret v15
+    v10 = phi [bb1: v8], [bb4: v9]
+    v11 = add v10, 1
+    sstore v11, arg1 !metadata(storage=offset(v10, 1))
+    v12 = icall @readB, v10
+    ret v12
 }
 
 fn @readB(arg0: i256) -> i256 [view] {
