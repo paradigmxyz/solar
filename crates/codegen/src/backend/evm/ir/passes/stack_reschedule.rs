@@ -69,8 +69,9 @@
 //! copies and repeated checks repeat them, and so do runs that push other immediates of the same
 //! widths: a schedule depends only on which pushes repeat a value and how wide each is. Programs
 //! and contracts repeat each other's runs too, as tests embed the same library and helper code,
-//! so a search that this program's cache misses is looked up in a cache shared by every program
-//! of the process, keyed by everything the search reads of the run and its target prices.
+//! so a search that this program's cache misses and that would expand states is looked up in a
+//! cache shared by every program of the process, keyed by everything the search reads of the run
+//! and its target prices.
 //!
 //! Safety: the replacement performs exactly the original operations on the same operand words,
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
@@ -707,7 +708,8 @@ impl Words {
 }
 
 /// Searches for the cheapest schedule of a run's operations that leaves its stack, when one
-/// beats the run's own stack operations.
+/// beats the run's own stack operations. A run that needs a search is looked up in the schedules
+/// shared by all programs first.
 fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> Option<Vec<Move>> {
     let operation_count = run.operations.len();
     let words = Words { entry: run.entry, operations: operation_count };
@@ -806,6 +808,12 @@ fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> 
     let gap = (budget >> 32).saturating_sub(estimate(start) >> 32);
     if gap == 0 {
         return None;
+    }
+    // Runs the search would take up are looked up, and stored after it, in the shared schedules.
+    let key = search_key(run, target, limits);
+    let shard = &SHARED_SCHEDULES[FxBuildHasher.hash_one(&key[..]) as usize % SHARED_SHARDS];
+    if let Some(moves) = shard.0.read().unwrap().get(&key[..]) {
+        return moves.as_deref().map(<[Move]>::to_vec);
     }
     let limits = if gap <= swap >> 32 { limits.near } else { limits.states };
 
@@ -1117,14 +1125,20 @@ fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> 
             open.push(next_cost + BOUND_WEIGHT * remaining, next_cost, id);
         }
     }
-    let mut cursor = found?;
-    let mut moves = Vec::new();
-    while let Some(step) = arena[cursor as usize].step {
-        moves.push(step);
-        cursor = arena[cursor as usize].parent;
+    let moves = found.map(|mut cursor| {
+        let mut moves = Vec::new();
+        while let Some(step) = arena[cursor as usize].step {
+            moves.push(step);
+            cursor = arena[cursor as usize].parent;
+        }
+        moves.reverse();
+        moves
+    });
+    let mut shard = shard.0.write().unwrap();
+    if shard.len() < SHARED_SHARD_CAPACITY {
+        shard.insert(key.as_slice().into(), moves.as_deref().map(Box::from));
     }
-    moves.reverse();
-    Some(moves)
+    moves
 }
 
 /// Builds the instructions of a schedule, after replaying it against the run's summary.
@@ -1300,29 +1314,8 @@ fn schedule(
         budget,
     );
     let Scratch { schedules, buffers } = scratch;
-    let moves =
-        schedules.entry(key).or_insert_with(|| shared_search(&summary, target, budget, buffers));
+    let moves = schedules.entry(key).or_insert_with(|| search(&summary, target, budget, buffers));
     emit(run, &summary, moves.as_ref()?)
-}
-
-/// [`search`], through the cache shared by all programs.
-fn shared_search(
-    summary: &Run,
-    target: &Target,
-    budget: Budget,
-    buffers: &mut Buffers,
-) -> Option<Vec<Move>> {
-    let key = search_key(summary, target, budget);
-    let shard = &SHARED_SCHEDULES[FxBuildHasher.hash_one(&key[..]) as usize % SHARED_SHARDS];
-    if let Some(moves) = shard.0.read().unwrap().get(&key[..]) {
-        return moves.as_deref().map(<[Move]>::to_vec);
-    }
-    let moves = search(summary, target, budget, buffers);
-    let mut shard = shard.0.write().unwrap();
-    if shard.len() < SHARED_SHARD_CAPACITY {
-        shard.insert(key.as_slice().into(), moves.as_deref().map(Box::from));
-    }
-    moves
 }
 
 /// Everything [`search`] reads of a run, its budget and its target, as bytes: the operands,
