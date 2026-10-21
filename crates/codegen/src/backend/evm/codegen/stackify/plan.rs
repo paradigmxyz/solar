@@ -106,6 +106,12 @@ struct Scratch {
     best_sim: Sim,
 }
 
+/// An instruction of the block being planned with its operands.
+struct PlannedInst {
+    inst: InstId,
+    operands: Operands,
+}
+
 /// The cost of `POP` and of each `DUP` and `SWAP` up to depth 16.
 struct StackOpCosts {
     dup: [Option<Cost>; 17],
@@ -712,7 +718,7 @@ impl<'a> Planner<'a> {
         let mut constant =
             self.constant_def.filter(|&(def, _)| def == block).map(|(_, value)| value);
         let mut uses = self.block_uses(block);
-        let planned: Vec<InstId> = func.blocks[block]
+        let planned: Vec<PlannedInst> = func.blocks[block]
             .instructions
             .iter()
             .copied()
@@ -721,12 +727,14 @@ impl<'a> Planner<'a> {
                     && !matches!(func.inst(inst).kind, InstKind::Phi(_))
                     && Some(inst) != tail_call
             })
+            .map(|inst| PlannedInst { inst, operands: func.inst(inst).kind.operands() })
             .collect();
         let windows = self.preplacement_windows(&planned);
         let mut placed = FxHashSet::default();
-        for (position, &inst) in planned.iter().enumerate() {
+        for (position, step) in planned.iter().enumerate() {
+            let inst = step.inst;
             if let Some(value) = constant
-                && func.inst(inst).kind.operands().contains(&value)
+                && step.operands.contains(&value)
             {
                 sim.steps.push(Step::Begin(None));
                 // push constant
@@ -771,8 +779,8 @@ impl<'a> Planner<'a> {
                 }
                 placed.insert(*consumer);
             }
-            self.plan_inst_inner(sim, block, inst, &uses)?;
-            uses.consume(&func.inst(inst).kind.operands());
+            self.plan_inst_inner(sim, block, step, &uses)?;
+            uses.consume(&step.operands);
             if let Some(result) = func.inst_result_value(inst)
                 && sim.stack.last() == Some(&Slot::Value(result))
             {
@@ -794,7 +802,7 @@ impl<'a> Planner<'a> {
         &mut self,
         sim: &mut Sim,
         block: BlockId,
-        planned: &[InstId],
+        planned: &[PlannedInst],
         next: usize,
         uses: &mut Uses,
     ) -> Result<(), Fail> {
@@ -802,7 +810,7 @@ impl<'a> Planner<'a> {
         let live_out = self.liveness.live_out(block);
         let rest = &planned[next..planned.len().min(next + MAX_PLACEMENT_WINDOW)];
         // A placement looks ahead no further than the next call.
-        let calls = rest.iter().position(|&inst| icall(&func.inst(inst).kind).is_some());
+        let calls = rest.iter().position(|step| icall(&func.inst(step.inst).kind).is_some());
         let rest = &rest[..calls.unwrap_or(rest.len())];
         let mut candidates = SmallVec::<[(usize, usize); MAX_PLACEMENT_CANDIDATES]>::new();
         for depth in 1..sim.stack.len().min(self.reach + 1) {
@@ -814,9 +822,9 @@ impl<'a> Planner<'a> {
             if remaining == 0 || live_out.contains(value) || self.is_fresh(value) {
                 continue;
             }
-            if let Some(end) = rest.iter().position(|&inst| {
-                let operands = func.inst(inst).kind.operands();
-                remaining -= operands.iter().filter(|&&operand| operand == value).count() as u32;
+            if let Some(end) = rest.iter().position(|step| {
+                remaining -=
+                    step.operands.iter().filter(|&&operand| operand == value).count() as u32;
                 remaining == 0
             }) {
                 candidates.push((depth, end));
@@ -868,7 +876,7 @@ impl<'a> Planner<'a> {
         &self,
         sim: &Sim,
         block: BlockId,
-        window: &[InstId],
+        window: &[PlannedInst],
         uses: &mut Uses,
         offset: usize,
         pre: &[ValueId],
@@ -887,7 +895,7 @@ impl<'a> Planner<'a> {
         &self,
         sim: &mut Sim,
         block: BlockId,
-        window: &[InstId],
+        window: &[PlannedInst],
         uses: &mut Uses,
         offset: usize,
         pre: &[ValueId],
@@ -895,20 +903,20 @@ impl<'a> Planner<'a> {
     ) -> Option<Cost> {
         // Plan on the caller's counts and give back what the window consumed.
         let mut planned = 0;
-        for (index, &inst) in window.iter().enumerate() {
+        for (index, step) in window.iter().enumerate() {
             if index == offset && pre.iter().any(|&value| self.copy(sim, value).is_err()) {
                 break;
             }
-            if self.plan_inst_inner(sim, block, inst, uses).is_err()
+            if self.plan_inst_inner(sim, block, step, uses).is_err()
                 || bound.is_some_and(|bound| !self.target.cmp(sim.cost, bound).is_lt())
             {
                 break;
             }
-            uses.consume(&self.func.inst(inst).kind.operands());
+            uses.consume(&step.operands);
             planned += 1;
         }
-        for &inst in &window[..planned] {
-            uses.restore(&self.func.inst(inst).kind.operands());
+        for step in &window[..planned] {
+            uses.restore(&step.operands);
         }
         if planned < window.len() {
             return None;
@@ -928,7 +936,7 @@ impl<'a> Planner<'a> {
         &mut self,
         sim: &Sim,
         block: BlockId,
-        planned: &[InstId],
+        planned: &[PlannedInst],
         next: usize,
         len: usize,
         uses: &Uses,
@@ -959,13 +967,13 @@ impl<'a> Planner<'a> {
             },
         };
         while trial.steps.len() < len && !trial.stopped {
-            let inst = planned[trial.start + trial.steps.len()];
+            let step = &planned[trial.start + trial.steps.len()];
             trial.sim.steps.clear();
-            if self.plan_inst_inner(&mut trial.sim, block, inst, &trial.uses).is_err() {
+            if self.plan_inst_inner(&mut trial.sim, block, step, &trial.uses).is_err() {
                 trial.stopped = true;
                 break;
             }
-            trial.uses.consume(&self.func.inst(inst).kind.operands());
+            trial.uses.consume(&step.operands);
             trial.states.push((trial.sim.stack.clone(), trial.sim.cost));
             trial.steps.push(PlainStep {
                 price: trial.sim.cost.plus(self.dead_word_removal().times(trial.sim.junk())),
@@ -979,21 +987,21 @@ impl<'a> Planner<'a> {
     /// Finds, for instructions whose topmost computed operand comes from a chain of single-use
     /// instructions in this block, the start of that chain and the deeper operands that are
     /// pushed or copied anyway. Keyed by the chain's first position.
-    fn preplacement_windows(&self, planned: &[InstId]) -> FxHashMap<usize, Vec<Preplacement>> {
+    fn preplacement_windows(&self, planned: &[PlannedInst]) -> FxHashMap<usize, Vec<Preplacement>> {
         let func = self.func;
         let mut def_position = FxHashMap::default();
-        for (position, &inst) in planned.iter().enumerate() {
-            if let Some(result) = func.inst_result_value(inst) {
+        for (position, step) in planned.iter().enumerate() {
+            if let Some(result) = func.inst_result_value(step.inst) {
                 def_position.insert(result, position);
             }
             // A call also defines its extra results.
-            for &extra in self.projections.get(&inst).into_iter().flatten().flatten() {
+            for &extra in self.projections.get(&step.inst).into_iter().flatten().flatten() {
                 def_position.insert(extra, position);
             }
         }
         let mut windows = FxHashMap::<usize, Vec<Preplacement>>::default();
-        for (consumer, &inst) in planned.iter().enumerate() {
-            let kind = &func.inst(inst).kind;
+        for (consumer, step) in planned.iter().enumerate() {
+            let kind = &func.inst(step.inst).kind;
             if matches!(
                 kind,
                 InstKind::Select(..)
@@ -1005,7 +1013,7 @@ impl<'a> Planner<'a> {
             ) {
                 continue;
             }
-            let push_order: Operands = kind.operands().iter().rev().copied().collect();
+            let push_order: Operands = step.operands.iter().rev().copied().collect();
             let Some(top) = push_order.iter().rposition(|&value| !self.is_fresh(value)) else {
                 continue;
             };
@@ -1022,7 +1030,7 @@ impl<'a> Planner<'a> {
                 let mut start = work[0];
                 while let Some(position) = work.pop() {
                     start = start.min(position);
-                    for operand in func.inst(planned[position]).kind.operands() {
+                    for &operand in &planned[position].operands {
                         if self.use_counts[operand] == 1
                             && let Some(&producer) = def_position.get(&operand)
                             && producer < position
@@ -1849,15 +1857,16 @@ impl<'a> Planner<'a> {
         &self,
         sim: &mut Sim,
         block: BlockId,
-        inst: InstId,
+        planned: &PlannedInst,
         uses: &Uses,
     ) -> Result<(), Fail> {
         let func = self.func;
+        let inst = planned.inst;
+        let operands = &planned.operands;
         let kind = &func.inst(inst).kind;
         sim.steps.push(Step::Begin(Some(inst)));
         let result = func.inst_result_value(inst);
-        let operands = kind.operands();
-        let dying = |value: ValueId| self.dies(block, uses, &operands, value);
+        let dying = |value: ValueId| self.dies(block, uses, operands, value);
         let push_order: Operands = operands.iter().rev().copied().collect();
         let pushes = |result: Option<ValueId>| result.map_or(0, |_| 1);
 
@@ -1912,7 +1921,7 @@ impl<'a> Planner<'a> {
             }
             // [saved, results] -> [results]; each saved word goes back to its slot
             self.restore_saved(sim, &saved)?;
-            self.finish_inst(sim, &operands, block, uses, None)?;
+            self.finish_inst(sim, operands, block, uses, None)?;
             return Ok(());
         }
 
@@ -1943,8 +1952,7 @@ impl<'a> Planner<'a> {
                     self.op(sim, op::ISZERO, 1, 1);
                 } else {
                     // ne a, b -> iszero (eq a, b)
-                    let mirrored: Operands = operands.iter().copied().collect();
-                    self.prepare_any(sim, &[&push_order, &mirrored], &dying)?;
+                    self.prepare_any(sim, &[&push_order, operands], &dying)?;
                     self.op(sim, op::EQ, 2, 1);
                 }
                 if ne {
@@ -2037,9 +2045,7 @@ impl<'a> Planner<'a> {
                     OpcodeLowering::Binary { opcode }
                         if let Some(mirror) = op::swapped_binary_opcode(opcode) =>
                     {
-                        let mirrored_ops: Operands = operands.iter().copied().collect();
-                        let flipped =
-                            self.prepare_any(sim, &[&push_order, &mirrored_ops], &dying)? == 1;
+                        let flipped = self.prepare_any(sim, &[&push_order, operands], &dying)? == 1;
                         self.op(sim, if flipped { mirror } else { opcode }, 2, pushes(result));
                     }
                     _ => {
@@ -2050,7 +2056,7 @@ impl<'a> Planner<'a> {
                 self.set_top_result(sim, result);
             }
         }
-        self.finish_inst(sim, &operands, block, uses, result)?;
+        self.finish_inst(sim, operands, block, uses, result)?;
         // [saved, result] -> [result]
         self.restore_saved(sim, &saved)
     }
