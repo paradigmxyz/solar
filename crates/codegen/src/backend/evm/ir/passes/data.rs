@@ -771,18 +771,23 @@ pub(crate) fn data_layout_is_observable(module: &Module) -> bool {
 fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
     let mut groups = RewriteGroups::default();
     let mut next_run_start = 0;
+    let mut last_store = None;
     let references = scan_data_references(module, |block_id, index, instructions| {
         if index == 0 {
             next_run_start = 0;
+            // A run ends at a store, so no run starts after the last one.
+            last_store = instructions
+                .iter()
+                .rposition(|inst| matches!(inst.opcode, op::MSTORE | op::MSTORE8));
         }
-        let block = &module.blocks[block_id];
-        let target = block.target(gcx, module.code_follows);
-        if index >= next_run_start
-            && let Some((data, mut rewrite)) = find_run(&target, block_id, instructions, index)
-        {
-            rewrite.repeats = !block.runs_once();
-            next_run_start = rewrite.end;
-            groups.entry(data).or_default().push(rewrite);
+        if index >= next_run_start && last_store.is_some_and(|last| index <= last) {
+            let block = &module.blocks[block_id];
+            let target = block.target(gcx, module.code_follows);
+            if let Some((data, mut rewrite)) = find_run(&target, block_id, instructions, index) {
+                rewrite.repeats = !block.runs_once();
+                next_run_start = rewrite.end;
+                groups.entry(data).or_default().push(rewrite);
+            }
         }
     });
     (references, groups)
