@@ -67,7 +67,10 @@
 //! objective's first part is not searched, as only the second part could improve, and one at most a
 //! swap above it gets its budget's smaller near limits. Equal runs share their result, as unrolled
 //! copies and repeated checks repeat them, and so do runs that push other immediates of the same
-//! widths: a schedule depends only on which pushes repeat a value and how wide each is.
+//! widths: a schedule depends only on which pushes repeat a value and how wide each is. Programs
+//! and contracts repeat each other's runs too, as tests embed the same library and helper code,
+//! so a search that this program's cache misses is looked up in a cache shared by every program
+//! of the process, keyed by everything the search reads of the run and its target prices.
 //!
 //! Safety: the replacement performs exactly the original operations on the same operand words,
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
@@ -99,9 +102,16 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxBuildHasher, FxHashMap},
+};
 use solar_sema::Gcx;
-use std::collections::{BinaryHeap, hash_map::Entry};
+use std::{
+    collections::{BinaryHeap, hash_map::Entry},
+    hash::BuildHasher,
+    sync::{LazyLock, RwLock},
+};
 
 /// Words the search may grow the stack by above the run's entry and exit heights.
 const STACK_SLACK: usize = 3;
@@ -153,6 +163,10 @@ const WORD_BITS: u32 = 6;
 const MAX_HEIGHT: usize = 21;
 /// Blocks an abort may span through direct jumps.
 const MAX_ABORT_JUMPS: usize = 4;
+/// Shards of the cache shared by all programs.
+const SHARED_SHARDS: usize = 16;
+/// Searches each shard of the shared cache keeps, which bounds its memory in a long-lived process.
+const SHARED_SHARD_CAPACITY: usize = 1 << 14;
 
 pub(super) struct StackReschedule;
 
@@ -383,6 +397,12 @@ fn reschedule_block(
 
 /// The schedules found for runs, by their instructions and search budget.
 type Schedules = FxHashMap<(SmallVec<[RunKey; 24]>, Budget), Option<Vec<Move>>>;
+
+/// The results of every search in the process, by [`search_key`]. A search is a function of its
+/// key, so threads may race to fill an entry and every program may read any entry.
+static SHARED_SCHEDULES: LazyLock<
+    [RwLock<FxHashMap<Box<[u8]>, Option<Box<[Move]>>>>; SHARED_SHARDS],
+> = LazyLock::new(|| std::array::from_fn(|_| RwLock::default()));
 
 /// What the pass keeps across runs: the schedules found and the search's buffers.
 #[derive(Default)]
@@ -744,9 +764,7 @@ fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> 
     let constant_of = |word: usize| -> Option<usize> {
         (word >= run.entry + operation_count).then(|| word - run.entry - operation_count)
     };
-    let dup = scalar(target.dup(), target);
-    let swap = scalar(target.opcode(op::SWAP1), target);
-    let pop = scalar(target.opcode(op::POP), target);
+    let [dup, swap, pop] = move_prices(target);
     let counts_of = |stack: &[u8]| -> [u8; 64] {
         let mut counts = [0u8; 64];
         for &word in stack {
@@ -1275,8 +1293,78 @@ fn schedule(
         budget,
     );
     let Scratch { schedules, buffers } = scratch;
-    let moves = schedules.entry(key).or_insert_with(|| search(&summary, target, budget, buffers));
+    let moves =
+        schedules.entry(key).or_insert_with(|| shared_search(&summary, target, budget, buffers));
     emit(run, &summary, moves.as_ref()?)
+}
+
+/// [`search`], through the cache shared by all programs.
+fn shared_search(
+    summary: &Run,
+    target: &Target,
+    budget: Budget,
+    buffers: &mut Buffers,
+) -> Option<Vec<Move>> {
+    let key = search_key(summary, target, budget);
+    let shard = &SHARED_SCHEDULES[FxBuildHasher.hash_one(&key[..]) as usize % SHARED_SHARDS];
+    if let Some(moves) = shard.read().unwrap().get(&key[..]) {
+        return moves.as_deref().map(<[Move]>::to_vec);
+    }
+    let moves = search(summary, target, budget, buffers);
+    let mut shard = shard.write().unwrap();
+    if shard.len() < SHARED_SHARD_CAPACITY {
+        shard.insert(key.as_slice().into(), moves.as_deref().map(Box::from));
+    }
+    moves
+}
+
+/// Everything [`search`] reads of a run, its budget and its target, as bytes: the operands,
+/// ordering and exit words, the prices of moves and constants, and the budget's limits. It leaves
+/// out which opcodes and immediates the run holds, which a schedule does not depend on.
+fn search_key(run: &Run, target: &Target, budget: Budget) -> SmallVec<[u8; 192]> {
+    let mut key = SmallVec::new();
+    let word = |key: &mut SmallVec<[u8; 192]>, word: Word| match word {
+        Word::Entry(index) => key.extend([0, index]),
+        Word::Result(index) => key.extend([1, index]),
+        Word::Constant(index) => key.extend([2, index]),
+    };
+    key.extend(
+        [run.entry, run.peak, run.pushes.len(), run.exit.len(), run.operations.len()]
+            .map(|len| len as u8),
+    );
+    for operation in &run.operations {
+        key.extend([
+            u8::from(operation.produces) | u8::from(operation.swapped.is_some()) << 1,
+            operation.after.map_or(u8::MAX, |after| after),
+            operation.operands.len() as u8,
+        ]);
+        for &operand in &operation.operands {
+            word(&mut key, operand);
+        }
+    }
+    for &exit in &run.exit {
+        word(&mut key, exit);
+    }
+    let Budget { operations, states, near } = budget;
+    for limit in
+        [operations, states.first, states.refine, states.stall, near.first, near.refine, near.stall]
+    {
+        key.extend((limit as u32).to_le_bytes());
+    }
+    for price in move_prices(target)
+        .into_iter()
+        .chain([scalar(run.cost, target)])
+        .chain(run.constant_costs.iter().copied())
+    {
+        key.extend(price.to_le_bytes());
+    }
+    key
+}
+
+/// The prices of a `DUP`, a `SWAP` and a `POP` in the search's objective.
+fn move_prices(target: &Target) -> [u64; 3] {
+    [target.dup(), target.opcode(op::SWAP1), target.opcode(op::POP)]
+        .map(|cost| scalar(cost, target))
 }
 
 /// Schedules the runs between a window's checks and gas-dependent accesses separately, keeping
