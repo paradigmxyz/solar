@@ -7,6 +7,7 @@
 //@ run-call: unwrapped => true
 //@ run-call: Stored::stored => 0xffffffff
 //@ run-call: Stored::storedWrapped => 0xffffffff
+//@ run-call: Loop::looped => 0xffffffff
 
 // A public getter never returns the dirty bits of an assembly-written immutable, and a typed use
 // of one cleans it.
@@ -64,5 +65,27 @@ contract Stored {
         }
         stored = retyped(0);
         storedWrapped = retypedWrapped(0);
+    }
+}
+
+// The dirty word crosses loop phis before the store; the clean does not rely on a dirty mark.
+contract Loop {
+    bytes4 public immutable looped;
+
+    constructor() {
+        function(uint256) internal pure returns (bytes32) typed = full;
+        function(uint256) internal pure returns (bytes4) retyped;
+        assembly { retyped := typed }
+        bytes4 a = retyped(0);
+        bytes4 b = a;
+        bytes4 c = b;
+        bytes4 d = c;
+        for (uint256 i; i < 3; ++i) {
+            d = c;
+            c = b;
+            b = a;
+            a = d;
+        }
+        looped = a;
     }
 }
