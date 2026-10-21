@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 pub use parking_lot::{
     MappedMutexGuard, MappedRwLockReadGuard, MappedRwLockWriteGuard, Mutex, RwLock,
     RwLockReadGuard, RwLockWriteGuard,
@@ -54,18 +56,19 @@ where
 }
 
 /// Maps `f` over `items`, one rayon job per item when `enabled`, and returns the results in
-/// item order.
+/// item order, or the first error in item order.
+///
+/// A serial map stops at the first error; a parallel one still runs every item.
 #[inline]
-pub fn par_map<T, R, F>(enabled: bool, items: &[T], f: F) -> Vec<R>
+pub fn par_try_map<T, R, E, F>(enabled: bool, items: &[T], f: F) -> Result<Vec<R>, E>
 where
     T: Sync,
     R: Send,
-    F: Fn(&T) -> R + Sync + Send,
+    E: Send,
+    F: Fn(&T) -> Result<R, E> + Sync + Send,
 {
-    use rayon::prelude::*;
-
     if enabled {
-        items.par_iter().with_max_len(1).map(f).collect()
+        items.par_iter().with_max_len(1).map(f).collect::<Vec<_>>().into_iter().collect()
     } else {
         items.iter().map(f).collect()
     }

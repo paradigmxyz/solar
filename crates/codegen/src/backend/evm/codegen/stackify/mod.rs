@@ -566,7 +566,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Planning one body reads only the shared facts above, so the bodies plan in parallel.
         // Results come back in body order, so the first decline is the serial loop's.
         let parallel = self.plans_in_parallel();
-        let planned = sync::par_map(parallel, &bodies, |&func_id| {
+        let planned = sync::par_try_map(parallel, &bodies, |&func_id| {
             let analysis = self.analyze(module, &info, func_id, &hazards[func_id], &writers);
             let plan =
                 self.plan_function_stackified(module, &info, func_id, &analysis, CallSpill::None)?;
@@ -576,8 +576,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<Analysis>>>();
         let mut plans =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<FunctionPlan>>>();
-        for (&func_id, planned) in bodies.iter().zip(planned) {
-            let (analysis, plan) = planned?;
+        for (&func_id, (analysis, plan)) in bodies.iter().zip(planned?) {
             analyses[func_id] = Some(analysis);
             plans[func_id] = Some(plan);
         }
@@ -608,19 +607,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             for &func_id in &respilled {
                 call_spills[func_id] = next;
             }
-            let replanned = sync::par_map(parallel, &respilled, |&func_id| {
+            let replanned = sync::par_try_map(parallel, &respilled, |&func_id| {
                 let analysis = analyses[func_id].as_ref().expect("planned body");
                 self.plan_function_stackified(module, &info, func_id, analysis, next)
             });
-            for (&func_id, plan) in respilled.iter().zip(replanned) {
-                plans[func_id] = Some(plan?);
+            for (&func_id, plan) in respilled.iter().zip(replanned?) {
+                plans[func_id] = Some(plan);
             }
         }
         Ok((info, plans))
     }
 
-    /// Whether bodies plan on separate threads: pass debugging writes to stdout and stderr
-    /// directly, so it keeps planning ordered.
+    /// Whether bodies plan on separate threads. Pass debugging runs code generation serially, so
+    /// planning follows.
     fn plans_in_parallel(&self) -> bool {
         let sess = self.gcx.sess;
         sess.is_parallel()
