@@ -1491,11 +1491,11 @@ impl<'a> Planner<'a> {
                 }
                 candidate.refork(sim);
                 let result = match strategy {
-                    Strategy::Reorder => self.prepare_reorder(&mut candidate, ops, &in_place),
-                    Strategy::Build => self.prepare_build(&mut candidate, ops, placed, dying),
+                    Strategy::Reorder => self.prepare_reorder(candidate, ops, &in_place),
+                    Strategy::Build => self.prepare_build(candidate, ops, placed, dying),
                     Strategy::Cycles => {
                         let budget = best.map(|(price, _)| price);
-                        self.prepare_cycles(&mut candidate, ops, &in_place, budget)
+                        self.prepare_cycles(candidate, ops, &in_place, budget)
                     }
                 };
                 if let Err(fail) = result {
