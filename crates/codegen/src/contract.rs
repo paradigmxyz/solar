@@ -187,11 +187,7 @@ pub fn generate_contract_bytecodes(
     let graph = ContractGraph::discover(gcx, &requested)?;
     let contract_count = gcx.hir.contract_ids().len();
 
-    // Pass debugging writes directly to stdout and stderr, so keep its output ordered.
-    let parallel = gcx.sess.is_parallel()
-        && !gcx.sess.opts.unstable.print_after_each
-        && !gcx.sess.opts.unstable.pass_diff
-        && !gcx.sess.opts.unstable.time_passes;
+    let parallel = gcx.sess.is_parallel_codegen();
     let priorities = if parallel {
         graph.scheduling_priorities(gcx)
     } else {

@@ -570,7 +570,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Planning one body reads only the shared facts above, so the bodies plan in parallel.
         // Results come back in body order, so the first decline is the serial loop's.
-        let parallel = self.plans_in_parallel()
+        let parallel = self.gcx.sess.is_parallel_codegen()
             && bodies.iter().map(|&func_id| module.functions[func_id].num_insts()).sum::<usize>()
                 >= PARALLEL_PLAN_INSTS;
         let mut analyses =
@@ -625,16 +625,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         Ok((info, plans))
-    }
-
-    /// Whether bodies plan on separate threads. Pass debugging runs code generation serially, so
-    /// planning follows.
-    fn plans_in_parallel(&self) -> bool {
-        let sess = self.gcx.sess;
-        sess.is_parallel()
-            && !sess.opts.unstable.print_after_each
-            && !sess.opts.unstable.pass_diff
-            && !sess.opts.unstable.time_passes
     }
 
     /// Computes the facts every planning attempt of a function shares. `hazards` are its writes
