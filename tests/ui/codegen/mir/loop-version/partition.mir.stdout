@@ -163,6 +163,157 @@ fn @partition(arg0: ptr<memory>, arg1: i256, arg2: i256) -> struct0 [selector=0x
     invalid
 }
 
+fn @forged(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x189960dc, pure, abi_params=[array<_, uint256>, uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    mstore arg0, arg1
+    v1 = mload arg0
+    v2 = checked_sub uint256, v1, 1
+    v3 = mload arg0
+    v4 = lt arg2, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = shl arg2, 5
+    v7 = ptradd arg0, v6
+    v8 = ptradd v7, 32
+    v9 = mload v8
+    v10 = mload arg0
+    v11 = lt v2, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = shl v2, 5
+    v14 = ptradd arg0, v13
+    v15 = ptradd v14, 32
+    v16 = mload v15
+    v17 = xor v9, v16
+    jump bb1
+  bb1:
+    v18 = phi [bb0: arg0], [bb5: v41]
+    v19 = phi [bb0: arg1], [bb5: v42]
+    v20 = phi [bb0: arg2], [bb5: v43]
+    v21 = phi [bb0: arg3], [bb5: v44]
+    v22 = phi [bb0: arg2], [bb5: v45]
+    v23 = phi [bb0: v2], [bb5: v48]
+    v24 = phi [bb0: v17], [bb5: v47]
+    jumpi true, bb3, bb4
+  bb4:
+    jump bb2
+  bb3:
+    jump bb6
+  bb6:
+    v25 = phi [bb3: v18], [bb9: v25]
+    v26 = phi [bb3: v19], [bb9: v26]
+    v27 = phi [bb3: v20], [bb9: v27]
+    v28 = phi [bb3: v21], [bb9: v28]
+    v29 = phi [bb3: v22], [bb9: v32]
+    v30 = phi [bb3: v23], [bb9: v30]
+    v31 = phi [bb3: v24], [bb9: v31]
+    v32 = checked_add uint256, v29, 1
+    jump bb8
+  bb8:
+    v33 = mload v25
+    v34 = lt v32, v33
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = shl v32, 5
+    v37 = ptradd v25, v36
+    v38 = ptradd v37, 32
+    v39 = mload v38
+    v40 = lt v39, v28
+    jumpi v40, bb9, bb10
+  bb10:
+    jump bb7
+  bb7:
+    jump bb12
+  bb12:
+    v41 = phi [bb7: v25], [bb15: v41]
+    v42 = phi [bb7: v26], [bb15: v42]
+    v43 = phi [bb7: v27], [bb15: v43]
+    v44 = phi [bb7: v28], [bb15: v44]
+    v45 = phi [bb7: v32], [bb15: v45]
+    v46 = phi [bb7: v30], [bb15: v48]
+    v47 = phi [bb7: v31], [bb15: v47]
+    v48 = checked_sub uint256, v46, 1
+    jump bb14
+  bb14:
+    v49 = mload v41
+    v50 = lt v48, v49
+    v51 = eq v50, false
+    icall panic_if<0x32>, v51
+    v52 = shl v48, 5
+    v53 = ptradd v41, v52
+    v54 = ptradd v53, 32
+    v55 = mload v54
+    v56 = lt v44, v55
+    jumpi v56, bb15, bb16
+  bb16:
+    jump bb13
+  bb13:
+    v57 = lt v45, v48
+    v58 = eq v57, false
+    jumpi v58, bb18, bb19
+  bb19:
+    jump bb20
+  bb20:
+    v59 = mload v41
+    v60 = lt v48, v59
+    v61 = eq v60, false
+    icall panic_if<0x32>, v61
+    v62 = shl v48, 5
+    v63 = ptradd v41, v62
+    v64 = ptradd v63, 32
+    v65 = mload v64
+    v66 = mload v41
+    v67 = lt v45, v66
+    v68 = eq v67, false
+    icall panic_if<0x32>, v68
+    v69 = shl v45, 5
+    v70 = ptradd v41, v69
+    v71 = ptradd v70, 32
+    v72 = mload v71
+    v73 = mload v41
+    v74 = lt v45, v73
+    v75 = eq v74, false
+    icall panic_if<0x32>, v75
+    v76 = mload v41
+    v77 = lt v48, v76
+    v78 = eq v77, false
+    icall panic_if<0x32>, v78
+    v79 = shl v48, 5
+    v80 = ptradd v41, v79
+    v81 = ptradd v80, 32
+    mstore v81, v72
+    v82 = shl v45, 5
+    v83 = ptradd v41, v82
+    v84 = ptradd v83, 32
+    mstore v84, v65
+    jump bb5
+  bb5:
+    jump bb1
+  bb18:
+    jump bb2
+  bb2:
+    v85 = phi [bb18: v41], [bb4: v18]
+    v86 = phi [bb18: v42], [bb4: v19]
+    v87 = phi [bb18: v43], [bb4: v20]
+    v88 = phi [bb18: v44], [bb4: v21]
+    v89 = phi [bb18: v45], [bb4: v22]
+    v90 = phi [bb18: v48], [bb4: v23]
+    v91 = phi [bb18: v47], [bb4: v24]
+    v92 = insert_value struct0, undef struct0, 0, v89
+    v93 = insert_value struct0, v92, 1, v90
+    v94 = insert_value struct0, v93, 2, v91
+    ret v94
+  bb15:
+    jump bb12
+  bb9:
+    jump bb6
+  bb11:
+    invalid
+  bb17:
+    invalid
+}
+
 fn @_sort(arg0: ptr<memory>, arg1: i256, arg2: i256) [pure] {
   bb0:
     jump bb1

@@ -8,6 +8,8 @@
 //@ run-call-fail: partition [9, 8], 0, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: partition [3, 3, 3, 3], 0, 3 => 2, 1, 0
 //@ run-call: partition [0, 9, 1, 8, 2, 7, 3, 6, 4, 10], 0, 5 => 5, 4, 10
+//@ run-call: forged [1, 9, 3, 8, 2, 7], 6, 0, 5 => 3, 2, 6
+//@ run-call-fail: forged [1, 9, 5], 3618502788666131106986593281521497120414687020801267626233049500247285301251, 0, 5
 //@ run-call: sort [] => []
 //@ run-call: sort [7] => [7]
 //@ run-call: sort [2, 1] => [1, 2]
@@ -56,24 +58,48 @@ contract Partition {
         }
     }
 
+    // A length forged in assembly lets a check pass for an index far past the array, whose
+    // element's address wraps around below it. With the range's end there, the copy, which
+    // compares element addresses, would stop where the original loop, which compares indices,
+    // runs on until it leaves memory, so the test admits the copy only for ends below `2^250`.
+    function forged(uint256[] memory a, uint256 n, uint256 lo, uint256 y)
+        external
+        pure
+        returns (uint256 i, uint256 j, uint256 ends)
+    {
+        assembly {
+            mstore(a, n)
+        }
+        i = lo;
+        j = a.length - 1;
+        ends = a[i] ^ a[j];
+        while (true) {
+            do {
+                ++i;
+            } while (a[i] < y);
+            do {
+                --j;
+            } while (y < a[j]);
+            if (i >= j) break;
+            (a[i], a[j]) = (a[j], a[i]);
+        }
+    }
+
     // The partition's copy runs behind one test per partition that the elements the median of
-    // three placed at both ends stop the scans. Its scans step pointers with no check of the
-    // index against the length, or of `--j` against zero, its loop compares and swaps through
-    // the pointers, and only its exit rebuilds `j` from how far the pointer moved.
+    // three placed at both ends stop the scans. Its rising scan steps a pointer with no check of
+    // the index against the length, its falling scan runs with no check of `--j` against zero,
+    // and its loop compares and swaps through the element addresses.
     // CHECK-LABEL: fn @_sort(
     // CHECK: [[EITHER:v[0-9]+]] = or {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK-NEXT: jumpi [[EITHER]], {{bb[0-9]+}}, [[FAST:bb[0-9]+]]
     // CHECK: [[FAST]]:
-    // CHECK: [[P:v[0-9]+]] = add {{v[0-9]+}}, 32
-    // CHECK-NEXT: [[X:v[0-9]+]] = mload [[P]]
+    // CHECK: [[X:v[0-9]+]] = mload [[P:v[0-9]+]]
     // CHECK-NEXT: [[MORE:v[0-9]+]] = lt [[X]], {{v[0-9]+}}
     // CHECK-NEXT: jumpi [[MORE]], {{bb[0-9]+}}, {{bb[0-9]+}}
-    // CHECK: [[Q:v[0-9]+]] = sub {{v[0-9]+}}, 32
-    // CHECK-NEXT: [[Y:v[0-9]+]] = mload [[Q]]
+    // CHECK: [[Y:v[0-9]+]] = mload [[Q:v[0-9]+]]
+    // CHECK-NEXT: {{v[0-9]+}} = lt {{v[0-9]+}}, [[Y]]
     // CHECK: [[ORDERED:v[0-9]+]] = lt [[P]], [[Q]]
-    // CHECK-NEXT: jumpi [[ORDERED]], [[SWAP:bb[0-9]+]], [[EXIT:bb[0-9]+]]
-    // CHECK: [[EXIT]]:
-    // CHECK-NEXT: [[MOVED:v[0-9]+]] = sub {{v[0-9]+}}, [[Q]]
+    // CHECK-NEXT: jumpi [[ORDERED]], [[SWAP:bb[0-9]+]], {{bb[0-9]+}}
     // CHECK: [[SWAP]]:
     // CHECK-NEXT: mload [[Q]]
     // CHECK-NEXT: mload [[P]]
