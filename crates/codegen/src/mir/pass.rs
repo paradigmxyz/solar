@@ -3,7 +3,9 @@
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
 //! implement [`MirPass`] and pipelines are slices of trait-object references.
 //! [`ModuleAnalyses`] caches per-function CFG and alias analyses and module
-//! call summaries between the passes of one pipeline run.
+//! call summaries between the passes of one pipeline run. A function-local pass
+//! of a large module runs its functions on idle workers once no contract job
+//! waits in the queue; the result and the caches match a serial run.
 //!
 //! # Usage
 //!
