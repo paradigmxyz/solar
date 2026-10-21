@@ -443,7 +443,7 @@ impl Session {
 
     /// Starts the worker threads of the thread pool, if they are not running yet.
     ///
-    /// When `opts.unstable.forget_gcx` is set on Linux, the thread that
+    /// When `opts.unstable.use_current_thread` is set, the thread that
     /// [enters](Self::enter) the session is the first worker, and the others only start here:
     /// starting a thread and filling its allocator heap costs more than compiling a small input.
     /// Call this once there is enough work to share. Otherwise, and on later calls, it does
@@ -547,7 +547,7 @@ impl Session {
     fn thread_pool(&self) -> &rayon::ThreadPool {
         self.thread_pool.get_or_init(|| {
             trace!(threads = self.threads(), "building rayon thread pool");
-            let lazy = self.is_parallel() && self.runs_on_current_thread();
+            let lazy = self.opts.unstable.use_current_thread;
             self.thread_pool_builder()
                 .spawn_handler(|thread| {
                     if lazy {
@@ -571,20 +571,10 @@ impl Session {
             .stack_size(thread_stack_size());
         // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
         // install and run in the default global thread pool.
-        if threads == 1 || self.runs_on_current_thread() {
+        if threads == 1 || self.opts.unstable.use_current_thread {
             builder = builder.use_current_thread();
         }
         builder
-    }
-
-    /// Returns `true` if the thread that enters the session is the first worker of its thread pool
-    /// for good, and the other workers start lazily.
-    ///
-    /// The `solar` binary exits right after compiling, so it can leak the thread's pool
-    /// registration and compile on it, with its warm allocator heap. The `solar` binary raises the
-    /// stack limit of its main thread to the size of the worker stacks, which only works on Linux.
-    fn runs_on_current_thread(&self) -> bool {
-        cfg!(target_os = "linux") && self.opts.unstable.forget_gcx
     }
 
     #[cold]

@@ -46,13 +46,11 @@ pub(crate) fn check(gcx: Gcx<'_>) {
                 .reduce(TypeckResults::default, |mut a, mut b| {
                     // Merge the smaller results into the larger ones, keeping the base slots in
                     // source order.
-                    let mut base_slots = std::mem::take(&mut a.base_slots);
-                    base_slots.append(&mut b.base_slots);
                     if a.expr_types.len() < b.expr_types.len() {
+                        std::mem::swap(&mut a.base_slots, &mut b.base_slots);
                         std::mem::swap(&mut a, &mut b);
                     }
                     merge_typeck_results(gcx, &mut a, b);
-                    a.base_slots = base_slots;
                     a
                 });
         },

@@ -228,9 +228,11 @@ impl<'gcx> ParsingContext<'gcx> {
             {
                 self.sess.spawn_workers();
                 self.parse_parallel(&mut sources, self.arenas, next);
-            }
-            // The later stages share their work too, even when one large source parsed in one go.
-            if sources.iter().map(|source| source.file.src.len()).sum::<usize>() >= PAR_MIN_BYTES {
+            } else if sources.iter().map(|source| source.file.src.len()).sum::<usize>()
+                >= PAR_MIN_BYTES
+            {
+                // The later stages share their work too, even when one large source parsed in one
+                // go.
                 self.sess.spawn_workers();
             }
 
