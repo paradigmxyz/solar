@@ -311,6 +311,12 @@ struct Class {
     home: InstId,
 }
 
+/// Inline storage for the overwhelmingly common single-node class.
+enum Nodes {
+    One(Op),
+    Many(Vec<Op>),
+}
+
 newtype_index! {
     /// A class of one function, in order of creation.
     struct ClassId;
@@ -339,12 +345,6 @@ impl Classes {
     fn insert(&mut self, value: ValueId, class: Class) {
         self.of[value] = Some(self.all.push(class));
     }
-}
-
-/// Inline storage for the overwhelmingly common single-node class.
-enum Nodes {
-    One(Op),
-    Many(Vec<Op>),
 }
 
 #[derive(Clone, Copy)]
@@ -402,8 +402,6 @@ struct Builder<'a> {
     memo: FxHashMap<NodeKey, ValueId>,
     /// Undo log restoring `memo` when a dominator scope closes.
     undo: Vec<(NodeKey, Option<ValueId>)>,
-    /// Whether the scope being numbered closes before the walk ends.
-    scoped: bool,
     /// Phis congruent through loop-carried operands, mapped to the leader of
     /// their class: a leaf, an earlier phi of the block, or a dominating value.
     optimistic: FxHashMap<ValueId, ValueId>,
@@ -445,7 +443,6 @@ impl<'a> Builder<'a> {
             // The scoped memo peaks near 40% of the instruction count.
             memo: FxHashMap::with_capacity_and_hasher(num_insts / 2, Default::default()),
             undo: Vec::with_capacity(num_insts / 2),
-            scoped: false,
             phis: FxHashMap::default(),
             uses,
             liveness: None,
@@ -495,11 +492,10 @@ impl<'a> Builder<'a> {
     /// No block follows the last one visited, so `tail` scopes keep their memo entries.
     fn visit(&mut self, block: BlockId, tail: bool) {
         let mark = self.undo.len();
-        self.scoped = !tail;
         self.phis.clear();
         for index in 0..self.func.blocks[block].instructions.len() {
             let inst_id = self.func.blocks[block].instructions[index];
-            self.visit_inst(inst_id, block, index);
+            self.visit_inst(inst_id, block, index, tail);
         }
         if let Some(cfg) = self.cfg.clone() {
             let children = cfg.dominators().children(block);
@@ -516,7 +512,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    fn visit_inst(&mut self, inst_id: InstId, block: BlockId, index: usize) {
+    fn visit_inst(&mut self, inst_id: InstId, block: BlockId, index: usize, tail: bool) {
         if is_dead_noop(self.func, &self.func.inst(inst_id).kind, |value| {
             resolve_replacement(value, &self.merged)
         }) {
@@ -690,7 +686,7 @@ impl<'a> Builder<'a> {
             // The original node was keyed above.
             let key = if node_index == 0 { key } else { (canonical(node), ty) };
             let previous = self.memo.insert(key, leader.unwrap_or(result));
-            if self.scoped {
+            if !tail {
                 self.undo.push((key, previous));
             }
         }
@@ -710,24 +706,20 @@ impl<'a> Builder<'a> {
         limit: usize,
     ) -> (SmallVec<[(ValueId, Op); MAX_OPERAND_VIEWS]>, bool) {
         let mut views = SmallVec::new();
-        let mut truncated = false;
-        // Only the visit matters; the mapped copy is discarded.
-        let _ = node.map_values(|operand| {
-            if !truncated && let Some(class) = self.classes.get(operand) {
+        for operand in operands_of(node) {
+            if let Some(class) = self.classes.get(operand) {
                 for &alternative in class.nodes.as_slice().iter().skip(1) {
                     let view = (operand, alternative);
                     if !views.contains(&view) {
                         if views.len() == limit {
-                            truncated = true;
-                            break;
+                            return (views, true);
                         }
                         views.push(view);
                     }
                 }
             }
-            operand
-        });
-        (views, truncated)
+        }
+        (views, false)
     }
 
     /// Reuse through an alternative must not extend the representative's live
@@ -925,7 +917,7 @@ impl<'a> Builder<'a> {
             cache: IndexVec::from_vec(vec![None; self.classes.all.len()]),
         };
         let mut cheapest = Vec::with_capacity(self.classes.all.len());
-        for class in self.classes.all.iter() {
+        for class in &self.classes.all {
             // Rules only produce canonical forms, so the latest node wins ties.
             let target = self.target;
             let best = if class.nodes.len() == 1 {
