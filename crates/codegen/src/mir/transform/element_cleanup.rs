@@ -20,7 +20,9 @@
 //! internal parameter (each argument bounded by its own origin and the
 //! caller's transitive bound), the widest incoming array for a phi, the width
 //! of a storage-array load's validated unsigned elements, and the full word
-//! for anything else. Storage-array loads initialize fresh private arrays.
+//! for any other object ABI decoding produces. A pointer nothing tracks, which inline
+//! assembly may have offset into another array's words, gets a bound past the full word.
+//! Storage-array loads initialize fresh private arrays.
 //! A mask on an element load is dropped when its width covers both the array's
 //! origin bound and the transitive bound
 //! of the function reading it. Widths are tracked per function rather than
@@ -60,6 +62,9 @@ pub(crate) struct ElementCleanup;
 const MAX_VALUE_DEPTH: u32 = 8;
 /// The width of a word nothing bounds.
 const FULL_WIDTH: u32 = 256;
+/// The origin bound of a pointer nothing tracks: past every width, as it may point into the middle
+/// of another array's words, unlike an object's own start.
+const UNKNOWN_ORIGIN: u32 = FULL_WIDTH + 1;
 /// The widest array length whose element addresses cannot wrap around to the length word: every
 /// index below it addresses at most `32 + 32 * (2^251 - 2)`, under `2^256`.
 const MAX_HEADER_LENGTH_BITS: u32 = 251;
@@ -337,17 +342,19 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
             {
                 0
             }
+            // The replaced word must be one of an object's own words, such as an array's header or
+            // element: a store one byte past an element moves its low byte into the next
+            // element's top byte.
             InstKind::Store(address, value, PtrLocation::Memory)
-                if replaces_no_narrower_word(func, block, inst, *address, *value) =>
+                if func.word_access(*address).is_some_and(|(object, ..)| {
+                    func.value_ty(object) == Some(MirType::MEMPTR) && known_origin(objects, object)
+                }) && replaces_no_narrower_word(func, block, inst, *address, *value) =>
             {
                 0
             }
             InstKind::Store(_, value, PtrLocation::Memory)
-                if word_element_object(func, inst).is_some_and(|object| {
-                    objects.is_none_or(|objects| {
-                        objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH)
-                    })
-                }) =>
+                if word_element_object(func, inst)
+                    .is_some_and(|object| narrow_origin(objects, object)) =>
             {
                 max_bits_with_args(func, *value, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
             }
@@ -377,6 +384,19 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
         }
     }
     bound
+}
+
+/// Whether `object` is an array of a known origin that holds words narrower than a word. Without
+/// `objects`, the provisional summary takes every object as one.
+fn narrow_origin(objects: Option<&FxHashMap<ValueId, u32>>, object: ValueId) -> bool {
+    objects.is_none_or(|objects| objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH))
+}
+
+/// Whether `object` is the start of an object of a known origin, built or decoded here or passed
+/// by every call site as one, rather than a pointer assembly may have offset into another array's
+/// words. Without `objects`, the provisional summary takes every object as one.
+fn known_origin(objects: Option<&FxHashMap<ValueId, u32>>, object: ValueId) -> bool {
+    objects.is_none_or(|objects| objects.get(&object).is_some_and(|&bound| bound <= FULL_WIDTH))
 }
 
 /// Whether the store `inst` of `value` at `address` leaves a word no wider than the one it
@@ -531,7 +551,7 @@ fn param_bounds(
             } else if func.selector.is_some() {
                 validated_width(func, index)
             } else {
-                FULL_WIDTH
+                UNKNOWN_ORIGIN
             };
             bounds.insert((id, index), entry);
         }
@@ -545,7 +565,7 @@ fn param_bounds(
                 for (index, &arg) in args.iter().enumerate() {
                     let key = (callee, ArgIdx::new(index));
                     let Some(bound) = bounds.get(&key).copied() else { continue };
-                    let passed = objects.get(&arg).copied().unwrap_or(FULL_WIDTH).max(reading);
+                    let passed = objects.get(&arg).copied().unwrap_or(UNKNOWN_ORIGIN).max(reading);
                     if passed > bound {
                         bounds.insert(key, passed);
                         changed = true;
@@ -572,7 +592,7 @@ fn param_bounds(
             return bounds;
         }
     }
-    bounds.values_mut().for_each(|bound| *bound = FULL_WIDTH);
+    bounds.values_mut().for_each(|bound| *bound = UNKNOWN_ORIGIN);
     bounds
 }
 
@@ -632,7 +652,7 @@ fn object_bounds(
         for (result, incoming) in &phis {
             let widest = incoming
                 .iter()
-                .map(|value| bounds.get(value).copied().unwrap_or(FULL_WIDTH))
+                .map(|value| bounds.get(value).copied().unwrap_or(UNKNOWN_ORIGIN))
                 .fold(0, u32::max);
             if widest > bounds[result] {
                 bounds.insert(*result, widest);
@@ -644,7 +664,7 @@ fn object_bounds(
         }
     }
     for (result, _) in &phis {
-        bounds.insert(*result, FULL_WIDTH);
+        bounds.insert(*result, UNKNOWN_ORIGIN);
     }
     bounds
 }
