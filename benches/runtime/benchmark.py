@@ -11,6 +11,7 @@ import copy
 import gzip
 import hashlib
 import json
+import os
 import re
 import shutil
 import statistics
@@ -414,7 +415,32 @@ def compiler_input(
         timeout = 120
     input_text = with_evm_version(input_text, evm_version)
     input_text = with_optimizer_runs(input_text, optimizer_runs)
+    input_text = with_common_settings(input_text)
     return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
+
+
+def with_common_settings(input_text: str) -> str:
+    """Applies the blog's shared-config overrides from the environment.
+
+    `BENCH_VIA_IR=1` forces `viaIR`, which oksolc requires, and `BENCH_RELAX_PRAGMAS=1`
+    rewrites every `pragma solidity` to `>=0.8.0` so older frontends accept newer sources.
+    """
+    via_ir = os.environ.get("BENCH_VIA_IR") == "1"
+    relax = os.environ.get("BENCH_RELAX_PRAGMAS") == "1"
+    if not via_ir and not relax:
+        return input_text
+    payload = json.loads(input_text)
+    if via_ir:
+        payload.setdefault("settings", {})["viaIR"] = True
+    if relax:
+        for source in payload.get("sources", {}).values():
+            if isinstance(source.get("content"), str):
+                source["content"] = re.sub(
+                    r"pragma\s+solidity\s+[^;]+;",
+                    "pragma solidity >=0.8.0;",
+                    source["content"],
+                )
+    return json.dumps(payload)
 
 
 def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> str:
