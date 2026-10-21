@@ -128,3 +128,31 @@ where
         .map(|output| output.into_inner().expect("items before the first error ran"))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn par_try_map_keeps_item_order() {
+        let items = (0..200u32).collect::<Vec<_>>();
+        let mapped = par_try_map(true, items.clone(), |item| Ok::<_, ()>(item * 2));
+        assert_eq!(mapped, Ok(items.iter().map(|item| item * 2).collect()));
+    }
+
+    #[test]
+    fn par_try_map_returns_first_error_in_item_order() {
+        for enabled in [false, true] {
+            let items = (0..200u32).collect::<Vec<_>>();
+            let mapped = par_try_map(enabled, items, |item| {
+                if item % 50 == 7 {
+                    std::thread::sleep(std::time::Duration::from_millis(u64::from(200 - item)));
+                    Err(item)
+                } else {
+                    Ok(item)
+                }
+            });
+            assert_eq!(mapped, Err(7));
+        }
+    }
+}
