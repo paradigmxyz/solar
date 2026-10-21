@@ -124,7 +124,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func_id: FunctionId,
         func: &Function,
         constructor_floor: Option<u64>,
-        inline_assembly: bool,
+        unsafe_assembly: bool,
     ) -> FxHashSet<InstId> {
         let mut hazards = FxHashSet::default();
         let candidates = func
@@ -134,7 +134,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             // Without inline assembly, the compiler places every write it makes at a computed
             // address on the heap or in a frame.
-            .filter(|&(_, dest)| inline_assembly || func.value_u64(dest).is_some())
+            .filter(|&(_, dest)| unsafe_assembly || func.value_u64(dest).is_some())
             .collect::<Vec<_>>();
         if candidates.is_empty() {
             return hazards;

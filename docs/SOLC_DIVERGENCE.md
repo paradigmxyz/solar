@@ -789,11 +789,20 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   values that are live across it out of the spill area. A call result counts as
   a heap pointer only when every return of its callee is one, and a word loaded
   from memory never does. The constructor's spill area lies above its staging
-  area and not above fixed ranges, so a write to one above that area counts
-  as such a write there. A contract without inline assembly has none of these
-  writes, as the compiler places each write it makes at a computed address on
-  the heap or in a frame, so it pays nothing. This costs memory expansion gas
-  and code size.
+  area and not above fixed ranges, so a write to one above that area counts as
+  such a write there. This costs memory expansion gas and code size.
+
+  All of this applies only to a contract with inline assembly that does not
+  promise memory safety. As under `solc`, an assembly block marked memory-safe,
+  with the `"memory-safe"` dialect flag or the `@solidity memory-safe-assembly`
+  comment, promises to touch only scratch space, memory it allocates by bumping
+  the free memory pointer, and memory the program allocated. A contract whose
+  assembly is all marked, or that has none, has no write the compiler cannot
+  place, so it keeps the code it had before these rules: it trusts the type of a
+  memory reference, a word loaded from a memory object, and a call result as
+  heap pointers, and raises only constants and calldata words stored into the
+  free memory pointer slot. Such a block cannot store a low address into an
+  object's field without breaking its promise.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,

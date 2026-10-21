@@ -91,6 +91,10 @@
 //! elsewhere; the pointer reads after it are clamped instead, as for a word that is also read as
 //! data. Writes at heap pointers, by the compiler, and of heap pointers are not such writes.
 //!
+//! A module whose assembly all promises memory safety, or that has none, keeps the earlier rule: it
+//! raises only constants and calldata words, and trusts the type of a memory reference. Its
+//! assembly cannot store a word that is no heap pointer in the slot, nor write through one.
+//!
 //! NOTE: A pointer that the program moves by an offset it cannot bound, or steps back from in a
 //! loop, is not a heap pointer. An access at a heap pointer plus a constant is assumed not to cover
 //! the slot, also when the pointer is a memory object that another object holds, or a word the slot
@@ -106,7 +110,7 @@ use crate::mir::{
     AbiType, ArgIdx, BlockId, Callee, CheckedOp, EffectKind, Function, FunctionId, Immediate,
     InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module, PtrLocation,
     RawMemoryAccess, RawMemorySize, Terminator, Value, ValueId,
-    analysis::pointer_bases,
+    analysis::{AddressInput, absolute_address_inputs, pointer_bases},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils::{IndexLists, replace_inst_uses},
@@ -180,7 +184,11 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
                     func.inst(inst_id).kind
                     && is_slot(func, address)
                     && func.value_ty(value) == Some(MirType::I256)
-                    && uses.may_be_low(func_id, value)
+                    && if module.has_unsafe_assembly() {
+                        uses.may_be_low(func_id, value)
+                    } else {
+                        uses.address_inputs(func_id)[value] != AddressInput::Other
+                    }
                 {
                     let reads = uses.reads_after(func_id, block, index + 1);
                     match (reads.pointer, reads.data) {
@@ -192,7 +200,7 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
                         }
                         (false, _) => {}
                     }
-                } else if module.has_inline_assembly() && uses.may_write_slot(func_id, inst_id) {
+                } else if module.has_unsafe_assembly() && uses.may_write_slot(func_id, inst_id) {
                     // The write may leave any word in the slot, which only the pointer reads
                     // after it can clamp.
                     uses.clamp_pointer_reads(func_id, block, index + 1, &mut clamps);
@@ -548,6 +556,9 @@ fn module_heap_addresses(
     module: &Module,
     call_sites: &IndexVec<FunctionId, Vec<CallSite>>,
 ) -> IndexVec<FunctionId, DenseBitSet<ValueId>> {
+    // A module whose assembly all promises memory safety keeps the type of a memory reference as
+    // proof that it points into the heap.
+    let trust_types = !module.has_unsafe_assembly();
     let mut params = module
         .functions
         .iter_enumerated()
@@ -578,7 +589,9 @@ fn module_heap_addresses(
         let heap = module
             .functions
             .iter_enumerated()
-            .map(|(func_id, func)| function_heap_addresses(func, &params[func_id], &returns))
+            .map(|(func_id, func)| {
+                function_heap_addresses(func, &params[func_id], &returns, trust_types)
+            })
             .collect::<IndexVec<FunctionId, _>>();
         let mut changed = false;
         for (func_id, func) in module.functions.iter_enumerated() {
@@ -632,6 +645,7 @@ fn function_heap_addresses(
     func: &Function,
     params: &DenseBitSet<ArgIdx>,
     returns: &DenseBitSet<FunctionId>,
+    trust_types: bool,
 ) -> DenseBitSet<ValueId> {
     let mut heap = DenseBitSet::new_empty(func.num_values());
     for index in 0..func.num_values() {
@@ -641,8 +655,9 @@ fn function_heap_addresses(
             Value::Inst(inst) => match func.inst(inst).kind {
                 InstKind::ICall { function: Callee::Function(callee), .. } => {
                     returns.contains(callee)
+                        || trust_types && func.inst(inst).result_ty == Some(MirType::MEMPTR)
                 }
-                _ => may_compute_heap_address(func, inst),
+                _ => may_compute_heap_address(func, inst, trust_types),
             },
             _ => false,
         };
@@ -702,7 +717,7 @@ fn may_be_low(
 
 /// Whether an instruction may compute a heap pointer: the free memory pointer, an allocation, or
 /// another memory object, or a word computed from such pointers.
-fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
+fn may_compute_heap_address(func: &Function, inst: InstId, trust_types: bool) -> bool {
     let instruction = func.inst(inst);
     match instruction.kind {
         InstKind::Fmp
@@ -720,7 +735,9 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
         InstKind::Load(address, PtrLocation::Memory) => is_slot(func, address),
         // The results and fields that calls return are heap pointers only as `returns` says.
-        InstKind::ICall { .. } | InstKind::ExtractValue { .. } => false,
+        InstKind::ICall { .. } | InstKind::ExtractValue { .. } => {
+            trust_types && instruction.result_ty == Some(MirType::MEMPTR)
+        }
         _ => instruction.result_ty == Some(MirType::MEMPTR),
     }
 }
@@ -1011,6 +1028,8 @@ struct PointerUses<'a> {
     shallowest: usize,
     /// The call sites of each function, built on first use.
     call_sites: Option<IndexVec<FunctionId, Vec<CallSite>>>,
+    /// Which values of each function come from constants and calldata alone, built on first use.
+    address_inputs: FxHashMap<FunctionId, IndexVec<ValueId, AddressInput>>,
     /// The words each function computes from heap pointers, built on first use.
     heap_addresses: Option<IndexVec<FunctionId, DenseBitSet<ValueId>>>,
     /// The values of each function's parameters, built on first use.
@@ -1035,6 +1054,7 @@ impl<'a> PointerUses<'a> {
             following: FxHashMap::default(),
             shallowest: usize::MAX,
             call_sites: None,
+            address_inputs: FxHashMap::default(),
             heap_addresses: None,
             arg_values: FxHashMap::default(),
             users: FxHashMap::default(),
@@ -1042,6 +1062,14 @@ impl<'a> PointerUses<'a> {
             load_roots: FxIndexMap::default(),
             caller_roots: Vec::new(),
         }
+    }
+
+    /// Returns which values of `func_id` come from constants and calldata alone.
+    fn address_inputs(&mut self, func_id: FunctionId) -> &IndexVec<ValueId, AddressInput> {
+        let module = self.module;
+        self.address_inputs
+            .entry(func_id)
+            .or_insert_with(|| absolute_address_inputs(&module.functions[func_id]))
     }
 
     /// Returns how the word that the instruction before `start` leaves in the slot can be read,

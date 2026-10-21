@@ -255,8 +255,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
-            StmtKind::AssemblyBlock(block) => {
-                self.cx.module.set_inline_assembly(true);
+            StmtKind::AssemblyBlock(block, memory_safe) => {
+                if !memory_safe {
+                    self.cx.module.set_unsafe_assembly(true);
+                }
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let result = self.lower_block(*block);
                 self.in_inline_assembly = previous;

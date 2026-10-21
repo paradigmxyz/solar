@@ -535,7 +535,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func_id,
                 func,
                 constructor_floor,
-                module.has_inline_assembly(),
+                module.has_unsafe_assembly(),
             );
             if !info.returning.contains(func_id) {
                 continue;

@@ -923,7 +923,7 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
                 self.loop_depth -= 1;
                 return r;
             }
-            hir::StmtKind::AssemblyBlock(_) => return ControlFlow::Continue(()),
+            hir::StmtKind::AssemblyBlock(..) => return ControlFlow::Continue(()),
             _ => {}
         }
 
