@@ -122,7 +122,7 @@ impl MirPass for Inline {
         if physical {
             edited_later = guards::inline_guards(module, &target);
             if dispatch::inline_dispatch(module, &target) {
-                let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
+                let _ = super::cfg_simplify::remove_unreachable_functions(module, analyses);
                 edited_later = true;
             }
         }

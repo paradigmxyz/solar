@@ -53,6 +53,22 @@ impl CfgInfo {
         self.successors.len()
     }
 
+    /// Returns whether the snapshot lists the successors of every block of `func`, in order.
+    #[must_use]
+    pub(crate) fn matches(&self, func: &Function) -> bool {
+        self.successors.len() == func.blocks.len()
+            && func.blocks.iter_enumerated().all(|(block_id, block)| {
+                let mut expected = self.successors[block_id].iter();
+                let mut matches = true;
+                if let Some(term) = &block.terminator {
+                    term.for_each_successor(|successor| {
+                        matches &= expected.next() == Some(&successor)
+                    });
+                }
+                matches && expected.next().is_none()
+            })
+    }
+
     /// Returns successor blocks for `block`.
     #[must_use]
     pub(crate) fn successors(&self, block: BlockId) -> &[BlockId] {

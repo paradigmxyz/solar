@@ -65,8 +65,11 @@ use crate::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
         Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
         MemoryObjectLayout, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-        analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
-        transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
+        analysis::CallGraphInfo,
+        memory::EvmMemoryLayout,
+        pass::{MirPass, edit_functions},
+        transform::utils::redirect_successor_predecessors,
+        utils::resolve_replacement,
     },
     target::Target,
 };
@@ -97,7 +100,7 @@ impl MirPass for LowerAbiEncode {
         &self,
         gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = Target::new(gcx);
@@ -129,21 +132,21 @@ impl MirPass for LowerAbiEncode {
             ..EncodeHelpers::default()
         };
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
-        for (func_id, func) in module.functions.iter_mut_enumerated() {
+        changed |= edit_functions(module, analyses, |func_id, func| {
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
             // writes there before reserving its output, so an outlined call would overwrite it.
             // abi_encode(args) => inline head stores and tail copies
             let helpers =
                 if constructors.contains(func_id) { &mut inline_helpers } else { &mut helpers };
-            changed |= lower_function(
+            lower_function(
                 &target,
                 func,
                 helpers,
                 revert_strings,
                 &fresh_object_returns,
                 &destructive_returns[func_id],
-            );
-        }
+            )
+        });
         CallGraphInfo::assert_runtime_helpers(
             module,
             helpers.arrays.values().chain(helpers.tuples.values()).copied(),

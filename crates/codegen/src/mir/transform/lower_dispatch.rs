@@ -90,11 +90,16 @@ impl MirPass for LowerDispatch {
             );
             return false;
         }
+        let mut edited = Vec::new();
         let changed = lower_dispatch(
             module,
             gcx.sess.opts.evm_version.has_bitwise_shifting(),
             gcx.sess.opts.revert_strings,
+            &mut edited,
         );
+        if changed {
+            analyses.preserve_unedited_functions(module, edited);
+        }
         if module.dispatch_entry().is_none() {
             analyses
                 .fail(gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit());
@@ -108,6 +113,7 @@ fn lower_dispatch(
     module: &mut Module,
     has_bitwise_shifting: bool,
     revert_strings: RevertStrings,
+    edited: &mut Vec<FunctionId>,
 ) -> bool {
     // An existing entry already makes selector routing explicit.
     if module.dispatch_entry().is_some() {
@@ -158,6 +164,7 @@ fn lower_dispatch(
     let common_calldata_guard = common_calldata_guard(module, &routes, receive, fallback);
     if let Some((_, guarded)) = &common_calldata_guard {
         for &(func_id, reject, success) in guarded {
+            edited.push(func_id);
             let func = &mut module.functions[func_id];
             // bb0: jumpi calldata_too_short, reject, success
             //   => jump success

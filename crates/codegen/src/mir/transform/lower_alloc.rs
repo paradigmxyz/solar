@@ -18,8 +18,10 @@
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
-    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-    PtrLocation, ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module,
+    PanicCode, PtrLocation, ValueId,
+    memory::EvmMemoryLayout,
+    pass::{MirPass, ModuleAnalyses},
     transform::utils::redirect_successor_predecessors,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -42,18 +44,21 @@ impl MirPass for LowerAlloc {
         &self,
         _gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        lower_alloc(module)
+        lower_alloc(module, analyses)
     }
 }
 
-fn lower_alloc(module: &mut Module) -> bool {
-    let mut changed = share_checked_allocations(module);
-    for func in module.functions.iter_mut() {
-        changed |= lower_function(func);
+fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    let mut edited = Vec::new();
+    let shared = share_checked_allocations(module, &mut edited);
+    for (func_id, func) in module.functions.iter_mut_enumerated() {
+        if lower_function(func) {
+            edited.push(func_id);
+        }
     }
-    changed
+    analyses.preserve_unedited_functions(module, edited) || shared
 }
 
 /// Share repeated checked free-memory-pointer bumps before lowering erases the
@@ -61,7 +66,7 @@ fn lower_alloc(module: &mut Module) -> bool {
 ///
 /// The helper owns only the pointer load, checked bump, panic, and update.
 /// Callers retain their initialization, so allocation ordering stays intact.
-fn share_checked_allocations(module: &mut Module) -> bool {
+fn share_checked_allocations(module: &mut Module, edited: &mut Vec<FunctionId>) -> bool {
     let count = module
         .functions
         .iter()
@@ -81,7 +86,7 @@ fn share_checked_allocations(module: &mut Module) -> bool {
     }
 
     let helper = create_checked_alloc(module);
-    for func in &mut module.functions {
+    for (func_id, func) in module.functions.iter_mut_enumerated() {
         let mut replacements = FxHashMap::default();
         let blocks = func.blocks.indices();
         for block in blocks {
@@ -106,6 +111,9 @@ fn share_checked_allocations(module: &mut Module) -> bool {
                 initialize(&mut builder, object, size, semantics.initialization);
                 replacements.insert(result, object);
             }
+        }
+        if !replacements.is_empty() {
+            edited.push(func_id);
         }
         func.replace_uses_canonicalized(&replacements);
     }

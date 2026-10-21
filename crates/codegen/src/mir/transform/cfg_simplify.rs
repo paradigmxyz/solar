@@ -141,12 +141,29 @@ impl MirPass for FunctionDce {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let call_graph = CallGraphInfo::new(module);
-        let reachable = call_graph.reachable_from_entries();
-        !reachable.is_empty() && retain_functions(module, reachable) != 0
+        let removed = remove_unreachable_functions(module, analyses);
+        if removed {
+            analyses.preserve_local_summaries();
+        }
+        removed
     }
+}
+
+/// Removes the functions no entry reaches, renumbering the cached local summaries of the rest.
+/// Returns whether any function was removed.
+pub(super) fn remove_unreachable_functions(
+    module: &mut Module,
+    analyses: &mut crate::mir::pass::ModuleAnalyses,
+) -> bool {
+    let call_graph = CallGraphInfo::new(module);
+    let reachable = call_graph.reachable_from_entries();
+    if reachable.is_empty() || retain_functions(module, reachable) == 0 {
+        return false;
+    }
+    analyses.retain_local_summaries(reachable);
+    true
 }
 
 /// Alpha-equivalence key for a terminal block used by

@@ -18,7 +18,7 @@
 use crate::mir::{
     Function, FunctionBuilder, Immediate, ImmutableId, InstKind, MirType, Module, ResultKind,
     Value, ValueId, ValueLayout,
-    pass::{MirPass, ModuleAnalyses},
+    pass::{MirPass, ModuleAnalyses, edit_functions},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -73,10 +73,8 @@ impl MirPass for LowerIntegers {
             .iter_immutables()
             .filter_map(|(id, immutable)| matches!(immutable.ty, ValueLayout::Int(_)).then_some(id))
             .collect();
-        for func in &mut module.functions {
-            changed |= lower_function(func, &signed_immutables);
-        }
         changed
+            | edit_functions(module, analyses, |_, func| lower_function(func, &signed_immutables))
     }
 }
 

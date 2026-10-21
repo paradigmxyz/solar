@@ -15,7 +15,8 @@
 
 use crate::mir::{
     FrameMode, FrameSlotKind, Function, FunctionBuilder, InstKind, Module, PtrLocation,
-    memory::EvmMemoryLayout, pass::MirPass,
+    memory::EvmMemoryLayout,
+    pass::{MirPass, edit_functions},
 };
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
@@ -36,13 +37,9 @@ impl MirPass for LowerFrameSlots {
         &self,
         _gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let mut changed = false;
-        for func in &mut module.functions {
-            changed |= lower_function(func);
-        }
-        changed
+        edit_functions(module, analyses, |_, func| lower_function(func))
     }
 }
 

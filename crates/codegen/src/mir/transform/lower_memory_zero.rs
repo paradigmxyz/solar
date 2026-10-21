@@ -3,7 +3,10 @@
 //! Reading beyond the end of calldata yields zero bytes, so copying from
 //! `calldatasize()` implements an arbitrary-length zero fill without a loop.
 
-use crate::mir::{Function, FunctionBuilder, InstKind, Module, PtrLocation, pass::MirPass};
+use crate::mir::{
+    Function, FunctionBuilder, InstKind, Module, PtrLocation,
+    pass::{MirPass, edit_functions},
+};
 use solar_sema::Gcx;
 
 /// Lowers `memory_zero` instructions to `calldatasize` and `calldatacopy`.
@@ -22,13 +25,9 @@ impl MirPass for LowerMemoryZero {
         &self,
         _gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let mut changed = false;
-        for func in module.functions.iter_mut() {
-            changed |= lower_function(func);
-        }
-        changed
+        edit_functions(module, analyses, |_, func| lower_function(func))
     }
 }
 

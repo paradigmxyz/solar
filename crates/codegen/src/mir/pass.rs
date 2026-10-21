@@ -3,7 +3,10 @@
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
 //! implement [`MirPass`] and pipelines are slices of trait-object references.
 //! [`ModuleAnalyses`] caches per-function CFG and alias analyses and module
-//! call summaries between the passes of one pipeline run.
+//! call summaries between the passes of one pipeline run. A module pass that
+//! reports the functions it edited leaves the others' analyses in place, and
+//! the canonical pipelines hand their local summaries and CFG snapshots on to
+//! the next pipeline.
 //!
 //! # Usage
 //!
@@ -19,7 +22,9 @@
 use crate::{
     mir::{
         Function, FunctionId, InstId, MirPhase, Module,
-        analysis::{AliasAnalysis, CfgInfo, LocalSummaryCache, MemoryCallSummaries},
+        analysis::{
+            AliasAnalysis, CfgInfo, LocalSummaryCache, MemoryCallSummaries, direct_callees,
+        },
         pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
         transform::*,
     },
@@ -416,8 +421,14 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
             while !remaining.is_empty() {
                 let end = remaining.iter().position(Option::is_none).unwrap_or(remaining.len());
                 let batch = remaining[..end].iter().copied().flatten().collect::<Vec<_>>();
-                let (pass_changed, error) =
-                    run_passes_inner(gcx, module, &batch, true, Some(&name));
+                let (pass_changed, error) = run_passes_inner(
+                    gcx,
+                    module,
+                    &batch,
+                    true,
+                    Some(&name),
+                    &mut ModuleAnalyses::default(),
+                );
                 changed |= pass_changed;
                 if error.is_some() || end == remaining.len() {
                     return changed;
@@ -436,20 +447,42 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
     }
 
     let mut changed = false;
+    let mut analyses = ModuleAnalyses::default();
     if module.phase() == MirPhase::Semantic {
-        let (pass_changed, error) = run_passes_inner(gcx, module, SEMANTIC_PIPELINE, true, None);
+        let (pass_changed, error) =
+            run_passes_inner(gcx, module, SEMANTIC_PIPELINE, true, None, &mut analyses);
         changed |= pass_changed;
         if error.is_some() {
             return changed;
         }
-        let (pass_changed, error) = run_passes_inner(gcx, module, LOWERING_PIPELINE, true, None);
+        analyses.begin_pipeline(module);
+        let (pass_changed, error) =
+            run_passes_inner(gcx, module, LOWERING_PIPELINE, true, None, &mut analyses);
         changed |= pass_changed;
         if error.is_some() {
             return changed;
+        }
+        analyses.begin_pipeline(module);
+    }
+    changed |= run_passes_inner(gcx, module, LOWERED_PIPELINE, true, None, &mut analyses).0;
+    changed
+}
+
+/// Runs an analysis-free edit over every function of a module pass that touches nothing else,
+/// and reports the edited functions so the others keep their analyses.
+#[must_use]
+pub(crate) fn edit_functions(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    mut edit: impl FnMut(FunctionId, &mut Function) -> bool,
+) -> bool {
+    let mut edited = Vec::new();
+    for (func_id, func) in module.functions.iter_mut_enumerated() {
+        if edit(func_id, func) {
+            edited.push(func_id);
         }
     }
-    changed |= run_passes_inner(gcx, module, LOWERED_PIPELINE, true, None).0;
-    changed
+    analyses.preserve_unedited_functions(module, edited)
 }
 
 /// Runs a function-local transform over every bodied function in a module.
@@ -685,7 +718,7 @@ impl FunctionAnalysisRequirements {
 pub struct ModuleAnalyses {
     /// A diagnostic emitted by this pipeline, independent of other modules.
     pub(crate) error: Option<ErrorGuaranteed>,
-    alias: FxHashMap<FunctionId, Rc<AliasAnalysis>>,
+    alias: FxHashMap<FunctionId, AliasEntry>,
     cfg: FxHashMap<FunctionId, Rc<CfgInfo>>,
     /// Function bodies on which a function-local pass most recently reported
     /// no change. Any intervening mutation of that body removes the entry.
@@ -694,6 +727,8 @@ pub struct ModuleAnalyses {
     /// Local summaries of the functions no pass has changed since the last summary build.
     local_summaries: LocalSummaryCache,
     preserved_by_pass: bool,
+    /// The functions the running module pass edited, when it reports them.
+    changed_functions: Option<DenseBitSet<FunctionId>>,
     call_summaries_preserved: bool,
     local_summaries_preserved: bool,
     /// Whether the running pass prices creation code differently, which only the gas objective
@@ -711,19 +746,30 @@ impl ModuleAnalyses {
         self.error = Some(error);
     }
 
+    /// Starts the next pipeline over the same module. The local summaries and the CFG snapshots
+    /// that still describe their functions carry over; the rest is rebuilt.
+    pub(crate) fn begin_pipeline(&mut self, module: &Module) {
+        self.invalidate_all(module);
+        self.call_summaries = None;
+        self.creation_functions = None;
+    }
+
     pub(crate) fn begin_pass(&mut self, prices_creation: bool) {
         self.preserved_by_pass = false;
+        self.changed_functions = None;
         self.call_summaries_preserved = false;
         self.local_summaries_preserved = false;
         self.prices_creation = prices_creation;
     }
 
-    pub(crate) fn finish_pass(&mut self, changed: bool) {
+    pub(crate) fn finish_pass(&mut self, module: &Module, changed: bool) {
         if !changed {
             return;
         }
-        if !self.preserved_by_pass {
-            self.invalidate_all();
+        if let Some(edited) = self.changed_functions.take() {
+            self.invalidate_functions(module, &edited);
+        } else if !self.preserved_by_pass {
+            self.invalidate_all(module);
             self.creation_functions = None;
             if !self.local_summaries_preserved {
                 self.local_summaries.clear();
@@ -737,16 +783,34 @@ impl ModuleAnalyses {
     /// Returns the shared alias-analysis snapshot for a function, resolving
     /// internal calls through the module call summaries when the snapshot is
     /// first built. A snapshot cached by an earlier pass keeps its own view.
-    fn alias_with_summaries(
-        &mut self,
-        func_id: FunctionId,
-        summaries: Arc<MemoryCallSummaries>,
-    ) -> Rc<AliasAnalysis> {
-        Rc::clone(
-            self.alias
-                .entry(func_id)
-                .or_insert_with(|| Rc::new(AliasAnalysis::empty_with_summaries(summaries))),
-        )
+    fn alias(&mut self, func_id: FunctionId, module: &Module) -> Rc<AliasAnalysis> {
+        if self.alias.get(&func_id).is_some_and(|entry| entry.revalidate) {
+            let summaries = self.call_summaries(module);
+            let entry = self.alias.get_mut(&func_id).unwrap();
+            if entry.sees_same_callees(&module.functions[func_id], &summaries) {
+                // The address memos are cleared, as a fresh snapshot has none.
+                entry.analysis.clear_cached_addresses();
+                entry.summaries = summaries;
+                entry.revalidate = false;
+            } else {
+                self.alias.remove(&func_id);
+            }
+        }
+        if let Some(entry) = self.alias.get(&func_id) {
+            return Rc::clone(&entry.analysis);
+        }
+        let summaries = self.call_summaries(module);
+        let analysis = Rc::new(AliasAnalysis::empty_with_summaries(Arc::clone(&summaries)));
+        self.alias.insert(
+            func_id,
+            AliasEntry {
+                analysis: Rc::clone(&analysis),
+                summaries,
+                revalidate: false,
+                approximate: false,
+            },
+        );
+        analysis
     }
 
     /// Returns the shared CFG snapshot for a function.
@@ -768,13 +832,7 @@ impl ModuleAnalyses {
             (false, false)
         };
         FunctionAnalyses {
-            alias: requirements.alias().then(|| {
-                if let Some(alias) = self.alias.get(&func_id) {
-                    return Rc::clone(alias);
-                }
-                let summaries = self.call_summaries(module);
-                self.alias_with_summaries(func_id, summaries)
-            }),
+            alias: requirements.alias().then(|| self.alias(func_id, module)),
             cfg: requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id])),
             unreported_edit: Cell::new(false),
             creation_only,
@@ -788,12 +846,6 @@ impl ModuleAnalyses {
         Arc::clone(self.call_summaries.get_or_insert_with(|| {
             Arc::new(MemoryCallSummaries::new_cached(module, &mut self.local_summaries))
         }))
-    }
-
-    /// Drops every cached local memory summary after a module pass edited bodies without
-    /// reporting a change.
-    pub(crate) fn note_unreported_module_edit(&mut self) {
-        self.local_summaries.clear();
     }
 
     /// Declares that the running pass leaves the module call summaries valid.
@@ -826,8 +878,9 @@ impl ModuleAnalyses {
 
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {
         if keep_alias {
-            if let Some(alias) = self.alias.get(&func_id) {
-                alias.clear_cached_addresses();
+            if let Some(entry) = self.alias.get_mut(&func_id) {
+                entry.analysis.clear_cached_addresses();
+                entry.approximate = true;
             }
         } else {
             self.alias.remove(&func_id);
@@ -872,10 +925,72 @@ impl ModuleAnalyses {
         }
     }
 
-    fn invalidate_all(&mut self) {
+    fn invalidate_all(&mut self, module: &Module) {
         self.alias.clear();
-        self.cfg.clear();
+        self.retain_current_cfgs(module);
         self.local_no_change.clear();
+    }
+
+    /// Drops what the running pass invalidated in the functions it edited. The other functions
+    /// keep their snapshots and local summaries; an alias snapshot also keeps the call
+    /// summaries it saw, so it survives only while its callees' summaries stay the same.
+    fn invalidate_functions(&mut self, module: &Module, edited: &DenseBitSet<FunctionId>) {
+        self.alias.retain(|&func_id, entry| {
+            entry.revalidate = !edited.contains(func_id) && !entry.approximate;
+            entry.revalidate
+        });
+        self.retain_current_cfgs(module);
+        self.local_no_change.clear();
+        self.creation_functions = None;
+        self.local_summaries.grow(module.functions.len());
+        for func_id in edited {
+            self.local_summaries.invalidate(func_id);
+        }
+    }
+
+    /// Keeps the CFG snapshots that still describe their functions.
+    fn retain_current_cfgs(&mut self, module: &Module) {
+        self.cfg.retain(|&func_id, cfg| {
+            module.functions.get(func_id).is_some_and(|func| cfg.matches(func))
+        });
+    }
+
+    /// Declares that the running pass edited the bodies of only the functions in `edited`, so
+    /// the others keep their analyses. Call it once the pass has finished: the pass may have
+    /// appended functions, but must not have removed or renumbered any.
+    pub(crate) fn preserve_unedited_functions(
+        &mut self,
+        module: &Module,
+        edited: impl IntoIterator<Item = FunctionId>,
+    ) -> bool {
+        let mut set = DenseBitSet::new_empty(module.functions.len());
+        for func_id in edited {
+            set.insert(func_id);
+        }
+        let changed = !set.is_empty();
+        self.changed_functions = Some(set);
+        changed
+    }
+}
+
+/// A cached alias analysis and the call summaries it resolves calls through.
+struct AliasEntry {
+    analysis: Rc<AliasAnalysis>,
+    summaries: Arc<MemoryCallSummaries>,
+    /// Whether a module pass kept the snapshot without knowing the summaries of its callees
+    /// still hold.
+    revalidate: bool,
+    /// Whether a function pass kept the snapshot after changing the function, which can leave
+    /// facts of the earlier body in it. The next module pass drops it.
+    approximate: bool,
+}
+
+impl AliasEntry {
+    /// Returns whether `summaries` describe every callee of `func` as the snapshot's own do.
+    fn sees_same_callees(&self, func: &Function, summaries: &Arc<MemoryCallSummaries>) -> bool {
+        Arc::ptr_eq(&self.summaries, summaries)
+            || direct_callees(func)
+                .all(|callee| self.summaries.get(callee) == summaries.get(callee))
     }
 }
 
@@ -932,7 +1047,8 @@ fn run_function_pass_cached(
             let (keep_alias, keep_cfg) = verified_preservation(func, cfg, insts_before);
             analyses.retain(func_id, keep_alias, keep_cfg);
         } else {
-            analyses.retain(func_id, false, false);
+            let keep_cfg = analyses.cfg.get(&func_id).is_some_and(|cfg| cfg.matches(func));
+            analyses.retain(func_id, false, keep_cfg);
         }
     }
     analyses.record_function_result(func_id, module.functions.len(), cache_key, changed);

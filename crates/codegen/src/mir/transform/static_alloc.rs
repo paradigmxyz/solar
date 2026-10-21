@@ -61,15 +61,15 @@ impl MirPass for DeferAlloc {
             candidates.extend(eligible.into_iter().map(|candidate| (func_id, candidate.alloc)));
         }
 
-        let mut changed = false;
+        let mut edited = Vec::new();
         for (func_id, alloc) in candidates {
             let metadata = &mut module.functions[func_id].inst_mut(alloc).metadata;
             if !metadata.deferred_alloc() {
                 metadata.set_deferred_alloc();
-                changed = true;
+                edited.push(func_id);
             }
         }
-        changed
+        analyses.preserve_unedited_functions(module, edited)
     }
 }
 

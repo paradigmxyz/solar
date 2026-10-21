@@ -19,7 +19,9 @@
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
     FunctionId, InstKind, InstructionMetadata, MirType, Module, PhaseCategory, PtrLocation,
-    RequireKind, RevertKind, RevertPayload, pass::MirPass, transform::utils::expand_block,
+    RequireKind, RevertKind, RevertPayload,
+    pass::{MirPass, edit_functions},
+    transform::utils::expand_block,
 };
 use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
@@ -45,7 +47,7 @@ impl MirPass for LowerChecks {
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let mut helper_context = InstructionMetadata::EMPTY;
         let mut needs_helper = false;
@@ -65,16 +67,14 @@ impl MirPass for LowerChecks {
             }
         }
         let helper = needs_helper.then(|| create_short_string_helper(module, &helper_context));
-        let mut changed = false;
-        for function in &mut module.functions {
-            changed |= lower_function(
+        edit_functions(module, analyses, |_, function| {
+            lower_function(
                 function,
                 helper,
                 gcx.sess.opts.revert_strings,
                 !matches!(gcx.sess.opts.optimization, OptimizationMode::None),
-            );
-        }
-        changed
+            )
+        })
     }
 }
 

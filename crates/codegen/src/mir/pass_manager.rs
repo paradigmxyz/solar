@@ -126,7 +126,7 @@ pub trait MirPass: Sync {
 /// Runs a sequence of MIR passes without validating after each pass.
 #[must_use]
 pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn MirPass]) -> bool {
-    run_passes_inner(gcx, module, passes, false, None).0
+    run_passes_inner(gcx, module, passes, false, None, &mut ModuleAnalyses::default()).0
 }
 
 /// Runs a sequence of MIR passes, checking each changed result when verification is enabled.
@@ -137,7 +137,7 @@ pub fn run_passes(
     passes: &[&dyn MirPass],
     name: Option<&str>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, true, name).0
+    run_passes_inner(gcx, module, passes, true, name, &mut ModuleAnalyses::default()).0
 }
 
 #[must_use]
@@ -147,6 +147,7 @@ pub(crate) fn run_passes_inner(
     passes: &[&dyn MirPass],
     validate_each: bool,
     name: Option<&str>,
+    analyses: &mut ModuleAnalyses,
 ) -> (bool, Option<ErrorGuaranteed>) {
     let output_name = if gcx.sess.opts.unstable.pass_diff || gcx.sess.opts.unstable.print_after_each
     {
@@ -156,7 +157,6 @@ pub(crate) fn run_passes_inner(
     };
     let explicit = name.is_some();
     let mut changed = false;
-    let mut analyses = ModuleAnalyses::default();
     let mut unchanged = Vec::new();
     for pass in passes {
         let pass_name = pass.name();
@@ -177,8 +177,8 @@ pub(crate) fn run_passes_inner(
             } else {
                 analyses.begin_pass(gcx.sess.opts.optimization.is_gas());
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
-                    .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
-                analyses.finish_pass(pass_changed);
+                    .in_scope(|| pass.run_pass(gcx, module, analyses));
+                analyses.finish_pass(module, pass_changed);
                 pass_changed
             };
             if pass_changed {

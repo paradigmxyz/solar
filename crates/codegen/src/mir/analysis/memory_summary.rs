@@ -459,6 +459,19 @@ impl LocalSummaryCache {
         self.multiple_returns = multiple_returns;
     }
 
+    /// Makes room for functions the module gained after the entries were computed.
+    pub(crate) fn grow(&mut self, functions: usize) {
+        if self.entries.is_empty() || self.entries.len() >= functions {
+            return;
+        }
+        self.entries.resize_with(functions, || None);
+        let mut multiple_returns = DenseBitSet::new_empty(functions);
+        for id in &self.multiple_returns {
+            multiple_returns.insert(id);
+        }
+        self.multiple_returns = multiple_returns;
+    }
+
     /// Drops every entry.
     pub(crate) fn clear(&mut self) {
         self.entries = IndexVec::new();

@@ -57,24 +57,28 @@ impl MirPass for DeadArgElim {
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut ModuleAnalyses,
+        analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let forwarded = forward_returned_values(module, gcx.sess.opts.optimization.is_size());
+        let mut edited = Vec::new();
+        let forwarded =
+            forward_returned_values(module, gcx.sess.opts.optimization.is_size(), &mut edited);
         let mut changed = forwarded != 0;
         // Pruning keeps every `ret` and tail call, so the returning set holds for the loop.
         let returning = module.returning_functions();
         loop {
-            let pruned = prune_unused_args(module) + prune_unused_returns(module, &returning);
+            let pruned = prune_unused_args(module, &mut edited)
+                + prune_unused_returns(module, &returning, &mut edited);
             if pruned == 0 {
                 break;
             }
             changed = true;
         }
+        analyses.preserve_unedited_functions(module, edited);
         changed
     }
 }
 
-fn forward_returned_values(module: &mut Module, size: bool) -> usize {
+fn forward_returned_values(module: &mut Module, size: bool, edited: &mut Vec<FunctionId>) -> usize {
     let cold =
         if size { cold_functions(module) } else { DenseBitSet::new_empty(module.functions.len()) };
     let returned = module
@@ -90,7 +94,7 @@ fn forward_returned_values(module: &mut Module, size: bool) -> usize {
         return 0;
     }
     let mut forwarded = 0;
-    for func in &mut module.functions {
+    for (func_id, func) in module.functions.iter_mut_enumerated() {
         let calls = func
             .instructions()
             .filter(|&inst| {
@@ -149,6 +153,9 @@ fn forward_returned_values(module: &mut Module, size: bool) -> usize {
             replacements.insert(result, replacement);
         }
         forwarded += replacements.len();
+        if !replacements.is_empty() {
+            edited.push(func_id);
+        }
         // result = icall callee, args; use result => icall callee, args; use returned_value
         func.replace_uses_canonicalized(&replacements);
     }
@@ -203,9 +210,12 @@ impl MirPass for MergeEquivalentFunctions {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut ModuleAnalyses,
+        analyses: &mut ModuleAnalyses,
     ) -> bool {
-        merge_equivalent_functions(module) != 0
+        let mut edited = Vec::new();
+        let merged = merge_equivalent_functions(module, &mut edited) != 0;
+        analyses.preserve_unedited_functions(module, edited);
+        merged
     }
 }
 
@@ -318,7 +328,7 @@ fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
 }
 
 /// Computes the least fixed point of argument liveness and removes every argument outside it.
-fn prune_unused_args(module: &mut Module) -> usize {
+fn prune_unused_args(module: &mut Module, edited: &mut Vec<FunctionId>) -> usize {
     let mut called = DenseBitSet::new_empty(module.functions.len());
     let mut live = module
         .functions
@@ -400,7 +410,8 @@ fn prune_unused_args(module: &mut Module) -> usize {
     // that fed a removed argument remains in the caller; ordinary DCE may remove it only when its
     // effects permit that.
     let mut removed_call_operands = 0usize;
-    for func in &mut module.functions {
+    for (func_id, func) in module.functions.iter_mut_enumerated() {
+        let removed_before = removed_call_operands;
         func.for_each_instruction_mut(|_, inst| {
             if let InstKind::ICall { function: Callee::Function(function), args, .. } =
                 &mut inst.kind
@@ -429,6 +440,9 @@ fn prune_unused_args(module: &mut Module) -> usize {
                 removed_call_operands += old_len - args.len();
             }
         }
+        if removed_call_operands != removed_before {
+            edited.push(func_id);
+        }
     }
 
     let function_ids = module.functions.indices();
@@ -436,6 +450,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
         if live[func_id].count() == live[func_id].domain_size() {
             continue;
         }
+        edited.push(func_id);
         let func = module.function_mut(func_id);
 
         let old_params = func.params.clone();
@@ -510,7 +525,11 @@ fn record_arg_dependencies(
 /// Scalar and struct results both have one SSA value. Legacy multi-result signatures still carry
 /// extra results through a shared buffer and remain unchanged. Preserve the memory-return flag
 /// before erasing the signature, including when a nested struct field refers to memory.
-fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>) -> usize {
+fn prune_unused_returns(
+    module: &mut Module,
+    returning: &DenseBitSet<FunctionId>,
+    edited: &mut Vec<FunctionId>,
+) -> usize {
     let mut called = DenseBitSet::new_empty(module.functions.len());
     for func in &module.functions {
         for callee in direct_callees(func) {
@@ -601,7 +620,7 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
         return 0;
     }
 
-    for func in &mut module.functions {
+    for (func_id, func) in module.functions.iter_mut_enumerated() {
         let calls = func
             .instructions()
             .filter(|&inst_id| {
@@ -611,12 +630,16 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
                 )
             })
             .collect::<Vec<_>>();
+        if !calls.is_empty() {
+            edited.push(func_id);
+        }
         for inst_id in calls {
             func.remove_inst_result(inst_id);
         }
     }
 
     for func_id in removed_set.iter() {
+        edited.push(func_id);
         let may_return_memory =
             module.type_may_reference_memory(module.function(func_id).return_components()[0]);
         let func = module.function_mut(func_id);
@@ -747,7 +770,7 @@ impl<'a> CanonValues<'a> {
 /// Redirects one wave of equivalent functions, then repeats because merging leaf callees can make
 /// their callers equivalent on the next wave. Dead-function elimination follows this pass in the
 /// canonical pipeline and removes redirected bodies.
-fn merge_equivalent_functions(module: &mut Module) -> usize {
+fn merge_equivalent_functions(module: &mut Module, edited: &mut Vec<FunctionId>) -> usize {
     let mut merged = DenseBitSet::new_empty(module.functions.len());
     let mut total = 0;
     let mut merged_instructions = 0usize;
@@ -789,9 +812,10 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
             .sum::<usize>();
         for (&duplicate, &representative) in &replacements {
             merge_function_debug_origins(module, duplicate, representative);
+            edited.push(representative);
             merged.insert(duplicate);
         }
-        redirect_calls(module, &replacements);
+        redirect_calls(module, &replacements, edited);
     }
 
     if total != 0 {
@@ -1038,13 +1062,19 @@ fn equivalent_terminator_payload(
     lhs == rhs
 }
 
-fn redirect_calls(module: &mut Module, replacements: &FxHashMap<FunctionId, FunctionId>) {
-    for func in &mut module.functions {
+fn redirect_calls(
+    module: &mut Module,
+    replacements: &FxHashMap<FunctionId, FunctionId>,
+    edited: &mut Vec<FunctionId>,
+) {
+    for (func_id, func) in module.functions.iter_mut_enumerated() {
+        let mut redirected = false;
         func.for_each_instruction_mut(|_, inst| {
             if let InstKind::ICall { function: Callee::Function(function), .. } = &mut inst.kind
                 && let Some(&replacement) = replacements.get(function)
             {
                 *function = replacement;
+                redirected = true;
             }
         });
         for block in &mut func.blocks {
@@ -1052,7 +1082,11 @@ fn redirect_calls(module: &mut Module, replacements: &FxHashMap<FunctionId, Func
                 && let Some(&replacement) = replacements.get(function)
             {
                 *function = replacement;
+                redirected = true;
             }
+        }
+        if redirected {
+            edited.push(func_id);
         }
     }
 }

@@ -117,9 +117,14 @@ impl MirPass for LowerMCopy {
             })
             .collect::<FxHashMap<_, _>>();
 
+        let mut edited = Vec::new();
         for (func_id, sites) in sites.into_iter_enumerated() {
-            lower_function(module.function_mut(func_id), &sites, &helpers);
+            if !sites.is_empty() {
+                lower_function(module.function_mut(func_id), &sites, &helpers);
+                edited.push(func_id);
+            }
         }
+        analyses.preserve_unedited_functions(module, edited);
         CallGraphInfo::assert_runtime_helpers(module, functions.into_values());
         true
     }

@@ -58,7 +58,7 @@ impl MirPass for Specialize {
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _: &mut ModuleAnalyses,
+        analyses: &mut ModuleAnalyses,
     ) -> bool {
         // A literal substituted into one body turns the arguments it forwards
         // into literals for the helpers that body calls, so sweep again until
@@ -66,12 +66,14 @@ impl MirPass for Specialize {
         const MAX_ROUNDS: usize = 4;
         let mut changed = false;
         let mut tried = FxHashSet::default();
+        let mut edited = Vec::new();
         for _ in 0..MAX_ROUNDS {
-            if !specialize_round(gcx, module, &mut tried) {
+            if !specialize_round(gcx, module, &mut tried, &mut edited) {
                 break;
             }
             changed = true;
         }
+        analyses.preserve_unedited_functions(module, edited);
         changed
     }
 }
@@ -81,6 +83,7 @@ fn specialize_round(
     gcx: solar_sema::Gcx<'_>,
     module: &mut Module,
     tried: &mut FxHashSet<(FunctionId, Constants, usize, bool)>,
+    edited: &mut Vec<FunctionId>,
 ) -> bool {
     let graph = CallGraphInfo::new(module);
     let target = Target::new(gcx);
@@ -171,6 +174,7 @@ fn specialize_round(
                 }
             }
             func.replace_uses_canonicalized(&replacements);
+            edited.push(callee);
             changed = true;
             continue;
         }
@@ -245,6 +249,7 @@ fn specialize_round(
         candidate.attributes.no_inline = new.bytes > new_call.bytes;
         let specialized = if all_calls {
             module.functions[callee] = candidate;
+            edited.push(callee);
             callee
         } else {
             candidate.name.disambiguator = None;
@@ -253,6 +258,7 @@ fn specialize_round(
         // icall generic, constants, args => icall shared_specialization, constants, args
         for index in selected {
             let site = &calls[index];
+            edited.push(site.caller);
             let instruction = module.functions[site.caller].inst_mut(site.inst);
             let mut kind = instruction.kind.clone();
             if let InstKind::ICall { function: crate::mir::Callee::Function(function), .. } =

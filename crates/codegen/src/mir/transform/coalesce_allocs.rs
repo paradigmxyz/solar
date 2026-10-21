@@ -21,7 +21,9 @@
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
     Function, FunctionBuilder, InstId, InstKind, Module, PtrLocation, ValueId,
-    analysis::AliasAnalysis, memory::EvmMemoryLayout, pass::MirPass,
+    analysis::AliasAnalysis,
+    memory::EvmMemoryLayout,
+    pass::{MirPass, edit_functions},
 };
 use solar_sema::Gcx;
 
@@ -40,16 +42,15 @@ impl MirPass for CoalesceAllocs {
         &self,
         _gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let mut changed = false;
-        for func in module.functions.iter_mut() {
-            if !func.blocks.is_empty() && coalesce_function(func) {
+        edit_functions(module, analyses, |_, func| {
+            let changed = !func.blocks.is_empty() && coalesce_function(func);
+            if changed {
                 super::lower_memory_objects::normalize_pointer_operands(func);
-                changed = true;
             }
-        }
-        changed
+            changed
+        })
     }
 }
 

@@ -21,7 +21,8 @@
 
 use crate::mir::{
     AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType, Module,
-    PtrLocation, Value, pass::MirPass,
+    PtrLocation, Value,
+    pass::{MirPass, edit_functions},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -55,11 +56,7 @@ impl MirPass for LowerMemoryObjects {
             );
             return false;
         }
-        let mut changed = false;
-        for func in module.functions.iter_mut() {
-            changed |= lower_function(func);
-        }
-        changed
+        edit_functions(module, analyses, |_, func| lower_function(func))
     }
 }
 

@@ -43,7 +43,7 @@ use crate::mir::{
     ArgIdx, Callee, Function, FunctionId, Immediate, InstId, InstKind, Instruction, MirType,
     Module, Terminator, Value, ValueId,
     analysis::{Liveness, cold_functions},
-    pass::{MirPass, ModuleAnalyses},
+    pass::{MirPass, ModuleAnalyses, edit_functions},
     utils,
 };
 use alloy_primitives::U256;
@@ -72,16 +72,13 @@ impl MirPass for CallCleanup {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut ModuleAnalyses,
+        analyses: &mut ModuleAnalyses,
     ) -> bool {
         let facts = infer_arguments(module);
         let returns = infer_returns(module);
-        let mut changed = false;
-        for (id, func) in module.functions.iter_mut_enumerated() {
-            changed |=
-                cleanup(func, |func, index| argument_bits(func, id, index, &facts), &returns);
-        }
-        changed
+        edit_functions(module, analyses, |id, func| {
+            cleanup(func, |func, index| argument_bits(func, id, index, &facts), &returns)
+        })
     }
 }
 
