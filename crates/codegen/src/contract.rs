@@ -343,9 +343,10 @@ impl ContractGraph {
     /// contracts that embed it. Source-body sizes are a cheap cost estimate; they do not affect
     /// what gets compiled.
     fn scheduling_priorities(&self, gcx: Gcx<'_>) -> IndexVec<ContractId, u64> {
-        let mut costs = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
+        // Holds each contract's own cost until the traversal adds its finish chain.
+        let mut priorities = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
         for id in self.reachable.iter() {
-            costs[id] = gcx
+            priorities[id] = gcx
                 .contract_reachable_functions(id)
                 .iter()
                 .map(|function| {
@@ -355,15 +356,13 @@ impl ContractGraph {
                 .sum::<u64>()
                 .max(1);
         }
-        // The finish chain from the end of a contract's scheduling through the longest path of
-        // contracts that embed it.
-        let mut after = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
-        let mut priorities = costs.clone();
+        // The longest finish chain of the contracts that embed each contract.
+        let mut after = IndexVec::from_vec(vec![0; self.dependencies.len()]);
         let mut remaining = IndexVec::from_vec(self.dependents.iter().map(Vec::len).collect());
         let mut ready = self.reachable.iter().filter(|&id| remaining[id] == 0).collect::<Vec<_>>();
         while let Some(id) = ready.pop() {
-            let tail = (costs[id] / FINISH_COST_DIVISOR).saturating_add(after[id]);
-            priorities[id] = costs[id].saturating_add(tail);
+            let tail = (priorities[id] / FINISH_COST_DIVISOR).saturating_add(after[id]);
+            priorities[id] = priorities[id].saturating_add(tail);
             for child in self.dependencies[id].iter() {
                 after[child] = after[child].max(tail);
                 remaining[child] -= 1;
