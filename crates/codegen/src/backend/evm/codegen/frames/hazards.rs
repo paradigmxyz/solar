@@ -3,23 +3,25 @@
 use super::{
     super::{
         AliasAnalysis, ArgIdx, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId,
-        FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase, MemoryRegion, Module,
-        Terminator, U256, Value, ValueId,
+        FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase, MemoryRegion, MirType,
+        Module, Terminator, U256, Value, ValueId,
     },
-    LOW_MEMORY_BOUND, PtrLocation,
+    PtrLocation,
 };
-use crate::mir::{
-    Callee,
-    analysis::{AddressInput, absolute_address_inputs},
-};
+use crate::mir::{Callee, analysis::integers::depends_on_pointer};
 
 impl<'gcx> EvmCodegen<'gcx> {
-    /// Returns the destination of a symbolic memory write that can cover a
-    /// compiler spill slot. Constant ranges are handled by the static memory
-    /// high-water mark instead.
+    /// Returns the destination of a memory write that can cover a compiler spill slot.
+    ///
+    /// The spill area's bounds are only fixed at frame layout, after the stackifier decides
+    /// which values to keep out of it, so a write is protected unless its range is disjoint from
+    /// the area whatever the layout: below the heap start, or a constant range, which layout
+    /// keeps the area clear of. A copy of a constant length is as unbounded as one of any other
+    /// length when an input picks its destination, so a pass that folds the length changes
+    /// nothing. [`Self::write_dest_may_reach_spills`] drops the destinations that provably lie
+    /// on the heap or in a frame.
     pub(in crate::backend::evm::codegen) fn dynamic_spill_write_dest(
         func: &Function,
-        inputs: &IndexVec<ValueId, AddressInput>,
         inst_id: InstId,
     ) -> Option<ValueId> {
         if matches!(
@@ -28,39 +30,35 @@ impl<'gcx> EvmCodegen<'gcx> {
         ) {
             return None;
         }
-        let dynamic_range = |dest, size| {
-            // A guard or inlining can fold a copy's length to a constant while an input still
-            // picks its destination, so protect it like a variable-length copy. The other
-            // constant-length copies keep the `mstore` contract: constants and calldata-computed
-            // addresses are handled by the memory marks, and an allocation or a call returns a
-            // pointer on the heap.
-            if let Some(size) = func.value_u64(size)
-                && (size == 0
-                    || match inputs[dest] {
-                        AddressInput::Calldata => true,
-                        AddressInput::Constant => !Self::constant_leaves(func, dest).is_empty(),
-                        AddressInput::Other => !Self::is_chosen_by_input(
-                            func,
-                            dest,
-                            &mut DenseBitSet::new_empty(func.num_values()),
-                        ),
-                    })
-            {
+        // `length` is the exact length when constant, and `longest` a bound on it.
+        let protected = |dest: ValueId, length: Option<u64>, longest: Option<u64>| {
+            if length == Some(0) {
                 return None;
             }
-            let below_spills = func.value_u64(dest).is_some_and(|dest| {
-                let mut visiting = DenseBitSet::new_empty(func.num_values());
-                Self::value_u64_upper_bound(func, size, &mut visiting)
-                    .and_then(|size| dest.checked_add(size))
-                    .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
-            });
-            (!below_spills).then_some(dest)
+            let Some(start) = func.value_u64(dest) else { return Some(dest) };
+            // A constant range is a fixed image that layout keeps the spill area clear of. One
+            // of unknown length reaches every address above its start, so only a range that
+            // ends below the heap start is disjoint.
+            if length.is_some() {
+                return None;
+            }
+            let end = longest.and_then(|longest| start.checked_add(longest));
+            (!end.is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)).then_some(dest)
+        };
+        let symbolic_size = |dest: ValueId, size: ValueId| {
+            let longest = Self::value_u64_upper_bound(
+                func,
+                size,
+                &mut DenseBitSet::new_empty(func.num_values()),
+            );
+            protected(dest, func.value_u64(size), longest)
         };
         match func.inst(inst_id).kind {
             InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Memory)
             | InstKind::DataCopy(_, dest, size)
             | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ExtCodeCopy(_, dest, _, size) => dynamic_range(dest, size),
+            | InstKind::ExtCodeCopy(_, dest, _, size)
+            | InstKind::MemoryZero(dest, size) => symbolic_size(dest, size),
             InstKind::Copy(dest, offset, size, PtrLocation::Returndata) => {
                 // `returndatacopy(_, returndatasize(), n)` is an OOG guard:
                 // `n == 0` writes nothing, while every nonzero length is out
@@ -69,79 +67,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                     func.value(offset),
                     Value::Inst(inst) if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize)
                 );
-                if starts_at_end { None } else { dynamic_range(dest, size) }
+                if starts_at_end { None } else { symbolic_size(dest, size) }
             }
             InstKind::Call { ret_offset: dest, ret_size: size, .. }
             | InstKind::CallCode { ret_offset: dest, ret_size: size, .. }
             | InstKind::StaticCall { ret_offset: dest, ret_size: size, .. }
-            | InstKind::DelegateCall { ret_offset: dest, ret_size: size, .. }
-                if func.value_u64(size) != Some(0) =>
-            {
-                dynamic_range(dest, size)
+            | InstKind::DelegateCall { ret_offset: dest, ret_size: size, .. } => {
+                symbolic_size(dest, size)
             }
-            // A fixed-width store through a loop-carried pointer that starts below the spill
-            // area sweeps every slot the loop reaches; across the iterations it is as unbounded
-            // as a variable-length copy.
-            InstKind::Store(dest, _, PtrLocation::Memory) | InstKind::Store8(dest, _)
-                if Self::is_low_sweeping_pointer(func, dest) =>
-            {
-                Some(dest)
-            }
+            InstKind::Store(dest, _, PtrLocation::Memory) => protected(dest, Some(32), Some(32)),
+            InstKind::Store8(dest, _) => protected(dest, Some(1), Some(1)),
             _ => None,
-        }
-    }
-
-    /// Whether `pointer` is a phi that enters from an address below the spill area and is
-    /// advanced by its own increment on another edge.
-    fn is_low_sweeping_pointer(func: &Function, pointer: ValueId) -> bool {
-        let Value::Inst(inst_id) = func.value(pointer) else { return false };
-        let InstKind::Phi(incoming) = &func.inst(*inst_id).kind else { return false };
-        let starts_low = incoming.iter().any(|&(_, value)| {
-            func.value_u64(value).is_some_and(|address| address < EvmMemoryLayout::HEAP_START)
-        });
-        let advances = incoming.iter().any(|&(_, value)| {
-            matches!(func.value(value), Value::Inst(step)
-                if matches!(func.inst(*step).kind, InstKind::Add(lhs, rhs)
-                    if lhs == pointer || rhs == pointer))
-        });
-        starts_low && advances
-    }
-
-    /// Whether an input may choose `value`: a parameter, or any word that is not a constant, an
-    /// allocation, an internal call's result, or the free memory pointer, or arithmetic that
-    /// mixes one in. The compiler's own pointers lie on the heap above the spill area, and a
-    /// pointer that a call returns is taken to be one.
-    fn is_chosen_by_input(
-        func: &Function,
-        value: ValueId,
-        visiting: &mut DenseBitSet<ValueId>,
-    ) -> bool {
-        match func.value(value) {
-            Value::Arg(_) | Value::Undef(_) | Value::Error(_) => true,
-            Value::Immediate(_) => false,
-            Value::Inst(inst_id) if visiting.insert(value) => match &func.inst(*inst_id).kind {
-                _ if Self::reads_free_memory_pointer(func, *inst_id) => false,
-                InstKind::Add(lhs, rhs)
-                | InstKind::Sub(lhs, rhs)
-                | InstKind::Mul(lhs, rhs)
-                | InstKind::And(lhs, rhs)
-                | InstKind::Or(lhs, rhs)
-                | InstKind::Xor(lhs, rhs)
-                | InstKind::Shl(lhs, rhs)
-                | InstKind::Shr(lhs, rhs)
-                | InstKind::Select(_, lhs, rhs) => {
-                    Self::is_chosen_by_input(func, *lhs, visiting)
-                        || Self::is_chosen_by_input(func, *rhs, visiting)
-                }
-                InstKind::Zext(inner) | InstKind::IntToPtr(inner) => {
-                    Self::is_chosen_by_input(func, *inner, visiting)
-                }
-                InstKind::Phi(incoming) => incoming
-                    .iter()
-                    .any(|&(_, incoming)| Self::is_chosen_by_input(func, incoming, visiting)),
-                _ => true,
-            },
-            Value::Inst(_) => false,
         }
     }
 
@@ -184,11 +120,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
     ) -> FxHashSet<InstId> {
         let mut hazards = FxHashSet::default();
-        let inputs = absolute_address_inputs(func);
         let candidates = func
             .instructions()
             .filter_map(|inst_id| {
-                Self::dynamic_spill_write_dest(func, &inputs, inst_id).map(|dest| (inst_id, dest))
+                Self::dynamic_spill_write_dest(func, inst_id).map(|dest| (inst_id, dest))
             })
             .collect::<Vec<_>>();
         if candidates.is_empty() {
@@ -203,11 +138,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         hazards
     }
 
-    /// Whether a dynamic-length write's destination may overlap the spill area.
-    /// A free-memory-pointer, allocation, or internal-frame destination stays
-    /// in compiler-owned high memory; a symbolic low base (raw
-    /// `returndatasize()` addressing) or a low absolute base can reach the
-    /// fixed low-memory spill slots.
+    /// Whether a write's destination may overlap the spill area, unless it provably lies on the
+    /// heap or in an internal frame: an allocation, a pointer rooted at the free-memory pointer
+    /// that only offsets that cannot wrap move, or a frame address. Any other destination may
+    /// reach the fixed low-memory spill slots.
     fn write_dest_may_reach_spills(
         &self,
         func_id: FunctionId,
@@ -218,69 +152,81 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some(address) = aa.memory_address(func, dest) else {
             return true;
         };
-        if matches!(address.region, MemoryRegion::Heap | MemoryRegion::InternalFrame) {
+        if address.region == MemoryRegion::InternalFrame {
             return false;
         }
         match address.base {
             MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
             | MemoryBase::InternalFrame => false,
-            MemoryBase::Absolute => address.offset < LOW_MEMORY_BOUND,
+            MemoryBase::Absolute => true,
             MemoryBase::Value(value) => {
                 let mut visiting = DenseBitSet::new_empty(func.num_values());
                 let mut memo = FxHashMap::default();
-                self.heap_pointer_provenance(func_id, func, aa, value, &mut visiting, &mut memo)
+                self.heap_pointer_provenance(func_id, func, value, &mut visiting, &mut memo)
                     != Some(true)
             }
         }
     }
 
-    /// Finds leaf helpers that return a pointer rooted at the free-memory pointer,
-    /// and memory-reference arguments that every internal call site passes such
-    /// a pointer. Calls lose alias provenance in MIR, so remember the narrow
-    /// interprocedural facts needed by forwarding-buffer hazard analysis.
+    /// Finds helpers that return a pointer rooted at the free-memory pointer,
+    /// and arguments that every internal call site passes such a pointer. Calls
+    /// lose alias provenance in MIR, so remember the narrow interprocedural
+    /// facts needed by forwarding-buffer hazard analysis.
     ///
     /// Both sets start from every candidate and shrink until no return or call
     /// site refutes them, since each can depend on the other: a helper may
     /// return its argument, and a call site may pass a helper's result.
-    /// Inline assembly can retag any word as a memory reference, so an argument
-    /// is trusted only through its callers.
+    /// Lowering erases pointer types and inline assembly can retag any word as
+    /// a memory reference, so an argument is trusted only through its callers.
     pub(in crate::backend::evm::codegen) fn collect_heap_pointer_facts(
         module: &Module,
     ) -> (DenseBitSet<FunctionId>, IndexVec<FunctionId, DenseBitSet<ArgIdx>>) {
         let mut helpers = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
-            let leaf = !func.instructions().any(|inst_id| {
-                matches!(func.inst(inst_id).kind, InstKind::ICall { .. } | InstKind::SetFmp(_))
-                    || matches!(
-                        func.inst(inst_id).kind,
-                        InstKind::Store(address, _, PtrLocation::Memory)
-                            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                    )
-            });
             let mut returns = func.blocks.iter().filter_map(|block| match &block.terminator {
                 Some(Terminator::Return { values }) => Some(values.len()),
                 _ => None,
             });
-            if leaf && returns.next() == Some(1) && returns.all(|len| len == 1) {
+            // A tail call hands the result to a function the candidate does not vouch for.
+            let tails = func
+                .blocks
+                .iter()
+                .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })));
+            if !tails && returns.next() == Some(1) && returns.all(|len| len == 1) {
                 helpers.insert(func_id);
+            }
+        }
+        // Every parameter of a function some call reaches starts as a candidate: lowering erases
+        // pointer types, and a call that passes anything else refutes it.
+        let mut called = DenseBitSet::new_empty(module.functions.len());
+        for func in module.functions.iter() {
+            for inst_id in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst_id).kind
+                {
+                    called.insert(callee);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                    called.insert(*function);
+                }
             }
         }
         let mut args = module
             .functions
-            .iter()
-            .map(|func| {
+            .iter_enumerated()
+            .map(|(func_id, func)| {
                 let mut args = DenseBitSet::new_empty(func.arg_indices().count());
-                for (arg, ty) in func.params.iter_enumerated() {
-                    if ty.is_memory_reference() {
+                if called.contains(func_id) && !Self::is_external_entry(func) {
+                    for arg in func.arg_indices() {
                         args.insert(arg);
                     }
                 }
                 args
             })
             .collect::<IndexVec<FunctionId, _>>();
-        let analyses =
-            module.functions.iter().map(AliasAnalysis::new).collect::<IndexVec<FunctionId, _>>();
 
         loop {
             let mut refuted_helpers = Vec::new();
@@ -291,7 +237,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let mut memo = FxHashMap::default();
                     Self::heap_pointer_provenance_with_helpers(
                         func,
-                        &analyses[func_id],
                         value,
                         &helpers,
                         &args[func_id],
@@ -345,18 +290,20 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Returns `Some(grounded)` for a heap-pointer derivation. Recursive phi
     /// edges are provisionally valid but ungrounded; every accepted cycle must
     /// also contain a concrete FMP, allocation, or qualified-helper origin.
+    ///
+    /// A pointer plus an offset stays on the heap only when the offset cannot wrap the address
+    /// space around to low memory, as `add(p, mul(c, sub(0x80, p)))` does; see
+    /// [`depends_on_pointer`].
     fn heap_pointer_provenance(
         &self,
         func_id: FunctionId,
         func: &Function,
-        aa: &AliasAnalysis,
         value: ValueId,
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut FxHashMap<ValueId, bool>,
     ) -> Option<bool> {
         Self::heap_pointer_provenance_with_helpers(
             func,
-            aa,
             value,
             &self.heap_pointer_return_functions,
             &self.heap_pointer_args[func_id],
@@ -367,7 +314,6 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn heap_pointer_provenance_with_helpers(
         func: &Function,
-        aa: &AliasAnalysis,
         value: ValueId,
         helper_returns: &DenseBitSet<FunctionId>,
         heap_args: &DenseBitSet<ArgIdx>,
@@ -390,7 +336,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         let derive = |value, visiting: &mut DenseBitSet<ValueId>, memo: &mut FxHashMap<_, _>| {
             Self::heap_pointer_provenance_with_helpers(
                 func,
-                aa,
                 value,
                 helper_returns,
                 heap_args,
@@ -398,58 +343,76 @@ impl<'gcx> EvmCodegen<'gcx> {
                 memo,
             )
         };
+        let offset =
+            |value| !depends_on_pointer(func, value, &|function| helper_returns.contains(function));
 
-        let provenance = aa
-            .memory_address(func, value)
-            .and_then(|address| matches!(address.region, MemoryRegion::Heap).then_some(true))
-            .or_else(|| {
-                let inst_id = match func.value(value) {
-                    Value::Arg(arg) if heap_args.contains(*arg) => return Some(true),
-                    Value::Inst(inst_id) => inst_id,
-                    _ => return None,
-                };
-                match &func.inst(*inst_id).kind {
-                    InstKind::Fmp | InstKind::Alloc { .. } => Some(true),
-                    InstKind::Load(address, PtrLocation::Memory)
-                        if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
-                    {
-                        Some(true)
-                    }
-                    InstKind::ICall { function: Callee::Function(function), .. }
-                        if helper_returns.contains(*function) =>
-                    {
-                        Some(true)
-                    }
-                    InstKind::Add(first, second) => {
-                        derive(*first, visiting, memo).or_else(|| derive(*second, visiting, memo))
-                    }
-                    InstKind::Sub(base, offset)
-                        if AliasAnalysis::sub_keeps_pointer_region(func, *offset) =>
-                    {
-                        derive(*base, visiting, memo)
-                    }
-                    InstKind::IntToPtr(base) | InstKind::PtrToInt(base, 256) => {
-                        derive(*base, visiting, memo)
-                    }
-                    InstKind::And(first, second) if aligned_mask(*second) => {
-                        derive(*first, visiting, memo)
-                    }
-                    InstKind::And(first, second) if aligned_mask(*first) => {
-                        derive(*second, visiting, memo)
-                    }
-                    InstKind::Phi(incoming) => {
-                        let mut grounded = false;
-                        for &(_, incoming) in incoming {
-                            grounded |= derive(incoming, visiting, memo)?;
-                        }
-                        Some(grounded)
-                    }
-                    InstKind::Select(_, then_value, else_value) => Some(
-                        derive(*then_value, visiting, memo)? | derive(*else_value, visiting, memo)?,
-                    ),
-                    _ => None,
+        let provenance = (|| {
+            let inst_id = match func.value(value) {
+                Value::Arg(arg) if heap_args.contains(*arg) => return Some(true),
+                Value::Inst(inst_id) => inst_id,
+                _ => return None,
+            };
+            match &func.inst(*inst_id).kind {
+                InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => Some(true),
+                InstKind::Load(address, PtrLocation::Memory)
+                    if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                {
+                    Some(true)
                 }
-            });
+                InstKind::ICall { function: Callee::Function(function), .. }
+                    if helper_returns.contains(*function) =>
+                {
+                    Some(true)
+                }
+                InstKind::Add(first, second) if offset(*second) => derive(*first, visiting, memo),
+                InstKind::Add(first, second) if offset(*first) => derive(*second, visiting, memo),
+                InstKind::PtrAdd(base, delta) if offset(*delta) => derive(*base, visiting, memo),
+                // The heap prefix guard keeps a constant step back from a heap pointer clear of
+                // the spill area.
+                InstKind::Sub(base, offset) if func.value_u64(*offset).is_some() => {
+                    derive(*base, visiting, memo)
+                }
+                InstKind::IntToPtr(base) | InstKind::PtrToInt(base, 256) => {
+                    derive(*base, visiting, memo)
+                }
+                InstKind::And(first, second) if aligned_mask(*second) => {
+                    derive(*first, visiting, memo)
+                }
+                InstKind::And(first, second) if aligned_mask(*first) => {
+                    derive(*second, visiting, memo)
+                }
+                InstKind::Phi(incoming) => {
+                    let mut grounded = false;
+                    for &(_, incoming) in incoming {
+                        grounded |= derive(incoming, visiting, memo)?;
+                    }
+                    Some(grounded)
+                }
+                InstKind::Select(cond, then_value, else_value) => {
+                    if is_floor_clamp(func, *cond, *then_value, *else_value) {
+                        return Some(true);
+                    }
+                    Some(
+                        derive(*then_value, visiting, memo)? | derive(*else_value, visiting, memo)?,
+                    )
+                }
+                InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    aggregate: slice,
+                    index: MirType::SLICE_PTR_FIELD,
+                } => match func.value(*slice) {
+                    Value::Inst(slice) => match &func.inst(*slice).kind {
+                        InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. } => {
+                            derive(*ptr, visiting, memo)
+                        }
+                        InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => Some(true),
+                        _ => None,
+                    },
+                    _ => None,
+                },
+                _ => None,
+            }
+        })();
         visiting.remove(value);
         if let Some(grounded) = provenance {
             memo.insert(value, grounded);
@@ -534,4 +497,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some(size) = size else { return true };
         offset.checked_add(size).is_none_or(|range_end| range_end > start)
     }
+}
+
+/// Whether `select cond, then_value, else_value` is `max(word, heap_floor)`, which `heap-floor`
+/// leaves where it raises a word: the choice between the floor and a word that is below it.
+fn is_floor_clamp(
+    func: &Function,
+    cond: ValueId,
+    then_value: ValueId,
+    else_value: ValueId,
+) -> bool {
+    let is_floor = |value: ValueId| matches!(func.value(value), Value::Inst(inst) if func.inst(*inst).kind == InstKind::HeapFloor);
+    let Value::Inst(cond) = func.value(cond) else { return false };
+    matches!(func.inst(*cond).kind, InstKind::Lt(word, floor)
+        if is_floor(floor) && is_floor(then_value) && word == else_value)
 }
