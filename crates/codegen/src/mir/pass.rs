@@ -801,9 +801,10 @@ impl ModuleAnalyses {
         self.call_summaries_preserved = true;
     }
 
-    /// Drops the module call summaries after a module pass edited bodies mid-pass.
-    pub(crate) fn drop_call_summaries(&mut self) {
-        self.call_summaries = None;
+    /// Computes call summaries of the module as it is, from the cached local summaries, without
+    /// replacing the shared ones.
+    pub(crate) fn fresh_call_summaries(&mut self, module: &Module) -> Arc<MemoryCallSummaries> {
+        Arc::new(MemoryCallSummaries::new_cached(module, &mut self.local_summaries))
     }
 
     /// Drops the cached local summary of a function whose body the running pass changed.

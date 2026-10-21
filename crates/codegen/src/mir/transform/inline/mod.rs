@@ -98,7 +98,7 @@ impl MirPass for Inline {
         let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
         let mut changed = false;
         for _ in 0..4 {
-            let calls = analyses.call_summaries(module);
+            let calls = analyses.fresh_call_summaries(module);
             let straight_line = if target.optimization().is_gas() {
                 module.creation_pricing_functions().1
             } else {
@@ -107,9 +107,6 @@ impl MirPass for Inline {
             let stats = MirInliner { target, physical, calls, straight_line }.run(module);
             for &caller in &stats.modified {
                 analyses.invalidate_local_summary(caller);
-            }
-            if stats.inlined != 0 {
-                analyses.drop_call_summaries();
             }
             if !stats.consumed.is_empty()
                 && let Some(keep) =
@@ -131,9 +128,8 @@ impl MirPass for Inline {
             }
         }
         if !edited_later {
-            // The rounds above kept the cache and the summaries of the final module current.
+            // The rounds above kept the cache current for the final module.
             analyses.preserve_local_summaries();
-            analyses.preserve_call_summaries();
         }
         changed | edited_later
     }
