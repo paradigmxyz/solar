@@ -212,14 +212,49 @@ contract Test {
         }
     }
 
+    // So does one stored before the block, which code after it can load back, or passed to a
+    // call, which may store it.
+    function freePointerStored(uint256 x) external pure returns (uint256 r) {
+        assembly {
+            mstore(0x00, mload(0x40)) //~ ERROR: this stores a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+        }
+        /// @custom:solar-scratch
+        {
+            r = abi.encode(x).length;
+        }
+        bytes memory later = abi.encode(r, x);
+        assembly {
+            r := add(r, mload(add(mload(0x00), 0x20)))
+        }
+        r += later.length;
+    }
+
+    function keepWord(uint256 word) internal pure returns (uint256) {
+        return word;
+    }
+
+    function freePointerPassed(uint256 x) external pure returns (uint256 r) {
+        uint256 p;
+        assembly {
+            p := mload(0x40)
+        }
+        r = keepWord(p); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+        /// @custom:solar-scratch
+        {
+            r += abi.encode(x).length;
+        }
+    }
+
     // A pointer read after the block, or used only before it, as a block in a loop reads it again
-    // before every use, refers to no memory the block reuses.
+    // before every use, refers to no memory the block reuses, and nor does one that only sets the
+    // free memory pointer, which the block reads when it starts.
     function freePointerAround(uint256 n) external pure returns (uint256 r) {
         uint256 before;
         assembly {
             before := mload(0x40)
             mstore(before, n)
             r := mload(before)
+            mstore(0x40, add(before, 0x20))
         }
         for (uint256 i; i < n; ++i) {
             uint256 top;

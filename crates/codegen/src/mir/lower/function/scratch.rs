@@ -42,7 +42,10 @@
 //! The free memory pointer that code before the block reads, as inline assembly does, points at
 //! the memory the block then allocates. The check rejects a use of it, or of a value derived from
 //! it, that may run after the block ends normally, unless the path there reads the pointer again.
-//! It does not follow whether assembly reserved memory at that pointer first.
+//! On the way into the block, it rejects a store of one, other than into the free memory pointer,
+//! and a call or other operation that takes one as data rather than as an address it accesses:
+//! code after the block could load the pointer back. It does not follow whether assembly reserved
+//! memory at the pointer first.
 //!
 //! The check runs on the contract's MIR right after lowering, before any pass, once the internal
 //! function pointer dispatchers exist, so every body a call in the block may run is summarized.
@@ -50,16 +53,17 @@
 //!
 //! NOTE: reading `msize` after the block sees the memory the block used, as it would without
 //! reuse. Only the function's own reads of the free memory pointer are followed: a pointer to free
-//! memory that a callee returns, or that assembly derives from other addresses, such as past an
-//! object's end, may point at the block's memory as well.
+//! memory that a callee reads and returns or stores, or that assembly derives from other
+//! addresses, such as past an object's end, may point at the block's memory as well.
 
 use super::{memory_facts::Analyzed, *};
 use crate::mir::{
-    ArgIdx, Callee, EffectKind, InstId, Terminator,
+    ArgIdx, Callee, EffectKind, InstId, RawMemorySize, Terminator,
     analysis::{LocalSummaryCache, MemoryBase, MemoryCallSummaries},
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::{IndexVec, index_vec},
     smallvec::SmallVec,
 };
 
@@ -271,7 +275,8 @@ fn check_region(
 
     // A pointer to free memory read before the block, as inline assembly reads one, points at the
     // memory the block allocates, which code after the block's normal exit reuses. So a use of
-    // one that may run after that exit is late, unless the path there reads the pointer again.
+    // one that may run after that exit is late, unless the path there reads the pointer again, and
+    // so is a store or a call before it that keeps the pointer for code after it to load again.
     let restore = func.blocks.iter_enumerated().find_map(|(block, data)| {
         let restores = |&inst: &InstId| {
             matches!(func.inst(inst).kind, InstKind::SetFmp(value) if value == region.saved)
@@ -286,6 +291,7 @@ fn check_region(
                     continue;
                 }
                 let (later, later_terminators) = runs_after(func, restore, (block, index));
+                let earlier = runs_before(func, restore, (block, index));
                 let mut derived = FxHashSet::from_iter([pointer]);
                 let mut stack = vec![pointer];
                 while let Some(value) = stack.pop() {
@@ -305,6 +311,14 @@ fn check_region(
                         } else if later.contains(inst) {
                             escapes
                                 .push((func.inst(inst).metadata.source_span(), Escape::Outlives));
+                        } else if earlier.contains(inst) && captures(func, inst, value) {
+                            let escape = match func.inst(inst).kind {
+                                InstKind::ICall { function: Callee::Function(callee), .. } => {
+                                    Escape::Call(callee)
+                                }
+                                _ => Escape::Stored,
+                            };
+                            escapes.push((func.inst(inst).metadata.source_span(), escape));
                         }
                     }
                 }
@@ -495,6 +509,58 @@ fn runs_after(
         }
     }
     (instructions, terminators)
+}
+
+/// The instructions that may run before the one at `to` on a path to it that does not run the one
+/// at `barrier`.
+fn runs_before(
+    func: &Function,
+    (to_block, to): (BlockId, usize),
+    (barrier_block, barrier): (BlockId, usize),
+) -> DenseBitSet<InstId> {
+    let mut predecessors: IndexVec<BlockId, Vec<BlockId>> =
+        index_vec![Vec::new(); func.blocks.len()];
+    for (block, data) in func.blocks.iter_enumerated() {
+        for successor in data.terminator.iter().flat_map(Terminator::successors) {
+            predecessors[successor].push(block);
+        }
+    }
+    let mut instructions = DenseBitSet::new_empty(func.num_insts());
+    let mut left = DenseBitSet::new_empty(func.blocks.len());
+    let mut stack = vec![(to_block, to)];
+    while let Some((block, end)) = stack.pop() {
+        let start = if block == barrier_block && barrier < end { barrier + 1 } else { 0 };
+        for &inst in &func.blocks[block].instructions[start..end] {
+            instructions.insert(inst);
+        }
+        if start > 0 {
+            continue;
+        }
+        for &predecessor in &predecessors[block] {
+            if left.insert(predecessor) {
+                stack.push((predecessor, func.blocks[predecessor].instructions.len()));
+            }
+        }
+    }
+    instructions
+}
+
+/// Whether `inst` takes `value` as data, which it may keep where a later load finds it, rather
+/// than only as the address or size of memory it accesses: as the word a store writes, other than
+/// into the free memory pointer, or as an operand of a call or an encoding.
+fn captures(func: &Function, inst: InstId, value: ValueId) -> bool {
+    let kind = &func.inst(inst).kind;
+    if let InstKind::Store(address, _, PtrLocation::Memory) | InstKind::Store8(address, _) = *kind
+        && func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+    {
+        return false;
+    }
+    let mut accessed = 0;
+    kind.visit_raw_memory(|_, address, size| {
+        accessed += usize::from(address == value);
+        accessed += usize::from(matches!(size, RawMemorySize::Value(size) if size == value));
+    });
+    kind.operands().into_iter().filter(|&operand| operand == value).count() > accessed
 }
 
 /// The memory pointers a function may store somewhere: ones derived from which of its parameters,
