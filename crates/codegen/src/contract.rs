@@ -25,10 +25,11 @@ use solar_sema::{
     hir::{ContractId, VariableId},
 };
 use std::{
+    cell::RefCell,
     cmp::Reverse,
     collections::BinaryHeap,
     sync::{
-        OnceLock,
+        Arc, OnceLock,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -217,7 +218,7 @@ pub fn generate_contract_bytecodes(
                 .map(|dependencies| AtomicUsize::new(dependencies.len() + 1))
                 .collect(),
         ),
-        queue: ContractQueue { jobs: Mutex::new(BinaryHeap::new()), priorities },
+        queue: Arc::new(ContractQueue { jobs: Mutex::new(BinaryHeap::new()), priorities }),
     };
     // Every contract is scheduled up front; only its completion waits for the
     // bytecode of the contracts it creates.
@@ -399,6 +400,33 @@ impl ContractQueue {
     }
 }
 
+thread_local! {
+    /// The queue of the contract job running on this thread.
+    static RUNNING_QUEUE: RefCell<Option<Arc<ContractQueue>>> = const { RefCell::new(None) };
+}
+
+/// Marks the queue that the running contract job belongs to until dropped.
+struct RunningQueue(Option<Arc<ContractQueue>>);
+
+impl RunningQueue {
+    fn enter(queue: &Arc<ContractQueue>) -> Self {
+        Self(RUNNING_QUEUE.replace(Some(Arc::clone(queue))))
+    }
+}
+
+impl Drop for RunningQueue {
+    fn drop(&mut self) {
+        RUNNING_QUEUE.set(self.0.take());
+    }
+}
+
+/// Returns whether every contract job has started, so that no worker thread waits for one.
+/// Outside a contract job, there is no queue to wait for.
+pub(crate) fn contract_queue_is_empty() -> bool {
+    RUNNING_QUEUE
+        .with_borrow(|queue| queue.as_ref().is_none_or(|queue| queue.jobs.lock().is_empty()))
+}
+
 /// A contract that is optimized and scheduled, waiting for the bytecode it embeds.
 struct ScheduledContract<'gcx> {
     module: Module,
@@ -420,7 +448,7 @@ struct ContractJobs<'a, 'gcx> {
     scheduled: IndexVec<ContractId, Mutex<Option<ScheduledContract<'gcx>>>>,
     /// Unfinished inputs of each contract: its own scheduling and each dependency.
     remaining_inputs: IndexVec<ContractId, AtomicUsize>,
-    queue: ContractQueue,
+    queue: Arc<ContractQueue>,
 }
 
 impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
@@ -428,11 +456,13 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
     fn spawn_worker<'scope>(&'scope self, scope: &Scope<'_, 'scope>) {
         scope.spawn(move |scope| match self.queue.pop() {
             ContractJob::Schedule(contract_id) => {
+                let _running = RunningQueue::enter(&self.queue);
                 let Ok(scheduled) = self.schedule(contract_id) else { return };
                 *self.scheduled[contract_id].lock() = Some(scheduled);
                 self.release(&scope, contract_id);
             }
             ContractJob::Finish(contract_id) => {
+                let _running = RunningQueue::enter(&self.queue);
                 let scheduled = self.scheduled[contract_id]
                     .lock()
                     .take()
