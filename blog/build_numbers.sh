@@ -13,7 +13,8 @@ X=blog/box
   echo
   uv run -q blog/make_tables.py \
     "B1: box, shared config, solc/solx/oksolc/Solar=$X/shared-all-results.json" \
-    "B2: box, shared config, Slang preview/Solar=$X/shared-slang-results.json" \
+    "B2: box, shared config, Slang preview 5e6ec5e1/Solar=$X/shared-slang-results.json" \
+    "B2-old (superseded): box, shared config, Slang preview 62d94366/Solar=$X/shared-slang-62d94366-results.json" \
     "B3: box, shared config, Solar -j1=$X/shared-solar-j1-results.json" \
     "B4: box, original config, solc/solx/oksolc/Solar=$X/original-all-results.json" \
     "B5: box, original config, Solar -j1, whole projects=$X/original-solar-j1-results.json" \

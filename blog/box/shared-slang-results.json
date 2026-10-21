@@ -3,10 +3,10 @@
   "evm_version_override": "cancun",
   "optimizer_runs_override": null,
   "timings": {
-    "micro": 49.91771678299119,
-    "repository": 234.2426609910035,
-    "large": 73.73162812698865,
-    "heavy": 285.30647443899943
+    "micro": 49.53858709100001,
+    "repository": 232.2568150699999,
+    "large": 71.779901214,
+    "heavy": 205.49355190099993
   },
   "results": [
     {
@@ -18,7 +18,7 @@
       "source_links": [
         {
           "label": "testdata/Factorial.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/Factorial.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/Factorial.sol"
         }
       ],
       "compilers": {
@@ -28,16 +28,16 @@
           "status": "ok",
           "bytecode_size": 270,
           "runtime_size": 171,
-          "compile_time_seconds": 0.02841133199399337,
-          "peak_rss_bytes": 52420608,
+          "compile_time_seconds": 0.04490931300000511,
+          "peak_rss_bytes": 54042624,
           "error": "",
           "input_fingerprint": "96a12074ae8c634014241f2211f9a56afa8236bab30a424b743be45edf0b73a2",
           "compile_time_samples": [
-            0.02938431900111027,
-            0.03986915900895838,
-            0.02841133199399337,
-            0.027061508008046076,
-            0.027589115998125635
+            0.04490931300000511,
+            0.046254868000005445,
+            0.056517876999976124,
+            0.028848921000019345,
+            0.03801728600001297
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "8a43f42d3217d91e36157a8ef308d6da39043987fc99cbc6aef5ba5b6d6fe399",
@@ -119,16 +119,16 @@
           "status": "ok",
           "bytecode_size": 131,
           "runtime_size": 114,
-          "compile_time_seconds": 0.006002797003020532,
-          "peak_rss_bytes": 27385856,
+          "compile_time_seconds": 0.007647190000000137,
+          "peak_rss_bytes": 29102080,
           "error": "",
           "input_fingerprint": "96a12074ae8c634014241f2211f9a56afa8236bab30a424b743be45edf0b73a2",
           "compile_time_samples": [
-            0.006002797003020532,
-            0.0068055949959671125,
-            0.004735741997137666,
-            0.006127096989075653,
-            0.004723832011222839
+            0.00782915000002049,
+            0.008774393999999575,
+            0.007271957999989809,
+            0.007038187000034668,
+            0.007647190000000137
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "92ebf1edadcc1f7ab9c54e6c0a738b66a6e6ca4c207aa3438a10c37dbda61059",
@@ -217,7 +217,7 @@
       "source_links": [
         {
           "label": "testdata/Counter.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/Counter.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/Counter.sol"
         }
       ],
       "compilers": {
@@ -227,16 +227,16 @@
           "status": "ok",
           "bytecode_size": 227,
           "runtime_size": 128,
-          "compile_time_seconds": 0.02570765299606137,
-          "peak_rss_bytes": 52101120,
+          "compile_time_seconds": 0.024425795000013295,
+          "peak_rss_bytes": 53321728,
           "error": "",
           "input_fingerprint": "7e3f199bf71367bcd0c3352ab896aec9d06bd61caa60dfe8c5e04cdcabeaa79b",
           "compile_time_samples": [
-            0.03856182399613317,
-            0.02570765299606137,
-            0.025300284003606066,
-            0.02605211098853033,
-            0.025199815005180426
+            0.025446138999996037,
+            0.02490195699999731,
+            0.024425795000013295,
+            0.02404205400000592,
+            0.023297441000011077
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "4cb08042467db05f68dbf049fc13f327fe639195556cdaa4883c6221aeaadcbe",
@@ -305,16 +305,16 @@
           "status": "ok",
           "bytecode_size": 114,
           "runtime_size": 97,
-          "compile_time_seconds": 0.0056251689966302365,
-          "peak_rss_bytes": 25030656,
+          "compile_time_seconds": 0.007240058999968824,
+          "peak_rss_bytes": 26632192,
           "error": "",
           "input_fingerprint": "7e3f199bf71367bcd0c3352ab896aec9d06bd61caa60dfe8c5e04cdcabeaa79b",
           "compile_time_samples": [
-            0.0056251689966302365,
-            0.0050130309973610565,
-            0.006587855008547194,
-            0.006326456001261249,
-            0.004183373996056616
+            0.008277662000011787,
+            0.007240058999968824,
+            0.0072879279999824575,
+            0.006478315000038037,
+            0.0071407880000151636
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "ee2553199901a4631dc574f454f9b051be7dcd226e14b2b68d22fbe83067dde3",
@@ -390,7 +390,7 @@
       "source_links": [
         {
           "label": "testdata/runtime/CounterLoop.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/runtime/CounterLoop.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/runtime/CounterLoop.sol"
         }
       ],
       "compilers": {
@@ -400,16 +400,16 @@
           "status": "ok",
           "bytecode_size": 335,
           "runtime_size": 236,
-          "compile_time_seconds": 0.03991785900143441,
-          "peak_rss_bytes": 52555776,
+          "compile_time_seconds": 0.031201351999982307,
+          "peak_rss_bytes": 54431744,
           "error": "",
           "input_fingerprint": "074d86ba47edda491f3e0a4ca6a1ddb3383291d7cd64d57bd26e70eaac8c3c03",
           "compile_time_samples": [
-            0.04853476599964779,
-            0.03991785900143441,
-            0.030666534003103152,
-            0.04709451200324111,
-            0.038924413005588576
+            0.0431623590000072,
+            0.03472129699997595,
+            0.031201351999982307,
+            0.028773642999965432,
+            0.02877385299996149
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "51eb3752f26a6dcc23dc762595510d1f07103301655ae980d12338ee8f0a3ea9",
@@ -491,16 +491,16 @@
           "status": "ok",
           "bytecode_size": 213,
           "runtime_size": 196,
-          "compile_time_seconds": 0.005852397996932268,
-          "peak_rss_bytes": 29491200,
+          "compile_time_seconds": 0.006640067000034833,
+          "peak_rss_bytes": 31105024,
           "error": "",
           "input_fingerprint": "074d86ba47edda491f3e0a4ca6a1ddb3383291d7cd64d57bd26e70eaac8c3c03",
           "compile_time_samples": [
-            0.0062801670137559995,
-            0.005852397996932268,
-            0.005777477999799885,
-            0.005533998992177658,
-            0.0067235640017315745
+            0.007489249999991898,
+            0.007078936999960206,
+            0.006640067000034833,
+            0.004978809000022011,
+            0.005463462000022901
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "e059da3ca06db403fd7fb1fe0ae06a9cd97fd24d8c15c4d971eb8a3c83b5ff53",
@@ -589,7 +589,7 @@
       "source_links": [
         {
           "label": "testdata/MinimalProxy.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/MinimalProxy.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/MinimalProxy.sol"
         }
       ],
       "compilers": {
@@ -599,16 +599,16 @@
           "status": "ok",
           "bytecode_size": 755,
           "runtime_size": 190,
-          "compile_time_seconds": 0.03775038800085895,
-          "peak_rss_bytes": 52371456,
+          "compile_time_seconds": 0.03776816999999255,
+          "peak_rss_bytes": 54116352,
           "error": "",
           "input_fingerprint": "f63f99bc75885cc294f409a80690bf38a1a5882474e9c7e7f7ae5da32fe1c25a",
           "compile_time_samples": [
-            0.03820822499983478,
-            0.03523792698979378,
-            0.05432526400545612,
-            0.03775038800085895,
-            0.03289325599325821
+            0.03744992999997976,
+            0.05075716100003547,
+            0.03776816999999255,
+            0.04036741999999549,
+            0.03558626099999174
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "0c5cec584f26ff8b8e4aae536947b836e8b19f89b65f09fa1424169d33def8d5",
@@ -706,16 +706,16 @@
           "status": "ok",
           "bytecode_size": 365,
           "runtime_size": 101,
-          "compile_time_seconds": 0.005530869006179273,
-          "peak_rss_bytes": 31920128,
+          "compile_time_seconds": 0.005007700000021487,
+          "peak_rss_bytes": 31141888,
           "error": "",
           "input_fingerprint": "f63f99bc75885cc294f409a80690bf38a1a5882474e9c7e7f7ae5da32fe1c25a",
           "compile_time_samples": [
-            0.005449410004075617,
-            0.005530869006179273,
-            0.005708008000510745,
-            0.005946167992078699,
-            0.004833730999962427
+            0.0057800130000487115,
+            0.006160053999963111,
+            0.004960769999968306,
+            0.004908730000011019,
+            0.005007700000021487
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "8f002f6a9a384c138e091094bafd67783828dae84949dd84f2fe75bebc61c034",
@@ -820,7 +820,7 @@
       "source_links": [
         {
           "label": "testdata/SumArray.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/SumArray.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/SumArray.sol"
         }
       ],
       "compilers": {
@@ -830,16 +830,16 @@
           "status": "ok",
           "bytecode_size": 251,
           "runtime_size": 152,
-          "compile_time_seconds": 0.02773734500806313,
-          "peak_rss_bytes": 52805632,
+          "compile_time_seconds": 0.03377250500000173,
+          "peak_rss_bytes": 54108160,
           "error": "",
           "input_fingerprint": "5ce310fe6b8e5ef8e9fd34bcbf4d9a96e33911990a32b952209bc27b4eb68054",
           "compile_time_samples": [
-            0.028787261006073095,
-            0.026082020995090716,
-            0.02776329500193242,
-            0.027683874999638647,
-            0.02773734500806313
+            0.03505016099995828,
+            0.032610339999962434,
+            0.03904753699998764,
+            0.033627474000013535,
+            0.03377250500000173
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "b06c19d47a50d9efdc1a00dc1a250572ff9f848a57fba54d4b3229202a445a08",
@@ -907,16 +907,16 @@
           "status": "ok",
           "bytecode_size": 119,
           "runtime_size": 102,
-          "compile_time_seconds": 0.004953690993716009,
-          "peak_rss_bytes": 27435008,
+          "compile_time_seconds": 0.004856689999996888,
+          "peak_rss_bytes": 24928256,
           "error": "",
           "input_fingerprint": "5ce310fe6b8e5ef8e9fd34bcbf4d9a96e33911990a32b952209bc27b4eb68054",
           "compile_time_samples": [
-            0.006080726991058327,
-            0.004953690993716009,
-            0.004395543990540318,
-            0.005931626990786754,
-            0.00461881299270317
+            0.006412675000035506,
+            0.005973622999988493,
+            0.004461927999955151,
+            0.004856689999996888,
+            0.004729057999952602
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "7e065e8ac1ac00f8763dfba32b49b43810df1a41a082ab173910aa108001d121",
@@ -991,7 +991,7 @@
       "source_links": [
         {
           "label": "testdata/Arithmetic.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/Arithmetic.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/Arithmetic.sol"
         }
       ],
       "compilers": {
@@ -1001,16 +1001,16 @@
           "status": "ok",
           "bytecode_size": 268,
           "runtime_size": 169,
-          "compile_time_seconds": 0.03116836299886927,
-          "peak_rss_bytes": 52420608,
+          "compile_time_seconds": 0.02941105900004004,
+          "peak_rss_bytes": 53784576,
           "error": "",
           "input_fingerprint": "afb61f928e5064e73612a019b40e7e7dee23667609827d0097ce3cd61d7ceb05",
           "compile_time_samples": [
-            0.03116836299886927,
-            0.0431565379985841,
-            0.04154630300763529,
-            0.030632615002105013,
-            0.02914809998765122
+            0.036493617000019185,
+            0.028351654000005055,
+            0.02843549400000711,
+            0.04391953599997578,
+            0.02941105900004004
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "a0f31c2a3f10a4ae6af3684a04f2300333b8e15ee5366f32ea8424e6ea055b68",
@@ -1071,16 +1071,16 @@
           "status": "ok",
           "bytecode_size": 150,
           "runtime_size": 133,
-          "compile_time_seconds": 0.0056515489995945245,
-          "peak_rss_bytes": 27242496,
+          "compile_time_seconds": 0.005151570999998967,
+          "peak_rss_bytes": 27299840,
           "error": "",
           "input_fingerprint": "afb61f928e5064e73612a019b40e7e7dee23667609827d0097ce3cd61d7ceb05",
           "compile_time_samples": [
-            0.007870490007917397,
-            0.006184596990351565,
-            0.0050025310047203675,
-            0.0056515489995945245,
-            0.005524948996026069
+            0.006481736000012006,
+            0.0054969720000030975,
+            0.005151570999998967,
+            0.004633749000049647,
+            0.004897980000009738
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "0cfeacf03eebbb04a67bf2c6604ea52f52885912c422cfd64cc2c3c49f970dfc",
@@ -1148,7 +1148,7 @@
       "source_links": [
         {
           "label": "testdata/runtime/VerifiedWords.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/runtime/VerifiedWords.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/runtime/VerifiedWords.sol"
         }
       ],
       "compilers": {
@@ -1158,16 +1158,16 @@
           "status": "ok",
           "bytecode_size": 356,
           "runtime_size": 257,
-          "compile_time_seconds": 0.03229081800964195,
-          "peak_rss_bytes": 52477952,
+          "compile_time_seconds": 0.028087622999976247,
+          "peak_rss_bytes": 53788672,
           "error": "",
           "input_fingerprint": "dd164223d71ff762461ee7ef3b048b7bd28abf45c563334ac47db041c8e30570",
           "compile_time_samples": [
-            0.031381401990074664,
-            0.030812914003035985,
-            0.03229081800964195,
-            0.04687709399149753,
-            0.037030681007308885
+            0.03880042599996614,
+            0.03240825099999256,
+            0.028083664000007502,
+            0.028006183000002238,
+            0.028087622999976247
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "1d9b63c8d7edbac8edc6138e4a9d7192d3b840d88d77803cbfad1b8f8573d938",
@@ -1263,16 +1263,16 @@
           "status": "ok",
           "bytecode_size": 185,
           "runtime_size": 168,
-          "compile_time_seconds": 0.0056023590004770085,
-          "peak_rss_bytes": 29290496,
+          "compile_time_seconds": 0.005185341000014887,
+          "peak_rss_bytes": 27340800,
           "error": "",
           "input_fingerprint": "dd164223d71ff762461ee7ef3b048b7bd28abf45c563334ac47db041c8e30570",
           "compile_time_samples": [
-            0.005879168005776592,
-            0.005957047003903426,
-            0.005048281003837474,
-            0.0048424620035802945,
-            0.0056023590004770085
+            0.005800953000004938,
+            0.005591723000009097,
+            0.005061020000027838,
+            0.005185341000014887,
+            0.0049857309999765675
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "c8a9c1f512f5713ada2e7e706bff186803ab44758fc31e8baef72a4588ca73f6",
@@ -1375,7 +1375,7 @@
       "source_links": [
         {
           "label": "testdata/runtime/WordRecipes.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/runtime/WordRecipes.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/runtime/WordRecipes.sol"
         }
       ],
       "compilers": {
@@ -1385,16 +1385,16 @@
           "status": "ok",
           "bytecode_size": 594,
           "runtime_size": 495,
-          "compile_time_seconds": 0.05805589100054931,
-          "peak_rss_bytes": 53211136,
+          "compile_time_seconds": 0.03383339699996668,
+          "peak_rss_bytes": 53719040,
           "error": "",
           "input_fingerprint": "3af9f4dfd7cf93b1735fbddf183a36dbe33811963494cb5aaf210693e696aae5",
           "compile_time_samples": [
-            0.06797754499712028,
-            0.060000433993991464,
-            0.036380844001541846,
-            0.05805589100054931,
-            0.036312513999291696
+            0.03515574200002902,
+            0.033546715999989374,
+            0.0460996380000438,
+            0.03383339699996668,
+            0.03294598299999052
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "f2111d7778d99b07cb5877348d0a6daa64e90b9ed15d650d3ddc2ecbc8ff5ab1",
@@ -1568,16 +1568,16 @@
           "status": "ok",
           "bytecode_size": 298,
           "runtime_size": 280,
-          "compile_time_seconds": 0.006147596999653615,
-          "peak_rss_bytes": 29372416,
+          "compile_time_seconds": 0.009333847999982936,
+          "peak_rss_bytes": 29462528,
           "error": "",
           "input_fingerprint": "3af9f4dfd7cf93b1735fbddf183a36dbe33811963494cb5aaf210693e696aae5",
           "compile_time_samples": [
-            0.0061131770053179935,
-            0.006147596999653615,
-            0.006424386010621674,
-            0.00635212600172963,
-            0.006030096992617473
+            0.011097565000000031,
+            0.008294083999999202,
+            0.00790707199996632,
+            0.010417113000016798,
+            0.009333847999982936
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "b4f6042b7524b4fa7b96f6fd2065dc35681ba6055a38213cb3ea60f8f6d4c59e",
@@ -1758,7 +1758,7 @@
       "source_links": [
         {
           "label": "testdata/runtime/SeededWords.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/runtime/SeededWords.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/runtime/SeededWords.sol"
         }
       ],
       "compilers": {
@@ -1768,16 +1768,16 @@
           "status": "ok",
           "bytecode_size": 430,
           "runtime_size": 331,
-          "compile_time_seconds": 0.03231408799183555,
-          "peak_rss_bytes": 52547584,
+          "compile_time_seconds": 0.029726241999981085,
+          "peak_rss_bytes": 53719040,
           "error": "",
           "input_fingerprint": "b61993880b30d0be50687b199a0ec4b79506aa385b832f349093ed7d142a7140",
           "compile_time_samples": [
-            0.03225328899861779,
-            0.03231408799183555,
-            0.03196089000266511,
-            0.032545217996812426,
-            0.033334195002680644
+            0.030677835999995295,
+            0.029124808999995366,
+            0.029613222000023143,
+            0.030231313999991016,
+            0.029726241999981085
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "a14b98a79124e055beb883a6146891080dbb2ad66f8654191aa166fe292258d8",
@@ -1974,16 +1974,16 @@
           "status": "ok",
           "bytecode_size": 211,
           "runtime_size": 194,
-          "compile_time_seconds": 0.005502689004060812,
-          "peak_rss_bytes": 29769728,
+          "compile_time_seconds": 0.005473352000024079,
+          "peak_rss_bytes": 29032448,
           "error": "",
           "input_fingerprint": "b61993880b30d0be50687b199a0ec4b79506aa385b832f349093ed7d142a7140",
           "compile_time_samples": [
-            0.0066252359974896535,
-            0.005502689004060812,
-            0.00545874000818003,
-            0.005536808996112086,
-            0.005161580003914423
+            0.006502366999995957,
+            0.006011044999979731,
+            0.005473352000024079,
+            0.005114360999982637,
+            0.005148001999998542
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "5f7f9655d0853851bad5a98e9e174aa2f09d127712bd55ccac8d13955a2f5d1f",
@@ -2187,7 +2187,7 @@
       "source_links": [
         {
           "label": "testdata/runtime/DivisionWords.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/runtime/DivisionWords.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/runtime/DivisionWords.sol"
         }
       ],
       "compilers": {
@@ -2197,16 +2197,16 @@
           "status": "ok",
           "bytecode_size": 1357,
           "runtime_size": 1258,
-          "compile_time_seconds": 0.06625568200252019,
-          "peak_rss_bytes": 53669888,
+          "compile_time_seconds": 0.06894886499998165,
+          "peak_rss_bytes": 54898688,
           "error": "",
           "input_fingerprint": "38e254db5d99f539517655749eee5293202e7e0e3b34910429b86f1a8600d694",
           "compile_time_samples": [
-            0.06508917598694097,
-            0.06453663800493814,
-            0.06625568200252019,
-            0.07267219800269231,
-            0.06645581200427841
+            0.07854642400002376,
+            0.06043319899998778,
+            0.069899648000046,
+            0.06894886499998165,
+            0.06025172800002565
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "9253e51b3b1a19e3d53424ba8a75e27c89aaa93ebae147b52c1660587b4f45d0",
@@ -2543,16 +2543,16 @@
           "status": "ok",
           "bytecode_size": 958,
           "runtime_size": 940,
-          "compile_time_seconds": 0.010452690999954939,
-          "peak_rss_bytes": 31494144,
+          "compile_time_seconds": 0.010281202999976813,
+          "peak_rss_bytes": 31526912,
           "error": "",
           "input_fingerprint": "38e254db5d99f539517655749eee5293202e7e0e3b34910429b86f1a8600d694",
           "compile_time_samples": [
-            0.010463220998644829,
-            0.010430580994579941,
-            0.010084252004162408,
-            0.010452690999954939,
-            0.011531116993864998
+            0.010281202999976813,
+            0.009892691000004561,
+            0.009552518999953463,
+            0.010523633999980575,
+            0.010893804999966505
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "7b066e33c97c9b5d0a1424165a43b93e23592a81ee48e3d7adb34eed31b6e479",
@@ -2896,7 +2896,7 @@
       "source_links": [
         {
           "label": "testdata/runtime/CalldataLoops.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/runtime/CalldataLoops.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/runtime/CalldataLoops.sol"
         }
       ],
       "compilers": {
@@ -2906,16 +2906,16 @@
           "status": "ok",
           "bytecode_size": 1255,
           "runtime_size": 1156,
-          "compile_time_seconds": 0.0766190239955904,
-          "peak_rss_bytes": 52953088,
+          "compile_time_seconds": 0.05869835500004683,
+          "peak_rss_bytes": 54898688,
           "error": "",
           "input_fingerprint": "5867ce17bb86b3a653c33862cdc486f09cf6f4695857ba7596fc43bed7b3b5f2",
           "compile_time_samples": [
-            0.054751285002566874,
-            0.0766190239955904,
-            0.08566429899656214,
-            0.08871114900102839,
-            0.05329375099972822
+            0.048490522000008696,
+            0.04951934700000038,
+            0.06948471999999128,
+            0.05869835500004683,
+            0.0844698330000142
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "264552d416b5215b07a5e0bf60292401bbd91fccbb4d3dd48e76390071c9bdbf",
@@ -3127,16 +3127,16 @@
           "status": "ok",
           "bytecode_size": 792,
           "runtime_size": 774,
-          "compile_time_seconds": 0.010001353002735414,
-          "peak_rss_bytes": 31322112,
+          "compile_time_seconds": 0.009782020999978158,
+          "peak_rss_bytes": 31535104,
           "error": "",
           "input_fingerprint": "5867ce17bb86b3a653c33862cdc486f09cf6f4695857ba7596fc43bed7b3b5f2",
           "compile_time_samples": [
-            0.01021026200032793,
-            0.010266320998198353,
-            0.00946541500161402,
-            0.00976283299678471,
-            0.010001353002735414
+            0.011340086999950927,
+            0.009645411000008153,
+            0.009782020999978158,
+            0.0105467540000177,
+            0.009053097999981219
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "66f6748105db223283d62b30673b0613aa252e243c2f5d338d2769b13cff024f",
@@ -3355,7 +3355,7 @@
       "source_links": [
         {
           "label": "testdata/runtime/CompilerOptimizations.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/runtime/CompilerOptimizations.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/runtime/CompilerOptimizations.sol"
         }
       ],
       "compilers": {
@@ -3365,16 +3365,16 @@
           "status": "ok",
           "bytecode_size": 887,
           "runtime_size": 788,
-          "compile_time_seconds": 0.04800426999281626,
-          "peak_rss_bytes": 53661696,
+          "compile_time_seconds": 0.04429422600003363,
+          "peak_rss_bytes": 54435840,
           "error": "",
           "input_fingerprint": "5699b109c57c5eef4a6bec1ba913930c0feb0e02b086c53545a8739221c38b7a",
           "compile_time_samples": [
-            0.04295403999276459,
-            0.04529514101159293,
-            0.0732735070050694,
-            0.04800426999281626,
-            0.06692949098942336
+            0.04429422600003363,
+            0.044580856999971274,
+            0.04601731299999301,
+            0.044222505999982786,
+            0.03991528799997468
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "f8bd8bcd769f1e5c46f3d2ec1b9e9bf2963368f94b5f11f68df8b0eee4a059ae",
@@ -3646,16 +3646,16 @@
           "status": "ok",
           "bytecode_size": 600,
           "runtime_size": 582,
-          "compile_time_seconds": 0.0075364619988249615,
-          "peak_rss_bytes": 31494144,
+          "compile_time_seconds": 0.007666383000014321,
+          "peak_rss_bytes": 31510528,
           "error": "",
           "input_fingerprint": "5699b109c57c5eef4a6bec1ba913930c0feb0e02b086c53545a8739221c38b7a",
           "compile_time_samples": [
-            0.008484667996526696,
-            0.0072897229983936995,
-            0.007974640000611544,
-            0.0075364619988249615,
-            0.006980844002100639
+            0.007895184000005884,
+            0.008377934999998615,
+            0.007666383000014321,
+            0.0073350510000409486,
+            0.007234349999976075
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "7f0780a304c53f964011e216764d5f1a5e8ecd14fe7b1c9f5d0222e9de9d24cf",
@@ -3934,7 +3934,7 @@
       "source_links": [
         {
           "label": "testdata/projects/uniswap-v2-pair.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/uniswap-v2-pair.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/uniswap-v2-pair.json.gz"
         },
         {
           "label": "Uniswap/v2-core",
@@ -3948,18 +3948,18 @@
           "status": "failed",
           "bytecode_size": 0,
           "runtime_size": 0,
-          "compile_time_seconds": 0.008238898997660726,
-          "peak_rss_bytes": 34435072,
+          "compile_time_seconds": 0.011109877000023971,
+          "peak_rss_bytes": 33902592,
           "error": "Error: Event with same name and parameter types defined twice.\n   --> contracts/UniswapV2ERC20.sol:21:5\n    |\n 21 |     event Approval(address indexed owner, address indexed spender, uint value);\n    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n",
           "source": "contracts/UniswapV2Pair.sol",
           "project": "v2-core",
           "input_fingerprint": "8141d3a355af47d30844bd36a9bb6857be48197a3134a375e8dbf74900626759",
           "compile_time_samples": [
-            0.008609227996203117,
-            0.008380228988244198,
-            0.008238898997660726,
-            0.007889921005698852,
-            0.007735181003226899
+            0.01507078399998818,
+            0.011109877000023971,
+            0.010304984000015338,
+            0.011344958999984556,
+            0.009961781999948016
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "2bed941dac83fad1965bd45f3d112250bb44c04006cedbb7085242bfa25ec22b"
@@ -3970,18 +3970,18 @@
           "status": "failed",
           "bytecode_size": 0,
           "runtime_size": 0,
-          "compile_time_seconds": 0.005505789988092147,
-          "peak_rss_bytes": 36737024,
+          "compile_time_seconds": 0.008184304999986125,
+          "peak_rss_bytes": 37117952,
           "error": "error: builtin function `chainid` must be called\n   \u256d\u25b8 contracts/UniswapV2ERC20.sol:27:24\n   \u2502\n27 \u2502             chainId := chainid\n   \u2570\u2574                       \u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n",
           "source": "contracts/UniswapV2Pair.sol",
           "project": "v2-core",
           "input_fingerprint": "8141d3a355af47d30844bd36a9bb6857be48197a3134a375e8dbf74900626759",
           "compile_time_samples": [
-            0.005578908996540122,
-            0.0054242400074144825,
-            0.005504729997483082,
-            0.005538398996577598,
-            0.005505789988092147
+            0.011207198000022345,
+            0.008184304999986125,
+            0.007883043999981965,
+            0.008243504999995821,
+            0.00789473400004681
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "f74b80f7d8d71ccb132aa4529d09c9d8989254ac8c6f563a51b4da9c730e7575"
@@ -4000,7 +4000,7 @@
       "source_links": [
         {
           "label": "testdata/projects/openzeppelin-5.6.1.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/openzeppelin-5.6.1.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/openzeppelin-5.6.1.json.gz"
         },
         {
           "label": "OpenZeppelin/openzeppelin-contracts",
@@ -4014,18 +4014,18 @@
           "status": "ok",
           "bytecode_size": 2172,
           "runtime_size": 1695,
-          "compile_time_seconds": 0.09442363900598139,
-          "peak_rss_bytes": 53600256,
+          "compile_time_seconds": 0.05952962399999251,
+          "peak_rss_bytes": 54640640,
           "error": "",
           "source": "contracts/mocks/token/ERC20Mock.sol",
           "project": "openzeppelin-contracts",
           "input_fingerprint": "0faa570f278e82f0fb5a06386e1c4b56b602f5fcd91e6df1c87b5c24245084ec",
           "compile_time_samples": [
-            0.06527716699929442,
-            0.10255072898871731,
-            0.07812710999860428,
-            0.09442363900598139,
-            0.10081379501207266
+            0.05788530699999228,
+            0.06074432999997725,
+            0.05569468800001687,
+            0.08551501499999858,
+            0.05952962399999251
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "d4ae24582533bade955b96ee2b6ef3d27f2ec0721da62f88c5ef5a025ac8a86d",
@@ -4239,18 +4239,18 @@
           "status": "ok",
           "bytecode_size": 1431,
           "runtime_size": 1066,
-          "compile_time_seconds": 0.012472103990148753,
-          "peak_rss_bytes": 37580800,
+          "compile_time_seconds": 0.012544332999993912,
+          "peak_rss_bytes": 39383040,
           "error": "",
           "source": "contracts/mocks/token/ERC20Mock.sol",
           "project": "openzeppelin-contracts",
           "input_fingerprint": "0faa570f278e82f0fb5a06386e1c4b56b602f5fcd91e6df1c87b5c24245084ec",
           "compile_time_samples": [
-            0.013602028993773274,
-            0.012472103990148753,
-            0.012323274000664242,
-            0.012037894994136877,
-            0.012709362999885343
+            0.012675614999977824,
+            0.012544332999993912,
+            0.012197302999993553,
+            0.012208282000017334,
+            0.027560987999947884
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "dd13a36a9b0aa99f22643826e14a35b74bdccfe3f2524bcbf4ee54247d0fc63b",
@@ -4473,7 +4473,7 @@
       "source_links": [
         {
           "label": "testdata/projects/openzeppelin-5.6.1.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/openzeppelin-5.6.1.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/openzeppelin-5.6.1.json.gz"
         },
         {
           "label": "OpenZeppelin/openzeppelin-contracts",
@@ -4485,25 +4485,25 @@
           "compiler_id": "solx",
           "label": "solx 0.2.0",
           "status": "ok",
-          "bytecode_size": 2750,
-          "runtime_size": 2406,
-          "compile_time_seconds": 0.08278607300599106,
-          "peak_rss_bytes": 53231616,
+          "bytecode_size": 2751,
+          "runtime_size": 2407,
+          "compile_time_seconds": 0.07355422599999883,
+          "peak_rss_bytes": 55529472,
           "error": "",
           "source": "contracts/finance/VestingWallet.sol",
           "project": "openzeppelin-contracts",
           "input_fingerprint": "e4119971a420d6d7d57bce133c48a69fee3a6a2e5026ca9b62e164ffd5e9433b",
           "compile_time_samples": [
-            0.08474587599630468,
-            0.0942437399935443,
-            0.08265931400819682,
-            0.08136500899854582,
-            0.08278607300599106
+            0.07355422599999883,
+            0.07310062499999503,
+            0.07167495799996004,
+            0.07463039099997104,
+            0.07741229300000896
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "d15fdeef45c74098a82d44047d0c9cf84340f5ba4da73b9d48b19f7038bd49fb",
+          "output_fingerprint": "8a8fb64b8af1ab83ec6a4243a6d09d6895cabf7daf66d1510e7b2b9ba280f073",
           "deploy_status": "ok",
-          "deploy_gas": 599609,
+          "deploy_gas": 599825,
           "address": "0x38a70c040ca5f5439ad52d0e821063b0ec0b52b6",
           "gas_results": [
             {
@@ -4636,19 +4636,19 @@
               "label": "releasable#1",
               "call": "releasable()",
               "args": [],
-              "gas": 23687,
+              "gas": 23686,
               "comparison_exclusion_reason": null
             },
             {
               "label": "releasable#2",
               "call": "releasable()",
               "args": [],
-              "gas": 23687,
+              "gas": 23686,
               "comparison_exclusion_reason": null
             }
           ],
           "gas_status": "ok",
-          "total_gas": 381250,
+          "total_gas": 381248,
           "runtime_results": [
             {
               "label": "owner",
@@ -4835,18 +4835,18 @@
           "status": "ok",
           "bytecode_size": 1522,
           "runtime_size": 1207,
-          "compile_time_seconds": 0.01275879300374072,
-          "peak_rss_bytes": 45776896,
+          "compile_time_seconds": 0.013348307999990539,
+          "peak_rss_bytes": 46252032,
           "error": "",
           "source": "contracts/finance/VestingWallet.sol",
           "project": "openzeppelin-contracts",
           "input_fingerprint": "e4119971a420d6d7d57bce133c48a69fee3a6a2e5026ca9b62e164ffd5e9433b",
           "compile_time_samples": [
-            0.014178407000144944,
-            0.01275879300374072,
-            0.012647853000089526,
-            0.012560613991809078,
-            0.01277121200109832
+            0.014317781999977797,
+            0.013071546999981365,
+            0.015496456999983366,
+            0.013348307999990539,
+            0.013211126999976841
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "234291d4bbf9abc49067198bba9e27a8c9d84c949b18e3031c71e107a7910df7",
@@ -5192,7 +5192,7 @@
       "source_links": [
         {
           "label": "testdata/projects/nitro-one-step-proof.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/nitro-one-step-proof.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/nitro-one-step-proof.json.gz"
         },
         {
           "label": "OffchainLabs/nitro-contracts",
@@ -5206,18 +5206,18 @@
           "status": "ok",
           "bytecode_size": 15416,
           "runtime_size": 15205,
-          "compile_time_seconds": 0.41441456000029575,
-          "peak_rss_bytes": 63541248,
+          "compile_time_seconds": 0.35534799000004114,
+          "peak_rss_bytes": 71053312,
           "error": "",
           "source": "src/osp/OneStepProofEntry.sol",
           "project": "nitro-contracts",
           "input_fingerprint": "1c0c9fb0b3c98e6e3fc5461f0f474dcd74f1e9abc3fa33f0cc772ee12bac06a5",
           "compile_time_samples": [
-            0.41182888999173883,
-            0.3962099969940027,
-            0.4165133920032531,
-            0.41858150500047486,
-            0.41441456000029575
+            0.34172097900000153,
+            0.3540241339999852,
+            0.36305699399997593,
+            0.35534799000004114,
+            0.35618816499999184
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "0d4ddcc7a7581b860bdcf064b4d6e699558341f396a011218855f9dce504ec7f",
@@ -5432,18 +5432,18 @@
           "status": "ok",
           "bytecode_size": 8240,
           "runtime_size": 8089,
-          "compile_time_seconds": 0.06476910099445377,
-          "peak_rss_bytes": 75816960,
+          "compile_time_seconds": 0.06439958200002138,
+          "peak_rss_bytes": 68857856,
           "error": "",
           "source": "src/osp/OneStepProofEntry.sol",
           "project": "nitro-contracts",
           "input_fingerprint": "1c0c9fb0b3c98e6e3fc5461f0f474dcd74f1e9abc3fa33f0cc772ee12bac06a5",
           "compile_time_samples": [
-            0.06111873500049114,
-            0.06319823699595872,
-            0.06476910099445377,
-            0.06625012600852642,
-            0.06523023000045214
+            0.06063873599998715,
+            0.06439958200002138,
+            0.06360130899997785,
+            0.06596570899995413,
+            0.06782394800001157
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "8f6dbafb28c09db98d83c615d9ec1a79a2bbffa5d2606e108fe41c16f1a8f18f",
@@ -5667,7 +5667,7 @@
       "source_links": [
         {
           "label": "testdata/projects/aave-l2-encoder.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/aave-l2-encoder.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/aave-l2-encoder.json.gz"
         },
         {
           "label": "aave/aave-v3-core",
@@ -5681,18 +5681,18 @@
           "status": "ok",
           "bytecode_size": 8656,
           "runtime_size": 8193,
-          "compile_time_seconds": 0.217308809995302,
-          "peak_rss_bytes": 59498496,
+          "compile_time_seconds": 0.1676027170000225,
+          "peak_rss_bytes": 64798720,
           "error": "",
           "source": "fixtures/aave/L2EncoderHarness.sol",
           "project": "aave-v3-core",
           "input_fingerprint": "955c3d1c924e01d2a13ac0c25d68b512a52317d38def7fb13a7bde2d960cb45b",
           "compile_time_samples": [
-            0.21794588900229428,
-            0.217308809995302,
-            0.21607103499991354,
-            0.24501689900353085,
-            0.20658693001314532
+            0.1676027170000225,
+            0.17574545399997987,
+            0.16201137299998436,
+            0.19196503599999915,
+            0.15171725800001923
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "42b4eb9b4541524cb1ce6ed2238bc16f510aa0e901858d36d42a891d7bc3d48c",
@@ -6230,18 +6230,18 @@
           "status": "ok",
           "bytecode_size": 2516,
           "runtime_size": 2078,
-          "compile_time_seconds": 0.016071991005446762,
-          "peak_rss_bytes": 54714368,
+          "compile_time_seconds": 0.015883400000006986,
+          "peak_rss_bytes": 56848384,
           "error": "",
           "source": "fixtures/aave/L2EncoderHarness.sol",
           "project": "aave-v3-core",
           "input_fingerprint": "955c3d1c924e01d2a13ac0c25d68b512a52317d38def7fb13a7bde2d960cb45b",
           "compile_time_samples": [
-            0.016071991005446762,
-            0.016910697988350876,
-            0.01457341700734105,
-            0.017419405994587578,
-            0.015622791994246654
+            0.01607924099999991,
+            0.015118396999980632,
+            0.015604999000004227,
+            0.016135561999988113,
+            0.015883400000006986
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "514a465c0e29b8be20a32f328ac1ef3028b0fe41abf744b0240ca6b65179381d",
@@ -6788,7 +6788,7 @@
       "source_links": [
         {
           "label": "testdata/projects/lilweb3-ens.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/lilweb3-ens.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/lilweb3-ens.json.gz"
         },
         {
           "label": "m1guelpf/lil-web3",
@@ -6802,18 +6802,18 @@
           "status": "ok",
           "bytecode_size": 838,
           "runtime_size": 739,
-          "compile_time_seconds": 0.03446968301432207,
-          "peak_rss_bytes": 52375552,
+          "compile_time_seconds": 0.04372498499998301,
+          "peak_rss_bytes": 54435840,
           "error": "",
           "source": "src/LilENS.sol",
           "project": "lil-web3",
           "input_fingerprint": "964b3f4f1cf94fb0bd77b03d80a73963fc82dbad224c09c91cec06276cdd362e",
           "compile_time_samples": [
-            0.03432675499061588,
-            0.033762056002160534,
-            0.03589459900103975,
-            0.03446968301432207,
-            0.04199108699685894
+            0.03653505199997653,
+            0.04372498499998301,
+            0.03315877800002909,
+            0.05033644299999196,
+            0.05898486300003469
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "df3eae75e1de6c7a73eab89ce9d72a25f3b992058d28b1214080078da65aa732",
@@ -7018,18 +7018,18 @@
           "status": "ok",
           "bytecode_size": 415,
           "runtime_size": 397,
-          "compile_time_seconds": 0.0071057750028558075,
-          "peak_rss_bytes": 31416320,
+          "compile_time_seconds": 0.006480608999936521,
+          "peak_rss_bytes": 28950528,
           "error": "",
           "source": "src/LilENS.sol",
           "project": "lil-web3",
           "input_fingerprint": "964b3f4f1cf94fb0bd77b03d80a73963fc82dbad224c09c91cec06276cdd362e",
           "compile_time_samples": [
-            0.0071057750028558075,
-            0.008082159998593852,
-            0.007028495005215518,
-            0.00721272399823647,
-            0.0063717070006532595
+            0.006803670000067541,
+            0.006495799000049374,
+            0.0062946479999936855,
+            0.0058729059999222955,
+            0.006480608999936521
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "2b70d50255169772b11f551cc22b5aa983ffac548eddc15d64c7e27d40538947",
@@ -7243,7 +7243,7 @@
       "source_links": [
         {
           "label": "testdata/projects/lilweb3-runtime.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/lilweb3-runtime.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/lilweb3-runtime.json.gz"
         },
         {
           "label": "m1guelpf/lil-web3",
@@ -7261,18 +7261,18 @@
           "status": "ok",
           "bytecode_size": 1803,
           "runtime_size": 1677,
-          "compile_time_seconds": 0.054025252000428736,
-          "peak_rss_bytes": 53358592,
+          "compile_time_seconds": 0.0484987770000771,
+          "peak_rss_bytes": 54767616,
           "error": "",
           "source": "src/LilFlashloan.sol",
           "project": "lil-web3",
           "input_fingerprint": "d7a3f91a114f049cf732397d259ac547547cef78cd24a9bb56328c523c3565d0",
           "compile_time_samples": [
-            0.05022802700113971,
-            0.054025252000428736,
-            0.08177821199933533,
-            0.05601153499446809,
-            0.05312328599393368
+            0.04278758099997049,
+            0.04259789000002456,
+            0.07583731900001567,
+            0.0484987770000771,
+            0.06008430800000042
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "2ef2e8343cae4e9fed6d0244ad982fd28ee320f2208f0f9a6c6430df2560a67b",
@@ -7589,18 +7589,18 @@
           "status": "ok",
           "bytecode_size": 980,
           "runtime_size": 901,
-          "compile_time_seconds": 0.010332662001019344,
-          "peak_rss_bytes": 37851136,
+          "compile_time_seconds": 0.014823976999991828,
+          "peak_rss_bytes": 37834752,
           "error": "",
           "source": "src/LilFlashloan.sol",
           "project": "lil-web3",
           "input_fingerprint": "d7a3f91a114f049cf732397d259ac547547cef78cd24a9bb56328c523c3565d0",
           "compile_time_samples": [
-            0.010837691006599925,
-            0.012564674005261622,
-            0.010332662001019344,
-            0.008255969994934276,
-            0.009542785002849996
+            0.014823976999991828,
+            0.015085467000062636,
+            0.014632546000029834,
+            0.016583704000026955,
+            0.012730116999932761
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "dc8e8eb37fa675fbe24a7133127b72aaf30f3b34391d2d4329f12659dc250c28",
@@ -7926,7 +7926,7 @@
       "source_links": [
         {
           "label": "testdata/projects/lilweb3-runtime.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/lilweb3-runtime.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/lilweb3-runtime.json.gz"
         },
         {
           "label": "m1guelpf/lil-web3",
@@ -7944,21 +7944,21 @@
           "status": "ok",
           "bytecode_size": 5750,
           "runtime_size": 5647,
-          "compile_time_seconds": 0.10913801300921477,
-          "peak_rss_bytes": 54263808,
+          "compile_time_seconds": 0.09123243999999886,
+          "peak_rss_bytes": 56471552,
           "error": "",
           "source": "src/LilFractional.sol",
           "project": "lil-web3",
           "input_fingerprint": "2726a3509a367ddfe3a48d6154769b21b11e16eced0fc8e4963a0a7ace5f0039",
           "compile_time_samples": [
-            0.10378236201358959,
-            0.10913801300921477,
-            0.10278993599058595,
-            0.13260266798897646,
-            0.11053105699829757
+            0.09000178400003733,
+            0.09123243999999886,
+            0.11714923099998487,
+            0.0912417719999894,
+            0.09091527999999016
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "414a712b95cba068d2b96a387784f091ab5d5a3ce52b813077639ad1bf92dbe7",
+          "output_fingerprint": "48aeaf87125154814e3d9fdda6b24921b42faf99b70d6f3af6119550d1ceb1d4",
           "deploy_status": "ok",
           "deploy_gas": 1295050,
           "address": "0xab837301d12cdc4b97f1e910fc56c9179894d9cf",
@@ -8216,18 +8216,18 @@
           "status": "ok",
           "bytecode_size": 3617,
           "runtime_size": 3595,
-          "compile_time_seconds": 0.017490316997282207,
-          "peak_rss_bytes": 48181248,
+          "compile_time_seconds": 0.01641954199999418,
+          "peak_rss_bytes": 46657536,
           "error": "",
           "source": "src/LilFractional.sol",
           "project": "lil-web3",
           "input_fingerprint": "2726a3509a367ddfe3a48d6154769b21b11e16eced0fc8e4963a0a7ace5f0039",
           "compile_time_samples": [
-            0.019082211001659743,
-            0.017400567012373358,
-            0.01612468199164141,
-            0.017822776004322805,
-            0.017490316997282207
+            0.016666040000018256,
+            0.01627262299996346,
+            0.016245972999968217,
+            0.01641954199999418,
+            0.016518141000005926
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "d9fdd64be9ac23e491b70ce47f514f8a4b339ddb0148b461810a2fd53ecac5fb",
@@ -8497,7 +8497,7 @@
       "source_links": [
         {
           "label": "testdata/projects/maple-erc20.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/maple-erc20.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/maple-erc20.json.gz"
         },
         {
           "label": "maple-labs/erc20",
@@ -8511,18 +8511,18 @@
           "status": "ok",
           "bytecode_size": 3483,
           "runtime_size": 2747,
-          "compile_time_seconds": 0.1051728290040046,
-          "peak_rss_bytes": 54333440,
+          "compile_time_seconds": 0.08592111400002977,
+          "peak_rss_bytes": 55095296,
           "error": "",
           "source": "contracts/ERC20.sol",
           "project": "maple-erc20",
           "input_fingerprint": "31edf1ce430b24c5ffaa9a113426e4abca63051dfdd98e9f63c5c96b857d86b5",
           "compile_time_samples": [
-            0.0803961280034855,
-            0.1081361679971451,
-            0.10634244399261661,
-            0.1051728290040046,
-            0.08193536299222615
+            0.07131739800001924,
+            0.08592111400002977,
+            0.10805800200000704,
+            0.07378975500000706,
+            0.09822254200003044
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "7db7915a89146708ac74e3d1db9351311db76698399f1bf258eae8a2224ff13d",
@@ -8823,18 +8823,18 @@
           "status": "ok",
           "bytecode_size": 2141,
           "runtime_size": 1614,
-          "compile_time_seconds": 0.015626103995600715,
-          "peak_rss_bytes": 35835904,
+          "compile_time_seconds": 0.019370481999999356,
+          "peak_rss_bytes": 35237888,
           "error": "",
           "source": "contracts/ERC20.sol",
           "project": "maple-erc20",
           "input_fingerprint": "31edf1ce430b24c5ffaa9a113426e4abca63051dfdd98e9f63c5c96b857d86b5",
           "compile_time_samples": [
-            0.015626103995600715,
-            0.01558235299307853,
-            0.014254118999815546,
-            0.024872969996067695,
-            0.016146480993484147
+            0.019370481999999356,
+            0.018358411000008346,
+            0.019559940000021925,
+            0.030432536000034816,
+            0.018127872000036405
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "10e4a8e94b56c1b233d40e0fa57a4b7c06335a630ced2ea25d5d9774dec7cc09",
@@ -9144,7 +9144,7 @@
       "source_links": [
         {
           "label": "testdata/projects/openzeppelin-5.6.1.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/openzeppelin-5.6.1.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/openzeppelin-5.6.1.json.gz"
         },
         {
           "label": "OpenZeppelin/openzeppelin-contracts",
@@ -9156,25 +9156,25 @@
           "compiler_id": "solx",
           "label": "solx 0.2.0",
           "status": "ok",
-          "bytecode_size": 21391,
-          "runtime_size": 20492,
-          "compile_time_seconds": 0.6257445480005117,
-          "peak_rss_bytes": 92209152,
+          "bytecode_size": 21386,
+          "runtime_size": 20487,
+          "compile_time_seconds": 0.5125390370000105,
+          "peak_rss_bytes": 100741120,
           "error": "",
           "source": "test/governance/Governor.t.sol",
           "project": "openzeppelin-5.6.1",
           "input_fingerprint": "bd078910224d35316dc53058772b102c54227b743457e4a685cb7bbed0a91d47",
           "compile_time_samples": [
-            0.6296637329942314,
-            0.6248010599956615,
-            0.6302378419932211,
-            0.6249301509960787,
-            0.6257445480005117
+            0.5293788660000018,
+            0.5020854040000131,
+            0.5239402290000044,
+            0.496746743000017,
+            0.5125390370000105
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "3f6d4251192aebdde932b953772ae5db3e27e8f60d2573dfac73781b484e3854",
+          "output_fingerprint": "689d9cbc2236e75a16c9fe3b448b87bb88832906c3b7cab112b3c59a208e2b36",
           "deploy_status": "ok",
-          "deploy_gas": 4538411,
+          "deploy_gas": 4537319,
           "address": "0x5c932424acbfab036969b3b9d94ba9ecbae7565d",
           "gas_results": [
             {
@@ -9474,18 +9474,18 @@
           "status": "ok",
           "bytecode_size": 9247,
           "runtime_size": 8655,
-          "compile_time_seconds": 0.0933036339993123,
-          "peak_rss_bytes": 163463168,
+          "compile_time_seconds": 0.09230124600003364,
+          "peak_rss_bytes": 146878464,
           "error": "",
           "source": "test/governance/Governor.t.sol",
           "project": "openzeppelin-5.6.1",
           "input_fingerprint": "bd078910224d35316dc53058772b102c54227b743457e4a685cb7bbed0a91d47",
           "compile_time_samples": [
-            0.0901330839988077,
-            0.0933036339993123,
-            0.09312510400195606,
-            0.09406454098643735,
-            0.09371320198988542
+            0.0920251280000457,
+            0.09230124600003364,
+            0.0950516930000731,
+            0.09367704300007063,
+            0.09099286299999676
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "35670a602f58c9bec99c8280c9587acf3ed6b70662ec85aca188307a4849549c",
@@ -9799,11 +9799,11 @@
       "source_links": [
         {
           "label": "testdata/projects/openzeppelin-5.6.1.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/openzeppelin-5.6.1.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/openzeppelin-5.6.1.json.gz"
         },
         {
           "label": "testdata/runtime/P256.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/runtime/P256.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/runtime/P256.sol"
         },
         {
           "label": "OpenZeppelin/openzeppelin-contracts",
@@ -9815,25 +9815,25 @@
           "compiler_id": "solx",
           "label": "solx 0.2.0",
           "status": "ok",
-          "bytecode_size": 4836,
-          "runtime_size": 4737,
-          "compile_time_seconds": 0.1470916280086385,
-          "peak_rss_bytes": 54403072,
+          "bytecode_size": 4819,
+          "runtime_size": 4720,
+          "compile_time_seconds": 0.10810852499992052,
+          "peak_rss_bytes": 57171968,
           "error": "",
           "source": "runtime/P256.sol",
           "project": "openzeppelin-5.6.1",
           "input_fingerprint": "e314ab5a2a742f81bb0870cedcb710922fe1cc675ad22fb2513ccc28b7e39581",
           "compile_time_samples": [
-            0.15215139101201203,
-            0.1470916280086385,
-            0.13316924100217875,
-            0.11713801899168175,
-            0.1497408510040259
+            0.07190373200000977,
+            0.10826568499999212,
+            0.08388229699994554,
+            0.10810852499992052,
+            0.11598099100001491
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "78a0a1a6427d4f41dc88793c3c02ca7f031c4fc89b07ad86b291b90eed69fb3d",
+          "output_fingerprint": "171e40dd27cb83cb470386dc43e64b81e9cd5b2ca52d2319a47ac54ea1ad369b",
           "deploy_status": "ok",
-          "deploy_gas": 1063611,
+          "deploy_gas": 1060075,
           "address": "0xc6c5ab5039373b0cba7d0116d9ba7fb9831c3f42",
           "gas_results": [
             {
@@ -9846,7 +9846,7 @@
                 "0xa71af64de5126a4a4e02b7922d66ce9415ce88a4c9d25514d91082c8725ac957",
                 "0x5d47723c8fbe580bb369fec9c2665d8e30a435b9932645482e7c9f11e872296b"
               ],
-              "gas": 207351,
+              "gas": 204507,
               "comparison_exclusion_reason": null
             },
             {
@@ -9859,7 +9859,7 @@
                 "0xa71af64de5126a4a4e02b7922d66ce9415ce88a4c9d25514d91082c8725ac957",
                 "0x5d47723c8fbe580bb369fec9c2665d8e30a435b9932645482e7c9f11e872296b"
               ],
-              "gas": 193933,
+              "gas": 191545,
               "comparison_exclusion_reason": null
             },
             {
@@ -9890,7 +9890,7 @@
             }
           ],
           "gas_status": "ok",
-          "total_gas": 450674,
+          "total_gas": 445442,
           "runtime_results": [
             {
               "label": "valid",
@@ -9953,18 +9953,18 @@
           "status": "ok",
           "bytecode_size": 2010,
           "runtime_size": 1992,
-          "compile_time_seconds": 0.018244293998577632,
-          "peak_rss_bytes": 60985344,
+          "compile_time_seconds": 0.018967069000041192,
+          "peak_rss_bytes": 58236928,
           "error": "",
           "source": "runtime/P256.sol",
           "project": "openzeppelin-5.6.1",
           "input_fingerprint": "e314ab5a2a742f81bb0870cedcb710922fe1cc675ad22fb2513ccc28b7e39581",
           "compile_time_samples": [
-            0.019008671006304212,
-            0.018244293998577632,
-            0.019590379000874236,
-            0.018181884996010922,
-            0.017766075994586572
+            0.018681471000036254,
+            0.017546369000001505,
+            0.018967069000041192,
+            0.019291956999950344,
+            0.030087992000062513
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "28a6397bcd9330eaf56784f3623fe24cfb80292d1e25c39082a199220b4b8b38",
@@ -10098,7 +10098,7 @@
       "source_links": [
         {
           "label": "testdata/projects/solady-0.1.26.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/solady-0.1.26.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/solady-0.1.26.json.gz"
         },
         {
           "label": "Vectorized/solady",
@@ -10112,23 +10112,23 @@
           "status": "ok",
           "bytecode_size": 22348,
           "runtime_size": 22238,
-          "compile_time_seconds": 0.39820437799789943,
-          "peak_rss_bytes": 67084288,
+          "compile_time_seconds": 0.3190739860000349,
+          "peak_rss_bytes": 75407360,
           "error": "",
           "source": "test/SignatureCheckerLib.t.sol",
           "project": "solady-0.1.26",
           "input_fingerprint": "e99a20c08d9e119520ed6e9f8d7792541b547862c952f416fca49074f575a509",
           "compile_time_samples": [
-            0.3982307580008637,
-            0.3963236150011653,
-            0.39551103799021803,
-            0.4125884870009031,
-            0.39820437799789943
+            0.32336200199995346,
+            0.31445839299999534,
+            0.33544322500006274,
+            0.3190739860000349,
+            0.3097769859999744
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "fed40c145eec88149b4dbafe7b9e0c5d265d0cce0f3e04dcd8a885c5a5d47d46",
+          "output_fingerprint": "3a19b59db67b2c8560245a0bb364b72333ad700eba3212cc37d8d2ac92d7d9a5",
           "deploy_status": "ok",
-          "deploy_gas": 4882357,
+          "deploy_gas": 4882417,
           "address": "0xd5bfebdce5c91413e41cc7b24c8402c59a344f7c",
           "gas_results": [
             {
@@ -10263,18 +10263,18 @@
           "status": "ok",
           "bytecode_size": 13754,
           "runtime_size": 13725,
-          "compile_time_seconds": 0.07538258899876382,
-          "peak_rss_bytes": 106635264,
+          "compile_time_seconds": 0.07342041599997629,
+          "peak_rss_bytes": 108658688,
           "error": "",
           "source": "test/SignatureCheckerLib.t.sol",
           "project": "solady-0.1.26",
           "input_fingerprint": "e99a20c08d9e119520ed6e9f8d7792541b547862c952f416fca49074f575a509",
           "compile_time_samples": [
-            0.0730622859991854,
-            0.07657011300034355,
-            0.07607309600280132,
-            0.074824761992204,
-            0.07538258899876382
+            0.07292061999999078,
+            0.07257085200001256,
+            0.07474849799996264,
+            0.07342041599997629,
+            0.07359827499999483
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "a77e5d8c48d0ee58cfc3175a37255158cb93381685feae480b527f4a52e5b210",
@@ -10423,7 +10423,7 @@
       "source_links": [
         {
           "label": "testdata/projects/solady-0.1.26.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/solady-0.1.26.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/solady-0.1.26.json.gz"
         },
         {
           "label": "Vectorized/solady",
@@ -10435,25 +10435,25 @@
           "compiler_id": "solx",
           "label": "solx 0.2.0",
           "status": "ok",
-          "bytecode_size": 67886,
-          "runtime_size": 67776,
-          "compile_time_seconds": 1.0402065319940448,
-          "peak_rss_bytes": 97579008,
+          "bytecode_size": 67982,
+          "runtime_size": 67872,
+          "compile_time_seconds": 0.904883889999951,
+          "peak_rss_bytes": 105095168,
           "error": "",
           "source": "test/LibString.t.sol",
           "project": "solady-0.1.26",
           "input_fingerprint": "fee08712066da592fcee7a0c8ccd3a1ee00f9537dd92f0f486e047d9673c3529",
           "compile_time_samples": [
-            1.0404391979973298,
-            1.0402065319940448,
-            1.0405947609979194,
-            1.0357736890000524,
-            1.036778317997232
+            0.9080093239999769,
+            0.9051408990000027,
+            0.8794047800000726,
+            0.904883889999951,
+            0.8948010759999079
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "959dca52ec060db23dc97b295f24acca2e13302b2a4594eddee5234340505c0d",
+          "output_fingerprint": "3e6e0ec423f1835dd8d062a2761632becd9f3333d6af0a023d3f30db4625c712",
           "deploy_status": "ok",
-          "deploy_gas": 14736625,
+          "deploy_gas": 14755946,
           "address": "0x7ce73f8f636c6bd3357a0a8a59e0ab6462c955b0",
           "gas_results": [
             {
@@ -10675,7 +10675,7 @@
               "args": [
                 "0x"
               ],
-              "gas": 543148,
+              "gas": 544492,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10684,7 +10684,7 @@
               "args": [
                 "0x42"
               ],
-              "gas": 543639,
+              "gas": 544962,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10693,7 +10693,7 @@
               "args": [
                 "0x42424242424242424242424242424242424242424242424242424242424242"
               ],
-              "gas": 560863,
+              "gas": 562186,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10702,7 +10702,7 @@
               "args": [
                 "0x4242424242424242424242424242424242424242424242424242424242424242"
               ],
-              "gas": 561195,
+              "gas": 562539,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10711,7 +10711,7 @@
               "args": [
                 "0x424242424242424242424242424242424242424242424242424242424242424242"
               ],
-              "gas": 562257,
+              "gas": 563601,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10720,7 +10720,7 @@
               "args": [
                 "0x42424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242"
               ],
-              "gas": 579447,
+              "gas": 580791,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10729,7 +10729,7 @@
               "args": [
                 "0x4242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242424242"
               ],
-              "gas": 580427,
+              "gas": 581792,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10738,7 +10738,7 @@
               "args": [
                 "0x"
               ],
-              "gas": 543213,
+              "gas": 544557,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10747,7 +10747,7 @@
               "args": [
                 "0xff"
               ],
-              "gas": 543772,
+              "gas": 545137,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10756,7 +10756,7 @@
               "args": [
                 "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
               ],
-              "gas": 560653,
+              "gas": 561997,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10765,7 +10765,7 @@
               "args": [
                 "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
               ],
-              "gas": 561347,
+              "gas": 562712,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10774,7 +10774,7 @@
               "args": [
                 "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
               ],
-              "gas": 562193,
+              "gas": 563537,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10783,7 +10783,7 @@
               "args": [
                 "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
               ],
-              "gas": 579442,
+              "gas": 580786,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10792,7 +10792,7 @@
               "args": [
                 "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
               ],
-              "gas": 580084,
+              "gas": 581428,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10801,7 +10801,7 @@
               "args": [
                 "0x"
               ],
-              "gas": 543209,
+              "gas": 544574,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10810,7 +10810,7 @@
               "args": [
                 "0x41414141414141414141414141414141414141414141414141414141414141"
               ],
-              "gas": 548770,
+              "gas": 550093,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10819,7 +10819,7 @@
               "args": [
                 "0x4141414141414141414141414141414141414141414141414141414141414141"
               ],
-              "gas": 549182,
+              "gas": 550526,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10828,7 +10828,7 @@
               "args": [
                 "0x414141414141414141414141414141414141414141414141414141414141414141"
               ],
-              "gas": 549786,
+              "gas": 551130,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10837,7 +10837,7 @@
               "args": [
                 "0x4141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141"
               ],
-              "gas": 555415,
+              "gas": 556759,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10846,7 +10846,7 @@
               "args": [
                 "0x8041414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141"
               ],
-              "gas": 545002,
+              "gas": 546325,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10855,7 +10855,7 @@
               "args": [
                 "0x4141414141414141414141414141414141414141414141414141414141414180414141414141414141414141414141414141414141414141414141414141414141"
               ],
-              "gas": 549899,
+              "gas": 551243,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -10864,7 +10864,7 @@
               "args": [
                 "0x4141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414180"
               ],
-              "gas": 555298,
+              "gas": 556621,
               "comparison_exclusion_reason": "Memory brutalizer workload depends on gas and contract bytecode."
             },
             {
@@ -11058,7 +11058,7 @@
             }
           ],
           "gas_status": "ok",
-          "total_gas": 13919614,
+          "total_gas": 13949161,
           "runtime_results": [
             {
               "label": "serial-number",
@@ -11105,18 +11105,18 @@
           "status": "ok",
           "bytecode_size": 39953,
           "runtime_size": 39924,
-          "compile_time_seconds": 0.1594067419937346,
-          "peak_rss_bytes": 137793536,
+          "compile_time_seconds": 0.16221835599992573,
+          "peak_rss_bytes": 140431360,
           "error": "",
           "source": "test/LibString.t.sol",
           "project": "solady-0.1.26",
           "input_fingerprint": "fee08712066da592fcee7a0c8ccd3a1ee00f9537dd92f0f486e047d9673c3529",
           "compile_time_samples": [
-            0.15773902900400572,
-            0.1585554250050336,
-            0.1606735179957468,
-            0.1594067419937346,
-            0.1594245430023875
+            0.16256270400003814,
+            0.16533192200006397,
+            0.16221835599992573,
+            0.15964571400002114,
+            0.15959567800007335
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "035de264fc6fbe7d50b8c39a8ac918caa1d8b135b9eef8214b80d2bec09d00fd",
@@ -11782,11 +11782,11 @@
       "source_links": [
         {
           "label": "testdata/projects/solady-0.1.26.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/solady-0.1.26.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/solady-0.1.26.json.gz"
         },
         {
           "label": "testdata/runtime/Encoding.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/runtime/Encoding.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/runtime/Encoding.sol"
         },
         {
           "label": "Vectorized/solady",
@@ -11800,18 +11800,18 @@
           "status": "ok",
           "bytecode_size": 937,
           "runtime_size": 838,
-          "compile_time_seconds": 0.06322688599175308,
-          "peak_rss_bytes": 54419456,
+          "compile_time_seconds": 0.054284923000068375,
+          "peak_rss_bytes": 55947264,
           "error": "",
           "source": "Encoding.sol",
           "project": "solady-0.1.26",
           "input_fingerprint": "a8b4886eb5f60ba2135fcb23e7e3f69711f804b6d00352b4a98dfee5312505ed",
           "compile_time_samples": [
-            0.05832040299719665,
-            0.06617838599777315,
-            0.06009567699220497,
-            0.08878765600093175,
-            0.06322688599175308
+            0.05849002799993741,
+            0.054284923000068375,
+            0.07190298299997266,
+            0.04612347200009026,
+            0.04504660500003865
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "fb915357344729849e9b41c8e0eda809af7e9864d88de7c2ea483af8a7f6722b",
@@ -14586,18 +14586,18 @@
           "status": "ok",
           "bytecode_size": 487,
           "runtime_size": 469,
-          "compile_time_seconds": 0.01086964100250043,
-          "peak_rss_bytes": 56360960,
+          "compile_time_seconds": 0.010968423999997867,
+          "peak_rss_bytes": 56266752,
           "error": "",
           "source": "Encoding.sol",
           "project": "solady-0.1.26",
           "input_fingerprint": "a8b4886eb5f60ba2135fcb23e7e3f69711f804b6d00352b4a98dfee5312505ed",
           "compile_time_samples": [
-            0.01086964100250043,
-            0.01090798199584242,
-            0.010190834989771247,
-            0.009915285001625307,
-            0.015004207991296425
+            0.0101742850000619,
+            0.010968423999997867,
+            0.011039702999937617,
+            0.011870283000007475,
+            0.0107416739999735
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "1275211ac29289782896489976ea03431bfd224cc5ed5bfa9c07eabc5e69f084",
@@ -17381,11 +17381,11 @@
       "source_links": [
         {
           "label": "testdata/projects/solady-0.1.26.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/solady-0.1.26.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/solady-0.1.26.json.gz"
         },
         {
           "label": "testdata/runtime/Algorithms.sol",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/runtime/Algorithms.sol"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/runtime/Algorithms.sol"
         },
         {
           "label": "Vectorized/solady",
@@ -17399,18 +17399,18 @@
           "status": "ok",
           "bytecode_size": 2034,
           "runtime_size": 1935,
-          "compile_time_seconds": 0.10547647600469645,
-          "peak_rss_bytes": 55455744,
+          "compile_time_seconds": 0.08656443899997157,
+          "peak_rss_bytes": 59326464,
           "error": "",
           "source": "Algorithms.sol",
           "project": "solady-0.1.26",
           "input_fingerprint": "eb935a4ce96339b69a4f87506ad1c61e1b2bff070c6e237ff045e68d7cc0a9ad",
           "compile_time_samples": [
-            0.09425181400729343,
-            0.10547647600469645,
-            0.13234228199871723,
-            0.09844721999252215,
-            0.12034538401348982
+            0.10292046400002164,
+            0.1057678949999854,
+            0.08656443899997157,
+            0.08226744000000963,
+            0.08236773999999514
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "92bb5591371d048f687347d2b58f077e9ec0ce09951e98c7d1443d28bfd598e7",
@@ -18961,18 +18961,18 @@
           "status": "ok",
           "bytecode_size": 1339,
           "runtime_size": 1321,
-          "compile_time_seconds": 0.016688012998201884,
-          "peak_rss_bytes": 66834432,
+          "compile_time_seconds": 0.017071097999973972,
+          "peak_rss_bytes": 62812160,
           "error": "",
           "source": "Algorithms.sol",
           "project": "solady-0.1.26",
           "input_fingerprint": "eb935a4ce96339b69a4f87506ad1c61e1b2bff070c6e237ff045e68d7cc0a9ad",
           "compile_time_samples": [
-            0.01734090999525506,
-            0.016588382990448736,
-            0.016688012998201884,
-            0.01718251098645851,
-            0.016587892998359166
+            0.01784170799999174,
+            0.016146787000025142,
+            0.017132897000010416,
+            0.016952887000002193,
+            0.017071097999973972
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "dc1724b3517f6be01776061e9c7edae5e311b63e5a1125cb62828c027b0695e2",
@@ -20532,7 +20532,7 @@
       "source_links": [
         {
           "label": "testdata/projects/tempo-zones.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/tempo-zones.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/tempo-zones.json.gz"
         },
         {
           "label": "tempoxyz/zones",
@@ -20544,25 +20544,25 @@
           "compiler_id": "solx",
           "label": "solx 0.2.0",
           "status": "ok",
-          "bytecode_size": 24697,
-          "runtime_size": 24598,
-          "compile_time_seconds": 0.8513415019988315,
-          "peak_rss_bytes": 73330688,
+          "bytecode_size": 24699,
+          "runtime_size": 24600,
+          "compile_time_seconds": 0.7845855919999849,
+          "peak_rss_bytes": 74022912,
           "error": "",
           "source": "src/runtime/tempo/ZonePortal.sol",
           "project": "tempo-zones",
           "input_fingerprint": "396de90ce6522c0b189418882c37a8a7cc71033ad86f4e57e829131a03c1cdc2",
           "compile_time_samples": [
-            0.8634160900110146,
-            0.8513415019988315,
-            0.8513893819908844,
-            0.8508339249965502,
-            0.8223317429947201
+            0.7877078330000131,
+            0.7845855919999849,
+            0.7680788459999803,
+            0.7901915259999441,
+            0.7831729880000466
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "0d2e451c500c3ea5afef950e9685911a35c0581a7195dad4ebf814a13d0ddd44",
+          "output_fingerprint": "4c9f8a84a1917b698cd66a24ccd8f46fc9a9a8b889cd6657f66777e9241b3596",
           "deploy_status": "ok",
-          "deploy_gas": 5374165,
+          "deploy_gas": 5374561,
           "implementation_address": "0xf2f7ee6206c10dd1f0e57038fd6c21acab9e09e9",
           "proxy_deploy_gas": 62915,
           "address": "0xa2b66209a3872257f4fc2532bf35138f466f13ea",
@@ -20642,18 +20642,18 @@
           "status": "ok",
           "bytecode_size": 17226,
           "runtime_size": 17208,
-          "compile_time_seconds": 0.12050987899419852,
-          "peak_rss_bytes": 91947008,
+          "compile_time_seconds": 0.12109530099996846,
+          "peak_rss_bytes": 85778432,
           "error": "",
           "source": "src/runtime/tempo/ZonePortal.sol",
           "project": "tempo-zones",
           "input_fingerprint": "396de90ce6522c0b189418882c37a8a7cc71033ad86f4e57e829131a03c1cdc2",
           "compile_time_samples": [
-            0.11845953299780376,
-            0.11768854901310988,
-            0.1210888259956846,
-            0.12193245500384364,
-            0.12050987899419852
+            0.11742822700000488,
+            0.11964470999998866,
+            0.12293870300004528,
+            0.12109530099996846,
+            0.12481953500002874
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "63e75921e9a62a68a63c8f17430e5e118558f755eb8fafd397654ff3e73fcf0d",
@@ -20747,7 +20747,7 @@
       "source_links": [
         {
           "label": "testdata/projects/seaport-1.6.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/seaport-1.6.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/seaport-1.6.json.gz"
         },
         {
           "label": "ProjectOpenSea/seaport",
@@ -20761,18 +20761,18 @@
           "status": "failed",
           "bytecode_size": 0,
           "runtime_size": 0,
-          "compile_time_seconds": 4.400133342991467,
-          "peak_rss_bytes": 361472000,
+          "compile_time_seconds": 12.988165648000063,
+          "peak_rss_bytes": 10349064192,
           "error": "Error: Sol pass pipeline produced an invalid module\n",
           "source": "",
           "project": "seaport-1.6",
           "input_fingerprint": "bc96b2536144a68937288ec2ef84cff5d62b0743553bcdebadb009fa3a4ada06",
           "compile_time_samples": [
-            4.400133342991467,
-            4.3960162900038995,
-            4.403658057999564,
-            4.414757503996952,
-            4.38250190699182
+            13.111641676999966,
+            12.532317145999968,
+            12.847112449000065,
+            12.988165648000063,
+            13.151729850000038
           ],
           "command": "~/bench/bin/slang --standard-json",
           "output_fingerprint": "5adc360d101eb6dfd97e170b9c10e5a8eeb46d4309e16f4ceb0f5d1aa901baca"
@@ -20783,18 +20783,18 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 2.7983605670015095,
-          "peak_rss_bytes": 621666304,
+          "compile_time_seconds": 2.806873665000012,
+          "peak_rss_bytes": 633880576,
           "error": "",
           "source": "",
           "project": "seaport-1.6",
           "input_fingerprint": "bc96b2536144a68937288ec2ef84cff5d62b0743553bcdebadb009fa3a4ada06",
           "compile_time_samples": [
-            2.823674908009707,
-            2.787914565007668,
-            2.7983605670015095,
-            2.7912658270070096,
-            2.8066523610032164
+            2.8146945759999653,
+            2.8060385710000446,
+            2.7841261030000624,
+            2.806873665000012,
+            2.815331130000004
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "1d159fe23d22768f3fd669911f76ae9d2cbeb02013e48c1d6cc97641c7f2dc7d",
@@ -20815,7 +20815,7 @@
       "source_links": [
         {
           "label": "testdata/projects/v4-core-4.0.0.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/v4-core-4.0.0.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/v4-core-4.0.0.json.gz"
         },
         {
           "label": "Uniswap/v4-core",
@@ -20829,21 +20829,21 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 5.982018734997837,
-          "peak_rss_bytes": 249884672,
+          "compile_time_seconds": 2.2959253630000376,
+          "peak_rss_bytes": 620253184,
           "error": "",
           "source": "",
           "project": "v4-core-4.0.0",
           "input_fingerprint": "67f6ab2d0686fcda25f43f74af910ddc4184c71f8024b1c75807b436a6566f0f",
           "compile_time_samples": [
-            5.980041120987153,
-            5.978398961000494,
-            5.983246567993774,
-            5.982018734997837,
-            6.059861886998988
+            2.3077329639999107,
+            2.2558014219999905,
+            2.308328587999995,
+            2.2708373429999256,
+            2.2959253630000376
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "38b018df04550b35a1e9967a89f432d268c1d50eb2769cc0edd601a5864d33dd",
+          "output_fingerprint": "ea6fd7002b934c2818094262a47eda0b7c20a1e7638313d0a5b694b36b34aba5",
           "contracts_compiled": 174,
           "bytecode_objects": 130
         },
@@ -20853,18 +20853,18 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 0.3952653710002778,
-          "peak_rss_bytes": 278843392,
+          "compile_time_seconds": 0.3921050900000864,
+          "peak_rss_bytes": 261386240,
           "error": "",
           "source": "",
           "project": "v4-core-4.0.0",
           "input_fingerprint": "67f6ab2d0686fcda25f43f74af910ddc4184c71f8024b1c75807b436a6566f0f",
           "compile_time_samples": [
-            0.4033929740107851,
-            0.39101184500032105,
-            0.3948266029910883,
-            0.3952653710002778,
-            0.4017064299987396
+            0.38444681099997524,
+            0.3921050900000864,
+            0.4170632520000481,
+            0.38390553499993985,
+            0.3990147679999154
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "a89feb96792fedbb362dbc8417695367dfabfefdc75ab6bac5259691e62e2032",
@@ -20885,7 +20885,7 @@
       "source_links": [
         {
           "label": "testdata/projects/morpho-blue-1.0.0.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/morpho-blue-1.0.0.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/morpho-blue-1.0.0.json.gz"
         },
         {
           "label": "morpho-org/morpho-blue",
@@ -20899,21 +20899,21 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 3.621514136000769,
-          "peak_rss_bytes": 191508480,
+          "compile_time_seconds": 1.2206284519999144,
+          "peak_rss_bytes": 649494528,
           "error": "",
           "source": "",
           "project": "morpho-blue-1.0.0",
           "input_fingerprint": "cab0ee52b82bfa49360e2a7854987d97d636a9215d76d0a079c27d75d3e69fda",
           "compile_time_samples": [
-            3.611050745996181,
-            3.6297670810017735,
-            3.6122328079945873,
-            3.621514136000769,
-            3.6318023089988856
+            1.1995741279999947,
+            1.2405052520000481,
+            1.2206284519999144,
+            1.2224525760000233,
+            1.2172246750000113
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "3da42cdbadcef923dcc4362786d6233ca4dd485795876cb83cd8e539f61b7d07",
+          "output_fingerprint": "8bc2bd56b0d86098610312bd7e5849f0ff812c53d9fd603088a0aff2e7f4d380",
           "contracts_compiled": 83,
           "bytecode_objects": 56
         },
@@ -20923,18 +20923,18 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 0.2146393610019004,
-          "peak_rss_bytes": 209244160,
+          "compile_time_seconds": 0.21717865200002962,
+          "peak_rss_bytes": 236847104,
           "error": "",
           "source": "",
           "project": "morpho-blue-1.0.0",
           "input_fingerprint": "cab0ee52b82bfa49360e2a7854987d97d636a9215d76d0a079c27d75d3e69fda",
           "compile_time_samples": [
-            0.21630897599970922,
-            0.21347645499918144,
-            0.22051276099227834,
-            0.20984486700035632,
-            0.2146393610019004
+            0.22622400000000198,
+            0.22466682799995397,
+            0.21265411299998505,
+            0.21267283300005602,
+            0.21717865200002962
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "ac2fe06ddbd149d362a70ed27066c09cd0125d3fca8d0a557c8806d8ed8d4325",
@@ -20955,7 +20955,7 @@
       "source_links": [
         {
           "label": "testdata/projects/openzeppelin-5.6.1.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/openzeppelin-5.6.1.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/openzeppelin-5.6.1.json.gz"
         },
         {
           "label": "OpenZeppelin/openzeppelin-contracts",
@@ -20969,21 +20969,21 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 4.904170740002883,
-          "peak_rss_bytes": 245960704,
+          "compile_time_seconds": 1.59702827600006,
+          "peak_rss_bytes": 459784192,
           "error": "",
           "source": "",
           "project": "openzeppelin-5.6.1",
           "input_fingerprint": "93724e74724f15b0bec9937b96693d06965ee8434388ca4c09ef95ef24946430",
           "compile_time_samples": [
-            4.900560574998963,
-            4.946255756993196,
-            4.888522494002245,
-            4.933121020003455,
-            4.904170740002883
+            1.59702827600006,
+            1.5543802710000136,
+            1.5293222930000638,
+            1.6478341959999625,
+            1.63686756900006
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "a842824b7bb7032ada68910708b6b50a0de6ab1dedef0585d5094e374e6cffba",
+          "output_fingerprint": "12bfc71613f29d5472daf3315cb9ee607f9baa3d75951622d1176c1b7d5ec5a0",
           "contracts_compiled": 480,
           "bytecode_objects": 233
         },
@@ -20993,18 +20993,18 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 0.42756295499566477,
-          "peak_rss_bytes": 288972800,
+          "compile_time_seconds": 0.42228185699991627,
+          "peak_rss_bytes": 293359616,
           "error": "",
           "source": "",
           "project": "openzeppelin-5.6.1",
           "input_fingerprint": "93724e74724f15b0bec9937b96693d06965ee8434388ca4c09ef95ef24946430",
           "compile_time_samples": [
-            0.4307745339901885,
-            0.42756295499566477,
-            0.4075613019958837,
-            0.4250546739931451,
-            0.43141516199102625
+            0.4194338309999921,
+            0.42228185699991627,
+            0.4237024230000088,
+            0.429921156999967,
+            0.39496044199995595
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "85bd94418eae7e99742693000b24afb0be6c3af5bc11a313869d5a1606dd7179",
@@ -21025,7 +21025,7 @@
       "source_links": [
         {
           "label": "testdata/projects/solady-0.1.26.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/solady-0.1.26.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/solady-0.1.26.json.gz"
         },
         {
           "label": "Vectorized/solady",
@@ -21039,21 +21039,21 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 9.784469295991585,
-          "peak_rss_bytes": 354275328,
+          "compile_time_seconds": 3.2646416599999384,
+          "peak_rss_bytes": 983179264,
           "error": "",
           "source": "",
           "project": "solady-0.1.26",
           "input_fingerprint": "df44de187ccef594497440b5ffc619b4a26d34fbd07a41d49efd642b2b60d9dd",
           "compile_time_samples": [
-            9.800427378999302,
-            9.784469295991585,
-            9.783590060993447,
-            9.800907646000269,
-            9.783022927003913
+            3.2723488679999946,
+            3.242321125999979,
+            3.267560345999982,
+            3.263253426999995,
+            3.2646416599999384
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "6230e7e3eca936aad45b6356f727468ff8c5062e97e93f7042912db8179099b9",
+          "output_fingerprint": "e4d3c0d25daf6a7f00166c59a53c539e76816d08e670cfb94ed38860e27d172d",
           "contracts_compiled": 254,
           "bytecode_objects": 221
         },
@@ -21063,18 +21063,18 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 0.6490374660061207,
-          "peak_rss_bytes": 352784384,
+          "compile_time_seconds": 0.6457062430000633,
+          "peak_rss_bytes": 360914944,
           "error": "",
           "source": "",
           "project": "solady-0.1.26",
           "input_fingerprint": "df44de187ccef594497440b5ffc619b4a26d34fbd07a41d49efd642b2b60d9dd",
           "compile_time_samples": [
-            0.6523205150006106,
-            0.6490374660061207,
-            0.6458541869942565,
-            0.6546415270131547,
-            0.6417235600092681
+            0.6382458690000021,
+            0.6555644620000294,
+            0.6444682190000321,
+            0.6457062430000633,
+            0.6501002569999628
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "ed55297f3bde3546fccc62db0d8957c2382738b563ec0853f0bfa0f061549ac4",
@@ -21095,7 +21095,7 @@
       "source_links": [
         {
           "label": "testdata/projects/forge-std-1.16.1.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/forge-std-1.16.1.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/forge-std-1.16.1.json.gz"
         },
         {
           "label": "foundry-rs/forge-std",
@@ -21109,21 +21109,21 @@
           "status": "failed",
           "bytecode_size": 0,
           "runtime_size": 0,
-          "compile_time_seconds": 3.379511592997005,
-          "peak_rss_bytes": 221827072,
+          "compile_time_seconds": 1.565198731999999,
+          "peak_rss_bytes": 543846400,
           "error": "Error: LLVM error: Stackification failed for 'setChainWithDefaultRpcUrl(string,StdChains.ChainData)_21474837710' function. It is recursive and has stack too deep errors. Consider refactoring it to use a non-recursive approach.\n--> test/StdCheats.t.sol\n\n",
           "source": "",
           "project": "forge-std-1.16.1",
           "input_fingerprint": "9ac76402de6df15a5878be21af845f521fe635744e12f2806c2e8804413f3c6f",
           "compile_time_samples": [
-            3.3483050049981102,
-            3.3607083210081328,
-            3.379511592997005,
-            3.4224866480071796,
-            3.4081638810021104
+            1.5500397260000227,
+            1.5729707219999227,
+            1.5528110569999853,
+            1.5970966940000153,
+            1.565198731999999
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "9eef79c402f706ce194447603b4028bc2ae9bc7954a6e54cc00e977d2cf30474"
+          "output_fingerprint": "7bcacec44be621367fe80d9bd61af896564970d15bc05b25e34c18338894575c"
         },
         "solar": {
           "compiler_id": "solar",
@@ -21131,18 +21131,18 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 0.23556783399544656,
-          "peak_rss_bytes": 232673280,
+          "compile_time_seconds": 0.23360611600003267,
+          "peak_rss_bytes": 241012736,
           "error": "",
           "source": "",
           "project": "forge-std-1.16.1",
           "input_fingerprint": "9ac76402de6df15a5878be21af845f521fe635744e12f2806c2e8804413f3c6f",
           "compile_time_samples": [
-            0.23556783399544656,
-            0.2504301050066715,
-            0.23933344100078102,
-            0.22726105200126767,
-            0.22683820300153457
+            0.24242904700008694,
+            0.22942589599995244,
+            0.23360611600003267,
+            0.24217326799998773,
+            0.230378179000013
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "1eaf9dde8b1b9fb0a04ae62660143f475aeb833bfe1fa41e4b5605e8edb2dd06",
@@ -21163,7 +21163,7 @@
       "source_links": [
         {
           "label": "testdata/projects/prb-math-4.1.1.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/prb-math-4.1.1.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/prb-math-4.1.1.json.gz"
         },
         {
           "label": "PaulRBerg/prb-math",
@@ -21174,24 +21174,26 @@
         "solx": {
           "compiler_id": "solx",
           "label": "solx 0.2.0",
-          "status": "failed",
-          "bytecode_size": 0,
-          "runtime_size": 0,
-          "compile_time_seconds": 2.0379362539970316,
-          "peak_rss_bytes": 107413504,
-          "error": "Error: MLIR translation\n--> test/unit/sd59x18/math/log10/log10.t.sol\n\n; Error: MLIR translation\n--> test/unit/ud60x18/math/log10/log10.t.sol\n\n",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.6025670710000668,
+          "peak_rss_bytes": 255193088,
+          "error": "",
           "source": "",
           "project": "prb-math-4.1.1",
           "input_fingerprint": "2ac2e09a03302130c9e4382cf41687d0c100825d933afc65be3d071c868080c7",
           "compile_time_samples": [
-            2.053998686998966,
-            2.0302184280008078,
-            2.0379362539970316,
-            2.0344279279961484,
-            2.0451394940027967
+            0.589684936000026,
+            0.6365928710000617,
+            0.6025670710000668,
+            0.6095531189999974,
+            0.5872622780000256
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "1cce724a7733decbd092781673934a845fe336c0733af2f624d1f85b3d4d8a90"
+          "output_fingerprint": "77ede12e45e8a2858b7603f3a4effce2cb6a2f48f53a5c6bd02b9443b9fe6f43",
+          "contracts_compiled": 71,
+          "bytecode_objects": 61
         },
         "solar": {
           "compiler_id": "solar",
@@ -21199,18 +21201,18 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 0.17039331900014076,
-          "peak_rss_bytes": 218087424,
+          "compile_time_seconds": 0.16435973399995873,
+          "peak_rss_bytes": 214278144,
           "error": "",
           "source": "",
           "project": "prb-math-4.1.1",
           "input_fingerprint": "2ac2e09a03302130c9e4382cf41687d0c100825d933afc65be3d071c868080c7",
           "compile_time_samples": [
-            0.17301179099013098,
-            0.16879407499800436,
-            0.16912966400559526,
-            0.17562341300072148,
-            0.17039331900014076
+            0.16435973399995873,
+            0.1629212819999566,
+            0.16469882600006258,
+            0.1637108030000718,
+            0.1717974430000595
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "7c943dab5c2a28e47e6db600b444ac34e4adde6c0536702cc2b47da11f5ca2b9",
@@ -21231,7 +21233,7 @@
       "source_links": [
         {
           "label": "testdata/projects/solmate-6.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/solmate-6.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/solmate-6.json.gz"
         },
         {
           "label": "transmissions11/solmate",
@@ -21245,21 +21247,21 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 3.0326518999936525,
-          "peak_rss_bytes": 145043456,
+          "compile_time_seconds": 2.0037097660000427,
+          "peak_rss_bytes": 276541440,
           "error": "",
           "source": "",
           "project": "solmate-6",
           "input_fingerprint": "1ca875e49dfded9a8365145b3def322130aacfa5925b476246c851a6f10f3706",
           "compile_time_samples": [
-            3.0265519630047493,
-            3.030188274991815,
-            3.043097026995383,
-            3.057244946001447,
-            3.0326518999936525
+            2.0037097660000427,
+            2.0126164060000065,
+            2.024481433999995,
+            1.9935600270000577,
+            1.996198980000031
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "edf4556fdb9efcf81204f908f9f01115a9641e1c2e2eae0e8264c976b3f4a712",
+          "output_fingerprint": "777cb3f90e9a87381bbea245e90fc736b6782c4fe7d6fe5ddf1026408184843f",
           "contracts_compiled": 68,
           "bytecode_objects": 59
         },
@@ -21269,18 +21271,18 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 0.1874320860079024,
-          "peak_rss_bytes": 156979200,
+          "compile_time_seconds": 0.1873223989999815,
+          "peak_rss_bytes": 154353664,
           "error": "",
           "source": "",
           "project": "solmate-6",
           "input_fingerprint": "1ca875e49dfded9a8365145b3def322130aacfa5925b476246c851a6f10f3706",
           "compile_time_samples": [
-            0.20996489099343307,
-            0.1871315270109335,
-            0.19737616200291086,
-            0.1874320860079024,
-            0.18546755200077314
+            0.18499309300000277,
+            0.18598695599996518,
+            0.1873223989999815,
+            0.19167690000006132,
+            0.1876943409999967
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "f46bcf9483922f9caea04b57fa6f472ed16d2003a8b3e2bd4c7e50d5636ffb15",
@@ -21301,7 +21303,7 @@
       "source_links": [
         {
           "label": "testdata/projects/solarray-a547630.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/solarray-a547630.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/solarray-a547630.json.gz"
         },
         {
           "label": "evmcheb/solarray",
@@ -21315,21 +21317,21 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 0.18434197599708568,
-          "peak_rss_bytes": 68157440,
+          "compile_time_seconds": 0.14904510600001686,
+          "peak_rss_bytes": 72491008,
           "error": "",
           "source": "",
           "project": "solarray-a547630",
           "input_fingerprint": "84dd1e235064b3071c753f857f6c884e168fcda360c01004fe318ebe5451aaae",
           "compile_time_samples": [
-            0.17325084199546836,
-            0.18434197599708568,
-            0.19160071200167295,
-            0.18155234400182962,
-            0.1875729150051484
+            0.14904510600001686,
+            0.13677254599997468,
+            0.1435752520000051,
+            0.17241308300003766,
+            0.16328117099999417
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "893a5d551df5e31b404ebb1a24a0c9bbe6efdae4d9fb216f077774e8600dc9c1",
+          "output_fingerprint": "c76ab66f982ab5ce71334f9438070e6ac36ab6372367e4a8a0ad5a9de6798843",
           "contracts_compiled": 21,
           "bytecode_objects": 10
         },
@@ -21339,18 +21341,18 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 0.023433572991052642,
-          "peak_rss_bytes": 125349888,
+          "compile_time_seconds": 0.026487194999958774,
+          "peak_rss_bytes": 106868736,
           "error": "",
           "source": "",
           "project": "solarray-a547630",
           "input_fingerprint": "84dd1e235064b3071c753f857f6c884e168fcda360c01004fe318ebe5451aaae",
           "compile_time_samples": [
-            0.022442956003942527,
-            0.023433572991052642,
-            0.023552932994789444,
-            0.02267235600447748,
-            0.02402965100191068
+            0.02629909500001304,
+            0.02925186200002372,
+            0.024514510000017253,
+            0.026487194999958774,
+            0.027836617999923874
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "76b2f54a41e5ff0fe933846dbb958a60d0bb2f0f9d11254b75d72b23846e4652",
@@ -21371,7 +21373,7 @@
       "source_links": [
         {
           "label": "testdata/projects/tempo-zones.json.gz",
-          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/tempo-zones.json.gz"
+          "url": "https://github.com/paradigmxyz/solar/blob/4d86a23bf4bdea8389327b05df5b91cd4408ce03/testdata/projects/tempo-zones.json.gz"
         },
         {
           "label": "tempoxyz/zones",
@@ -21385,21 +21387,21 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 11.653848130008555,
-          "peak_rss_bytes": 446439424,
+          "compile_time_seconds": 7.532029895999926,
+          "peak_rss_bytes": 830214144,
           "error": "",
           "source": "",
           "project": "tempo-zones",
           "input_fingerprint": "f41810e060953a7dd696a3acfc6b1dec98e8ef4469f2159920fb1411aa182541",
           "compile_time_samples": [
-            11.653848130008555,
-            11.648078380996594,
-            11.623479331989074,
-            11.709784749997198,
-            12.271124863997102
+            7.918955352000012,
+            7.544196806999935,
+            7.324081289999981,
+            7.529774621000001,
+            7.532029895999926
           ],
           "command": "~/bench/bin/slang --standard-json",
-          "output_fingerprint": "290cd05632e0a60279d82d5d9fc23cabba039e5ae716cd11f9d92f37961a162e",
+          "output_fingerprint": "17abe6246657e2e569c4a6df6eeab726b3113f6c4510594071cadd5dd37b4a1e",
           "contracts_compiled": 103,
           "bytecode_objects": 63
         },
@@ -21409,18 +21411,18 @@
           "status": "ok",
           "bytecode_size": null,
           "runtime_size": null,
-          "compile_time_seconds": 0.6699157709954306,
-          "peak_rss_bytes": 307912704,
+          "compile_time_seconds": 0.6691603629999463,
+          "peak_rss_bytes": 307924992,
           "error": "",
           "source": "",
           "project": "tempo-zones",
           "input_fingerprint": "f41810e060953a7dd696a3acfc6b1dec98e8ef4469f2159920fb1411aa182541",
           "compile_time_samples": [
-            0.6773396469943691,
-            0.6662468129943591,
-            0.6768099490000168,
-            0.6652825560013298,
-            0.6699157709954306
+            0.6878382180000244,
+            0.6659500230000504,
+            0.6819207650000862,
+            0.6691603629999463,
+            0.6651551139999583
           ],
           "command": "~/bench/solar/target/release/solar --standard-json",
           "output_fingerprint": "3f94cd241c7c6eddf265e7b6a7402d8881de5929b282276fcc35b3f7d25dfec4",

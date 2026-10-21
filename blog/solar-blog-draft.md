@@ -22,13 +22,13 @@ We compiled popular codebases with every Solidity compiler we could find, using 
 
 | Project | solc 0.8.37 | solx 0.1.8 | solx 0.2 preview | oksolc 0.2.2 | **Solar** | vs. solc |
 |---|---:|---:|---:|---:|---:|---:|
-| Morpho Blue | 33.3 s | 4.32 s | 3.62 s | 4.41 s | **0.22 s** | **149×** |
-| Solady | 88.2 s | 13.5 s | 9.78 s | 11.2 s | **0.64 s** | **137×** |
-| PRBMath | 17.8 s | 4.18 s | fails | 4.53 s | **0.17 s** | **102×** |
+| Morpho Blue | 33.3 s | 4.32 s | 1.22 s | 4.41 s | **0.22 s** | **149×** |
+| Solady | 88.2 s | 13.5 s | 3.27 s | 11.2 s | **0.64 s** | **137×** |
+| PRBMath | 17.8 s | 4.18 s | 0.60 s | 4.53 s | **0.17 s** | **102×** |
 | forge-std | 22.9 s | 4.65 s | fails | 4.23 s | **0.23 s** | **100×** |
-| OpenZeppelin | 35.5 s | 8.82 s | 4.90 s | 6.10 s | **0.42 s** | **84×** |
-| Tempo Zones | 40.4 s | 7.10 s | 11.7 s | 10.3 s | **0.68 s** | **60×** |
-| Uniswap v4 core | fails | 8.82 s | 5.98 s | 7.42 s | **0.39 s** | — |
+| OpenZeppelin | 35.5 s | 8.82 s | 1.60 s | 6.10 s | **0.42 s** | **84×** |
+| Tempo Zones | 40.4 s | 7.10 s | 7.53 s | 10.3 s | **0.68 s** | **60×** |
+| Uniswap v4 core | fails | 8.82 s | 2.30 s | 7.42 s | **0.39 s** | — |
 | Seaport | fails | fails | fails | fails | **2.80 s** | — |
 
 *Median of five runs on a dedicated AMD EPYC 9254 server. Every compiler gets the same settings: the via-IR pipeline and the Cancun EVM target, the one configuration they all accept. "Fails" means the compiler gave up, mostly with "stack too deep".*
@@ -60,7 +60,7 @@ solx needed `unchecked` math to move the storage write out of the loop. Solar do
 
 # How does Solar compare?
 
-We are glad to see more teams investing in Solidity compilers. We measured solc, [solx](https://github.com/NomicFoundation/solx) from the Nomic Foundation (the team behind Hardhat), the October preview of its upcoming Slang-based rewrite, and [oksolc](https://github.com/okcontract/oksolc), a port of solc to Zig, all on the same inputs. With the shared settings above, Solar compiles whole projects 14–19× faster than solx, its Slang preview and oksolc, and 80× faster than solc, and produces cheaper and smaller code on average. The full results are in our [benchmark suite](https://github.com/paradigmxyz/solar/tree/main/benches/runtime).
+We are glad to see more teams investing in Solidity compilers. We measured solc, [solx](https://github.com/NomicFoundation/solx) from the Nomic Foundation (the team behind Hardhat), the October preview of its upcoming Slang-based rewrite, and [oksolc](https://github.com/okcontract/oksolc), a port of solc to Zig, all on the same inputs. With the shared settings above, Solar compiles whole projects 6× faster than the Slang preview, 17–19× faster than solx and oksolc, and 80× faster than solc, and produces cheaper and smaller code on average. The full results are in our [benchmark suite](https://github.com/paradigmxyz/solar/tree/main/benches/runtime).
 
 # With Solar, safe Solidity beats assembly.
 
