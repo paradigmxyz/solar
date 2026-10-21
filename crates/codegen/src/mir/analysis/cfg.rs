@@ -12,18 +12,18 @@ use solar_data_structures::{
     bit_set::{BitMatrix, BitMatrixRow, DenseBitSet},
     index::{IndexVec, index_vec},
 };
-use std::cell::OnceCell;
+use std::sync::OnceLock;
 
 /// Control-flow facts for one MIR function.
 #[derive(Clone, Debug)]
 pub(crate) struct CfgInfo {
     successors: IndexVec<BlockId, SmallVec<[BlockId; 2]>>,
-    predecessors: OnceCell<BlockLists>,
-    reachable: OnceCell<DenseBitSet<BlockId>>,
-    rpo: OnceCell<Vec<BlockId>>,
-    cyclic_blocks: OnceCell<DenseBitSet<BlockId>>,
-    dominators: OnceCell<DominatorTree>,
-    reachability: OnceCell<BitMatrix<BlockId, BlockId>>,
+    predecessors: OnceLock<BlockLists>,
+    reachable: OnceLock<DenseBitSet<BlockId>>,
+    rpo: OnceLock<Vec<BlockId>>,
+    cyclic_blocks: OnceLock<DenseBitSet<BlockId>>,
+    dominators: OnceLock<DominatorTree>,
+    reachability: OnceLock<BitMatrix<BlockId, BlockId>>,
 }
 
 impl CfgInfo {
@@ -39,12 +39,12 @@ impl CfgInfo {
             .collect();
         Self {
             successors,
-            predecessors: OnceCell::new(),
-            reachable: OnceCell::new(),
-            rpo: OnceCell::new(),
-            cyclic_blocks: OnceCell::new(),
-            dominators: OnceCell::new(),
-            reachability: OnceCell::new(),
+            predecessors: OnceLock::new(),
+            reachable: OnceLock::new(),
+            rpo: OnceLock::new(),
+            cyclic_blocks: OnceLock::new(),
+            dominators: OnceLock::new(),
+            reachability: OnceLock::new(),
         }
     }
 
@@ -208,7 +208,7 @@ pub(crate) struct DominatorTree {
     children: BlockLists,
     /// Preorder intervals make repeated dominance queries independent of tree
     /// depth. Build them only when a consumer asks about dominance.
-    intervals: OnceCell<IndexVec<BlockId, (u32, u32)>>,
+    intervals: OnceLock<IndexVec<BlockId, (u32, u32)>>,
 }
 
 impl DominatorTree {
@@ -254,7 +254,7 @@ impl DominatorTree {
                 idom.filter(|&idom| idom != block).map(|idom| (idom, block))
             }),
         );
-        Self { idoms, children, intervals: OnceCell::new() }
+        Self { idoms, children, intervals: OnceLock::new() }
     }
 
     fn intersect(

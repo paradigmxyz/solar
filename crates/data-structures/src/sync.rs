@@ -52,3 +52,21 @@ where
 {
     if enabled { rayon::scope(|scope| op(Scope::new(Some(scope)))) } else { op(Scope::new(None)) }
 }
+
+/// Maps `f` over `items`, one rayon job per item when `enabled`, and returns the results in
+/// item order.
+#[inline]
+pub fn par_map<T, R, F>(enabled: bool, items: &[T], f: F) -> Vec<R>
+where
+    T: Sync,
+    R: Send,
+    F: Fn(&T) -> R + Sync + Send,
+{
+    use rayon::prelude::*;
+
+    if enabled {
+        items.par_iter().with_max_len(1).map(f).collect()
+    } else {
+        items.iter().map(f).collect()
+    }
+}
