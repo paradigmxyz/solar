@@ -59,9 +59,11 @@ function mix(uint256 a, uint256 b) internal pure returns (uint256) {
 ```
 
 Both document an internal, private, or public function with a body. `solar-inline` clones the
-function into each caller where inlining is legal, whatever it costs; the inliner's legality and
-stack limits still apply. `solar-noinline` keeps every call a call. A function cannot have both,
-and builds with `-O none` inline nothing.
+function into each caller where inlining is legal, whatever it costs, past the inliner's growth and
+stack budgets. A contract takes at most about 16,000 instructions from such clones, so tagged
+functions that call each other cannot multiply without limit; past that, a tagged function is
+inlined only where an untagged one would be. `solar-noinline` keeps every call a call. A function
+cannot have both, and builds with `-O none` inline nothing.
 
 ## `solar-optimize`
 

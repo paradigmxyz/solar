@@ -33,7 +33,10 @@
 //! not promise the scheduler emits none.
 //!
 //! A callee documented `@custom:solar-inline` skips every profitability test, the stack
-//! estimate below included: each call where cloning is legal is cloned.
+//! estimate below included: each call where cloning is legal is cloned, while the module's
+//! tagged clones fit a budget of their own over all runs. Tagged helpers that call each other
+//! would otherwise multiply without limit; past the budget, tagged calls are weighed like any
+//! other.
 //! `@custom:solar-noinline` marks a function no-inline. The `inline-tagged` variant clones only
 //! such callees, and runs first in the semantic pipeline: a helper that spells a word operation
 //! as a byte loop then meets the caller's objects, so `byte-loops` can tell a fresh destination
@@ -196,6 +199,11 @@ impl MirInliner {
     /// lookups stayed calls that drained every carried word, and twelve took 15%
     /// off decoding.
     const STACK_BUDGET: usize = 12;
+    /// Instructions `@custom:solar-inline` clones may add to a module over every run of the
+    /// inliner. Tagged helpers that each call the previous one twice would otherwise clone
+    /// `2^depth` bodies, and compile time would grow with them. The largest safe-Solady module
+    /// takes about 4,700.
+    const TAGGED_BUDGET: usize = 16 * 1024;
 }
 
 /// Statistics for MIR-level inlining.
@@ -312,8 +320,9 @@ impl MirInliner {
                     None
                 }
                 .unwrap_or_else(|| call_counts.get(&site.callee).copied().unwrap_or_default());
-                // `@custom:solar-inline` skips the growth and stack budgets, as every other test.
-                let always = module.function(site.callee).attributes.always_inline;
+                // `@custom:solar-inline` skips the growth and stack budgets, as every other test,
+                // while the module's tagged clones fit their own.
+                let always = Self::always_inline(module, site.callee, &summary);
                 let grew_too_much = !always
                     && summaries.get(&caller_id).is_some_and(|s| {
                         s.instruction_count.saturating_sub(base_instructions)
@@ -374,6 +383,9 @@ impl MirInliner {
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
                     stats.modified.push(caller_id);
+                    if always {
+                        module.tagged_inline_growth += summary.instruction_count;
+                    }
                     if call_counts.get(&site.callee) == Some(&1) {
                         stats.consumed.push(site.callee);
                     }
@@ -528,8 +540,8 @@ impl MirInliner {
         let can_specialize_dispatcher =
             summary.is_function_pointer_dispatcher && site.has_constant_function_selector;
         // `@custom:solar-inline` asks for every legal clone, whatever it costs, the spills a
-        // body with phis may add included.
-        let always = module.function(site.callee).attributes.always_inline;
+        // body with phis may add included, while the module's tagged budget lasts.
+        let always = Self::always_inline(module, site.callee, &summary);
         if self.tagged_only && !always {
             return false;
         }
@@ -694,6 +706,14 @@ impl MirInliner {
                         if callee.storage_alias(inst, value) == StorageAlias::Slot(slot))
                 })))
         })
+    }
+
+    /// Whether a call to `callee` is cloned as `@custom:solar-inline` asks: while the module's
+    /// tagged clones, this one included, fit their budget.
+    fn always_inline(module: &Module, callee: MirFunctionId, summary: &MirInlineSummary) -> bool {
+        module.function(callee).attributes.always_inline
+            && module.tagged_inline_growth.saturating_add(summary.instruction_count)
+                <= Self::TAGGED_BUDGET
     }
 }
 
