@@ -1,0 +1,460 @@
+{
+  "format_version": 1,
+  "evm_version_override": null,
+  "optimizer_runs_override": null,
+  "timings": {
+    "heavy": 186.21981918699748
+  },
+  "results": [
+    {
+      "test_id": "seaport-1.6-project",
+      "description": "Seaport 1.6 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/seaport-1.6.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/seaport-1.6.json.gz"
+        },
+        {
+          "label": "ProjectOpenSea/seaport",
+          "url": "https://github.com/ProjectOpenSea/seaport/tree/22ea29df3c241ebc17c95268164dde47e1186287"
+        }
+      ],
+      "compilers": {
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 21.078384490989265,
+          "peak_rss_bytes": 239337472,
+          "error": "",
+          "source": "",
+          "project": "seaport-1.6",
+          "input_fingerprint": "30f8e5a52b32b7ac128bbe605cc016fdcc24775a780c5693ed1d4aadcaed14c0",
+          "compile_time_samples": [
+            21.09788349599694,
+            21.078384490989265,
+            21.0700270459929,
+            21.051186217999202,
+            21.089061556005618
+          ],
+          "command": "~/bench/bin/solar-j1 --standard-json",
+          "output_fingerprint": "ccc345f72c18de67579ef95b7b4d263f05985ef6ba849c04e6dd75671ebea371",
+          "contracts_compiled": 432,
+          "bytecode_objects": 348
+        }
+      },
+      "project": "seaport-1.6",
+      "source": ""
+    },
+    {
+      "test_id": "v4-core-project",
+      "description": "Uniswap v4-core full project (viaIR)",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/v4-core-4.0.0.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/v4-core-4.0.0.json.gz"
+        },
+        {
+          "label": "Uniswap/v4-core",
+          "url": "https://github.com/Uniswap/v4-core/tree/e50237c43811bd9b526eff40f26772152a42daba"
+        }
+      ],
+      "compilers": {
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 2.431228151996038,
+          "peak_rss_bytes": 102551552,
+          "error": "",
+          "source": "",
+          "project": "v4-core-4.0.0",
+          "input_fingerprint": "2dc76652728c89bcd93c326cb4476d19e4858085c1809616769e6dd4d811c547",
+          "compile_time_samples": [
+            2.4396665889944416,
+            2.4353189169924008,
+            2.4272660620044917,
+            2.411375355004566,
+            2.431228151996038
+          ],
+          "command": "~/bench/bin/solar-j1 --standard-json",
+          "output_fingerprint": "3a8de788df4b7df932e4f75bfdf076471c763109dc115a9ea1aeb6af7e5a02bc",
+          "contracts_compiled": 174,
+          "bytecode_objects": 130
+        }
+      },
+      "project": "v4-core-4.0.0",
+      "source": ""
+    },
+    {
+      "test_id": "morpho-blue-project",
+      "description": "Morpho Blue full project (viaIR)",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/morpho-blue-1.0.0.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/morpho-blue-1.0.0.json.gz"
+        },
+        {
+          "label": "morpho-org/morpho-blue",
+          "url": "https://github.com/morpho-org/morpho-blue/tree/55d2d99304fb3fb930c688462ae2ccabb1d533ad"
+        }
+      ],
+      "compilers": {
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 1.4539080649992684,
+          "peak_rss_bytes": 75845632,
+          "error": "",
+          "source": "",
+          "project": "morpho-blue-1.0.0",
+          "input_fingerprint": "05c702f21c5ba0f624c6712e736d08826fe125648d69dc313a21d6ca747a01b1",
+          "compile_time_samples": [
+            1.4557757830043556,
+            1.4539080649992684,
+            1.4524013079935685,
+            1.455675721008447,
+            1.4460245109949028
+          ],
+          "command": "~/bench/bin/solar-j1 --standard-json",
+          "output_fingerprint": "5955e4947171ecbaba3f6d87dbd6fdfe97b20bbcba7522ec9901a54da6114a4b",
+          "contracts_compiled": 83,
+          "bytecode_objects": 56
+        }
+      },
+      "project": "morpho-blue-1.0.0",
+      "source": ""
+    },
+    {
+      "test_id": "openzeppelin-5.6.1-project",
+      "description": "OpenZeppelin 5.6.1 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/openzeppelin-5.6.1.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/openzeppelin-5.6.1.json.gz"
+        },
+        {
+          "label": "OpenZeppelin/openzeppelin-contracts",
+          "url": "https://github.com/OpenZeppelin/openzeppelin-contracts/tree/5fd1781b1454fd1ef8e722282f86f9293cacf256"
+        }
+      ],
+      "compilers": {
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 2.3052033800049685,
+          "peak_rss_bytes": 121528320,
+          "error": "",
+          "source": "",
+          "project": "openzeppelin-5.6.1",
+          "input_fingerprint": "8dd047f9f9d36a570f4250207a5b6c88afbe3a03697b5ced15ebcfe6d3e2005b",
+          "compile_time_samples": [
+            2.302498379998724,
+            2.3048046849871753,
+            2.311658948994591,
+            2.3086238440009765,
+            2.3052033800049685
+          ],
+          "command": "~/bench/bin/solar-j1 --standard-json",
+          "output_fingerprint": "2427f4812ae77c4a7e197b21c84f59bc63a98115db45b7af6c4e378042e93f20",
+          "contracts_compiled": 480,
+          "bytecode_objects": 233
+        }
+      },
+      "project": "openzeppelin-5.6.1",
+      "source": ""
+    },
+    {
+      "test_id": "solady-0.1.26-project",
+      "description": "Solady 0.1.26 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/solady-0.1.26.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/solady-0.1.26.json.gz"
+        },
+        {
+          "label": "Vectorized/solady",
+          "url": "https://github.com/Vectorized/solady/tree/acd959aa4bd04720d640bf4e6a5c71037510cc4b"
+        }
+      ],
+      "compilers": {
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 4.771821690999786,
+          "peak_rss_bytes": 146948096,
+          "error": "",
+          "source": "",
+          "project": "solady-0.1.26",
+          "input_fingerprint": "a4f24ef3d5fe524f780c7dee7e9de0e55a0b7ef916ea430353b8569081884259",
+          "compile_time_samples": [
+            4.771821690999786,
+            4.7768426749971695,
+            4.777542430005269,
+            4.75207828899147,
+            4.753181018997566
+          ],
+          "command": "~/bench/bin/solar-j1 --standard-json",
+          "output_fingerprint": "f74da53fe4d4130993ad368a9704f119afec56fdc329cea6691144d941fec0e5",
+          "contracts_compiled": 254,
+          "bytecode_objects": 221
+        }
+      },
+      "project": "solady-0.1.26",
+      "source": ""
+    },
+    {
+      "test_id": "forge-std-1.16.1-project",
+      "description": "Forge Std 1.16.1 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/forge-std-1.16.1.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/forge-std-1.16.1.json.gz"
+        },
+        {
+          "label": "foundry-rs/forge-std",
+          "url": "https://github.com/foundry-rs/forge-std/tree/620536fa5277db4e3fd46772d5cbc1ea0696fb43"
+        }
+      ],
+      "compilers": {
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 1.0939662950113416,
+          "peak_rss_bytes": 97001472,
+          "error": "",
+          "source": "",
+          "project": "forge-std-1.16.1",
+          "input_fingerprint": "56e04e73053915a44f242ca7e7d0ee6f2ca110daf715a0e96323d56c5f5cabeb",
+          "compile_time_samples": [
+            1.0856391129927943,
+            1.0939662950113416,
+            1.1003081779927015,
+            1.0959374160011066,
+            1.0856794900028035
+          ],
+          "command": "~/bench/bin/solar-j1 --standard-json",
+          "output_fingerprint": "d9e7aa3bfe67d26d4b27e12be9fcdd0de472785597668495627f8e017ebd603e",
+          "contracts_compiled": 89,
+          "bytecode_objects": 53
+        }
+      },
+      "project": "forge-std-1.16.1",
+      "source": ""
+    },
+    {
+      "test_id": "prb-math-4.1.1-project",
+      "description": "PRBMath 4.1.1 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/prb-math-4.1.1.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/prb-math-4.1.1.json.gz"
+        },
+        {
+          "label": "PaulRBerg/prb-math",
+          "url": "https://github.com/PaulRBerg/prb-math/tree/b51e8631ed28d3cc917c491dd47cd6c3ff652edc"
+        }
+      ],
+      "compilers": {
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 1.1464424139994662,
+          "peak_rss_bytes": 67850240,
+          "error": "",
+          "source": "",
+          "project": "prb-math-4.1.1",
+          "input_fingerprint": "02a268685e4e447bdaeb7606c5117cb9d8b21119ca9a73abab151f2dbb693410",
+          "compile_time_samples": [
+            1.1469422259979183,
+            1.1482995730038965,
+            1.1463849400024628,
+            1.1464424139994662,
+            1.1405595370015362
+          ],
+          "command": "~/bench/bin/solar-j1 --standard-json",
+          "output_fingerprint": "6bbba76ccdaba9531f35ea4e0d83d5678cae45963dffbeede2977da461c8f9cb",
+          "contracts_compiled": 71,
+          "bytecode_objects": 61
+        }
+      },
+      "project": "prb-math-4.1.1",
+      "source": ""
+    },
+    {
+      "test_id": "solmate-6-project",
+      "description": "Solmate 6 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/solmate-6.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/solmate-6.json.gz"
+        },
+        {
+          "label": "transmissions11/solmate",
+          "url": "https://github.com/transmissions11/solmate/tree/a9e3ea26a2dc73bfa87f0cb189687d029028e0c5"
+        }
+      ],
+      "compilers": {
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.7042205769976135,
+          "peak_rss_bytes": 67461120,
+          "error": "",
+          "source": "",
+          "project": "solmate-6",
+          "input_fingerprint": "4d3631d9af5d557e346c03115331587f7dc88e39dd540e2e9845a6c636149404",
+          "compile_time_samples": [
+            0.6983286549948389,
+            0.697802718001185,
+            0.7044495089940028,
+            0.7053448180085979,
+            0.7042205769976135
+          ],
+          "command": "~/bench/bin/solar-j1 --standard-json",
+          "output_fingerprint": "8b205dc9411763cab6f43ff5db3ffa2d55c8862293178e3f7412004bb587633e",
+          "contracts_compiled": 68,
+          "bytecode_objects": 59
+        }
+      },
+      "project": "solmate-6",
+      "source": ""
+    },
+    {
+      "test_id": "solarray-a547630-project",
+      "description": "Solarray full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/solarray-a547630.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/solarray-a547630.json.gz"
+        },
+        {
+          "label": "evmcheb/solarray",
+          "url": "https://github.com/evmcheb/solarray/tree/a547630f9bf7837af9e6919d217672afe7abf7f1"
+        }
+      ],
+      "compilers": {
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.03404183000384364,
+          "peak_rss_bytes": 48857088,
+          "error": "",
+          "source": "",
+          "project": "solarray-a547630",
+          "input_fingerprint": "2de64270683b7c6bb7611833763ee838ac2880af18d5fec6d1c911dacaffd86e",
+          "compile_time_samples": [
+            0.03290568999364041,
+            0.036779954010853544,
+            0.03418555100506637,
+            0.03404183000384364,
+            0.032952399997157045
+          ],
+          "command": "~/bench/bin/solar-j1 --standard-json",
+          "output_fingerprint": "6fe9d0b56070d7befc62a239a3b553fdc4eee159666e861fdcb5e80d7c3c8667",
+          "contracts_compiled": 21,
+          "bytecode_objects": 10
+        }
+      },
+      "project": "solarray-a547630",
+      "source": ""
+    },
+    {
+      "test_id": "tempo-zones-project",
+      "description": "Tempo Zones full project (viaIR, including tests)",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/tempo-zones.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/1343cf25d2a92351539af4c22bffea70dfafce8b/testdata/projects/tempo-zones.json.gz"
+        },
+        {
+          "label": "tempoxyz/zones",
+          "url": "https://github.com/tempoxyz/zones/tree/700069eb8a40fce7e1f7a4bf0fc5703bcc692c43"
+        }
+      ],
+      "compilers": {
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 1.9370483870006865,
+          "peak_rss_bytes": 121905152,
+          "error": "",
+          "source": "",
+          "project": "tempo-zones",
+          "input_fingerprint": "5466cf1de31d37b7ff8e12afdc53c8ac4dba5be45f251bfcb06d36073e4785b4",
+          "compile_time_samples": [
+            1.9317625219991896,
+            1.9370483870006865,
+            1.9354598420031834,
+            1.9388556509948103,
+            1.9371736649918603
+          ],
+          "command": "~/bench/bin/solar-j1 --standard-json",
+          "output_fingerprint": "279bc2d6ca631eaec859ce3687fffa6a29e0852c92fbc2b393a09a31d49fc03c",
+          "contracts_compiled": 103,
+          "bytecode_objects": 63
+        }
+      },
+      "project": "tempo-zones",
+      "source": ""
+    }
+  ]
+}
