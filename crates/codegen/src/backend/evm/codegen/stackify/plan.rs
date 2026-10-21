@@ -1478,7 +1478,9 @@ impl<'a> Planner<'a> {
                 .rev()
                 .find(|&t| self.in_place(&sim.stack, &ops[..t], dying))
                 .unwrap_or(0);
-            // With nothing in place, building and reordering both copy every operand in order.
+            // With nothing in place, building and reordering both copy every operand in order: the
+            // swap that building tries first needs a dying operand on the stack, which reordering
+            // would have consumed in place.
             let build_is_reorder = placed == 0 && in_place.iter().all(Option::is_none);
             for strategy in [Strategy::Reorder, Strategy::Build, Strategy::Cycles] {
                 if strategy == Strategy::Build && build_is_reorder {
