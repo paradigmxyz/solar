@@ -725,9 +725,9 @@ impl ModuleAnalyses {
         if !self.preserved_by_pass {
             self.invalidate_all();
             self.creation_functions = None;
-        }
-        if !self.preserved_by_pass && !self.local_summaries_preserved {
-            self.local_summaries.clear();
+            if !self.local_summaries_preserved {
+                self.local_summaries.clear();
+            }
         }
         if !self.call_summaries_preserved {
             self.call_summaries = None;
@@ -803,8 +803,8 @@ impl ModuleAnalyses {
 
     /// Computes call summaries of the module as it is, from the cached local summaries, without
     /// replacing the shared ones.
-    pub(crate) fn fresh_call_summaries(&mut self, module: &Module) -> Arc<MemoryCallSummaries> {
-        Arc::new(MemoryCallSummaries::new_cached(module, &mut self.local_summaries))
+    pub(crate) fn fresh_call_summaries(&mut self, module: &Module) -> MemoryCallSummaries {
+        MemoryCallSummaries::new_cached(module, &mut self.local_summaries)
     }
 
     /// Drops the cached local summary of a function whose body the running pass changed.

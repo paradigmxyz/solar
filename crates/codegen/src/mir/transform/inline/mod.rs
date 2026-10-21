@@ -68,7 +68,6 @@ use smallvec::SmallVec;
 use solar_ast::StateMutability;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
-use std::sync::Arc;
 
 mod dispatch;
 mod guards;
@@ -128,7 +127,6 @@ impl MirPass for Inline {
             }
         }
         if !edited_later {
-            // The rounds above kept the cache current for the final module.
             analyses.preserve_local_summaries();
         }
         changed | edited_later
@@ -161,7 +159,7 @@ impl MirPass for SpecializeFunctionPointers {
 struct MirInliner {
     target: Target,
     physical: bool,
-    calls: Arc<MemoryCallSummaries>,
+    calls: MemoryCallSummaries,
     /// The creation-only functions that run a bounded number of times, whose code the creation
     /// model prices.
     straight_line: DenseBitSet<MirFunctionId>,
