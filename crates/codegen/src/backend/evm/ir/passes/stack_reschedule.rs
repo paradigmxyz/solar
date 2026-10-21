@@ -106,12 +106,13 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxBuildHasher, FxHashMap},
+    sync::RwLock,
 };
 use solar_sema::Gcx;
 use std::{
     collections::{BinaryHeap, hash_map::Entry},
     hash::BuildHasher,
-    sync::{LazyLock, RwLock},
+    sync::LazyLock,
 };
 
 /// Words the search may grow the stack by above the run's entry and exit heights.
@@ -709,7 +710,7 @@ impl Words {
 
 /// Searches for the cheapest schedule of a run's operations that leaves its stack, when one
 /// beats the run's own stack operations. A run that needs a search is looked up in the schedules
-/// shared by all programs first.
+/// shared by all programs before it, and stored there after it.
 fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> Option<Vec<Move>> {
     let operation_count = run.operations.len();
     let words = Words { entry: run.entry, operations: operation_count };
@@ -773,7 +774,9 @@ fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> 
     let constant_of = |word: usize| -> Option<usize> {
         (word >= run.entry + operation_count).then(|| word - run.entry - operation_count)
     };
-    let [dup, swap, pop] = move_prices(target);
+    let dup = scalar(target.dup(), target);
+    let swap = scalar(target.opcode(op::SWAP1), target);
+    let pop = scalar(target.opcode(op::POP), target);
     let counts_of = |stack: &[u8]| -> [u8; 64] {
         let mut counts = [0u8; 64];
         for &word in stack {
@@ -810,9 +813,9 @@ fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> 
         return None;
     }
     // Runs the search would take up are looked up, and stored after it, in the shared schedules.
-    let key = search_key(run, target, limits);
+    let key = search_key(run, [dup, swap, pop, budget], limits);
     let shard = &SHARED_SCHEDULES[FxBuildHasher.hash_one(&key[..]) as usize % SHARED_SHARDS];
-    if let Some(moves) = shard.0.read().unwrap().get(&key[..]) {
+    if let Some(moves) = shard.0.read().get(&key[..]) {
         return moves.as_deref().map(<[Move]>::to_vec);
     }
     let limits = if gap <= swap >> 32 { limits.near } else { limits.states };
@@ -1134,7 +1137,7 @@ fn search(run: &Run, target: &Target, limits: Budget, buffers: &mut Buffers) -> 
         moves.reverse();
         moves
     });
-    let mut shard = shard.0.write().unwrap();
+    let mut shard = shard.0.write();
     if shard.len() < SHARED_SHARD_CAPACITY {
         shard.insert(key.as_slice().into(), moves.as_deref().map(Box::from));
     }
@@ -1319,9 +1322,10 @@ fn schedule(
 }
 
 /// Everything [`search`] reads of a run, its budget and its target, as bytes: the operands,
-/// ordering and exit words, the prices of moves and constants, and the budget's limits. It leaves
+/// ordering and exit words, the prices of moves, the run and its constants, and the budget's
+/// limits. It leaves
 /// out which opcodes and immediates the run holds, which a schedule does not depend on.
-fn search_key(run: &Run, target: &Target, budget: Budget) -> SmallVec<[u8; 192]> {
+fn search_key(run: &Run, prices: [u64; 4], budget: Budget) -> SmallVec<[u8; 192]> {
     let mut key = SmallVec::new();
     let word = |key: &mut SmallVec<[u8; 192]>, word: Word| match word {
         Word::Entry(index) => key.extend([0, index]),
@@ -1351,20 +1355,10 @@ fn search_key(run: &Run, target: &Target, budget: Budget) -> SmallVec<[u8; 192]>
     {
         key.extend((limit as u32).to_le_bytes());
     }
-    for price in move_prices(target)
-        .into_iter()
-        .chain([scalar(run.cost, target)])
-        .chain(run.constant_costs.iter().copied())
-    {
+    for price in prices.into_iter().chain(run.constant_costs.iter().copied()) {
         key.extend(price.to_le_bytes());
     }
     key
-}
-
-/// The prices of a `DUP`, a `SWAP` and a `POP` in the search's objective.
-fn move_prices(target: &Target) -> [u64; 3] {
-    [target.dup(), target.opcode(op::SWAP1), target.opcode(op::POP)]
-        .map(|cost| scalar(cost, target))
 }
 
 /// Schedules the runs between a window's checks and gas-dependent accesses separately, keeping
