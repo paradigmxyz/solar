@@ -877,13 +877,15 @@ impl ModuleAnalyses {
     }
 
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {
-        if keep_alias {
-            if let Some(entry) = self.alias.get_mut(&func_id) {
+        match self.alias.get_mut(&func_id) {
+            // A snapshot a module pass kept is dropped, as that pass would have before.
+            Some(entry) if keep_alias && !entry.revalidate => {
                 entry.analysis.clear_cached_addresses();
                 entry.approximate = true;
             }
-        } else {
-            self.alias.remove(&func_id);
+            _ => {
+                self.alias.remove(&func_id);
+            }
         }
         if !keep_cfg {
             self.cfg.remove(&func_id);
