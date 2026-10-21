@@ -156,12 +156,7 @@ pub(crate) fn run_passes_inner(
     };
     let explicit = name.is_some();
     let mut changed = false;
-    let mut analyses = ModuleAnalyses::new(
-        gcx.sess.is_parallel()
-            && !gcx.sess.opts.unstable.print_after_each
-            && !gcx.sess.opts.unstable.pass_diff
-            && !gcx.sess.opts.unstable.time_passes,
-    );
+    let mut analyses = ModuleAnalyses::new(gcx.sess.is_parallel_codegen());
     let mut unchanged = Vec::new();
     for pass in passes {
         let pass_name = pass.name();
