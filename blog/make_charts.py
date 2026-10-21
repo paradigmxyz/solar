@@ -520,7 +520,7 @@ def safe_solady():
 
 
 def pipeline():
-    fig = plt.figure(figsize=(W, 2.6), dpi=DPI)
+    fig = plt.figure(figsize=(W, 3.3), dpi=DPI)
     fig.add_artist(
         Rectangle(
             (0.002, 0.004),
@@ -534,10 +534,13 @@ def pipeline():
     )
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, 100)
-    ax.set_ylim(0, 29)
+    ax.set_ylim(0, 34)
     ax.axis("off")
     stages = ["Solidity", "AST", "HIR", "MIR", "EVM IR", "Bytecode"]
-    notes = {3: "Solidity-aware\noptimizations", 4: "Stack, layout,\npeepholes"}
+    notes = {
+        3: "inlining, CSE,\ncheck removal,\nloop opts",
+        4: "tail merging,\nblock layout,\npeepholes",
+    }
     bw, gap, x0, y0, bh = 12.4, 4.0, 3.8, 15, 8
     for i, s in enumerate(stages):
         x = x0 + i * (bw + gap)
@@ -564,8 +567,30 @@ def pipeline():
                 )
             )
         if i in notes:
-            ax.plot([x + bw / 2] * 2, [y0, 11], color=FRAME, lw=1.5)
-            ax.add_patch(Rectangle((x - 0.8, 3), bw + 1.6, 8, color="#EBEBEB", lw=0))
+            # Self-loop over the box: the stage rewrites its own IR.
+            ax.add_patch(
+                FancyArrowPatch(
+                    (x + bw * 0.75, y0 + bh),
+                    (x + bw * 0.25, y0 + bh),
+                    connectionstyle="arc3,rad=1.1",
+                    arrowstyle="-|>",
+                    mutation_scale=12,
+                    color=GREEN,
+                    lw=2,
+                )
+            )
+            ax.text(
+                x + bw / 2,
+                y0 + bh + 4.2,
+                "optimization\npasses",
+                ha="center",
+                va="bottom",
+                fontsize=9.5,
+                color=INK,
+                **MONO,
+            )
+            ax.plot([x + bw / 2] * 2, [y0, 12], color=FRAME, lw=1.5)
+            ax.add_patch(Rectangle((x - 0.8, 2), bw + 1.6, 10, color="#EBEBEB", lw=0))
             ax.text(
                 x + bw / 2,
                 7,
