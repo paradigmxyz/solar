@@ -1,0 +1,654 @@
+{
+  "format_version": 1,
+  "evm_version_override": "cancun",
+  "optimizer_runs_override": null,
+  "timings": {
+    "heavy": 121.55816038325429
+  },
+  "results": [
+    {
+      "test_id": "seaport-1.6-project",
+      "description": "Seaport 1.6 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/seaport-1.6.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/2287a3a8e737a98a32bdff3f8724468ec4488160/testdata/projects/seaport-1.6.json.gz"
+        },
+        {
+          "label": "ProjectOpenSea/seaport",
+          "url": "https://github.com/ProjectOpenSea/seaport/tree/22ea29df3c241ebc17c95268164dde47e1186287"
+        }
+      ],
+      "compilers": {
+        "solx": {
+          "compiler_id": "solx",
+          "label": "solx 0.2.0",
+          "status": "failed",
+          "bytecode_size": 0,
+          "runtime_size": 0,
+          "compile_time_seconds": 3.037836454808712,
+          "peak_rss_bytes": 361230336,
+          "error": "Error: Sol pass pipeline produced an invalid module\n",
+          "source": "",
+          "project": "seaport-1.6",
+          "input_fingerprint": "046bd166efd6c4931e7332a1e4e76b276baed5cbe61b4f4a8eb105de9bb91bd0",
+          "compile_time_samples": [
+            3.0755306370556355,
+            3.0365578942000866,
+            3.037836454808712
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/bin/slang-linux-amd64-gnu-2026-10-09 --standard-json",
+          "output_fingerprint": "5adc360d101eb6dfd97e170b9c10e5a8eeb46d4309e16f4ceb0f5d1aa901baca"
+        },
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 2.2225858848541975,
+          "peak_rss_bytes": 614535168,
+          "error": "",
+          "source": "",
+          "project": "seaport-1.6",
+          "input_fingerprint": "046bd166efd6c4931e7332a1e4e76b276baed5cbe61b4f4a8eb105de9bb91bd0",
+          "compile_time_samples": [
+            2.2356536723673344,
+            2.2218629214912653,
+            2.2225858848541975
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/solar-main/target/release/solar --standard-json",
+          "output_fingerprint": "3ef60b06615843cd89090faa88a0b75b7376d2b8f8f3ef6be74513587443d047",
+          "contracts_compiled": 432,
+          "bytecode_objects": 348
+        }
+      },
+      "project": "seaport-1.6",
+      "source": ""
+    },
+    {
+      "test_id": "v4-core-project",
+      "description": "Uniswap v4-core full project (viaIR)",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/v4-core-4.0.0.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/2287a3a8e737a98a32bdff3f8724468ec4488160/testdata/projects/v4-core-4.0.0.json.gz"
+        },
+        {
+          "label": "Uniswap/v4-core",
+          "url": "https://github.com/Uniswap/v4-core/tree/e50237c43811bd9b526eff40f26772152a42daba"
+        }
+      ],
+      "compilers": {
+        "solx": {
+          "compiler_id": "solx",
+          "label": "solx 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 4.10555494017899,
+          "peak_rss_bytes": 249815040,
+          "error": "",
+          "source": "",
+          "project": "v4-core-4.0.0",
+          "input_fingerprint": "7e6fab1afb8160ca4007101f4df822963f1f21a0bad943d43beab0c6dc77b651",
+          "compile_time_samples": [
+            4.111156726256013,
+            4.10555494017899,
+            4.050857143476605
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/bin/slang-linux-amd64-gnu-2026-10-09 --standard-json",
+          "output_fingerprint": "2a235d9f85dac3fbc22b177a2eda0d3f45f4f5b48646b32e89ac52eade84c682",
+          "contracts_compiled": 174,
+          "bytecode_objects": 130
+        },
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.2759952675551176,
+          "peak_rss_bytes": 248115200,
+          "error": "",
+          "source": "",
+          "project": "v4-core-4.0.0",
+          "input_fingerprint": "7e6fab1afb8160ca4007101f4df822963f1f21a0bad943d43beab0c6dc77b651",
+          "compile_time_samples": [
+            0.2758091874420643,
+            0.2759952675551176,
+            0.2812498454004526
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/solar-main/target/release/solar --standard-json",
+          "output_fingerprint": "3a8de788df4b7df932e4f75bfdf076471c763109dc115a9ea1aeb6af7e5a02bc",
+          "contracts_compiled": 174,
+          "bytecode_objects": 130
+        }
+      },
+      "project": "v4-core-4.0.0",
+      "source": ""
+    },
+    {
+      "test_id": "morpho-blue-project",
+      "description": "Morpho Blue full project (viaIR)",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/morpho-blue-1.0.0.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/2287a3a8e737a98a32bdff3f8724468ec4488160/testdata/projects/morpho-blue-1.0.0.json.gz"
+        },
+        {
+          "label": "morpho-org/morpho-blue",
+          "url": "https://github.com/morpho-org/morpho-blue/tree/55d2d99304fb3fb930c688462ae2ccabb1d533ad"
+        }
+      ],
+      "compilers": {
+        "solx": {
+          "compiler_id": "solx",
+          "label": "solx 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 2.513514779508114,
+          "peak_rss_bytes": 196800512,
+          "error": "",
+          "source": "",
+          "project": "morpho-blue-1.0.0",
+          "input_fingerprint": "69c4c4eaf3c7cc882078a83fecb7505e65504febbeea0403f4ed07bdc87a0295",
+          "compile_time_samples": [
+            2.513514779508114,
+            2.5021639727056026,
+            2.539202556014061
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/bin/slang-linux-amd64-gnu-2026-10-09 --standard-json",
+          "output_fingerprint": "f4d70ff7cd53ec0824fa87a047f4f910f4341eccb11ecd129ad71f33c18aac95",
+          "contracts_compiled": 83,
+          "bytecode_objects": 56
+        },
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.15230832435190678,
+          "peak_rss_bytes": 222732288,
+          "error": "",
+          "source": "",
+          "project": "morpho-blue-1.0.0",
+          "input_fingerprint": "69c4c4eaf3c7cc882078a83fecb7505e65504febbeea0403f4ed07bdc87a0295",
+          "compile_time_samples": [
+            0.1514318697154522,
+            0.15305288694798946,
+            0.15230832435190678
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/solar-main/target/release/solar --standard-json",
+          "output_fingerprint": "76239d0d9958ffc11ff1de0d39af4385fe11d0c7afc902097f39b497e9c3c5f6",
+          "contracts_compiled": 83,
+          "bytecode_objects": 56
+        }
+      },
+      "project": "morpho-blue-1.0.0",
+      "source": ""
+    },
+    {
+      "test_id": "openzeppelin-5.6.1-project",
+      "description": "OpenZeppelin 5.6.1 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/openzeppelin-5.6.1.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/2287a3a8e737a98a32bdff3f8724468ec4488160/testdata/projects/openzeppelin-5.6.1.json.gz"
+        },
+        {
+          "label": "OpenZeppelin/openzeppelin-contracts",
+          "url": "https://github.com/OpenZeppelin/openzeppelin-contracts/tree/5fd1781b1454fd1ef8e722282f86f9293cacf256"
+        }
+      ],
+      "compilers": {
+        "solx": {
+          "compiler_id": "solx",
+          "label": "solx 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 3.3202147781848907,
+          "peak_rss_bytes": 247439360,
+          "error": "",
+          "source": "",
+          "project": "openzeppelin-5.6.1",
+          "input_fingerprint": "89ad5d773db8f461fab7c5e3c087066f5bec95bd5492b4a3fc87345e469caa71",
+          "compile_time_samples": [
+            3.317013854160905,
+            3.3211491592228413,
+            3.3202147781848907
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/bin/slang-linux-amd64-gnu-2026-10-09 --standard-json",
+          "output_fingerprint": "11bd2b33ced610946e5a7a9273377d4a396926e64f2c80d082b829eddcdd1140",
+          "contracts_compiled": 480,
+          "bytecode_objects": 233
+        },
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.28841803036630154,
+          "peak_rss_bytes": 272760832,
+          "error": "",
+          "source": "",
+          "project": "openzeppelin-5.6.1",
+          "input_fingerprint": "89ad5d773db8f461fab7c5e3c087066f5bec95bd5492b4a3fc87345e469caa71",
+          "compile_time_samples": [
+            0.28841803036630154,
+            0.29195347614586353,
+            0.28757659159600735
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/solar-main/target/release/solar --standard-json",
+          "output_fingerprint": "3d2ca8ea5a2c055478c7252fa539c0bab0f0b9e982df4cf888c8135f643cb4e6",
+          "contracts_compiled": 480,
+          "bytecode_objects": 233
+        }
+      },
+      "project": "openzeppelin-5.6.1",
+      "source": ""
+    },
+    {
+      "test_id": "solady-0.1.26-project",
+      "description": "Solady 0.1.26 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/solady-0.1.26.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/2287a3a8e737a98a32bdff3f8724468ec4488160/testdata/projects/solady-0.1.26.json.gz"
+        },
+        {
+          "label": "Vectorized/solady",
+          "url": "https://github.com/Vectorized/solady/tree/acd959aa4bd04720d640bf4e6a5c71037510cc4b"
+        }
+      ],
+      "compilers": {
+        "solx": {
+          "compiler_id": "solx",
+          "label": "solx 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 6.71965472586453,
+          "peak_rss_bytes": 346689536,
+          "error": "",
+          "source": "",
+          "project": "solady-0.1.26",
+          "input_fingerprint": "781a56d9fcc208f8a36c22dbfa531419b053fde705ffa8c9b1b75ff48dbe08f6",
+          "compile_time_samples": [
+            6.71965472586453,
+            6.8219799771904945,
+            6.6923644579946995
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/bin/slang-linux-amd64-gnu-2026-10-09 --standard-json",
+          "output_fingerprint": "83c4a792dde11ec8b3eacb94cd4de65b37bd43ccdfaeaa010f004dfa7c062019",
+          "contracts_compiled": 254,
+          "bytecode_objects": 221
+        },
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.46505845710635185,
+          "peak_rss_bytes": 356442112,
+          "error": "",
+          "source": "",
+          "project": "solady-0.1.26",
+          "input_fingerprint": "781a56d9fcc208f8a36c22dbfa531419b053fde705ffa8c9b1b75ff48dbe08f6",
+          "compile_time_samples": [
+            0.45652181655168533,
+            0.46597939170897007,
+            0.46505845710635185
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/solar-main/target/release/solar --standard-json",
+          "output_fingerprint": "03c82b1776c7e70618cd5fccb9e6280f63372505e0f903aa982d4d5e8cd96e41",
+          "contracts_compiled": 254,
+          "bytecode_objects": 221
+        }
+      },
+      "project": "solady-0.1.26",
+      "source": ""
+    },
+    {
+      "test_id": "forge-std-1.16.1-project",
+      "description": "Forge Std 1.16.1 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/forge-std-1.16.1.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/2287a3a8e737a98a32bdff3f8724468ec4488160/testdata/projects/forge-std-1.16.1.json.gz"
+        },
+        {
+          "label": "foundry-rs/forge-std",
+          "url": "https://github.com/foundry-rs/forge-std/tree/620536fa5277db4e3fd46772d5cbc1ea0696fb43"
+        }
+      ],
+      "compilers": {
+        "solx": {
+          "compiler_id": "solx",
+          "label": "solx 0.2.0",
+          "status": "failed",
+          "bytecode_size": 0,
+          "runtime_size": 0,
+          "compile_time_seconds": 2.3427264988422394,
+          "peak_rss_bytes": 223420416,
+          "error": "Error: LLVM error: Stackification failed for 'setChainWithDefaultRpcUrl(string,StdChains.ChainData)_21474837711' function. It is recursive and has stack too deep errors. Consider refactoring it to use a non-recursive approach.\n--> test/StdCheats.t.sol\n\n",
+          "source": "",
+          "project": "forge-std-1.16.1",
+          "input_fingerprint": "b0ed095412d2ae5a17649ef07c401b9858004aa92b44c74dac7191ea60729d1a",
+          "compile_time_samples": [
+            2.3427264988422394,
+            2.3465330339968204,
+            2.3245434649288654
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/bin/slang-linux-amd64-gnu-2026-10-09 --standard-json",
+          "output_fingerprint": "3f0a5ef3484c69b12001f9a24db0c20753ce4f32ccb90140dad31d70fcd3bac9"
+        },
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.157856659963727,
+          "peak_rss_bytes": 233177088,
+          "error": "",
+          "source": "",
+          "project": "forge-std-1.16.1",
+          "input_fingerprint": "b0ed095412d2ae5a17649ef07c401b9858004aa92b44c74dac7191ea60729d1a",
+          "compile_time_samples": [
+            0.16046155244112015,
+            0.15596010349690914,
+            0.157856659963727
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/solar-main/target/release/solar --standard-json",
+          "output_fingerprint": "5d19ad40264d84238fbbd5cb806c4611e9d16d28f622f45625e4f70cdc132af3",
+          "contracts_compiled": 89,
+          "bytecode_objects": 53
+        }
+      },
+      "project": "forge-std-1.16.1",
+      "source": ""
+    },
+    {
+      "test_id": "prb-math-4.1.1-project",
+      "description": "PRBMath 4.1.1 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/prb-math-4.1.1.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/2287a3a8e737a98a32bdff3f8724468ec4488160/testdata/projects/prb-math-4.1.1.json.gz"
+        },
+        {
+          "label": "PaulRBerg/prb-math",
+          "url": "https://github.com/PaulRBerg/prb-math/tree/b51e8631ed28d3cc917c491dd47cd6c3ff652edc"
+        }
+      ],
+      "compilers": {
+        "solx": {
+          "compiler_id": "solx",
+          "label": "solx 0.2.0",
+          "status": "failed",
+          "bytecode_size": 0,
+          "runtime_size": 0,
+          "compile_time_seconds": 1.375825859606266,
+          "peak_rss_bytes": 108916736,
+          "error": "Error: MLIR translation\n--> test/unit/sd59x18/math/log10/log10.t.sol\n\n; Error: MLIR translation\n--> test/unit/ud60x18/math/log10/log10.t.sol\n\n",
+          "source": "",
+          "project": "prb-math-4.1.1",
+          "input_fingerprint": "0edbc3e2ac8e38a218a16a6cd01a30a314e65b0e47c9d36ee25c300b4469f9f4",
+          "compile_time_samples": [
+            1.3746785204857588,
+            1.375825859606266,
+            1.375947380438447
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/bin/slang-linux-amd64-gnu-2026-10-09 --standard-json",
+          "output_fingerprint": "2e5d63b7cf22e6199e9c77bf2798fdb9c6c4406da6059c85177a1930e60561e6"
+        },
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.11900974437594414,
+          "peak_rss_bytes": 208007168,
+          "error": "",
+          "source": "",
+          "project": "prb-math-4.1.1",
+          "input_fingerprint": "0edbc3e2ac8e38a218a16a6cd01a30a314e65b0e47c9d36ee25c300b4469f9f4",
+          "compile_time_samples": [
+            0.11946853622794151,
+            0.11900974437594414,
+            0.11769863776862621
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/solar-main/target/release/solar --standard-json",
+          "output_fingerprint": "26facd2c954b3593b22e14e8b9d519a31a4d0610259a346e8bdd78c42bb6f1e6",
+          "contracts_compiled": 71,
+          "bytecode_objects": 61
+        }
+      },
+      "project": "prb-math-4.1.1",
+      "source": ""
+    },
+    {
+      "test_id": "solmate-6-project",
+      "description": "Solmate 6 full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/solmate-6.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/2287a3a8e737a98a32bdff3f8724468ec4488160/testdata/projects/solmate-6.json.gz"
+        },
+        {
+          "label": "transmissions11/solmate",
+          "url": "https://github.com/transmissions11/solmate/tree/a9e3ea26a2dc73bfa87f0cb189687d029028e0c5"
+        }
+      ],
+      "compilers": {
+        "solx": {
+          "compiler_id": "solx",
+          "label": "solx 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 2.0036581363528967,
+          "peak_rss_bytes": 149209088,
+          "error": "",
+          "source": "",
+          "project": "solmate-6",
+          "input_fingerprint": "c10401fa7c83a4023c781b7aef41f273f35a0266df297809b38f11e7680e8894",
+          "compile_time_samples": [
+            2.0005011688917875,
+            2.0152817144989967,
+            2.0036581363528967
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/bin/slang-linux-amd64-gnu-2026-10-09 --standard-json",
+          "output_fingerprint": "6578fdd9c6eacc03b04771c005cd4cfaa559d2f82248c0364de162df74609bd0",
+          "contracts_compiled": 68,
+          "bytecode_objects": 59
+        },
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.1311457734555006,
+          "peak_rss_bytes": 157900800,
+          "error": "",
+          "source": "",
+          "project": "solmate-6",
+          "input_fingerprint": "c10401fa7c83a4023c781b7aef41f273f35a0266df297809b38f11e7680e8894",
+          "compile_time_samples": [
+            0.1311457734555006,
+            0.12961450219154358,
+            0.13197806477546692
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/solar-main/target/release/solar --standard-json",
+          "output_fingerprint": "721be9bc97ae679cafdaf6c984f7ef1d996cb77112d8d8bd54a578c70796f24d",
+          "contracts_compiled": 68,
+          "bytecode_objects": 59
+        }
+      },
+      "project": "solmate-6",
+      "source": ""
+    },
+    {
+      "test_id": "solarray-a547630-project",
+      "description": "Solarray full project",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/solarray-a547630.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/2287a3a8e737a98a32bdff3f8724468ec4488160/testdata/projects/solarray-a547630.json.gz"
+        },
+        {
+          "label": "evmcheb/solarray",
+          "url": "https://github.com/evmcheb/solarray/tree/a547630f9bf7837af9e6919d217672afe7abf7f1"
+        }
+      ],
+      "compilers": {
+        "solx": {
+          "compiler_id": "solx",
+          "label": "solx 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.09868285618722439,
+          "peak_rss_bytes": 68321280,
+          "error": "",
+          "source": "",
+          "project": "solarray-a547630",
+          "input_fingerprint": "4223ac265b0351f817be2602f62c8b1a6b6d750a9b10f141d1729a2f05b4e3ee",
+          "compile_time_samples": [
+            0.1084382813423872,
+            0.09868285618722439,
+            0.09840763919055462
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/bin/slang-linux-amd64-gnu-2026-10-09 --standard-json",
+          "output_fingerprint": "6503821afa1a234b9ebeed6876dad7e769052e83a0ba5b6b3e5da7a793c4696e",
+          "contracts_compiled": 21,
+          "bytecode_objects": 10
+        },
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.016738252714276314,
+          "peak_rss_bytes": 115560448,
+          "error": "",
+          "source": "",
+          "project": "solarray-a547630",
+          "input_fingerprint": "4223ac265b0351f817be2602f62c8b1a6b6d750a9b10f141d1729a2f05b4e3ee",
+          "compile_time_samples": [
+            0.01721137948334217,
+            0.016738252714276314,
+            0.016488173976540565
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/solar-main/target/release/solar --standard-json",
+          "output_fingerprint": "6fe9d0b56070d7befc62a239a3b553fdc4eee159666e861fdcb5e80d7c3c8667",
+          "contracts_compiled": 21,
+          "bytecode_objects": 10
+        }
+      },
+      "project": "solarray-a547630",
+      "source": ""
+    },
+    {
+      "test_id": "tempo-zones-project",
+      "description": "Tempo Zones full project (viaIR, including tests)",
+      "contract_name": "*",
+      "suite": "heavy",
+      "gas_profile": "smoke",
+      "source_links": [
+        {
+          "label": "testdata/projects/tempo-zones.json.gz",
+          "url": "https://github.com/paradigmxyz/solar/blob/2287a3a8e737a98a32bdff3f8724468ec4488160/testdata/projects/tempo-zones.json.gz"
+        },
+        {
+          "label": "tempoxyz/zones",
+          "url": "https://github.com/tempoxyz/zones/tree/700069eb8a40fce7e1f7a4bf0fc5703bcc692c43"
+        }
+      ],
+      "compilers": {
+        "solx": {
+          "compiler_id": "solx",
+          "label": "solx 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 8.619703695178032,
+          "peak_rss_bytes": 447565824,
+          "error": "",
+          "source": "",
+          "project": "tempo-zones",
+          "input_fingerprint": "7d1af29874da796f72abc9be17015605b7afac059744ae8a460ae20ea0c75f1b",
+          "compile_time_samples": [
+            8.608681183308363,
+            8.619703695178032,
+            8.621592847630382
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/bin/slang-linux-amd64-gnu-2026-10-09 --standard-json",
+          "output_fingerprint": "290cd05632e0a60279d82d5d9fc23cabba039e5ae716cd11f9d92f37961a162e",
+          "contracts_compiled": 103,
+          "bytecode_objects": 63
+        },
+        "solar": {
+          "compiler_id": "solar",
+          "label": "solar 0.2.0",
+          "status": "ok",
+          "bytecode_size": null,
+          "runtime_size": null,
+          "compile_time_seconds": 0.4729762878268957,
+          "peak_rss_bytes": 317067264,
+          "error": "",
+          "source": "",
+          "project": "tempo-zones",
+          "input_fingerprint": "7d1af29874da796f72abc9be17015605b7afac059744ae8a460ae20ea0c75f1b",
+          "compile_time_samples": [
+            0.4706509318202734,
+            0.4729762878268957,
+            0.4736263994127512
+          ],
+          "command": "~/github/paradigmxyz/solar/.claude/worktrees/determined-lovelace-2816de/.amp/in/solar-main/target/release/solar --standard-json",
+          "output_fingerprint": "34c34e1ae8fda9d0e850e542eb8fc2489ebd3588fb5479d7a9c7f511363e518c",
+          "contracts_compiled": 103,
+          "bytecode_objects": 63
+        }
+      },
+      "project": "tempo-zones",
+      "source": ""
+    }
+  ]
+}
