@@ -189,6 +189,10 @@ pub fn generate_contract_bytecodes(
     let contract_count = gcx.hir.contract_ids().len();
 
     let parallel = gcx.sess.is_parallel_codegen();
+    // A single contract compiles on one thread, so more threads would only add overhead.
+    if parallel && graph.reachable.count() > 1 {
+        gcx.sess.spawn_workers();
+    }
     let priorities = if parallel {
         graph.scheduling_priorities(gcx)
     } else {

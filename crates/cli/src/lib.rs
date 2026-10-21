@@ -57,6 +57,34 @@ pub fn main() -> ExitCode {
     commands::run(args)
 }
 
+/// Raises the stack limit of the main thread to that of the compiler threads, so that it can
+/// compile in place of a worker thread. Returns `true` if it reached it.
+///
+/// The kernel checks the limit as the stack grows, so raising it at runtime is enough, up to the
+/// gap of at least 128 MiB that it leaves below the stack when it starts the process.
+#[cfg(target_os = "linux")]
+pub(crate) fn raise_stack_limit() -> bool {
+    let size = solar_interface::thread_stack_size();
+    if size > 64 << 20 {
+        return false;
+    }
+    let size = size as libc::rlim_t;
+    let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    // SAFETY: `limit` is a valid `rlimit` for both calls.
+    unsafe {
+        if libc::getrlimit(libc::RLIMIT_STACK, &mut limit) == 0 && limit.rlim_cur < size {
+            limit.rlim_cur = size.min(limit.rlim_max);
+            libc::setrlimit(libc::RLIMIT_STACK, &limit);
+        }
+        libc::getrlimit(libc::RLIMIT_STACK, &mut limit) == 0 && limit.rlim_cur >= size
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn raise_stack_limit() -> bool {
+    false
+}
+
 fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
 where
     I: IntoIterator<Item = T>,
