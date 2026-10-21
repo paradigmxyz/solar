@@ -1101,6 +1101,9 @@ mod tests {
     ) -> (Vec<usize>, bool, Vec<FunctionId>, Vec<FunctionId>) {
         let mut module = module_of_functions();
         let mut analyses = ModuleAnalyses::new(parallel);
+        // The first function keeps an older snapshot, so the call summaries are built after it.
+        let first = FunctionId::from_usize(0);
+        analyses.alias.insert(first, Rc::new(AliasAnalysis::new(&module.functions[first])));
         let key = TypeId::of::<Module>();
         let changed = run_function_pass_with_cache(
             &mut module,
@@ -1127,6 +1130,7 @@ mod tests {
         let unchanged = analyses.local_no_change[&key].iter().collect::<Vec<_>>();
         assert_eq!(unchanged.len(), 2);
         assert_eq!(cfg.len(), 4);
+        assert!(analyses.call_summaries.is_some());
         (module.functions.iter().map(Function::num_insts).collect(), changed, alias, unchanged)
     }
 
