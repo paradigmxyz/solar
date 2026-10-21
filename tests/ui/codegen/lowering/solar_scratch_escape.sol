@@ -177,4 +177,67 @@ contract Test {
     function scratchBodyWithoutAssembly(uint256 x) external pure scratchBody returns (uint256) {
         return uint256(keccak256(abi.encode(x)));
     }
+
+    // A free memory pointer read before the block points at the block's memory.
+    function freePointerBefore(uint256 x) external pure returns (uint256 r) {
+        uint256 p;
+        assembly {
+            p := mload(0x40)
+        }
+        /// @custom:solar-scratch
+        {
+            r = abi.encode(x).length;
+        }
+        bytes memory later = abi.encode(r, x);
+        assembly {
+            r := add(r, mload(add(p, 0x20))) //~ ERROR: memory of a `@custom:solar-scratch` block is used after the block
+        }
+        r += later.length;
+    }
+
+    // So does one read before a loop, in every iteration after the first block.
+    function freePointerBeforeLoop(uint256 n) external pure returns (uint256 r) {
+        uint256 p;
+        assembly {
+            p := mload(0x40)
+        }
+        for (uint256 i; i < n; ++i) {
+            /// @custom:solar-scratch
+            {
+                r += abi.encode(i).length;
+            }
+            assembly {
+                r := add(r, mload(p)) //~ ERROR: memory of a `@custom:solar-scratch` block is used after the block
+            }
+        }
+    }
+
+    // A pointer read after the block, or used only before it, as a block in a loop reads it again
+    // before every use, refers to no memory the block reuses.
+    function freePointerAround(uint256 n) external pure returns (uint256 r) {
+        uint256 before;
+        assembly {
+            before := mload(0x40)
+            mstore(before, n)
+            r := mload(before)
+        }
+        for (uint256 i; i < n; ++i) {
+            uint256 top;
+            assembly {
+                top := mload(0x40)
+                mstore(top, i)
+                r := add(r, mload(top))
+            }
+            /// @custom:solar-scratch
+            {
+                r += abi.encode(i, r).length;
+            }
+            uint256 next;
+            assembly {
+                next := mload(0x40)
+                mstore(next, r)
+                r := add(r, mload(next))
+            }
+        }
+    }
 }

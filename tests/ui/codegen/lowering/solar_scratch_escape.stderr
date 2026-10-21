@@ -162,5 +162,31 @@ LL │         /// @custom:solar-scratch
    │              ━━━━━━━━━━━━━━━━━━━━
    ╰ help: keep only values past the block, or remove the tag
 
-error: aborting due to 12 previous errors
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │             r := add(r, mload(add(p, 0x20)))
+   │                         ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: memory of a `@custom:solar-scratch` block is used after the block
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │                 r := add(r, mload(p))
+   │                             ━━━━━━━━
+   ╰╴
+note: the memory this block allocates is reused after it
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_scratch_escape.sol:LL:CC
+   │
+LL │             /// @custom:solar-scratch
+   │                  ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep only values past the block, or remove the tag
+
+error: aborting due to 14 previous errors
 
