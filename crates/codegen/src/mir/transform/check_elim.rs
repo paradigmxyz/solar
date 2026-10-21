@@ -74,8 +74,8 @@
 //! negations are discarded. Operand ranges and relations remain available;
 //! predicates referenced by instructions, phis, or other terminators stay live.
 //! Dead blocks are cleared before analysis, so joins use the maintained predecessor lists.
-//! Fact copies insert only occupied entries: copying hash-table capacity would carry the space
-//! left by discarded facts through every later block.
+//! Fact copies clone the tables: the sets are small, and a clone costs less than inserting each
+//! entry again.
 //!
 //! Loop header phis of the form `p = phi [pre: init], [latch: p - c]` with a
 //! constant nonzero step are monotone when the update provably cannot wrap at
@@ -658,8 +658,9 @@ struct CheckEliminator<'a> {
     readers: Option<IndexLists<ValueId, BlockId>>,
 
     /// Instructions that compute a raw memory address or size, an internal call argument, or a
-    /// returned value from a value a branch compares with an immediate.
-    memory_feeds: FxHashSet<InstId>,
+    /// returned value from a value a branch compares with an immediate, built when the first
+    /// equality reaches an instruction.
+    memory_feeds: Option<FxHashSet<InstId>>,
     /// Instructions that read an equal value, with the operands that become its constant.
     equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
@@ -712,6 +713,7 @@ impl<'a> CheckEliminator<'a> {
         selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
     ) -> usize {
         self.stats = CheckElimStats::default();
+        self.memory_feeds = None;
         self.strict_lower_bounds = None;
         self.relation_index = None;
         self.reverse_index = None;
@@ -862,11 +864,6 @@ impl<'a> CheckEliminator<'a> {
         let mut reductions = Vec::new();
         self.unfailing.clear();
         self.equality_uses.clear();
-        self.memory_feeds = if self.propagate_equalities.is_some() {
-            memory_feeds(func)
-        } else {
-            FxHashSet::default()
-        };
         self.readers = None;
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
@@ -1095,10 +1092,8 @@ impl<'a> CheckEliminator<'a> {
                 let mut merged: Option<Facts> = None;
                 if block != BlockId::ENTRY {
                     for &pred in &func.blocks[block].predecessors {
-                        cx.ranges.clear();
-                        cx.ranges.extend(&exits[pred].ranges);
-                        cx.relations.clear();
-                        cx.relations.extend(&exits[pred].relations);
+                        cx.ranges = exits[pred].ranges.clone();
+                        cx.relations = exits[pred].relations.clone();
                         cx.strict_lower_bounds = None;
                         cx.range_undo.clear();
                         cx.relation_undo.clear();
@@ -1165,13 +1160,12 @@ impl<'a> CheckEliminator<'a> {
                 }
                 let entry = merged.unwrap_or_default();
                 // The exit facts depend only on the entry facts.
-                if !visited.insert(block) && entries[block] == entry {
+                let entry_changed = entries[block] != entry;
+                if !visited.insert(block) && !entry_changed {
                     continue;
                 }
-                cx.ranges.clear();
-                cx.ranges.extend(&entry.ranges);
-                cx.relations.clear();
-                cx.relations.extend(&entry.relations);
+                cx.ranges = entry.ranges.clone();
+                cx.relations = entry.relations.clone();
                 cx.strict_lower_bounds = None;
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
@@ -1189,12 +1183,13 @@ impl<'a> CheckEliminator<'a> {
                     ranges: std::mem::take(&mut cx.ranges),
                     relations: std::mem::take(&mut cx.relations),
                 };
-                if exits[block] != exit {
+                let exit_changed = exits[block] != exit;
+                if exit_changed {
                     for &successor in cfg.successors(block) {
                         pending.insert(successor);
                     }
                 }
-                changed |= entries[block] != entry || exits[block] != exit;
+                changed |= entry_changed || exit_changed;
                 entries[block] = entry;
                 exits[block] = exit;
             }
@@ -1363,13 +1358,6 @@ impl<'a> CheckEliminator<'a> {
     /// Substitutes proven constants for operands of `id`, as the module docs describe.
     fn propagate_equalities_into(&mut self, func: &Function, cfg: &CfgInfo, id: InstId) {
         let kind = &func.inst(id).kind;
-        // Inlining and specialization later move a constant argument into the callee's memory
-        // operands, and a returned value into the caller's.
-        if self.memory_feeds.contains(&id)
-            || matches!(kind, InstKind::ICall { function: Callee::Function(_), .. })
-        {
-            return;
-        }
         let mut replaced = Replacements::new();
         kind.visit_operands(|operand| {
             if let Some(equality) = self.equalities.get(&operand) {
@@ -1377,6 +1365,13 @@ impl<'a> CheckEliminator<'a> {
             }
         });
         if replaced.is_empty() || matches!(kind, InstKind::Phi(_)) {
+            return;
+        }
+        // Inlining and specialization later move a constant argument into the callee's memory
+        // operands, and a returned value into the caller's.
+        if matches!(kind, InstKind::ICall { function: Callee::Function(_), .. })
+            || self.memory_feeds.get_or_insert_with(|| memory_feeds(func)).contains(&id)
+        {
             return;
         }
         // Frame and heap layout treat constant raw memory addresses and sizes as fixed images.
@@ -2271,13 +2266,18 @@ fn memory_feeds(func: &Function) -> FxHashSet<InstId> {
             terminator.visit_operands(|operand| sinks.push(operand));
         }
     }
-    for sink in sinks {
-        let mut visited = FxHashSet::default();
-        let mut expression = FxHashSet::default();
+    // The sink that last reached each value, one past its index.
+    let mut visited = index_vec![0usize; func.num_values()];
+    let mut expression = Vec::new();
+    let mut pending = Vec::new();
+    for (index, sink) in sinks.into_iter().enumerate() {
         let mut fed = false;
-        let mut pending = vec![sink];
+        expression.clear();
+        pending.push(sink);
         while let Some(value) = pending.pop() {
-            if func.value_u256(value).is_some() || !visited.insert(value) {
+            if func.value_u256(value).is_some()
+                || std::mem::replace(&mut visited[value], index + 1) > index
+            {
                 continue;
             }
             fed |= compared.contains(&value);
@@ -2286,11 +2286,11 @@ fn memory_feeds(func: &Function) -> FxHashSet<InstId> {
             if inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure) {
                 continue;
             }
-            expression.insert(*id);
+            expression.push(*id);
             inst.kind.visit_operands(|operand| pending.push(operand));
         }
         if fed {
-            feeds.extend(expression);
+            feeds.extend(expression.iter().copied());
         }
     }
     feeds
