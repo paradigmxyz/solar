@@ -60,8 +60,9 @@ where
 /// When `enabled`, idle rayon workers help the calling thread: it claims items from a shared
 /// counter and runs them itself, and spawns helpers that claim items the same way. A helper that
 /// starts late finds nothing left and returns. Unlike a rayon join or parallel iterator, the
-/// caller never waits inside rayon for helpers to finish items, so it does not pick up an
-/// unrelated queued job and run it before its own continuation.
+/// caller waits for helpers that are still running an item by yielding, not inside rayon, so it
+/// does not pick up an unrelated queued job and run it before its own continuation. Only the
+/// scope's end waits inside rayon, and only for helpers that have no item left.
 ///
 /// A serial map stops at the first error; a parallel one stops claiming items after one.
 pub fn par_try_map<T, R, E, F>(enabled: bool, items: Vec<T>, f: F) -> Result<Vec<R>, E>
@@ -100,6 +101,8 @@ where
         }
     }
     let work = || {
+        // The read-modify-writes on `active` order the relaxed accesses to `next` and `failed`: a
+        // helper that starts after the caller's wait ended sees the counter exhausted.
         active.fetch_add(1, Ordering::AcqRel);
         let _active = Active { active: &active, failed: &failed };
         while !failed.load(Ordering::Relaxed) {

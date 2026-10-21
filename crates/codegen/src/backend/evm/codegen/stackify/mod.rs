@@ -339,7 +339,8 @@ enum Decline {
 const SINGLE_SPILL_RESTARTS: u32 = 64;
 
 /// Fewest instructions in a contract's bodies for which planning uses idle workers. Planning
-/// costs a few microseconds per instruction, so smaller contracts finish before helpers start.
+/// costs about three microseconds per instruction in a release build, so smaller contracts finish
+/// before helpers start.
 const PARALLEL_PLAN_INSTS: usize = 4096;
 
 /// Maximum number of planning rounds that refine loop header layouts.
