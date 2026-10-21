@@ -34,6 +34,11 @@ contract SolarView {
         //~^ ERROR: the view `v` can only be read in place
         delete v;
         //~^ ERROR: the view `v` can only be read in place
+        uint256 x;
+        (v[0], x) = (0x01, 1);
+        //~^ ERROR: the view `v` can only be read in place
+        (x, v[1]) = (2, v[2]);
+        //~^ ERROR: the view `v` can only be read in place
         assembly {
             pop(mload(v))
             //~^ ERROR: the view `v` can only be read in place
