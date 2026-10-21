@@ -925,6 +925,11 @@ fn run_function_pass_cached(
     changed
 }
 
+/// Returns whether a module is large enough for its function passes to use idle workers.
+pub(crate) fn has_parallel_work(module: &Module) -> bool {
+    module.functions.iter().map(Function::num_insts).sum::<usize>() >= MIN_PARALLEL_INSTRUCTIONS
+}
+
 /// What a function task hands back to the thread that owns the caches.
 struct FunctionOutcome {
     changed: bool,
