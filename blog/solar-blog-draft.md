@@ -2,7 +2,7 @@
 
 *By DaniPopes, Djordje Todorovic, Georgios Konstantopoulos [byline TBD]*
 
-**Today we are excited to release Solar v0.3 [version TBD], the first version of our Rust Solidity compiler that generates EVM bytecode. Solar compiles Morpho Blue over 100× faster than solc, its contracts are cheaper to deploy and to run, and safe Solidity compiled with Solar beats hand-written assembly.**
+**Today we are excited to release Solar v0.3, the first version of our Rust Solidity compiler that generates EVM bytecode. Solar compiles Morpho Blue over 100× faster than solc, its contracts are cheaper to deploy and to run, and safe Solidity compiled with Solar beats hand-written assembly.**
 
 Two years ago, [we introduced Solar](https://www.paradigm.xyz/writing/solar) ☀️ as a fast, modular Solidity frontend. Since then, it has grown a full optimizing compiler behind that frontend: a typed middle end that understands Solidity, and a back end that understands the EVM. Specifically:
 
