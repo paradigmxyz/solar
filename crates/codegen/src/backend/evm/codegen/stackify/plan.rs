@@ -1472,7 +1472,17 @@ impl<'a> Planner<'a> {
         let mut failure = None;
         for (index, ops) in orders.iter().enumerate() {
             let in_place = self.consumed_in_place(&sim.stack, ops, dying);
+            // Longest run of operands already in place.
+            let placed = (1..=ops.len())
+                .rev()
+                .find(|&t| self.in_place(&sim.stack, &ops[..t], dying))
+                .unwrap_or(0);
+            // With nothing in place, building and reordering both copy every operand in order.
+            let build_is_reorder = placed == 0 && in_place.iter().all(Option::is_none);
             for strategy in [Strategy::Reorder, Strategy::Build, Strategy::Cycles] {
+                if strategy == Strategy::Build && build_is_reorder {
+                    continue;
+                }
                 // Following cycles only saves swaps when an operand is consumed in place and the
                 // cheapest arrangement so far needs at least two.
                 if strategy == Strategy::Cycles && !(consumable && best_swaps) {
@@ -1481,7 +1491,7 @@ impl<'a> Planner<'a> {
                 candidate.refork(sim);
                 let result = match strategy {
                     Strategy::Reorder => self.prepare_reorder(&mut candidate, ops, &in_place),
-                    Strategy::Build => self.prepare_build(&mut candidate, ops, dying),
+                    Strategy::Build => self.prepare_build(&mut candidate, ops, placed, dying),
                     Strategy::Cycles => {
                         let budget = best.map(|(price, _)| price);
                         self.prepare_cycles(&mut candidate, ops, &in_place, budget)
@@ -1513,14 +1523,16 @@ impl<'a> Planner<'a> {
         Ok(index)
     }
 
-    /// Builds the operands bottom up: keeps values already in place at the top of the stack,
-    /// swaps the deepest operand up when it dies here, and copies every other operand on top.
-    fn prepare_build(&self, sim: &mut Sim, ops: &[ValueId], dying: &[ValueId]) -> Result<(), Fail> {
-        // Longest run of operands already in place.
-        let mut placed = (1..=ops.len())
-            .rev()
-            .find(|&t| self.in_place(&sim.stack, &ops[..t], dying))
-            .unwrap_or(0);
+    /// Builds the operands bottom up: keeps the `placed` values already in place at the top of
+    /// the stack, swaps the deepest operand up when it dies here, and copies every other operand
+    /// on top.
+    fn prepare_build(
+        &self,
+        sim: &mut Sim,
+        ops: &[ValueId],
+        mut placed: usize,
+        dying: &[ValueId],
+    ) -> Result<(), Fail> {
         if placed == 0
             && !self.is_fresh(ops[0])
             && dying.contains(&ops[0])
