@@ -93,15 +93,14 @@
 //!
 //! NOTE: A pointer that the program moves by an offset it cannot bound, or steps back from in a
 //! loop, is not a heap pointer. An access at a heap pointer plus a constant is assumed not to cover
-//! the slot, also when the pointer is a memory object that a call returns or another object holds,
-//! or a word the slot holds after a store the pass leaves alone, while a loaded word stored
-//! elsewhere stays data even if a later load uses it as a pointer. A slot clamped before a compiler
-//! read stays clamped for a later read of it as data, including the read of a memory object that an
-//! allocating operation such as an encoding takes. Writes replace the word only when one block
-//! covers all of its bytes. A loaded word passed to a callee or returned to callers that read it as
-//! a pointer is clamped as a whole there, even if they also read it as data, and a word an external
-//! function returns as data is clamped as a whole in each internal caller that reads it as a
-//! pointer. See CODEGEN-010.
+//! the slot, also when the pointer is a memory object that another object holds, or a word the slot
+//! holds after a store the pass leaves alone, while a loaded word stored elsewhere stays data even
+//! if a later load uses it as a pointer. A slot clamped before a compiler read stays clamped for a
+//! later read of it as data, including the read of a memory object that an allocating operation
+//! such as an encoding takes. Writes replace the word only when one block covers all of its bytes.
+//! A loaded word passed to a callee or returned to callers that read it as a pointer is clamped as
+//! a whole there, even if they also read it as data, and a word an external function returns as
+//! data is clamped as a whole in each internal caller that reads it as a pointer. See CODEGEN-010.
 
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Callee, CheckedOp, EffectKind, Function, FunctionId, Immediate,
@@ -720,7 +719,8 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         }
         | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
         InstKind::Load(address, PtrLocation::Memory) => is_slot(func, address),
-        InstKind::ICall { .. } => false,
+        // The results and fields that calls return are heap pointers only as `returns` says.
+        InstKind::ICall { .. } | InstKind::ExtractValue { .. } => false,
         _ => instruction.result_ty == Some(MirType::MEMPTR),
     }
 }

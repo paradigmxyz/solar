@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_write_provenance.sol:SpillWriteProvenance ===
 @module SpillWriteProvenance
+@types
+  struct0: {ptr<memory>, i256}
+
 fn @backCounter(arg0: i256, arg1: i256) -> i256 [selector=0x23d62a6b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -1022,6 +1025,166 @@ fn @_retag(arg0: i256, arg1: i256) -> ptr<memory> [pure] {
   bb1:
     v1 = checked_sub uint256, arg1, 1
     v2 = icall @_retag, arg0, v1
+    ret v2
+}
+
+fn @tupleRetag(arg0: i256, arg1: i256) -> i256 [selector=0x4e76de70, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = keccak256_packed (uint256 arg0, uint256 17)
+    v18 = keccak256_packed (uint256 arg0, uint256 18)
+    v19 = keccak256_packed (uint256 arg0, uint256 19)
+    v20 = keccak256_packed (uint256 arg0, uint256 20)
+    v21 = keccak256_packed (uint256 arg0, uint256 21)
+    v22 = keccak256_packed (uint256 arg0, uint256 22)
+    v23 = keccak256_packed (uint256 arg0, uint256 23)
+    v24 = ne arg1, 0
+    jumpi v24, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v25 = icall @_pair, arg1
+    v26 = extract_value struct0, v25, 0
+    v27 = extract_value struct0, v25, 1
+    v28 = ptrtoint ptr<memory> v26 to i256
+    mstore 64, v28 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    v29 = ne arg1, 0
+    jumpi v29, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v30 = icall @_copy, 0x400
+    v31 = mload v30
+    v32 = shl v31, 0
+    jump bb6
+  bb6:
+    v33 = phi [bb4: v32], [bb5: 0]
+    v34 = xor v0, v1
+    v35 = xor v34, v2
+    v36 = xor v35, v3
+    v37 = xor v36, v4
+    v38 = xor v37, v5
+    v39 = xor v38, v6
+    v40 = xor v39, v7
+    v41 = xor v40, v8
+    v42 = xor v41, v9
+    v43 = xor v42, v10
+    v44 = xor v43, v11
+    v45 = xor v44, v12
+    v46 = xor v45, v13
+    v47 = xor v46, v14
+    v48 = xor v47, v15
+    v49 = xor v48, v16
+    v50 = xor v49, v17
+    v51 = xor v50, v18
+    v52 = xor v51, v19
+    v53 = xor v52, v20
+    v54 = xor v53, v21
+    v55 = xor v54, v22
+    v56 = xor v55, v23
+    v57 = xor v33, v56
+    ret v57
+}
+
+fn @tupleAccess(arg0: i256, arg1: i256) -> i256 [selector=0x214aed3c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = keccak256_packed (uint256 arg0, uint256 17)
+    v18 = keccak256_packed (uint256 arg0, uint256 18)
+    v19 = keccak256_packed (uint256 arg0, uint256 19)
+    v20 = keccak256_packed (uint256 arg0, uint256 20)
+    v21 = keccak256_packed (uint256 arg0, uint256 21)
+    v22 = keccak256_packed (uint256 arg0, uint256 22)
+    v23 = keccak256_packed (uint256 arg0, uint256 23)
+    v24 = ne arg1, 0
+    jumpi v24, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v25 = icall @_pair, 64
+    v26 = extract_value struct0, v25, 0
+    v27 = extract_value struct0, v25, 1
+    v28 = ptrtoint ptr<memory> v26 to i256
+    mstore v26, arg1
+    jump bb3
+  bb3:
+    v29 = ne arg1, 0
+    jumpi v29, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v30 = icall @_copy, 0x400
+    v31 = mload v30
+    v32 = shl v31, 0
+    jump bb6
+  bb6:
+    v33 = phi [bb4: v32], [bb5: 0]
+    v34 = xor v0, v1
+    v35 = xor v34, v2
+    v36 = xor v35, v3
+    v37 = xor v36, v4
+    v38 = xor v37, v5
+    v39 = xor v38, v6
+    v40 = xor v39, v7
+    v41 = xor v40, v8
+    v42 = xor v41, v9
+    v43 = xor v42, v10
+    v44 = xor v43, v11
+    v45 = xor v44, v12
+    v46 = xor v45, v13
+    v47 = xor v46, v14
+    v48 = xor v47, v15
+    v49 = xor v48, v16
+    v50 = xor v49, v17
+    v51 = xor v50, v18
+    v52 = xor v51, v19
+    v53 = xor v52, v20
+    v54 = xor v53, v21
+    v55 = xor v54, v22
+    v56 = xor v55, v23
+    v57 = xor v33, v56
+    ret v57
+}
+
+fn @_pair(arg0: i256) -> struct0 [pure] {
+  bb0:
+    v0 = inttoptr i256 arg0 to ptr<memory>
+    v1 = insert_value struct0, undef struct0, 0, v0
+    v2 = insert_value struct0, v1, 1, 1
     ret v2
 }
 
