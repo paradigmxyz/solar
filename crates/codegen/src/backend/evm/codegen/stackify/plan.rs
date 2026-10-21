@@ -1858,7 +1858,15 @@ impl<'a> Planner<'a> {
         let kind = &func.inst(inst).kind;
         sim.steps.push(Step::Begin(Some(inst)));
         let result = func.inst_result_value(inst);
-        let dying = |value: ValueId| self.dies(block, uses, operands, value);
+        // Whether each operand has no use after this instruction.
+        let mut dies = SmallVec::<[bool; 8]>::new();
+        for &operand in operands {
+            dies.push(self.dies(block, uses, operands, operand));
+        }
+        let dying = |value: ValueId| match operands.iter().position(|&operand| operand == value) {
+            Some(index) => dies[index],
+            None => self.dies(block, uses, operands, value),
+        };
         let push_order: Operands = operands.iter().rev().copied().collect();
         let pushes = |result: Option<ValueId>| result.map_or(0, |_| 1);
 
@@ -1913,7 +1921,7 @@ impl<'a> Planner<'a> {
             }
             // [saved, results] -> [results]; each saved word goes back to its slot
             self.restore_saved(sim, &saved)?;
-            self.finish_inst(sim, operands, block, uses, None)?;
+            self.finish_inst(sim, operands, &dies, block, uses, None)?;
             return Ok(());
         }
 
@@ -2048,7 +2056,7 @@ impl<'a> Planner<'a> {
                 self.set_top_result(sim, result);
             }
         }
-        self.finish_inst(sim, operands, block, uses, result)?;
+        self.finish_inst(sim, operands, &dies, block, uses, result)?;
         // [saved, result] -> [result]
         self.restore_saved(sim, &saved)
     }
@@ -2073,12 +2081,13 @@ impl<'a> Planner<'a> {
         &self,
         sim: &mut Sim,
         operands: &[ValueId],
+        dies: &[bool],
         block: BlockId,
         uses: &Uses,
         result: Option<ValueId>,
     ) -> Result<(), Fail> {
-        for &operand in operands {
-            if self.dies(block, uses, operands, operand) {
+        for (&operand, &dies) in operands.iter().zip(dies) {
+            if dies {
                 Self::kill(sim, operand);
             }
         }
