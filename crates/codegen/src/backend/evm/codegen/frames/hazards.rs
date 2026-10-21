@@ -8,7 +8,10 @@ use super::{
     },
     PtrLocation,
 };
-use crate::mir::{Callee, analysis::integers::depends_on_pointer};
+use crate::mir::{
+    Callee,
+    analysis::{direct_callees, is_floor_clamp, pointer_bases},
+};
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the destination of a memory write that can cover a compiler spill slot.
@@ -23,6 +26,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn dynamic_spill_write_dest(
         func: &Function,
         inst_id: InstId,
+        constructor_floor: Option<u64>,
     ) -> Option<ValueId> {
         if matches!(
             func.inst(inst_id).metadata.memory_region(),
@@ -36,14 +40,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return None;
             }
             let Some(start) = func.value_u64(dest) else { return Some(dest) };
-            // A constant range is a fixed image that layout keeps the spill area clear of. One
-            // of unknown length reaches every address above its start, so only a range that
-            // ends below the heap start is disjoint.
-            if length.is_some() {
-                return None;
-            }
+            // A constant range is a fixed image that layout keeps the runtime spill area clear
+            // of, and the constructor's keeps clear of what lies below its floor. One of unknown
+            // length reaches every address above its start, so only a range that ends below the
+            // heap start is disjoint.
             let end = longest.and_then(|longest| start.checked_add(longest));
-            (!end.is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)).then_some(dest)
+            let floor = match (length, constructor_floor) {
+                (Some(_), None) => return None,
+                (Some(_), Some(floor)) => floor,
+                (None, _) => EvmMemoryLayout::HEAP_START,
+            };
+            (!end.is_some_and(|end| end <= floor)).then_some(dest)
         };
         let symbolic_size = |dest: ValueId, size: ValueId| {
             let longest = Self::value_u64_upper_bound(
@@ -118,12 +125,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func_id: FunctionId,
         func: &Function,
+        constructor_floor: Option<u64>,
     ) -> FxHashSet<InstId> {
         let mut hazards = FxHashSet::default();
         let candidates = func
             .instructions()
             .filter_map(|inst_id| {
-                Self::dynamic_spill_write_dest(func, inst_id).map(|dest| (inst_id, dest))
+                Self::dynamic_spill_write_dest(func, inst_id, constructor_floor)
+                    .map(|dest| (inst_id, dest))
             })
             .collect::<Vec<_>>();
         if candidates.is_empty() {
@@ -182,6 +191,32 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn collect_heap_pointer_facts(
         module: &Module,
     ) -> (DenseBitSet<FunctionId>, IndexVec<FunctionId, DenseBitSet<ArgIdx>>) {
+        // A function that returns on no path, as a revert helper does, hands no result back, nor
+        // does one that only tail-calls such functions.
+        let mut never_returns = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if !func
+                .blocks
+                .iter()
+                .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+            {
+                never_returns.insert(func_id);
+            }
+        }
+        loop {
+            let mut changed = false;
+            for (func_id, func) in module.functions.iter_enumerated() {
+                if never_returns.contains(func_id)
+                    && func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::TailCall { function, .. }) if !never_returns.contains(function)))
+                {
+                    never_returns.remove(func_id);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
         let mut helpers = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
             let mut returns = func.blocks.iter().filter_map(|block| match &block.terminator {
@@ -189,10 +224,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 _ => None,
             });
             // A tail call hands the result to a function the candidate does not vouch for.
-            let tails = func
-                .blocks
-                .iter()
-                .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })));
+            let tails = func.blocks.iter().any(|block| {
+                matches!(block.terminator, Some(Terminator::TailCall { function, .. }) if !never_returns.contains(function))
+            });
             if !tails && returns.next() == Some(1) && returns.all(|len| len == 1) {
                 helpers.insert(func_id);
             }
@@ -200,19 +234,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Every parameter of a function some call reaches starts as a candidate: lowering erases
         // pointer types, and a call that passes anything else refutes it.
         let mut called = DenseBitSet::new_empty(module.functions.len());
-        for func in module.functions.iter() {
-            for inst_id in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(callee), .. } =
-                    func.inst(inst_id).kind
-                {
-                    called.insert(callee);
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                    called.insert(*function);
-                }
-            }
+        for callee in module.functions.iter().flat_map(direct_callees) {
+            called.insert(callee);
         }
         let mut args = module
             .functions
@@ -291,9 +314,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// edges are provisionally valid but ungrounded; every accepted cycle must
     /// also contain a concrete FMP, allocation, or qualified-helper origin.
     ///
-    /// A pointer plus an offset stays on the heap only when the offset cannot wrap the address
-    /// space around to low memory, as `add(p, mul(c, sub(0x80, p)))` does; see
-    /// [`depends_on_pointer`].
+    /// A pointer plus an offset stays on the heap only through the operands [`pointer_bases`]
+    /// accepts.
     fn heap_pointer_provenance(
         &self,
         func_id: FunctionId,
@@ -343,8 +365,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 memo,
             )
         };
-        let offset =
-            |value| !depends_on_pointer(func, value, &|function| helper_returns.contains(function));
 
         let provenance = (|| {
             let inst_id = match func.value(value) {
@@ -364,13 +384,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     Some(true)
                 }
-                InstKind::Add(first, second) if offset(*second) => derive(*first, visiting, memo),
-                InstKind::Add(first, second) if offset(*first) => derive(*second, visiting, memo),
-                InstKind::PtrAdd(base, delta) if offset(*delta) => derive(*base, visiting, memo),
-                // The heap prefix guard keeps a constant step back from a heap pointer clear of
-                // the spill area.
-                InstKind::Sub(base, offset) if func.value_u64(*offset).is_some() => {
-                    derive(*base, visiting, memo)
+                InstKind::Add(..) | InstKind::PtrAdd(..) | InstKind::Sub(..) => {
+                    // The heap prefix guard keeps a constant step back from a heap pointer clear
+                    // of the spill area.
+                    let bases = pointer_bases(func, value, u64::MAX);
+                    bases.into_iter().find_map(|base| derive(base, visiting, memo))
                 }
                 InstKind::IntToPtr(base) | InstKind::PtrToInt(base, 256) => {
                     derive(*base, visiting, memo)
@@ -497,18 +515,4 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some(size) = size else { return true };
         offset.checked_add(size).is_none_or(|range_end| range_end > start)
     }
-}
-
-/// Whether `select cond, then_value, else_value` is `max(word, heap_floor)`, which `heap-floor`
-/// leaves where it raises a word: the choice between the floor and a word that is below it.
-fn is_floor_clamp(
-    func: &Function,
-    cond: ValueId,
-    then_value: ValueId,
-    else_value: ValueId,
-) -> bool {
-    let is_floor = |value: ValueId| matches!(func.value(value), Value::Inst(inst) if func.inst(*inst).kind == InstKind::HeapFloor);
-    let Value::Inst(cond) = func.value(cond) else { return false };
-    matches!(func.inst(*cond).kind, InstKind::Lt(word, floor)
-        if is_floor(floor) && is_floor(then_value) && word == else_value)
 }

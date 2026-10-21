@@ -767,27 +767,30 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `mload` whose word addresses memory. After `mstore(0x40, 0x80)`, such a read
   sees `0x80` under `solc` and the initial pointer here. The word is a
   constant, a word that calldata, memory, a parameter, or a call result
-  supplies, or one stored through an address that the program computes and that
-  may be `0x40`. A pointer derived from the heap by a constant or a bounded
-  offset is proven. A word that is also read as data, such as one hashed in
-  scratch memory, or loaded and then compared, hashed, encoded, stored, or used
-  as a key, stays in the slot for those reads, and only the pointer reads see
-  the raised value. The raise is `max(word, heap floor)`, where the heap floor
-  is resolved when frames are placed, so a pass that later folds the word, as
-  inlining does for a helper's argument, cannot remove it. Each external
-  function that runs code writing memory at an absolute address computed from
-  calldata, as Seaport lays out a basic order's hashes and event data, keeps
-  its spill slots and the frames it reaches above `0x2080`. Every entry also
-  keeps them clear of the fixed memory ranges that the code it runs names,
-  wherever they lie, when the area, its allocations, and its frames would cover
-  them. A write that the compiler cannot prove to lie on the heap, in a frame,
+  supplies, or one that a store through a computed address, a copy, or a byte
+  store leaves there. A pointer from the heap is proven, also when moved by an
+  offset that cannot wrap the address space, or stepped back from by a
+  constant outside a loop. A word that is also read as data, such as one hashed
+  in scratch memory, or loaded and then compared, hashed, encoded, stored, or
+  used as a key, stays in the slot for those reads, and only the pointer reads
+  see the raised value. The raise is `max(word, heap floor)`, where the heap
+  floor is resolved when frames are placed, so a pass that later folds the
+  word, as inlining does for a helper's argument, cannot remove it.
+
+  Each entry places its spill slots and frames clear of every fixed memory
+  range that the code it runs names, wherever the range lies, when the area,
+  its allocations, and its frames would cover it. An entry that runs code
+  writing memory at an address computed from calldata, as Seaport lays out a
+  basic order's hashes and event data, also keeps them above `0x2080`.
+
+  A write whose destination the compiler cannot place on the heap, in a frame,
   or below the heap start, such as a copy to a computed destination of any
   length, a store through one, or a call that returns data to one, keeps the
-  values that are live across it out of the spill area. A pointer plus an offset
-  counts as a heap pointer only when the offset cannot wrap around the address
-  space. This costs memory expansion gas and code size; other external
-  functions keep their memory low unless they share those frames, or a
-  recursive helper places every frame above all external functions.
+  values that are live across it out of the spill area. A call result counts as
+  a heap pointer only when every return of its callee is one, and a word loaded
+  from memory never does. The constructor's spill area lies above its staging
+  area and not above fixed ranges, so a write to one above that area counts
+  as such a write there. This costs memory expansion gas and code size.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,
@@ -796,18 +799,20 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   or a hash input before the pointer is restored. A pointer derived from the
   heap already lies above the initial one. The `heap-floor` pass documents how
   it tells pointer reads from data reads. Writes the compiler cannot place are
-  assumed to reach the spill area rather than assumed to miss it, because no
-  later pass can tell where an input or a call will point them. Spill stores
-  after a write at an address that calldata computes can still overwrite what it
-  laid out when the layout grows past `0x2080`, or is indexed by a loop counter
-  alone; Seaport's basic orders with about 40 or more additional recipients do.
+  assumed to reach the spill area, because no later pass can tell where an
+  input or a call will point them. Spill stores after a write at an address that
+  calldata computes can still overwrite what it laid out when the layout grows
+  past `0x2080`, or is indexed by a loop counter alone; Seaport's basic orders
+  with about 40 or more additional recipients do.
 - Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
+  `tests/ui/codegen/lowering/run-call/constructor_constant_write_spills.sol`,
   `tests/ui/codegen/lowering/run-call/folded_guard_spills.sol`,
   `tests/ui/codegen/lowering/run-call/folded_hazard_spills.sol`,
   `tests/ui/codegen/lowering/run-call/folded_operand_spills.sol`,
   `tests/ui/codegen/lowering/run-call/folded_tail_call_spills.sol`,
+  `tests/ui/codegen/lowering/run-call/spill_write_provenance.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`, whose runner keeps
   `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` at 38

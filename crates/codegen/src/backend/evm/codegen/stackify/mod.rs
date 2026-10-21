@@ -517,6 +517,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Writes that may reach the spill area. A call into a function that may make one, itself
         // or through its callees, and then return makes one in the caller too; a write on a path
         // that never returns, such as a revert forwarder's, cannot reach the caller.
+        // The constructor's layout does not keep its spills clear of constant ranges above its
+        // staging area, so writes to them count as hazards there.
+        let constructor_floor =
+            self.in_constructor.then(|| self.constructor_spill_base(module.immutable_count()));
         let mut hazards = (0..functions)
             .map(|_| FxHashSet::default())
             .collect::<IndexVec<FunctionId, FxHashSet<InstId>>>();
@@ -527,7 +531,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         summaries.resize(functions, None);
         for &func_id in &bodies {
             let func = &module.functions[func_id];
-            hazards[func_id] = self.compute_spill_hazard_insts(func_id, func);
+            hazards[func_id] = self.compute_spill_hazard_insts(func_id, func, constructor_floor);
             if !info.returning.contains(func_id) {
                 continue;
             }

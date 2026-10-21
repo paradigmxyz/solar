@@ -99,7 +99,16 @@
       v1 = keccak256 0, 96
       calldatacopy 64, 36, 32
       v2 = mload 64
-      mstore v2, v1
+-     mstore v2, v1
++     v7 = heap_floor
++     v8 = lt v2, v7
++     v9 = select v8, v7, v2
++     mstore v9, v1
++     v3 = mload 64 !metadata(memory=scratch)
++     v4 = heap_floor
++     v5 = lt v3, v4
++     v6 = select v5, v4, v3
++     mstore 64, v6 !metadata(memory=scratch)
       ret v1
   }
   
