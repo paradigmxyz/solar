@@ -78,7 +78,7 @@ fn @logArray(arg0: slice<calldata>) {
     v11 = lt v10, v8
     jumpi v11, bb2, bb3
   bb3:
-    v20 = abi_encode [calldata_array<word<uint160>>], args arg0
+    v20 = abi_encode [calldata_array<word<uint160>>], scratch, args arg0
     v21 = extract_value slice<memory>, v20, 0
     v22 = extract_value slice<memory>, v20, 1
     log v21, v22, 0x2aa35d9b9d09e8315cc54a1b8fa10720a071241f46216976f18b6c83d90783a3
@@ -302,7 +302,7 @@ fn @logged(arg0: i256) -> i256 [selector=0xf3f1126a, abi_params=[uint256], abi_r
     v16 = lt v15, v13
     jumpi v16, bb2, bb3
   bb3:
-    v25 = abi_encode [calldata_array<word<uint160>>], args v4
+    v25 = abi_encode [calldata_array<word<uint160>>], scratch, args v4
     v26 = extract_value slice<memory>, v25, 0
     v27 = extract_value slice<memory>, v25, 1
     log v26, v27, 0x2aa35d9b9d09e8315cc54a1b8fa10720a071241f46216976f18b6c83d90783a3

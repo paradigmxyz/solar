@@ -122,23 +122,14 @@ bb0:
   swap 1
   push 0
   create
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
-  push 224
-  shl
-  dup 2
-  mstore
-  push 4
   push 0
-  swap 2
+  mstore
   push 32
-  swap 4
+  push 0
+  push 4
+  push 28
+  dup 5
   gas
   staticcall
   iszero
@@ -169,13 +160,8 @@ bb8 [cold]:
   push 0
   revert
 bb10:
-  push 160
+  push 128
   dup 1
-  push 64
-  mstore
-  push 256
-  dup 2
-  add
   push 64
   mstore
   push 233

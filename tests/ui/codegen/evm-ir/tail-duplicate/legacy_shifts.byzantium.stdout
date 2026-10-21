@@ -1,0 +1,129 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-duplicate/legacy_shifts.evmir (before tail-duplicate) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-duplicate/legacy_shifts.evmir (after tail-duplicate) ===
+  @module LegacyShiftTail
+  bb0:
+    push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+    push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+    push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+    push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+    push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+    push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+    push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+    push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    push 0
+    calldataload
+    jumpi bb1, bb2
+  bb1:
+    push 7
+    push 1
+    jump bb4
+  bb2:
+    push 9
+    push 1
+    jump bb4
+  bb3:
+    stop
+  bb4:
+    sar
+    jump bb6
+  bb5:
+    stop
+  bb6:
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  
+// === LegacyShiftTail (runtime) ===
+PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
+POP
+POP
+POP
+POP
+POP
+POP
+POP
+POP
+PUSH1 0x00
+CALLDATALOAD
+ISZERO
+PUSH2 0x0120 ; bb0
+JUMPI
+PUSH1 0x07
+PUSH1 0x01
+PUSH2 0x012a ; bb1
+JUMP
+; bb0
+JUMPDEST
+PUSH1 0x09
+PUSH1 0x01
+PUSH2 0x012a ; bb1
+JUMP
+STOP
+; bb1
+JUMPDEST
+DUP2
+DUP2
+PUSH1 0x02
+EXP
+SWAP2
+POP
+DUP2
+DUP2
+DIV
+DUP3
+DUP3
+NOT
+DIV
+NOT
+DUP3
+PUSH1 0x00
+SWAP1
+SLT
+DUP1
+DUP3
+MUL
+DUP2
+PUSH1 0x01
+SUB
+DUP5
+MUL
+ADD
+SWAP1
+POP
+SWAP1
+POP
+SWAP1
+POP
+SWAP1
+POP
+SWAP1
+POP
+SWAP1
+POP
+PUSH2 0x015a ; bb2
+JUMP
+STOP
+; bb2
+JUMPDEST
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN

@@ -12,8 +12,10 @@
 //! copy from the data pool. The pass prices each run with the `Target` cost model and groups equal
 //! byte strings so every site of a group shares one entry, accepting a group when its total saving
 //! improves the objective; under `-Ogas` that means less runtime gas and no more bytes, since
-//! static sites have no execution frequency to repay code growth. Rejected groups can still ride
-//! along as substrings of an accepted entry.
+//! static sites have no execution frequency to repay code growth. Creation code that runs once
+//! may trade gas for bytes at the calldata price of its model, but blocks that may run more than
+//! once keep the runtime model. Rejected groups can still ride along as substrings of an accepted
+//! entry.
 //!
 //! Both passes leave a module alone when `CODESIZE` can observe the changed data layout, or when
 //! a data address may reach anything but a `CODECOPY` that stays inside its entry. The scan tracks
@@ -119,6 +121,8 @@ struct Rewrite {
     /// The replacement after its size and source pushes: the destination, the copy, and the
     /// stack the replaced instructions left.
     tail: Vec<Instruction>,
+    /// Whether the block may run more than once, which prices the run as runtime code.
+    repeats: bool,
 }
 
 impl Rewrite {
@@ -223,7 +227,11 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
         a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
     });
 
-    let target = Target::new(gcx);
+    let creation = module.target(gcx);
+    let runtime = Target::new(gcx);
+    let target_of = |rewrites: &[Rewrite]| {
+        if rewrites.iter().any(|rewrite| rewrite.repeats) { runtime } else { creation }
+    };
     let mut pool = DataPool::new(&module.data);
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
@@ -233,7 +241,9 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
             prepared.extend(
                 rewrites
                     .into_iter()
-                    .filter(|rewrite| is_profitable(&target, rewrite.saving()))
+                    .filter(|rewrite| {
+                        is_profitable(&target_of(std::slice::from_ref(rewrite)), rewrite.saving())
+                    })
                     .map(|rewrite| PreparedRewrite { rewrite, data: None }),
             );
             continue;
@@ -241,6 +251,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
         let placement = pool.placement(&data);
         let additional_bytes = placement_additional_bytes(&placement, data.len());
         let mut improvement = rewrite_improvement(&rewrites, additional_bytes);
+        let mut repeats = rewrites.iter().any(|rewrite| rewrite.repeats);
         let mut absorbed = Vec::new();
         for (index, (contained, contained_rewrites)) in
             rejected.iter().take(MAX_DATA_SUBSTRING_ENTRIES).enumerate()
@@ -249,12 +260,13 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
                 continue;
             };
             let contained_improvement = rewrite_improvement(contained_rewrites, 0);
-            if is_profitable(&target, contained_improvement) {
+            if is_profitable(&target_of(contained_rewrites), contained_improvement) {
                 improvement.add(contained_improvement);
+                repeats |= contained_rewrites.iter().any(|rewrite| rewrite.repeats);
                 absorbed.push((index, offset));
             }
         }
-        if !is_profitable(&target, improvement) {
+        if !is_profitable(&if repeats { runtime } else { creation }, improvement) {
             rejected.push((data, rewrites));
             continue;
         }
@@ -491,7 +503,7 @@ fn scan_run(
     for inst in &tail {
         new += instruction_cost(target, inst)?;
     }
-    let rewrite = Rewrite { block, start, end, size: data.len(), old, new, tail };
+    let rewrite = Rewrite { block, start, end, size: data.len(), old, new, tail, repeats: false };
     Some(Run { rewrite, data: data.into(), first_store: first_store? })
 }
 
@@ -757,16 +769,18 @@ pub(crate) fn data_layout_is_observable(module: &Module) -> bool {
 }
 
 fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
-    let target = Target::new(gcx);
     let mut groups = RewriteGroups::default();
     let mut next_run_start = 0;
     let references = scan_data_references(module, |block_id, index, instructions| {
         if index == 0 {
             next_run_start = 0;
         }
+        let block = &module.blocks[block_id];
+        let target = block.target(gcx, module.code_follows);
         if index >= next_run_start
-            && let Some((data, rewrite)) = find_run(&target, block_id, instructions, index)
+            && let Some((data, mut rewrite)) = find_run(&target, block_id, instructions, index)
         {
+            rewrite.repeats = !block.runs_once();
             next_run_start = rewrite.end;
             groups.entry(data).or_default().push(rewrite);
         }

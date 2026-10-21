@@ -36,7 +36,7 @@
   fn @observes_msize(arg0: i256) {
     bb0:
       v0 = alloc 32 !metadata(deferred_alloc)
-      mstore v0, arg0
+-     mstore v0, arg0
       v1 = msize
       mstore 128, v1
       returndata 128, 32

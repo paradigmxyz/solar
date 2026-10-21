@@ -1,0 +1,15 @@
+// === ROOT/tests/ui/codegen/lowering/revert_string_skips_fmp_init.sol:RevertStringSkipsFmpInit ===
+@module RevertStringSkipsFmpInit
+fn @guard(arg0: i256) [selector=0x4d020cad, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<short_string>, v0, 4, 0x73746f7000000000000000000000000000000000000000000000000000000000
+    ret
+}
+
+fn @pass(arg0: i256) -> i256 [selector=0xd67c9961, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = ne arg0, 0
+    icall require<short_string>, v0, 4, 0x73746f7000000000000000000000000000000000000000000000000000000000
+    ret arg0
+}

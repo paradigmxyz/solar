@@ -9,19 +9,18 @@ fn @callLiteral() -> i256 [selector=0x74903211, view, abi_params=[], abi_returns
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word], selector 0xcc9ae69300000000000000000000000000000000000000000000000000000000, args 0x312e302e31000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = staticcall v1, v5, v3, v4, 0, 32
-    jumpi v6, bb2, bb1
+    mstore 0, 0xcc9ae693 !metadata(memory=scratch)
+    mstore 32, 0x312e302e31000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 36, 0, 32
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = add 0, 0
+    v7 = mload v6
+    ret v7
 }

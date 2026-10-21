@@ -108,45 +108,43 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, wo
     v8 = shl v7, 224
     v9 = shr v6, 32
     v10 = gas
-    v11 = abi_encode [], selector v8
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = call v10, v9, 0, v12, v13, 0, 32
-    jumpi v14, bb2, bb1
+    v11 = shr v8, 224
+    mstore 0, v11 !metadata(memory=scratch)
+    v12 = call v10, v9, 0, 28, 4, 0, 32
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    v19 = lt 1, 2
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = add 0, 1
-    v22 = sload v21 !metadata(storage=slot(1))
-    v23 = shr v22, 16
-    v24 = trunc i256 v23 to i192
-    v25 = zext i192 v24 to i256
-    v26 = and v25, 0xffffffff
-    v27 = shl v26, 224
-    v28 = shr v25, 32
-    v29 = gas
-    v30 = abi_encode [], selector v27
-    v31 = extract_value slice<memory>, v30, 0
-    v32 = extract_value slice<memory>, v30, 1
-    v33 = call v29, v28, 0, v31, v32, 0, 32
-    jumpi v33, bb4, bb3
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = mload v15
+    v17 = lt 1, 2
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = add 0, 1
+    v20 = sload v19 !metadata(storage=slot(1))
+    v21 = shr v20, 16
+    v22 = trunc i256 v21 to i192
+    v23 = zext i192 v22 to i256
+    v24 = and v23, 0xffffffff
+    v25 = shl v24, 224
+    v26 = shr v23, 32
+    v27 = gas
+    v28 = shr v25, 224
+    mstore 0, v28 !metadata(memory=scratch)
+    v29 = call v27, v26, 0, 28, 4, 0, 32
+    jumpi v29, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = insert_value struct0, undef struct0, 0, v18
-    v39 = insert_value struct0, v38, 1, v37
-    ret v39
+    v30 = returndatasize
+    v31 = lt v30, 32
+    icall revert_if<tuple_data_too_short>, v31
+    v32 = add 0, 0
+    v33 = mload v32
+    v34 = insert_value struct0, undef struct0, 0, v16
+    v35 = insert_value struct0, v34, 1, v33
+    ret v35
 }
