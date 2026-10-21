@@ -7,10 +7,11 @@
 //! analyses use the same no-wrap proof before treating modular arithmetic as an ordinary offset.
 
 use crate::mir::{
-    Callee, Function, FunctionId, InstKind, MirType, Module, Terminator, Value, ValueId,
+    Callee, Function, FunctionId, InstKind, MirType, Module, PtrLocation, Terminator, Value,
+    ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 #[inline]
 pub(crate) fn integer_bits(func: &Function, value: ValueId) -> u32 {
@@ -84,6 +85,62 @@ fn bounds_with(
             .unwrap(),
         kind => arithmetic_bounds(kind, max, bounds).unwrap_or(full),
     }
+}
+
+/// Whether `value` is computed from a pointer: the free memory pointer, an allocation, a memory
+/// reference, or the result of a call that `returns_pointer` accepts, through arithmetic. A word
+/// loaded from memory is data, as an array's length is, and so is the result of any other call,
+/// as the size an encoder returns is.
+///
+/// A pointer plus an offset stays above the pointer unless the offset wraps the address space
+/// around, which takes an offset built from the pointer itself, as `sub(0x80, pointer)` is when
+/// the compiler turns a choice between the pointer and `0x80` into arithmetic. An offset that no
+/// pointer feeds, such as a size or an index, cannot cancel the pointer, and a program that lets
+/// its input pick one has already given the input every address.
+pub(crate) fn depends_on_pointer(
+    func: &Function,
+    value: ValueId,
+    returns_pointer: &impl Fn(FunctionId) -> bool,
+) -> bool {
+    pointer_dependence(func, value, returns_pointer, &mut DenseBitSet::new_empty(func.num_values()))
+}
+
+fn pointer_dependence(
+    func: &Function,
+    value: ValueId,
+    returns_pointer: &impl Fn(FunctionId) -> bool,
+    visiting: &mut DenseBitSet<ValueId>,
+) -> bool {
+    let Value::Inst(inst_id) = func.value(value) else {
+        return matches!(func.value(value), Value::Arg(arg) if func.arg_ty(*arg).is_memory_reference());
+    };
+    if !visiting.insert(value) {
+        return false;
+    }
+    let inst = func.inst(*inst_id);
+    let result = match inst.kind {
+        InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => true,
+        InstKind::ICall { function: Callee::Function(function), .. }
+            if returns_pointer(function) =>
+        {
+            true
+        }
+        InstKind::Load(address, PtrLocation::Memory) => {
+            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        }
+        InstKind::Load(..) => false,
+        _ if inst.result_ty.is_some_and(MirType::is_memory_reference) => true,
+        ref kind => {
+            let mut dependent = false;
+            kind.visit_operands(|operand| {
+                dependent =
+                    dependent || pointer_dependence(func, operand, returns_pointer, visiting);
+            });
+            dependent
+        }
+    };
+    visiting.remove(value);
+    result
 }
 
 pub(crate) fn arithmetic_no_wrap(func: &Function, value: ValueId) -> bool {
