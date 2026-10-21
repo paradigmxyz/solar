@@ -450,6 +450,9 @@ pub struct UnstableOpts {
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
+    ///
+    /// This also makes the thread that runs the compilation the first worker of the thread pool,
+    /// which it never leaves, and delays starting the other workers until there is enough work.
     #[cfg_attr(feature = "clap", arg(skip))]
     pub forget_gcx: bool,
 

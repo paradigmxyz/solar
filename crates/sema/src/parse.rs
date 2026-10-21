@@ -17,6 +17,10 @@ use solar_parse::{Lexer, Parser, unescape};
 use std::{fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
+/// The amount of source code, in bytes, that is parsed in the current thread before the compiler
+/// starts its worker threads. Lexing and parsing it takes about as long as starting the threads.
+const PAR_MIN_BYTES: usize = 128 * 1024;
+
 /// Builder for parsing sources into a [`Compiler`](crate::Compiler).
 ///
 /// Created from [`CompilerRef::parse`](crate::CompilerRef::parse).
@@ -213,10 +217,12 @@ impl<'gcx> ParsingContext<'gcx> {
             let len_before = sources.len();
             let sources_parsed_before = if dbg { sources.count_parsed() } else { 0 };
 
+            let arena = self.arenas.get_or_default();
             if self.sess.is_sequential() || (sources.len() == 1 && !self.resolve_imports) {
-                self.parse_sequential(&mut sources, self.arenas.get_or_default());
-            } else {
-                self.parse_parallel(&mut sources, self.arenas);
+                self.parse_sequential(&mut sources, arena, usize::MAX);
+            } else if let Some(next) = self.parse_sequential(&mut sources, arena, PAR_MIN_BYTES) {
+                self.sess.spawn_workers();
+                self.parse_parallel(&mut sources, self.arenas, next);
             }
 
             if dbg {
@@ -247,13 +253,27 @@ impl<'gcx> ParsingContext<'gcx> {
         *self.sources = sources;
     }
 
-    fn parse_sequential<'ast>(&self, sources: &mut Sources<'ast>, arena: &'ast ast::Arena) {
+    /// Parses the sources in order, including the imports they add, in the current thread.
+    ///
+    /// Stops once `max_bytes` bytes of source code are parsed and returns the first source left to
+    /// parse, if any.
+    fn parse_sequential<'ast>(
+        &self,
+        sources: &mut Sources<'ast>,
+        arena: &'ast ast::Arena,
+        max_bytes: usize,
+    ) -> Option<SourceId> {
+        let mut parsed_bytes = 0;
         for i in 0.. {
             let id = SourceId::from_usize(i);
             let Some(source) = sources.get(id) else { break };
             if source.ast.is_some() {
                 continue;
             }
+            if parsed_bytes >= max_bytes {
+                return Some(id);
+            }
+            parsed_bytes += source.file.src.len();
 
             let file = source.file.clone();
             let parent = parent_path(&file);
@@ -270,17 +290,19 @@ impl<'gcx> ParsingContext<'gcx> {
             }
             sources[id].ast = ast;
         }
+        None
     }
 
     fn parse_parallel<'ast>(
         &self,
         sources: &mut Sources<'ast>,
         arenas: &'ast ThreadLocal<ast::Arena>,
+        from: SourceId,
     ) {
         let lock = Mutex::new(std::mem::take(sources));
         rayon::scope(|scope| {
             let sources = &*lock.lock();
-            for (id, source) in sources.iter_enumerated() {
+            for (id, source) in sources.iter_enumerated().skip(from.index()) {
                 if source.ast.is_some() {
                     continue;
                 }

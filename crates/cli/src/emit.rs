@@ -95,6 +95,10 @@ pub(crate) fn emit_requested(
         || !capture_evm_ir.is_empty()
         || !capture_debug_info.is_empty();
     let artifacts = if generate_artifacts {
+        // A single contract compiles on one thread, so more threads would only add overhead.
+        if generated_bytecode_contracts.into_iter(gcx).nth(1).is_some() {
+            gcx.sess.spawn_workers();
+        }
         Some(generate_contract_bytecodes(
             gcx,
             &generated_bytecode_contracts,
