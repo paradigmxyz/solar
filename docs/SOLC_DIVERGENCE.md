@@ -807,6 +807,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   calldata computes can still overwrite what it laid out when the layout grows
   past `0x2080`, or is indexed by a loop counter alone; Seaport's basic orders
   with about 40 or more additional recipients do.
+  The compiler checks a memory object's element and field offsets against the
+  object's bounds and trusts them, so assembly that forges a length can make a
+  checked access wrap below the object, which both compilers allow.
 - Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
