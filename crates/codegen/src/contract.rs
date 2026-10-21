@@ -186,16 +186,16 @@ pub fn generate_contract_bytecodes(
     requested.union_with(capture_debug_info);
     let graph = ContractGraph::discover(gcx, &requested)?;
     let contract_count = gcx.hir.contract_ids().len();
-    // A single contract compiles on one thread, so more threads would only add overhead.
-    if graph.reachable.count() > 1 {
-        gcx.sess.spawn_workers();
-    }
 
     // Pass debugging writes directly to stdout and stderr, so keep its output ordered.
     let parallel = gcx.sess.is_parallel()
         && !gcx.sess.opts.unstable.print_after_each
         && !gcx.sess.opts.unstable.pass_diff
         && !gcx.sess.opts.unstable.time_passes;
+    // A single contract compiles on one thread, so more threads would only add overhead.
+    if parallel && graph.reachable.count() > 1 {
+        gcx.sess.spawn_workers();
+    }
     let priorities = if parallel {
         graph.scheduling_priorities(gcx)
     } else {

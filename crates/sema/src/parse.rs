@@ -217,12 +217,21 @@ impl<'gcx> ParsingContext<'gcx> {
             let len_before = sources.len();
             let sources_parsed_before = if dbg { sources.count_parsed() } else { 0 };
 
-            let arena = self.arenas.get_or_default();
-            if self.sess.is_sequential() || (sources.len() == 1 && !self.resolve_imports) {
-                self.parse_sequential(&mut sources, arena, usize::MAX);
-            } else if let Some(next) = self.parse_sequential(&mut sources, arena, PAR_MIN_BYTES) {
+            let max_bytes =
+                if self.sess.is_sequential() || (sources.len() == 1 && !self.resolve_imports) {
+                    usize::MAX
+                } else {
+                    PAR_MIN_BYTES
+                };
+            if let Some(next) =
+                self.parse_sequential(&mut sources, self.arenas.get_or_default(), max_bytes)
+            {
                 self.sess.spawn_workers();
                 self.parse_parallel(&mut sources, self.arenas, next);
+            }
+            // The later stages share their work too, even when one large source parsed in one go.
+            if sources.iter().map(|source| source.file.src.len()).sum::<usize>() >= PAR_MIN_BYTES {
+                self.sess.spawn_workers();
             }
 
             if dbg {

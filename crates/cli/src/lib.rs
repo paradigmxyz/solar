@@ -47,6 +47,7 @@ use tracing as _;
 
 pub fn main() -> ExitCode {
     signal_handler::install();
+    raise_stack_limit();
     solar_interface::panic_hook::install();
     let _guard = utils::init_logger(utils::LogDestination::Stderr);
 
@@ -56,6 +57,26 @@ pub fn main() -> ExitCode {
     };
     commands::run(args)
 }
+
+/// Raises the stack limit of the main thread to that of the compiler threads, as it compiles in
+/// place of a worker thread.
+///
+/// The limit applies as the stack grows, so raising it at runtime is enough.
+#[cfg(target_os = "linux")]
+fn raise_stack_limit() {
+    let size = solar_interface::thread_stack_size() as libc::rlim_t;
+    let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    // SAFETY: `limit` is a valid `rlimit` for both calls.
+    unsafe {
+        if libc::getrlimit(libc::RLIMIT_STACK, &mut limit) == 0 && limit.rlim_cur < size {
+            limit.rlim_cur = size.min(limit.rlim_max);
+            libc::setrlimit(libc::RLIMIT_STACK, &limit);
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn raise_stack_limit() {}
 
 fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
 where
