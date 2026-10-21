@@ -29,7 +29,7 @@ contract OverwrittenRanges {
         assembly {
             calldatacopy(0x100, calldatasize(), 64)
             mstore(0x100, 7)
-            size := msize()
+            size := msize() //~[gas,size,dump] WARN: `msize` is not exact when optimizing
             mstore(0x120, 9)
         }
     }

@@ -8,7 +8,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_return
     v3 = zext i160 v2 to i256
     v4 = shl v3, 32
     v5 = or v4, 0x7cf5dab0
-    v6 = abi_encode [function, word], selector 0xc61581a000000000000000000000000000000000000000000000000000000000, args v5, arg0
+    v6 = abi_encode [function, word], scratch, selector 0xc61581a000000000000000000000000000000000000000000000000000000000, args v5, arg0
     v7 = extract_value slice<memory>, v6, 0
     v8 = extract_value slice<memory>, v6, 1
     v9 = zext i160 v0 to i256
@@ -41,20 +41,20 @@ fn @eval(arg0: i256, arg1: i256) -> i256 [selector=0xc61581a0, abi_params=[funct
     v1 = shl v0, 224
     v2 = shr arg0, 32
     v3 = gas
-    v4 = abi_encode [word], selector v1, args arg1
-    v5 = extract_value slice<memory>, v4, 0
-    v6 = extract_value slice<memory>, v4, 1
-    v7 = call v3, v2, 0, v5, v6, 0, 32
-    jumpi v7, bb2, bb1
+    v4 = shr v1, 224
+    mstore 0, v4 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    v5 = call v3, v2, 0, 28, 36, 0, 32
+    jumpi v5, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    ret v11
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = add 0, 0
+    v9 = mload v8
+    ret v9
 }
 
 fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

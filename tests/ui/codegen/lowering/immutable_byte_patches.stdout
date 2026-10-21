@@ -67,8 +67,12 @@ bb0:
   and
   push 224
   mstore
+  push 255
+  push 248
+  shl
   push 352
   mload
+  and
   push 256
   mstore
   push 50

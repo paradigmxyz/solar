@@ -32,38 +32,31 @@ fn @constructor() [constructor] {
 
 fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize Probe_creation_code_0
-    v2 = datasize Probe_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy Probe_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize Probe_creation_code_0
+    v1 = fmp
+    datacopy Probe_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
-    v10 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v11 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v10
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = zext i160 v7 to i256
-    v15 = call v9, v14, 0, v12, v13, 0, 32
-    jumpi v15, bb4, bb3
+    v4 = gas
+    v5 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 0, 0x14beb1ca !metadata(memory=scratch)
+    mstore 32, v5 !metadata(memory=scratch)
+    v6 = zext i160 v2 to i256
+    v7 = call v4, v6, 0, 28, 36, 0, 32
+    jumpi v7, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = add 0, 0
+    v11 = mload v10
+    ret v11
 }
 
 fn @giveInternal(arg0: i256) -> i256 [pure] {
@@ -261,6 +254,7 @@ fn @constructor() [constructor] {
     v12 = shl v11, 32
     v13 = or v9, v12
     sstore 1, v13 !metadata(storage=slot(1))
-    storeimmutable immutableLiteral, 0x5566778800000000000000000000000000000000000000000000000000000000
+    v14 = and 0x5566778800000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    storeimmutable immutableLiteral, v14
     ret
 }

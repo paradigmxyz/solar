@@ -46,19 +46,19 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v8 = icall @gasOpt
     v9 = icall @valueOpt
     v10 = icall @arg
-    v11 = abi_encode [word], selector v5, args v10
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = extcodesize v6
-    v15 = eq v14, 0
-    icall revert_if<target_contract_has_no_code>, v15
-    v16 = call v8, v6, v9, v12, v13, 0, 0
-    jumpi v16, bb2, bb1
+    v11 = shr v5, 224
+    mstore 0, v11 !metadata(memory=scratch)
+    mstore 32, v10 !metadata(memory=scratch)
+    v12 = extcodesize v6
+    v13 = eq v12, 0
+    icall revert_if<target_contract_has_no_code>, v13
+    v14 = call v8, v6, v9, 28, 36, 0, 0
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = sload 0 !metadata(storage=slot(0))
-    ret v17
+    v15 = sload 0 !metadata(storage=slot(0))
+    ret v15
 }
 
 fn @fail(arg0: i256) [selector=0x132e4f3c, payable, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {

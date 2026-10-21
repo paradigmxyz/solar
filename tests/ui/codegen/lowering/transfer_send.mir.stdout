@@ -32,50 +32,38 @@ fn @receive() [receive, payable] {
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize GasReceiver_creation_code_0
-    v2 = datasize GasReceiver_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy GasReceiver_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize GasReceiver_creation_code_0
+    v1 = fmp
+    datacopy GasReceiver_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = zext i160 v7 to i256
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = or v11, v13
-    sstore 0, v14 !metadata(storage=slot(0))
-    v15 = abi_encode []
-    v16 = datasize RevertReceiver_creation_code_1
-    v17 = datasize RevertReceiver_creation_code_1, 31, aligned
-    v18 = alloc v17
-    datacopy RevertReceiver_creation_code_1, v18, v16
-    v19 = extract_value slice<memory>, v15, 0
-    v20 = ptrtoint ptr<memory> v18 to i256
-    v21 = add v20, v16
-    mcopy v21, v19, 0 !metadata(memory=heap)
-    v22 = create 0, v18, v16
-    v23 = ne v22, i160 0
-    jumpi v23, bb4, bb3
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    v7 = zext i160 v2 to i256
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
+    v10 = datasize RevertReceiver_creation_code_1
+    v11 = fmp
+    datacopy RevertReceiver_creation_code_1, v11, v10
+    v12 = create 0, v11, v10
+    v13 = ne v12, i160 0
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v24 = sload 1 !metadata(storage=slot(1))
-    v25 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v26 = and v24, v25
-    v27 = zext i160 v22 to i256
-    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-    v29 = or v26, v28
-    sstore 1, v29 !metadata(storage=slot(1))
+    v14 = sload 1 !metadata(storage=slot(1))
+    v15 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = and v14, v15
+    v17 = zext i160 v12 to i256
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
+    v19 = or v16, v18
+    sstore 1, v19 !metadata(storage=slot(1))
     ret
 }
 

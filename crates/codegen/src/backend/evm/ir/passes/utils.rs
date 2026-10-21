@@ -181,6 +181,25 @@ pub(in crate::backend::evm::ir) fn remap_block_order(module: &mut Module, order:
     remap_blocks(module, order);
 }
 
+/// Counts the pushed labels and terminator edges targeting each block, plus the program entry.
+pub(super) fn count_block_references(module: &Module, references: &mut IndexVec<BlockId, usize>) {
+    references.clear();
+    references.resize(module.blocks.len(), 0);
+    if let Some(entry) = references.first_mut() {
+        *entry = 1;
+    }
+    for block in &module.blocks {
+        for inst in &block.instructions {
+            if let Some(target) = inst.pushed_block() {
+                references[target] += 1;
+            }
+        }
+        if let Some(term) = &block.terminator {
+            term.kind.visit_targets(|target| references[target] += 1);
+        }
+    }
+}
+
 pub(super) fn retain_blocks(module: &mut Module, order: &[BlockId]) {
     debug_assert!(order.len() <= module.blocks.len());
     remap_blocks(module, order);

@@ -56,9 +56,10 @@ fn @constructor(arg0: i64, arg1: i64, arg2: i64) [constructor, abi_params=[uint6
     v8 = icall @signedAsUnsigned
     storeimmutable signedInitial, v8
     v9 = icall @signedEqualsMinusOne
-    storeimmutable signedInitialEqual, v9
-    v10 = icall @total
-    storeimmutable initial, v10
+    v10 = ne v9, false
+    storeimmutable signedInitialEqual, v10
+    v11 = icall @total
+    storeimmutable initial, v11
     ret
 }
 
