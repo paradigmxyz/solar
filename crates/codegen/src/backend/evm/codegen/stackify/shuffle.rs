@@ -21,6 +21,7 @@
 //! target from fresh copies and copies of the kept words.
 
 use super::{Slot, Want};
+use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// One shuffle operation. Depths are counted from the top, which has depth zero.
@@ -53,16 +54,24 @@ pub(super) fn shuffle(
     let mut state = State { stack: stack.to_vec(), moves: Vec::new(), reach };
     let n = target.len();
 
-    let mut need = FxHashMap::<Slot, usize>::default();
+    let mut need = SmallVec::<[(Slot, usize); 16]>::new();
     let mut open = 0usize;
     for want in target {
-        match *want {
-            Want::Value(value) => *need.entry(Slot::Value(value)).or_default() += 1,
-            Want::Ret => *need.entry(Slot::Ret).or_default() += 1,
-            Want::Any => open += 1,
+        let slot = match *want {
+            Want::Value(value) => Slot::Value(value),
+            Want::Ret => Slot::Ret,
+            Want::Any => {
+                open += 1;
+                continue;
+            }
+        };
+        match need.iter_mut().find(|(needed, _)| *needed == slot) {
+            Some((_, count)) => *count += 1,
+            None => need.push((slot, 1)),
         }
     }
-    let needed = |slot: Slot| need.get(&slot).copied().unwrap_or(0);
+    let needed =
+        |slot: Slot| need.iter().find(|&&(needed, _)| needed == slot).map_or(0, |&(_, c)| c);
 
     // Phase 1: counts.
     // Whether the word at `index` is one of its value's surplus copies; the shallowest copies
@@ -89,12 +98,24 @@ pub(super) fn shuffle(
         state.pop();
     }
     // Create missing words.
-    let mut missing = Vec::<Slot>::new();
-    for (&slot, &count) in &need {
+    let mut short = SmallVec::<[(Slot, usize); 4]>::new();
+    for &(slot, count) in &need {
         let have = state.stack.iter().filter(|&&s| s == slot).count();
-        for _ in have..count {
-            missing.push(slot);
+        if have < count {
+            short.push((slot, count - have));
         }
+    }
+    if short.len() > 1 {
+        // Words that sort alike below keep the iteration order of a hash table of the needs.
+        let mut table = FxHashMap::<Slot, usize>::default();
+        for &(slot, count) in &need {
+            table.insert(slot, count);
+        }
+        short.sort_by_key(|&(slot, _)| table.keys().position(|&key| key == slot));
+    }
+    let mut missing = SmallVec::<[Slot; 8]>::new();
+    for &(slot, count) in &short {
+        missing.extend(std::iter::repeat_n(slot, count));
     }
     // Create in target order so fresh copies tend to land near their positions.
     missing.sort_by_key(|slot| {
@@ -116,7 +137,7 @@ pub(super) fn shuffle(
     // Phase 2: order. Assign every word a destination: a position that names its value, or any
     // open position. Words already at a position naming them keep it.
     const OPEN: usize = usize::MAX;
-    let mut dest = vec![OPEN; n];
+    let mut dest = SmallVec::<[usize; 32]>::from_elem(OPEN, n);
     let mut taken = DenseBitSet::<usize>::new_empty(n);
     for i in 0..n {
         if target[i] != Want::Any && target[i].accepts(state.stack[i]) {

@@ -237,6 +237,8 @@ pub(super) struct Planner<'a> {
     /// The latest plain plan of a placement decision.
     plain_trial: Option<PlainTrial>,
     stack_costs: StackOpCosts,
+    /// The fork `place_result` tries each swap on.
+    place_sim: Sim,
     scratch: Cell<Scratch>,
     /// The fork a `trial` plans on.
     trial_sim: Cell<Sim>,
@@ -581,6 +583,7 @@ impl<'a> Planner<'a> {
             pending: FxHashMap::default(),
             plain_trial: None,
             stack_costs: StackOpCosts::new(target),
+            place_sim: Sim::default(),
             scratch: Cell::default(),
             trial_sim: Cell::default(),
             peak: 0,
@@ -843,10 +846,11 @@ impl<'a> Planner<'a> {
             })
             .collect::<SmallVec<[_; MAX_PLACEMENT_WINDOW]>>();
         let mut best: Option<(Cost, usize)> = None;
+        let mut swapped = std::mem::take(&mut self.place_sim);
         for (depth, end) in candidates {
             // Without a swap in the plain plan, an early one cannot pay for itself.
             let Some(&(plain, true)) = plain.get(end) else { continue };
-            let mut swapped = sim.fork();
+            swapped.refork(sim);
             if self.stack_op(&mut swapped, StackOp::Swap(depth as u8)).is_err() {
                 continue;
             }
@@ -858,6 +862,7 @@ impl<'a> Planner<'a> {
                 best = Some((cost, depth));
             }
         }
+        self.place_sim = swapped;
         if let Some((_, depth)) = best {
             self.stack_op(sim, StackOp::Swap(depth as u8))?;
         }
