@@ -8,6 +8,8 @@
 //@ run-call-fail: partition [9, 8], 0, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: partition [3, 3, 3, 3], 0, 3 => 2, 1, 0
 //@ run-call: partition [0, 9, 1, 8, 2, 7, 3, 6, 4, 10], 0, 5 => 5, 4, 10
+//@ run-call: forged [1, 9, 3, 8, 2, 7], 6, 0, 5 => 3, 2, 6
+//@ run-call-fail: forged [1, 9, 5], 3618502788666131106986593281521497120414687020801267626233049500247285301251, 0, 5
 //@ run-call: sort [] => []
 //@ run-call: sort [7] => [7]
 //@ run-call: sort [2, 1] => [1, 2]
@@ -41,6 +43,33 @@ contract Partition {
         pure
         returns (uint256 i, uint256 j, uint256 ends)
     {
+        i = lo;
+        j = a.length - 1;
+        ends = a[i] ^ a[j];
+        while (true) {
+            do {
+                ++i;
+            } while (a[i] < y);
+            do {
+                --j;
+            } while (y < a[j]);
+            if (i >= j) break;
+            (a[i], a[j]) = (a[j], a[i]);
+        }
+    }
+
+    // A length forged in assembly lets a check pass for an index far past the array, whose
+    // element's address wraps around below it. With the range's end there, the copy, which
+    // compares element addresses, would stop where the original loop, which compares indices,
+    // runs on until it leaves memory, so the test admits the copy only for ends below `2^250`.
+    function forged(uint256[] memory a, uint256 n, uint256 lo, uint256 y)
+        external
+        pure
+        returns (uint256 i, uint256 j, uint256 ends)
+    {
+        assembly {
+            mstore(a, n)
+        }
         i = lo;
         j = a.length - 1;
         ends = a[i] ^ a[j];

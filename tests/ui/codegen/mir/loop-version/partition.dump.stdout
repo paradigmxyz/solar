@@ -33,125 +33,259 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
 
 fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
   bb0:
-    v137 = calldatasize
-    v138 = lt v137, 100
-    jumpi v138, bb23, bb24
+    v141 = calldatasize
+    v142 = lt v141, 100
+    jumpi v142, bb23, bb24
   bb24:
-    v139 = icall @decode_calldata_type
-    v0 = mload v139
-    v131 = sub v0, 1
-    v132 = eq v0, 0
-    jumpi v132, bb20, bb21
+    v143 = icall @decode_calldata_type
+    v0 = mload v143
+    v135 = sub v0, 1
+    v136 = eq v0, 0
+    jumpi v136, bb20, bb21
   bb21:
     v3 = lt arg1, v0
     jumpi v3, bb18, bb17
   bb18:
     v5 = shl arg1, 5
-    v150 = add v139, v5
-    v151 = add v150, 32
-    v8 = mload v151
-    v12 = shl v131, 5
-    v153 = add v139, v12
-    v154 = add v153, 32
-    v15 = mload v154
+    v154 = add v143, v5
+    v155 = add v154, 32
+    v8 = mload v155
+    v12 = shl v135, 5
+    v157 = add v143, v12
+    v158 = add v157, 32
+    v15 = mload v158
     v16 = xor v8, v15
-    v111 = lt arg1, v131
-    jumpi v111, bb16, bb15
+    v111 = lt arg1, v135
+    v112 = lt v135, 0x400000000000000000000000000000000000000000000000000000000000000
+    v113 = and v111, v112
+    jumpi v113, bb16, bb15
   bb16:
-    v119 = lt v15, arg2
-    v124 = lt arg2, v8
-    v125 = or v119, v124
-    jumpi v125, bb15, bb14
+    v123 = lt v15, arg2
+    v128 = lt arg2, v8
+    v129 = or v123, v128
+    jumpi v129, bb15, bb14
   bb14:
-    v163 = add v139, 32
-    v166 = shl arg1, 5
-    v167 = add v163, v166
-    v174 = shl v131, 5
-    v175 = add v163, v174
+    v167 = add v143, 32
+    v170 = shl arg1, 5
+    v171 = add v167, v170
+    v178 = shl v135, 5
+    v179 = add v167, v178
     jump bb8
   bb8:
-    v168 = phi [bb14: v167], [bb13: v165]
-    v176 = phi [bb14: v175], [bb13: v173]
+    v172 = phi [bb14: v171], [bb13: v169]
+    v180 = phi [bb14: v179], [bb13: v177]
     jump bb9
   bb9:
-    v164 = phi [bb8: v168], [bb9: v165]
-    v165 = add v164, 32
-    v98 = mload v165
+    v168 = phi [bb8: v172], [bb9: v169]
+    v169 = add v168, 32
+    v98 = mload v169
     v99 = lt v98, arg2
     jumpi v99, bb9, bb10
   bb10:
-    v169 = sub v165, v167
-    v170 = shr v169, 5
-    v171 = add arg1, v170
+    v173 = sub v169, v171
+    v174 = shr v173, 5
+    v175 = add arg1, v174
     jump bb11
   bb11:
-    v172 = phi [bb10: v176], [bb11: v173]
-    v173 = sub v172, 32
-    v106 = mload v173
+    v176 = phi [bb10: v180], [bb11: v177]
+    v177 = sub v176, 32
+    v106 = mload v177
     v107 = lt arg2, v106
     jumpi v107, bb11, bb12
   bb12:
-    v108 = lt v165, v173
+    v108 = lt v169, v177
     jumpi v108, bb13, bb25
   bb25:
-    v177 = sub v175, v173
-    v178 = shr v177, 5
-    v179 = sub v131, v178
+    v181 = sub v179, v177
+    v182 = shr v181, 5
+    v183 = sub v135, v182
     jump bb2
   bb13:
-    v109 = mload v173
-    v110 = mload v165
-    mstore v173, v110
-    mstore v165, v109
+    v109 = mload v177
+    v110 = mload v169
+    mstore v177, v110
+    mstore v169, v109
     jump bb8
   bb15:
-    v162 = add v139, 32
+    v166 = add v143, 32
     jump bb1
   bb1:
-    v20 = phi [bb15: arg1], [bb7: v133]
-    v21 = phi [bb15: v131], [bb7: v135]
+    v20 = phi [bb15: arg1], [bb7: v137]
+    v21 = phi [bb15: v135], [bb7: v139]
     jump bb3
   bb3:
-    v26 = phi [bb1: v20], [bb19: v133]
-    v133 = add v26, 1
-    v31 = lt v133, v0
+    v26 = phi [bb1: v20], [bb19: v137]
+    v137 = add v26, 1
+    v31 = lt v137, v0
     jumpi v31, bb19, bb17
   bb17:
     tail_call @revert_stub
   bb19:
-    v33 = shl v133, 5
-    v157 = add v162, v33
-    v36 = mload v157
+    v33 = shl v137, 5
+    v161 = add v166, v33
+    v36 = mload v161
     v37 = lt v36, arg2
     jumpi v37, bb3, bb4
   bb4:
     jump bb5
   bb5:
-    v42 = phi [bb4: v21], [bb22: v135]
-    v135 = sub v42, 1
-    v136 = eq v42, 0
-    jumpi v136, bb20, bb22
+    v42 = phi [bb4: v21], [bb22: v139]
+    v139 = sub v42, 1
+    v140 = eq v42, 0
+    jumpi v140, bb20, bb22
   bb22:
-    v48 = shl v135, 5
-    v160 = add v162, v48
-    v51 = mload v160
+    v48 = shl v139, 5
+    v164 = add v166, v48
+    v51 = mload v164
     v52 = lt arg2, v51
     jumpi v52, bb5, bb6
   bb6:
-    v53 = lt v133, v135
+    v53 = lt v137, v139
     jumpi v53, bb7, bb2
   bb2:
-    v129 = phi [bb6: v133], [bb25: v171]
-    v130 = phi [bb6: v135], [bb25: v179]
-    mstore 0, v129 !metadata(memory=scratch)
-    mstore 32, v130 !metadata(memory=scratch)
+    v133 = phi [bb6: v137], [bb25: v175]
+    v134 = phi [bb6: v139], [bb25: v183]
+    mstore 0, v133 !metadata(memory=scratch)
+    mstore 32, v134 !metadata(memory=scratch)
     mstore 64, v16
     returndata 0, 96
   bb7:
-    v61 = mload v160
-    v68 = mload v157
-    mstore v160, v68
-    mstore v157, v61
+    v61 = mload v164
+    v68 = mload v161
+    mstore v164, v68
+    mstore v161, v61
+    jump bb1
+  bb20:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb23:
+    revert 0, 0
+}
+
+fn @forged() [selector=0x189960dc, abi_wrapper, pure] {
+  bb0:
+    v146 = calldatasize
+    v147 = lt v146, 132
+    jumpi v147, bb23, bb24
+  bb24:
+    v148 = icall @decode_calldata_type
+    mstore v148, arg1
+    v140 = sub arg1, 1
+    v141 = eq arg1, 0
+    jumpi v141, bb20, bb21
+  bb21:
+    v4 = lt arg2, arg1
+    jumpi v4, bb18, bb17
+  bb18:
+    v6 = shl arg2, 5
+    v159 = add v148, v6
+    v160 = add v159, 32
+    v9 = mload v160
+    v13 = shl v140, 5
+    v162 = add v148, v13
+    v163 = add v162, 32
+    v16 = mload v163
+    v17 = xor v9, v16
+    v116 = lt arg2, v140
+    v117 = lt v140, 0x400000000000000000000000000000000000000000000000000000000000000
+    v118 = and v116, v117
+    jumpi v118, bb16, bb15
+  bb16:
+    v128 = lt v16, arg3
+    v133 = lt arg3, v9
+    v134 = or v128, v133
+    jumpi v134, bb15, bb14
+  bb14:
+    v172 = add v148, 32
+    v175 = shl arg2, 5
+    v176 = add v172, v175
+    v183 = shl v140, 5
+    v184 = add v172, v183
+    jump bb8
+  bb8:
+    v177 = phi [bb14: v176], [bb13: v174]
+    v185 = phi [bb14: v184], [bb13: v182]
+    jump bb9
+  bb9:
+    v173 = phi [bb8: v177], [bb9: v174]
+    v174 = add v173, 32
+    v103 = mload v174
+    v104 = lt v103, arg3
+    jumpi v104, bb9, bb10
+  bb10:
+    v178 = sub v174, v176
+    v179 = shr v178, 5
+    v180 = add arg2, v179
+    jump bb11
+  bb11:
+    v181 = phi [bb10: v185], [bb11: v182]
+    v182 = sub v181, 32
+    v111 = mload v182
+    v112 = lt arg3, v111
+    jumpi v112, bb11, bb12
+  bb12:
+    v113 = lt v174, v182
+    jumpi v113, bb13, bb25
+  bb25:
+    v186 = sub v184, v182
+    v187 = shr v186, 5
+    v188 = sub v140, v187
+    jump bb2
+  bb13:
+    v114 = mload v182
+    v115 = mload v174
+    mstore v182, v115
+    mstore v174, v114
+    jump bb8
+  bb15:
+    v171 = add v148, 32
+    jump bb1
+  bb1:
+    v22 = phi [bb15: arg2], [bb7: v142]
+    v23 = phi [bb15: v140], [bb7: v144]
+    jump bb3
+  bb3:
+    v29 = phi [bb1: v22], [bb19: v142]
+    v142 = add v29, 1
+    v34 = lt v142, arg1
+    jumpi v34, bb19, bb17
+  bb17:
+    tail_call @revert_stub
+  bb19:
+    v36 = shl v142, 5
+    v166 = add v171, v36
+    v39 = mload v166
+    v40 = lt v39, arg3
+    jumpi v40, bb3, bb4
+  bb4:
+    jump bb5
+  bb5:
+    v46 = phi [bb4: v23], [bb22: v144]
+    v144 = sub v46, 1
+    v145 = eq v46, 0
+    jumpi v145, bb20, bb22
+  bb22:
+    v52 = shl v144, 5
+    v169 = add v171, v52
+    v55 = mload v169
+    v56 = lt arg3, v55
+    jumpi v56, bb5, bb6
+  bb6:
+    v57 = lt v142, v144
+    jumpi v57, bb7, bb2
+  bb2:
+    v138 = phi [bb6: v142], [bb25: v180]
+    v139 = phi [bb6: v144], [bb25: v188]
+    mstore 0, v138 !metadata(memory=scratch)
+    mstore 32, v139 !metadata(memory=scratch)
+    mstore 64, v17
+    returndata 0, 96
+  bb7:
+    v65 = mload v169
+    v72 = mload v166
+    mstore v169, v72
+    mstore v166, v65
     jump bb1
   bb20:
     mstore 32, 17 !metadata(memory=scratch)
@@ -167,24 +301,24 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
   bb1:
     v1 = phi [bb0: arg1], [bb19: v153]
     v2 = phi [bb0: arg2], [bb19: v154]
-    v247 = sub v2, v1
-    v248 = lt v2, v1
-    jumpi v248, bb42, bb43
+    v251 = sub v2, v1
+    v252 = lt v2, v1
+    jumpi v252, bb42, bb43
   bb43:
-    v4 = gt v247, 3
+    v4 = gt v251, 3
     jumpi v4, bb3, bb2
   bb2:
-    v249 = add v1, 1
-    v250 = eq v249, 0
-    jumpi v250, bb42, bb44
+    v253 = add v1, 1
+    v254 = eq v253, 0
+    jumpi v254, bb42, bb44
   bb44:
-    v302 = shl v249, 5
-    v303 = add arg0, v302
-    v304 = add v303, 32
+    v306 = shl v253, 5
+    v307 = add arg0, v306
+    v308 = add v307, 32
     jump bb20
   bb20:
-    v159 = phi [bb44: v249], [bb24: v206]
-    v305 = phi [bb44: v304], [bb24: v306]
+    v159 = phi [bb44: v253], [bb24: v206]
+    v309 = phi [bb44: v308], [bb24: v310]
     v160 = lt v159, v2
     jumpi v160, bb22, bb21
   bb21:
@@ -194,59 +328,59 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v162 = lt v159, v161
     jumpi v162, bb41, bb36
   bb41:
-    v167 = mload v305
-    v307 = shl v159, 5
-    v308 = add arg0, v307
+    v167 = mload v309
+    v311 = shl v159, 5
+    v312 = add arg0, v311
     jump bb23
   bb23:
     v173 = phi [bb41: v159], [bb26: v175]
-    v309 = phi [bb41: v308], [bb26: v310]
+    v313 = phi [bb41: v312], [bb26: v314]
     v174 = gt v173, v1
     jumpi v174, bb25, bb24
   bb25:
-    v182 = mload v309
+    v182 = mload v313
     v183 = gt v182, v167
     jumpi v183, bb26, bb24
   bb24:
     v203 = shl v173, 5
-    v266 = add arg0, v203
-    v267 = add v266, 32
-    mstore v267, v167
+    v270 = add arg0, v203
+    v271 = add v270, 32
+    mstore v271, v167
     v206 = add v159, 1
-    v306 = add v305, 32
+    v310 = add v309, 32
     jump bb20
   bb26:
     v175 = sub v173, 1
-    v273 = add v309, 32
-    mstore v273, v182
-    v310 = sub v309, 32
+    v277 = add v313, 32
+    mstore v277, v182
+    v314 = sub v313, 32
     jump bb23
   bb3:
     v5 = sub v2, 1
-    v7 = shr v247, 1
-    v253 = add v1, v7
+    v7 = shr v251, 1
+    v257 = add v1, v7
     v9 = mload arg0
     v10 = lt v1, v9
     jumpi v10, bb37, bb36
   bb37:
     v12 = shl v1, 5
-    v281 = add arg0, v12
-    v282 = add v281, 32
-    v15 = mload v282
-    v17 = lt v253, v9
+    v285 = add arg0, v12
+    v286 = add v285, 32
+    v15 = mload v286
+    v17 = lt v257, v9
     jumpi v17, bb38, bb36
   bb38:
-    v19 = shl v253, 5
-    v284 = add arg0, v19
-    v285 = add v284, 32
-    v22 = mload v285
+    v19 = shl v257, 5
+    v288 = add arg0, v19
+    v289 = add v288, 32
+    v22 = mload v289
     v24 = lt v5, v9
     jumpi v24, bb39, bb36
   bb39:
     v26 = shl v5, 5
-    v287 = add arg0, v26
-    v288 = add v287, 32
-    v29 = mload v288
+    v291 = add arg0, v26
+    v292 = add v291, 32
+    v29 = mload v292
     v30 = lt v22, v15
     jumpi v30, bb5, bb4
   bb4:
@@ -269,103 +403,105 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v37 = phi [bb9: v35], [bb5: v31]
     v38 = phi [bb9: v36], [bb5: v32]
     v39 = phi [bb9: v32], [bb5: v29]
-    mstore v288, v39
-    mstore v285, v38
-    mstore v282, v37
+    mstore v292, v39
+    mstore v289, v38
+    mstore v286, v37
     v228 = lt v1, v5
-    jumpi v228, bb35, bb34
+    v229 = lt v5, 0x400000000000000000000000000000000000000000000000000000000000000
+    v230 = and v228, v229
+    jumpi v230, bb35, bb34
   bb35:
-    v235 = mload v288
-    v236 = lt v235, v38
-    v240 = mload v282
-    v241 = lt v38, v240
-    v242 = or v236, v241
-    jumpi v242, bb34, bb33
+    v239 = mload v292
+    v240 = lt v239, v38
+    v244 = mload v286
+    v245 = lt v38, v244
+    v246 = or v240, v245
+    jumpi v246, bb34, bb33
   bb33:
-    v301 = add arg0, 32
-    v313 = shl v1, 5
-    v314 = add v301, v313
-    v321 = shl v5, 5
-    v322 = add v301, v321
+    v305 = add arg0, 32
+    v317 = shl v1, 5
+    v318 = add v305, v317
+    v325 = shl v5, 5
+    v326 = add v305, v325
     jump bb27
   bb27:
-    v315 = phi [bb33: v314], [bb32: v312]
-    v323 = phi [bb33: v322], [bb32: v320]
+    v319 = phi [bb33: v318], [bb32: v316]
+    v327 = phi [bb33: v326], [bb32: v324]
     jump bb28
   bb28:
-    v311 = phi [bb27: v315], [bb28: v312]
-    v312 = add v311, 32
-    v215 = mload v312
+    v315 = phi [bb27: v319], [bb28: v316]
+    v316 = add v315, 32
+    v215 = mload v316
     v216 = lt v215, v38
     jumpi v216, bb28, bb29
   bb29:
     jump bb30
   bb30:
-    v319 = phi [bb29: v323], [bb30: v320]
-    v320 = sub v319, 32
-    v223 = mload v320
+    v323 = phi [bb29: v327], [bb30: v324]
+    v324 = sub v323, 32
+    v223 = mload v324
     v224 = lt v38, v223
     jumpi v224, bb30, bb31
   bb31:
-    v225 = lt v312, v320
+    v225 = lt v316, v324
     jumpi v225, bb32, bb47
   bb47:
-    v324 = sub v322, v320
-    v325 = shr v324, 5
-    v326 = sub v5, v325
+    v328 = sub v326, v324
+    v329 = shr v328, 5
+    v330 = sub v5, v329
     jump bb11
   bb32:
-    v226 = mload v320
-    v227 = mload v312
-    mstore v320, v227
-    mstore v312, v226
+    v226 = mload v324
+    v227 = mload v316
+    mstore v324, v227
+    mstore v316, v226
     jump bb27
   bb34:
-    v300 = add arg0, 32
+    v304 = add arg0, 32
     jump bb10
   bb10:
-    v66 = phi [bb34: v1], [bb16: v257]
-    v67 = phi [bb34: v5], [bb16: v259]
+    v66 = phi [bb34: v1], [bb16: v261]
+    v67 = phi [bb34: v5], [bb16: v263]
     jump bb12
   bb12:
-    v76 = phi [bb10: v66], [bb40: v257]
-    v257 = add v76, 1
-    v80 = lt v257, v9
+    v76 = phi [bb10: v66], [bb40: v261]
+    v261 = add v76, 1
+    v80 = lt v261, v9
     jumpi v80, bb40, bb36
   bb36:
     tail_call @revert_stub
   bb40:
-    v82 = shl v257, 5
-    v291 = add v300, v82
-    v85 = mload v291
+    v82 = shl v261, 5
+    v295 = add v304, v82
+    v85 = mload v295
     v86 = lt v85, v38
     jumpi v86, bb12, bb13
   bb13:
     jump bb14
   bb14:
-    v96 = phi [bb13: v67], [bb46: v259]
-    v259 = sub v96, 1
-    v260 = eq v96, 0
-    jumpi v260, bb42, bb46
+    v96 = phi [bb13: v67], [bb46: v263]
+    v263 = sub v96, 1
+    v264 = eq v96, 0
+    jumpi v264, bb42, bb46
   bb46:
-    v101 = shl v259, 5
-    v297 = add v300, v101
-    v104 = mload v297
+    v101 = shl v263, 5
+    v301 = add v304, v101
+    v104 = mload v301
     v105 = lt v38, v104
     jumpi v105, bb14, bb15
   bb15:
-    v106 = lt v257, v259
+    v106 = lt v261, v263
     jumpi v106, bb16, bb11
   bb11:
-    v246 = phi [bb15: v259], [bb47: v326]
-    v144 = add v246, 1
-    v256 = lt v144, v1
-    jumpi v256, bb42, bb45
+    v250 = phi [bb15: v263], [bb47: v330]
+    v144 = add v250, 1
+    v260 = lt v144, v1
+    jumpi v260, bb42, bb45
   bb45:
-    v255 = sub v144, v1
-    v146 = sub v2, v246
+    v259 = sub v144, v1
+    v146 = sub v2, v250
     v147 = sub v146, 1
-    v148 = lt v255, v147
+    v148 = lt v259, v147
     jumpi v148, bb17, bb18
   bb18:
     icall @_sort, arg0, v144, v2
@@ -378,10 +514,10 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v154 = phi [bb17: v2], [bb18: v144]
     jump bb1
   bb16:
-    v114 = mload v297
-    v121 = mload v291
-    mstore v297, v121
-    mstore v291, v114
+    v114 = mload v301
+    v121 = mload v295
+    mstore v301, v121
+    mstore v295, v114
     jump bb10
   bb42:
     mstore 32, 17 !metadata(memory=scratch)
@@ -443,15 +579,17 @@ fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb4, bb1
+    jumpi v1, bb5, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb4, [0x9ec8b026 => bb2, 0xb99bdcfc => bb3]
-  bb3:
-    tail_call @partition
-  bb2:
-    tail_call @sort
+    switch v3, default bb5, [0x189960dc => bb2, 0x9ec8b026 => bb3, 0xb99bdcfc => bb4]
   bb4:
+    tail_call @partition
+  bb3:
+    tail_call @sort
+  bb2:
+    tail_call @forged
+  bb5:
     revert 0, 0
 }

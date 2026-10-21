@@ -127,11 +127,11 @@
 //! memory, with exactly `x = mload a[i]; y = mload a[j]; mstore a[j], x; mstore a[i], y`, both
 //! loads before both stores. Every path into the loop must already have read or written the
 //! elements at both phis' entry values, `low` and `high`, so the test sits before the loop
-//! without reading memory the loop would not (see Safety), and their addresses do not wrap. The
-//! scans' exit conditions read only their element and values defined before the loop, so the test
-//! evaluates them as every iteration does.
+//! without reading memory the loop would not (see Safety). The scans' exit conditions read only
+//! their element and values defined before the loop, so the test evaluates them as every
+//! iteration does.
 //!
-//! Safety, by induction over the iterations. On entry the test establishes `low < high`,
+//! Safety, by induction over the iterations. On entry the test establishes `low < high < 2^250`,
 //! `high < n` when the scan up checks against `n`, and that the scan up stops at `a[high]` and
 //! the scan down at `a[low]`. The loop writes memory only in its latch, after both scans, so in
 //! an iteration the scan up visits indices from `i + 1` and stops at or before its fence `j`, which
@@ -144,9 +144,12 @@
 //! that stops its scan. The copy drops the scan up's checks of its index and both scans'
 //! overflow checks; all others stay, and the copy runs the same instructions otherwise, except
 //! that it compares the addresses of the elements the scans stopped at instead of `i' < j'`:
-//! both lie in the array, where an element's address grows with its index, so the comparisons
-//! agree. Then no test reads the scans' counters, and induction-variable simplification steps
-//! the copy's scans as pointers that its loop carries.
+//! both lie between the fences, whose indices below `2^250` scale to offsets below `2^255`. Their
+//! addresses wrap around the address space at most once, and all alike, as the test read `a[low]`
+//! below `2^64` unless its address wrapped too, so an element's address grows with its index there
+//! and the comparisons agree. A length forged in assembly can let a check pass for a larger index,
+//! whose address wraps below the array. Then no test reads the scans' counters, and
+//! induction-variable simplification steps the copy's scans as pointers that its loop carries.
 //!
 //! The test reads two words and compares twice once per entry into the loop, which a partition of
 //! a dozen elements already repays: every step of either scan saves a compare and a branch.
@@ -207,6 +210,12 @@ impl MirPass for LoopVersion {
 
 /// Instructions a loop may hold; versioning duplicates all of them.
 const MAX_LOOP_INSTRUCTIONS: usize = 400;
+
+/// A partition's copy runs only for fences below `2^250`. An index below it scales to an offset
+/// below `2^255`, so the addresses of the elements between the fences wrap around the address
+/// space at most once, and all alike. A length forged larger in assembly lets a check pass for an
+/// index whose address wraps below the array.
+const FENCE_INDEX_BITS: usize = 250;
 
 /// An array the loop writes: every store lands below `object + 32 + (bound << shift)`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -1507,12 +1516,15 @@ fn words_test(
     replacements
 }
 
-/// Builds the test that a two-pointer loop's scans start in order and below the bound of the
-/// scan up's checks, and that each rejects the element the other starts from, branching to
-/// `fast` when it holds and to `slow` otherwise.
+/// Builds the test that a two-pointer loop's scans start in order, below `2^250` and below the
+/// bound of the scan up's checks, and that each rejects the element the other starts from,
+/// branching to `fast` when it holds and to `slow` otherwise.
 fn fence_test(builder: &mut FunctionBuilder<'_>, fence: &Fence, fast: BlockId, slow: BlockId) {
-    // test: ok = and (lt low, high), (lt high, bound); jumpi ok, read, slow
+    // test: ok = and (and (lt low, high), (lt high, 2^250)), (lt high, bound); jumpi ok, read, slow
     let ordered = builder.lt(fence.low, fence.high);
+    let limit = builder.imm(U256::from(1) << FENCE_INDEX_BITS);
+    let small = builder.lt(fence.high, limit);
+    let ordered = builder.and(ordered, small);
     let ok = match fence.up.bound {
         Some(bound) => {
             let below = builder.lt(fence.high, bound);
@@ -1573,9 +1585,9 @@ fn fence_continues(builder: &mut FunctionBuilder<'_>, scan: &Scan, index: ValueI
 
 /// Removes from the fast copy the checks the fences make redundant: the scan up's checks of its
 /// index against the bound, and both scans' overflow checks of their updates. The copy compares
-/// the addresses of the elements the scans stopped at instead of their indices: both lie in the
-/// array, where an element's address grows with its index, so the comparisons agree, and the
-/// scans' counters then step only to address elements.
+/// the addresses of the elements the scans stopped at instead of their indices: both lie between
+/// fences below `2^250`, where an element's address grows with its index, so the comparisons
+/// agree, and the scans' counters then step only to address elements.
 fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
     let headers = [&fence.up, &fence.down].map(|scan| copy.blocks[&scan.header]);
     for (scan, block) in [&fence.up, &fence.down].into_iter().zip(headers) {
