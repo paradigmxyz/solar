@@ -18,7 +18,8 @@
 //! pointer and compares with its other accesses by offset. An
 //! access at the end of an object's payload, `p + 32 + len` in plain additions for a length
 //! stored into `p` before, as a zero word stored to pad a fresh result is, starts past the
-//! object's length word and may leave the object.
+//! object's length word and may leave the object, when `len` is provably below `2^255`, so that
+//! the sum cannot wrap around onto the length word.
 
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
@@ -27,6 +28,7 @@ use crate::mir::{
     MirType, PtrLocation,
     RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
+use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -2654,16 +2656,17 @@ impl AliasAnalysis {
     }
 
     /// Returns the memory object `p` of an address `p + 32 + len`, the end of `p`'s payload, in
-    /// either association, when `len` is a length stored into `p` before the address is computed:
-    /// by `p`'s allocation block, as `new bytes(len)` stores it, or earlier in the address's own
-    /// block, as a trusted `mstore(p, len)` that sets a buffer's length does. Inline assembly
-    /// spells such an address with plain additions, as a zero word stored after a fresh result
-    /// to pad it does.
+    /// either association, when `len` is a length below `2^255` stored into `p` before the address
+    /// is computed: by `p`'s allocation block, as `new bytes(len)` stores it, or earlier in the
+    /// address's own block, as a trusted `mstore(p, len)` that sets a buffer's length does. Inline
+    /// assembly spells such an address with plain additions, as a zero word stored after a fresh
+    /// result to pad it does.
     ///
-    /// NOTE: The payload of an object ends before the end of the address space: the `ptradd`
-    /// contract assumes as much when it places every checked access at or after the payload's
-    /// start. So the sum does not wrap, and an access at it stays clear of the length word,
-    /// though it may leave the object.
+    /// NOTE: Only the bound keeps the sum from wrapping around the address space, onto the length
+    /// word or below it: assembly may store any word as a length, and `new bytes(len)` bounds
+    /// `len` only by a panic this analysis does not follow. The store into `p` places `p` below
+    /// `2^64`, as no store reaches memory past that, so the sum stays below `2^256` and an access
+    /// at it stays clear of the length word, though it may leave the object.
     fn payload_end(func: &Function, address: ValueId) -> Option<ValueId> {
         let Value::Inst(user) = *func.value(address) else { return None };
         let InstKind::Add(a, b) = func.inst(user).kind else { return None };
@@ -2692,7 +2695,9 @@ impl AliasAnalysis {
                     (_, true) => other,
                     _ => continue,
                 };
-                if Self::stores_length_before(func, object, len, user) {
+                if super::integers::unsigned_bounds_with_opcodes(func, len).1 <= U256::MAX >> 1
+                    && Self::stores_length_before(func, object, len, user)
+                {
                     return Some(object);
                 }
             }
