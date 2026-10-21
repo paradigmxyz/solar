@@ -83,9 +83,7 @@ impl Sim {
     fn refork(&mut self, other: &Self) {
         self.stack.clear();
         self.stack.reserve(other.stack.len() + FORK_HEADROOM);
-        for &slot in &other.stack {
-            self.stack.push(slot);
-        }
+        self.stack.extend_from_slice(&other.stack);
         self.steps.clear();
         self.cost = other.cost;
         self.peak = other.peak;
