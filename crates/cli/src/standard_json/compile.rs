@@ -151,14 +151,9 @@ fn finish_standard_json_output<'a>(
 /// Applies `settings.debug`, enforcing solc's selection rules.
 ///
 /// `debugInfo` components only affect Yul IR output, which we do not emit, so only the rules
-/// that solc rejects inputs for are checked: `snippet` requires `location`, and an explicit
-/// selection has to include `ethdebug` when ethdebug bytecode output is requested.
-fn apply_debug_settings(
-    dcx: &DiagCtxt,
-    opts: &mut CompileOpts,
-    debug: &DebugSettings,
-    output_selection: &OutputSelection<'_>,
-) {
+/// that solc rejects inputs for are checked: `snippet` requires `location`, and `ethdebug`
+/// requires `ast-id`.
+fn apply_debug_settings(dcx: &DiagCtxt, opts: &mut CompileOpts, debug: &DebugSettings) {
     match debug.revert_strings {
         Some(RevertStrings::VerboseDebug) => {
             dcx.err(
@@ -178,15 +173,11 @@ fn apply_debug_settings(
         dcx.err("to use `snippet` with `settings.debug.debugInfo` you must also select `location`")
             .emit();
     }
-    let ethdebug_outputs =
-        OutputSelectionFlags::BYTECODE_ETHDEBUG | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
-    if output_selection.union().intersects(ethdebug_outputs)
-        && !debug.selects_debug_info(DebugInfoComponent::Ethdebug)
+    if debug.selects_debug_info(DebugInfoComponent::Ethdebug)
+        && !debug.selects_debug_info(DebugInfoComponent::AstId)
     {
-        dcx.err(
-            "`ethdebug` needs to be enabled in `settings.debug.debugInfo` if `evm.bytecode.ethdebug` or `evm.deployedBytecode.ethdebug` was selected as output",
-        )
-        .emit();
+        dcx.err("to use `ethdebug` with `settings.debug.debugInfo` you must also select `ast-id`")
+            .emit();
     }
 }
 
@@ -265,7 +256,7 @@ fn compile(
     // `settings.debug.revertStrings` selects a non-default mode.
     opts.revert_strings = RevertStrings::Default;
     if let Some(debug) = debug {
-        apply_debug_settings(&dcx, opts, debug, output_selection);
+        apply_debug_settings(&dcx, opts, debug);
     }
     if dcx.has_errors().is_err() {
         return write_empty_standard_json_output(source_map, opts, diagnostics, out);
