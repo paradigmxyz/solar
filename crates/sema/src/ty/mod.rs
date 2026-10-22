@@ -30,6 +30,7 @@ use solar_interface::{
     sym,
 };
 use std::{
+    any::Any,
     fmt,
     ops::ControlFlow,
     sync::{
@@ -384,6 +385,7 @@ pub struct GlobalCtxt<'gcx> {
     cache: Cache<'gcx>,
     pub(crate) const_eval_cache: crate::eval::ConstEvalCache,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
+    codegen_state: OnceLock<Box<dyn Any + Send + Sync>>,
 }
 
 impl fmt::Debug for GlobalCtxt<'_> {
@@ -421,6 +423,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             cache: Cache::default(),
             const_eval_cache: Default::default(),
             override_index: OnceLock::new(),
+            codegen_state: OnceLock::new(),
         }
     }
 }
@@ -428,6 +431,19 @@ impl<'gcx> GlobalCtxt<'gcx> {
 impl<'gcx> Gcx<'gcx> {
     pub(crate) fn new(gcx: &'gcx GlobalCtxt<'gcx>) -> Self {
         Self(gcx)
+    }
+
+    /// Returns the state that code generation keeps for this compilation, created on first use.
+    ///
+    /// The state is dropped with the global context, so it never outlives the compilation. It
+    /// holds one type, as sema does not know code generation's: every caller names the same `T`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the state was created with another type.
+    pub fn codegen_state<T: Any + Send + Sync + Default>(self) -> &'gcx T {
+        let state = self.0.codegen_state.get_or_init(|| Box::new(T::default()));
+        state.downcast_ref().expect("code generation state has another type")
     }
 
     /// Returns the current compiler stage.
