@@ -1,5 +1,5 @@
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
-// Selecting ethdebug output for one source or contract does not require `ethdebug` in `debugInfo`.
+// `ethdebug` together with `ast-id` in `debugInfo` is accepted.
 // CHECK-NOT: "severity": "error"
 // CHECK: "ethdebug":
 {
@@ -11,7 +11,7 @@
   },
   "settings": {
     "debug": {
-      "debugInfo": ["location", "snippet"]
+      "debugInfo": ["ast-id", "ethdebug"]
     },
     "outputSelection": {
       "A.sol": {

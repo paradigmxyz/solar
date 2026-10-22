@@ -64,7 +64,7 @@ not depend on a Yul IR selection, and an experimental flag would only block
 tools that request the output.
 
 Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
-`tests/ui/standard-json/debug/ethdebug-scoped-output-without-debug-info` and
+`tests/ui/standard-json/debug/ethdebug-with-ast-id` and
 `tests/ui/standard-json/debug/ethdebug-without-ast-id`.
 
 ## Import Resolution
@@ -276,8 +276,8 @@ Rationale: a hard error would reject sources pinned to a different `solc`
 release even when `solar` can compile them. The warning still flags sources
 that ask for different language semantics.
 
-Coverage: `tests/ui/parser/pragma_version_mismatch.sol` and
-`tests/ui/parser/pragma_valid.sol`, and
+Coverage: `tests/ui/parser/pragma_version_mismatch.sol`,
+`tests/ui/parser/pragma_valid.sol` and
 `tests/ui/parser/pragma_version_component_above_signed_int.sol`; the upstream
 `wrong_compiler_*`, `broken_version_1` and `version_component_*_greater`
 fixtures remain excluded from solc parity testing.

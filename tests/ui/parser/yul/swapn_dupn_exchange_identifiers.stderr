@@ -1,0 +1,72 @@
+warning[5470]: `swapn` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             function swapn(dupn) -> exchange {}
+   ╰╴                     ━━━━━
+
+warning[5470]: `dupn` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             function swapn(dupn) -> exchange {}
+   ╰╴                           ━━━━
+
+warning[5470]: `exchange` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             function swapn(dupn) -> exchange {}
+   ╰╴                                    ━━━━━━━━
+
+warning[5470]: `dupn` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             function dupn(exchange) -> swapn {}
+   ╰╴                     ━━━━
+
+warning[5470]: `exchange` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             function dupn(exchange) -> swapn {}
+   ╰╴                          ━━━━━━━━
+
+warning[5470]: `swapn` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             function dupn(exchange) -> swapn {}
+   ╰╴                                       ━━━━━
+
+warning[5470]: `exchange` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             function exchange(swapn) -> dupn {}
+   ╰╴                     ━━━━━━━━
+
+warning[5470]: `swapn` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             function exchange(swapn) -> dupn {}
+   ╰╴                              ━━━━━
+
+warning[5470]: `dupn` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             function exchange(swapn) -> dupn {}
+   ╰╴                                        ━━━━
+
+warning[5470]: `swapn` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             let swapn
+   ╰╴                ━━━━━
+
+warning[5470]: `dupn` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             let dupn
+   ╰╴                ━━━━
+
+warning[5470]: `exchange` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/swapn_dupn_exchange_identifiers.sol:LL:CC
+   │
+LL │             let exchange
+   ╰╴                ━━━━━━━━
+
