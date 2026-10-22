@@ -117,6 +117,7 @@ use crate::{
 };
 use plan::{Planned, Planner};
 use smallvec::SmallVec;
+use solar_data_structures::sync;
 
 mod emit;
 mod plan;
@@ -336,6 +337,11 @@ enum Decline {
 
 /// Planning restarts that spill one value each before spills come in batches.
 const SINGLE_SPILL_RESTARTS: u32 = 64;
+
+/// Fewest instructions in a contract's bodies for which planning uses idle workers. Planning
+/// costs about three microseconds per instruction in a release build, so smaller contracts finish
+/// before helpers start.
+const PARALLEL_PLAN_INSTS: usize = 4096;
 
 /// Maximum number of planning rounds that refine loop header layouts.
 const LAYOUT_ROUNDS: usize = 4;
@@ -562,25 +568,24 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
+        // Planning one body reads only the shared facts above, so the bodies plan in parallel.
+        // Results come back in body order, so the first decline is the serial loop's.
+        let parallel = self.gcx.sess.is_parallel_codegen()
+            && bodies.iter().map(|&func_id| module.functions[func_id].num_insts()).sum::<usize>()
+                >= PARALLEL_PLAN_INSTS;
         let mut analyses =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<Analysis>>>();
         let mut plans =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<FunctionPlan>>>();
-        for &func_id in &bodies {
-            let analysis = analyses[func_id].insert(self.analyze(
-                module,
-                &info,
-                func_id,
-                &hazards[func_id],
-                &writers,
-            ));
-            plans[func_id] = Some(self.plan_function_stackified(
-                module,
-                &info,
-                func_id,
-                analysis,
-                CallSpill::None,
-            )?);
+        let planned = sync::par_try_map(parallel, bodies, |func_id| {
+            let analysis = self.analyze(module, &info, func_id, &hazards[func_id], &writers);
+            let plan =
+                self.plan_function_stackified(module, &info, func_id, &analysis, CallSpill::None)?;
+            Ok((func_id, analysis, plan))
+        })?;
+        for (func_id, analysis, plan) in planned {
+            analyses[func_id] = Some(analysis);
+            plans[func_id] = Some(plan);
         }
 
         // A call chain deeper than the EVM stack: its callers move words to memory, values
@@ -601,14 +606,22 @@ impl<'gcx> EvmCodegen<'gcx> {
                 ?next,
                 "call chain deeper than the EVM stack"
             );
+            // Each replan owns its analysis, so analyses need not be shared between threads.
+            let mut respilled = Vec::new();
             for &func_id in &chain {
                 if call_spills[func_id] == level {
                     call_spills[func_id] = next;
-                    let analysis = analyses[func_id].as_ref().expect("planned body");
-                    plans[func_id] = Some(
-                        self.plan_function_stackified(module, &info, func_id, analysis, next)?,
-                    );
+                    respilled.push((func_id, analyses[func_id].take().expect("planned body")));
                 }
+            }
+            let replanned = sync::par_try_map(parallel, respilled, |(func_id, analysis)| {
+                let plan =
+                    self.plan_function_stackified(module, &info, func_id, &analysis, next)?;
+                Ok((func_id, analysis, plan))
+            })?;
+            for (func_id, analysis, plan) in replanned {
+                analyses[func_id] = Some(analysis);
+                plans[func_id] = Some(plan);
             }
         }
         Ok((info, plans))
