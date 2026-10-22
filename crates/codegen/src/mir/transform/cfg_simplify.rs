@@ -824,8 +824,12 @@ impl CfgSimplifier {
 /// that are not entry points themselves, renumbering the survivors.
 ///
 /// Unlike [`FunctionDce`], this never touches a function outside `candidates`,
-/// so an uncalled function that was never reachable survives.
-pub(super) fn remove_unreferenced_functions(module: &mut Module, candidates: &[FunctionId]) {
+/// so an uncalled function that was never reachable survives. Returns the functions kept when
+/// any is removed.
+pub(super) fn remove_unreferenced_functions(
+    module: &mut Module,
+    candidates: &[FunctionId],
+) -> Option<DenseBitSet<FunctionId>> {
     let count = module.functions.len();
     let mut referenced = DenseBitSet::new_empty(count);
     if let Some(entry) = module.dispatch_entry() {
@@ -845,7 +849,7 @@ pub(super) fn remove_unreferenced_functions(module: &mut Module, candidates: &[F
             keep.remove(candidate);
         }
     }
-    retain_functions(module, &keep);
+    (retain_functions(module, &keep) != 0).then_some(keep)
 }
 
 /// Keeps exactly the functions in `keep`, renumbering call and tail-call
