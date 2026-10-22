@@ -1,0 +1,25 @@
+// `ethdebug` in `debugInfo` requires `ast-id`, like solc.
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "to use `ethdebug` with `settings.debug.debugInfo` you must also select `ast-id`"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "debug": {
+      "debugInfo": ["location", "ethdebug"]
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}
