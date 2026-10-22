@@ -182,7 +182,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
     /// Reports a mapping key name that a nested mapping reuses as its key name, or that the
     /// innermost mapping reuses as its value name.
     ///
-    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/libsolidity/analysis/DeclarationTypeChecker.cpp#L281-L321>
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L281-L321>
     fn check_mapping_names(&self, span: Span, mapping: &ast::TypeMapping<'_>) {
         let Some(key_name) = mapping.key_name else { return };
         let check = |name: Option<Ident>| {

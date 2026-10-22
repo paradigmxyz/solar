@@ -509,7 +509,7 @@ impl Builtin {
 
     /// Returns whether a call to this builtin is a compile-time constant when its arguments are.
     ///
-    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/libsolidity/ast/Types.cpp#L3694-L3718>
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/ast/Types.cpp#L3694-L3718>
     pub const fn is_pure(self) -> bool {
         matches!(
             self,
