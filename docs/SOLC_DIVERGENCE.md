@@ -47,6 +47,26 @@ Solc-specific pass controls have no equivalent meaning in Solar's pipeline.
 Coverage: `tests/ui/standard-json/metadata/options/test.jsonc` and
 `tests/ui/standard-json/debug/unknown-key/test.jsonc`.
 
+### JSON-002: Ethdebug output does not depend on `debugInfo` or `experimental`
+
+Status: intentional.
+
+Difference: `solar` always emits full ethdebug output for the
+`evm.bytecode.ethdebug`, `evm.deployedBytecode.ethdebug` and `ethdebug.*`
+selections. `solc` 0.8.38 emits no semantic debug info for the program outputs
+unless `settings.debug.debugInfo` contains `ethdebug`, and rejects ethdebug
+outputs and `ethdebug` in `debugInfo` unless `settings.experimental` is set.
+`solar` has no `settings.experimental` and ignores it. It rejects `ethdebug`
+without `ast-id` in `debugInfo` like `solc`.
+
+Rationale: `solar` builds ethdebug output from its own debug info, which does
+not depend on a Yul IR selection, and an experimental flag would only block
+tools that request the output.
+
+Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
+`tests/ui/standard-json/debug/ethdebug-scoped-output-without-debug-info` and
+`tests/ui/standard-json/debug/ethdebug-without-ast-id`.
+
 ## Import Resolution
 
 ### IMPORT-001: Files on disk are one source unit each
@@ -257,8 +277,10 @@ release even when `solar` can compile them. The warning still flags sources
 that ask for different language semantics.
 
 Coverage: `tests/ui/parser/pragma_version_mismatch.sol` and
-`tests/ui/parser/pragma_valid.sol`; the upstream `wrong_compiler_*` and
-`broken_version_1` fixtures remain excluded from solc parity testing.
+`tests/ui/parser/pragma_valid.sol`, and
+`tests/ui/parser/pragma_version_component_above_signed_int.sol`; the upstream
+`wrong_compiler_*`, `broken_version_1` and `version_component_*_greater`
+fixtures remain excluded from solc parity testing.
 
 ## Name Resolution
 
@@ -384,10 +406,10 @@ Status: intentional.
 Difference: Solar rejects copying or ABI-encoding fixed arrays with more than
 `2^64 - 1` elements during type checking, including arrays nested in structs.
 It still accepts their storage declarations, indexed accesses, and storage
-reference bindings. Solc 0.8.37 compiles the storage-to-storage array, tuple,
+reference bindings. Solc 0.8.38 compiles the storage-to-storage array, tuple,
 and struct copies covered by the fixture, but those copies panic with code
 `0x41` at runtime. ABI-encoding the same array causes an internal compiler
-error in solc 0.8.37. These results hold with both code generators and with
+error in solc 0.8.38. These results hold with both code generators and with
 optimization enabled or disabled.
 
 Rationale: report unsupported copies at their source during type checking,
@@ -488,7 +510,7 @@ struct's head counts all its members together. The check covers calldata
 variables; parameters of constructors, events, errors and external function
 types; parameters and returns of public and external functions; arguments of
 `abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
-types. `solc` 0.8.37 checks only constructor and public callable parameters
+types. `solc` 0.8.38 checks only constructor and public callable parameters
 against calldata, and sizes structs one member at a time, so it accepts, for
 example, an external function that takes a calldata struct with two
 `uint256[134217727]` members.

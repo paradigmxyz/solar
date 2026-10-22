@@ -81,7 +81,7 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/TypeChecker.cpp#L3343-L3571>
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/libsolidity/analysis/TypeChecker.cpp#L3343-L3571>
     fn is_pure_member(
         &self,
         expr: &hir::Expr<'gcx>,

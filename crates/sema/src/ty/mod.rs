@@ -2133,7 +2133,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     {
         // The locations of a function type parameter depend on the visibility of the function
         // type, not of the enclosing function.
-        // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/ast/AST.cpp#L831-L841>
+        // Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/libsolidity/ast/AST.cpp#L831-L841>
         if vis == hir::Visibility::Internal {
             &[Some(Memory), Some(Storage), Some(Calldata)]
         } else {
@@ -2250,7 +2250,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     // solc reports this as a fatal error, so the error type stops follow-up diagnostics. An array
     // stays an array when its length fails to evaluate, so solc reports both errors, unless the
     // innermost element type fails to resolve.
-    // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
+    // Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
     let innermost_element_resolves = || {
         let hir::TypeKind::Array(mut array) = var.ty.kind else { return false };
         while let hir::TypeKind::Array(inner) = array.element.kind {

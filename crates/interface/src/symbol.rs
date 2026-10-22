@@ -351,6 +351,7 @@ impl Symbol {
             }
             kw::Clz => !evm_version.has_clz(),
             kw::Slotnum => !evm_version.has_slot_num(),
+            sym::dupn | sym::exchange | sym::swapn => true,
             _ => false,
         }
     }

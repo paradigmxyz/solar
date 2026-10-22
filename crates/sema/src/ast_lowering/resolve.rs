@@ -974,7 +974,7 @@ impl<'gcx> ResolveContext<'gcx> {
     /// solc checks the qualified callee as a member access, and a contract name exposes only the
     /// contract's own declarations, so `emit I.E()` ignores any `E` that `I` inherits.
     ///
-    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/ast/Types.cpp#L3966-L4010>
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/libsolidity/ast/Types.cpp#L3966-L4010>
     fn resolve_callee_path(&self, path: &ast::PathSlice) -> Result<&'gcx [Res], ErrorGuaranteed> {
         let (mut qualifier, mut last) = (None, None);
         let decls = self
@@ -2395,7 +2395,7 @@ impl SymbolResolverScopes {
     ///
     /// Yul has no overloads, so a name can be declared only once per scope.
     ///
-    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libyul/ScopeFiller.cpp#L136-L163>
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/libyul/ScopeFiller.cpp#L136-L163>
     fn declare_yul(
         &mut self,
         dcx: &DiagCtxt,

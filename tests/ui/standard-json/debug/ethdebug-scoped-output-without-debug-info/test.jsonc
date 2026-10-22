@@ -1,0 +1,24 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+// Selecting ethdebug output for one source or contract does not require `ethdebug` in `debugInfo`.
+// CHECK-NOT: "severity": "error"
+// CHECK: "ethdebug":
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "debug": {
+      "debugInfo": ["location", "snippet"]
+    },
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "evm.bytecode.ethdebug"
+        ]
+      }
+    }
+  }
+}
