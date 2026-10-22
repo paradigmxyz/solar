@@ -269,8 +269,10 @@ parser, lexer, analysis, `liblangutil/EVMVersion.*`, and changed tests).
 
 Update `testdata/solidity` to the new tag, bump every local Solc version pin,
 such as `SOLC_VERSION` in workflows and the fallback in `crates/config/build.rs`,
-and add new EVM versions to `crates/config/src/lib.rs`. If upstream changes the
-default EVM version, change ours and bless the affected CLI snapshots.
+and add new EVM versions to `crates/config/src/lib.rs`. Leave the
+`blob/vX.Y.Z` permalinks in code comments alone, since tags are immutable. If
+upstream changes the default EVM version, change ours and bless the affected CLI
+snapshots.
 
 Always run the complete `cargo tq solc-solidity` and `cargo tq solc-yul` suites,
 without path filters. Change the ignore lists in
