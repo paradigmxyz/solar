@@ -1,7 +1,7 @@
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
 // `ethdebug` together with `ast-id` in `debugInfo` is accepted.
 // CHECK-NOT: "severity": "error"
-// CHECK: "ethdebug":
+// CHECK: "abi":
 {
   "language": "Solidity",
   "sources": {
@@ -16,7 +16,7 @@
     "outputSelection": {
       "A.sol": {
         "A": [
-          "evm.bytecode.ethdebug"
+          "abi"
         ]
       }
     }
