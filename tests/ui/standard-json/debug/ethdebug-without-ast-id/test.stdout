@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "to use `ethdebug` with `settings.debug.debugInfo` you must also select `ast-id`",
+      "formattedMessage": "error: to use `ethdebug` with `settings.debug.debugInfo` you must also select `ast-id`\n\n"
+    }
+  ]
+}
