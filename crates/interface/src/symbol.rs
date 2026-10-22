@@ -157,10 +157,12 @@ impl Ident {
         self.name.is_reserved_yul_builtin_in(evm_version)
     }
 
-    /// Returns `true` if the identifier is a future Yul EVM builtin keyword.
+    /// Returns `true` if the identifier is a Yul identifier that will be reserved in the future.
+    ///
+    /// See [`Symbol::is_future_yul_reserved_identifier`].
     #[inline]
-    pub fn is_future_yul_builtin(self, evm_version: crate::config::EvmVersion) -> bool {
-        self.name.is_future_yul_builtin(evm_version)
+    pub fn is_future_yul_reserved_identifier(self, evm_version: crate::config::EvmVersion) -> bool {
+        self.name.is_future_yul_reserved_identifier(evm_version)
     }
 
     /// Returns `true` if the identifier is either a keyword, either currently in use or reserved
@@ -337,12 +339,18 @@ impl Symbol {
     /// Returns `true` if the symbol is a Yul EVM builtin keyword reserved by `evm_version`.
     #[inline]
     pub fn is_reserved_yul_builtin_in(self, evm_version: crate::config::EvmVersion) -> bool {
-        self.is_reserved_yul_builtin() && !self.is_future_yul_builtin(evm_version)
+        self.is_reserved_yul_builtin() && !self.is_future_yul_reserved_identifier(evm_version)
     }
 
-    /// Returns `true` if the symbol is a future Yul EVM builtin keyword.
+    /// Returns `true` if the symbol is a Yul identifier that will be reserved in the future: an EVM
+    /// builtin that `evm_version` does not have yet.
+    ///
+    /// `dupn`, `swapn` and `exchange` (EIP-8024) are reserved from Amsterdam, but no supported EVM
+    /// version has them yet, so they are reserved unconditionally.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/liblangutil/Token.cpp#L172-L188>
     #[inline]
-    pub fn is_future_yul_builtin(self, evm_version: crate::config::EvmVersion) -> bool {
+    pub fn is_future_yul_reserved_identifier(self, evm_version: crate::config::EvmVersion) -> bool {
         match self {
             kw::Basefee => !evm_version.has_base_fee(),
             kw::Prevrandao => !evm_version.has_prev_randao(),
