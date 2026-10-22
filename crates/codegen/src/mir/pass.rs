@@ -695,6 +695,7 @@ pub struct ModuleAnalyses {
     local_summaries: LocalSummaryCache,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
+    local_summaries_preserved: bool,
     /// Whether the running pass prices creation code differently, which only the gas objective
     /// does.
     prices_creation: bool,
@@ -713,6 +714,7 @@ impl ModuleAnalyses {
     pub(crate) fn begin_pass(&mut self, prices_creation: bool) {
         self.preserved_by_pass = false;
         self.call_summaries_preserved = false;
+        self.local_summaries_preserved = false;
         self.prices_creation = prices_creation;
     }
 
@@ -722,8 +724,10 @@ impl ModuleAnalyses {
         }
         if !self.preserved_by_pass {
             self.invalidate_all();
-            self.local_summaries.clear();
             self.creation_functions = None;
+            if !self.local_summaries_preserved {
+                self.local_summaries.clear();
+            }
         }
         if !self.call_summaries_preserved {
             self.call_summaries = None;
@@ -795,6 +799,29 @@ impl ModuleAnalyses {
     /// Declares that the running pass leaves the module call summaries valid.
     pub(crate) fn preserve_call_summaries(&mut self) {
         self.call_summaries_preserved = true;
+    }
+
+    /// Computes call summaries of the module as it is, from the cached local summaries, without
+    /// replacing the shared ones.
+    pub(crate) fn fresh_call_summaries(&mut self, module: &Module) -> MemoryCallSummaries {
+        MemoryCallSummaries::new_cached(module, &mut self.local_summaries)
+    }
+
+    /// Drops the cached local summary of a function whose body the running pass changed.
+    pub(crate) fn invalidate_local_summary(&mut self, func_id: FunctionId) {
+        self.local_summaries.invalidate(func_id);
+    }
+
+    /// Renumbers the cached local summaries after the running pass kept only the functions in
+    /// `keep`.
+    pub(crate) fn retain_local_summaries(&mut self, keep: &DenseBitSet<FunctionId>) {
+        self.local_summaries.retain_functions(keep);
+    }
+
+    /// Declares that the running pass invalidated the local summary of every function it
+    /// changed, so they survive the pass.
+    pub(crate) fn preserve_local_summaries(&mut self) {
+        self.local_summaries_preserved = true;
     }
 
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {
