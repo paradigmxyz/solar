@@ -1092,8 +1092,8 @@ impl<'a> CheckEliminator<'a> {
                 let mut merged: Option<Facts> = None;
                 if block != BlockId::ENTRY {
                     for &pred in &func.blocks[block].predecessors {
-                        cx.ranges = exits[pred].ranges.clone();
-                        cx.relations = exits[pred].relations.clone();
+                        cx.ranges.clone_from(&exits[pred].ranges);
+                        cx.relations.clone_from(&exits[pred].relations);
                         cx.strict_lower_bounds = None;
                         cx.range_undo.clear();
                         cx.relation_undo.clear();
@@ -1164,8 +1164,8 @@ impl<'a> CheckEliminator<'a> {
                 if !visited.insert(block) && !entry_changed {
                     continue;
                 }
-                cx.ranges = entry.ranges.clone();
-                cx.relations = entry.relations.clone();
+                cx.ranges.clone_from(&entry.ranges);
+                cx.relations.clone_from(&entry.relations);
                 cx.strict_lower_bounds = None;
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
