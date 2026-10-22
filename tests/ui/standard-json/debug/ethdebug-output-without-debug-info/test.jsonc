@@ -1,0 +1,25 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+// Ethdebug output does not require `ethdebug` in an explicit `debugInfo` selection; without it
+// solc only omits semantic debug info.
+// CHECK-NOT: "severity": "error"
+// CHECK: "ethdebug":
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "debug": {
+      "debugInfo": ["location"]
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.deployedBytecode.ethdebug"
+        ]
+      }
+    }
+  }
+}
