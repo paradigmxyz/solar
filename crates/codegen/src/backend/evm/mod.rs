@@ -8,6 +8,7 @@
 //! - `codegen::stackify`: MIR-to-EVM stack scheduling for DUP/SWAP generation
 
 mod codegen;
+use codegen::PlanCache;
 pub(crate) use codegen::select;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
@@ -26,3 +27,11 @@ pub mod ir;
 mod layout;
 
 pub mod op;
+
+/// What code generation keeps for a whole compilation, on its [`Gcx`](solar_sema::Gcx): the
+/// results of its searches and its plans, which every contract may read and fill.
+#[derive(Default)]
+pub(crate) struct CodegenState {
+    schedules: ir::SharedSchedules,
+    plans: PlanCache,
+}

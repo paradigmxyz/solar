@@ -34,6 +34,7 @@ pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
+pub(in crate::backend::evm) use passes::SharedSchedules;
 pub(crate) use passes::compact_pushes;
 pub(in crate::backend) mod verify;
 

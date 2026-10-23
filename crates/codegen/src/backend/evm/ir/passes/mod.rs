@@ -33,6 +33,7 @@ pub(super) mod utils;
 
 pub(in crate::backend) use legalize_shifts::legalize_shifts;
 pub(super) use peephole::CleanBlocks;
+pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
 use super::Module;
 use crate::{
