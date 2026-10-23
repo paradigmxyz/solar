@@ -153,12 +153,7 @@ jobs:
         run: cargo nextest run --profile ci --workspace --features "${{ matrix.features || '' }}"
       - name: test C API
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
-        env:
-          SOLAR_CAPI_SKIP_BUILD: 1
-        # Nextest only builds the `rlib`; this reuses its artifacts to link the `cdylib`.
-        run: |
-          CARGO_LOG=cargo::core::compiler::fingerprint=info cargo build --profile test --workspace --lib --tests
-          ./crates/capi/test
+        run: ./crates/capi/test
       - name: doctest
         run: cargo test --doc --workspace --features "${{ matrix.features || '' }}"
 
