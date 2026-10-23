@@ -149,12 +149,13 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
-      - name: build
-        run: cargo build --features "${{ matrix.features || '' }}"
       - name: test
         run: cargo nextest run --profile ci --workspace --features "${{ matrix.features || '' }}"
       - name: test C API
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+        # nextest already built `libsolar_capi`.
+        env:
+          SOLAR_CAPI_SKIP_BUILD: 1
         run: ./crates/capi/test
       - name: doctest
         run: cargo test --doc --workspace --features "${{ matrix.features || '' }}"
