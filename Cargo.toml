@@ -46,6 +46,12 @@ all = "warn"
 debug = "line-tables-only"
 split-debuginfo = "unpacked"
 
+# Match the dev profile so `solar-macros` and its dependencies get the same flags (and hash) whether
+# they are built as a selected package or only as a dependency. Otherwise `cargo r` and
+# `cargo build -p` rebuild every crate that depends on them.
+[profile.dev.build-override]
+debug = "line-tables-only"
+
 [profile.dev.package]
 solar-tester.opt-level = 3
 console.opt-level = 3
