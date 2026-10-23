@@ -270,30 +270,24 @@ impl<C> Default for CompilerOutput<'_, C> {
 }
 
 impl<'gcx> CompilerOutput<'gcx> {
-    /// Moves the output out, serializing each contract to compact JSON in parallel.
-    pub(super) fn take_with_serialized_contracts(
-        &mut self,
+    /// Serializes each contract to compact JSON in parallel.
+    pub(super) fn serialize_contracts(
+        self,
     ) -> serde_json::Result<CompilerOutput<'gcx, Box<RawValue>>> {
-        let contracts = std::mem::take(&mut self.contracts);
-        let flat = contracts.values().flat_map(FxIndexMap::values).collect::<Vec<_>>();
-        let mut raw = flat
+        let Self { errors, sources, contracts, ethdebug } = self;
+        let mut raw = contracts
+            .values()
+            .flat_map(FxIndexMap::values)
+            .collect::<Vec<_>>()
             .into_par_iter()
             .map(serde_json::value::to_raw_value)
             .collect::<serde_json::Result<Vec<_>>>()?
             .into_iter();
         let contracts = contracts
             .into_iter()
-            .map(|(source, contracts)| {
-                let contracts = contracts.into_keys().zip(&mut raw).collect::<FxIndexMap<_, _>>();
-                (source, contracts)
-            })
+            .map(|(source, contracts)| (source, contracts.into_keys().zip(&mut raw).collect()))
             .collect();
-        Ok(CompilerOutput {
-            errors: std::mem::take(&mut self.errors),
-            sources: self.sources.take(),
-            contracts,
-            ethdebug: self.ethdebug.take(),
-        })
+        Ok(CompilerOutput { errors, sources, contracts, ethdebug })
     }
 }
 

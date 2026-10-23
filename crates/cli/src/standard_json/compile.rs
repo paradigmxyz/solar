@@ -121,14 +121,14 @@ fn write_empty_standard_json_output(
     diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
-    let mut output = CompilerOutput::default();
+    let output = CompilerOutput::default();
     let diagnostics = diagnostics.read();
-    finish_standard_json_output(&mut output, source_map, opts, &diagnostics, out)
+    finish_standard_json_output(output, source_map, opts, &diagnostics, out)
 }
 
 #[tracing::instrument(name = "write_output", level = "debug", skip_all)]
 fn finish_standard_json_output<'a>(
-    output: &mut CompilerOutput<'a>,
+    mut output: CompilerOutput<'a>,
     source_map: Arc<SourceMap>,
     opts: &CompileOpts,
     diagnostics: &'a [solar_interface::diagnostics::Diag],
@@ -145,10 +145,11 @@ fn finish_standard_json_output<'a>(
         output.contracts.clear();
     }
 
-    if opts.pretty_json {
-        crate::emit::to_json(out, &output, true)
+    // Raw contracts would not be indented, and an empty output has nothing to parallelize.
+    if opts.pretty_json || output.contracts.is_empty() {
+        crate::emit::to_json(out, &output, opts.pretty_json)
     } else {
-        crate::emit::to_json(out, &output.take_with_serialized_contracts()?, false)
+        crate::emit::to_json(out, &output.serialize_contracts()?, false)
     }
     .map_err(Into::into)
 }
@@ -441,7 +442,7 @@ fn compile(
 
             let diagnostics = diagnostics.read();
             output_result = Some(finish_standard_json_output(
-                &mut output,
+                output,
                 Arc::clone(&source_map),
                 opts,
                 &diagnostics,
