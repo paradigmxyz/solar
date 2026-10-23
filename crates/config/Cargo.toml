@@ -15,14 +15,6 @@ categories.workspace = true
 [lints]
 workspace = true
 
-[build-dependencies]
-vergen = { workspace = true, optional = true, features = [
-    "build",
-    "cargo",
-    "emit_and_set",
-    "vcs_info",
-] }
-
 [dependencies]
 alloy-primitives.workspace = true
 colorchoice.workspace = true
@@ -39,7 +31,7 @@ serde_json.workspace = true
 nightly = []
 
 clap = ["version", "dep:clap"]
-version = ["dep:vergen"]
+version = []
 serde = ["dep:serde"]
 
 # solar-cli features, only used by build.rs to include in the version string.
