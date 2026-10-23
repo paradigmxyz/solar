@@ -6,11 +6,12 @@ use crate::{
 };
 use alloy_primitives::Address;
 use indexmap::IndexMap;
+use rayon::prelude::*;
 use serde::{
     Deserialize, Serialize,
     de::{self, SeqAccess, Visitor},
 };
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, value::RawValue};
 use solar_config::RevertStrings;
 use solar_data_structures::map::FxBuildHasher;
 use solar_interface::diagnostics::SolcDiagnostic;
@@ -248,16 +249,53 @@ impl Libraries<'_> {
     }
 }
 
-#[derive(Debug, Default, Serialize)]
-pub(super) struct CompilerOutput<'gcx> {
+/// The solc Standard JSON output. `C` is the serialized form of a contract: [`ContractOutput`], or
+/// its pre-serialized JSON when contracts are serialized in parallel.
+#[derive(Debug, Serialize)]
+pub(super) struct CompilerOutput<'gcx, C = ContractOutput<'gcx>> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) errors: Vec<SolcDiagnostic<'gcx>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) sources: Option<FxIndexMap<String, SourceOutput>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'gcx>>>,
+    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, C>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) ethdebug: Option<EthdebugOutput>,
+}
+
+impl<C> Default for CompilerOutput<'_, C> {
+    fn default() -> Self {
+        Self { errors: Vec::new(), sources: None, contracts: FxIndexMap::default(), ethdebug: None }
+    }
+}
+
+impl<'gcx> CompilerOutput<'gcx> {
+    /// Serializes each contract to compact JSON in parallel, dropping it once serialized.
+    pub(super) fn serialize_contracts(
+        self,
+    ) -> serde_json::Result<CompilerOutput<'gcx, Box<RawValue>>> {
+        let Self { errors, sources, contracts, ethdebug } = self;
+        let (names, outputs) = contracts
+            .into_iter()
+            .map(|(source, contracts)| {
+                let (names, outputs) = contracts.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
+                ((source, names), outputs)
+            })
+            .unzip::<_, _, Vec<_>, Vec<_>>();
+        let mut raw = outputs
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|contract| serde_json::value::to_raw_value(&contract))
+            .collect::<serde_json::Result<Vec<_>>>()?
+            .into_iter();
+        let contracts = names
+            .into_iter()
+            .map(|(source, names)| (source, names.into_iter().zip(&mut raw).collect()))
+            .collect();
+        Ok(CompilerOutput { errors, sources, contracts, ethdebug })
+    }
 }
 
 #[derive(Debug, Serialize)]
