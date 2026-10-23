@@ -6,11 +6,12 @@ use crate::{
 };
 use alloy_primitives::Address;
 use indexmap::IndexMap;
+use rayon::prelude::*;
 use serde::{
     Deserialize, Serialize,
     de::{self, SeqAccess, Visitor},
 };
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, value::RawValue};
 use solar_config::RevertStrings;
 use solar_data_structures::map::FxBuildHasher;
 use solar_interface::diagnostics::SolcDiagnostic;
@@ -248,16 +249,52 @@ impl Libraries<'_> {
     }
 }
 
-#[derive(Debug, Default, Serialize)]
-pub(super) struct CompilerOutput<'gcx> {
+/// The solc Standard JSON output. `C` is the serialized form of a contract: [`ContractOutput`], or
+/// its pre-serialized JSON when contracts are serialized in parallel.
+#[derive(Debug, Serialize)]
+pub(super) struct CompilerOutput<'gcx, C = ContractOutput<'gcx>> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) errors: Vec<SolcDiagnostic<'gcx>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) sources: Option<FxIndexMap<String, SourceOutput>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'gcx>>>,
+    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, C>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) ethdebug: Option<EthdebugOutput>,
+}
+
+impl<C> Default for CompilerOutput<'_, C> {
+    fn default() -> Self {
+        Self { errors: Vec::new(), sources: None, contracts: FxIndexMap::default(), ethdebug: None }
+    }
+}
+
+impl<'gcx> CompilerOutput<'gcx> {
+    /// Moves the output out, serializing each contract to compact JSON in parallel.
+    pub(super) fn take_with_serialized_contracts(
+        &mut self,
+    ) -> serde_json::Result<CompilerOutput<'gcx, Box<RawValue>>> {
+        let contracts = std::mem::take(&mut self.contracts);
+        let flat = contracts.values().flat_map(FxIndexMap::values).collect::<Vec<_>>();
+        let mut raw = flat
+            .into_par_iter()
+            .map(serde_json::value::to_raw_value)
+            .collect::<serde_json::Result<Vec<_>>>()?
+            .into_iter();
+        let contracts = contracts
+            .into_iter()
+            .map(|(source, contracts)| {
+                let contracts = contracts.into_keys().zip(&mut raw).collect::<FxIndexMap<_, _>>();
+                (source, contracts)
+            })
+            .collect();
+        Ok(CompilerOutput {
+            errors: std::mem::take(&mut self.errors),
+            sources: self.sources.take(),
+            contracts,
+            ethdebug: self.ethdebug.take(),
+        })
+    }
 }
 
 #[derive(Debug, Serialize)]

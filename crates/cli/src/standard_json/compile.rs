@@ -145,7 +145,12 @@ fn finish_standard_json_output<'a>(
         output.contracts.clear();
     }
 
-    crate::emit::to_json(out, &output, opts.pretty_json).map_err(Into::into)
+    if opts.pretty_json {
+        crate::emit::to_json(out, &output, true)
+    } else {
+        crate::emit::to_json(out, &output.take_with_serialized_contracts()?, false)
+    }
+    .map_err(Into::into)
 }
 
 /// Applies `settings.debug`, enforcing solc's selection rules.
