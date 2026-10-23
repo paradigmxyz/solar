@@ -441,6 +441,24 @@ impl LocalSummaryCache {
         }
     }
 
+    /// Keeps the entries of the functions in `keep` under the ids [`Module`] gives them after
+    /// the others are removed.
+    pub(crate) fn retain_functions(&mut self, keep: &DenseBitSet<FunctionId>) {
+        if self.entries.len() != keep.domain_size() {
+            self.clear();
+            return;
+        }
+        let mut entries = std::mem::take(&mut self.entries).into_iter().collect::<Vec<_>>();
+        self.entries = keep.iter().map(|id| entries[id.index()].take()).collect();
+        let mut multiple_returns = DenseBitSet::new_empty(self.entries.len());
+        for (new_id, old_id) in keep.iter().enumerate() {
+            if self.multiple_returns.contains(old_id) {
+                multiple_returns.insert(FunctionId::from_usize(new_id));
+            }
+        }
+        self.multiple_returns = multiple_returns;
+    }
+
     /// Drops every entry.
     pub(crate) fn clear(&mut self) {
         self.entries = IndexVec::new();
@@ -506,6 +524,26 @@ impl MemoryCallSummaries {
             }
         }
 
+        // The internal calls of each target in body order, found once instead of on every visit.
+        let mut call_sites = index_vec![Vec::new(); module.functions.len()];
+        for func_id in &targets {
+            let func = &module.functions[func_id];
+            let sites = &mut call_sites[func_id];
+            for block in &func.blocks {
+                for &inst_id in &block.instructions {
+                    if let InstKind::ICall {
+                        function: Callee::Function(function), ref args, ..
+                    } = func.inst(inst_id).kind
+                    {
+                        sites.push((function, &args[..]));
+                    }
+                }
+                if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                    sites.push((*function, &args[..]));
+                }
+            }
+        }
+
         let mut worklist = targets.iter().collect::<VecDeque<_>>();
         let mut queued = targets;
         while let Some(func_id) = worklist.pop_front() {
@@ -513,32 +551,15 @@ impl MemoryCallSummaries {
             let func = &module.functions[func_id];
             let (sources, alias) = facts[func_id].as_ref().unwrap();
             let mut summary = local[func_id].clone().unwrap();
-            for block in &func.blocks {
-                for &inst_id in &block.instructions {
-                    if let InstKind::ICall {
-                        function: Callee::Function(function), ref args, ..
-                    } = func.inst(inst_id).kind
-                    {
-                        merge_call(
-                            &mut summary,
-                            func,
-                            summaries.get(function).and_then(Option::as_ref),
-                            args,
-                            sources,
-                            alias,
-                        );
-                    }
-                }
-                if let Some(Terminator::TailCall { function, args }) = &block.terminator {
-                    merge_call(
-                        &mut summary,
-                        func,
-                        summaries.get(*function).and_then(Option::as_ref),
-                        args,
-                        sources,
-                        alias,
-                    );
-                }
+            for &(function, args) in &call_sites[func_id] {
+                merge_call(
+                    &mut summary,
+                    func,
+                    summaries.get(function).and_then(Option::as_ref),
+                    args,
+                    sources,
+                    alias,
+                );
             }
 
             if summaries[func_id].as_ref() != Some(&summary) {
