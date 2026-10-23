@@ -323,7 +323,7 @@ impl std::iter::Sum for Cost {
 }
 
 /// The cost model of the selected EVM version under the active objective.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Target {
     evm_version: EvmVersion,
     optimization: OptimizationMode,

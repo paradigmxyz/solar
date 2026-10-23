@@ -320,7 +320,7 @@ struct Analysis {
 
 /// What a function moves to memory to shorten the stack it keeps below its calls, raised for
 /// the callers on a call chain deeper than the EVM stack.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum CallSpill {
     None,
     /// Every value live across an internal call.
@@ -715,7 +715,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let analysis =
             analysis.get_or_insert_with(|| self.analyze(module, info, func_id, hazards, writers));
         let plan = self.plan_function_stackified(module, info, func_id, analysis, call_spill)?;
-        cache.insert(&key, &plan);
+        cache.insert(key, &plan);
         Ok(plan)
     }
 

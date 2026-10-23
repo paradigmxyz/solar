@@ -16,7 +16,7 @@
 
 use super::{BlockPlan, CallSpill, Edge, Exit, FunctionPlan, ModuleInfo, Step};
 use crate::{
-    mir::{Callee, Function, FunctionId, InstId, InstKind, Module, Terminator, Value},
+    mir::{Callee, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId},
     target::Target,
 };
 use solar_data_structures::{
@@ -61,13 +61,9 @@ impl PlanCache {
 
     /// Stores `plan` under `key`, with its callees numbered by their first appearance in the
     /// body.
-    pub(super) fn insert(&self, key: &PlanKey, plan: &FunctionPlan) {
+    pub(super) fn insert(&self, key: PlanKey, plan: &FunctionPlan) {
         let Some(plan) = plan.remap(|callee| key.callee_number(callee)) else { return };
-        self.shard(key)
-            .0
-            .write()
-            .entry(key.bytes.as_slice().into())
-            .or_insert_with(|| Arc::new(plan));
+        self.shard(&key).0.write().entry(key.bytes.into()).or_insert_with(|| Arc::new(plan));
     }
 
     fn shard(&self, key: &PlanKey) -> &Shard {
@@ -101,12 +97,7 @@ impl PlanKey {
             numbers: FxHashMap::default(),
         };
 
-        // The cost model and the call-spill level.
-        target.evm_version().hash(&mut key);
-        target.optimization().hash(&mut key);
-        key.word(target.expected_executions());
-        key.word(u64::from(target.is_creation()));
-        key.word(call_spill as u64);
+        (target, call_spill).hash(&mut key);
 
         // The function's own facts.
         let component = info.components[func_id];
@@ -173,7 +164,7 @@ impl PlanKey {
         for ty in &func.params {
             ty.hash(self);
         }
-        for value in (0..func.num_values()).map(crate::mir::ValueId::from_usize) {
+        for value in (0..func.num_values()).map(ValueId::from_usize) {
             match func.value(value) {
                 Value::Inst(inst) => {
                     self.word(0);
@@ -217,53 +208,16 @@ impl PlanKey {
             }
             block.predecessors.hash(self);
             match &block.terminator {
-                None => self.word(0),
-                Some(terminator) => {
+                Some(Terminator::TailCall { function, args }) => {
                     self.word(1);
-                    self.terminator(terminator);
+                    self.callee(*function);
+                    args.hash(self);
+                }
+                terminator => {
+                    self.word(0);
+                    terminator.hash(self);
                 }
             }
-        }
-    }
-
-    fn terminator(&mut self, terminator: &Terminator) {
-        match terminator {
-            Terminator::Jump(target) => {
-                self.word(0);
-                target.hash(self);
-            }
-            Terminator::Branch { condition, then_block, else_block } => {
-                self.word(1);
-                (condition, then_block, else_block).hash(self);
-            }
-            Terminator::Switch { value, default, cases } => {
-                self.word(2);
-                (value, default, cases).hash(self);
-            }
-            Terminator::Return { values } => {
-                self.word(3);
-                values.hash(self);
-            }
-            Terminator::Revert { offset, size } => {
-                self.word(4);
-                (offset, size).hash(self);
-            }
-            Terminator::RevertReturndata => self.word(5),
-            Terminator::ReturnData { offset, size } => {
-                self.word(6);
-                (offset, size).hash(self);
-            }
-            Terminator::Stop => self.word(7),
-            Terminator::SelfDestruct { recipient } => {
-                self.word(8);
-                recipient.hash(self);
-            }
-            Terminator::TailCall { function, args } => {
-                self.word(9);
-                self.callee(*function);
-                args.hash(self);
-            }
-            Terminator::Invalid => self.word(10),
         }
     }
 }
