@@ -16,7 +16,7 @@ This takes around 24 minutes to complete: `sources (12) * benchmark cases (8) * 
 
 The solang, slang and tree-sitter parsers are optional dependencies behind the non-default
 `competitors` feature, so workspace-wide commands such as `cargo test --workspace` do not compile
-them.
+them. `--all-features` enables it, and the results below need it.
 
 ## Results
 
