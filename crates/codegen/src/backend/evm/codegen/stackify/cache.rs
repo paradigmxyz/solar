@@ -92,7 +92,7 @@ impl PlanKey {
     ) -> Self {
         let func = &module.functions[func_id];
         let mut key = Self {
-            bytes: Vec::with_capacity(32 * func.num_insts() + 256),
+            bytes: Vec::with_capacity(16 * func.num_insts() + 64),
             callees: Vec::new(),
             numbers: FxHashMap::default(),
         };
@@ -152,8 +152,13 @@ impl PlanKey {
         self.word(number.index() as u64);
     }
 
-    fn word(&mut self, word: u64) {
-        self.bytes.extend_from_slice(&word.to_le_bytes());
+    /// Appends `word` in seven-bit groups, so the small numbers that fill a key take one byte.
+    fn word(&mut self, mut word: u64) {
+        while word >= 0x80 {
+            self.bytes.push(word as u8 | 0x80);
+            word >>= 7;
+        }
+        self.bytes.push(word as u8);
     }
 
     /// Writes the body: every allocated value, then the instructions of each block.
@@ -222,10 +227,30 @@ impl PlanKey {
     }
 }
 
-/// Appends the bytes of everything hashed into it.
+/// Appends everything hashed into it: integers as words, other bytes as they are.
 impl Hasher for PlanKey {
     fn write(&mut self, bytes: &[u8]) {
         self.bytes.extend_from_slice(bytes);
+    }
+
+    fn write_u16(&mut self, word: u16) {
+        self.word(word.into());
+    }
+
+    fn write_u32(&mut self, word: u32) {
+        self.word(word.into());
+    }
+
+    fn write_u64(&mut self, word: u64) {
+        self.word(word);
+    }
+
+    fn write_usize(&mut self, word: usize) {
+        self.word(word as u64);
+    }
+
+    fn write_isize(&mut self, word: isize) {
+        self.word(word as u64);
     }
 
     fn finish(&self) -> u64 {

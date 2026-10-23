@@ -102,6 +102,9 @@
 //! not, the callers on that chain plan again with every value live across a call spilled, and
 //! then with their return addresses in memory too, until it fits.
 //!
+//! A function whose body, module facts, and cost model equal those of a function planned before in
+//! the compilation takes that plan instead of planning again; see `cache`.
+//!
 //! The plan of a function is complete before any code is emitted, so a failure leaves no partial
 //! output. Emission follows the block order of `function`. Blocks that only jump on are
 //! skipped, and a branch whose successors both need a jump falls through into a trampoline.
