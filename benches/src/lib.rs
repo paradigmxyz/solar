@@ -29,8 +29,11 @@ pub const COMPILERS: &[&dyn Compiler] = if IS_CODSPEED {
         // fmt
         &Solc,
         &Solar,
+        #[cfg(feature = "competitors")]
         &Solang,
+        #[cfg(feature = "competitors")]
         &Slang,
+        #[cfg(feature = "competitors")]
         &TreeSitter,
     ]
 };
@@ -501,7 +504,9 @@ fn session(source: &Source) -> Session {
         .build()
 }
 
+#[cfg(feature = "competitors")]
 pub struct Solang;
+#[cfg(feature = "competitors")]
 impl Compiler for Solang {
     fn name(&self) -> &'static str {
         "solang"
@@ -548,7 +553,9 @@ impl Compiler for Solang {
     }
 }
 
+#[cfg(feature = "competitors")]
 pub struct Slang;
+#[cfg(feature = "competitors")]
 impl Compiler for Slang {
     fn name(&self) -> &'static str {
         "slang"
@@ -587,7 +594,9 @@ impl Compiler for Slang {
     }
 }
 
+#[cfg(feature = "competitors")]
 pub struct TreeSitter;
+#[cfg(feature = "competitors")]
 impl Compiler for TreeSitter {
     fn name(&self) -> &'static str {
         "tree-sitter"
