@@ -190,7 +190,7 @@ fn max_bits_with_budget(
     value: ValueId,
     depth: u32,
     budget: &mut u32,
-    argument_bits: &dyn Fn(ArgIdx) -> u32,
+    argument_bits: &impl Fn(ArgIdx) -> u32,
 ) -> u32 {
     let width = func.value_ty(value).and_then(MirType::integer_bits).unwrap_or(256).min(256);
     // Shared producers and wide phis must not multiply the work at each depth.
