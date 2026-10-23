@@ -115,15 +115,17 @@ use super::{
     StackOp, Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
 };
 use crate::{
+    backend::evm::CodegenState,
     mir::{ArgIdx, Callee, analysis::LoopInfo},
     target::{Cost, Target},
 };
-use cache::{PlanCache, PlanKey};
+use cache::PlanKey;
 use plan::{Planned, Planner};
 use smallvec::SmallVec;
 use solar_data_structures::sync;
 
 mod cache;
+pub(in crate::backend::evm) use cache::PlanCache;
 mod emit;
 mod plan;
 mod shuffle;
@@ -582,7 +584,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<Analysis>>>();
         let mut plans =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<FunctionPlan>>>();
-        let cache = self.gcx.codegen_state::<PlanCache>();
+        let cache = &self.gcx.codegen_state::<CodegenState>().plans;
         let planned = sync::par_try_map(parallel, bodies, |func_id| {
             let mut analysis = None;
             let plan = self.plan_cached(

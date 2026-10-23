@@ -38,7 +38,7 @@ const SHARDS: usize = 1 << SHARD_BITS;
 
 /// The plans of a compilation by key, kept on its global context. Threads may race to fill an
 /// entry: equal keys give equal plans.
-pub(in crate::backend::evm::codegen) struct PlanCache([Shard; SHARDS]);
+pub(in crate::backend::evm) struct PlanCache([Shard; SHARDS]);
 
 /// One shard of the cache. Each has cache lines of its own, so threads on different shards do
 /// not contend.

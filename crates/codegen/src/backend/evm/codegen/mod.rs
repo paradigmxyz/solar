@@ -58,6 +58,7 @@ mod function;
 mod runtime;
 pub(crate) mod select;
 mod stackify;
+pub(in crate::backend::evm) use stackify::PlanCache;
 mod terminator;
 mod values;
 

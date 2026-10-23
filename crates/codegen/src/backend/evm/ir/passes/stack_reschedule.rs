@@ -96,6 +96,7 @@
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
+        CodegenState,
         ir::{BlockId, Instruction, Module, TerminatorKind},
         op::{self, StackOp},
     },
@@ -401,7 +402,7 @@ type Schedules = FxHashMap<(SmallVec<[RunKey; 24]>, Budget), Option<Vec<Move>>>;
 
 /// The results of every search of a compilation, kept on its [`Gcx`]. A search is a function of
 /// its key, so threads may race to fill an entry and every program may read any entry.
-struct SharedSchedules([SharedShard; SHARED_SHARDS]);
+pub(in crate::backend::evm) struct SharedSchedules([SharedShard; SHARED_SHARDS]);
 
 impl Default for SharedSchedules {
     fn default() -> Self {
@@ -429,7 +430,7 @@ impl<'gcx> Scratch<'gcx> {
         Self {
             schedules: Schedules::default(),
             buffers: Buffers::default(),
-            shared: gcx.codegen_state(),
+            shared: &gcx.codegen_state::<CodegenState>().schedules,
         }
     }
 }
