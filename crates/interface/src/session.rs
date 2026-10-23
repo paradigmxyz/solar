@@ -10,7 +10,10 @@ use solar_data_structures::sync::Mutex;
 use std::{
     fmt, io,
     path::{Path, PathBuf},
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 /// Information about the current compiler session.
@@ -27,6 +30,8 @@ pub struct Session {
     thread_pool: OnceLock<rayon::ThreadPool>,
     /// The workers of `thread_pool` that [`spawn_workers`](Self::spawn_workers) has yet to start.
     pending_workers: Mutex<Vec<rayon::ThreadBuilder>>,
+    /// The code generation jobs that wait for a worker.
+    queued_jobs: AtomicUsize,
 }
 
 impl Default for Session {
@@ -181,6 +186,7 @@ impl SessionBuilder {
             opts,
             thread_pool: OnceLock::new(),
             pending_workers: Mutex::new(Vec::new()),
+            queued_jobs: AtomicUsize::new(0),
         };
         sess.reconfigure();
         debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
@@ -403,6 +409,22 @@ impl Session {
             && !unstable.print_after_each
             && !unstable.pass_diff
             && !unstable.time_passes
+    }
+
+    /// Records a code generation job that waits for a worker.
+    pub fn queue_job(&self) {
+        self.queued_jobs.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Records that a worker took a queued code generation job.
+    pub fn start_job(&self) {
+        self.queued_jobs.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    /// Returns `true` if code generation jobs wait for a worker, so that work split off a running
+    /// job would only compete with them.
+    pub fn has_queued_jobs(&self) -> bool {
+        self.queued_jobs.load(Ordering::Relaxed) != 0
     }
 
     /// Returns `true` if the given output should be emitted.

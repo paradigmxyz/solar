@@ -22,17 +22,16 @@ use solar_data_structures::{
     map::FxHashMap,
     sync::{self, Mutex, Scope},
 };
-use solar_interface::{Result, error_code};
+use solar_interface::{Result, Session, error_code};
 use solar_sema::{
     Gcx,
     hir::{ContractId, VariableId},
 };
 use std::{
-    cell::RefCell,
     cmp::Reverse,
     collections::BinaryHeap,
     sync::{
-        Arc, OnceLock,
+        OnceLock,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -222,7 +221,7 @@ pub fn generate_contract_bytecodes(
                 .map(|dependencies| AtomicUsize::new(dependencies.len() + 1))
                 .collect(),
         ),
-        queue: Arc::new(ContractQueue { jobs: Mutex::new(BinaryHeap::new()), priorities }),
+        queue: ContractQueue { sess: gcx.sess, jobs: Mutex::new(BinaryHeap::new()), priorities },
     };
     // Every contract is scheduled up front; only its completion waits for the
     // bytecode of the contracts it creates.
@@ -394,52 +393,28 @@ enum ContractJob {
 }
 
 /// Workers choose the highest-priority ready job independently of Rayon's task order.
-struct ContractQueue {
+struct ContractQueue<'gcx> {
+    sess: &'gcx Session,
     jobs: Mutex<BinaryHeap<(u64, Reverse<ContractJob>)>>,
     priorities: IndexVec<ContractId, u64>,
 }
 
-impl ContractQueue {
+impl ContractQueue<'_> {
     fn push(&self, job: ContractJob) {
         // Completion is short and unblocks the contracts that embed its bytecode.
         let priority = match job {
             ContractJob::Schedule(id) => self.priorities[id],
             ContractJob::Finish(_) => u64::MAX,
         };
+        self.sess.queue_job();
         self.jobs.lock().push((priority, Reverse(job)));
     }
 
     fn pop(&self) -> ContractJob {
         let (_, Reverse(job)) = self.jobs.lock().pop().expect("each worker has a ready job");
+        self.sess.start_job();
         job
     }
-}
-
-thread_local! {
-    /// The queue of the contract job running on this thread.
-    static RUNNING_QUEUE: RefCell<Option<Arc<ContractQueue>>> = const { RefCell::new(None) };
-}
-
-/// Marks the queue that the running contract job belongs to until dropped.
-struct RunningQueue(Option<Arc<ContractQueue>>);
-
-impl RunningQueue {
-    fn enter(queue: &Arc<ContractQueue>) -> Self {
-        Self(RUNNING_QUEUE.replace(Some(Arc::clone(queue))))
-    }
-}
-
-impl Drop for RunningQueue {
-    fn drop(&mut self) {
-        RUNNING_QUEUE.set(self.0.take());
-    }
-}
-
-/// Returns whether every contract job has started, so that no worker thread waits for one.
-/// Outside a contract job, there is no queue to wait for.
-pub(crate) fn contract_queue_is_empty() -> bool {
-    RUNNING_QUEUE
-        .with_borrow(|queue| queue.as_ref().is_none_or(|queue| queue.jobs.lock().is_empty()))
 }
 
 /// A contract that is optimized and scheduled, waiting for the bytecode it embeds.
@@ -463,7 +438,7 @@ struct ContractJobs<'a, 'gcx> {
     scheduled: IndexVec<ContractId, Mutex<Option<ScheduledContract<'gcx>>>>,
     /// Unfinished inputs of each contract: its own scheduling and each dependency.
     remaining_inputs: IndexVec<ContractId, AtomicUsize>,
-    queue: Arc<ContractQueue>,
+    queue: ContractQueue<'gcx>,
 }
 
 impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
@@ -471,13 +446,11 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
     fn spawn_worker<'scope>(&'scope self, scope: &Scope<'_, 'scope>) {
         scope.spawn(move |scope| match self.queue.pop() {
             ContractJob::Schedule(contract_id) => {
-                let _running = RunningQueue::enter(&self.queue);
                 let Ok(scheduled) = self.schedule(contract_id) else { return };
                 *self.scheduled[contract_id].lock() = Some(scheduled);
                 self.release(&scope, contract_id);
             }
             ContractJob::Finish(contract_id) => {
-                let _running = RunningQueue::enter(&self.queue);
                 let scheduled = self.scheduled[contract_id]
                     .lock()
                     .take()

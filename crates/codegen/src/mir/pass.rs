@@ -697,7 +697,7 @@ pub struct ModuleAnalyses {
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
     local_summaries_preserved: bool,
-    /// Whether function-local passes may run on several threads.
+    /// Whether the running pass may run its functions on several threads.
     parallel: bool,
     /// Whether the running pass prices creation code differently, which only the gas objective
     /// does.
@@ -709,17 +709,13 @@ pub struct ModuleAnalyses {
 }
 
 impl ModuleAnalyses {
-    /// Creates empty analyses; `parallel` lets function-local passes use idle workers.
-    pub(crate) fn new(parallel: bool) -> Self {
-        Self { parallel, ..Default::default() }
-    }
-
     /// Stops this pipeline after a pass emits a diagnostic.
     pub fn fail(&mut self, error: ErrorGuaranteed) {
         self.error = Some(error);
     }
 
-    pub(crate) fn begin_pass(&mut self, prices_creation: bool) {
+    pub(crate) fn begin_pass(&mut self, prices_creation: bool, parallel: bool) {
+        self.parallel = parallel;
         self.preserved_by_pass = false;
         self.call_summaries_preserved = false;
         self.local_summaries_preserved = false;
@@ -994,10 +990,7 @@ fn run_parallel_function_pass(
             work += func.num_insts();
         }
     }
-    if work < MIN_PARALLEL_INSTRUCTIONS
-        || runnable.count() < 2
-        || !crate::contract::contract_queue_is_empty()
-    {
+    if work < MIN_PARALLEL_INSTRUCTIONS || runnable.count() < 2 {
         return None;
     }
     // A snapshot that a pass still shares cannot move to a task.
@@ -1132,7 +1125,7 @@ mod tests {
         parallel: bool,
     ) -> (Vec<usize>, bool, Vec<FunctionId>, Vec<FunctionId>) {
         let mut module = module_of_functions();
-        let mut analyses = ModuleAnalyses::new(parallel);
+        let mut analyses = ModuleAnalyses { parallel, ..Default::default() };
         // The first function keeps an older snapshot, so the call summaries are built after it.
         let first = FunctionId::from_usize(0);
         analyses.alias.insert(first, Rc::new(AliasAnalysis::new(&module.functions[first])));
