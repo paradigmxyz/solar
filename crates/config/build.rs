@@ -115,6 +115,8 @@ fn solc_version_from_cmake(dir: &Path) -> Result<String, Box<dyn std::error::Err
 mod build_info {
     use std::{
         env,
+        fs::File,
+        io::Read,
         path::{Path, PathBuf},
         process::Command,
         time::{SystemTime, UNIX_EPOCH},
@@ -159,7 +161,7 @@ mod build_info {
                 }),
                 target_triple: env::var(CARGO_TARGET_TRIPLE)
                     .or_else(|_| env::var("TARGET"))
-                    .unwrap_or_else(|_| preset_or(CARGO_TARGET_TRIPLE, None)),
+                    .unwrap_or_else(|_| IDEMPOTENT_OUTPUT.to_string()),
                 describe: git.describe,
                 sha: git.sha,
                 dirty: git.dirty,
@@ -271,8 +273,11 @@ mod build_info {
     /// The SHA and dirty flag recorded by `cargo package`.
     fn vcs_info() -> Option<(String, bool)> {
         let manifest_dir = env::var_os("CARGO_MANIFEST_DIR")?;
-        let json =
-            std::fs::read_to_string(Path::new(&manifest_dir).join(".cargo_vcs_info.json")).ok()?;
+        let mut json = String::new();
+        File::open(Path::new(&manifest_dir).join(".cargo_vcs_info.json"))
+            .ok()?
+            .read_to_string(&mut json)
+            .ok()?;
         let git = &json[json.find("\"git\"")?..];
         let git = &git[..git.find('}')?];
         let sha = json_value(git, "sha1")?.strip_prefix('"')?.split_once('"')?.0;
