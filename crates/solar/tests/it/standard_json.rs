@@ -347,3 +347,28 @@ fn relative_imports_with_base_path() {
         json!({"sources": {"/project/A.sol": {"id": 1}, "/project/B.sol": {"id": 0}}})
     );
 }
+
+/// Compact output serializes contracts in parallel; it must keep the source and contract order of
+/// the output.
+#[test]
+fn compact_output_keeps_contract_order() {
+    let input = json!({
+        "language": "Solidity",
+        "sources": {
+            "B.sol": {"content": "contract Z { function z() external {} } contract A { function a() external {} }"},
+            "A.sol": {"content": "contract M { function m() external {} }"}
+        },
+        "settings": {"outputSelection": {"*": {"*": ["abi"]}}}
+    });
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), CompileOpts::default(), None, &mut output).unwrap();
+    assert_eq!(
+        String::from_utf8(output).unwrap(),
+        concat!(
+            r#"{"sources":{"A.sol":{"id":0},"B.sol":{"id":1}},"contracts":{"#,
+            r#""A.sol":{"M":{"abi":[{"type":"function","name":"m","inputs":[],"outputs":[],"stateMutability":"nonpayable"}]}},"#,
+            r#""B.sol":{"Z":{"abi":[{"type":"function","name":"z","inputs":[],"outputs":[],"stateMutability":"nonpayable"}]},"#,
+            r#""A":{"abi":[{"type":"function","name":"a","inputs":[],"outputs":[],"stateMutability":"nonpayable"}]}}}}"#,
+        )
+    );
+}
