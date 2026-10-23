@@ -1097,14 +1097,16 @@ impl<'gcx> ResolveContext<'gcx> {
             matches!(item.kind, ast::NatSpecKind::Internal { tag } if tag.name == sym::solidity)
                 && item.content().split_whitespace().any(|word| word == "memory-safe-assembly")
         });
+        let mut has_flag = false;
         for flag in assembly.flags.iter() {
             let span = flag.span;
             match flag.value {
                 sym::memory_dash_safe => {
-                    if memory_safe {
+                    if has_flag {
                         self.dcx()
                             .emit_err(span, "inline assembly marked memory-safe multiple times");
                     }
+                    has_flag = true;
                     memory_safe = true;
                 }
                 _ => self
