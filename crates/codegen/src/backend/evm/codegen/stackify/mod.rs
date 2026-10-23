@@ -115,10 +115,12 @@ use crate::{
     mir::{ArgIdx, Callee, analysis::LoopInfo},
     target::{Cost, Target},
 };
+use cache::{PlanCache, PlanKey};
 use plan::{Planned, Planner};
 use smallvec::SmallVec;
 use solar_data_structures::sync;
 
+mod cache;
 mod emit;
 mod plan;
 mod shuffle;
@@ -577,14 +579,23 @@ impl<'gcx> EvmCodegen<'gcx> {
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<Analysis>>>();
         let mut plans =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<FunctionPlan>>>();
+        let cache = self.gcx.codegen_state::<PlanCache>();
         let planned = sync::par_try_map(parallel, bodies, |func_id| {
-            let analysis = self.analyze(module, &info, func_id, &hazards[func_id], &writers);
-            let plan =
-                self.plan_function_stackified(module, &info, func_id, &analysis, CallSpill::None)?;
+            let mut analysis = None;
+            let plan = self.plan_cached(
+                cache,
+                module,
+                &info,
+                func_id,
+                &hazards[func_id],
+                &writers,
+                &mut analysis,
+                CallSpill::None,
+            )?;
             Ok((func_id, analysis, plan))
         })?;
         for (func_id, analysis, plan) in planned {
-            analyses[func_id] = Some(analysis);
+            analyses[func_id] = analysis;
             plans[func_id] = Some(plan);
         }
 
@@ -611,16 +622,24 @@ impl<'gcx> EvmCodegen<'gcx> {
             for &func_id in &chain {
                 if call_spills[func_id] == level {
                     call_spills[func_id] = next;
-                    respilled.push((func_id, analyses[func_id].take().expect("planned body")));
+                    respilled.push((func_id, analyses[func_id].take()));
                 }
             }
-            let replanned = sync::par_try_map(parallel, respilled, |(func_id, analysis)| {
-                let plan =
-                    self.plan_function_stackified(module, &info, func_id, &analysis, next)?;
+            let replanned = sync::par_try_map(parallel, respilled, |(func_id, mut analysis)| {
+                let plan = self.plan_cached(
+                    cache,
+                    module,
+                    &info,
+                    func_id,
+                    &hazards[func_id],
+                    &writers,
+                    &mut analysis,
+                    next,
+                )?;
                 Ok((func_id, analysis, plan))
             })?;
             for (func_id, analysis, plan) in replanned {
-                analyses[func_id] = Some(analysis);
+                analyses[func_id] = analysis;
                 plans[func_id] = Some(plan);
             }
         }
@@ -672,6 +691,32 @@ impl<'gcx> EvmCodegen<'gcx> {
             )
         };
         Analysis { liveness, cfg, loops, saved, pinned, recomputable }
+    }
+
+    /// Plans a function, or takes the plan of an identical function planned before from `cache`.
+    /// The function's analysis is computed only when planning needs it, and left in `analysis`.
+    #[allow(clippy::too_many_arguments)]
+    fn plan_cached(
+        &self,
+        cache: &PlanCache,
+        module: &Module,
+        info: &ModuleInfo,
+        func_id: FunctionId,
+        hazards: &FxHashSet<InstId>,
+        writers: &DenseBitSet<FunctionId>,
+        analysis: &mut Option<Analysis>,
+        call_spill: CallSpill,
+    ) -> Result<FunctionPlan, Decline> {
+        let target = self.target(info, func_id);
+        let key = PlanKey::new(module, info, func_id, hazards, writers, &target, call_spill);
+        if let Some(plan) = cache.get(&key) {
+            return Ok(plan);
+        }
+        let analysis =
+            analysis.get_or_insert_with(|| self.analyze(module, info, func_id, hazards, writers));
+        let plan = self.plan_function_stackified(module, info, func_id, analysis, call_spill)?;
+        cache.insert(&key, &plan);
+        Ok(plan)
     }
 
     fn plan_function_stackified(
