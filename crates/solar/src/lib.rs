@@ -27,6 +27,7 @@ pub use solar_sema as sema;
 #[cfg(feature = "cli")]
 #[doc(inline)]
 pub use solar_cli as cli;
+
 #[cfg(feature = "codegen")]
 #[doc(inline)]
 pub use solar_codegen as codegen;
