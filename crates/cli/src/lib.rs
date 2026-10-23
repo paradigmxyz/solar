@@ -70,14 +70,19 @@ pub(crate) fn raise_stack_limit() -> bool {
     }
     let size = size as libc::rlim_t;
     let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
-    // SAFETY: `limit` is a valid `rlimit` for both calls.
+    // SAFETY: `limit` is a valid `rlimit` for each call.
     unsafe {
-        if libc::getrlimit(libc::RLIMIT_STACK, &mut limit) == 0 && limit.rlim_cur < size {
-            limit.rlim_cur = size.min(limit.rlim_max);
-            libc::setrlimit(libc::RLIMIT_STACK, &limit);
+        if libc::getrlimit(libc::RLIMIT_STACK, &mut limit) != 0 {
+            return false;
         }
-        libc::getrlimit(libc::RLIMIT_STACK, &mut limit) == 0 && limit.rlim_cur >= size
+        if limit.rlim_cur < size {
+            limit.rlim_cur = size.min(limit.rlim_max);
+            if libc::setrlimit(libc::RLIMIT_STACK, &limit) != 0 {
+                return false;
+            }
+        }
     }
+    limit.rlim_cur >= size
 }
 
 #[cfg(not(target_os = "linux"))]
