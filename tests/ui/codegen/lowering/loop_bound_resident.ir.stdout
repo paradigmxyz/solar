@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/loop_bound_resident.sol:LoopBoundResident (runtime) ===
 @module LoopBoundResident_runtime
-bb0:
+bb0 [loop]:
   callvalue
   push bb3
   jumpi
@@ -25,18 +25,6 @@ bb0:
   calldataload
   push 4
   calldataload
-  jump bb6
-bb8 [loop]:
-  dup 2
-  dup 4
-  push 1
-  add
-  swap 4
-  add
-  swap 2
-  add
-  jump bb6
-bb6 [loop]:
   dup 4
   dup 4
   lt
@@ -51,6 +39,25 @@ bb3 [cold]:
   push 0
   push 0
   revert
+bb8 [loop]:
+  dup 2
+  dup 4
+  push 1
+  add
+  swap 4
+  add
+  swap 2
+  add
+  dup 4
+  dup 4
+  lt
+  push bb8
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 // === ROOT/tests/ui/codegen/lowering/loop_bound_resident.sol:ScanLoop (runtime) ===
 @module ScanLoop_runtime
 bb0:
@@ -81,7 +88,7 @@ bb13 [cold]:
   push 36
   push 28
   revert
-bb4:
+bb4 [loop]:
   push 160
   push 64
   mstore
@@ -96,71 +103,64 @@ bb4:
   push 32
   dup 2
   add
-  swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
+  swap 3
+  dup 4
   lt
   calldatasize
-  dup 4
+  dup 3
   gt
   or
   swap 1
-  swap 3
+  swap 4
   or
   push bb3
   jumpi
-  swap 1
   calldataload
+  dup 1
   push 0x7fffffffffffffe
-  dup 2
-  gt
+  lt
   push bb13
   jumpi
-  push 1
+  push 64
+  mload
   dup 2
+  push 1
   add
   push 5
   shl
-  push 64
-  mload
-  swap 1
   dup 2
   add
-  dup 2
-  dup 2
-  lt
-  push 0
-  not
-  push 192
-  shr
+  swap 3
+  dup 4
+  gt
+  dup 4
   dup 3
   gt
   or
   push bb13
   jumpi
+  swap 2
   push 64
   mstore
-  dup 2
-  dup 2
+  dup 1
+  dup 3
   mstore
-  dup 2
-  push 5
-  shl
-  swap 2
-  dup 4
+  dup 3
   calldatasize
   sub
   push 5
   shr
-  lt
+  dup 2
+  gt
   push bb3
   jumpi
+  push 5
+  shl
   push 32
-  dup 2
-  add
   dup 3
+  add
+  dup 2
   dup 5
   dup 3
   calldatacopy
@@ -170,12 +170,6 @@ bb4:
   swap 2
   swap 3
   pop
-  jump bb9
-bb12 [loop]:
-  swap 1
-  pop
-  jump bb9
-bb9 [loop]:
   dup 3
   dup 2
   gt
@@ -206,3 +200,26 @@ bb11:
   push 32
   push 0
   return
+bb12 [loop]:
+  swap 1
+  pop
+  dup 3
+  dup 2
+  gt
+  iszero
+  push bb11
+  jumpi
+  push 32
+  dup 2
+  sub
+  dup 2
+  mload
+  dup 2
+  mload
+  gt
+  iszero
+  push bb12
+  jumpi
+  swap 2
+  swap 1
+  jump bb11

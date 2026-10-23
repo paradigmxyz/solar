@@ -13,13 +13,25 @@
 //! invalidate both load and store facts. After a `gas` read, storage accesses
 //! remain explicit so a later `gas` read observes their cost and warmness
 //! effects, including observations in predecessor blocks and transitive callees.
+//!
+//! Slot hashes of equal operands name one slot: a `mapping_slot` or storage-array hash computes
+//! its slot from its operands alone. Each access keys its facts by the first hash of its slot's
+//! operands that the walk meets, naming nested hashes and constants the same way, so a write
+//! through one hash forwards to a read through another before CSE merges them, as when checked
+//! arithmetic computes the key `i / 8` twice and only lowering makes the two quotients one value.
+//! Facts carry over only along single-predecessor paths, on which every operand keeps the value
+//! it had at the first hash, so the shared name never mixes the slots of different loop
+//! iterations. Writes that other instructions declare keep their own keys and invalidate the
+//! renamed facts conservatively.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Module, PtrLocation, StorageAlias, ValueId,
+    BlockId, Function, Immediate, InstId, InstKind, Module, PtrLocation, StorageAlias, Value,
+    ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Liveness, Location},
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
+use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::{cell::OnceCell, rc::Rc};
 
@@ -77,6 +89,7 @@ struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
     cached_loads: StorageFacts,
+    slot_hashes: SlotHashes,
 }
 
 type StorageFacts = FxHashMap<StorageAlias, (ValueId, bool)>;
@@ -87,6 +100,7 @@ impl RunState {
             replacements: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.num_insts()),
             cached_loads: FxHashMap::default(),
+            slot_hashes: SlotHashes::default(),
         }
     }
 }
@@ -106,6 +120,7 @@ impl StorageLoadCseCx {
         let liveness = OnceCell::new();
         state.replacements.clear();
         state.dead.clear();
+        state.slot_hashes.clear();
 
         let cfg = Rc::clone(&self.cfg);
         let gas = GasObservations::new(func, &cfg, &self.alias);
@@ -182,6 +197,8 @@ impl StorageLoadCseCx {
                         *slot,
                         &state.replacements,
                     );
+                    // sstore (mapping_slot k, s), v; x = sload (mapping_slot k, s) => x = v
+                    let alias = state.slot_hashes.canonical(func, alias, &state.replacements);
                     let Some(result) = func.inst_result_value(inst_id) else {
                         continue;
                     };
@@ -211,6 +228,7 @@ impl StorageLoadCseCx {
                         *slot,
                         &state.replacements,
                     );
+                    let alias = state.slot_hashes.canonical(func, alias, &state.replacements);
                     state.cached_loads.retain(|cached_alias, _| {
                         !aa.alias(Location::Storage(*cached_alias), Location::Storage(alias))
                             .may_alias()
@@ -286,5 +304,71 @@ impl StorageLoadCseCx {
                 mir_utils::replace_terminator_uses_canonicalized(term, replacements);
             }
         }
+    }
+}
+
+/// Nesting depth through which slot hashes name the hashes among their operands, as `m[a][b]`
+/// hashes the slot of `m[a]`.
+const MAX_HASH_DEPTH: usize = 4;
+
+/// Names the slot hashes of equal operands by one value, the first such hash the walk meets.
+#[derive(Default)]
+struct SlotHashes {
+    /// The first hash met with each operation, its operands named as [`Self::first_hash`] names
+    /// them.
+    first: FxHashMap<InstKind, ValueId>,
+    /// The first value of each constant, so equal immediates compare equal.
+    immediates: FxHashMap<Immediate, ValueId>,
+}
+
+impl SlotHashes {
+    fn clear(&mut self) {
+        self.first.clear();
+        self.immediates.clear();
+    }
+
+    /// Keys `alias` by the first slot hash of its base's operands.
+    fn canonical(
+        &mut self,
+        func: &Function,
+        alias: StorageAlias,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> StorageAlias {
+        let Some(base) = alias.symbolic_base() else { return alias };
+        match self.first_hash(func, base, replacements, MAX_HASH_DEPTH) {
+            Some(first) if first != base => {
+                let offset = match alias {
+                    StorageAlias::Offset { offset, .. } => offset,
+                    StorageAlias::Slot(_) | StorageAlias::Symbolic(_) => U256::ZERO,
+                };
+                StorageAlias::Symbolic(first).offset_by(offset)
+            }
+            _ => alias,
+        }
+    }
+
+    /// The first slot hash met with the operation and operands of `value`, if it is a slot hash.
+    fn first_hash(
+        &mut self,
+        func: &Function,
+        value: ValueId,
+        replacements: &FxHashMap<ValueId, ValueId>,
+        depth: usize,
+    ) -> Option<ValueId> {
+        let value = mir_utils::resolve_replacement(value, replacements);
+        let Value::Inst(inst) = *func.value(value) else { return None };
+        let kind = &func.inst(inst).kind;
+        if depth == 0 || !kind.effects().idempotent_write() {
+            return None;
+        }
+        let mut key = kind.clone();
+        key.visit_operands_mut(|operand| {
+            let resolved = mir_utils::resolve_replacement(*operand, replacements);
+            *operand = match func.value(resolved) {
+                Value::Immediate(imm) => *self.immediates.entry(imm.clone()).or_insert(resolved),
+                _ => self.first_hash(func, resolved, replacements, depth - 1).unwrap_or(resolved),
+            };
+        });
+        Some(*self.first.entry(key).or_insert(value))
     }
 }

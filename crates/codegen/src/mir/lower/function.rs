@@ -37,13 +37,18 @@ mod entry;
 mod expressions;
 mod indexing;
 mod lvalues;
+mod memory_facts;
 mod memory_values;
 mod modifiers;
 mod operators;
 mod raw_scalars;
+mod scratch;
 mod statements;
 mod storage_values;
 mod values;
+mod views;
+
+pub(super) use scratch::{ScratchRegion, check_scratch_regions};
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -103,6 +108,12 @@ pub(super) struct LoweringState {
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
     raw_scalars: FxHashSet<VariableId>,
     raw_pointer_types: FxHashSet<MirType>,
+    /// The `@custom:solar-scratch` blocks of the function being lowered, which the contract
+    /// driver claims for its MIR function.
+    pub(super) scratch_regions: Vec<ScratchRegion>,
+    /// Whether the function being lowered runs inline assembly, which the contract driver claims
+    /// for its MIR function.
+    pub(super) lowered_assembly: bool,
 }
 
 /// Lowers one HIR function into a typed MIR function.
@@ -233,6 +244,11 @@ struct FunctionLowerer<'gcx, 'ctx> {
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
+    /// The tags of the `@custom:solar-scratch` blocks the code being lowered runs inside,
+    /// innermost last, including those a modifier's `_` runs the function's body in.
+    open_scratch: Vec<Span>,
+    /// The `@custom:solar-view` variables, whose values are calldata slices.
+    views: FxHashSet<VariableId>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -425,6 +441,17 @@ impl InternalFunctionPointerShape {
         // `slice<calldata>` -> `slice_calldata`, keeping the name an identifier.
         helper_name(sym::internal_dispatcher, suffix.replace('<', "_").replace('>', ""))
     }
+
+    /// Returns whether a call of `target` through a pointer of this shape reinterprets a memory
+    /// reference as a word of another type, or such a word as a reference.
+    fn reinterprets_reference(&self, target: &Self) -> bool {
+        let reference = |ty: &crate::mir::ValueLayout| ty.mir_type().is_memory_reference();
+        self.params
+            .iter()
+            .zip(&target.params)
+            .chain(self.returns.iter().zip(&target.returns))
+            .any(|(lhs, rhs)| reference(lhs) != reference(rhs))
+    }
 }
 
 fn helper_name(prefix: Symbol, suffix: impl Display) -> Symbol {
@@ -507,6 +534,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             is_getter: false,
             unchecked: false,
             in_inline_assembly: false,
+            open_scratch: Vec::new(),
+            views: FxHashSet::default(),
         }
     }
 
@@ -1029,17 +1058,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 }
 
+/// Builds the bodies of the internal function pointer dispatchers. Returns the dispatchers that
+/// reinterpret a memory reference as a word of another type, or such a word as a reference, which
+/// only a pointer that inline assembly retyped can reach.
 pub(super) fn generate_internal_function_pointer_dispatchers(
     gcx: Gcx<'_>,
     module: &mut Module,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     state: &LoweringState,
-) {
+) -> Vec<FunctionId> {
     let dispatchers = module
         .iter_functions()
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
         .map(|(id, _)| (state.pointer_registry.dispatchers[&id].clone(), id))
         .collect::<Vec<_>>();
+    let mut retyping = Vec::new();
     for (InternalFunctionPointerDispatch { shape, from_assembly }, dispatcher) in dispatchers {
         let mut candidates = state
             .pointer_registry
@@ -1064,6 +1097,12 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             })
             .collect::<Vec<_>>();
         candidates.sort_by_key(|(function_id, _, _)| function_id.index());
+        if candidates
+            .iter()
+            .any(|(_, _, candidate_shape)| shape.reinterprets_reference(candidate_shape))
+        {
+            retyping.push(dispatcher);
+        }
 
         let reserved = module.function(dispatcher);
         let mut function = Function::new(Ident::new(reserved.name.symbol, reserved.name_span));
@@ -1164,6 +1203,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         }
         *module.function_mut(dispatcher) = function;
     }
+    retyping
 }
 
 fn arithmetic_kind(ty: Ty<'_>) -> Option<ArithmeticKind> {

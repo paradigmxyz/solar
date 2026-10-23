@@ -17,7 +17,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
-use solar_interface::{Span, Symbol, sym};
+use solar_interface::{Span, Symbol, config::OptimizationMode, sym};
 use solar_sema::Gcx;
 
 pub(crate) mod assembly;
@@ -197,6 +197,11 @@ impl<'gcx> Assembler<'gcx> {
             deferred_allocations: FxHashMap::default(),
             optimized: None,
         }
+    }
+
+    /// Sets the objective the source module's `@custom:solar-optimize` tag selects.
+    pub(crate) fn set_optimize(&mut self, optimize: Option<OptimizationMode>) {
+        self.program.optimize = optimize;
     }
 
     /// Clears all emitted instructions and local identifiers.

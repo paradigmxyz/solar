@@ -16,6 +16,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match &stmt.kind {
             StmtKind::DeclSingle(id) => {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
+                if self.cx.gcx.hir.solar_view(*id).is_some()
+                    && let Some(initializer) = initializer
+                {
+                    return self.lower_view_declaration(&[Some(*id)], initializer);
+                }
                 let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
                     let access = if let Some(initializer) = initializer {
@@ -68,6 +73,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.values.insert(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {
+                if ids.iter().flatten().any(|&id| self.cx.gcx.hir.solar_view(id).is_some()) {
+                    return self.lower_view_declaration(ids, expr);
+                }
                 if ids.iter().flatten().any(|&id| {
                     // Memory declarations must also route through the copy
                     // path: the generic path would bind the callee's raw
@@ -180,11 +188,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 self.lower_discarded_expr(expr)?;
             }
-            StmtKind::Block(block) => self.lower_block(*block)?,
+            StmtKind::Block(block) => match self.cx.gcx.hir.solar_scratch(block.span) {
+                Some(tag) => self.lower_scratch_block(*block, tag)?,
+                None => self.lower_block(*block)?,
+            },
             StmtKind::UncheckedBlock(block) => {
                 let previous = self.unchecked;
                 self.unchecked = true;
-                let result = self.lower_block(*block);
+                let result = match self.cx.gcx.hir.solar_scratch(block.span) {
+                    Some(tag) => self.lower_scratch_block(*block, tag),
+                    None => self.lower_block(*block),
+                };
                 self.unchecked = previous;
                 result?;
             }
@@ -256,6 +270,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
             StmtKind::AssemblyBlock(block) => {
+                // Lowering to HIR rejects assembly in a scratch block itself; this is the body a
+                // modifier's `_` runs inside one.
+                if let Some(&tag) = self.open_scratch.last() {
+                    self.cx
+                        .gcx
+                        .dcx()
+                        .err("a `@custom:solar-scratch` block cannot contain inline assembly")
+                        .span(stmt.span)
+                        .span_note(tag, "the tag is here")
+                        .note("a modifier's `_` runs the function's body inside the block")
+                        .emit();
+                }
+                self.cx.state.lowered_assembly = true;
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let result = self.lower_block(*block);
                 self.in_inline_assembly = previous;
@@ -552,7 +579,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             args.span,
             "event argument",
             |this, index, argument| {
-                let parameter_ty = this.cx.gcx.type_of_item(event.parameters[index].into());
+                let parameter = event.parameters[index];
+                let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
+                // A literal in the event's data needs no object of its own: the encoder writes
+                // its words.
+                if !this.cx.gcx.hir.variable(parameter).indexed
+                    && matches!(
+                        parameter_ty.peel_refs().kind,
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    )
+                    && let ExprKind::Lit(lit) =
+                        this.peel_bytes_conversion(argument).peel_parens().kind
+                    && let LitKind::Str(_, bytes, _) = &lit.kind
+                    && !bytes.as_byte_str().is_empty()
+                {
+                    let value = this.lower_encoded_bytes_literal(bytes.as_byte_str())?;
+                    return Some((argument, value));
+                }
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
                 Some((argument, value))
             },
@@ -658,6 +701,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             (self.builder.imm(0), self.builder.imm(32 * data_values.len() as u64))
         } else {
+            // The log reads the data at once, so it stays unreserved past the free memory
+            // pointer, as with solc.
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
             let encoded =
                 self.builder.abi_encode_scratch(layout, None, data_values.into_boxed_slice());

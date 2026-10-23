@@ -67,10 +67,7 @@ bb8:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -179,10 +176,7 @@ bb16:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -214,16 +208,8 @@ bb16:
   or
   push bb6
   jumpi
-  push 32
-  dup 2
-  add
   push 64
   mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
   dup 4
   dup 2
   mstore
@@ -253,29 +239,25 @@ bb19:
   push 32
   dup 2
   add
-  push 0
-  not
-  push 192
-  shr
-  swap 3
-  dup 4
+  swap 2
+  push 0xffffffffffffffff
   lt
   calldatasize
-  dup 3
+  dup 4
   gt
   or
   swap 1
-  swap 4
+  swap 3
   or
-  swap 1
+  swap 2
   calldataload
-  swap 1
-  dup 4
+  swap 2
+  dup 2
   calldatasize
   sub
   push 5
   shr
-  dup 3
+  dup 4
   gt
   or
   push 68
@@ -283,34 +265,34 @@ bb19:
   push 4
   dup 2
   add
-  swap 1
   push 32
-  dup 3
+  dup 2
   add
-  swap 5
+  swap 2
+  push 0xffffffffffffffff
   lt
   calldatasize
-  dup 6
+  dup 4
   gt
   or
   swap 1
   calldataload
   swap 1
-  dup 5
+  dup 3
   calldatasize
   sub
   dup 3
   gt
   or
   swap 1
-  swap 2
+  swap 3
   or
   push bb6
   jumpi
-  dup 2
+  dup 4
   push 5
   shl
-  dup 5
+  dup 4
   calldatasize
   sub
   dup 2
@@ -327,53 +309,39 @@ bb19:
   add
   push 64
   mstore
-  swap 3
-  dup 4
-  mstore
-  push 32
-  dup 4
-  add
-  swap 1
-  swap 2
   swap 5
-  swap 1
-  calldatacopy
-  push 63
-  dup 4
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 4
-  dup 2
+  dup 6
   mstore
   push 32
-  dup 2
+  dup 6
   add
-  swap 4
-  swap 2
-  swap 3
   swap 1
+  swap 2
   swap 4
+  swap 1
   calldatacopy
+  push 64
   mload
-  dup 1
+  swap 2
+  dup 2
+  dup 4
+  mstore
+  push 32
+  dup 4
+  add
+  calldatacopy
+  swap 1
+  mload
   push 0x1999999999999999999999999999999999999999999999999999999999999999
-  lt
+  dup 2
+  gt
   push bb26
   jumpi
-  push 10
-  mul
   push 4
   calldataload
   swap 1
+  push 10
+  mul
   dup 2
   add
   swap 1
@@ -383,9 +351,9 @@ bb19:
   jumpi
   swap 1
   mload
-  dup 1
   push 0x28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f
-  lt
+  dup 2
+  gt
   push bb26
   jumpi
   push 100

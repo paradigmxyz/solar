@@ -225,8 +225,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data_expr = &args[0];
         let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
         let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        // `abi_decode` reads a calldata slice in place, so calldata needs no copy.
-        let data = if lies_in_calldata(data_ty) {
+        // `abi_decode` reads a calldata slice in place, so calldata and its views need no copy.
+        let data = if let Some(view) = self.view_slice(data_expr) {
+            view
+        } else if lies_in_calldata(data_ty) {
             self.lower_expr(data_expr)?
         } else {
             let data = self.lower_typed_expr(data_expr, memory_ty)?;
@@ -242,7 +244,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(CallResult::Value(self.builder.abi_decode(layout, data, result_ty)))
     }
 
-    fn lower_abi_decode_layout(
+    pub(super) fn lower_abi_decode_layout(
         &mut self,
         data: ValueId,
         types: &[Ty<'gcx>],
@@ -559,6 +561,39 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => return None,
         };
         Some((element_abi, source))
+    }
+
+    /// `keccak256(abi.encodePacked(array))` of one dynamic memory array of full-word value
+    /// types, hashed in place: an array's packed encoding is its elements as ABI words, which
+    /// is how memory holds them. The encoding cleans narrower elements, which inline assembly
+    /// can leave dirty in memory, and checks the range of enums, so those arrays take the
+    /// encoder.
+    pub(super) fn lower_keccak_packed_word_array(
+        &mut self,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
+        let [expr] = exprs else { return None };
+        let ty = self.cx.gcx.type_of_expr(expr.id)?;
+        if !ty.is_ref_at(DataLocation::Memory)
+            || !matches!(
+                self.types.abi_type(ty)?,
+                AbiType::DynamicArray { element, .. } if matches!(*element, AbiType::Word(None))
+            )
+            || !matches!(
+                self.types.memory_layout(ty)?,
+                MemoryObjectLayout::DynamicArray { element_words: 1 }
+            )
+        {
+            return None;
+        }
+        // hash = keccak256(array.data, array.len << 5)
+        let array = self.lower_expr(expr)?;
+        let data = self.builder.memory_data(array);
+        let length = self.builder.memory_len(array);
+        let shift = self.builder.imm(5);
+        let size = self.builder.shl(length, shift);
+        Some(self.builder.keccak256(data, size))
     }
 
     pub(super) fn lower_packed_word_array(

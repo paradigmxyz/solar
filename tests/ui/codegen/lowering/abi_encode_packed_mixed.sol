@@ -23,11 +23,13 @@ contract AbiEncodePackedMixed {
         return abi.encodePacked(a, mid, b);
     }
 
+    // A word array's packed encoding is its elements as they lie in memory, so
+    // the hash reads them in place.
     // CHECK-LABEL: fn @hashArray{{[( ]}}
-    // CHECK: [[BYTES:v[0-9]+]] = abi_encode_packed (array<word> memoryarray<1> arg0)
-    // CHECK: [[DATA:v[0-9]+]] = ptradd [[BYTES]], 32
-    // CHECK: [[LEN:v[0-9]+]] = mload [[BYTES]]
-    // CHECK: keccak256 [[DATA]], [[LEN]]
+    // CHECK: [[DATA:v[0-9]+]] = ptradd arg0, 32
+    // CHECK: [[LEN:v[0-9]+]] = mload arg0
+    // CHECK: [[SIZE:v[0-9]+]] = shl [[LEN]], 5
+    // CHECK: keccak256 [[DATA]], [[SIZE]]
     function hashArray(bytes32[] memory values) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(values));
     }

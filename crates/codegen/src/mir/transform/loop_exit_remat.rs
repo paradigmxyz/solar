@@ -27,8 +27,8 @@ impl MirPass for LoopExitRemat {
         "loop-exit-remat"
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _: &Module) -> bool {
-        gcx.sess.opts.optimization.is_gas()
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        module.optimization(gcx).is_gas()
     }
 
     fn run_pass(&self, _: Gcx<'_>, module: &mut Module, _: &mut ModuleAnalyses) -> bool {

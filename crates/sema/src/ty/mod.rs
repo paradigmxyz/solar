@@ -49,6 +49,7 @@ mod common;
 pub use common::{CommonTypes, EachDataLoc};
 
 mod call_graph;
+pub(crate) use call_graph::traced_functions;
 
 mod interner;
 use interner::Interner;
@@ -742,6 +743,11 @@ impl<'gcx> Gcx<'gcx> {
     /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
     pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
         self.natspec_contract_in_source((name, source))
+    }
+
+    /// Returns the `@custom:solar-*` tags that document `item`.
+    pub fn solar_tags(self, item: hir::ItemId) -> crate::natspec::SolarTags {
+        crate::natspec::solar_tags(self, item)
     }
 
     /// Returns the resolved NatSpec doc comments for the given doc ID.

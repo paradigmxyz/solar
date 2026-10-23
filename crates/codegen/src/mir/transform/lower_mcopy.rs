@@ -92,7 +92,7 @@ impl MirPass for LowerMCopy {
             return false;
         }
 
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         let summaries = analyses.call_summaries(module);
         let sites = module
             .functions

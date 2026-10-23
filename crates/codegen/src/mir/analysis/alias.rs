@@ -6,13 +6,26 @@
 //! symbolic pointer. Region labels do not prove disjointness: raw pointer operations
 //! and FMP recycling can cross those regions. The analysis exposes the memory,
 //! storage, and transient-storage effects of each instruction.
+//!
+//! An access keeps its allocation's identity while it stays inside the object: within the
+//! allocation's constant size, within the first word of a checked allocation, a Solidity object
+//! that always reserves one, or at a runtime index into an object of constant size, which `ptradd`
+//! keeps inside. An index into an object of runtime size is checked against a length word that
+//! inline assembly can enlarge past the allocation. That access, and any other that may leave a
+//! unique allocation, keeps no disjointness from other objects, but it shares the allocation's
+//! pointer and compares with its other accesses by offset. An
+//! access at the end of an object's payload, `p + 32 + len` in plain additions for a length
+//! stored into `p` before, as a zero word stored to pad a fresh result is, starts past the
+//! object's length word and may leave the object, when `len` is provably below `2^255`, so that
+//! the sum cannot wrap around onto the length word.
 
 use super::{CfgInfo, MemoryCallSummaries};
 use crate::mir::{
-    AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
-    ImmutableId, InstId, InstKind, MemoryRegion, MirType, PtrLocation, RequireKind, StorageAlias,
-    Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee, FrameMode,
+    FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind, MemoryRegion, MirType,
+    PtrLocation, RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
+use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::{
@@ -43,6 +56,10 @@ pub(crate) enum MemoryBase {
     InternalFrame,
     /// One fresh abstract heap allocation.
     Allocation(InstId),
+    /// An access to one fresh heap allocation that may leave its bounds. It keeps no
+    /// disjointness from other objects, but shares its pointer with the allocation's other
+    /// accesses, so offsets still separate it from them.
+    UnboundedAllocation(InstId),
     /// An unrecycled allocation site with multiple dynamic loop instances.
     DynamicAllocation(InstId),
     /// A symbolic MIR value.
@@ -91,6 +108,7 @@ impl MemoryAddress {
             MemoryBase::Absolute => Some(self.offset),
             MemoryBase::InternalFrame
             | MemoryBase::Allocation(_)
+            | MemoryBase::UnboundedAllocation(_)
             | MemoryBase::DynamicAllocation(_)
             | MemoryBase::Value(_) => None,
         }
@@ -103,14 +121,17 @@ impl MemoryAddress {
             MemoryBase::InternalFrame => Some(self.offset),
             MemoryBase::Absolute
             | MemoryBase::Allocation(_)
+            | MemoryBase::UnboundedAllocation(_)
             | MemoryBase::DynamicAllocation(_)
             | MemoryBase::Value(_) => None,
         }
     }
 
-    /// Returns whether this address is the base of a fresh allocation.
-    pub(crate) fn is_allocation_base(self) -> bool {
-        self.offset == 0 && matches!(self.base, MemoryBase::Allocation(_))
+    /// Returns whether this address is the base of a fresh allocation of constant size.
+    pub(crate) fn is_fixed_allocation_base(self, func: &Function) -> bool {
+        self.offset == 0
+            && matches!(self.base, MemoryBase::Allocation(inst)
+                if AliasAnalysis::allocation_size(func, inst).is_some())
     }
 
     /// Returns this address advanced by `offset`, if it fits.
@@ -638,11 +659,25 @@ impl AliasAnalysis {
 
     /// Returns the address `base + k` of an address `ptradd (ptradd base, index), k` with a
     /// runtime index and constant `ptradd`s `k` around it, or `None` without a runtime index.
+    /// The end of an object's payload, `p + 32 + len` for a length stored into `p`, is `p + 32`
+    /// in the same way, though an access there may leave the object.
     fn runtime_offset_base(
         &self,
         func: &Function,
         address: ValueId,
     ) -> Option<Option<MemoryAddress>> {
+        if let Some(object) = Self::payload_end(func, address) {
+            return Some((|| {
+                let base =
+                    self.memory_address(func, object)?.checked_add(EvmMemoryLayout::WORD_SIZE)?;
+                match base.base {
+                    MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
+                        Self::unbounded_allocation(func, base, inst)
+                    }
+                    _ => Some(base),
+                }
+            })());
+        }
         // The canonical address of the chain is the runtime-indexed `ptradd` plus `k`.
         let address = self.memory_address(func, address)?;
         let MemoryBase::Value(indexed) = address.base else { return None };
@@ -650,11 +685,12 @@ impl AliasAnalysis {
         let InstKind::PtrAdd(base, index) = func.inst(*inst).kind else { return None };
         func.value_u64(index).is_none().then(|| {
             let base = self.memory_address(func, base)?.checked_add(address.offset)?;
-            // NOTE: `ptradd` keeps the access inside its object, but a direct access to an
-            // allocation of runtime size cannot prove it fits, so `bounded_memory_location` names
-            // that object by its pointer value. Name the indexed access the same way, or the two
-            // would look like different objects and every indexed store would clobber the
-            // object's header words.
+            // NOTE: `ptradd` keeps the access inside its object, but the bounds check of an
+            // object of runtime size reads its length word, which inline assembly can enlarge past
+            // the allocation, so an indexed access may reach the next object. It is named by the
+            // allocation's pointer value, as a direct access that may leave a unique allocation
+            // is, which keeps no disjointness from other objects but compares with the
+            // allocation's other accesses by offset, so indexed stores leave the header words.
             match base.base {
                 MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst)
                     if Self::allocation_size(func, inst).is_none() =>
@@ -684,7 +720,11 @@ impl AliasAnalysis {
         size: LocationSize,
     ) -> Option<MemoryLocation> {
         if let MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) = address.base {
-            let bound = Self::allocation_size(func, inst);
+            let bound = if matches!(address.base, MemoryBase::Allocation(_)) {
+                Self::allocation_min_size(func, inst)
+            } else {
+                Self::allocation_size(func, inst)
+            };
             let within_bounds = size.as_const().is_some_and(|size| {
                 size == 0
                     || address
@@ -708,8 +748,21 @@ impl AliasAnalysis {
         }
     }
 
-    /// Names an access to allocation `inst` that may leave its bounds by the allocation's
-    /// pointer value instead, which keeps no disjointness from other allocations.
+    /// The fewest bytes allocation `inst` reserves: its constant size, or one word for a checked
+    /// allocation of runtime size, a Solidity object whose size includes its header.
+    fn allocation_min_size(func: &Function, inst: InstId) -> Option<u64> {
+        match func.inst(inst).kind {
+            InstKind::Alloc { size, semantics } => {
+                func.value_u64(size).or((semantics.failure == AllocationFailure::Checked)
+                    .then_some(EvmMemoryLayout::WORD_SIZE))
+            }
+            _ => None,
+        }
+    }
+
+    /// Names an access to allocation `inst` that may leave its bounds, which keeps no
+    /// disjointness from other allocations: a unique allocation's access compares with the
+    /// allocation's other accesses by offset, and a loop allocation's goes by its pointer value.
     fn unbounded_allocation(
         func: &Function,
         mut address: MemoryAddress,
@@ -719,8 +772,10 @@ impl AliasAnalysis {
         // staying outside reserved memory. Loop allocations may follow an FMP reset.
         if matches!(address.base, MemoryBase::DynamicAllocation(_)) {
             address.region = MemoryRegion::Unknown;
+            address.base = MemoryBase::Value(func.inst_result_value(inst)?);
+        } else {
+            address.base = MemoryBase::UnboundedAllocation(inst);
         }
-        address.base = MemoryBase::Value(func.inst_result_value(inst)?);
         Some(address)
     }
 
@@ -1448,6 +1503,22 @@ impl AliasAnalysis {
         // loop-instance allocation may hit the same or different instances, so
         // they stay `MayAlias`; a dynamic allocation against a
         // non-allocation base is likewise `MayAlias`.
+        // An access that may leave its allocation shares the allocation's pointer, but nothing
+        // keeps it from other objects.
+        match (first.address.base, second.address.base) {
+            (
+                MemoryBase::UnboundedAllocation(a),
+                MemoryBase::Allocation(b) | MemoryBase::UnboundedAllocation(b),
+            )
+            | (MemoryBase::Allocation(b), MemoryBase::UnboundedAllocation(a)) => {
+                return if a == b {
+                    Self::compare_offsets(first, second)
+                } else {
+                    AliasResult::MayAlias
+                };
+            }
+            _ => {}
+        }
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
         match (first_alloc, second_alloc) {
@@ -1872,6 +1943,74 @@ impl AliasAnalysis {
             .is_none_or(|address| address < EvmMemoryLayout::HEAP_START)
     }
 
+    /// Returns the least address `value` can hold when a compiler-owned base, an allocation, a
+    /// frame or a read of the free memory pointer, reaches it through constant additions alone.
+    /// Unlike [`Self::pointer_lower_bound`], which bounds where a write may land, it trusts no
+    /// runtime offset: assembly that forges a length can index an object's element around to
+    /// low memory, and a read there must see what was stored. `call` bounds the pointer an
+    /// internal call returns.
+    #[must_use]
+    pub(crate) fn read_lower_bound(
+        func: &Function,
+        value: ValueId,
+        call: &dyn Fn(FunctionId) -> Option<u64>,
+    ) -> Option<u64> {
+        Self::constant_offset_lower_bound(func, value, call, 0)
+    }
+
+    /// Returns the least address a word at `offset` of the current internal-call frame can
+    /// have. A fixed frame lies at or above the heap start but omits the frame header that MIR
+    /// offsets include, and an external entry's frame starts at the heap start.
+    #[must_use]
+    pub(crate) fn frame_lower_bound(offset: u64) -> u64 {
+        EvmMemoryLayout::HEAP_START
+            .saturating_add(offset.saturating_sub(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE))
+    }
+
+    fn constant_offset_lower_bound(
+        func: &Function,
+        value: ValueId,
+        call: &dyn Fn(FunctionId) -> Option<u64>,
+        depth: usize,
+    ) -> Option<u64> {
+        if depth > 8 {
+            return None;
+        }
+        if let Some(value) = func.value_u64(value) {
+            return Some(value);
+        }
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let bound = |value| Self::constant_offset_lower_bound(func, value, call, depth + 1);
+        match &func.inst(*inst).kind {
+            InstKind::Fmp
+            | InstKind::Alloc { .. }
+            | InstKind::AbiEncode { .. }
+            | InstKind::AbiDecode { .. } => Some(EvmMemoryLayout::HEAP_START),
+            InstKind::Load(address, PtrLocation::Memory)
+                if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+            {
+                Some(EvmMemoryLayout::HEAP_START)
+            }
+            InstKind::InternalFrameAddr(offset) => Some(Self::frame_lower_bound(*offset)),
+            InstKind::ICall { function: Callee::Function(function), .. } => call(*function),
+            InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => bound(*value),
+            InstKind::Add(first, second) if super::integers::integer_bits(func, value) == 256 => {
+                bound(*first)
+                    .and_then(|base| base.checked_add(func.value_u64(*second)?))
+                    .or_else(|| bound(*second)?.checked_add(func.value_u64(*first)?))
+            }
+            InstKind::PtrAdd(base, offset) => bound(*base)?.checked_add(func.value_u64(*offset)?),
+            InstKind::Phi(incoming) => incoming
+                .iter()
+                .map(|(_, value)| bound(*value))
+                .collect::<Option<Vec<_>>>()?
+                .into_iter()
+                .min(),
+            InstKind::Select(_, first, second) => Some(bound(*first)?.min(bound(*second)?)),
+            _ => None,
+        }
+    }
+
     /// Returns a conservative lower bound for a compiler-owned pointer.
     ///
     /// This deliberately does not trust a coarse `Heap` region: inline MIR can
@@ -1909,6 +2048,11 @@ impl AliasAnalysis {
                     .or_else(|| {
                         Self::pointer_lower_bound(func, *second, depth + 1)
                             .and_then(|base| base.checked_add(func.value_u64(*first)?))
+                    })
+                    .or_else(|| {
+                        let object = Self::payload_end(func, value)?;
+                        Self::pointer_lower_bound(func, object, depth + 1)?
+                            .checked_add(EvmMemoryLayout::WORD_SIZE)
                     })
             }
             InstKind::Sub(base, offset)
@@ -1979,6 +2123,81 @@ impl AliasAnalysis {
             }
             AbiType::FixedArray { .. } | AbiType::Tuple(_) => true,
         }
+    }
+
+    /// Returns the memory object `p` of an address `p + 32 + len`, the end of `p`'s payload, in
+    /// either association, when `len` is a length below `2^255` stored into `p` before the address
+    /// is computed: by `p`'s allocation block, as `new bytes(len)` stores it, or earlier in the
+    /// address's own block, as a trusted `mstore(p, len)` that sets a buffer's length does. Inline
+    /// assembly spells such an address with plain additions, as a zero word stored after a fresh
+    /// result to pad it does.
+    ///
+    /// NOTE: Only the bound keeps the sum from wrapping around the address space, onto the length
+    /// word or below it: assembly may store any word as a length, and `new bytes(len)` bounds
+    /// `len` only by a panic this analysis does not follow. The store into `p` places `p` below
+    /// `2^64`, as no store reaches memory past that, so the sum stays below `2^256` and an access
+    /// at it stays clear of the length word, though it may leave the object.
+    fn payload_end(func: &Function, address: ValueId) -> Option<ValueId> {
+        let Value::Inst(user) = *func.value(address) else { return None };
+        let InstKind::Add(a, b) = func.inst(user).kind else { return None };
+        let add = |value| match *func.value(value) {
+            Value::Inst(inst) => match func.inst(inst).kind {
+                InstKind::Add(c, d) => Some((c, d)),
+                _ => None,
+            },
+            _ => None,
+        };
+        let object = |value| match *func.value(value) {
+            Value::Inst(inst) => match func.inst(inst).kind {
+                InstKind::PtrToInt(object, 256) => Some(object),
+                _ => None,
+            },
+            _ => None,
+        };
+        let word = |value| func.value_u64(value) == Some(EvmMemoryLayout::WORD_SIZE);
+        for (inner, outer) in [(a, b), (b, a)] {
+            let Some((c, d)) = add(inner) else { continue };
+            for (pointer, other) in [(c, d), (d, c)] {
+                let Some(object) = object(pointer) else { continue };
+                // (p + 32) + len, or (p + len) + 32
+                let len = match (word(other), word(outer)) {
+                    (true, _) => outer,
+                    (_, true) => other,
+                    _ => continue,
+                };
+                if super::integers::unsigned_bounds_with_opcodes(func, len).1 <= U256::MAX >> 1
+                    && Self::stores_length_before(func, object, len, user)
+                {
+                    return Some(object);
+                }
+            }
+        }
+        None
+    }
+
+    /// Whether `len` is stored into the length word of `object` before `user` runs: earlier in
+    /// `user`'s block, or after `object`'s allocation in another block, which control leaves
+    /// before any use of the allocation outside it.
+    fn stores_length_before(func: &Function, object: ValueId, len: ValueId, user: InstId) -> bool {
+        let stores = |inst| func.memory_length_store(inst) == Some((object, len));
+        let alloc = match *func.value(object) {
+            Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::Alloc { .. }) => {
+                Some(inst)
+            }
+            _ => None,
+        };
+        func.blocks.iter().any(|block| {
+            let insts = &block.instructions;
+            match insts.iter().position(|&inst| inst == user) {
+                Some(at) => insts[..at].iter().copied().any(stores),
+                None => alloc.is_some_and(|alloc| {
+                    insts
+                        .iter()
+                        .position(|&inst| inst == alloc)
+                        .is_some_and(|from| insts[from..].iter().copied().any(stores))
+                }),
+            }
+        })
     }
 }
 

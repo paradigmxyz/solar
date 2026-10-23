@@ -9,7 +9,7 @@
 // CHECK-NOT: {{^[ +].*}}phi
 fn @diamond(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v0 = ne arg0, 0
+    v0 = lt arg0, 10
     jumpi v0, bb1, bb2
   bb1:
     v1 = mul arg1, 3

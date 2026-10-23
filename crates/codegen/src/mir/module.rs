@@ -8,6 +8,7 @@ use super::{
 use crate::{
     link::{ContractCode, LibraryTable},
     mir::analysis::{CfgInfo, direct_callees},
+    target,
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
@@ -17,8 +18,8 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{Ident, Symbol, sym};
-use solar_sema::hir::VariableId;
+use solar_interface::{Ident, Symbol, config::OptimizationMode, sym};
+use solar_sema::{Gcx, hir::VariableId};
 use std::{borrow::Cow, fmt, sync::Arc};
 
 /// A named immutable declared by a MIR module.
@@ -115,6 +116,12 @@ pub struct Module {
     pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
+    /// The objective the contract's `@custom:solar-optimize` tag selects, which replaces the
+    /// build's in optimized builds.
+    pub(crate) optimize: Option<OptimizationMode>,
+    /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
+    /// of its runs.
+    pub(crate) tagged_inline_growth: usize,
 }
 
 impl Module {
@@ -176,7 +183,19 @@ impl Module {
             is_library: false,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
+            optimize: None,
+            tagged_inline_growth: 0,
         }
+    }
+
+    /// Returns the objective this module's code is optimized for.
+    pub(crate) fn optimization(&self, gcx: Gcx<'_>) -> OptimizationMode {
+        target::objective(gcx.sess.opts.optimization, self.optimize)
+    }
+
+    /// Returns the cost model of this module's code.
+    pub(crate) fn target(&self, gcx: Gcx<'_>) -> target::Target {
+        target::Target::new(gcx, self.optimization(gcx))
     }
 
     /// Enables or disables source debug information auditing for optimization passes.
@@ -621,6 +640,9 @@ impl Module {
             }
             if self.is_library {
                 writeln!(f, "@library")?;
+            }
+            if let Some(optimize) = self.optimize {
+                writeln!(f, "@optimize {optimize}")?;
             }
             if !self.struct_types.is_empty() {
                 writeln!(f, "@types")?;

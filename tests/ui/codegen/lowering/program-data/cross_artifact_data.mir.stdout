@@ -6,7 +6,7 @@
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = alloc 256 !metadata(preserves_fmp)
+    v0 = alloc 256
     mstore v0, 224
     v1 = ptradd v0, 32
     datacopy literal_0, v1, 224

@@ -1,0 +1,46 @@
+//@ revisions: semantic lowered
+//@[semantic] compile-flags: -Zmir-pipeline=none
+//@[lowered] compile-flags: -Zmir-pipeline=lower-abi
+//@[lowered] filecheck:
+// A `bytes` field a `@custom:solar-view` declaration decodes from calldata is the calldata slice
+// of its bytes. The decode checks it as the copying decode checks the copy, in the same order,
+// replays the copy's allocation against the free memory pointer, which the second view's
+// allocation continues from, and allocates and copies nothing.
+@module LowerAbiDecodeViews
+@types
+  struct0: {i256, slice<calldata>}
+  struct1: {slice<calldata>, slice<calldata>}
+
+// CHECK-LABEL: fn @view(
+// CHECK: = add [[LEN:v[0-9]+]], 63
+// CHECK: [[FMP:v[0-9]+]] = fmp
+// CHECK: [[START:v[0-9]+]] = ptrtoint ptr<memory> [[FMP]] to i256
+// CHECK: [[END:v[0-9]+]] = add [[START]], {{v[0-9]+}}
+// CHECK: gt [[END]], 0xffffffffffffffff
+// CHECK: gt [[LEN]], {{v[0-9]+}}
+// CHECK-NOT: alloc
+// CHECK-NOT: calldatacopy
+// CHECK: make_calldata_slice {{v[0-9]+}}, [[LEN]]
+fn @view(arg0: slice<calldata>) -> i256 {
+  bb0:
+    v0 = abi_decode [uint256, bytes], arg0, views 1
+    v1 = extract_value struct0, v0, 1
+    v2 = extract_value slice<calldata>, v1, 1
+    ret v2
+}
+
+// CHECK-LABEL: fn @views(
+// CHECK: [[FMP:v[0-9]+]] = fmp
+// CHECK: [[START:v[0-9]+]] = ptrtoint ptr<memory> [[FMP]] to i256
+// CHECK: [[FIRST:v[0-9]+]] = add [[START]], {{v[0-9]+}}
+// CHECK: make_calldata_slice
+// CHECK-NOT: fmp
+// CHECK: add [[FIRST]], {{v[0-9]+}}
+// CHECK: make_calldata_slice
+fn @views(arg0: slice<calldata>) -> i256 {
+  bb0:
+    v0 = abi_decode [bytes, bytes], arg0, views 0, 1
+    v1 = extract_value struct1, v0, 1
+    v2 = extract_value slice<calldata>, v1, 1
+    ret v2
+}

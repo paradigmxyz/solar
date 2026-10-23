@@ -7,8 +7,11 @@
 //! bytes, keeping the literal on ties so the pass never increases code size.
 //!
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
-//! target supports them. The exported cost helper uses the same selector, so other EVM IR passes
-//! can compare a prospective rewrite with the bytes and static gas that this pass will emit.
+//! target supports them. A gas build keeps the literal where the recipe's extra gas outweighs the
+//! deposit of the bytes it saves, as the cost model prices it over the expected executions and,
+//! for a push in a hot loop, over the loop's iterations, so a loop does not rebuild a mask on every
+//! iteration. The exported cost helper uses the same selector, so other EVM IR passes can compare
+//! a prospective rewrite with the bytes and static gas that this pass will emit.
 //!
 //! Recipe emission recursively selects materializations for child pushes, so one pass reaches a
 //! fixed point. The default pipeline expands recipes once before structural cleanup because tail
@@ -16,9 +19,12 @@
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
 
 use super::EvmPass;
-use crate::backend::evm::{
-    ir::{Instruction, Metadata, Module},
-    op::{self, WORD_BYTES},
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Metadata, Module},
+        op::{self, WORD_BYTES},
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -40,9 +46,11 @@ const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
+    let target = module.target(gcx);
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
+        let in_loop = block.metadata.in_loop && !block.metadata.hotness.is_cold();
         if !block.instructions.iter().any(|inst| {
             inst.concrete_immediate()
                 .is_some_and(|value| !matches!(select(evm_version, value), CompactPush::Literal))
@@ -58,7 +66,9 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 continue;
             };
             let materialization = ImmediateMaterialization::new(evm_version, value);
-            if matches!(materialization.recipe, CompactPush::Literal) {
+            if matches!(materialization.recipe, CompactPush::Literal)
+                || !materialization.repays(&target, in_loop)
+            {
                 block.instructions.push(inst);
             } else {
                 materialize_selected(&mut block.instructions, materialization, &inst.metadata);
@@ -97,6 +107,18 @@ impl ImmediateMaterialization {
     /// Returns the materialization's maximum relative stack height.
     pub(in crate::backend) fn stack_peak(self) -> usize {
         self.metrics().stack_peak
+    }
+
+    /// Whether the selected recipe is better code than the literal push, by the target's pricing
+    /// of the bytes it saves against the gas it adds, inside a loop or not.
+    fn repays(self, target: &Target, in_loop: bool) -> bool {
+        let (literal_len, literal_gas) = literal_cost(self.evm_version, self.value);
+        let metrics = self.metrics();
+        target.compacts_immediate(
+            literal_len.saturating_sub(metrics.encoded_len) as u64,
+            metrics.static_gas.saturating_sub(literal_gas) as u64,
+            in_loop,
+        )
     }
 
     /// Visits each concrete instruction in execution order.
@@ -199,8 +221,8 @@ fn select(evm_version: EvmVersion, value: U256) -> CompactPush {
     select_with_len(evm_version, value).1
 }
 
-pub(super) fn selected_len(gcx: Gcx<'_>, value: U256) -> usize {
-    immediate_materialization_len(gcx.sess.opts.evm_version, value)
+pub(super) fn selected_len(target: Target, value: U256) -> usize {
+    immediate_materialization_len(target.evm_version(), value)
 }
 
 pub(in crate::backend) fn immediate_materialization_len(

@@ -1,0 +1,285 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/header_bounds.sol:HeaderBounds ===
+@module HeaderBounds
+@phase lowered
+@types
+  struct0: {i1, i256}
+  struct1: {i256, i256}
+
+fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
+  bb0:
+    v49 = icall @decode_calldata_type
+    v0 = mload v49
+    v62 = add v49, 32
+    jump bb1
+  bb1:
+    v5 = phi [bb0: 1], [bb6: v27]
+    v6 = phi [bb0: v0], [bb6: v28]
+    v7 = gt v5, v6
+    jumpi v7, bb2, bb3
+  bb3:
+    v35 = add v5, v6
+    v36 = lt v35, v5
+    jumpi v36, bb7, bb8
+  bb8:
+    v10 = shr v35, 1
+    v37 = sub v10, 1
+    v15 = shl v37, 5
+    v60 = add v62, v15
+    v18 = mload v60
+    v19 = eq v18, arg1
+    jumpi v19, bb9, bb4
+  bb4:
+    v23 = gt arg1, v18
+    jumpi v23, bb5, bb6
+  bb5:
+    v43 = add v10, 1
+    jump bb6
+  bb6:
+    v27 = phi [bb4: v5], [bb5: v43]
+    v28 = phi [bb4: v37], [bb5: v6]
+    jump bb1
+  bb9:
+    mstore 0, 1
+    mstore 32, v37 !metadata(memory=scratch)
+    returndata 0, 64
+  bb7:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    v30 = sub v6, 1
+    v29 = ne v6, 0
+    v45 = zext i1 v29 to i256
+    v46 = mul v45, v30
+    mstore 0, 0
+    mstore 32, v46 !metadata(memory=scratch)
+    returndata 0, 64
+}
+
+fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
+  bb0:
+    v25 = icall @decode_calldata_type
+    v0 = mload v25
+    v31 = add v25, 32
+    jump bb1
+  bb1:
+    v4 = phi [bb0: 0], [bb5: v19]
+    v5 = phi [bb0: v0], [bb5: v20]
+    v6 = lt v4, v5
+    jumpi v6, bb3, bb2
+  bb2:
+    mstore 0, v4 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:
+    v7 = sub v5, v4
+    v8 = shr v7, 1
+    v21 = add v4, v8
+    v13 = shl v21, 5
+    v29 = add v31, v13
+    v16 = mload v29
+    v17 = lt v16, arg1
+    jumpi v17, bb4, bb5
+  bb4:
+    v18 = add v21, 1
+    jump bb5
+  bb5:
+    v19 = phi [bb4: v18], [bb3: v4]
+    v20 = phi [bb4: v5], [bb3: v21]
+    jump bb1
+}
+
+fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
+  bb0:
+    v54 = calldatasize
+    v56 = calldataload 4
+    v57 = add v56, 4
+    v58 = add v57, 32
+    v59 = gt v56, 0xffffffffffffffff
+    v60 = gt v58, v54
+    v61 = or v59, v60
+    v63 = calldataload v57
+    v65 = sub v54, v58
+    v66 = shr v65, 5
+    v67 = gt v63, v66
+    v92 = or v61, v67
+    v70 = calldataload 36
+    v71 = add v70, 4
+    v72 = add v71, 32
+    v73 = gt v70, 0xffffffffffffffff
+    v74 = gt v72, v54
+    v75 = or v73, v74
+    v93 = or v92, v75
+    v77 = calldataload v71
+    v79 = sub v54, v72
+    v80 = shr v79, 5
+    v81 = gt v77, v80
+    v94 = or v93, v81
+    jumpi v94, bb7, bb11
+  bb11:
+    v90 = shl v77, 5
+    v91 = add v72, v90
+    jump bb1
+  bb1:
+    v2 = phi [bb11: 0], [bb3: v45]
+    v3 = phi [bb11: 0], [bb3: v46]
+    v88 = phi [bb11: v72], [bb3: v89]
+    v6 = ne v88, v91
+    jumpi v6, bb4, bb2
+  bb4:
+    v20 = calldataload v88
+    v21 = lt v20, 2
+    jumpi v21, bb8, bb7
+  bb8:
+    v24 = eq v20, 0
+    jumpi v24, bb3, bb5
+  bb5:
+    v26 = eq v3, v63
+    jumpi v26, bb2, bb6
+  bb6:
+    v33 = shl v3, 5
+    v41 = add v58, v33
+    v42 = calldataload v41
+    v52 = add v2, v42
+    v53 = lt v52, v2
+    jumpi v53, bb9, bb10
+  bb10:
+    v44 = add v3, 1
+    jump bb3
+  bb9:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    mstore 0, v2 !metadata(memory=scratch)
+    mstore 32, v3 !metadata(memory=scratch)
+    returndata 0, 64
+  bb3:
+    v45 = phi [bb10: v52], [bb8: v2]
+    v46 = phi [bb10: v44], [bb8: v3]
+    v89 = add v88, 32
+    jump bb1
+  bb7:
+    revert 0, 0
+}
+
+fn @probe() [selector=0x6012072a, abi_wrapper, pure] {
+  bb0:
+    v28 = icall @decode_calldata_type
+    v0 = mload v28
+    v34 = add v28, 32
+    v35 = sub 0, arg1
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb9: v22]
+    v4 = phi [bb0: 0], [bb9: v5]
+    v5 = phi [bb0: v0], [bb9: v24]
+    v6 = phi [bb0: v35], [bb9: v19]
+    v7 = ne v6, 0
+    jumpi v7, bb3, bb2
+  bb2:
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:
+    v20 = add v4, v5
+    v21 = lt v20, v4
+    jumpi v21, bb6, bb7
+  bb7:
+    v9 = shr v20, 1
+    v11 = lt v9, v0
+    jumpi v11, bb5, bb4
+  bb4:
+    tail_call @revert_stub
+  bb5:
+    v13 = shl v9, 5
+    v32 = add v34, v13
+    v16 = mload v32
+    v22 = add v3, v16
+    v23 = lt v22, v3
+    jumpi v23, bb6, bb8
+  bb8:
+    v24 = add v5, 1
+    v25 = eq v24, 0
+    jumpi v25, bb6, bb9
+  bb9:
+    v19 = add v6, 1
+    jump bb1
+  bb6:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_type() -> i256 [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload 4
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v8 = calldataload v2
+    v10 = gt v8, 0x7fffffffffffffe
+    jumpi v10, bb3, bb4
+  bb4:
+    v11 = add v8, 1
+    v12 = shl v11, 5
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, v12
+    v29 = lt v28, v27
+    v30 = gt v28, 0xffffffffffffffff
+    v31 = or v29, v30
+    jumpi v31, bb3, bb6
+  bb6:
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore v27, v8
+    v15 = sub v0, v3
+    v16 = shr v15, 5
+    v17 = gt v8, v16
+    jumpi v17, bb1, bb5
+  bb5:
+    v14 = shl v8, 5
+    v24 = add v27, 32
+    calldatacopy v24, v3, v14
+    ret v27
+  bb3:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x15847e62 => bb3, 0x6012072a => bb4, 0x63b7c492 => bb5, 0xd43fc471 => bb6]
+  bb6:
+    tail_call @search
+  bb5:
+    tail_call @lowerBound
+  bb4:
+    tail_call @probe
+  bb3:
+    tail_call @consume
+  bb1:
+    revert 0, 0
+}

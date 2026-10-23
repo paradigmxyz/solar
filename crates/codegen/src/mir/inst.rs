@@ -606,7 +606,9 @@ pub(crate) enum AllocationInitialization {
 pub(crate) enum AllocationFailure {
     /// The producer has already proved the bump valid.
     Infallible,
-    /// Revert with the memory-allocation panic when the bump overflows.
+    /// Revert with the memory-allocation panic when the bump overflows. Only Solidity objects
+    /// allocate this way, and each reserves at least one word: its length header or its first
+    /// field.
     Checked,
 }
 

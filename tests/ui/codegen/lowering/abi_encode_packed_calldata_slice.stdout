@@ -48,10 +48,7 @@ bb15:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -72,19 +69,18 @@ bb15:
   swap 1
   jump
 bb7 [continuation]:
-  dup 3
-  dup 3
-  lt
-  dup 3
-  dup 3
-  push 32
-  add
-  swap 3
+  dup 1
   calldataload
+  dup 3
+  gt
+  dup 4
+  dup 4
   lt
   or
   push bb4
   jumpi
+  push 32
+  add
   dup 3
   add
   swap 2
@@ -119,14 +115,14 @@ bb10:
 bb12 [continuation]:
   dup 1
   calldataload
-  swap 1
-  push 32
-  add
   dup 3
-  dup 3
+  dup 2
   lt
   push bb4
   jumpi
+  swap 1
+  push 32
+  add
   dup 3
   swap 1
   swap 2

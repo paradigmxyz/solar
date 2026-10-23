@@ -848,6 +848,9 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_function_pointer_dispatcher: bool,
     /// Never clone this function into multiple callers.
     pub(crate) no_inline: bool,
+    /// Clone this function into every caller where inlining is legal, whatever it costs, as its
+    /// `@custom:solar-inline` tag requires.
+    pub(crate) always_inline: bool,
     /// Proved upper bound, in bits, on the words each array parameter can
     /// hold while this function reads it, recorded by element cleanup for
     /// the ABI return proofs that run after the element masks are gone.
@@ -869,6 +872,7 @@ impl Default for FunctionAttributes {
             may_return_memory: false,
             is_function_pointer_dispatcher: false,
             no_inline: false,
+            always_inline: false,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
         }

@@ -23,9 +23,10 @@ use crate::{
         pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
         transform::*,
     },
-    target::Target,
+    target::{self, Target},
 };
 use smallvec::SmallVec;
+use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_sema::Gcx;
@@ -36,12 +37,14 @@ pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_pass
 /// All known MIR passes exposed by `-Zmir-pipeline`.
 static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline::Semantic,
+    &inline::Inline::Tagged,
     &if_convert::IfConvert,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &call_cleanup::CallCleanup,
     &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
+    &cfg_simplify::NoreturnCalls,
     &cfg_simplify::SimplifyTrivialPhis,
     &sccp::Sccp,
     &pure_eval::PureEval,
@@ -53,6 +56,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
+    &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
@@ -63,6 +67,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
     &loop_unroll::LoopUnroll,
+    &loop_version::LoopVersion,
     &merge_aborts::MergeAborts,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
@@ -124,7 +129,7 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
+        module.optimization(gcx).is_size() && self.0.is_enabled(gcx, module)
     }
 
     fn is_required(&self) -> bool {
@@ -155,7 +160,7 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_gas() && self.0.is_enabled(gcx, module)
+        module.optimization(gcx).is_gas() && self.0.is_enabled(gcx, module)
     }
 
     fn is_required(&self) -> bool {
@@ -178,12 +183,18 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // pass forwards the stored value to the pointer's loads.
     &heap_floor::HeapFloor,
     &cfg_simplify::FunctionDce,
+    // A failure path through a revert helper ends at the call, so the code after it keeps the
+    // facts the failing branch states.
+    &cfg_simplify::NoreturnCalls,
     // HIR lowering leaves trivial phis for locals that loops never reassign.
     // They hide one object behind several SSA names, which alias analysis
     // joins to distinct symbolic pointers, so remove them before the loop and
     // memory passes. Only the phis: merging blocks this early hides the
     // short-circuit shapes jump threading recognizes after check elimination.
     &cfg_simplify::SimplifyTrivialPhis,
+    // `@custom:solar-inline` helpers join their callers before any pass reads
+    // a loop, an object, or a bound through the call.
+    &inline::Inline::Tagged,
     // Early frame scalarization improves size but can increase hot-path gas.
     &SizeOnly::new(cfg_simplify::CfgSimplify),
     &SizeOnly::new(frame_promotion::FrameSlotPromotion),
@@ -201,11 +212,18 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // compare against one bound.
     &cse::Cse,
     &load_pre::LoadPre::All,
+    // Forwarded loads fold the checks of a helper that only fails, such as
+    // `new uint256[](0)[0]`; end them, and the calls to it, before element
+    // cleanup bounds the values that reach stores.
+    &cfg_simplify::NoreturnCalls,
     // Element reads of arrays that only ever hold canonical words drop their
     // type masks while the accesses are still semantic and calls explicit.
     &element_cleanup::ElementCleanup,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
+    // Replace byte-at-a-time loops with word operations while checks are single instructions,
+    // before the inliner prices the helpers that spell them.
+    &byte_loops::ByteLoops,
     // Evaluate recurrences before gas-bounded reasoning removes checks that
     // become reachable if a loop is replaced by a constant-time formula.
     &GasOnly::new(dce::Dce),
@@ -216,6 +234,11 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    // A loop that stores into one array and reloads another's length gets a copy that reads
+    // the lengths once, behind a run-time test that the stores cannot reach them. It runs on
+    // the threaded graph, where the short-circuit conditions that cover a check dominate it;
+    // the check elimination after memory lowering folds the copy's bounds.
+    &GasOnly::new(loop_version::LoopVersion),
     &sroa::Sroa,
     &memory_dse::MemoryDse,
     &adce::Adce,
@@ -626,6 +649,8 @@ pub(crate) struct FunctionAnalyses {
     creation_only: bool,
     /// Whether, besides, the function has no loop of its own.
     straight_line_creation: bool,
+    /// The objective the module's `@custom:solar-optimize` tag selects.
+    optimize: Option<OptimizationMode>,
 }
 
 impl FunctionAnalyses {
@@ -643,14 +668,16 @@ impl FunctionAnalyses {
     /// recursion calls is priced as such whether or not it loops, because the transform
     /// multiplies by trip counts.
     pub(crate) fn loop_aware_target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.creation_only)
+        Target::new(gcx, target::objective(gcx.sess.opts.optimization, self.optimize))
+            .priced_for(self.creation_only)
     }
 
     /// The cost model for a transform that ranks code shapes without weighing blocks by how
     /// often they run: creation code is priced as such only when every instruction runs a
     /// bounded number of times, so without loops, recursion, or a looping caller.
     pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.straight_line_creation)
+        Target::new(gcx, target::objective(gcx.sess.opts.optimization, self.optimize))
+            .priced_for(self.straight_line_creation)
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
@@ -779,6 +806,7 @@ impl ModuleAnalyses {
             unreported_edit: Cell::new(false),
             creation_only,
             straight_line_creation,
+            optimize: module.optimize,
         }
     }
 

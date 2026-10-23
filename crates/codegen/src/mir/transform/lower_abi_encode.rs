@@ -100,7 +100,7 @@ impl MirPass for LowerAbiEncode {
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         let (fresh_object_returns, mut destructive_returns) =
             plan_destructive_terminal_returns(&target, module);
         let mut helpers = synthesize_array_helpers(&target, module, revert_strings);

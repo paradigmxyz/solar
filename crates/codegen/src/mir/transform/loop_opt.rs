@@ -34,7 +34,14 @@
 //! The pass runs once on the semantic MIR and once more in gas mode after memory lowering,
 //! which materializes each element access as `add base, 32` plus an index term inside the
 //! loop that reads it; the late run hoists that base so a hot loop carries one word instead
-//! of reloading its argument and re-adding the header on every iteration.
+//! of reloading its argument and re-adding the header on every iteration. An access at an index
+//! the frontend spells first, `(base + index term) + 32`, is reassociated in gas mode into
+//! `(base + 32) + index term`, with `base + 32` computed once in the preheader of the outermost
+//! loop `base` is fixed in, together with every such sum that preheader dominates, when those
+//! sums are the base's last readers: the new word then replaces the base among those the loops
+//! carry. A heap's sift, a sort's partition scan, or a hash table's probe, whose index no affine
+//! recurrence of the loop describes, saves one addition per access; an affine index stays for
+//! `indvar-simplify`, which steps a pointer instead.
 //!
 //! In gas mode, an unsigned checked product inside a loop whose factor `y` is defined before
 //! the loop, lowered as `y == 0 || (x * y) / y == x` or, with `y` first, as a check that
@@ -50,15 +57,19 @@ use crate::mir::{
     BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
     Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value, ValueId,
     analysis::{
-        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
-        Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
+        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, DominatorTree, Location,
+        LocationSize, Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
     },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use std::rc::Rc;
 
 /// Most words a loop may carry after a below-threshold hoist. The count is the header's phis
@@ -83,7 +94,7 @@ impl MirPass for Licm {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let hoist_cheap = gcx.sess.opts.optimization.is_gas();
+        let hoist_cheap = module.optimization(gcx).is_gas();
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
             if func.blocks.is_empty() {
@@ -164,7 +175,7 @@ impl LoopOptimizer {
             func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
 
         let mut analyzer = LoopAnalyzer::new();
-        let loop_info = analyzer.analyze_with_cfg(func, cfg);
+        let loop_info = analyzer.analyze_with_cfg(func, Rc::clone(&cfg));
 
         if loop_info.loops.is_empty() {
             return 0;
@@ -185,6 +196,16 @@ impl LoopOptimizer {
             .iter()
             .map(|loop_data| (loop_data.header, Self::carried_words(func, loop_data, &inst_blocks)))
             .collect::<FxHashMap<_, _>>();
+        if self.hoist_cheap {
+            // Outer loops first, so a sum an inner loop shares with its outer loop is rewritten
+            // with the outer loop's view of the index.
+            let mut nest = loops.iter().collect::<Vec<_>>();
+            nest.sort_by_key(|loop_data| std::cmp::Reverse(loop_data.blocks.count()));
+            for loop_data in nest {
+                self.hoisted +=
+                    reassociate_invariant_offsets(func, loop_data, &loops, cfg.dominators());
+            }
+        }
         for loop_data in &loops {
             self.apply_licm(func, loop_data, &analyzer, &loops, &mut carried);
         }
@@ -1153,4 +1174,157 @@ fn product_check(
         let words = [divisor, other].iter().all(|&v| func.value_ty(v) == Some(MirType::I256));
         (by == divisor && factors && words).then_some((divisor, other, zero_test))
     })
+}
+
+/// Rewrites `(x + y) + c` in a loop, with `x` from outside the loop, `y` from inside, and `c` a
+/// constant, as `t + y` with `t = x + c` computed once before the loop. Memory lowering spells an
+/// element address `(base + (index << 5)) + 32`, so a loop whose index no affine recurrence
+/// describes, as a heap's sift or a sort's partition scan, rebuilt both sums on every access. An
+/// affine `y` stays: `indvar-simplify` steps a pointer for it, and prices that by the sums it
+/// removes. Word addition wraps, so any association computes the same word.
+///
+/// `t` goes to the preheader of the outermost loop `x` is fixed in, so a nested loop does not
+/// rebuild it on every outer iteration, and replaces `x` there: every sum with the same `x + c`
+/// that preheader dominates is rewritten, each inner sum must have no other reader, and nothing
+/// else the preheader dominates may read `x`. A word kept for other readers would make the loops
+/// carry one more, which costs more than the sums save when a loop runs once or twice, as a heap
+/// push's sift or a hash table's probe does.
+fn reassociate_invariant_offsets(
+    func: &mut Function,
+    loop_data: &Loop,
+    loops: &[Loop],
+    dominators: &DominatorTree,
+) -> usize {
+    let inst_blocks = func.inst_block_table();
+    let block_of = |value: ValueId| match *func.value(value) {
+        Value::Inst(inst) => inst_blocks.get(inst).copied().flatten(),
+        _ => None,
+    };
+    // An affine index is `indvar-simplify`'s, which steps a pointer instead.
+    let scev = ScalarEvolution::analyze(func, loop_data);
+    let mut readers = FxHashMap::<ValueId, usize>::default();
+    for block in &func.blocks {
+        for &inst in &block.instructions {
+            func.inst(inst)
+                .kind
+                .visit_operands(&mut |value| *readers.entry(value).or_default() += 1);
+        }
+        if let Some(term) = &block.terminator {
+            term.visit_operands(&mut |value| *readers.entry(value).or_default() += 1);
+        }
+    }
+    // The sum `outer = (x + y) + c` with its single-reader inner sum, as `(x, c, outer, inner, y)`.
+    let split = |outer: InstId| {
+        let InstKind::Add(first, second) = func.inst(outer).kind else { return None };
+        let (sum, c) = [(first, second), (second, first)]
+            .into_iter()
+            .find(|&(sum, c)| func.value_u256(c).is_some() && func.value_u256(sum).is_none())?;
+        let Value::Inst(inner) = *func.value(sum) else { return None };
+        let InstKind::Add(a, b) = func.inst(inner).kind else { return None };
+        (readers.get(&sum).copied() == Some(1)
+            && func.value_ty(sum) == Some(MirType::I256)
+            && func.inst(outer).result_ty == Some(MirType::I256))
+        .then_some((a, b, c, inner))
+    };
+    // Each `x + c` with an in-loop site whose `y` changes in the loop but not affinely.
+    let mut keys = Vec::<(ValueId, U256, ValueId)>::new();
+    for block in loop_data.blocks.iter() {
+        for &outer in &func.blocks[block].instructions {
+            let Some((a, b, c, _)) = split(outer) else { continue };
+            for (x, y) in [(a, b), (b, a)] {
+                if func.value_u256(x).is_none()
+                    && block_of(x).is_none_or(|def| !loop_data.blocks.contains(def))
+                    && block_of(y).is_some_and(|def| loop_data.blocks.contains(def))
+                    && scev.get(y).is_none()
+                {
+                    let constant = func.value_u256(c).expect("the offset is a constant");
+                    if !keys.iter().any(|&(kx, kc, _)| kx == x && kc == constant) {
+                        keys.push((x, constant, c));
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    // Plan every rewrite before changing the function.
+    let mut plans = Vec::new();
+    let mut claimed = FxHashSet::default();
+    for (x, constant, c) in keys {
+        // The outermost loop around this one that `x` is fixed in.
+        let Some(target) = loops
+            .iter()
+            .filter(|outer| {
+                outer.blocks.superset(&loop_data.blocks)
+                    && block_of(x).is_none_or(|def| !outer.blocks.contains(def))
+            })
+            .max_by_key(|outer| outer.blocks.count())
+        else {
+            continue;
+        };
+        let Some(preheader) = target.preheader else { continue };
+        if block_of(x).is_some_and(|def| def != preheader && !dominators.dominates(def, preheader))
+        {
+            continue;
+        }
+        // Every `x + c` sum the preheader dominates, and whether anything else there reads `x`.
+        let mut sites = Vec::new();
+        let mut read_elsewhere = false;
+        for block in func.blocks.indices() {
+            if block == preheader || !dominators.dominates(preheader, block) {
+                continue;
+            }
+            for &inst in &func.blocks[block].instructions {
+                if let Some((a, b, sum_c, inner)) = split(inst)
+                    && func.value_u256(sum_c) == Some(constant)
+                    && let Some(y) = if a == x {
+                        Some(b)
+                    } else if b == x {
+                        Some(a)
+                    } else {
+                        None
+                    }
+                    && func.value_u256(y).is_none()
+                {
+                    sites.push((inst, inner, y));
+                }
+            }
+            let block = &func.blocks[block];
+            if block.terminator.as_ref().is_some_and(|term| term.reads(x)) {
+                read_elsewhere = true;
+            }
+        }
+        let inners = sites.iter().map(|&(_, inner, _)| inner).collect::<Vec<_>>();
+        read_elsewhere |= func.blocks.indices().any(|block| {
+            block != preheader
+                && dominators.dominates(preheader, block)
+                && func.blocks[block]
+                    .instructions
+                    .iter()
+                    .any(|&inst| !inners.contains(&inst) && func.inst(inst).kind.reads(x))
+        });
+        if read_elsewhere
+            || sites.is_empty()
+            || sites.iter().any(|&(outer, _, _)| claimed.contains(&outer))
+        {
+            continue;
+        }
+        claimed.extend(sites.iter().map(|&(outer, _, _)| outer));
+        plans.push((preheader, x, c, sites));
+    }
+    let mut rewritten = 0;
+    for (preheader, x, c, sites) in plans {
+        // preheader: t = add x, c
+        let mut sum = Instruction::new(InstKind::Add(x, c), Some(MirType::I256));
+        sum.metadata.copy_debug_context(&func.inst(sites[0].0).metadata);
+        let (sum_inst, t) = func.alloc_value_inst(sum);
+        func.blocks[preheader].instructions.push(sum_inst);
+        for (outer, inner, y) in sites {
+            // outer = add t, y
+            func.inst_mut(outer).kind = InstKind::Add(t, y);
+            let block = inst_blocks[inner].expect("the inner sum is in a block");
+            func.blocks[block].instructions.retain(|&inst| inst != inner);
+            rewritten += 1;
+        }
+    }
+    rewritten
 }

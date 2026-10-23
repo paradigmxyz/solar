@@ -3,7 +3,8 @@
 //! This pass removes persistent `sstore` instructions inside a single basic
 //! block or across CFG edges when a later store to the same definitely-known slot overwrites them
 //! before any storage observer can see the intermediate value. It also removes
-//! repeated equal stores when no intervening instruction can clobber storage.
+//! stores of the word their slot already holds: a repeated equal store, or a store of the word a
+//! load of the slot read, when no intervening instruction can clobber the slot.
 //!
 //! A backward must analysis intersects the definitely-overwritten slots of all
 //! successors. An exit that returns or stops starts with no slots, and a least
@@ -18,11 +19,29 @@
 //! forward and backward facts so measured storage writes remain explicit.
 //! Calls that may terminate the current EVM call clear backward facts because
 //! they can commit earlier writes without reaching the later overwrite.
+//!
+//! The equal-store walk is forward. A store or a load tells the word its slot holds until a
+//! write that may alias the slot, a call that may write storage, or a possible `gas` observation,
+//! and a store of that word is removed. A read-modify-write that changes no bit, such as
+//! `x = sload s; sstore s, x ^ ((x ^ v) & 0)` once the value simplifies to `x`, thus loses its
+//! store, and DCE then removes the unused load. Facts flow into a block entered from one
+//! predecessor, whose terminator touches no storage, so a check that lowering splits off between
+//! the load and the store keeps the pair visible; every other block starts with none. After a
+//! possible `gas` observation, which `GasObservations` tracks through every path and transitive
+//! callee, accesses stay explicit, as in storage forwarding.
+//!
+//! Removing a store of the word its slot holds changes behavior only where the `SSTORE` itself
+//! would fail: in a static context, where it reverts, and with at most 2,300 gas left. solc's
+//! optimizer removes the same stores, in its legacy and its IR pipeline, and accepts the same
+//! difference.
 
 use crate::mir::{
     BlockId, Function, FunctionId, InstId, InstKind, Module, PtrLocation, StorageAlias, Terminator,
     ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, Location, ModRef, returning_blocks},
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, ModRef,
+        returning_blocks,
+    },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
@@ -104,15 +123,17 @@ struct StorageStoreEliminator<'a> {
 }
 
 struct RunState {
-    stored_values: FxHashMap<StorageAlias, ValueId>,
     dead: DenseBitSet<InstId>,
 }
 
 impl RunState {
     fn new(func: &Function) -> Self {
-        Self { stored_values: FxHashMap::default(), dead: DenseBitSet::new_empty(func.num_insts()) }
+        Self { dead: DenseBitSet::new_empty(func.num_insts()) }
     }
 }
+
+/// The word each slot is known to hold, from a store or a load of it.
+type StoredValues = FxHashMap<StorageAlias, ValueId>;
 
 impl<'a> StorageStoreEliminator<'a> {
     /// Creates a new storage-store eliminator.
@@ -155,9 +176,7 @@ impl<'a> StorageStoreEliminator<'a> {
         for block in &mut func.blocks {
             block.instructions.retain(|id| !state.dead.contains(*id));
         }
-        for block in func.blocks.indices() {
-            self.remove_equal_stores(func, block, &mut state.stored_values, &mut state.dead);
-        }
+        self.remove_equal_stores(func, &mut state.dead);
 
         self.eliminated_count
     }
@@ -250,21 +269,73 @@ impl<'a> StorageStoreEliminator<'a> {
         }
     }
 
-    fn remove_equal_stores(
+    /// Removes the stores of a word their slot already holds, as an equal store or a load of
+    /// the slot left it. A block entered from one predecessor starts with the words that
+    /// predecessor ends with, since no terminator that continues to a successor touches
+    /// storage, so a check that lowering splits off between a load and its store keeps the pair
+    /// visible; every other block starts with none.
+    fn remove_equal_stores(&mut self, func: &mut Function, dead: &mut DenseBitSet<InstId>) {
+        let cfg = Rc::clone(&self.cfg);
+        let gas = GasObservations::new(func, &cfg, &self.alias);
+        dead.clear();
+        // Each exit is kept with the number of successors still waiting for it, and the last one
+        // takes it.
+        let mut exits = FxHashMap::<BlockId, (usize, StoredValues)>::default();
+        for &block in cfg.rpo() {
+            let mut stored_values = match cfg.predecessors(block) {
+                &[pred] => match exits.get_mut(&pred) {
+                    Some((1, _)) => exits.remove(&pred).unwrap().1,
+                    Some((waiting, stored_values)) => {
+                        *waiting -= 1;
+                        stored_values.clone()
+                    }
+                    None => StoredValues::default(),
+                },
+                _ => StoredValues::default(),
+            };
+            self.remove_block_equal_stores(func, block, &gas, &mut stored_values, dead);
+            let waiting = cfg
+                .successors(block)
+                .iter()
+                .filter(|&&successor| cfg.predecessors(successor).len() == 1)
+                .count();
+            if waiting != 0 {
+                exits.insert(block, (waiting, stored_values));
+            }
+        }
+
+        if dead.is_empty() {
+            return;
+        }
+        for block in &mut func.blocks {
+            block.instructions.retain(|id| !dead.contains(*id));
+        }
+    }
+
+    fn remove_block_equal_stores(
         &mut self,
-        func: &mut Function,
+        func: &Function,
         block_id: BlockId,
-        stored_values: &mut FxHashMap<StorageAlias, ValueId>,
+        gas: &GasObservations,
+        stored_values: &mut StoredValues,
         dead: &mut DenseBitSet<InstId>,
     ) {
         let aa = &*self.alias;
-        stored_values.clear();
-        dead.clear();
-
+        // After a gas read, storage accesses stay, so a later read observes their cost.
+        if gas.at_entry(block_id) {
+            stored_values.clear();
+            return;
+        }
         for &inst_id in &func.blocks[block_id].instructions {
+            if gas.observes(inst_id) {
+                stored_values.clear();
+                return;
+            }
             match &func.inst(inst_id).kind {
                 InstKind::Store(slot, value, PtrLocation::Storage) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
+                    // sstore slot, v; ...; sstore slot, v -> sstore slot, v; ...
+                    // v = sload slot; ...; sstore slot, v -> v = sload slot; ...
                     if stored_values.get(&alias).is_some_and(|&stored| stored == *value) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
@@ -274,25 +345,22 @@ impl<'a> StorageStoreEliminator<'a> {
                     Self::remove_aliasing_map(aa, stored_values, alias);
                     stored_values.insert(alias, *value);
                 }
+                // A load tells the word its slot holds until a write that may alias the slot.
+                InstKind::Load(slot, PtrLocation::Storage) => {
+                    if let Some(loaded) = func.inst_result_value(inst_id) {
+                        let alias = aa.storage_alias(func, inst_id, *slot);
+                        stored_values.entry(alias).or_insert(loaded);
+                    }
+                }
                 _ => {
                     let effects = aa.instruction_mod_ref(func, inst_id);
                     Self::apply_forward_writes(aa, &effects, stored_values);
                 }
             }
         }
-
-        if dead.is_empty() {
-            return;
-        }
-
-        func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
     }
 
-    fn remove_aliasing_map(
-        aa: &AliasAnalysis,
-        values: &mut FxHashMap<StorageAlias, ValueId>,
-        alias: StorageAlias,
-    ) {
+    fn remove_aliasing_map(aa: &AliasAnalysis, values: &mut StoredValues, alias: StorageAlias) {
         values.retain(|cached, _| {
             !aa.alias(Location::Storage(*cached), Location::Storage(alias)).may_alias()
         });
@@ -319,7 +387,7 @@ impl<'a> StorageStoreEliminator<'a> {
     fn apply_forward_writes(
         aa: &AliasAnalysis,
         effects: &ModRef,
-        stored_values: &mut FxHashMap<StorageAlias, ValueId>,
+        stored_values: &mut StoredValues,
     ) {
         if effects.observes_gas() || effects.writes_anywhere(AddressSpace::Storage) {
             stored_values.clear();

@@ -1,0 +1,10 @@
+- // === ROOT/tests/ui/codegen/mir/none/optimize.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/optimize.mir (after none) ===
+  @module Optimize
+  @phase lowered
+  @optimize size
+  fn @entry() [entry] {
+    bb0:
+      stop
+  }
+  

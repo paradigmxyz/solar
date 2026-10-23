@@ -43,10 +43,7 @@ bb13:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   calldatasize
   dup 4
@@ -76,24 +73,8 @@ bb7 [continuation]:
   swap 1
   push 32
   add
-  push 63
-  dup 3
-  add
-  push 31
-  not
-  and
   push 64
   mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 3
-  dup 2
-  mstore
-  push 32
-  add
   dup 3
   dup 3
   dup 3
@@ -130,24 +111,8 @@ bb11 [continuation]:
   swap 1
   push 32
   add
-  push 63
-  dup 3
-  add
-  push 31
-  not
-  and
   push 64
   mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 3
-  dup 2
-  mstore
-  push 32
-  add
   dup 3
   dup 3
   dup 3

@@ -283,13 +283,13 @@ bb20 [continuation]:
   lt
   push bb10
   jumpi
-  push 1
-  dup 2
-  sub
-  swap 1
+  dup 1
   iszero
   push bb10
   jumpi
+  push 1
+  swap 1
+  sub
   push 0
   mstore
   push 32

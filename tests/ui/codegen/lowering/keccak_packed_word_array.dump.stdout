@@ -1,0 +1,116 @@
+// === ROOT/tests/ui/codegen/lowering/keccak_packed_word_array.sol:KeccakPackedWordArray ===
+@module KeccakPackedWordArray
+@phase lowered
+fn @three() [selector=0xae4e757a, abi_wrapper, pure] {
+  bb0:
+    v17 = calldatasize
+    v18 = lt v17, 100
+    jumpi v18, bb1, bb2
+  bb2:
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, 128
+    v29 = lt v28, v27
+    v30 = gt v28, 0xffffffffffffffff
+    v31 = or v29, v30
+    jumpi v31, bb4, bb3
+  bb3:
+    mstore v27, 3
+    v21 = add v27, 32
+    mstore v21, arg0
+    v23 = add v27, 64
+    mstore v23, arg1
+    v25 = add v27, 96
+    mstore v25, arg2
+    v16 = keccak256 v21, 96
+    mstore 0, v16 !metadata(memory=scratch)
+    returndata 0, 32
+  bb4:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
+  bb0:
+    v1 = mload 96 !metadata(memory=scratch)
+    v2 = shl v1, 5
+    v3 = keccak256 128, v2
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @addresses() [selector=0x82d38954, abi_wrapper, pure] {
+  bb0:
+    v45 = calldataload 4
+    v46 = shr v45, 160
+    v43 = calldatasize
+    v44 = lt v43, 36
+    v75 = zext i1 v44 to i256
+    v76 = or v75, v46
+    v77 = ne v76, 0
+    jumpi v77, bb4, bb5
+  bb5:
+    v61 = mload 64 !metadata(memory=scratch)
+    v62 = add v61, 64
+    v63 = lt v62, v61
+    v64 = gt v62, 0xffffffffffffffff
+    v65 = or v63, v64
+    jumpi v65, bb7, bb6
+  bb6:
+    mstore 64, v62 !metadata(memory=scratch)
+    mstore v61, 1
+    v58 = add v61, 32
+    mstore v58, arg0
+    v67 = mload 64 !metadata(memory=scratch)
+    v68 = add v67, 64
+    mstore 64, v68 !metadata(memory=scratch)
+    mstore v67, 32
+    v69 = add v61, 32
+    v72 = add v67, 32
+    jump bb1
+  bb1:
+    v31 = phi [bb6: 0], [bb2: 1]
+    v70 = phi [bb6: v69], [bb2: v71]
+    v73 = phi [bb6: v72], [bb2: v74]
+    v32 = eq v31, 0
+    jumpi v32, bb2, bb3
+  bb3:
+    v56 = add v67, 32
+    v9 = keccak256 v56, 32
+    mstore 0, v9 !metadata(memory=scratch)
+    returndata 0, 32
+  bb2:
+    v38 = mload v70
+    v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore v73, v39
+    v71 = add v70, 32
+    v74 = add v73, 32
+    jump bb1
+  bb7:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb4:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x82d38954 => bb2, 0xae4e757a => bb3, 0xf2a75fe4 => bb4]
+  bb4:
+    tail_call @empty
+  bb3:
+    tail_call @three
+  bb2:
+    tail_call @addresses
+  bb5:
+    revert 0, 0
+}

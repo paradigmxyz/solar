@@ -32,6 +32,16 @@
 //! twelve words, leaving headroom for operand staging. This bounds spills but does
 //! not promise the scheduler emits none.
 //!
+//! A callee documented `@custom:solar-inline` skips every profitability test, the stack
+//! estimate below included: each call where cloning is legal is cloned, while the module's
+//! tagged clones fit a budget of their own over all runs. Tagged helpers that call each other
+//! would otherwise multiply without limit; past the budget, tagged calls are weighed like any
+//! other.
+//! `@custom:solar-noinline` marks a function no-inline. The `inline-tagged` variant clones only
+//! such callees, and runs first in the semantic pipeline: a helper that spells a word operation
+//! as a byte loop then meets the caller's objects, so `byte-loops` can tell a fresh destination
+//! from an argument, and constant arguments reach the loop bounds.
+//!
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate
 //! allocation semantics keep the call. A tail call to a helper that never returns,
 //! as `outline-reverts` leaves on failure paths, counts as a revert; any other tail
@@ -72,19 +82,24 @@ use solar_sema::Gcx;
 mod dispatch;
 mod guards;
 
-/// One inlining policy, before and after physical memory lowering.
+/// One inlining policy, before and after physical memory lowering, and its
+/// `@custom:solar-inline` subset.
 pub(crate) enum Inline {
     Semantic,
     Physical,
+    Tagged,
 }
 
 impl MirPass for Inline {
     fn name(&self) -> &'static str {
-        "inline"
+        match self {
+            Self::Semantic | Self::Physical => "inline",
+            Self::Tagged => "inline-tagged",
+        }
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        gcx.sess.opts.optimization != solar_config::OptimizationMode::None
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        module.optimization(gcx) != solar_config::OptimizationMode::None
     }
 
     fn run_pass(
@@ -93,8 +108,13 @@ impl MirPass for Inline {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
+        let tagged_only = matches!(self, Self::Tagged);
+        if tagged_only && !module.functions.iter().any(|function| function.attributes.always_inline)
+        {
+            return false;
+        }
         let mut changed = false;
         for _ in 0..4 {
             let calls = analyses.fresh_call_summaries(module);
@@ -103,7 +123,8 @@ impl MirPass for Inline {
             } else {
                 DenseBitSet::new_empty(module.functions.len())
             };
-            let stats = MirInliner { target, physical, calls, straight_line }.run(module);
+            let stats =
+                MirInliner { target, physical, tagged_only, calls, straight_line }.run(module);
             for &caller in &stats.modified {
                 analyses.invalidate_local_summary(caller);
             }
@@ -119,7 +140,7 @@ impl MirPass for Inline {
             changed = true;
         }
         let mut edited_later = false;
-        if physical {
+        if physical && !tagged_only {
             edited_later = guards::inline_guards(module, &target);
             if dispatch::inline_dispatch(module, &target) {
                 let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
@@ -159,6 +180,8 @@ impl MirPass for SpecializeFunctionPointers {
 struct MirInliner {
     target: Target,
     physical: bool,
+    /// Clone only `@custom:solar-inline` callees.
+    tagged_only: bool,
     calls: MemoryCallSummaries,
     /// The creation-only functions that run a bounded number of times, whose code the creation
     /// model prices.
@@ -176,6 +199,11 @@ impl MirInliner {
     /// lookups stayed calls that drained every carried word, and twelve took 15%
     /// off decoding.
     const STACK_BUDGET: usize = 12;
+    /// Instructions `@custom:solar-inline` clones may add to a module over every run of the
+    /// inliner. Tagged helpers that each call the previous one twice would otherwise clone
+    /// `2^depth` bodies, and compile time would grow with them. The largest safe-Solady module
+    /// takes about 4,700.
+    const TAGGED_BUDGET: usize = 16 * 1024;
 }
 
 /// Statistics for MIR-level inlining.
@@ -292,10 +320,14 @@ impl MirInliner {
                     None
                 }
                 .unwrap_or_else(|| call_counts.get(&site.callee).copied().unwrap_or_default());
-                let grew_too_much = summaries.get(&caller_id).is_some_and(|s| {
-                    s.instruction_count.saturating_sub(base_instructions)
-                        > if site.loop_depth > 0 { 128 } else { 64 }
-                });
+                // `@custom:solar-inline` skips the growth and stack budgets, as every other test,
+                // while the module's tagged clones fit their own.
+                let always = Self::always_inline(module, site.callee, &summary);
+                let grew_too_much = !always
+                    && summaries.get(&caller_id).is_some_and(|s| {
+                        s.instruction_count.saturating_sub(base_instructions)
+                            > if site.loop_depth > 0 { 128 } else { 64 }
+                    });
                 let framed_constructor_call = summaries.get(&caller_id).is_some_and(|caller| {
                     caller.is_constructor && summary.internal_frame_size != 0
                 });
@@ -330,10 +362,11 @@ impl MirInliner {
                     continue;
                 }
 
-                if let Some(peak) = (summary.has_phi || site.loop_depth > 0)
-                    .then_some(summary.phi_stack_peak)
-                    .flatten()
-                    .or_else(|| memory_wrappers.get(&site.callee).copied())
+                if !always
+                    && let Some(peak) = (summary.has_phi || site.loop_depth > 0)
+                        .then_some(summary.phi_stack_peak)
+                        .flatten()
+                        .or_else(|| memory_wrappers.get(&site.callee).copied())
                 {
                     let caller = module.function(caller_id);
                     let liveness =
@@ -350,6 +383,9 @@ impl MirInliner {
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
                     stats.modified.push(caller_id);
+                    if always {
+                        module.tagged_inline_growth += summary.instruction_count;
+                    }
                     if call_counts.get(&site.callee) == Some(&1) {
                         stats.consumed.push(site.callee);
                     }
@@ -503,13 +539,21 @@ impl MirInliner {
             && call_count <= Self::MAX_HOT_LEAF_CALL_SITES;
         let can_specialize_dispatcher =
             summary.is_function_pointer_dispatcher && site.has_constant_function_selector;
+        // `@custom:solar-inline` asks for every legal clone, whatever it costs, the spills a
+        // body with phis may add included, while the module's tagged budget lasts.
+        let always = Self::always_inline(module, site.callee, &summary);
+        if self.tagged_only && !always {
+            return false;
+        }
         if caller == site.callee
             || (summary.is_function_pointer_dispatcher
                 && !single_call
                 && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
-            || (summary.has_phi && !(summary.phi_stack_peak.is_some() && (single_call || hot)))
+            || (summary.has_phi
+                && !always
+                && !(summary.phi_stack_peak.is_some() && (single_call || hot)))
             || summary.has_unsupported_terminator
             || summary.return_count == 0
             || (self.physical
@@ -523,6 +567,9 @@ impl MirInliner {
                     })))
         {
             return false;
+        }
+        if always {
+            return true;
         }
 
         let has_reference_return = module
@@ -659,6 +706,14 @@ impl MirInliner {
                         if callee.storage_alias(inst, value) == StorageAlias::Slot(slot))
                 })))
         })
+    }
+
+    /// Whether a call to `callee` is cloned as `@custom:solar-inline` asks: while the module's
+    /// tagged clones, this one included, fit their budget.
+    fn always_inline(module: &Module, callee: MirFunctionId, summary: &MirInlineSummary) -> bool {
+        module.function(callee).attributes.always_inline
+            && module.tagged_inline_growth.saturating_add(summary.instruction_count)
+                <= Self::TAGGED_BUDGET
     }
 }
 

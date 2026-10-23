@@ -91,6 +91,9 @@ impl GasTier {
     pub(crate) const COPY_WORD_GAS: u32 = 3;
     /// Gas of a warm account or storage access under EIP-2929.
     pub(crate) const WARM_ACCESS_GAS: u32 = 100;
+    /// Gas of expanding memory by one word, before the quadratic term that small memories do not
+    /// reach.
+    pub(crate) const MEMORY_WORD_GAS: u32 = 3;
     /// The surcharge EIP-2929 adds to a storage write of a cold slot.
     const COLD_SLOAD_GAS: u32 = 2100;
 
@@ -364,12 +367,18 @@ impl Target {
     /// The most bytes the copies of a completely unrolled loop's body may take, whatever its
     /// pricing, so that a contract near the code size limit cannot grow past it.
     pub(crate) const MAX_LOOP_COPY_BYTES: u32 = 256;
+    /// The most bytes one copy of a loop block into a path that jumps to it may take: a latch
+    /// and the header test that the paths of a branching loop body then repeat. On the safe
+    /// Solady benchmarks the gas saved stops growing past this size, while the runtime corpus
+    /// keeps growing.
+    pub(crate) const MAX_LOOP_JOIN_COPY_BYTES: u32 = 40;
 
-    /// The model of the session's EVM version, objective, and optimizer runs.
-    pub(crate) fn new(gcx: Gcx<'_>) -> Self {
+    /// The model of the session's EVM version and optimizer runs for code optimized for
+    /// `optimization`, its objective after any `@custom:solar-optimize` tag (see [`objective`]).
+    pub(crate) fn new(gcx: Gcx<'_>, optimization: OptimizationMode) -> Self {
         let opts = &gcx.sess.opts;
-        let expected_executions = Self::optimizer_runs(opts.optimization, opts.optimizer_runs);
-        Self::with(opts.evm_version, opts.optimization, expected_executions)
+        let expected_executions = Self::optimizer_runs(optimization, opts.optimizer_runs);
+        Self::with(opts.evm_version, optimization, expected_executions)
     }
 
     /// Resolves the run count used by enabled lifetime-aware optimizations.
@@ -444,6 +453,34 @@ impl Target {
     /// Whether the build expects enough executions to copy loop bodies for runtime gas.
     pub(crate) fn copies_loops(&self) -> bool {
         self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
+    }
+
+    /// Whether copying a loop block whose code costs `copy`, entered on `paths` paths, into a loop
+    /// block that jumps to it pays. In gas builds the copy saves the jump's label push, `JUMP` and
+    /// `JUMPDEST` on each iteration through the edge: [`Self::UNCOUNTED_LOOP_ITERATIONS`] per
+    /// execution, shared equally by the paths into the block, against the deposit of the copied
+    /// bytes beyond the removed label push and `JUMP`. No copy is larger than
+    /// [`Self::MAX_LOOP_JOIN_COPY_BYTES`].
+    pub(crate) fn duplicates_loop_block(&self, copy: Cost, paths: u32) -> bool {
+        if !self.optimization.is_gas() || paths == 0 || copy.bytes > Self::MAX_LOOP_JOIN_COPY_BYTES
+        {
+            return false;
+        }
+        let removed = self.label_push() + self.opcode(op::JUMP);
+        let saved = u64::from(self.jump().gas) * Self::UNCOUNTED_LOOP_ITERATIONS / u64::from(paths);
+        let added = u64::from(copy.bytes.saturating_sub(removed.bytes));
+        !self.deposit_repays_gas(added, saved)
+    }
+
+    /// Whether a loop rewritten into one copy keeps a test of its length before the copy's
+    /// setup, which then runs only for a nonzero length, as the loop body did.
+    ///
+    /// The test is one branch on every copy. The setup it skips for an empty copy holds the
+    /// range checks with their panic branch, any overlap test, and the copy instruction, several
+    /// times the branch, and no longer masks its checks with a nonzero length. Gas builds take
+    /// that trade; size builds keep the branch's bytes.
+    pub(crate) fn tests_empty_copies(&self) -> bool {
+        self.optimization.is_gas()
     }
 
     /// Static gas of one opcode; unknown opcodes are free.
@@ -759,6 +796,22 @@ impl Target {
             > u128::from(gas) * u128::from(self.expected_executions)
     }
 
+    /// Whether a compact recipe for an immediate, `saved_bytes` shorter than its literal push and
+    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas builds
+    /// take them when the deposit they save repays the extra gas over the expected executions,
+    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a loop, so a hot loop
+    /// pushes a mask as a literal rather than rebuilding it on every iteration.
+    pub(crate) fn compacts_immediate(
+        &self,
+        saved_bytes: u64,
+        extra_gas: u64,
+        in_loop: bool,
+    ) -> bool {
+        let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
+        !self.optimization.is_gas()
+            || self.deposit_repays_gas(saved_bytes, extra_gas.saturating_mul(iterations))
+    }
+
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
     pub(crate) fn improves(&self, gas_saving: i64, byte_saving: i64) -> bool {
@@ -846,6 +899,41 @@ impl Target {
             return false;
         }
         (jump.times(sites) + copy + self.opcode(op::JUMPDEST)).bytes < copy.times(sites).bytes
+    }
+
+    /// Cost of `words` words of a function's fixed spill frame on each call of an external entry
+    /// that can reach the function. The frames of the functions an entry reaches lie below its
+    /// heap, so each word moves the heap up by one, and every call expands memory over the word
+    /// once its first allocation does, whether or not the function runs. The stores and reloads
+    /// that use the word are priced with the code that runs them.
+    pub(crate) fn frame_words(&self, words: u32) -> Cost {
+        Cost::new(GasTier::MEMORY_WORD_GAS.saturating_mul(words), 0)
+    }
+
+    /// Whether code shared from a site inside a loop pays for itself when the bytes it saves at
+    /// that site, `saved_bytes`, cost `transfer_gas` more on every iteration: the deposit of the
+    /// bytes against the transfers over the expected executions,
+    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times per execution. This holds in size builds too,
+    /// which otherwise take the bytes, so a hot loop keeps code that only its size made worth
+    /// sharing.
+    pub(crate) fn shares_in_loop(&self, saved_bytes: u64, transfer_gas: u64) -> bool {
+        self.deposit_repays_gas(
+            saved_bytes,
+            transfer_gas.saturating_mul(Self::UNCOUNTED_LOOP_ITERATIONS),
+        )
+    }
+}
+
+/// The objective code is optimized for: the build's, unless its source selects one with
+/// `@custom:solar-optimize`. A selection only picks what an optimized build optimizes for, so code
+/// built with `-O none` stays unoptimized.
+pub(crate) fn objective(
+    build: OptimizationMode,
+    selected: Option<OptimizationMode>,
+) -> OptimizationMode {
+    match (build, selected) {
+        (OptimizationMode::None, _) | (_, None) => build,
+        (_, Some(selected)) => selected,
     }
 }
 
@@ -1149,6 +1237,22 @@ mod tests {
     }
 
     #[test]
+    fn compact_immediates_repay_their_gas() {
+        // `type(uint128).max`: `PUSH16` is 17 bytes for 3 gas, `PUSH0 NOT PUSH1 128 SHR` 5 bytes
+        // for 11: 12 bytes deposit 2,400 gas against 8 gas on 200 executions, 1,600, or 16,000
+        // ten times over in a loop.
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        assert!(target.compacts_immediate(12, 8, false));
+        assert!(!target.compacts_immediate(12, 8, true));
+        // `type(uint64).max`: 4 bytes, 800 gas, do not repay 8 gas on 200 executions.
+        assert!(!target.compacts_immediate(4, 8, false));
+        // A recipe that costs no more gas always wins.
+        assert!(target.compacts_immediate(1, 0, true));
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        assert!(size.compacts_immediate(12, 8, true));
+    }
+
+    #[test]
     fn deposit_repays_gas_over_expected_executions() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         // 10 bytes deposit 2,000 gas; 9 gas on 200 executions is 1,800.
@@ -1231,5 +1335,70 @@ mod tests {
         assert!(size.shares_terminal_copy(medium, 3));
         // One site never pays for a jump.
         assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
+    }
+
+    #[test]
+    fn loop_blocks_are_duplicated_by_lifetime_gas() {
+        let gas = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
+        // A 12-byte latch on one of three paths saves 12 gas on a third of ten iterations: 8,000
+        // gas over 200 runs against 8 more bytes, 1,600 gas of deposit.
+        assert!(gas.duplicates_loop_block(Cost::new(30, 12), 3));
+        // Then the saving repays at most 40 added bytes, and on the only path any copy that
+        // fits the size limit.
+        assert!(gas.duplicates_loop_block(Cost::new(0, 40), 3));
+        assert!(!gas.duplicates_loop_block(Cost::new(0, 40), 4));
+        assert!(gas.duplicates_loop_block(Cost::new(0, Target::MAX_LOOP_JOIN_COPY_BYTES), 1));
+        assert!(!gas.duplicates_loop_block(Cost::new(0, Target::MAX_LOOP_JOIN_COPY_BYTES + 1), 1));
+        // One expected execution repays no added byte.
+        let once = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 1);
+        assert!(once.duplicates_loop_block(Cost::new(0, 4), 1));
+        assert!(!once.duplicates_loop_block(Cost::new(0, 5), 1));
+        let size = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
+        assert!(!size.duplicates_loop_block(Cost::new(30, 12), 1));
+    }
+
+    #[test]
+    fn empty_copies_are_tested_for_gas() {
+        let target = |optimization| Target::with(EvmVersion::Cancun, optimization, 200);
+        assert!(target(OptimizationMode::Gas).tests_empty_copies());
+        assert!(!target(OptimizationMode::Size).tests_empty_copies());
+        // The setup an empty copy skips costs more than the branch that tests it.
+        let gas = target(OptimizationMode::Gas);
+        let setup =
+            gas.opcode(op::LT).times(2) + gas.opcode(op::OR) + gas.branch() + gas.opcode(op::MCOPY);
+        assert!(setup.gas > (gas.opcode(op::ISZERO) + gas.branch()).gas);
+    }
+
+    #[test]
+    fn tags_select_the_objective_of_optimized_builds() {
+        let (none, gas, size) =
+            (OptimizationMode::None, OptimizationMode::Gas, OptimizationMode::Size);
+        assert_eq!(objective(gas, None), gas);
+        assert_eq!(objective(gas, Some(size)), size);
+        assert_eq!(objective(size, Some(gas)), gas);
+        assert_eq!(objective(none, Some(size)), none);
+    }
+
+    #[test]
+    fn frame_words_cost_memory_expansion() {
+        // A word below the heap costs every call one more word of expansion, and no bytes.
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = Target::with(EvmVersion::Cancun, optimization, 200);
+            assert_eq!(target.frame_words(0), Cost::ZERO);
+            assert_eq!(target.frame_words(10), Cost::new(30, 0));
+        }
+    }
+
+    #[test]
+    fn loop_sites_share_by_lifetime_gas() {
+        // A pooled `PUSH32` saves 25 bytes at a site and adds 27 gas of transfers to every
+        // iteration: 5,000 gas of deposit against 54,000 over 200 runs of ten iterations, or 270
+        // over one run.
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = |runs| Target::with(EvmVersion::Cancun, optimization, runs);
+            assert!(!target(200).shares_in_loop(25, 27));
+            assert!(target(1).shares_in_loop(25, 27));
+            assert!(!target(1).shares_in_loop(0, 27));
+        }
     }
 }

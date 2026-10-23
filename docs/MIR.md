@@ -562,7 +562,10 @@ returnability analysis follows tail-call chains, including cycles, so forwarding
 cannot hide an incompatible return signature. Proven nonreturning chains stay
 exempt. Call-to-tail-call conversion uses the same returnability facts, so it
 cannot discard a continuation after a returning tail-call chain. Calls to proven
-nonreturning bodies lose their dead continuation even when they produce a result.
+nonreturning bodies lose their dead continuation even when they produce a result:
+`noreturn-calls` cuts it at the start of the semantic pipeline, so the passes after
+it see a failing branch through a revert helper leave, and `lower-evm-shaped` cuts
+again on the final call graph.
 When frame rules prevent a tail jump, the call remains an ordinary `icall` followed
 by `invalid`. The function keeps its declared result type: it describes a normal return, not a promise to
 return. Slices as well as structs must be gone at the EVM-shaped boundary.

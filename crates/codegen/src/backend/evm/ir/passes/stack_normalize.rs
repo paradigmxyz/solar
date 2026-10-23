@@ -77,8 +77,8 @@ impl EvmPass for StackNormalize {
         if self.exchanges { "final-stack-normalize" } else { "stack-normalize" }
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        !matches!(module.optimization(gcx), OptimizationMode::None)
             && (!self.exchanges || gcx.sess.opts.evm_version.has_extended_stack_ops())
     }
 

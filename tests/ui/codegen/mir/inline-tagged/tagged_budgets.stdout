@@ -1,0 +1,158 @@
+// === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_budgets.sol:L ===
+@module L
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_budgets.sol:TaggedBudgets ===
+@module TaggedBudgets
+@phase lowered
+fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 196
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = icall @decode_calldata_type, 4
+    v4 = icall @decode_calldata_type, 36
+    v0 = icall @f, v3, v4, arg2, arg3, arg4, arg5
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 [may_return_memory, pure] {
+  bb0:
+    v26 = xor arg4, arg5
+    jump bb1
+  bb1:
+    v6 = phi [bb0: 0], [bb14: v113]
+    v7 = phi [bb0: 0], [bb14: v30]
+    v8 = lt v7, arg2
+    jumpi v8, bb3, bb2
+  bb2:
+    ret v6
+  bb3:
+    v9 = and v7, 7
+    v105 = sub v6, v9
+    v106 = lt v6, v9
+    jumpi v106, bb11, bb12
+  bb12:
+    jump bb4
+  bb4:
+    v20 = phi [bb12: 0], [bb9: v111]
+    v21 = lt v20, arg3
+    jumpi v21, bb5, bb6
+  bb6:
+    v79 = mload arg0
+    v80 = lt v79, 32
+    v81 = sub v79, 32
+    v82 = gt v7, v81
+    v83 = or v80, v82
+    jumpi v83, bb7, bb10
+  bb10:
+    v122 = add arg0, v7
+    v123 = add v122, 32
+    v87 = mload v123
+    v28 = xor v26, v87
+    v113 = add v6, v28
+    v114 = lt v113, v6
+    jumpi v114, bb11, bb14
+  bb14:
+    v30 = add v7, 1
+    jump bb1
+  bb5:
+    v107 = add v6, v20
+    v108 = lt v107, v6
+    v109 = add v105, v20
+    v110 = lt v109, v105
+    v126 = or v108, v110
+    jumpi v126, bb11, bb13
+  bb13:
+    v88 = mload arg1
+    v89 = lt v88, 32
+    v90 = sub v88, 32
+    v91 = gt v109, v90
+    v92 = or v89, v91
+    jumpi v92, bb7, bb8
+  bb8:
+    v116 = add arg1, v109
+    v117 = add v116, 32
+    v96 = mload v117
+    v100 = gt v107, v90
+    jumpi v100, bb7, bb9
+  bb9:
+    v119 = add arg1, v107
+    v120 = add v119, 32
+    mstore v120, v96
+    v111 = add v20, 32
+    jump bb4
+  bb7:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb11:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v8 = calldataload v2
+    v10 = add v8, 63
+    v11 = lt v10, v8
+    jumpi v11, bb3, bb4
+  bb4:
+    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = mload 64 !metadata(memory=scratch)
+    v27 = add v26, v13
+    v28 = lt v27, v26
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb3, bb6
+  bb6:
+    mstore 64, v27 !metadata(memory=scratch)
+    mstore v26, v8
+    v15 = sub v0, v3
+    v16 = gt v8, v15
+    jumpi v16, bb1, bb5
+  bb5:
+    v23 = add v26, 32
+    calldatacopy v23, v3, v8
+    ret v26
+  bb3:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x9cf82c3f => bb2]
+  bb2:
+    tail_call @run
+  bb3:
+    revert 0, 0
+}

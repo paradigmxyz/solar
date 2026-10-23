@@ -25,6 +25,7 @@ mod reorder_pushes;
 mod share_reverts;
 mod stack_normalize;
 mod stack_reschedule;
+mod tail_dup;
 mod tail_duplicate;
 mod tail_merge;
 mod terminal_dedup;
@@ -54,8 +55,8 @@ pub trait EvmPass: Any + Sync {
     fn name(&self) -> &'static str;
 
     /// Returns whether this pass is enabled with the current compiler flags.
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        self.is_required() || !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        self.is_required() || !matches!(module.optimization(gcx), OptimizationMode::None)
     }
 
     /// Returns whether this pass must run independently of the optimization level.
@@ -108,6 +109,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
+    &tail_dup::TailDup,
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
@@ -183,6 +185,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &late_structural::LateStructural,
     &peephole::Peephole::FINAL,
     &peephole::Cleanup(inline_returns::InlineReturns),
+    // Copy loop joins only after the last tail merge, which would share the copies again.
+    &peephole::Cleanup(tail_dup::TailDup),
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,

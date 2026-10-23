@@ -11,7 +11,7 @@ bb0:
   dup 1
   push 0x25ee2d76
   eq
-  push bb26
+  push bb23
   jumpi
   dup 1
   push 0xa75826ae
@@ -26,12 +26,12 @@ bb0:
   dup 1
   push 0xc78126ad
   eq
-  push bb29
+  push bb26
   jumpi
   dup 1
   push 0xde1efc56
   eq
-  push bb23
+  push bb20
   jumpi
   dup 1
   push 0xe4bb44bc
@@ -58,10 +58,10 @@ bb9:
   push 32
   push 0
   return
-bb36 [cold]:
+bb33 [cold]:
   push 65
-  jump bb38
-bb38 [cold]:
+  jump bb35
+bb35 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -76,82 +76,21 @@ bb15:
   lt
   push bb8
   jumpi
-  push 2
   push 4
   calldataload
-  push 1
-  jump bb17
-bb19 [loop]:
-  push 1
-  dup 3
-  and
-  dup 4
-  dup 3
-  mul
-  dup 5
-  iszero
-  dup 6
-  dup 3
-  div
-  dup 5
-  eq
+  push 255
   dup 2
-  or
-  iszero
-  dup 4
-  and
-  push bb21
+  gt
+  push bb18
   jumpi
-  swap 2
-  iszero
-  iszero
-  swap 3
-  swap 2
-  swap 3
-  swap 1
-  dup 3
-  swap 1
-  sub
-  mul
-  add
-  swap 2
   push 2
-  swap 1
-  div
-  swap 1
-  dup 4
-  dup 1
-  mul
-  swap 4
-  dup 1
-  dup 6
-  div
-  eq
-  or
-  iszero
-  dup 2
-  iszero
-  iszero
-  and
-  swap 2
-  swap 1
-  swap 2
-  push bb21
-  jumpi
-  jump bb17
-bb17 [loop]:
-  dup 2
-  push bb19
-  jumpi
+  exp
   push 0
   mstore
   push 32
   push 0
   return
-bb21 [cold]:
-  push 17
-  jump bb38
-bb23:
+bb20:
   push 36
   calldatasize
   lt
@@ -166,7 +105,7 @@ bb23:
   push 32
   push 0
   return
-bb26:
+bb23:
   push 36
   calldatasize
   lt
@@ -181,7 +120,7 @@ bb26:
   push 32
   push 0
   return
-bb29:
+bb26:
   push 128
   push 64
   mstore
@@ -213,7 +152,7 @@ bb29:
   dup 1
   push 0x7fffffffffffffe
   lt
-  push bb36
+  push bb33
   jumpi
   push 64
   mload
@@ -231,31 +170,33 @@ bb29:
   push 0xffffffffffffffff
   lt
   or
-  push bb36
+  push bb33
   jumpi
   push 64
   mstore
   dup 2
   dup 2
   mstore
-  push 32
   dup 3
-  mul
-  dup 4
   calldatasize
   sub
   push 32
   swap 1
   div
-  dup 4
+  dup 3
   gt
   push bb8
   jumpi
-  dup 2
-  push 32
-  add
   push 36
   calldataload
+  push 32
+  dup 4
+  mul
+  push 32
+  dup 4
+  add
+  swap 1
+  swap 2
   swap 5
   swap 1
   calldatacopy
@@ -263,7 +204,7 @@ bb29:
   dup 3
   lt
   iszero
-  push bb35
+  push bb32
   jumpi
   swap 1
   push 32
@@ -277,6 +218,9 @@ bb29:
   push 32
   push 0
   return
-bb35 [cold]:
+bb18 [cold]:
+  push 17
+  jump bb35
+bb32 [cold]:
   push 50
-  jump bb38
+  jump bb35

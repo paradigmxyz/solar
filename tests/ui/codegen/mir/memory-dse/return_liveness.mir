@@ -1,0 +1,118 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck:
+@module MemoryDseReturnLiveness
+
+// A helper hands a fresh buffer to a caller that only reads the buffer before it halts, so
+// nothing reads the helper's scratch word or free memory pointer once it returns: its pointer
+// result lies in the heap.
+// CHECK-LABEL: {{^[ +].*}}fn @fresh{{[( ]}}
+// CHECK: - mstore 0, arg0
+// CHECK: - mstore 64, {{v[0-9]+}}
+// CHECK: {{^ +}}ret
+fn @fresh(arg0: i256) -> i256 {
+  bb0:
+    mstore 0, arg0
+    v0 = mload 64
+    v1 = add v0, 64
+    mstore 64, v1
+    mstore v0, 32
+    ret v0
+}
+
+fn @encode_fresh(arg0: i256) {
+  bb0:
+    v0 = icall @fresh, arg0
+    v1 = mload v0
+    returndata v0, v1
+}
+
+// A later allocation reads the free memory pointer the first call bumped.
+// CHECK-LABEL: {{^[ +].*}}fn @bumped{{[( ]}}
+// CHECK: {{^ +}}mstore 64, {{v[0-9]+}}
+fn @bumped() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 64
+    mstore 64, v1
+    ret v0
+}
+
+fn @allocate_twice() {
+  bb0:
+    v0 = icall @bumped
+    v1 = icall @bumped
+    v2 = sub v1, v0
+    mstore 0, v2
+    returndata 0, 32
+}
+
+// A caller that reads the scratch word after the call keeps the helper's store, and so does
+// one that reaches the helper through a tail call.
+// CHECK-LABEL: {{^[ +].*}}fn @scratch{{[( ]}}
+// CHECK: {{^ +}}mstore 0, arg0
+fn @scratch(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    ret
+}
+
+fn @read_scratch(arg0: i256) {
+  bb0:
+    icall @scratch, arg0
+    returndata 0, 32
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @tail_scratch{{[( ]}}
+// CHECK: {{^ +}}mstore 0, arg0
+fn @tail_scratch(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    ret
+}
+
+fn @forward(arg0: i256) {
+  bb0:
+    tail_call @tail_scratch, arg0
+}
+
+fn @read_forwarded(arg0: i256) {
+  bb0:
+    icall @forward, arg0
+    returndata 0, 32
+}
+
+// A recursive helper's own call site joins what its callers read after it returns: the scratch
+// word it reads back stays, and the word nothing reads goes.
+// CHECK-LABEL: {{^[ +].*}}fn @recurse{{[( ]}}
+// CHECK: {{^ +}}mstore 0, arg0
+// CHECK: - mstore 32, {{v[0-9]+}}
+fn @recurse(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    v0 = eq arg0, 0
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = sub arg0, 1
+    icall @recurse, v1
+    v2 = mload 0
+    mstore 32, v2
+    jump bb2
+  bb2:
+    ret
+}
+
+fn @start_recursion(arg0: i256) {
+  bb0:
+    icall @recurse, arg0
+    v0 = mload 64
+    returndata v0, 32
+}
+
+// A function nothing in the module calls may return to code the module does not show.
+// CHECK-LABEL: {{^[ +].*}}fn @uncalled{{[( ]}}
+// CHECK: {{^ +}}mstore 0, arg0
+fn @uncalled(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    ret
+}

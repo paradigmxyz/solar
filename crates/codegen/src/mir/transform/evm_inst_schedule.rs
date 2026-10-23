@@ -29,6 +29,15 @@
 //! they observe, forward, or check. Range checks of calldata arguments move next to the branch
 //! that reads them instead of riding the stack, or a spill slot, across the decoder's stores.
 //!
+//! One move crosses blocks. A pure instruction whose result only one successor of its block reads,
+//! a successor entered from that block alone, moves to the top of that successor, so the other
+//! paths neither compute nor pop it: a search loop that computes the index it would return at
+//! every element now computes it in the return block. The move keeps the words live across the
+//! branch from growing: every operand stays live there anyway, or one takes the result's place
+//! where the other paths skip the work, because the reading successor leaves the loop or aborts
+//! while another stays, or because an instruction there, not only a loop header's phi, reads the
+//! result. Its operands still dominate it, as its new block's only predecessor computed them.
+//!
 //! This is a locality heuristic, not a whole-function profitability search. It does not price the
 //! residual physical stack left by each possible order, so an isolated function can grow even when
 //! aggregate corpus output improves. Keeping the pass separate from physical scheduling makes that
@@ -46,9 +55,9 @@
 //! [solx's EVM single-use-expression pass]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMSingleUseExpression.cpp
 
 use crate::mir::{
-    BlockId, EffectKind, Function, InstId, InstKind, Instruction, Module, Terminator, Value,
-    ValueId,
-    analysis::Liveness,
+    BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Instruction, Module, Terminator,
+    Value, ValueId,
+    analysis::{CfgInfo, Liveness, LoopAnalyzer, aborts, cold_functions},
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use smallvec::SmallVec;
@@ -67,13 +76,14 @@ impl MirPass for EvmInstSchedule {
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        run_function_pass(module, analyses, |func, _| Self::run_on_function(func))
+        let cold = cold_functions(module);
+        run_function_pass(module, analyses, |func, _| Self::run_on_function(func, &cold))
     }
 }
 
 impl EvmInstSchedule {
-    fn run_on_function(func: &mut Function) -> bool {
-        let mut changed = false;
+    fn run_on_function(func: &mut Function, cold: &DenseBitSet<FunctionId>) -> bool {
+        let mut changed = Self::sink_into_successors(func, cold);
         let block_ids = func.blocks.indices();
         let shared_results = Self::shared_results(func);
         let mut scratch = ScheduleScratch::new(func.num_insts());
@@ -508,6 +518,227 @@ impl EvmInstSchedule {
                 }
             }
         }
+    }
+
+    /// Moves each pure instruction whose result only one successor of its block reads, a
+    /// successor entered from that block alone, to the top of that successor, so the other
+    /// successors no longer compute or pop the result.
+    ///
+    /// ```text
+    /// b0: v1 = sub v0, 1; jumpi v2, b1, b2      b0: jumpi v2, b1, b2
+    /// b1: mstore 0, v1; ...               =>    b1: v1 = sub v0, 1; mstore 0, v1; ...
+    /// b2: ...v0...                              b2: ...v0...
+    /// ```
+    ///
+    /// The move must not grow the words live across the branch by more than the result it
+    /// takes out. When every operand stays live across the branch anyway, the branch keeps one
+    /// word fewer and the instruction moves. When one operand becomes live across it instead
+    /// of the result, the move pays only where the other paths skip the work: when the reading
+    /// successor runs less often than another, by the static estimate of
+    /// [`Self::temperature`], as a search's return of the index it stopped at leaves every
+    /// iteration, or when an instruction of that successor reads the result. A result that
+    /// only a phi reads there is a loop-carried value passed along a latch: moving it trades
+    /// the exit's work for the stack shape of every iteration, which measured slower for the
+    /// masked keys of `address[]` sorts and the counters of a merge loop. Blocks are visited
+    /// in reverse postorder, so an instruction keeps sinking through a chain of such
+    /// successors, and in reverse within a block, so the operands an instruction leaves to the
+    /// successor follow it there.
+    fn sink_into_successors(func: &mut Function, cold: &DenseBitSet<FunctionId>) -> bool {
+        let cfg = CfgInfo::new(func);
+        let liveness = Liveness::compute_live_sets(func);
+        let loops = LoopAnalyzer::new().analyze_structure(func);
+        // The blocks of the innermost loop around each block.
+        let mut innermost: IndexVec<BlockId, Option<&DenseBitSet<BlockId>>> =
+            index_vec![None; func.blocks.len()];
+        for loop_data in loops.all_loops() {
+            for block in loop_data.blocks.iter() {
+                if innermost[block].is_none_or(|blocks| blocks.count() > loop_data.blocks.count()) {
+                    innermost[block] = Some(&loop_data.blocks);
+                }
+            }
+        }
+        let mut readers = index_vec![Readers::Unread; func.num_values()];
+        // The values an instruction other than a phi, or a terminator, reads.
+        let mut read_by_instruction = DenseBitSet::new_empty(func.num_values());
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                match &func.inst(inst_id).kind {
+                    // A phi reads its input at the end of the block it comes from.
+                    InstKind::Phi(incoming) => {
+                        for &(from, value) in incoming {
+                            readers[value].add(from, 1);
+                        }
+                    }
+                    kind => kind.visit_operands(|operand| {
+                        readers[operand].add(block_id, 1);
+                        read_by_instruction.insert(operand);
+                    }),
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                terminator.visit_operands(|operand| {
+                    readers[operand].add(block_id, 1);
+                    read_by_instruction.insert(operand);
+                });
+            }
+        }
+        let rebuilt = |func: &Function, operand| {
+            matches!(func.value(operand), Value::Immediate(_) | Value::Undef(_))
+        };
+        let mut changed = false;
+        for &block in cfg.rpo() {
+            let mut successors = SmallVec::<[BlockId; 2]>::from(cfg.successors(block));
+            successors.sort_unstable();
+            successors.dedup();
+            if successors.len() < 2 {
+                continue;
+            }
+            let temperature =
+                |successor| Self::temperature(func, cold, innermost[block], successor);
+            // The successors entered from this block alone, and whether each runs less often
+            // than another successor.
+            let targets = successors
+                .iter()
+                .filter(|&&target| cfg.predecessors(target) == [block])
+                .map(|&target| {
+                    let others = successors
+                        .iter()
+                        .filter(|&&other| other != target)
+                        .map(|&other| temperature(other))
+                        .max();
+                    (target, others.is_some_and(|others| temperature(target) < others))
+                })
+                .collect::<SmallVec<[(BlockId, bool); 2]>>();
+            if targets.is_empty() {
+                continue;
+            }
+            // The words live across the branch, updated as instructions move below it.
+            let mut live = DenseBitSet::from(liveness.live_out(block));
+            let mut sunk = Vec::<(BlockId, InstId)>::new();
+            let mut kept = Vec::with_capacity(func.blocks[block].instructions.len());
+            for &inst_id in func.blocks[block].instructions.iter().rev() {
+                let inst = func.inst(inst_id);
+                let target = func.inst_result_value(inst_id).and_then(|result| {
+                    let Readers::Block(target, _) = readers[result] else { return None };
+                    let &(_, colder) = targets.iter().find(|&&(block, _)| block == target)?;
+                    Some((result, target, colder))
+                });
+                let Some((result, target, colder)) = target.filter(|_| {
+                    inst.kind.effect_kind() == EffectKind::Pure
+                        && !matches!(inst.kind, InstKind::Phi(_))
+                        && !inst.kind.effects().control.any()
+                        && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
+                }) else {
+                    kept.push(inst_id);
+                    continue;
+                };
+                let mut operands = inst.kind.operands();
+                operands.retain(|&mut operand| !rebuilt(func, operand));
+                operands.sort_unstable();
+                let mut distinct = operands.clone();
+                distinct.dedup();
+                let fresh = distinct.iter().filter(|&&operand| !live.contains(operand)).count();
+                if fresh > 1 || fresh == 1 && !colder && !read_by_instruction.contains(result) {
+                    kept.push(inst_id);
+                    continue;
+                }
+                // block: ...; v = op a, b; branch  =>  block: ...; branch
+                // target: phis; ...                  target: phis; v = op a, b; ...
+                live.remove(result);
+                for &operand in &distinct {
+                    live.insert(operand);
+                    read_by_instruction.insert(operand);
+                    let reads = operands.iter().filter(|&&read| read == operand).count() as u32;
+                    readers[operand].move_reads(block, target, reads);
+                }
+                sunk.push((target, inst_id));
+            }
+            if sunk.is_empty() {
+                continue;
+            }
+            kept.reverse();
+            func.blocks[block].instructions = kept;
+            // target: phis; moved instructions in their original order; target's instructions
+            for &(target, _) in &targets {
+                let moved = sunk
+                    .iter()
+                    .rev()
+                    .filter(|&&(to, _)| to == target)
+                    .map(|&(_, inst_id)| inst_id)
+                    .collect::<Vec<_>>();
+                if moved.is_empty() {
+                    continue;
+                }
+                let phis = func.blocks[target]
+                    .instructions
+                    .iter()
+                    .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                    .count();
+                func.blocks[target].instructions.splice(phis..phis, moved);
+            }
+            changed = true;
+        }
+        changed
+    }
+
+    /// How often a branch from a block in the loop `innermost` reaches `successor`, by a static
+    /// estimate: a block that aborts runs at most once, a loop's exit once per loop, and a block
+    /// that stays in the loop, or any other block of code outside loops, as often as the branch.
+    fn temperature(
+        func: &Function,
+        cold: &DenseBitSet<FunctionId>,
+        innermost: Option<&DenseBitSet<BlockId>>,
+        successor: BlockId,
+    ) -> Temperature {
+        if aborts(func, successor, cold) {
+            Temperature::Aborts
+        } else if innermost.is_some_and(|blocks| !blocks.contains(successor)) {
+            Temperature::LeavesLoop
+        } else {
+            Temperature::Stays
+        }
+    }
+}
+
+/// How often a branch reaches one of its successors, coldest first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Temperature {
+    /// The successor aborts the call.
+    Aborts,
+    /// The successor leaves the loop around the branch.
+    LeavesLoop,
+    /// The successor stays in the loop around the branch, or neither lies in a loop.
+    Stays,
+}
+
+/// The blocks that read a value: none, `count` instructions or terminators of one block, or
+/// several blocks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Readers {
+    Unread,
+    Block(BlockId, u32),
+    Many,
+}
+
+impl Readers {
+    /// Records `count` more reads in `block`.
+    fn add(&mut self, block: BlockId, count: u32) {
+        *self = match *self {
+            Self::Unread => Self::Block(block, count),
+            Self::Block(reader, reads) if reader == block => Self::Block(reader, reads + count),
+            Self::Block(..) | Self::Many => Self::Many,
+        };
+    }
+
+    /// Moves `count` reads from `from` to `to`, as an instruction moves between them.
+    fn move_reads(&mut self, from: BlockId, to: BlockId, count: u32) {
+        *self = match *self {
+            Self::Block(reader, reads) if reader == from && reads == count => {
+                Self::Block(to, count)
+            }
+            Self::Block(reader, reads) if reader == to => Self::Block(to, reads + count),
+            Self::Unread | Self::Block(..) | Self::Many => Self::Many,
+        };
     }
 }
 

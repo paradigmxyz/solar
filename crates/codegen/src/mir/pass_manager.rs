@@ -101,8 +101,8 @@ pub trait MirPass: Sync {
     }
 
     /// Returns whether this pass is enabled with the current compiler flags and MIR phase.
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        self.is_required() || !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        self.is_required() || !matches!(module.optimization(gcx), OptimizationMode::None)
     }
 
     /// Returns whether this pass must run independently of the optimization level.
@@ -175,7 +175,7 @@ pub(crate) fn run_passes_inner(
             let pass_changed = if cached {
                 false
             } else {
-                analyses.begin_pass(gcx.sess.opts.optimization.is_gas());
+                analyses.begin_pass(module.optimization(gcx).is_gas());
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
                 analyses.finish_pass(pass_changed);

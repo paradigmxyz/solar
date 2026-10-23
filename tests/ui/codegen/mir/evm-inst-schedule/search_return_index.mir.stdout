@@ -1,0 +1,129 @@
+// === ROOT/tests/ui/codegen/mir/evm-inst-schedule/search_return_index.sol:SearchReturnIndex ===
+@module SearchReturnIndex
+fn @last(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xd75bb746, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = checked_sub uint256, v0, 1
+    jump bb4
+  bb4:
+    v3 = phi [bb3: arg0], [bb8: v3]
+    v4 = phi [bb3: arg1], [bb8: v4]
+    v5 = phi [bb3: 0], [bb8: v5]
+    v6 = phi [bb3: v2], [bb8: v47]
+    v7 = lt v6, 4
+    v8 = eq v7, false
+    jumpi v8, bb6, bb7
+  bb7:
+    jump bb5
+  bb5:
+    jump bb21
+  bb21:
+    v48 = phi [bb5: v3], [bb25: v48]
+    v49 = phi [bb5: v4], [bb25: v49]
+    v50 = phi [bb5: v5], [bb25: v50]
+    v51 = phi [bb5: v6], [bb25: v61]
+    v52 = mload v48
+    v53 = lt v51, v52
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = shl v51, 5
+    v56 = ptradd v48, v55
+    v57 = ptradd v56, 32
+    v58 = mload v57
+    v59 = ne v58, v49
+    jumpi v59, bb23, bb24
+  bb24:
+    jump bb22
+  bb22:
+    ret v51
+  bb23:
+    v60 = eq v51, 0
+    jumpi v60, bb26, bb27
+  bb27:
+    jump bb28
+  bb28:
+    v61 = checked_sub uint256, v51, 1
+    jump bb25
+  bb25:
+    jump bb21
+  bb26:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  bb6:
+    v9 = mload v3
+    v10 = lt v6, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = shl v6, 5
+    v13 = ptradd v3, v12
+    v14 = ptradd v13, 32
+    v15 = mload v14
+    v16 = eq v15, v4
+    jumpi v16, bb9, bb10
+  bb10:
+    jump bb11
+  bb11:
+    v17 = checked_sub uint256, v6, 1
+    v18 = mload v3
+    v19 = lt v17, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = shl v17, 5
+    v22 = ptradd v3, v21
+    v23 = ptradd v22, 32
+    v24 = mload v23
+    v25 = eq v24, v4
+    jumpi v25, bb12, bb13
+  bb13:
+    jump bb14
+  bb14:
+    v27 = checked_sub uint256, v6, 2
+    v28 = mload v3
+    v29 = lt v27, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = shl v27, 5
+    v32 = ptradd v3, v31
+    v33 = ptradd v32, 32
+    v34 = mload v33
+    v35 = eq v34, v4
+    jumpi v35, bb15, bb16
+  bb16:
+    jump bb17
+  bb17:
+    v37 = checked_sub uint256, v6, 3
+    v38 = mload v3
+    v39 = lt v37, v38
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = shl v37, 5
+    v42 = ptradd v3, v41
+    v43 = ptradd v42, 32
+    v44 = mload v43
+    v45 = eq v44, v4
+    jumpi v45, bb18, bb19
+  bb19:
+    jump bb20
+  bb20:
+    v47 = checked_sub uint256, v6, 4
+    jump bb8
+  bb8:
+    jump bb4
+  bb18:
+    v46 = checked_sub uint256, v6, 3
+    ret v46
+  bb15:
+    v36 = checked_sub uint256, v6, 2
+    ret v36
+  bb12:
+    v26 = checked_sub uint256, v6, 1
+    ret v26
+  bb9:
+    ret v6
+  bb1:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}

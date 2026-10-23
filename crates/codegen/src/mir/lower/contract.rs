@@ -20,6 +20,8 @@ use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
+    // Every decision about the contract's code reads the objective its tag selects.
+    module.optimize = gcx.solar_tags(hir::ItemId::Contract(contract_id)).optimize;
     let storage = StorageLayout::for_contract(gcx, contract_id);
     let mut function_ids = Vec::new();
     let mut seen_selectors = FxHashSet::default();
@@ -188,6 +190,8 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
         contract.linearized_bases.iter().skip(1).any(|&base| gcx.hir.contract(base).ctor.is_some())
             || contract.linearized_bases_args.iter().any(Option::is_some);
     let bytecode_dependencies = gcx.contract_bytecode_dependencies(contract_id);
+    let mut scratch_regions = Vec::new();
+    let mut assembly = FxHashSet::default();
     let synthetic_ok = (|| {
         let mut context = function::LoweringContext {
             gcx,
@@ -206,8 +210,14 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             let mir_id = context.function_ids[&function_id];
             let name = context.module.function(mir_id).name;
             let errors_before = gcx.dcx().err_count();
-            let Some(mut mir) = function::lower(context.reborrow(), function_id, expose_selector)
-            else {
+            let lowered = function::lower(context.reborrow(), function_id, expose_selector);
+            let regions = std::mem::take(&mut context.state.scratch_regions);
+            if std::mem::take(&mut context.state.lowered_assembly)
+                || gcx.hir.function(function_id).is_yul
+            {
+                assembly.insert(mir_id);
+            }
+            let Some(mut mir) = lowered else {
                 let function = gcx.hir.function(function_id);
                 // The trapping body below only stands in for a reported
                 // failure. Report a bail-out that reported nothing itself, so
@@ -239,6 +249,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             };
             mir.name = name;
             *context.module.function_mut(mir_id) = mir;
+            scratch_regions.extend(regions.into_iter().map(|region| (mir_id, region)));
         }
 
         if contract.ctor.is_none() && (has_state_initializers || has_implicit_base_constructors) {
@@ -246,9 +257,12 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
                 solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor),
             ));
             let errors_before = gcx.dcx().err_count();
-            let Some(mut mir) =
-                function::lower_synthetic_constructor(context.reborrow(), contract_id)
-            else {
+            let lowered = function::lower_synthetic_constructor(context.reborrow(), contract_id);
+            let regions = std::mem::take(&mut context.state.scratch_regions);
+            if std::mem::take(&mut context.state.lowered_assembly) {
+                assembly.insert(mir_id);
+            }
+            let Some(mut mir) = lowered else {
                 if gcx.dcx().err_count() == errors_before {
                     let _: Option<()> = context.report_unsupported(contract.name.span, "contract");
                 }
@@ -257,6 +271,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             };
             mir.name = context.module.function(mir_id).name;
             *context.module.function_mut(mir_id) = mir;
+            scratch_regions.extend(regions.into_iter().map(|region| (mir_id, region)));
         }
         true
     })();
@@ -280,7 +295,18 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
         module.add_function(constructor);
     }
 
-    function::generate_internal_function_pointer_dispatchers(gcx, &mut module, &mir_ids, &state);
+    let retyping = function::generate_internal_function_pointer_dispatchers(
+        gcx,
+        &mut module,
+        &mir_ids,
+        &state,
+    );
+    // Calls through internal function pointers reach the dispatchers generated above, so the
+    // scratch blocks are checked only once every body a call may run exists. A dispatcher that
+    // reinterprets references for pointers assembly retyped can pass one on as a word, as
+    // inline assembly can.
+    assembly.extend(retyping);
+    function::check_scratch_regions(gcx, &module, &scratch_regions, &assembly);
 
     if contract.kind == hir::ContractKind::Interface {
         module.is_interface = true;
@@ -349,6 +375,7 @@ pub(super) fn declaration(
     function: &hir::Function<'_>,
 ) -> Function {
     let name = Ident::with_dummy_span(function.name_or_kind());
+    let tags = gcx.solar_tags(hir::ItemId::Function(function_id));
     let mut mir = Function::new(name);
     mir.declaration_span = function.span;
     mir.debug_identifier = Some(name.name);
@@ -361,7 +388,8 @@ pub(super) fn declaration(
         is_receive: function.kind == hir::FunctionKind::Receive,
         may_return_memory: false,
         is_function_pointer_dispatcher: false,
-        no_inline: false,
+        no_inline: tags.noinline,
+        always_inline: tags.inline,
         array_element_bits: Default::default(),
         array_return_element_bits: None,
     };

@@ -19,10 +19,10 @@ use crate::{
     backend::assembler::{self, assembly},
     link::{EmbeddedBytecodes, LibraryId, LibraryTable, RelocatableBytecode},
     mir::{ImmutableId, TypeSize},
-    target::Target,
+    target::{self, Target},
 };
 use alloy_primitives::U256;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
 use solar_sema::Gcx;
@@ -83,13 +83,16 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Block contents in which an earlier peephole run found nothing to rewrite.
     pub(super) peephole_clean: passes::CleanBlocks,
+    /// The objective the source contract's `@custom:solar-optimize` tag selects, which replaces
+    /// the build's in optimized builds.
+    pub(crate) optimize: Option<OptimizationMode>,
 }
 
 impl Module {
-    /// The cost model of this module's code: the creation model for creation code, which the
-    /// runtime artifact follows.
+    /// The cost model of this module's code: the objective its contract selects, with the
+    /// creation model for creation code, which the runtime artifact follows.
     pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx).priced_for(self.code_follows)
+        Target::new(gcx, self.optimization(gcx)).priced_for(self.code_follows)
     }
 
     /// Links embedded contract bytecode into deferred data, interning the bytecode's libraries
@@ -168,7 +171,13 @@ impl Module {
             code_follows: false,
             debug_info_tracked: false,
             peephole_clean: passes::CleanBlocks::default(),
+            optimize: None,
         }
+    }
+
+    /// Returns the objective this program's code is optimized for.
+    pub(crate) fn optimization(&self, gcx: Gcx<'_>) -> OptimizationMode {
+        target::objective(gcx.sess.opts.optimization, self.optimize)
     }
 
     /// Clears the module while retaining its outer allocations.
@@ -179,6 +188,7 @@ impl Module {
         self.code_follows = false;
         self.debug_info_tracked = false;
         self.peephole_clean.clear();
+        self.optimize = None;
     }
 
     /// Enables source debug information auditing for optimization passes.
@@ -254,8 +264,13 @@ impl Block {
 
     /// The cost model of this block: the creation model for creation code, which the runtime
     /// artifact follows (`code_follows`), unless the block may run more than once.
-    pub(crate) fn target(&self, gcx: Gcx<'_>, code_follows: bool) -> Target {
-        Target::new(gcx).priced_for(code_follows && self.runs_once())
+    pub(crate) fn target(
+        &self,
+        gcx: Gcx<'_>,
+        optimization: OptimizationMode,
+        code_follows: bool,
+    ) -> Target {
+        Target::new(gcx, optimization).priced_for(code_follows && self.runs_once())
     }
 }
 

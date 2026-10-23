@@ -153,6 +153,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ) {
             // An empty input is only read, so it needs no allocation.
             self.zero_slot()
+        } else if is_calldata_bytes(data_ty) {
+            // solc copies calldata `bytes` input past the free memory pointer, which the call
+            // reads at once, so it stays unreserved, and without checking that it lies within
+            // the calldata, so the copy reads zeros past its end.
+            // input = memory_slice(fmp, data.len); calldatacopy(fmp, data.offset, data.len)
+            let slice = self.lower_expr(data)?;
+            let length = self.builder.slice_len(slice);
+            let source = self.builder.slice_ptr(slice);
+            let base = self.builder.fmp();
+            self.builder.copy_heap(base, source, length, PtrLocation::Calldata);
+            self.builder.make_slice(base, length, PtrLocation::Memory)
         } else {
             // input = materialize_memory(arg)
             let data = self.lower_typed_expr(data, memory_ty)?;
@@ -600,6 +611,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 if let Some((callee, encode_args, _)) = value.as_call()
                     && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncodePacked)
+                    && let Some(hash) = self.lower_keccak_packed_word_array(*encode_args)
+                {
+                    return Some(hash);
+                }
+                if let Some((callee, encode_args, _)) = value.as_call()
+                    && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncodePacked)
                     && let Some(hash) = self.lower_keccak_abi_encode_packed(*encode_args)
                 {
                     return Some(hash);
@@ -615,6 +632,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let pointer = self.builder.slice_ptr(encoded);
                     let length = self.builder.slice_len(encoded);
                     return Some(self.builder.keccak256(pointer, length));
+                }
+                if let Some(view) = self.view_slice(value) {
+                    // hash = keccak256 of the view's calldata, copied past the free memory pointer
+                    return Some(self.builder.keccak256_bytes(view));
                 }
                 let value_ty = self.cx.gcx.type_of_expr(value.id)?;
                 let memory_ty = value_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
@@ -1048,4 +1069,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .emit();
         None
     }
+}
+
+/// Whether `ty` is `bytes` in calldata, as a reference or a slice.
+fn is_calldata_bytes(ty: Ty<'_>) -> bool {
+    let ty = match ty.kind {
+        TyKind::Slice(inner) => inner,
+        _ => ty,
+    };
+    ty.is_ref_at(DataLocation::Calldata)
+        && matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
 }

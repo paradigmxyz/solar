@@ -68,6 +68,13 @@ impl InstructionEffects {
     pub(crate) const fn observes_execution(self) -> bool {
         self.observes_execution
     }
+
+    /// Whether the operation computes its result from its operands alone and writes only bytes
+    /// they determine, as a storage-slot hash does with its scratch words: equal operands give
+    /// an equal result wherever it runs.
+    pub(crate) const fn idempotent_write(self) -> bool {
+        self.idempotent_write
+    }
 }
 
 impl InstKind {

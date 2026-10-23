@@ -1,0 +1,59 @@
+// === ROOT/tests/ui/codegen/mir/storage-load-cse/equal_slot_hashes.sol:EqualSlotHashes ===
+@module EqualSlotHashes
+fn @quotient(arg0: i256, arg1: i256) -> i256 [selector=0xc44fffd3, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_div uint256, arg0, 8
+    v1 = mapping_slot v0, 0
+    sstore v1, arg1 !metadata(storage=symbolic(v1))
+    v2 = checked_div uint256, arg0, 8
+    v3 = mapping_slot v2, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
+}
+
+fn @quotientBy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x8acb0e18, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_div uint256, arg0, arg1
+    v1 = mapping_slot v0, 0
+    sstore v1, arg2 !metadata(storage=symbolic(v1))
+    v2 = checked_div uint256, arg0, arg1
+    v3 = mapping_slot v2, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
+}
+
+fn @successor(arg0: i256, arg1: i256) -> i256 [selector=0xf807e60a, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_add uint256, arg0, 1
+    v1 = mapping_slot v0, 0
+    sstore v1, arg1 !metadata(storage=symbolic(v1))
+    v2 = checked_add uint256, arg0, 1
+    v3 = mapping_slot v2, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
+}
+
+fn @lane(arg0: i256, arg1: i256) -> i256 [selector=0x72d8bcce, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_rem uint256, arg0, 8
+    v1 = checked_mul uint256, v0, 32
+    v2 = checked_div uint256, arg0, 8
+    v3 = mapping_slot v2, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = shr v4, v1
+    v6 = xor v5, arg1
+    v7 = and v6, 0xffffffff
+    v8 = shl v7, v1
+    v9 = xor v4, v8
+    v10 = checked_div uint256, arg0, 8
+    v11 = mapping_slot v10, 0
+    sstore v11, v9 !metadata(storage=symbolic(v11))
+    v12 = checked_div uint256, arg0, 8
+    v13 = mapping_slot v12, 0
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    v15 = checked_rem uint256, arg0, 8
+    v16 = checked_mul uint256, v15, 32
+    v17 = shr v14, v16
+    v18 = and v17, 0xffffffff
+    ret v18
+}

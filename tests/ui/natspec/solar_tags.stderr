@@ -1,0 +1,98 @@
+error: `@custom:solar-inline` must document a function that internal calls reach
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-inline
+   │              ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on an internal, private or public function with a body
+
+error: `@custom:solar-scratch` must document a block statement
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a `{ ... }` block whose allocations do not outlive it
+
+error: `@custom:solar-scratch` must document a block statement
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   │              ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a `{ ... }` block whose allocations do not outlive it
+
+error: a `@custom:solar-scratch` block cannot contain inline assembly
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │ ┏             assembly {
+LL │ ┃
+LL │ ┃                 x := add(x, 1)
+LL │ ┃             }
+   │ ┗━━━━━━━━━━━━━┛
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-scratch
+   ╰╴             ━━━━━━━━━━━━━━━━━━━━
+
+error: `@custom:solar-view` must document a variable declaration
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a declaration initialized by `abi.decode` of calldata `bytes`: `(bytes memory payload) = abi.decode(data, (bytes));`
+
+error: `@custom:solar-view` must document a variable declaration
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a declaration initialized by `abi.decode` of calldata `bytes`: `(bytes memory payload) = abi.decode(data, (bytes));`
+
+error: unknown tag `@custom:solar-saef`
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │ /// @custom:solar-saef
+   │      ━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-noinline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-scratch`, `@custom:solar-terminates`, `@custom:solar-trusted`, and `@custom:solar-view`
+
+error: `@custom:solar-view` must document a variable declaration
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-view
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a declaration initialized by `abi.decode` of calldata `bytes`: `(bytes memory payload) = abi.decode(data, (bytes));`
+
+error: `@custom:solar-scratch` must document a block statement
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-scratch
+   │          ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a `{ ... }` block whose allocations do not outlive it
+
+error: `@custom:solar-safe` must document a contract or a library
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-safe
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
+
+error: `@custom:solar-trusted` must document a function, a modifier, a contract, or a library
+   ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
+   │
+LL │     /// @custom:solar-trusted
+   │          ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the reviewed code a `@custom:solar-safe` contract runs
+
+error: aborting due to 11 previous errors
+

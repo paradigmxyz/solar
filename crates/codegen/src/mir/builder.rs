@@ -844,6 +844,11 @@ impl<'a> FunctionBuilder<'a> {
         StorageAlias::for_value(self.func, slot)
     }
 
+    /// Sets the free-memory pointer.
+    pub(crate) fn set_fmp(&mut self, value: ValueId) {
+        self.emit_void_inst(InstKind::SetFmp(value))
+    }
+
     /// Reserves memory under an explicit semantic policy.
     pub(crate) fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
         self.emit_inst(InstKind::Alloc { size, semantics }, Some(MirType::MEMPTR))
@@ -1124,7 +1129,12 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Loads a word as a pointer when `ty` is one, and as a word otherwise.
-    fn load_as(&mut self, address: ValueId, location: PtrLocation, ty: MirType) -> ValueId {
+    pub(crate) fn load_as(
+        &mut self,
+        address: ValueId,
+        location: PtrLocation,
+        ty: MirType,
+    ) -> ValueId {
         let result = if ty == MirType::MEMPTR { ty } else { MirType::I256 };
         let address = self.access_address(address);
         // result = mload|calldataload|returndataload address

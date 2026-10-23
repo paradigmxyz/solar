@@ -1,4 +1,8 @@
-use crate::{builtins::Builtin, hir};
+use crate::{
+    builtins::Builtin,
+    hir,
+    natspec::{SolarTag, report_misplaced_solar_tag},
+};
 use alloy_primitives::U256;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -1081,7 +1085,62 @@ impl<'gcx> ResolveContext<'gcx> {
             }
             ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
         };
+        self.lower_solar_tags(stmt, &kind);
         hir::Stmt { span: stmt.span, kind }
+    }
+
+    /// Records the `@custom:solar-*` tags documenting `stmt`, whose lowering is `kind`, and
+    /// reports the ones that cannot document it: every tag but `solar-scratch` on a block.
+    fn lower_solar_tags(&mut self, stmt: &ast::Stmt<'_>, kind: &hir::StmtKind<'gcx>) {
+        for natspec in stmt.docs.iter().flat_map(|doc| doc.natspec.iter()) {
+            if let ast::NatSpecKind::Custom { name } = natspec.kind
+                && let Some(tag) = SolarTag::from_custom(name.name)
+            {
+                match (tag, &stmt.kind, kind) {
+                    (
+                        SolarTag::Scratch,
+                        ast::StmtKind::Block(_) | ast::StmtKind::UncheckedBlock(_),
+                        hir::StmtKind::Block(block) | hir::StmtKind::UncheckedBlock(block),
+                    ) => {
+                        // Assembly can keep a pointer into the block's memory where no analysis
+                        // follows it.
+                        if let Some(assembly) = find_assembly(block.stmts) {
+                            self.dcx()
+                                .err(
+                                    "a `@custom:solar-scratch` block cannot contain inline \
+                                     assembly",
+                                )
+                                .span(assembly)
+                                .span_note(natspec.span, "the tag is here")
+                                .emit();
+                        } else if self.hir.solar_scratch(block.span).is_none() {
+                            let tag = hir::SolarStmtTag::Scratch(block.span);
+                            self.hir.solar_tags.push((tag, natspec.span));
+                        }
+                    }
+                    (
+                        SolarTag::View,
+                        ast::StmtKind::DeclSingle(_),
+                        hir::StmtKind::DeclSingle(id),
+                    ) => {
+                        self.hir.solar_tags.push((hir::SolarStmtTag::View(*id), natspec.span));
+                    }
+                    (
+                        SolarTag::View,
+                        ast::StmtKind::DeclMulti(..),
+                        hir::StmtKind::DeclMulti(ids, _),
+                    ) if ids.iter().any(Option::is_some) => {
+                        for &id in ids.iter().flatten() {
+                            self.hir.solar_tags.push((hir::SolarStmtTag::View(id), natspec.span));
+                        }
+                    }
+                    _ => {
+                        let _ =
+                            report_misplaced_solar_tag(self.dcx(), tag, name.name, natspec.span);
+                    }
+                }
+            }
+        }
     }
 
     fn lower_yul_assembly(&mut self, assembly: &ast::StmtAssembly<'_>) -> hir::StmtKind<'gcx> {
@@ -2694,6 +2753,23 @@ fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: D
             .span(decl.span)
             .emit();
     }
+}
+
+/// Returns the span of the first inline assembly block among `stmts` and the statements nested
+/// in them.
+fn find_assembly(stmts: &[hir::Stmt<'_>]) -> Option<Span> {
+    stmts.iter().find_map(|stmt| match &stmt.kind {
+        hir::StmtKind::AssemblyBlock(_) => Some(stmt.span),
+        hir::StmtKind::Block(block)
+        | hir::StmtKind::UncheckedBlock(block)
+        | hir::StmtKind::Loop(block, _) => find_assembly(block.stmts),
+        hir::StmtKind::If(_, then, else_) => find_assembly(std::slice::from_ref(*then))
+            .or_else(|| else_.and_then(|else_| find_assembly(std::slice::from_ref(else_)))),
+        hir::StmtKind::Try(stmt) => {
+            stmt.clauses.iter().find_map(|clause| find_assembly(clause.block.stmts))
+        }
+        _ => None,
+    })
 }
 
 #[cfg(test)]

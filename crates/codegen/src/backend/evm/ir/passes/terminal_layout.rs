@@ -44,7 +44,7 @@ impl EvmPass for TerminalLayout {
             return false;
         }
         let mut order = module.blocks.indices().collect::<Vec<_>>();
-        if !gcx.sess.opts.optimization.is_gas() {
+        if !module.optimization(gcx).is_gas() {
             if !place_stop_last(module, &mut order) {
                 return false;
             }
@@ -158,6 +158,7 @@ fn has_small_fixed_layout(gcx: Gcx<'_>, module: &Module) -> bool {
     if !module.data.is_empty() {
         return false;
     }
+    let target = module.target(gcx);
     let mut upper_bound = 0usize;
     for block in &module.blocks {
         if block.instructions.iter().any(|inst| {
@@ -170,14 +171,14 @@ fn has_small_fixed_layout(gcx: Gcx<'_>, module: &Module) -> bool {
         // Count a destination label at every block and keep all transfers explicit. If the
         // bound fits one-byte addresses even with two-byte label pushes, their least fixed
         // point fits too. Rearrangement cannot increase the number of transfers or labels.
-        upper_bound += estimated_block_size(gcx, block, None, true, module.code_follows);
+        upper_bound += estimated_block_size(target, block, None, true, module.code_follows);
         // The layout estimator omits STOP for a final block; count it here because every
         // block may have a physical successor after reordering.
         if matches!(
             block.terminator.as_ref().map(|term| &term.kind),
             Some(TerminatorKind::Op(op::STOP))
         ) {
-            upper_bound += crate::target::Target::new(gcx).opcode(op::STOP).bytes as usize;
+            upper_bound += target.opcode(op::STOP).bytes as usize;
         }
         if upper_bound > usize::from(u8::MAX) {
             return false;

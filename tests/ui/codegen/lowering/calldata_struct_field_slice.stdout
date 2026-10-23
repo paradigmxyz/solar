@@ -28,13 +28,13 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     jumpi v62, bb1, bb4
   bb4:
     v26 = calldataload v18
-    v27 = add v4, v26
     v28 = calldatasize
     v29 = sub v28, v4
     v30 = sub v29, 31
     v31 = slt v26, v30
     jumpi v31, bb5, bb1
   bb5:
+    v27 = add v4, v26
     v32 = calldataload v27
     v33 = calldatasize
     v34 = shr v32, 64
@@ -95,13 +95,13 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     jumpi v67, bb1, bb4
   bb4:
     v25 = calldataload v17
-    v26 = add v4, v25
     v27 = calldatasize
     v28 = sub v27, v4
     v29 = sub v28, 31
     v30 = slt v25, v29
     jumpi v30, bb5, bb1
   bb5:
+    v26 = add v4, v25
     v31 = calldataload v26
     v32 = calldatasize
     v33 = shr v31, 64
@@ -138,11 +138,7 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v71 = or v46, v56
     jumpi v71, bb1, bb9
   bb9:
-    v57 = add v47, 63
-    v58 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v59 = mload 64
-    v61 = add v59, v58
-    mstore 64, v61
     mstore v59, v47
     v63 = add v59, 32
     calldatacopy v63, v49, v47

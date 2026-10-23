@@ -29,14 +29,14 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     v64 = calldataload v63
     v65 = byte 0, v64
     v66 = or v61, v65
-    v71 = shl v66, 8
-    v72 = and v71, 0xffffffff
     v73 = lt 3, arg1
     v81 = and v80, v73
     jumpi v81, bb2, bb1
   bb1:
     tail_call @revert_stub
   bb2:
+    v71 = shl v66, 8
+    v72 = and v71, 0xffffffff
     v74 = add arg0, 3
     v75 = calldataload v74
     v76 = byte 0, v75
@@ -49,22 +49,22 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, 
     v41 = lt arg2, arg1
     v42 = add arg0, arg2
     v43 = calldataload v42
-    v44 = byte 0, v43
-    v45 = or 0, v44
     v46 = add arg2, 1
-    v52 = shl v45, 8
-    v53 = and v52, 0xffff
     v54 = lt v46, arg1
     v61 = and v41, v54
     jumpi v61, bb2, bb1
   bb1:
     tail_call @revert_stub
   bb2:
-    v59 = add v46, 1
+    v44 = byte 0, v43
+    v45 = or 0, v44
+    v52 = shl v45, 8
+    v53 = and v52, 0xffff
     v55 = add arg0, v46
     v56 = calldataload v55
     v57 = byte 0, v56
     v58 = or v53, v57
+    v59 = add v46, 1
     ret v58, v59
 }
 
@@ -99,26 +99,26 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
 
 fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
   bb0:
-    v22 = calldatasize
-    v23 = lt v22, 132
-    jumpi v23, bb2, bb3
+    v37 = calldatasize
+    v38 = lt v37, 132
+    jumpi v38, bb2, bb3
   bb3:
-    v31 = calldataload 4
-    v32 = add 0, v31
-    v40 = calldataload 36
-    v41 = add v32, v40
-    v42 = lt v41, v32
-    v49 = calldataload 68
-    v50 = add v41, v49
-    v51 = lt v50, v41
-    v62 = or v42, v51
-    v58 = calldataload 100
-    v59 = add v50, v58
-    v60 = lt v59, v50
-    v63 = or v62, v60
-    jumpi v63, bb1, bb4
+    v82 = calldataload 4
+    v83 = add 0, v82
+    v91 = calldataload 36
+    v92 = add v83, v91
+    v93 = lt v92, v83
+    v100 = calldataload 68
+    v101 = add v92, v100
+    v102 = lt v101, v92
+    v113 = or v93, v102
+    v109 = calldataload 100
+    v110 = add v101, v109
+    v111 = lt v110, v101
+    v114 = or v113, v111
+    jumpi v114, bb1, bb4
   bb4:
-    mstore 0, v59
+    mstore 0, v110
     returndata 0, 32
   bb1:
     mstore 32, 17 !metadata(memory=scratch)

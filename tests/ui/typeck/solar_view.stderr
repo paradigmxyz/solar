@@ -1,0 +1,184 @@
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         v[0] = 0x01;
+   │         ━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory v = abi.decode(data, (bytes));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory w = v;
+   │                          ━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory v = abi.decode(data, (bytes));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         v = w;
+   │         ━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory v = abi.decode(data, (bytes));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         delete v;
+   │                ━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory v = abi.decode(data, (bytes));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         (v[0], x) = (0x01, 1);
+   │          ━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory v = abi.decode(data, (bytes));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         (x, v[1]) = (2, v[2]);
+   │             ━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory v = abi.decode(data, (bytes));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │             pop(mload(v))
+   │                       ━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory v = abi.decode(data, (bytes));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         return v;
+   │                ━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory v = abi.decode(data, (bytes));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         emit Logged(v);
+   │                     ━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory v = abi.decode(data, (bytes));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         keep(v);
+   │              ━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory v = abi.decode(data, (bytes));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: `@custom:solar-view` decodes only `bytes` held in calldata
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory m = abi.decode(mem, (bytes));
+   │                                     ━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ note: calldata cannot change, so a view of it always reads what a copy would hold
+
+error: `@custom:solar-view` declares no `bytes` or `string` variable
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         uint256 x = abi.decode(data, (uint256));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ help: only `bytes` and `string` variables are views; drop the tag
+
+error: `@custom:solar-view` decodes only value types, `bytes`, and `string`
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         (bytes memory a, uint256[] memory list) = abi.decode(data, (bytes, uint256[]));
+   │                                                                            ━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ help: decode the arrays and structs in a declaration without the tag
+
+error: `@custom:solar-view` requires a declaration initialized by `abi.decode`
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         bytes memory c = mem;
+   │         ━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_view.sol:LL:CC
+   │
+LL │         /// @custom:solar-view
+   │              ━━━━━━━━━━━━━━━━━
+   ╰ help: declare the views as `(bytes memory payload) = abi.decode(data, (bytes));`
+
+error: aborting due to 14 previous errors
+
