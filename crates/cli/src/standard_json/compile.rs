@@ -145,8 +145,9 @@ fn finish_standard_json_output<'a>(
         output.contracts.clear();
     }
 
-    // Raw contracts would not be indented, and an empty output has nothing to parallelize.
-    if opts.pretty_json || output.contracts.is_empty() {
+    // Raw contracts would not be indented, and with nothing to parallelize, buffering every
+    // serialized contract only raises peak memory.
+    if opts.pretty_json || output.contracts.is_empty() || rayon::current_num_threads() == 1 {
         crate::emit::to_json(out, &output, opts.pretty_json)
     } else {
         crate::emit::to_json(out, &output.serialize_contracts()?, false)

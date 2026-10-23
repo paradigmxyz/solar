@@ -270,22 +270,29 @@ impl<C> Default for CompilerOutput<'_, C> {
 }
 
 impl<'gcx> CompilerOutput<'gcx> {
-    /// Serializes each contract to compact JSON in parallel.
+    /// Serializes each contract to compact JSON in parallel, dropping it once serialized.
     pub(super) fn serialize_contracts(
         self,
     ) -> serde_json::Result<CompilerOutput<'gcx, Box<RawValue>>> {
         let Self { errors, sources, contracts, ethdebug } = self;
-        let mut raw = contracts
-            .values()
-            .flat_map(FxIndexMap::values)
+        let (names, outputs) = contracts
+            .into_iter()
+            .map(|(source, contracts)| {
+                let (names, outputs) = contracts.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
+                ((source, names), outputs)
+            })
+            .unzip::<_, _, Vec<_>, Vec<_>>();
+        let mut raw = outputs
+            .into_iter()
+            .flatten()
             .collect::<Vec<_>>()
             .into_par_iter()
-            .map(serde_json::value::to_raw_value)
+            .map(|contract| serde_json::value::to_raw_value(&contract))
             .collect::<serde_json::Result<Vec<_>>>()?
             .into_iter();
-        let contracts = contracts
+        let contracts = names
             .into_iter()
-            .map(|(source, contracts)| (source, contracts.into_keys().zip(&mut raw).collect()))
+            .map(|(source, names)| (source, names.into_iter().zip(&mut raw).collect()))
             .collect();
         Ok(CompilerOutput { errors, sources, contracts, ethdebug })
     }
