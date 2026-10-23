@@ -802,7 +802,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   memory reference, a word loaded from a memory object, and a call result as
   heap pointers, and raises only constants and calldata words stored into the
   free memory pointer slot. Such a block cannot store a low address into an
-  object's field without breaking its promise.
+  object's field without breaking its promise. An unmarked block that writes no
+  memory (no `mstore`, `mstore8`, copy, or call, and no assignment to a memory
+  reference) breaks no promise either, so it does not count.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
   the next allocation after a lowered pointer, or the absolute layout itself,
