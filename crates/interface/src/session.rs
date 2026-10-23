@@ -384,6 +384,18 @@ impl Session {
         !self.is_sequential()
     }
 
+    /// Returns `true` if code generation may run on several threads: parallelism is enabled and
+    /// no pass-debugging flag is set. Pass debugging writes directly to stdout and stderr, so it
+    /// keeps its output ordered.
+    #[inline]
+    pub fn is_parallel_codegen(&self) -> bool {
+        let unstable = &self.opts.unstable;
+        self.is_parallel()
+            && !unstable.print_after_each
+            && !unstable.pass_diff
+            && !unstable.time_passes
+    }
+
     /// Returns `true` if the given output should be emitted.
     #[inline]
     pub fn do_emit(&self, output: CompilerOutput) -> bool {
