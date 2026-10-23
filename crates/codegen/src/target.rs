@@ -518,10 +518,22 @@ impl Target {
 
     /// Cost of one operation whose account or storage access has the given
     /// warmth, with dynamic work sized from immediate operands.
+    #[inline]
     pub(crate) fn op_at(
         &self,
         op: &Op,
         immediate: impl Fn(ValueId) -> Option<U256>,
+        warmth: Warmth,
+    ) -> Cost {
+        self.op_at_dyn(op, &immediate, warmth)
+    }
+
+    /// Shares one copy of the cost model between all callers, instead of instantiating it for
+    /// every closure.
+    fn op_at_dyn(
+        &self,
+        op: &Op,
+        immediate: &dyn Fn(ValueId) -> Option<U256>,
         warmth: Warmth,
     ) -> Cost {
         if let Op::Trunc { bits, .. } | Op::PtrToInt { bits, .. } = *op {
@@ -564,7 +576,7 @@ impl Target {
         }
         if matches!(op, Op::Eq { .. } | Op::Ne { .. }) {
             let comparison =
-                if Self::zero_test_input(op, &immediate).is_some() { op::ISZERO } else { op::EQ };
+                if Self::zero_test_input(op, immediate).is_some() { op::ISZERO } else { op::EQ };
             return self.opcode(comparison)
                 + if matches!(op, Op::Ne { .. }) { self.opcode(op::ISZERO) } else { Cost::ZERO };
         }

@@ -203,7 +203,14 @@ impl Terminator {
     }
 
     /// Visits the value operands of this terminator without allocating.
+    #[inline]
     pub(crate) fn visit_operands(&self, mut visit: impl FnMut(ValueId)) {
+        self.visit_operands_dyn(&mut visit);
+    }
+
+    /// Shares one copy of the operand match between all visitors, instead of instantiating it
+    /// for every closure.
+    fn visit_operands_dyn(&self, visit: &mut dyn FnMut(ValueId)) {
         match self {
             Self::Jump(_) => {}
             Self::Branch { condition, .. } => visit(*condition),
@@ -290,7 +297,14 @@ impl Terminator {
     }
 
     /// Visits every value operand mutably.
+    #[inline]
     pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+        self.visit_operands_mut_dyn(&mut f);
+    }
+
+    /// Shares one copy of the operand match between all visitors, instead of instantiating it
+    /// for every closure.
+    fn visit_operands_mut_dyn(&mut self, f: &mut dyn FnMut(&mut ValueId)) {
         match self {
             Self::Jump(_) | Self::RevertReturndata | Self::Stop | Self::Invalid => {}
             Self::Branch { condition, .. } => f(condition),

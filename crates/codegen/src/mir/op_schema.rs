@@ -849,7 +849,14 @@ macro_rules! define_mir_ops {
             }
 
             /// Visits every value operand mutably, in canonical order.
+            #[inline]
             pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+                self.visit_operands_mut_dyn(&mut f);
+            }
+
+            /// Shares one copy of the operand match between all visitors, instead of
+            /// instantiating it for every closure.
+            fn visit_operands_mut_dyn(&mut self, mut f: &mut dyn FnMut(&mut ValueId)) {
                 match self {
                     $(
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
@@ -863,10 +870,20 @@ macro_rules! define_mir_ops {
             /// Visits each raw memory range the operation reads or writes, with its address and
             /// size, reads before writes. Operations that reach memory only through
             /// slices, frames, or the free memory pointer have none.
-            #[allow(unused_variables)]
+            #[inline]
             pub(crate) fn visit_raw_memory(
                 &self,
                 mut f: impl FnMut(RawMemoryAccess, ValueId, RawMemorySize),
+            ) {
+                self.visit_raw_memory_dyn(&mut f);
+            }
+
+            /// Shares one copy of the raw memory match between all visitors, instead of
+            /// instantiating it for every closure.
+            #[allow(unused_variables)]
+            fn visit_raw_memory_dyn(
+                &self,
+                f: &mut dyn FnMut(RawMemoryAccess, ValueId, RawMemorySize),
             ) {
                 match self {
                     $(
@@ -883,8 +900,15 @@ macro_rules! define_mir_ops {
 
             /// Visits the offset and size operands of the raw memory ranges the operation
             /// accesses, mutably.
-            #[allow(unused_variables)]
+            #[inline]
             pub(crate) fn visit_raw_memory_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+                self.visit_raw_memory_operands_mut_dyn(&mut f);
+            }
+
+            /// Shares one copy of the raw memory match between all visitors, instead of
+            /// instantiating it for every closure.
+            #[allow(unused_variables)]
+            fn visit_raw_memory_operands_mut_dyn(&mut self, f: &mut dyn FnMut(&mut ValueId)) {
                 match self {
                     $(
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
@@ -1083,7 +1107,15 @@ macro_rules! define_mir_ops {
 
             /// Applies `f` to every value operand.
             #[must_use]
+            #[inline]
             pub(crate) fn map_values(self, mut f: impl FnMut(ValueId) -> ValueId) -> Self {
+                self.map_values_dyn(&mut f)
+            }
+
+            /// Shares one copy of the operand match between all mappers, instead of
+            /// instantiating it for every closure.
+            #[must_use]
+            fn map_values_dyn(self, mut f: &mut dyn FnMut(ValueId) -> ValueId) -> Self {
                 match self {
                     $(
                         Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => Self::$variant
