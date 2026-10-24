@@ -1,0 +1,1618 @@
+add 0x0 0x0 -> 0x0
+add 0x0 0x1 -> 0x1
+add 0x0 0x1f -> 0x1f
+add 0x0 0x20 -> 0x20
+add 0x0 0xff -> 0xff
+add 0x0 0x100 -> 0x100
+add 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+add 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+add 0x1 0x0 -> 0x1
+add 0x1 0x1 -> 0x2
+add 0x1 0x1f -> 0x20
+add 0x1 0x20 -> 0x21
+add 0x1 0xff -> 0x100
+add 0x1 0x100 -> 0x101
+add 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000001
+add 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+add 0x1f 0x0 -> 0x1f
+add 0x1f 0x1 -> 0x20
+add 0x1f 0x1f -> 0x3e
+add 0x1f 0x20 -> 0x3f
+add 0x1f 0xff -> 0x11e
+add 0x1f 0x100 -> 0x11f
+add 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x800000000000000000000000000000000000000000000000000000000000001f
+add 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1e
+add 0x20 0x0 -> 0x20
+add 0x20 0x1 -> 0x21
+add 0x20 0x1f -> 0x3f
+add 0x20 0x20 -> 0x40
+add 0x20 0xff -> 0x11f
+add 0x20 0x100 -> 0x120
+add 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000020
+add 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1f
+add 0xff 0x0 -> 0xff
+add 0xff 0x1 -> 0x100
+add 0xff 0x1f -> 0x11e
+add 0xff 0x20 -> 0x11f
+add 0xff 0xff -> 0x1fe
+add 0xff 0x100 -> 0x1ff
+add 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x80000000000000000000000000000000000000000000000000000000000000ff
+add 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xfe
+add 0x100 0x0 -> 0x100
+add 0x100 0x1 -> 0x101
+add 0x100 0x1f -> 0x11f
+add 0x100 0x20 -> 0x120
+add 0x100 0xff -> 0x1ff
+add 0x100 0x100 -> 0x200
+add 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000100
+add 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xff
+add 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+add 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x8000000000000000000000000000000000000000000000000000000000000001
+add 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x800000000000000000000000000000000000000000000000000000000000001f
+add 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x8000000000000000000000000000000000000000000000000000000000000020
+add 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x80000000000000000000000000000000000000000000000000000000000000ff
+add 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x8000000000000000000000000000000000000000000000000000000000000100
+add 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+add 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+add 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+add 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+add 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x1e
+add 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x1f
+add 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0xfe
+add 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xff
+add 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+add 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+mul 0x0 0x0 -> 0x0
+mul 0x0 0x1 -> 0x0
+mul 0x0 0x1f -> 0x0
+mul 0x0 0x20 -> 0x0
+mul 0x0 0xff -> 0x0
+mul 0x0 0x100 -> 0x0
+mul 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mul 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mul 0x1 0x0 -> 0x0
+mul 0x1 0x1 -> 0x1
+mul 0x1 0x1f -> 0x1f
+mul 0x1 0x20 -> 0x20
+mul 0x1 0xff -> 0xff
+mul 0x1 0x100 -> 0x100
+mul 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mul 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+mul 0x1f 0x0 -> 0x0
+mul 0x1f 0x1 -> 0x1f
+mul 0x1f 0x1f -> 0x3c1
+mul 0x1f 0x20 -> 0x3e0
+mul 0x1f 0xff -> 0x1ee1
+mul 0x1f 0x100 -> 0x1f00
+mul 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mul 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe1
+mul 0x20 0x0 -> 0x0
+mul 0x20 0x1 -> 0x20
+mul 0x20 0x1f -> 0x3e0
+mul 0x20 0x20 -> 0x400
+mul 0x20 0xff -> 0x1fe0
+mul 0x20 0x100 -> 0x2000
+mul 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mul 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+mul 0xff 0x0 -> 0x0
+mul 0xff 0x1 -> 0xff
+mul 0xff 0x1f -> 0x1ee1
+mul 0xff 0x20 -> 0x1fe0
+mul 0xff 0xff -> 0xfe01
+mul 0xff 0x100 -> 0xff00
+mul 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mul 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01
+mul 0x100 0x0 -> 0x0
+mul 0x100 0x1 -> 0x100
+mul 0x100 0x1f -> 0x1f00
+mul 0x100 0x20 -> 0x2000
+mul 0x100 0xff -> 0xff00
+mul 0x100 0x100 -> 0x10000
+mul 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mul 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+mul 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+mul 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mul 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mul 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+mul 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mul 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+mul 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mul 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mul 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+mul 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+mul 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe1
+mul 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+mul 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01
+mul 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+mul 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mul 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+sub 0x0 0x0 -> 0x0
+sub 0x0 0x1 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sub 0x0 0x1f -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe1
+sub 0x0 0x20 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+sub 0x0 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01
+sub 0x0 0x100 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+sub 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+sub 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+sub 0x1 0x0 -> 0x1
+sub 0x1 0x1 -> 0x0
+sub 0x1 0x1f -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe2
+sub 0x1 0x20 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe1
+sub 0x1 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff02
+sub 0x1 0x100 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01
+sub 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000001
+sub 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x2
+sub 0x1f 0x0 -> 0x1f
+sub 0x1f 0x1 -> 0x1e
+sub 0x1f 0x1f -> 0x0
+sub 0x1f 0x20 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sub 0x1f 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff20
+sub 0x1f 0x100 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1f
+sub 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x800000000000000000000000000000000000000000000000000000000000001f
+sub 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x20
+sub 0x20 0x0 -> 0x20
+sub 0x20 0x1 -> 0x1f
+sub 0x20 0x1f -> 0x1
+sub 0x20 0x20 -> 0x0
+sub 0x20 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff21
+sub 0x20 0x100 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff20
+sub 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000020
+sub 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x21
+sub 0xff 0x0 -> 0xff
+sub 0xff 0x1 -> 0xfe
+sub 0xff 0x1f -> 0xe0
+sub 0xff 0x20 -> 0xdf
+sub 0xff 0xff -> 0x0
+sub 0xff 0x100 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sub 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x80000000000000000000000000000000000000000000000000000000000000ff
+sub 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x100
+sub 0x100 0x0 -> 0x100
+sub 0x100 0x1 -> 0xff
+sub 0x100 0x1f -> 0xe1
+sub 0x100 0x20 -> 0xe0
+sub 0x100 0xff -> 0x1
+sub 0x100 0x100 -> 0x0
+sub 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000100
+sub 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x101
+sub 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+sub 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sub 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe1
+sub 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+sub 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01
+sub 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+sub 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+sub 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000001
+sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdf
+sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff
+sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+div 0x0 0x0 -> 0x0
+div 0x0 0x1 -> 0x0
+div 0x0 0x1f -> 0x0
+div 0x0 0x20 -> 0x0
+div 0x0 0xff -> 0x0
+div 0x0 0x100 -> 0x0
+div 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+div 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+div 0x1 0x0 -> 0x0
+div 0x1 0x1 -> 0x1
+div 0x1 0x1f -> 0x0
+div 0x1 0x20 -> 0x0
+div 0x1 0xff -> 0x0
+div 0x1 0x100 -> 0x0
+div 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+div 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+div 0x1f 0x0 -> 0x0
+div 0x1f 0x1 -> 0x1f
+div 0x1f 0x1f -> 0x1
+div 0x1f 0x20 -> 0x0
+div 0x1f 0xff -> 0x0
+div 0x1f 0x100 -> 0x0
+div 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+div 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+div 0x20 0x0 -> 0x0
+div 0x20 0x1 -> 0x20
+div 0x20 0x1f -> 0x1
+div 0x20 0x20 -> 0x1
+div 0x20 0xff -> 0x0
+div 0x20 0x100 -> 0x0
+div 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+div 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+div 0xff 0x0 -> 0x0
+div 0xff 0x1 -> 0xff
+div 0xff 0x1f -> 0x8
+div 0xff 0x20 -> 0x7
+div 0xff 0xff -> 0x1
+div 0xff 0x100 -> 0x0
+div 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+div 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+div 0x100 0x0 -> 0x0
+div 0x100 0x1 -> 0x100
+div 0x100 0x1f -> 0x8
+div 0x100 0x20 -> 0x8
+div 0x100 0xff -> 0x1
+div 0x100 0x100 -> 0x1
+div 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+div 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+div 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+div 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+div 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x421084210842108421084210842108421084210842108421084210842108421
+div 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x400000000000000000000000000000000000000000000000000000000000000
+div 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x80808080808080808080808080808080808080808080808080808080808080
+div 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x80000000000000000000000000000000000000000000000000000000000000
+div 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+div 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x842108421084210842108421084210842108421084210842108421084210842
+div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x101010101010101010101010101010101010101010101010101010101010101
+div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+sdiv 0x0 0x0 -> 0x0
+sdiv 0x0 0x1 -> 0x0
+sdiv 0x0 0x1f -> 0x0
+sdiv 0x0 0x20 -> 0x0
+sdiv 0x0 0xff -> 0x0
+sdiv 0x0 0x100 -> 0x0
+sdiv 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+sdiv 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+sdiv 0x1 0x0 -> 0x0
+sdiv 0x1 0x1 -> 0x1
+sdiv 0x1 0x1f -> 0x0
+sdiv 0x1 0x20 -> 0x0
+sdiv 0x1 0xff -> 0x0
+sdiv 0x1 0x100 -> 0x0
+sdiv 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+sdiv 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sdiv 0x1f 0x0 -> 0x0
+sdiv 0x1f 0x1 -> 0x1f
+sdiv 0x1f 0x1f -> 0x1
+sdiv 0x1f 0x20 -> 0x0
+sdiv 0x1f 0xff -> 0x0
+sdiv 0x1f 0x100 -> 0x0
+sdiv 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+sdiv 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe1
+sdiv 0x20 0x0 -> 0x0
+sdiv 0x20 0x1 -> 0x20
+sdiv 0x20 0x1f -> 0x1
+sdiv 0x20 0x20 -> 0x1
+sdiv 0x20 0xff -> 0x0
+sdiv 0x20 0x100 -> 0x0
+sdiv 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+sdiv 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+sdiv 0xff 0x0 -> 0x0
+sdiv 0xff 0x1 -> 0xff
+sdiv 0xff 0x1f -> 0x8
+sdiv 0xff 0x20 -> 0x7
+sdiv 0xff 0xff -> 0x1
+sdiv 0xff 0x100 -> 0x0
+sdiv 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+sdiv 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01
+sdiv 0x100 0x0 -> 0x0
+sdiv 0x100 0x1 -> 0x100
+sdiv 0x100 0x1f -> 0x8
+sdiv 0x100 0x20 -> 0x8
+sdiv 0x100 0xff -> 0x1
+sdiv 0x100 0x100 -> 0x1
+sdiv 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+sdiv 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+sdiv 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+sdiv 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+sdiv 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0xfbdef7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdf
+sdiv 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0xfc00000000000000000000000000000000000000000000000000000000000000
+sdiv 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0xff7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f80
+sdiv 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0xff80000000000000000000000000000000000000000000000000000000000000
+sdiv 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+sdiv 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x0
+sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x0
+sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x0
+sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+mod 0x0 0x0 -> 0x0
+mod 0x0 0x1 -> 0x0
+mod 0x0 0x1f -> 0x0
+mod 0x0 0x20 -> 0x0
+mod 0x0 0xff -> 0x0
+mod 0x0 0x100 -> 0x0
+mod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mod 0x1 0x0 -> 0x0
+mod 0x1 0x1 -> 0x0
+mod 0x1 0x1f -> 0x1
+mod 0x1 0x20 -> 0x1
+mod 0x1 0xff -> 0x1
+mod 0x1 0x100 -> 0x1
+mod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+mod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+mod 0x1f 0x0 -> 0x0
+mod 0x1f 0x1 -> 0x0
+mod 0x1f 0x1f -> 0x0
+mod 0x1f 0x20 -> 0x1f
+mod 0x1f 0xff -> 0x1f
+mod 0x1f 0x100 -> 0x1f
+mod 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1f
+mod 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1f
+mod 0x20 0x0 -> 0x0
+mod 0x20 0x1 -> 0x0
+mod 0x20 0x1f -> 0x1
+mod 0x20 0x20 -> 0x0
+mod 0x20 0xff -> 0x20
+mod 0x20 0x100 -> 0x20
+mod 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x20
+mod 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x20
+mod 0xff 0x0 -> 0x0
+mod 0xff 0x1 -> 0x0
+mod 0xff 0x1f -> 0x7
+mod 0xff 0x20 -> 0x1f
+mod 0xff 0xff -> 0x0
+mod 0xff 0x100 -> 0xff
+mod 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xff
+mod 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xff
+mod 0x100 0x0 -> 0x0
+mod 0x100 0x1 -> 0x0
+mod 0x100 0x1f -> 0x8
+mod 0x100 0x20 -> 0x0
+mod 0x100 0xff -> 0x1
+mod 0x100 0x100 -> 0x0
+mod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x100
+mod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x100
+mod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+mod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+mod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x1
+mod 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+mod 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x80
+mod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+mod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+mod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+mod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x1
+mod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x1f
+mod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x0
+mod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xff
+mod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+mod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+smod 0x0 0x0 -> 0x0
+smod 0x0 0x1 -> 0x0
+smod 0x0 0x1f -> 0x0
+smod 0x0 0x20 -> 0x0
+smod 0x0 0xff -> 0x0
+smod 0x0 0x100 -> 0x0
+smod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+smod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+smod 0x1 0x0 -> 0x0
+smod 0x1 0x1 -> 0x0
+smod 0x1 0x1f -> 0x1
+smod 0x1 0x20 -> 0x1
+smod 0x1 0xff -> 0x1
+smod 0x1 0x100 -> 0x1
+smod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+smod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+smod 0x1f 0x0 -> 0x0
+smod 0x1f 0x1 -> 0x0
+smod 0x1f 0x1f -> 0x0
+smod 0x1f 0x20 -> 0x1f
+smod 0x1f 0xff -> 0x1f
+smod 0x1f 0x100 -> 0x1f
+smod 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1f
+smod 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+smod 0x20 0x0 -> 0x0
+smod 0x20 0x1 -> 0x0
+smod 0x20 0x1f -> 0x1
+smod 0x20 0x20 -> 0x0
+smod 0x20 0xff -> 0x20
+smod 0x20 0x100 -> 0x20
+smod 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x20
+smod 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+smod 0xff 0x0 -> 0x0
+smod 0xff 0x1 -> 0x0
+smod 0xff 0x1f -> 0x7
+smod 0xff 0x20 -> 0x1f
+smod 0xff 0xff -> 0x0
+smod 0xff 0x100 -> 0xff
+smod 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xff
+smod 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+smod 0x100 0x0 -> 0x0
+smod 0x100 0x1 -> 0x0
+smod 0x100 0x1f -> 0x8
+smod 0x100 0x20 -> 0x0
+smod 0x100 0xff -> 0x1
+smod 0x100 0x100 -> 0x0
+smod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x100
+smod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+smod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+smod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+smod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+smod 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+smod 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+smod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+smod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+smod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+smod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+smod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+smod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+smod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+smod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+smod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+smod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+smod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+addmod 0x0 0x0 0x0 -> 0x0
+addmod 0x0 0x0 0x1 -> 0x0
+addmod 0x0 0x0 0x100 -> 0x0
+addmod 0x0 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+addmod 0x0 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+addmod 0x0 0x1 0x0 -> 0x0
+addmod 0x0 0x1 0x1 -> 0x0
+addmod 0x0 0x1 0x100 -> 0x1
+addmod 0x0 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+addmod 0x0 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+addmod 0x0 0x100 0x0 -> 0x0
+addmod 0x0 0x100 0x1 -> 0x0
+addmod 0x0 0x100 0x100 -> 0x0
+addmod 0x0 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x100
+addmod 0x0 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x100
+addmod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+addmod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+addmod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+addmod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+addmod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+addmod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+addmod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+addmod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xff
+addmod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+addmod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+addmod 0x1 0x0 0x0 -> 0x0
+addmod 0x1 0x0 0x1 -> 0x0
+addmod 0x1 0x0 0x100 -> 0x1
+addmod 0x1 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+addmod 0x1 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+addmod 0x1 0x1 0x0 -> 0x0
+addmod 0x1 0x1 0x1 -> 0x0
+addmod 0x1 0x1 0x100 -> 0x2
+addmod 0x1 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x2
+addmod 0x1 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x2
+addmod 0x1 0x100 0x0 -> 0x0
+addmod 0x1 0x100 0x1 -> 0x0
+addmod 0x1 0x100 0x100 -> 0x1
+addmod 0x1 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x101
+addmod 0x1 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x101
+addmod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+addmod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+addmod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x1
+addmod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+addmod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000001
+addmod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+addmod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+addmod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+addmod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+addmod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+addmod 0x100 0x0 0x0 -> 0x0
+addmod 0x100 0x0 0x1 -> 0x0
+addmod 0x100 0x0 0x100 -> 0x0
+addmod 0x100 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x100
+addmod 0x100 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x100
+addmod 0x100 0x1 0x0 -> 0x0
+addmod 0x100 0x1 0x1 -> 0x0
+addmod 0x100 0x1 0x100 -> 0x1
+addmod 0x100 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x101
+addmod 0x100 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x101
+addmod 0x100 0x100 0x0 -> 0x0
+addmod 0x100 0x100 0x1 -> 0x0
+addmod 0x100 0x100 0x100 -> 0x0
+addmod 0x100 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x200
+addmod 0x100 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x200
+addmod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+addmod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+addmod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+addmod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x100
+addmod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000100
+addmod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+addmod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+addmod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xff
+addmod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xff
+addmod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x100
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 0x0 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 0x1 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 0x100 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 0x0 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 0x1 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 0x100 -> 0x1
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000001
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 0x0 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 0x1 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 0x100 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x100
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000100
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xff
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+addmod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 0x0 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 0x1 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 0x100 -> 0xff
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 0x0 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 0x1 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 0x100 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 0x0 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 0x1 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 0x100 -> 0xff
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xff
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x100
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0xff
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xfe
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x0 0x0 0x0 -> 0x0
+mulmod 0x0 0x0 0x1 -> 0x0
+mulmod 0x0 0x0 0x100 -> 0x0
+mulmod 0x0 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x0 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x0 0x1 0x0 -> 0x0
+mulmod 0x0 0x1 0x1 -> 0x0
+mulmod 0x0 0x1 0x100 -> 0x0
+mulmod 0x0 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x0 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x0 0x100 0x0 -> 0x0
+mulmod 0x0 0x100 0x1 -> 0x0
+mulmod 0x0 0x100 0x100 -> 0x0
+mulmod 0x0 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x0 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+mulmod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+mulmod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+mulmod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+mulmod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+mulmod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+mulmod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x1 0x0 0x0 -> 0x0
+mulmod 0x1 0x0 0x1 -> 0x0
+mulmod 0x1 0x0 0x100 -> 0x0
+mulmod 0x1 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x1 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x1 0x1 0x0 -> 0x0
+mulmod 0x1 0x1 0x1 -> 0x0
+mulmod 0x1 0x1 0x100 -> 0x1
+mulmod 0x1 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+mulmod 0x1 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+mulmod 0x1 0x100 0x0 -> 0x0
+mulmod 0x1 0x100 0x1 -> 0x0
+mulmod 0x1 0x100 0x100 -> 0x0
+mulmod 0x1 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x100
+mulmod 0x1 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x100
+mulmod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+mulmod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+mulmod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+mulmod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mulmod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+mulmod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+mulmod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xff
+mulmod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+mulmod 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x100 0x0 0x0 -> 0x0
+mulmod 0x100 0x0 0x1 -> 0x0
+mulmod 0x100 0x0 0x100 -> 0x0
+mulmod 0x100 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x100 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x100 0x1 0x0 -> 0x0
+mulmod 0x100 0x1 0x1 -> 0x0
+mulmod 0x100 0x1 0x100 -> 0x0
+mulmod 0x100 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x100
+mulmod 0x100 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x100
+mulmod 0x100 0x100 0x0 -> 0x0
+mulmod 0x100 0x100 0x1 -> 0x0
+mulmod 0x100 0x100 0x100 -> 0x0
+mulmod 0x100 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x10000
+mulmod 0x100 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x10000
+mulmod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+mulmod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+mulmod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+mulmod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x80
+mulmod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+mulmod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+mulmod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+mulmod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+mulmod 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 0x0 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 0x1 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 0x100 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 0x0 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 0x1 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 0x100 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 0x0 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 0x1 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 0x100 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x80
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x4000000000000000000000000000000000000000000000000000000000000000
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 0x0 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 0x1 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 0x100 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 0x0 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 0x1 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 0x100 -> 0xff
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 0x0 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 0x1 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 0x100 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x1
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+mulmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+exp 0x0 0x0 -> 0x1
+exp 0x0 0x1 -> 0x0
+exp 0x0 0x1f -> 0x0
+exp 0x0 0x20 -> 0x0
+exp 0x0 0xff -> 0x0
+exp 0x0 0x100 -> 0x0
+exp 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+exp 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+exp 0x1 0x0 -> 0x1
+exp 0x1 0x1 -> 0x1
+exp 0x1 0x1f -> 0x1
+exp 0x1 0x20 -> 0x1
+exp 0x1 0xff -> 0x1
+exp 0x1 0x100 -> 0x1
+exp 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+exp 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+exp 0x1f 0x0 -> 0x1
+exp 0x1f 0x1 -> 0x1f
+exp 0x1f 0x1f -> 0x2fd688268dffc136e010737bf943f5988303fdf
+exp 0x1f 0x20 -> 0x5cafa7cab31f865a521fdfc032f3abd77dd7bc01
+exp 0x1f 0xff -> 0xeaf56c24f2af201e4b4bcf595e77ea5e87aaa4f4f9d1f17a9351cbf8de359bdf
+exp 0x1f 0x100 -> 0x73b818796334e3ab1e2e1bd2708561726da9f9aa406c3dd7d6e7b322e87de001
+exp 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+exp 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdef7bdf
+exp 0x20 0x0 -> 0x1
+exp 0x20 0x1 -> 0x20
+exp 0x20 0x1f -> 0x800000000000000000000000000000000000000
+exp 0x20 0x20 -> 0x10000000000000000000000000000000000000000
+exp 0x20 0xff -> 0x0
+exp 0x20 0x100 -> 0x0
+exp 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+exp 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+exp 0xff 0x0 -> 0x1
+exp 0xff 0x1 -> 0xff
+exp 0xff 0x1f -> 0xe2bfe95c5d7067567402dd9d7235fc088ac84eab8113bf8d7e3c288d2f1eff
+exp 0xff 0x20 -> 0xe1dd29730112f6ef1d8edabfd4c3c60c823d865cd592abcdf0bdec64a1efe001
+exp 0xff 0xff -> 0x8f965a06da0ac41dcb3a34f1d8ab7d8fee620a94faa42c395997756b007ffeff
+exp 0xff 0x100 -> 0x6c3acd330b959ad6efabce6d2d2125e73a88a65a9880d203dddf5957f7f0001
+exp 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+exp 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xfefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeff
+exp 0x100 0x0 -> 0x1
+exp 0x100 0x1 -> 0x100
+exp 0x100 0x1f -> 0x100000000000000000000000000000000000000000000000000000000000000
+exp 0x100 0x20 -> 0x0
+exp 0x100 0xff -> 0x0
+exp 0x100 0x100 -> 0x0
+exp 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+exp 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+exp 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x1
+exp 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+exp 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x0
+exp 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+exp 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x0
+exp 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+exp 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+exp 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x1
+exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x1
+exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x1
+exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+signextend 0x0 0x0 -> 0x0
+signextend 0x0 0x1 -> 0x1
+signextend 0x0 0x1f -> 0x1f
+signextend 0x0 0x20 -> 0x20
+signextend 0x0 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+signextend 0x0 0x100 -> 0x0
+signextend 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+signextend 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+signextend 0x1 0x0 -> 0x0
+signextend 0x1 0x1 -> 0x1
+signextend 0x1 0x1f -> 0x1f
+signextend 0x1 0x20 -> 0x20
+signextend 0x1 0xff -> 0xff
+signextend 0x1 0x100 -> 0x100
+signextend 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+signextend 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+signextend 0x1f 0x0 -> 0x0
+signextend 0x1f 0x1 -> 0x1
+signextend 0x1f 0x1f -> 0x1f
+signextend 0x1f 0x20 -> 0x20
+signextend 0x1f 0xff -> 0xff
+signextend 0x1f 0x100 -> 0x100
+signextend 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+signextend 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+signextend 0x20 0x0 -> 0x0
+signextend 0x20 0x1 -> 0x1
+signextend 0x20 0x1f -> 0x1f
+signextend 0x20 0x20 -> 0x20
+signextend 0x20 0xff -> 0xff
+signextend 0x20 0x100 -> 0x100
+signextend 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+signextend 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+signextend 0xff 0x0 -> 0x0
+signextend 0xff 0x1 -> 0x1
+signextend 0xff 0x1f -> 0x1f
+signextend 0xff 0x20 -> 0x20
+signextend 0xff 0xff -> 0xff
+signextend 0xff 0x100 -> 0x100
+signextend 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+signextend 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+signextend 0x100 0x0 -> 0x0
+signextend 0x100 0x1 -> 0x1
+signextend 0x100 0x1f -> 0x1f
+signextend 0x100 0x20 -> 0x20
+signextend 0x100 0xff -> 0xff
+signextend 0x100 0x100 -> 0x100
+signextend 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+signextend 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+signextend 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+signextend 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x1
+signextend 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x1f
+signextend 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x20
+signextend 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0xff
+signextend 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x100
+signextend 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+signextend 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+signextend 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+signextend 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x1
+signextend 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x1f
+signextend 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x20
+signextend 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0xff
+signextend 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x100
+signextend 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+signextend 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+lt 0x0 0x0 -> 0x0
+lt 0x0 0x1 -> 0x1
+lt 0x0 0x1f -> 0x1
+lt 0x0 0x20 -> 0x1
+lt 0x0 0xff -> 0x1
+lt 0x0 0x100 -> 0x1
+lt 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+lt 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+lt 0x1 0x0 -> 0x0
+lt 0x1 0x1 -> 0x0
+lt 0x1 0x1f -> 0x1
+lt 0x1 0x20 -> 0x1
+lt 0x1 0xff -> 0x1
+lt 0x1 0x100 -> 0x1
+lt 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+lt 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+lt 0x1f 0x0 -> 0x0
+lt 0x1f 0x1 -> 0x0
+lt 0x1f 0x1f -> 0x0
+lt 0x1f 0x20 -> 0x1
+lt 0x1f 0xff -> 0x1
+lt 0x1f 0x100 -> 0x1
+lt 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+lt 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+lt 0x20 0x0 -> 0x0
+lt 0x20 0x1 -> 0x0
+lt 0x20 0x1f -> 0x0
+lt 0x20 0x20 -> 0x0
+lt 0x20 0xff -> 0x1
+lt 0x20 0x100 -> 0x1
+lt 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+lt 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+lt 0xff 0x0 -> 0x0
+lt 0xff 0x1 -> 0x0
+lt 0xff 0x1f -> 0x0
+lt 0xff 0x20 -> 0x0
+lt 0xff 0xff -> 0x0
+lt 0xff 0x100 -> 0x1
+lt 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+lt 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+lt 0x100 0x0 -> 0x0
+lt 0x100 0x1 -> 0x0
+lt 0x100 0x1f -> 0x0
+lt 0x100 0x20 -> 0x0
+lt 0x100 0xff -> 0x0
+lt 0x100 0x100 -> 0x0
+lt 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+lt 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+lt 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+lt 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+lt 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x0
+lt 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+lt 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x0
+lt 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+lt 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+lt 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x0
+lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x0
+lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x0
+lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+gt 0x0 0x0 -> 0x0
+gt 0x0 0x1 -> 0x0
+gt 0x0 0x1f -> 0x0
+gt 0x0 0x20 -> 0x0
+gt 0x0 0xff -> 0x0
+gt 0x0 0x100 -> 0x0
+gt 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+gt 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+gt 0x1 0x0 -> 0x1
+gt 0x1 0x1 -> 0x0
+gt 0x1 0x1f -> 0x0
+gt 0x1 0x20 -> 0x0
+gt 0x1 0xff -> 0x0
+gt 0x1 0x100 -> 0x0
+gt 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+gt 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+gt 0x1f 0x0 -> 0x1
+gt 0x1f 0x1 -> 0x1
+gt 0x1f 0x1f -> 0x0
+gt 0x1f 0x20 -> 0x0
+gt 0x1f 0xff -> 0x0
+gt 0x1f 0x100 -> 0x0
+gt 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+gt 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+gt 0x20 0x0 -> 0x1
+gt 0x20 0x1 -> 0x1
+gt 0x20 0x1f -> 0x1
+gt 0x20 0x20 -> 0x0
+gt 0x20 0xff -> 0x0
+gt 0x20 0x100 -> 0x0
+gt 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+gt 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+gt 0xff 0x0 -> 0x1
+gt 0xff 0x1 -> 0x1
+gt 0xff 0x1f -> 0x1
+gt 0xff 0x20 -> 0x1
+gt 0xff 0xff -> 0x0
+gt 0xff 0x100 -> 0x0
+gt 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+gt 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+gt 0x100 0x0 -> 0x1
+gt 0x100 0x1 -> 0x1
+gt 0x100 0x1f -> 0x1
+gt 0x100 0x20 -> 0x1
+gt 0x100 0xff -> 0x1
+gt 0x100 0x100 -> 0x0
+gt 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+gt 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+gt 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x1
+gt 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x1
+gt 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x1
+gt 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x1
+gt 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x1
+gt 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x1
+gt 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+gt 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+gt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x1
+gt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x1
+gt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x1
+gt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x1
+gt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x1
+gt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x1
+gt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+gt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+slt 0x0 0x0 -> 0x0
+slt 0x0 0x1 -> 0x1
+slt 0x0 0x1f -> 0x1
+slt 0x0 0x20 -> 0x1
+slt 0x0 0xff -> 0x1
+slt 0x0 0x100 -> 0x1
+slt 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+slt 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+slt 0x1 0x0 -> 0x0
+slt 0x1 0x1 -> 0x0
+slt 0x1 0x1f -> 0x1
+slt 0x1 0x20 -> 0x1
+slt 0x1 0xff -> 0x1
+slt 0x1 0x100 -> 0x1
+slt 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+slt 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+slt 0x1f 0x0 -> 0x0
+slt 0x1f 0x1 -> 0x0
+slt 0x1f 0x1f -> 0x0
+slt 0x1f 0x20 -> 0x1
+slt 0x1f 0xff -> 0x1
+slt 0x1f 0x100 -> 0x1
+slt 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+slt 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+slt 0x20 0x0 -> 0x0
+slt 0x20 0x1 -> 0x0
+slt 0x20 0x1f -> 0x0
+slt 0x20 0x20 -> 0x0
+slt 0x20 0xff -> 0x1
+slt 0x20 0x100 -> 0x1
+slt 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+slt 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+slt 0xff 0x0 -> 0x0
+slt 0xff 0x1 -> 0x0
+slt 0xff 0x1f -> 0x0
+slt 0xff 0x20 -> 0x0
+slt 0xff 0xff -> 0x0
+slt 0xff 0x100 -> 0x1
+slt 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+slt 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+slt 0x100 0x0 -> 0x0
+slt 0x100 0x1 -> 0x0
+slt 0x100 0x1f -> 0x0
+slt 0x100 0x20 -> 0x0
+slt 0x100 0xff -> 0x0
+slt 0x100 0x100 -> 0x0
+slt 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+slt 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+slt 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x1
+slt 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x1
+slt 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x1
+slt 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x1
+slt 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x1
+slt 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x1
+slt 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+slt 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x1
+slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x1
+slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x1
+slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x1
+slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x1
+slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x1
+slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+sgt 0x0 0x0 -> 0x0
+sgt 0x0 0x1 -> 0x0
+sgt 0x0 0x1f -> 0x0
+sgt 0x0 0x20 -> 0x0
+sgt 0x0 0xff -> 0x0
+sgt 0x0 0x100 -> 0x0
+sgt 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+sgt 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+sgt 0x1 0x0 -> 0x1
+sgt 0x1 0x1 -> 0x0
+sgt 0x1 0x1f -> 0x0
+sgt 0x1 0x20 -> 0x0
+sgt 0x1 0xff -> 0x0
+sgt 0x1 0x100 -> 0x0
+sgt 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+sgt 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+sgt 0x1f 0x0 -> 0x1
+sgt 0x1f 0x1 -> 0x1
+sgt 0x1f 0x1f -> 0x0
+sgt 0x1f 0x20 -> 0x0
+sgt 0x1f 0xff -> 0x0
+sgt 0x1f 0x100 -> 0x0
+sgt 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+sgt 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+sgt 0x20 0x0 -> 0x1
+sgt 0x20 0x1 -> 0x1
+sgt 0x20 0x1f -> 0x1
+sgt 0x20 0x20 -> 0x0
+sgt 0x20 0xff -> 0x0
+sgt 0x20 0x100 -> 0x0
+sgt 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+sgt 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+sgt 0xff 0x0 -> 0x1
+sgt 0xff 0x1 -> 0x1
+sgt 0xff 0x1f -> 0x1
+sgt 0xff 0x20 -> 0x1
+sgt 0xff 0xff -> 0x0
+sgt 0xff 0x100 -> 0x0
+sgt 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+sgt 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+sgt 0x100 0x0 -> 0x1
+sgt 0x100 0x1 -> 0x1
+sgt 0x100 0x1f -> 0x1
+sgt 0x100 0x20 -> 0x1
+sgt 0x100 0xff -> 0x1
+sgt 0x100 0x100 -> 0x0
+sgt 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+sgt 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+sgt 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+sgt 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+sgt 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x0
+sgt 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+sgt 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x0
+sgt 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+sgt 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+sgt 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x0
+sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x0
+sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x0
+sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+eq 0x0 0x0 -> 0x1
+eq 0x0 0x1 -> 0x0
+eq 0x0 0x1f -> 0x0
+eq 0x0 0x20 -> 0x0
+eq 0x0 0xff -> 0x0
+eq 0x0 0x100 -> 0x0
+eq 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+eq 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+eq 0x1 0x0 -> 0x0
+eq 0x1 0x1 -> 0x1
+eq 0x1 0x1f -> 0x0
+eq 0x1 0x20 -> 0x0
+eq 0x1 0xff -> 0x0
+eq 0x1 0x100 -> 0x0
+eq 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+eq 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+eq 0x1f 0x0 -> 0x0
+eq 0x1f 0x1 -> 0x0
+eq 0x1f 0x1f -> 0x1
+eq 0x1f 0x20 -> 0x0
+eq 0x1f 0xff -> 0x0
+eq 0x1f 0x100 -> 0x0
+eq 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+eq 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+eq 0x20 0x0 -> 0x0
+eq 0x20 0x1 -> 0x0
+eq 0x20 0x1f -> 0x0
+eq 0x20 0x20 -> 0x1
+eq 0x20 0xff -> 0x0
+eq 0x20 0x100 -> 0x0
+eq 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+eq 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+eq 0xff 0x0 -> 0x0
+eq 0xff 0x1 -> 0x0
+eq 0xff 0x1f -> 0x0
+eq 0xff 0x20 -> 0x0
+eq 0xff 0xff -> 0x1
+eq 0xff 0x100 -> 0x0
+eq 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+eq 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+eq 0x100 0x0 -> 0x0
+eq 0x100 0x1 -> 0x0
+eq 0x100 0x1f -> 0x0
+eq 0x100 0x20 -> 0x0
+eq 0x100 0xff -> 0x0
+eq 0x100 0x100 -> 0x1
+eq 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+eq 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+eq 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+eq 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+eq 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x0
+eq 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+eq 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x0
+eq 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+eq 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+eq 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x0
+eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x0
+eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x0
+eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+iszero 0x0 -> 0x1
+iszero 0x1 -> 0x0
+iszero 0x1f -> 0x0
+iszero 0x20 -> 0x0
+iszero 0xff -> 0x0
+iszero 0x100 -> 0x0
+iszero 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+iszero 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+and 0x0 0x0 -> 0x0
+and 0x0 0x1 -> 0x0
+and 0x0 0x1f -> 0x0
+and 0x0 0x20 -> 0x0
+and 0x0 0xff -> 0x0
+and 0x0 0x100 -> 0x0
+and 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+and 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+and 0x1 0x0 -> 0x0
+and 0x1 0x1 -> 0x1
+and 0x1 0x1f -> 0x1
+and 0x1 0x20 -> 0x0
+and 0x1 0xff -> 0x1
+and 0x1 0x100 -> 0x0
+and 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+and 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+and 0x1f 0x0 -> 0x0
+and 0x1f 0x1 -> 0x1
+and 0x1f 0x1f -> 0x1f
+and 0x1f 0x20 -> 0x0
+and 0x1f 0xff -> 0x1f
+and 0x1f 0x100 -> 0x0
+and 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+and 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1f
+and 0x20 0x0 -> 0x0
+and 0x20 0x1 -> 0x0
+and 0x20 0x1f -> 0x0
+and 0x20 0x20 -> 0x20
+and 0x20 0xff -> 0x20
+and 0x20 0x100 -> 0x0
+and 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+and 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x20
+and 0xff 0x0 -> 0x0
+and 0xff 0x1 -> 0x1
+and 0xff 0x1f -> 0x1f
+and 0xff 0x20 -> 0x20
+and 0xff 0xff -> 0xff
+and 0xff 0x100 -> 0x0
+and 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+and 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xff
+and 0x100 0x0 -> 0x0
+and 0x100 0x1 -> 0x0
+and 0x100 0x1f -> 0x0
+and 0x100 0x20 -> 0x0
+and 0x100 0xff -> 0x0
+and 0x100 0x100 -> 0x100
+and 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+and 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x100
+and 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+and 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+and 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x0
+and 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+and 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x0
+and 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+and 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+and 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x1
+and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x1f
+and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x20
+and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0xff
+and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x100
+and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0x0 0x0 -> 0x0
+or 0x0 0x1 -> 0x1
+or 0x0 0x1f -> 0x1f
+or 0x0 0x20 -> 0x20
+or 0x0 0xff -> 0xff
+or 0x0 0x100 -> 0x100
+or 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+or 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0x1 0x0 -> 0x1
+or 0x1 0x1 -> 0x1
+or 0x1 0x1f -> 0x1f
+or 0x1 0x20 -> 0x21
+or 0x1 0xff -> 0xff
+or 0x1 0x100 -> 0x101
+or 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000001
+or 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0x1f 0x0 -> 0x1f
+or 0x1f 0x1 -> 0x1f
+or 0x1f 0x1f -> 0x1f
+or 0x1f 0x20 -> 0x3f
+or 0x1f 0xff -> 0xff
+or 0x1f 0x100 -> 0x11f
+or 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x800000000000000000000000000000000000000000000000000000000000001f
+or 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0x20 0x0 -> 0x20
+or 0x20 0x1 -> 0x21
+or 0x20 0x1f -> 0x3f
+or 0x20 0x20 -> 0x20
+or 0x20 0xff -> 0xff
+or 0x20 0x100 -> 0x120
+or 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000020
+or 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0xff 0x0 -> 0xff
+or 0xff 0x1 -> 0xff
+or 0xff 0x1f -> 0xff
+or 0xff 0x20 -> 0xff
+or 0xff 0xff -> 0xff
+or 0xff 0x100 -> 0x1ff
+or 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x80000000000000000000000000000000000000000000000000000000000000ff
+or 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0x100 0x0 -> 0x100
+or 0x100 0x1 -> 0x101
+or 0x100 0x1f -> 0x11f
+or 0x100 0x20 -> 0x120
+or 0x100 0xff -> 0x1ff
+or 0x100 0x100 -> 0x100
+or 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000100
+or 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+or 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x8000000000000000000000000000000000000000000000000000000000000001
+or 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x800000000000000000000000000000000000000000000000000000000000001f
+or 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x8000000000000000000000000000000000000000000000000000000000000020
+or 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x80000000000000000000000000000000000000000000000000000000000000ff
+or 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x8000000000000000000000000000000000000000000000000000000000000100
+or 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+or 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+or 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+xor 0x0 0x0 -> 0x0
+xor 0x0 0x1 -> 0x1
+xor 0x0 0x1f -> 0x1f
+xor 0x0 0x20 -> 0x20
+xor 0x0 0xff -> 0xff
+xor 0x0 0x100 -> 0x100
+xor 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+xor 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+xor 0x1 0x0 -> 0x1
+xor 0x1 0x1 -> 0x0
+xor 0x1 0x1f -> 0x1e
+xor 0x1 0x20 -> 0x21
+xor 0x1 0xff -> 0xfe
+xor 0x1 0x100 -> 0x101
+xor 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000001
+xor 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+xor 0x1f 0x0 -> 0x1f
+xor 0x1f 0x1 -> 0x1e
+xor 0x1f 0x1f -> 0x0
+xor 0x1f 0x20 -> 0x3f
+xor 0x1f 0xff -> 0xe0
+xor 0x1f 0x100 -> 0x11f
+xor 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x800000000000000000000000000000000000000000000000000000000000001f
+xor 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+xor 0x20 0x0 -> 0x20
+xor 0x20 0x1 -> 0x21
+xor 0x20 0x1f -> 0x3f
+xor 0x20 0x20 -> 0x0
+xor 0x20 0xff -> 0xdf
+xor 0x20 0x100 -> 0x120
+xor 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000020
+xor 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdf
+xor 0xff 0x0 -> 0xff
+xor 0xff 0x1 -> 0xfe
+xor 0xff 0x1f -> 0xe0
+xor 0xff 0x20 -> 0xdf
+xor 0xff 0xff -> 0x0
+xor 0xff 0x100 -> 0x1ff
+xor 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x80000000000000000000000000000000000000000000000000000000000000ff
+xor 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+xor 0x100 0x0 -> 0x100
+xor 0x100 0x1 -> 0x101
+xor 0x100 0x1f -> 0x11f
+xor 0x100 0x20 -> 0x120
+xor 0x100 0xff -> 0x1ff
+xor 0x100 0x100 -> 0x0
+xor 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000100
+xor 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff
+xor 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+xor 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x8000000000000000000000000000000000000000000000000000000000000001
+xor 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x800000000000000000000000000000000000000000000000000000000000001f
+xor 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x8000000000000000000000000000000000000000000000000000000000000020
+xor 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x80000000000000000000000000000000000000000000000000000000000000ff
+xor 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x8000000000000000000000000000000000000000000000000000000000000100
+xor 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+xor 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+xor 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+xor 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+xor 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+xor 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdf
+xor 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+xor 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff
+xor 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+xor 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+not 0x0 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+not 0x1 -> 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+not 0x1f -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+not 0x20 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdf
+not 0xff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+not 0x100 -> 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff
+not 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+not 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+byte 0x0 0x0 -> 0x0
+byte 0x0 0x1 -> 0x0
+byte 0x0 0x1f -> 0x0
+byte 0x0 0x20 -> 0x0
+byte 0x0 0xff -> 0x0
+byte 0x0 0x100 -> 0x0
+byte 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x80
+byte 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xff
+byte 0x1 0x0 -> 0x0
+byte 0x1 0x1 -> 0x0
+byte 0x1 0x1f -> 0x0
+byte 0x1 0x20 -> 0x0
+byte 0x1 0xff -> 0x0
+byte 0x1 0x100 -> 0x0
+byte 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+byte 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xff
+byte 0x1f 0x0 -> 0x0
+byte 0x1f 0x1 -> 0x1
+byte 0x1f 0x1f -> 0x1f
+byte 0x1f 0x20 -> 0x20
+byte 0x1f 0xff -> 0xff
+byte 0x1f 0x100 -> 0x0
+byte 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+byte 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xff
+byte 0x20 0x0 -> 0x0
+byte 0x20 0x1 -> 0x0
+byte 0x20 0x1f -> 0x0
+byte 0x20 0x20 -> 0x0
+byte 0x20 0xff -> 0x0
+byte 0x20 0x100 -> 0x0
+byte 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+byte 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+byte 0xff 0x0 -> 0x0
+byte 0xff 0x1 -> 0x0
+byte 0xff 0x1f -> 0x0
+byte 0xff 0x20 -> 0x0
+byte 0xff 0xff -> 0x0
+byte 0xff 0x100 -> 0x0
+byte 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+byte 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+byte 0x100 0x0 -> 0x0
+byte 0x100 0x1 -> 0x0
+byte 0x100 0x1f -> 0x0
+byte 0x100 0x20 -> 0x0
+byte 0x100 0xff -> 0x0
+byte 0x100 0x100 -> 0x0
+byte 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+byte 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+byte 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+byte 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+byte 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x0
+byte 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+byte 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x0
+byte 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+byte 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+byte 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+byte 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+byte 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+byte 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x0
+byte 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x0
+byte 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x0
+byte 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+byte 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+byte 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+shl 0x0 0x0 -> 0x0
+shl 0x0 0x1 -> 0x1
+shl 0x0 0x1f -> 0x1f
+shl 0x0 0x20 -> 0x20
+shl 0x0 0xff -> 0xff
+shl 0x0 0x100 -> 0x100
+shl 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+shl 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+shl 0x1 0x0 -> 0x0
+shl 0x1 0x1 -> 0x2
+shl 0x1 0x1f -> 0x3e
+shl 0x1 0x20 -> 0x40
+shl 0x1 0xff -> 0x1fe
+shl 0x1 0x100 -> 0x200
+shl 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+shl 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+shl 0x1f 0x0 -> 0x0
+shl 0x1f 0x1 -> 0x80000000
+shl 0x1f 0x1f -> 0xf80000000
+shl 0x1f 0x20 -> 0x1000000000
+shl 0x1f 0xff -> 0x7f80000000
+shl 0x1f 0x100 -> 0x8000000000
+shl 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+shl 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff80000000
+shl 0x20 0x0 -> 0x0
+shl 0x20 0x1 -> 0x100000000
+shl 0x20 0x1f -> 0x1f00000000
+shl 0x20 0x20 -> 0x2000000000
+shl 0x20 0xff -> 0xff00000000
+shl 0x20 0x100 -> 0x10000000000
+shl 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+shl 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+shl 0xff 0x0 -> 0x0
+shl 0xff 0x1 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+shl 0xff 0x1f -> 0x8000000000000000000000000000000000000000000000000000000000000000
+shl 0xff 0x20 -> 0x0
+shl 0xff 0xff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+shl 0xff 0x100 -> 0x0
+shl 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+shl 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x8000000000000000000000000000000000000000000000000000000000000000
+shl 0x100 0x0 -> 0x0
+shl 0x100 0x1 -> 0x0
+shl 0x100 0x1f -> 0x0
+shl 0x100 0x20 -> 0x0
+shl 0x100 0xff -> 0x0
+shl 0x100 0x100 -> 0x0
+shl 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+shl 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+shl 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+shl 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+shl 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x0
+shl 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+shl 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x0
+shl 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+shl 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+shl 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x0
+shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x0
+shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x0
+shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+shr 0x0 0x0 -> 0x0
+shr 0x0 0x1 -> 0x1
+shr 0x0 0x1f -> 0x1f
+shr 0x0 0x20 -> 0x20
+shr 0x0 0xff -> 0xff
+shr 0x0 0x100 -> 0x100
+shr 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+shr 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+shr 0x1 0x0 -> 0x0
+shr 0x1 0x1 -> 0x0
+shr 0x1 0x1f -> 0xf
+shr 0x1 0x20 -> 0x10
+shr 0x1 0xff -> 0x7f
+shr 0x1 0x100 -> 0x80
+shr 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x4000000000000000000000000000000000000000000000000000000000000000
+shr 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+shr 0x1f 0x0 -> 0x0
+shr 0x1f 0x1 -> 0x0
+shr 0x1f 0x1f -> 0x0
+shr 0x1f 0x20 -> 0x0
+shr 0x1f 0xff -> 0x0
+shr 0x1f 0x100 -> 0x0
+shr 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x100000000000000000000000000000000000000000000000000000000
+shr 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+shr 0x20 0x0 -> 0x0
+shr 0x20 0x1 -> 0x0
+shr 0x20 0x1f -> 0x0
+shr 0x20 0x20 -> 0x0
+shr 0x20 0xff -> 0x0
+shr 0x20 0x100 -> 0x0
+shr 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x80000000000000000000000000000000000000000000000000000000
+shr 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+shr 0xff 0x0 -> 0x0
+shr 0xff 0x1 -> 0x0
+shr 0xff 0x1f -> 0x0
+shr 0xff 0x20 -> 0x0
+shr 0xff 0xff -> 0x0
+shr 0xff 0x100 -> 0x0
+shr 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x1
+shr 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x1
+shr 0x100 0x0 -> 0x0
+shr 0x100 0x1 -> 0x0
+shr 0x100 0x1f -> 0x0
+shr 0x100 0x20 -> 0x0
+shr 0x100 0xff -> 0x0
+shr 0x100 0x100 -> 0x0
+shr 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+shr 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+shr 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+shr 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+shr 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x0
+shr 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+shr 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x0
+shr 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+shr 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+shr 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x0
+shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x0
+shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x0
+shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0
+sar 0x0 0x0 -> 0x0
+sar 0x0 0x1 -> 0x1
+sar 0x0 0x1f -> 0x1f
+sar 0x0 0x20 -> 0x20
+sar 0x0 0xff -> 0xff
+sar 0x0 0x100 -> 0x100
+sar 0x0 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x8000000000000000000000000000000000000000000000000000000000000000
+sar 0x0 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0x1 0x0 -> 0x0
+sar 0x1 0x1 -> 0x0
+sar 0x1 0x1f -> 0xf
+sar 0x1 0x20 -> 0x10
+sar 0x1 0xff -> 0x7f
+sar 0x1 0x100 -> 0x80
+sar 0x1 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xc000000000000000000000000000000000000000000000000000000000000000
+sar 0x1 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0x1f 0x0 -> 0x0
+sar 0x1f 0x1 -> 0x0
+sar 0x1f 0x1f -> 0x0
+sar 0x1f 0x20 -> 0x0
+sar 0x1f 0xff -> 0x0
+sar 0x1f 0x100 -> 0x0
+sar 0x1f 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xffffffff00000000000000000000000000000000000000000000000000000000
+sar 0x1f 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0x20 0x0 -> 0x0
+sar 0x20 0x1 -> 0x0
+sar 0x20 0x1f -> 0x0
+sar 0x20 0x20 -> 0x0
+sar 0x20 0xff -> 0x0
+sar 0x20 0x100 -> 0x0
+sar 0x20 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xffffffff80000000000000000000000000000000000000000000000000000000
+sar 0x20 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0xff 0x0 -> 0x0
+sar 0xff 0x1 -> 0x0
+sar 0xff 0x1f -> 0x0
+sar 0xff 0x20 -> 0x0
+sar 0xff 0xff -> 0x0
+sar 0xff 0x100 -> 0x0
+sar 0xff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0xff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0x100 0x0 -> 0x0
+sar 0x100 0x1 -> 0x0
+sar 0x100 0x1f -> 0x0
+sar 0x100 0x20 -> 0x0
+sar 0x100 0xff -> 0x0
+sar 0x100 0x100 -> 0x0
+sar 0x100 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0x100 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0x8000000000000000000000000000000000000000000000000000000000000000 0x0 -> 0x0
+sar 0x8000000000000000000000000000000000000000000000000000000000000000 0x1 -> 0x0
+sar 0x8000000000000000000000000000000000000000000000000000000000000000 0x1f -> 0x0
+sar 0x8000000000000000000000000000000000000000000000000000000000000000 0x20 -> 0x0
+sar 0x8000000000000000000000000000000000000000000000000000000000000000 0xff -> 0x0
+sar 0x8000000000000000000000000000000000000000000000000000000000000000 0x100 -> 0x0
+sar 0x8000000000000000000000000000000000000000000000000000000000000000 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0x8000000000000000000000000000000000000000000000000000000000000000 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x0 -> 0x0
+sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1 -> 0x0
+sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x1f -> 0x0
+sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x20 -> 0x0
+sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xff -> 0x0
+sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x100 -> 0x0
+sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+clz 0x0 -> 0x100
+clz 0x1 -> 0xff
+clz 0x1f -> 0xfb
+clz 0x20 -> 0xfa
+clz 0xff -> 0xf8
+clz 0x100 -> 0xf7
+clz 0x8000000000000000000000000000000000000000000000000000000000000000 -> 0x0
+clz 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -> 0x0

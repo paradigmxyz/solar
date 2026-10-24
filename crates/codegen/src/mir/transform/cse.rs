@@ -1641,19 +1641,9 @@ impl CommonSubexprEliminator {
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
-            let inst = func.inst_mut(inst_id);
-            if mir_utils::replace_inst_uses_canonicalized(inst, replacements) != 0 {
-                if mir_utils::is_memory_inst(&inst.kind) {
-                    inst.metadata.set_memory_region(None);
-                }
-                if matches!(
-                    inst.kind,
-                    InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient)
-                        | InstKind::Store(.., PtrLocation::Storage | PtrLocation::Transient)
-                ) {
-                    inst.metadata.set_storage_alias(None);
-                }
-            }
+            // Replacing an operand drops the facts that depend on it; replacing only the base a
+            // storage alias names keeps the alias, renamed.
+            mir_utils::replace_inst_uses_canonicalized(func.inst_mut(inst_id), replacements);
         }
 
         // Also update terminator if present

@@ -214,6 +214,12 @@ revision, and the `division-words` runtime benchmark measures their gas.
 
 ## Semantics and trusted boundary
 
+The compiler's own opcode semantics are checked against this model as well.
+`crates/codegen/src/backend/evm/op/word.snap` lists every pure opcode of the
+compiler's opcode table on boundary words, with results from the table's word
+semantics, and `test.py` evaluates each line with both the integer and the SMT
+word models. The definitions stay independent; they only have to agree.
+
 The proofs do not establish memory contents, allocation safety, bounds checks,
 aliasing, address-space selection, or correctness of typed slice erasure. The
 Rust layout policy, type definitions, memory-object lowering and slice lowering

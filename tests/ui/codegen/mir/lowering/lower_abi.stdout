@@ -18,7 +18,7 @@
   }
   
 - fn @flag(arg0: i1) [selector=0x0d2020dd] {
-+ fn @flag() [selector=0x0d2020dd, abi_wrapper] {
++ fn @flag() [selector=0x0d2020dd, abi_wrapper, implicit_args=[i1]] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36

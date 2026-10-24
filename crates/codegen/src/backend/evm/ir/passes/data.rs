@@ -3,19 +3,19 @@
 //! `pack-existing-data` interns equal data objects and pools contained byte strings without
 //! changing code. `pack-data` also replaces runs of constant memory stores with one copy each. A
 //! run is found by symbolically executing pushes, stack operations, constant expressions (folded
-//! with the MIR evaluator), and constant `MSTORE` and `MSTORE8`s to one base: a stack word plus
-//! constant offsets, or absolute addresses. Stores may come in any order and overlap, but must
-//! fill one contiguous range, since a copy would overwrite any gap. The copy takes the window's
-//! place and rebuilds the stack the window left: it pops consumed inputs or pushes the constants
-//! and address words the window produced. Among starts that write the same bytes to the same end,
-//! the cheapest wins. Zero runs copy from past the end of calldata and need no data; other runs
-//! copy from the data pool. The pass prices each run with the `Target` cost model and groups equal
-//! byte strings so every site of a group shares one entry, accepting a group when its total saving
-//! improves the objective; under `-Ogas` that means less runtime gas and no more bytes, since
-//! static sites have no execution frequency to repay code growth. Creation code that runs once
-//! may trade gas for bytes at the calldata price of its model, but blocks that may run more than
-//! once keep the runtime model. Rejected groups can still ride along as substrings of an accepted
-//! entry.
+//! with the opcode table's word semantics), and constant `MSTORE` and `MSTORE8`s to one base: a
+//! stack word plus constant offsets, or absolute addresses. Stores may come in any order and
+//! overlap, but must fill one contiguous range, since a copy would overwrite any gap. The copy
+//! takes the window's place and rebuilds the stack the window left: it pops consumed inputs or
+//! pushes the constants and address words the window produced. Among starts that write the same
+//! bytes to the same end, the cheapest wins. Zero runs copy from past the end of calldata and need
+//! no data; other runs copy from the data pool. The pass prices each run with the `Target` cost
+//! model and groups equal byte strings so every site of a group shares one entry, accepting a group
+//! when its total saving improves the objective; under `-Ogas` that means less runtime gas and no
+//! more bytes, since static sites have no execution frequency to repay code growth. Creation code
+//! that runs once may trade gas for bytes at the calldata price of its model, but blocks that may
+//! run more than once keep the runtime model. Rejected groups can still ride along as substrings of
+//! an accepted entry.
 //!
 //! Both passes leave a module alone when `CODESIZE` can observe the changed data layout, or when
 //! a data address may reach anything but a `CODECOPY` that stays inside its entry. The scan tracks
@@ -43,7 +43,6 @@ use crate::{
         op::{self, WORD_BYTES},
     },
     link::LibraryRelocation,
-    mir::utils::eval,
     target::{Cost, Target},
 };
 use alloy_primitives::{Bytes, U256};
@@ -469,7 +468,7 @@ fn scan_run(
                 RunWord { slot: a.slot.or(b.slot), offset: a.offset.wrapping_add(b.offset) }
             }
             _ if operands.iter().all(|word| word.slot.is_none()) => {
-                let Some(value) = eval::eval_opcode(opcode, &arguments) else { break };
+                let Some(value) = op::eval(opcode, &arguments) else { break };
                 RunWord::constant(value)
             }
             _ => break,

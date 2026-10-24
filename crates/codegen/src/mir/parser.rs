@@ -36,10 +36,11 @@
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
     AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
-    BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode, FrameSlotKind,
-    Function, FunctionBuilder, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
-    InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
-    MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator, Value, ValueId,
+    BackendMemory, BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode,
+    FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind,
+    MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator,
+    Value, ValueId,
 };
 use crate::mir::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
 use alloy_primitives::U256;
@@ -65,7 +66,10 @@ use solar_sema::hir;
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     let arena = Arena::new();
     let mut parser = Parser::new(sess, &arena, source);
-    parser.parse_module().map_err(PErr::emit)
+    let mut module = parser.parse_module().map_err(PErr::emit)?;
+    module.backend_memory =
+        BackendMemory::parse(&module, &source.src).map_err(|error| sess.dcx.err(error).emit())?;
+    Ok(module)
 }
 
 #[cfg(test)]
@@ -538,13 +542,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 if let Some(idx) = self.try_parse_block_header()? {
                     let bid = self.define_block(&mut builder, idx)?;
                     builder.switch_to_block(bid);
-                    current_block = Some(bid);
+                    current_block = Some((bid, idx));
                     continue;
                 }
 
                 // Not a block header — must be an instruction or terminator.
-                current_block
+                let (block, label) = current_block
                     .ok_or_else(|| self.parser.error("instruction outside of any block"))?;
+                if builder.func().blocks[block].terminator.is_some() {
+                    return Err(self
+                        .parser
+                        .error(format!("block `bb{label}` continues after its terminator")));
+                }
                 self.parse_instruction_or_terminator(&mut builder)?;
             }
 
@@ -630,6 +639,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         }
                     }
                     builder.func_mut().set_return_abi(components);
+                }
+                sym::implicit_args => {
+                    if !builder.func().params.is_empty() {
+                        return Err(self
+                            .parser
+                            .error("a function with parameters has no implicit arguments"));
+                    }
+                    self.parser.expect(TokenKind::Eq)?;
+                    self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+                    if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                        loop {
+                            let ty = self.parse_type()?;
+                            self.arg_values.push(builder.func_mut().alloc_implicit_arg(ty));
+                            if self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                                break;
+                            }
+                            self.parser.expect(TokenKind::Comma)?;
+                        }
+                    }
                 }
                 sym::abi_returns => {
                     self.parser.expect(TokenKind::Eq)?;

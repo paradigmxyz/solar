@@ -25,6 +25,7 @@ evm2.workspace = true
 regex.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+solar-codegen.workspace = true
 solar-config.workspace = true
 strum.workspace = true
 tempfile.workspace = true

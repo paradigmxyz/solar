@@ -52,6 +52,9 @@ pub(crate) use op_schema::{
     InstKind, LogTopics, Op, OpTraits, PhaseCategory, RawMemoryAccess, RawMemorySize, ResultKind,
 };
 
+mod semantics;
+pub(crate) use semantics::Semantics;
+
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
 
@@ -442,3 +445,6 @@ mod round_trip {
         Ok(())
     }
 }
+
+mod backend_memory;
+pub(crate) use backend_memory::{AllocationPlacement, BackendMemory, StackReturn};
