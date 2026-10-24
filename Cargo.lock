@@ -1001,29 +1001,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bon"
-version = "3.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "214f5df094ce551a10a30ffb9c70243d61f121a3d985a6495933e181dee6a7d2"
-dependencies = [
- "bon-macros",
-]
-
-[[package]]
-name = "bon-macros"
-version = "3.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2706da6c749998cc555d04184909608956a69ad3f8ab1a076fbc867b4a3c3ce5"
-dependencies = [
- "darling 0.24.1",
- "ident_case",
- "prettyplease",
- "proc-macro2",
- "quote",
- "syn 3.0.6",
-]
-
-[[package]]
 name = "borsh"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3211,15 +3188,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num_threads"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c7398b9c8b70908f6371f47ed36737907c87c52af34c268fed0bf0ceb92ead9"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "nybbles"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3530,16 +3498,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac17546d82912e64874e3d5b40681ce32eac4e5834344f51efcf689ff1550a65"
 dependencies = [
  "owo-colors",
-]
-
-[[package]]
-name = "prettyplease"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bfe0f4c752e450fc2faf62654f1c134747922825d5b04ca717b8874f41a40c0"
-dependencies = [
- "proc-macro2",
- "syn 3.0.6",
 ]
 
 [[package]]
@@ -4403,6 +4361,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b3dc8af474f516a851ff4bd12db780f948b9250ad37211e4eec0bccea54e01b"
 
 [[package]]
+name = "smolgen"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9452d78a58bf7d7ccaf0b935af070b2a37660de91c767a559e0e0c2c5168cd69"
+
+[[package]]
 name = "snapbox"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4576,8 +4540,8 @@ dependencies = [
  "semver 1.0.28",
  "serde",
  "serde_json",
+ "smolgen",
  "strum 0.28.0",
- "vergen-gitcl",
 ]
 
 [[package]]
@@ -4624,7 +4588,7 @@ dependencies = [
  "solar-data-structures",
  "solar-macros",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.21",
  "tracing",
  "tracing-subscriber",
  "unicode-width",
@@ -4661,7 +4625,7 @@ dependencies = [
  "solar-parse",
  "solar-sema",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.21",
  "tokio",
  "tokio-util",
  "toml_edit",
@@ -4960,7 +4924,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -5062,9 +5026,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb87b95ec50ddfa440816d227a17b2ccbdda963a316a727fda0fc4334f7d134"
 dependencies = [
  "deranged",
- "libc",
  "num-conv",
- "num_threads",
  "powerfmt",
  "serde_core",
  "time-core",
@@ -5506,45 +5468,6 @@ name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
-
-[[package]]
-name = "vergen"
-version = "10.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7081a999aada4e01c8ee04d32254e021e317dd051a250169305fbf2acf21824"
-dependencies = [
- "anyhow",
- "bon",
- "rustversion",
- "time",
- "vergen-lib",
-]
-
-[[package]]
-name = "vergen-gitcl"
-version = "10.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55d813ef078c9e739ebe9a121b8319964e1a03cc9e3d2fe30c6cf812d4c57289"
-dependencies = [
- "anyhow",
- "bon",
- "rustversion",
- "time",
- "vergen",
- "vergen-lib",
-]
-
-[[package]]
-name = "vergen-lib"
-version = "10.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1343066736be577e40cf72914ecd68b369f7033ce0f7db6b25a6d6f7fbb3ed70"
-dependencies = [
- "anyhow",
- "bon",
- "rustversion",
- "serde_json",
-]
 
 [[package]]
 name = "version_check"
