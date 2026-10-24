@@ -14,6 +14,10 @@ pub(crate) fn run(args: Args) -> ExitCode {
     match commands {
         #[cfg(feature = "lsp")]
         Some(Subcommands::Lsp(args)) => lsp::run(args),
-        None => compile::run(compile),
+        None => {
+            let mut compile = compile;
+            compile.unstable.use_current_thread = crate::raise_stack_limit();
+            compile::run(compile)
+        }
     }
 }

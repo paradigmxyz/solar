@@ -7,7 +7,10 @@ use crate::{
         ContractBytecodes, EmbeddedBytecodes, LibraryRelocation, LibraryTable, QualifiedName,
         RelocatableBytecode,
     },
-    mir::{Module, lower, pass::run_pipeline},
+    mir::{
+        Module, lower,
+        pass::{has_parallel_work, run_pipeline},
+    },
 };
 use alloy_primitives::Bytes;
 use either::Either;
@@ -19,7 +22,7 @@ use solar_data_structures::{
     map::FxHashMap,
     sync::{self, Mutex, Scope},
 };
-use solar_interface::{Result, error_code};
+use solar_interface::{Result, Session, error_code};
 use solar_sema::{
     Gcx,
     hir::{ContractId, VariableId},
@@ -188,6 +191,11 @@ pub fn generate_contract_bytecodes(
     let contract_count = gcx.hir.contract_ids().len();
 
     let parallel = gcx.sess.is_parallel_codegen();
+    // Several contracts share the workers. A single contract starts them in `schedule`, once it is
+    // large enough to use them.
+    if parallel && graph.reachable.count() > 1 {
+        gcx.sess.spawn_workers();
+    }
     let priorities = if parallel {
         graph.scheduling_priorities(gcx)
     } else {
@@ -213,7 +221,7 @@ pub fn generate_contract_bytecodes(
                 .map(|dependencies| AtomicUsize::new(dependencies.len() + 1))
                 .collect(),
         ),
-        queue: ContractQueue { jobs: Mutex::new(BinaryHeap::new()), priorities },
+        queue: ContractQueue { sess: gcx.sess, jobs: Mutex::new(BinaryHeap::new()), priorities },
     };
     // Every contract is scheduled up front; only its completion waits for the
     // bytecode of the contracts it creates.
@@ -385,23 +393,26 @@ enum ContractJob {
 }
 
 /// Workers choose the highest-priority ready job independently of Rayon's task order.
-struct ContractQueue {
+struct ContractQueue<'gcx> {
+    sess: &'gcx Session,
     jobs: Mutex<BinaryHeap<(u64, Reverse<ContractJob>)>>,
     priorities: IndexVec<ContractId, u64>,
 }
 
-impl ContractQueue {
+impl ContractQueue<'_> {
     fn push(&self, job: ContractJob) {
         // Completion is short and unblocks the contracts that embed its bytecode.
         let priority = match job {
             ContractJob::Schedule(id) => self.priorities[id],
             ContractJob::Finish(_) => u64::MAX,
         };
+        self.sess.queue_job();
         self.jobs.lock().push((priority, Reverse(job)));
     }
 
     fn pop(&self) -> ContractJob {
         let (_, Reverse(job)) = self.jobs.lock().pop().expect("each worker has a ready job");
+        self.sess.start_job();
         job
     }
 }
@@ -427,7 +438,7 @@ struct ContractJobs<'a, 'gcx> {
     scheduled: IndexVec<ContractId, Mutex<Option<ScheduledContract<'gcx>>>>,
     /// Unfinished inputs of each contract: its own scheduling and each dependency.
     remaining_inputs: IndexVec<ContractId, AtomicUsize>,
-    queue: ContractQueue,
+    queue: ContractQueue<'gcx>,
 }
 
 impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
@@ -476,6 +487,9 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         .entered();
         let mut module = lower::lower_contract(gcx, contract_id);
         gcx.dcx().has_errors()?;
+        if gcx.sess.is_parallel_codegen() && has_parallel_work(&module) {
+            gcx.sess.spawn_workers();
+        }
         let capture_mir = captures.mir.contains(contract_id);
         let needs_backend = captures.bytecode.contains(contract_id)
             || captures.evm_ir.contains(contract_id)
