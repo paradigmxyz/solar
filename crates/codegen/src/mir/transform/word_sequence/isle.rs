@@ -41,6 +41,7 @@ mod generated {
 
 pub(super) fn alternatives(
     func: &Function,
+    block: &[InstId],
     seen: &FxHashSet<InstId>,
     op: &Op,
     target: &Target,
@@ -58,7 +59,15 @@ pub(super) fn alternatives(
         })
         .unwrap_or(MirType::I256);
     generated::constructor_sequence_rewrite(
-        &mut Context { func, seen, target, scalar_ty, late, temporaries: FxHashMap::default() },
+        &mut Context {
+            func,
+            block,
+            seen,
+            target,
+            scalar_ty,
+            late,
+            temporaries: FxHashMap::default(),
+        },
         op,
         &mut result,
     );
@@ -67,6 +76,8 @@ pub(super) fn alternatives(
 
 struct Context<'a> {
     func: &'a Function,
+    /// The instructions of the block being rewritten, which are detached from `func`.
+    block: &'a [InstId],
     seen: &'a FxHashSet<InstId>,
     target: &'a Target,
     scalar_ty: MirType,
@@ -82,6 +93,11 @@ impl Context<'_> {
         let id = ValueId::new(self.func.num_values() + self.temporaries.len());
         self.temporaries.insert(id, value);
         Some(id)
+    }
+
+    /// Every instruction of the function, including the detached block.
+    fn all_instructions(&self) -> impl Iterator<Item = InstId> + '_ {
+        self.func.instructions().chain(self.block.iter().copied())
     }
 }
 
@@ -196,5 +212,45 @@ impl generated::Context for Context<'_> {
 
     fn late_word_sequence(&mut self) -> bool {
         self.late
+    }
+
+    fn unshared_mask(&mut self, mask: U256) -> bool {
+        // A repeated constant can stay on the stack, where each use costs only a copy.
+        let is_mask = |value| self.func.value_u256(value) == Some(mask);
+        let mut uses = 0;
+        for inst in self.all_instructions() {
+            let kind = &self.func.inst(inst).kind;
+            // (x & m) & m repeats the first mask and disappears with it.
+            if let InstKind::And(inner, outer) = *kind
+                && is_mask(outer)
+                && let MirValue::Inst(inner) = *self.func.value(inner)
+                && matches!(self.func.inst(inner).kind, InstKind::And(_, m) if is_mask(m))
+            {
+                continue;
+            }
+            kind.visit_operands(|operand| uses += usize::from(is_mask(operand)));
+        }
+        uses <= 1
+    }
+
+    fn compared_mask(&mut self, value: Value, mask: U256) -> bool {
+        // An equality with a constant that the mask keeps can compare the shifted value instead.
+        let is_mask = |value| self.func.value_u256(value) == Some(mask);
+        let masked: Vec<_> = self
+            .all_instructions()
+            .filter(|&inst| {
+                matches!(self.func.inst(inst).kind, InstKind::And(x, m) if x == value && is_mask(m))
+            })
+            .filter_map(|inst| self.func.inst_result_value(inst))
+            .collect();
+        self.all_instructions().any(|inst| {
+            let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = self.func.inst(inst).kind else {
+                return false;
+            };
+            [(a, b), (b, a)].into_iter().any(|(operand, constant)| {
+                masked.contains(&operand)
+                    && self.func.value_u256(constant).is_some_and(|c| c & mask == c)
+            })
+        })
     }
 }
