@@ -5386,7 +5386,7 @@ checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
 [[package]]
 name = "ui_test"
 version = "0.30.7"
-source = "git+https://github.com/DaniPopes/ui_test?branch=fork#59dae5090c222a238916d845c309e93f61c0aaaa"
+source = "git+https://github.com/DaniPopes/ui_test?branch=fork#1c13820b36211eb94b1974610da1025cb56d5fd6"
 dependencies = [
  "annotate-snippets",
  "anyhow",
