@@ -129,6 +129,9 @@ impl<'gcx> ParsingContext<'gcx> {
     }
 
     /// Loads files with already available contents into the context in parallel.
+    ///
+    /// String names are source unit paths, just like `PathBuf` names. Repeating a name is
+    /// allowed only with identical contents, including across separate calls on this context.
     pub fn par_load_files_with_contents<I, N, S>(&mut self, files: I) -> Result<()>
     where
         I: IntoParallelIterator<Item = (N, S)>,
@@ -140,9 +143,21 @@ impl<'gcx> ParsingContext<'gcx> {
         let files = files
             .into_par_iter()
             .map(|(name, src)| {
-                source_map
-                    .new_source_file(name, src)
-                    .map_err(|e| dcx.err(format!("failed to load source: {e}")).emit())
+                let name = match name.into() {
+                    FileName::Custom(name) => FileName::real(name),
+                    name => name,
+                };
+                let src = Arc::new(src.into());
+                let file = source_map
+                    .new_source_file_shared(name, src.clone())
+                    .map_err(|e| dcx.err(format!("failed to load source: {e}")).emit())?;
+                if file.src != src {
+                    let name = source_map.filename_for_diagnostics(&file.name);
+                    return Err(dcx
+                        .err(format!("conflicting contents for source `{name}`"))
+                        .emit());
+                }
+                Ok(file)
             })
             .collect::<Result<Vec<_>>>()?;
         self.add_files(files);

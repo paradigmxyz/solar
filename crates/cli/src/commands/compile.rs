@@ -24,35 +24,39 @@ pub fn run_compiler_args(opts: CompileOpts) -> Result {
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
-    let control_flow = run_pipeline(
-        compiler,
-        |pcx| {
-            // Partition arguments into three categories:
-            // - `stdin`: `-`, occurrences after the first are ignored
-            // - remappings: `[context:]prefix=path`, already parsed as part of `CompileOpts`
-            // - paths: everything else
-            let mut seen_stdin = false;
-            let mut paths = Vec::new();
-            for arg in pcx.sess.opts.input.clone() {
-                if arg == "-" {
-                    if !seen_stdin {
-                        pcx.load_stdin()?;
-                    }
-                    seen_stdin = true;
-                    continue;
+    compile_and_emit(compiler, |pcx| {
+        // Partition arguments into three categories:
+        // - `stdin`: `-`, occurrences after the first are ignored
+        // - remappings: `[context:]prefix=path`, already parsed as part of `CompileOpts`
+        // - paths: everything else
+        let mut seen_stdin = false;
+        let mut paths = Vec::new();
+        for arg in pcx.sess.opts.input.clone() {
+            if arg == "-" {
+                if !seen_stdin {
+                    pcx.load_stdin()?;
                 }
-
-                if arg.contains('=') {
-                    continue;
-                }
-
-                paths.push(arg);
+                seen_stdin = true;
+                continue;
             }
 
-            pcx.par_load_files(paths)
-        },
-        |_| {},
-    )?;
+            if arg.contains('=') {
+                continue;
+            }
+
+            paths.push(arg);
+        }
+
+        pcx.par_load_files(paths)
+    })
+}
+
+/// Compiles the sources `load_sources` adds and emits the requested outputs.
+fn compile_and_emit(
+    compiler: &mut CompilerRef<'_>,
+    load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result,
+) -> Result {
+    let control_flow = run_pipeline(compiler, load_sources, |_| {})?;
     if control_flow.is_break() {
         return Ok(());
     }
@@ -180,4 +184,48 @@ fn check_source_unit_names<'a>(
 
 fn real_path(file: &SourceFile) -> &Path {
     file.name.as_real().unwrap_or(Path::new(""))
+}
+
+/// Compiles sources supplied by an embedder and emits the outputs requested by `sess.opts`.
+///
+/// `sess.opts.input` and the source map must be empty. Select Solidity or Yul with
+/// `sess.opts.language` rather than inferring it from input paths. Use a fresh source map for
+/// each compilation; cached sources from earlier requests must not participate in resolution.
+///
+/// `load_sources` adds in-memory sources and configures the parsing context's file resolver.
+/// Imports only resolve to supplied sources by default. The callback can explicitly enable
+/// file loading with
+/// [`FileResolver::set_allow_file_loading`](solar_interface::source_map::FileResolver::set_allow_file_loading)
+/// or use a source map with a custom loader and enable it. Base and include paths are search
+/// roots, not a filesystem sandbox: enabled file loading can also resolve absolute imports.
+/// Compilation otherwise follows the command-line pipeline with the session's output flags
+/// and diagnostic emitter. Resolver path overrides also determine displayed source unit names
+/// and source-qualified library linking.
+///
+/// This entry point accepts Solidity and Yul sources, not Standard JSON or textual IR input.
+pub fn run_compiler_with_sources(
+    sess: Session,
+    load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result + Send,
+) -> Result {
+    if !sess.opts.input.is_empty() {
+        return Err(sess.dcx.err("source callbacks require empty input paths").emit());
+    }
+    if sess.opts.standard_json || !sess.opts.language.is_source() {
+        return Err(sess.dcx.err("source callbacks require Solidity or Yul input").emit());
+    }
+    if !sess.source_map().is_empty() {
+        return Err(sess.dcx.err("source callbacks require a fresh source map").emit());
+    }
+    run_compiler_session_with(
+        sess,
+        |compiler| {
+            compile_and_emit(compiler, |pcx| {
+                pcx.file_resolver.set_allow_file_loading(false);
+                load_sources(pcx)?;
+                pcx.file_resolver.sync_source_map_roots();
+                Ok(())
+            })
+        },
+        true,
+    )
 }

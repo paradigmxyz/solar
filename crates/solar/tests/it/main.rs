@@ -16,3 +16,6 @@ mod paths;
 
 #[cfg(feature = "cli")]
 mod standard_json;
+
+#[cfg(feature = "cli")]
+mod source_api;
