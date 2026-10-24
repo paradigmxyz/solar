@@ -40,7 +40,7 @@ bb6:
   push bb9
   jump bb7
 bb7:
-  push 160
+  push 128
   push 64
   mstore
   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef

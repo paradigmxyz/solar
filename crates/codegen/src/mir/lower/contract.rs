@@ -20,6 +20,7 @@ use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
+    module.set_unsafe_assembly(false);
     let storage = StorageLayout::for_contract(gcx, contract_id);
     let mut function_ids = Vec::new();
     let mut seen_selectors = FxHashSet::default();

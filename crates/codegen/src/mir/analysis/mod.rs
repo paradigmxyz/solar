@@ -43,3 +43,6 @@ pub(crate) use validator::{validate, validate_phase};
 
 mod absolute_addresses;
 pub(crate) use absolute_addresses::{AddressInput, absolute_address_inputs};
+
+mod heap_offsets;
+pub(crate) use heap_offsets::{is_floor_clamp, pointer_bases};

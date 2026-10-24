@@ -113,10 +113,16 @@ fn @scratch_through_recursion() -> i256 {
     ret v2
 }
 
-// A copy over the whole slot replaces the scratch word, so a later read of the pointer reads the
-// copied word, not the stored one.
+// A copy over the whole slot replaces the scratch word with a calldata word, which is not a heap
+// pointer, so the pointer reads after the copy are raised.
 // CHECK-LABEL: {{^[ +].*}}fn @copy_replaces_scratch{{[( ]}}
-// CHECK-NOT: {{^[-+]}}
+// CHECK: calldatacopy 64, 36, 32
+// CHECK-NEXT: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], {{v[0-9]+}}
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[POINTER]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[POINTER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], {{v[0-9]+}}
 fn @copy_replaces_scratch() -> i256 {
   bb0:
     v0 = calldataload 4
@@ -773,4 +779,53 @@ fn @object_from_scratch() -> i256 [selector=0x12345692] {
     v2 = inttoptr i256 v1 to ptr<memory>
     v3 = mload v2
     ret v3
+}
+
+// A parameter that not every call fills with a heap pointer is not proven to be one: inlining may
+// fold it into a constant after this pass, so it is raised as a constant is.
+// CHECK-LABEL: {{^[ +].*}}fn @param_stored_as_pointer{{[( ]}}
+// CHECK: - mstore 64, arg0
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt arg0, [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], arg0
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @param_stored_as_pointer(arg0: i256) -> i256 {
+  bb0:
+    mstore 64, arg0
+    v0 = mload 64
+    mstore v0, 1
+    ret 0
+}
+
+// A store through an address that the program computes may land on the slot and leave any word
+// there, so the pointer reads after it are raised.
+// CHECK-LABEL: {{^[ +].*}}fn @computed_store{{[( ]}}
+// CHECK: mstore {{v[0-9]+}}, 128
+// CHECK-NEXT: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], 1
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[POINTER]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[POINTER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], 1
+fn @computed_store() -> i256 {
+  bb0:
+    v0 = calldataload 4
+    v1 = add v0, 32
+    mstore v1, 128
+    v2 = mload 64
+    mstore v2, 1
+    ret 0
+}
+
+// A store at a heap pointer plus a constant lies above the slot.
+// CHECK-LABEL: {{^[ +].*}}fn @heap_store{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @heap_store() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore v1, 128
+    v2 = mload 64
+    mstore v2, 1
+    ret 0
 }
