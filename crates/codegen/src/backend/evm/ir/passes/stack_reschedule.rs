@@ -92,7 +92,7 @@
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
-        ir::{BlockId, Instruction, Module, TerminatorKind},
+        ir::{BlockId, BlockTarget, Instruction, Module, TerminatorKind},
         op::{self, StackOp},
     },
     target::{Cost, Target},

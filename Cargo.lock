@@ -4612,6 +4612,7 @@ dependencies = [
  "solar-ast",
  "solar-config",
  "solar-data-structures",
+ "solar-evmir",
  "solar-interface",
  "solar-parse",
  "solar-sema",
@@ -4632,6 +4633,7 @@ dependencies = [
  "solar-codegen",
  "solar-config",
  "solar-data-structures",
+ "solar-evmir",
  "solar-interface",
  "solar-lint",
  "solar-macros",
@@ -4667,6 +4669,48 @@ dependencies = [
  "rayon",
  "rustc-hash",
  "smallvec",
+]
+
+[[package]]
+name = "solar-evmir"
+version = "0.2.0"
+dependencies = [
+ "alloy-primitives",
+ "smallvec",
+ "snapbox",
+ "solar-ast",
+ "solar-config",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-parse",
+]
+
+[[package]]
+name = "solar-evmir-interp"
+version = "0.2.0"
+dependencies = [
+ "alloy-dyn-abi",
+ "alloy-json-abi",
+ "alloy-primitives",
+ "clap",
+ "serde_json",
+ "snapbox",
+ "solar-config",
+ "solar-evmir",
+ "solar-evmir-interpreter",
+]
+
+[[package]]
+name = "solar-evmir-interpreter"
+version = "0.2.0"
+dependencies = [
+ "alloy-primitives",
+ "smallvec",
+ "snapbox",
+ "solar-config",
+ "solar-data-structures",
+ "solar-evmir",
+ "solar-interface",
 ]
 
 [[package]]
@@ -4840,6 +4884,8 @@ dependencies = [
  "serde",
  "serde_json",
  "solar-config",
+ "solar-evmir",
+ "solar-evmir-interpreter",
  "strum 0.28.0",
  "tempfile",
  "toml_edit",

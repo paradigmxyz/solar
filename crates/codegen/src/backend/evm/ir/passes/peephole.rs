@@ -38,7 +38,7 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::map::{FxHashMap, FxHasher};
+use solar_data_structures::map::FxHasher;
 use solar_sema::Gcx;
 use std::{
     fmt,
@@ -117,54 +117,24 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-/// Block contents on which a peephole run found no rewrite, so the same contents can be skipped.
+/// Returns the length and hash of the keys of `instructions`, which key the module's records of
+/// block contents on which a peephole run found no rewrite, so the same contents can be skipped.
 ///
 /// Matching reads only each instruction's opcode, encoding, value, stack operation, and
 /// `keep_with_next` flag, and no other metadata, so equal keys produce the same result. The final
 /// rules extend the early ones, so contents clean under them are clean under both. Records are
 /// keyed by contents rather than by block, so they survive block reordering and removal and cover
 /// every block with equal contents.
-/// Module clones start without the cache, and it never affects module equality.
 ///
 /// NOTE: Records hold a hash of the keys rather than a copy, which would retain every clean
 /// block's contents a second time for the module's lifetime. A collision between recorded and
 /// current contents of equal length would skip a rewrite; the result stays deterministic.
-#[derive(Default)]
-pub(crate) struct CleanBlocks(FxHashMap<(u32, u64), bool>);
-
-/// Returns the length and hash of the keys of `instructions`.
 fn clean_key(instructions: &[Instruction]) -> (u32, u64) {
     let mut hasher = FxHasher::default();
     for inst in instructions {
         MachineInstKey::new(inst).hash(&mut hasher);
     }
     (instructions.len() as u32, hasher.finish())
-}
-
-impl CleanBlocks {
-    pub(in crate::backend::evm::ir) fn clear(&mut self) {
-        self.0.clear();
-    }
-}
-
-impl Clone for CleanBlocks {
-    fn clone(&self) -> Self {
-        Self::default()
-    }
-}
-
-impl PartialEq for CleanBlocks {
-    fn eq(&self, _other: &Self) -> bool {
-        true
-    }
-}
-
-impl Eq for CleanBlocks {}
-
-impl fmt::Debug for CleanBlocks {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("CleanBlocks")
-    }
 }
 
 fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup: bool) -> bool {
@@ -175,7 +145,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup:
     for block in &mut module.blocks {
         // The late rules are separate from the cached early and final ones.
         let key = (!late).then(|| clean_key(&block.instructions));
-        let recorded = key.and_then(|key| clean.0.get(&key).copied());
+        let recorded = key.and_then(|key| clean.get(key));
         let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
         let early_clean = final_cleanup && recorded == Some(false);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
@@ -199,7 +169,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup:
             && !skip
             && rewrites == 0
         {
-            *clean.0.entry(key).or_default() |= final_cleanup;
+            clean.record(key, final_cleanup);
         }
         changed |= rewrites != 0;
         // mstore(offset, value); return(offset, 32)

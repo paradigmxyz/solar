@@ -1,0 +1,45 @@
+[package]
+name = "solar-evmir"
+description = "EVM IR: the machine-level EVM intermediate representation of the Solar compiler"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/evmir"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = [
+    "-Zunstable-options",
+    "--generate-link-to-definition",
+    "--show-type-layout",
+]
+
+[lints]
+workspace = true
+
+[dependencies]
+solar-ast.workspace = true
+solar-config.workspace = true
+solar-data-structures.workspace = true
+solar-interface.workspace = true
+solar-parse.workspace = true
+
+alloy-primitives.workspace = true
+smallvec.workspace = true
+
+[dev-dependencies]
+snapbox.workspace = true
+
+[features]
+nightly = [
+    "solar-ast/nightly",
+    "solar-data-structures/nightly",
+    "solar-interface/nightly",
+    "solar-parse/nightly",
+]

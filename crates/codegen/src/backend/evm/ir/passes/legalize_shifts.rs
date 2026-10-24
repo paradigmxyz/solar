@@ -13,7 +13,7 @@
 use super::EvmPass;
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, TerminatorKind},
+        ir::{BlockTarget, Instruction, Module, TerminatorKind},
         op,
     },
     target::Target,

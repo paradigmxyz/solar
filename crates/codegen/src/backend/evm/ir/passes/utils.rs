@@ -12,12 +12,11 @@ use crate::{
     },
     target::Target,
 };
-use solar_data_structures::{
-    index::{IndexVec, index_vec},
-    map::FxHashSet,
-};
+use solar_data_structures::{index::IndexVec, map::FxHashSet};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
+
+pub(super) use crate::backend::evm::ir::{remap_block_order, retain_blocks};
 
 /// The machine-level identity shared by transforms that compare instructions.
 ///
@@ -176,11 +175,6 @@ pub(super) fn is_terminal_boundary(kind: &TerminatorKind) -> bool {
         || matches!(kind, TerminatorKind::Op(opcode) if op::is_terminal(*opcode))
 }
 
-pub(in crate::backend::evm::ir) fn remap_block_order(module: &mut Module, order: &[BlockId]) {
-    debug_assert_eq!(order.len(), module.blocks.len());
-    remap_blocks(module, order);
-}
-
 /// Counts the pushed labels and terminator edges targeting each block, plus the program entry.
 pub(super) fn count_block_references(module: &Module, references: &mut IndexVec<BlockId, usize>) {
     references.clear();
@@ -198,39 +192,4 @@ pub(super) fn count_block_references(module: &Module, references: &mut IndexVec<
             term.kind.visit_targets(|target| references[target] += 1);
         }
     }
-}
-
-pub(super) fn retain_blocks(module: &mut Module, order: &[BlockId]) {
-    debug_assert!(order.len() <= module.blocks.len());
-    remap_blocks(module, order);
-}
-
-fn remap_blocks(module: &mut Module, order: &[BlockId]) {
-    let mut remap = index_vec![None; module.blocks.len()];
-    let mut old_blocks =
-        std::mem::take(&mut module.blocks).into_iter().map(Some).collect::<IndexVec<BlockId, _>>();
-    let mut blocks = IndexVec::with_capacity(order.len());
-    for &old_block in order {
-        let block =
-            old_blocks[old_block].take().expect("block order must contain each block exactly once");
-        let new_block = blocks.push(block);
-        remap[old_block] = Some(new_block);
-    }
-    module.blocks = blocks;
-    for block in &mut module.blocks {
-        for inst in &mut block.instructions {
-            if let Some(PushValue::Block(block)) = &mut inst.value {
-                *block = remap[*block].expect("referenced block must be retained");
-            }
-        }
-        if let Some(term) = &mut block.terminator {
-            remap_terminator_blocks(&mut term.kind, &remap);
-        }
-    }
-}
-
-fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &IndexVec<BlockId, Option<BlockId>>) {
-    kind.visit_targets_mut(|target| {
-        *target = remap[*target].expect("terminator target must be retained");
-    });
 }

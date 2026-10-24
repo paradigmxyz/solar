@@ -1,7 +1,7 @@
 //! EVM IR text parser.
 
 use super::*;
-use crate::backend::evm::op;
+use crate::op;
 use solar_ast::{
     Arena,
     token::{Delimiter, TokenKind},
@@ -120,7 +120,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Err(self.parser.error("program must contain at least one block"));
         }
         self.reject_unresolved_blocks()?;
-        super::passes::utils::remap_block_order(module, &self.block_order);
+        remap_block_order(module, &self.block_order);
 
         Ok(())
     }
@@ -415,7 +415,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .parser
                 .error_at(span, format!("{name} ID exceeds the assembler limit")));
         };
-        if value > assembly::AsmInst::PAYLOAD_MASK {
+        if value > MAX_ASSEMBLY_ID {
             return Err(self
                 .parser
                 .error_at(span, format!("{name} ID exceeds the assembler limit")));

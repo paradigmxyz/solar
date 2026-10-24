@@ -55,14 +55,13 @@
 //! once per block and message rather than once per entry depth.
 
 use super::*;
-use crate::backend::evm::{codegen::MAX_STACK_DEPTH, op};
+use crate::op::{self, MAX_STACK_DEPTH};
 use solar_config::EvmVersion;
 use solar_data_structures::{
     index::index_vec,
     map::{FxHashMap, FxHashSet},
 };
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
-use solar_sema::Gcx;
 use std::{collections::hash_map::Entry, fmt};
 
 /// Stack-operation diagnostics already reported, keyed by block and message.
@@ -76,25 +75,22 @@ enum TargetRequirement {
 
 /// Target requirements already present before an EVM IR pass runs.
 #[derive(Default)]
-pub(super) struct TargetSupportSnapshot(FxHashMap<TargetRequirement, usize>);
+pub struct TargetSupportSnapshot(FxHashMap<TargetRequirement, usize>);
 
 /// EVM IR verifier.
-pub(in crate::backend) struct Verifier<'a> {
+pub struct Verifier<'a> {
     dcx: &'a DiagCtxt,
     evm_version: EvmVersion,
 }
 
 impl<'a> Verifier<'a> {
-    pub(in crate::backend) fn new(gcx: Gcx<'a>) -> Self {
-        Self { dcx: gcx.dcx(), evm_version: gcx.sess.opts.evm_version }
-    }
-
-    pub(super) const fn for_evm_version(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
+    /// Creates a verifier for modules targeting `evm_version`, which reports to `dcx`.
+    pub const fn for_evm_version(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
         Self { dcx, evm_version }
     }
 
     /// Checks the target requirements EVM IR passes rely on.
-    pub(super) fn verify_before_pipeline(&self, module: &Module) {
+    pub fn verify_before_pipeline(&self, module: &Module) {
         self.verify_stack_ops_for_evm_version(module);
     }
 
@@ -102,14 +98,14 @@ impl<'a> Verifier<'a> {
     ///
     /// Shifts and pre-Byzantium reverts remain temporarily legal because the
     /// final legalization step expands them after the optimization pipeline.
-    pub(super) fn verify_between_passes(&self, module: &Module, before: &TargetSupportSnapshot) {
+    pub fn verify_between_passes(&self, module: &Module, before: &TargetSupportSnapshot) {
         if self.verify_module_shape(module) {
             self.verify_new_target_requirements(module, before);
         }
     }
 
     /// Records target requirements that an input module already contains.
-    pub(super) fn target_support_snapshot(&self, module: &Module) -> TargetSupportSnapshot {
+    pub fn target_support_snapshot(&self, module: &Module) -> TargetSupportSnapshot {
         let mut requirements = FxHashMap::default();
         for block in &module.blocks {
             for inst in &block.instructions {
@@ -131,7 +127,7 @@ impl<'a> Verifier<'a> {
     /// This is the only stack-operation check that reports in release builds, so it runs for
     /// every EVM version: which module the check sees must not depend on whether legalization
     /// had shifts to rewrite.
-    pub(in crate::backend) fn verify_after_legalization(&self, module: &Module) {
+    pub fn verify_after_legalization(&self, module: &Module) {
         self.verify_module(module);
         self.verify_target_support(module);
     }
@@ -170,13 +166,13 @@ impl<'a> Verifier<'a> {
         }
     }
 
-    pub(super) fn verify_module(&self, module: &Module) {
+    pub fn verify_module(&self, module: &Module) {
         if self.verify_module_shape(module) {
             self.verify_stack_ops(module);
         }
     }
 
-    pub(super) fn verify_module_shape(&self, module: &Module) -> bool {
+    pub fn verify_module_shape(&self, module: &Module) -> bool {
         let errors_before = self.dcx.err_count();
         if module.blocks.is_empty() {
             self.error("program has no blocks");
@@ -732,7 +728,7 @@ impl<'a> Verifier<'a> {
         block.index() < module.blocks.len()
     }
 
-    pub(in crate::backend) fn is_valid(module: &Module) -> bool {
+    pub fn is_valid(module: &Module) -> bool {
         let dcx = DiagCtxt::with_silent_emitter(None);
         Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module(module);
         dcx.has_errors().is_ok()

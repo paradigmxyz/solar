@@ -20,6 +20,7 @@ cargo fmt --all                        # Format
 cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
+cargo run -p solar-evmir-interp -- f.evmir # Run EVM IR in the EVM IR interpreter
 ```
 
 Filter tests with `cargo tq <mode> <path-substring>` (bless with
@@ -44,6 +45,10 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   `backend/evm/codegen/` (instruction selection, stack scheduling),
   `backend/evm/ir/passes/` (EVM IR passes), `backend/assembler/`, `target.rs`
   (cost model).
+- `crates/evmir`: the EVM IR data model, text format, and verifier (`ir/`),
+  the opcode table and word semantics (`op.rs`, `op/word.rs`), the gas
+  schedule (`gas.rs`), and program data shared with MIR (`link.rs`).
+  `crates/evmir-interpreter`: runs EVM IR; `tools/evmir-interp` is its CLI.
 - `crates/interface`: sources, spans, diagnostics, symbols.
   `crates/data-structures`: index types, bitsets, arena helpers.
   `crates/config`: options and `-Z` flags (`opts.rs`; bless
@@ -95,7 +100,7 @@ and type/module rules to the phase verifier, and test them under
 ### Operation Schema and ISLE Rules
 
 Declare MIR operations only in `crates/codegen/src/mir/op_schema.rs` and EVM
-opcodes only in `backend/evm/op.rs`; never add a parallel `match` that
+opcodes only in `crates/evmir/src/op.rs`; never add a parallel `match` that
 classifies operations elsewhere. Write rewrite rules in ISLE under
 `crates/codegen/isle/`, and never hand-edit the generated `prelude.isle` or
 `extractors.isle`; regenerate them with
@@ -164,6 +169,8 @@ deliberate omissions. A one-line restatement of the name is not enough.
     `tests/ui/codegen/mir/lowering/`.
   - EVM IR passes: `tests/ui/codegen/evm-ir/<pass-name>/` (`-Zevm-ir-pipeline`
     name).
+  - EVM IR checked against the EVM IR interpreter with `run-call`:
+    `tests/ui/codegen/evm-ir/interp/`.
   - Round-trip, pipeline, and validation tests: existing `none/`, `pipeline/`,
     `validation/`.
 - Keep `.stdout`/`.stderr` expectations beside their source.
@@ -202,7 +209,9 @@ Other directives: `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
   failure. See the [tester guide](tools/tester/README.md#runtime-directives)
   for settings. Use them for one isolated call; use `tests/foundry/`
   (`cargo tq foundry`) for multiple transactions, state, actors, events,
-  cheatcodes, or complex setup.
+  cheatcodes, or complex setup. `.evmir` tests also run each call through the
+  EVM IR interpreter and name the function by signature and outputs, as in
+  `add(uint256,uint256)(uint256) 2, 3 => 5`.
 - `//@ filecheck: ARGS` runs LLVM FileCheck on the `.stdout` with `ARGS`.
 
 Use FileCheck when full snapshots are too brittle or the test checks order,
