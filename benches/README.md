@@ -7,15 +7,15 @@ Requires cloning submodules: `git submodule update --init --checkout`.
 Run with:
 
 ```bash
-# Criterion. The `competitors` feature adds solang, slang and tree-sitter.
-cargo bench -p solar-bench --features competitors --bench criterion -- --quiet --format terse 'compiler/(empty|Counter|verifier|OptimizorClub|UniswapV3|Solarray|console|Vm|safeconsole|Seaport|Solady|Optimism)/.*/(lex|parse|lower)$' |& tee benches/criterion.out
+# Criterion. The `others` feature adds solang, slang and tree-sitter.
+cargo bench -p solar-bench --features others --bench criterion -- --quiet --format terse 'compiler/(empty|Counter|verifier|OptimizorClub|UniswapV3|Solarray|console|Vm|safeconsole|Seaport|Solady|Optimism)/.*/(lex|parse|lower)$' |& tee benches/criterion.out
 uv --project benches/analyze run benches/analyze/main.py benches/README.md < benches/criterion.out
 ```
 
 This takes around 24 minutes to complete: `sources (12) * benchmark cases (8) * 15s`.
 
 The solang, slang and tree-sitter parsers are optional dependencies behind the non-default
-`competitors` feature, so workspace-wide commands such as `cargo test --workspace` do not compile
+`others` feature, so workspace-wide commands such as `cargo test --workspace` do not compile
 them. `--all-features` enables it, and the results below need it.
 
 ## Results

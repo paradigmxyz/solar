@@ -23,7 +23,7 @@ solar = { workspace = true, default-features = false }
 flate2.workspace = true
 serde_json.workspace = true
 
-# competitors
+# others
 semver = { workspace = true, optional = true }
 slang_solidity = { version = "=0.18.3", optional = true }
 solang-parser = { version = "=0.3.4", optional = true }
@@ -35,7 +35,7 @@ criterion.workspace = true
 
 [features]
 ci = []
-competitors = [
+others = [
     "dep:semver",
     "dep:slang_solidity",
     "dep:solang-parser",
