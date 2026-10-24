@@ -149,8 +149,6 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
-      - name: build
-        run: cargo build --features "${{ matrix.features || '' }}"
       - name: test
         run: cargo nextest run --profile ci --workspace --features "${{ matrix.features || '' }}"
       - name: test C API
