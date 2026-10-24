@@ -46,6 +46,12 @@ all = "warn"
 debug = "line-tables-only"
 split-debuginfo = "unpacked"
 
+# Cargo strips debuginfo from proc macros and build scripts unless they are also built as a target
+# unit. A workspace `cargo build` builds `solar-macros` as one; `cargo r` and `cargo build -p` do not,
+# so they would rebuild every crate that depends on it. Keep this in sync with `[profile.dev] debug`.
+[profile.dev.build-override]
+debug = "line-tables-only"
+
 [profile.dev.package]
 solar-tester.opt-level = 3
 console.opt-level = 3
