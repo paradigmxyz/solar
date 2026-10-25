@@ -40,6 +40,13 @@ fn @effects(arg0: i256) -> i256 {
     ret v0
 }
 
+// A second call site keeps the storage-writing adapter shared in every mode.
+fn @effects_again(arg0: i256) -> i256 [selector=3] {
+  bb0:
+    v0 = icall @effects, arg0
+    ret v0
+}
+
 fn @base(arg0: i256) -> i256 {
   bb0:
     ret arg0
