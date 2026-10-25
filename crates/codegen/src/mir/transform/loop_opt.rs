@@ -48,32 +48,29 @@
 //! branch so the check could merge with the add overflow check after it made the loop carry more
 //! words, and it measured slower. In size mode the comparison is the branch condition itself,
 //! with the edges swapped, so `merge-aborts` joins it with the next check's test and no
-//! `iszero` remains. The bound is one more word the loop carries, and it replaces a division
-//! whose operands the schedule shuffles: size mode rewrites only when the target prices the bound
-//! and the comparisons below the checks they replace, and the loop stays within
-//! [`LOOP_CARRY_BUDGET`]. A loop carrying seven words grew by two bytes, while loops carrying
-//! two and four shrank by one and four.
+//! `iszero` remains. The bound is one more word the loop carries, and its saving depends on the
+//! stack schedule, not on the opcodes: the bound and comparison cost fewer bytes than the check
+//! in every EVM version, yet a loop carrying seven words grew by two bytes, while loops carrying
+//! two and four shrank by one and four. Size mode therefore rewrites only while the loop's carried
+//! words stay within [`LOOP_CARRY_BUDGET`].
 
-use crate::{
-    mir::{
-        BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
-        Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
-        ValueId,
-        analysis::{
-            AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
-            Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
-        },
-        pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
-        utils as mir_utils,
+use crate::mir::{
+    BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+    analysis::{
+        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
+        Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
     },
-    target::Target,
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+    utils as mir_utils,
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::rc::Rc;
 
-/// Most words a loop may carry after a below-threshold hoist. The count is the header's phis
+/// Most words a loop may carry after a below-threshold hoist or, in size mode, a product check's
+/// hoisted bound. The count is the header's phis
 /// plus the values defined outside the loop that its body reads, which the backend keeps on
 /// the stack through the loop when they fit. Past this many, its layouts spill loop values to
 /// frame slots, and a hoisted base then costs more in reloads of the words it displaced than
@@ -112,7 +109,6 @@ impl MirPass for Licm {
             |func, analyses| {
                 let mut optimizer = LoopOptimizer {
                     hoist_cheap,
-                    target: Target::new(gcx),
                     alias: Rc::clone(analyses.alias()),
                     hoisted: 0,
                     annotated_aliases: false,
@@ -162,7 +158,6 @@ struct LoopOptimizer {
     /// hoisting only widens its choice; the cost is bytecode when the value is spilled, which
     /// gas mode accepts.
     hoist_cheap: bool,
-    target: Target,
     alias: Rc<AliasAnalysis>,
     /// Number of instructions hoisted or rewritten.
     hoisted: usize,
@@ -189,10 +184,7 @@ impl LoopOptimizer {
             // The product's limit runs before the loop, so whatever in the loop checks the gas
             // left would see what the limit cost before the first check paid for it.
             if !self.loop_checks_gas_left(func, loop_data) {
-                self.hoisted +=
-                    reduce_product_checks(func, loop_data, &self.target, |func, blocks| {
-                        Self::carried_words(func, loop_data, blocks)
-                    });
+                self.hoisted += reduce_product_checks(func, loop_data, &loops, self.hoist_cheap);
             }
         }
         let inst_blocks = func.inst_block_table();
@@ -1087,8 +1079,8 @@ impl LoopOptimizer {
 fn reduce_product_checks(
     func: &mut Function,
     loop_data: &Loop,
-    target: &Target,
-    carried_words: impl FnOnce(&Function, &IndexVec<InstId, Option<BlockId>>) -> usize,
+    loops: &[Loop],
+    gas: bool,
 ) -> usize {
     let Some(preheader) = loop_data.preheader else { return 0 };
     let inst_blocks = func.inst_block_table();
@@ -1116,31 +1108,32 @@ fn reduce_product_checks(
             }
         }
     }
-    let gas = target.optimization().is_gas();
     if !gas && !checks.is_empty() {
-        let carried = carried_words(func, &inst_blocks);
-        // Each bound is one more carried word and pays only when enough checks share it.
-        let mut groups = Vec::<(ValueId, u32)>::new();
-        for &(.., y, _) in &checks {
-            match groups.iter_mut().find(|(factor, _)| *factor == y) {
-                Some((_, count)) => *count += 1,
-                None => groups.push((y, 1)),
+        // The bound is carried through every loop from this one down to the check's own.
+        let mut bounds = Vec::new();
+        checks.retain(|&(block, _, _, y, _)| {
+            if bounds.contains(&y) {
+                return true;
             }
-        }
-        let mut accepted = Vec::new();
-        for (y, count) in groups {
-            if carried + accepted.len() < LOOP_CARRY_BUDGET
-                && target.product_bound_is_profitable(count)
-            {
-                accepted.push(y);
+            let carried = loops
+                .iter()
+                .filter(|inner| {
+                    loop_data.blocks.contains(inner.header) && inner.blocks.contains(block)
+                })
+                .map(|inner| LoopOptimizer::carried_words(func, inner, &inst_blocks))
+                .max()
+                .unwrap_or_default();
+            let fits = carried + bounds.len() < LOOP_CARRY_BUDGET;
+            if fits {
+                bounds.push(y);
             }
-        }
-        checks.retain(|&(.., y, _)| accepted.contains(&y));
+            fits
+        });
     }
     if checks.is_empty() {
         return 0;
     }
-    let uses = super::egraph::use_counts(func);
+    let uses = (!gas).then(|| super::egraph::use_counts(func));
     let mut limits = FxHashMap::default();
     for &(block, inst, x, y, zero) in &checks {
         let context = func.inst(inst).metadata.debug_context();
@@ -1159,7 +1152,7 @@ fn reduce_product_checks(
             let wide = builder.cast(zero, MirType::I256);
             builder.sub(quotient, wide)
         });
-        if !gas && flip_check(func, block, inst, &uses) {
+        if uses.as_ref().is_some_and(|uses| flip_check(func, block, inst, uses)) {
             // overflows = gt x, limit
             // jumpi overflows, abort, next
             func.inst_mut(inst).kind = InstKind::Gt(x, limit);

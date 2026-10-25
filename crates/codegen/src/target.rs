@@ -927,29 +927,6 @@ impl Target {
         }
         (jump.times(sites) + copy + self.opcode(op::JUMPDEST)).bytes < copy.times(sites).bytes
     }
-
-    /// Whether replacing the `checks` division checks of products by one loop-invariant factor `y`
-    /// with comparisons against a bound computed before the loop, `x <= MAX / y - (y == 0)`, costs
-    /// no more than it saves. A division check reads four operands and, in the stack schedules
-    /// that the lowered checks measured, shuffles three of them; the comparison reads `x` and the
-    /// bound, which stays on the stack through the loop.
-    pub(crate) fn product_bound_is_profitable(&self, checks: u32) -> bool {
-        let (dup, swap) = (self.dup(), self.opcode(op::SWAP1));
-        let divide = self.opcode(op::ISZERO)
-            + self.opcode(op::DIV)
-            + self.opcode(op::EQ)
-            + self.opcode(op::OR)
-            + self.opcode(op::ISZERO)
-            + dup.times(4)
-            + swap.times(3);
-        let compare = self.opcode(op::GT) + dup.times(2);
-        let bound = self.opcode(op::ISZERO)
-            + self.push(U256::MAX)
-            + self.opcode(op::DIV)
-            + self.opcode(op::SUB)
-            + dup.times(2);
-        self.cmp(bound + compare.times(checks), divide.times(checks)) != Ordering::Greater
-    }
 }
 
 #[cfg(test)]
@@ -1356,15 +1333,5 @@ mod tests {
         assert!(size.shares_terminal_copy(medium, 3));
         // One site never pays for a jump.
         assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
-    }
-
-    #[test]
-    fn product_bound_pricing() {
-        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
-        // One check already pays for the bound's four operations and `PUSH0 NOT`.
-        assert!(size.product_bound_is_profitable(1));
-        assert!(size.product_bound_is_profitable(3));
-        // Without a division to remove there is nothing to repay the bound.
-        assert!(!size.product_bound_is_profitable(0));
     }
 }
