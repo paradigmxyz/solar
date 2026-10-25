@@ -175,7 +175,9 @@ pub(crate) fn run_passes_inner(
             let pass_changed = if cached {
                 false
             } else {
-                analyses.begin_pass(gcx.sess.opts.optimization.is_gas());
+                // A queued contract job needs the workers more than this pass does.
+                let parallel = gcx.sess.is_parallel_codegen() && !gcx.sess.has_queued_jobs();
+                analyses.begin_pass(gcx.sess.opts.optimization.is_gas(), parallel);
                 // A pass that changes the module outdates the check, unless the pass itself
                 // advanced the phase after its last change.
                 let lowered_checked = std::mem::take(&mut module.lowered_checked);
