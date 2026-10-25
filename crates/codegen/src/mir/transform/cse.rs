@@ -23,7 +23,10 @@
 //! ```
 //!
 //! The pass performs dominator-tree CSE with path-local invalidation for
-//! alias-sensitive memory/storage reads, then runs a local cleanup pass. Slot hashes
+//! alias-sensitive memory/storage reads, then runs a local cleanup pass. Cheap environment
+//! reads such as `calldatasize` and `caller` stay separate, since rereading costs less than a
+//! stack copy, but they key as one operand, so the bound checks and other non-cast
+//! expressions computed from different reads of the same word are shared. Slot hashes
 //! also write scratch memory; a repeated fixed-width hash can disappear only while
 //! its input and written ranges remain unchanged. Variable-width hashes can overwrite
 //! their source or the FMP itself, so they remain effectful until physical lowering. Check
@@ -77,8 +80,8 @@
 //! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
-    BlockId, Callee, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
-    MirType, Module, PtrLocation, StorageAlias, Value, ValueId,
+    BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -310,6 +313,9 @@ enum CastKey {
 enum OperandKey {
     Value(ValueId),
     Immediate(Immediate),
+    /// A read that returns the same word throughout the call, such as `calldatasize` or
+    /// `caller`, keyed by its kind so that expressions over different reads match.
+    FrameConstant(&'static str),
 }
 
 type MemRangeKey = MemoryLocation;
@@ -650,15 +656,7 @@ impl CommonSubexprEliminator {
         for &(_, value) in incoming {
             let Value::Inst(inst_id) = func.value(value) else { return None };
             let source_inst = func.inst(*inst_id);
-            if source_inst.kind.has_side_effects()
-                || !Self::operands_dominate_block(
-                    func,
-                    &source_inst.kind,
-                    block_id,
-                    ctx.inst_blocks.get_or_init(|| func.inst_block_table()),
-                    ctx.dominators,
-                )
-            {
+            if source_inst.kind.has_side_effects() {
                 return None;
             }
 
@@ -670,7 +668,19 @@ impl CommonSubexprEliminator {
                 return None;
             }
             expected_key = Some(key);
-            candidate_kind.get_or_insert_with(|| source_inst.kind.clone());
+            // Equal keys may still name different operands, such as two reads of one frame
+            // constant, so clone an incoming expression whose operands exist after the phis.
+            if candidate_kind.is_none()
+                && Self::operands_available_after_phis(
+                    func,
+                    &source_inst.kind,
+                    block_id,
+                    ctx.inst_blocks.get_or_init(|| func.inst_block_table()),
+                    ctx.dominators,
+                )
+            {
+                candidate_kind = Some(source_inst.kind.clone());
+            }
             incoming_insts.push((value, *inst_id));
         }
 
@@ -1112,7 +1122,16 @@ impl CommonSubexprEliminator {
         // Helper to get canonical operands after in-block replacements.
         let operand = |v: ValueId| Self::operand_key(func, v, replacements);
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
-        let cast = |cast, v| Some(ExprKey::Cast(cast, operand(v), func.inst(inst_id).result_ty));
+        // A cast costs nothing, so sharing one over a frame constant would only trade a cheap
+        // reread for a stack copy: casts key each read separately.
+        let cast = |cast, v| {
+            let v = value(v);
+            let operand = match func.value(v) {
+                Value::Immediate(_) => operand(v),
+                _ => OperandKey::Value(v),
+            };
+            Some(ExprKey::Cast(cast, operand, func.inst(inst_id).result_ty))
+        };
 
         match kind {
             // A pure leaf call depends on its arguments alone, so no side effect invalidates it.
@@ -1465,7 +1484,9 @@ impl CommonSubexprEliminator {
         )
     }
 
-    fn operands_dominate_block(
+    /// Whether every operand of `kind` is defined before the first non-phi instruction of
+    /// `block_id`: a phi of the block or a value from a strictly dominating block.
+    fn operands_available_after_phis(
         func: &Function,
         kind: &InstKind,
         block_id: BlockId,
@@ -1473,11 +1494,11 @@ impl CommonSubexprEliminator {
         dominators: &DominatorTree,
     ) -> bool {
         kind.operands().into_iter().all(|value| {
-            Self::value_dominates_block(func, value, block_id, inst_blocks, dominators)
+            Self::value_available_after_phis(func, value, block_id, inst_blocks, dominators)
         })
     }
 
-    fn value_dominates_block(
+    fn value_available_after_phis(
         func: &Function,
         value: ValueId,
         block_id: BlockId,
@@ -1486,11 +1507,15 @@ impl CommonSubexprEliminator {
     ) -> bool {
         match func.value(value) {
             Value::Immediate(_) | Value::Arg(_) | Value::Undef(_) | Value::Error(_) => true,
-            Value::Inst(inst_id) => inst_blocks
-                .get(*inst_id)
-                .copied()
-                .flatten()
-                .is_some_and(|def_block| dominators.dominates(def_block, block_id)),
+            Value::Inst(inst_id) => {
+                inst_blocks.get(*inst_id).copied().flatten().is_some_and(|def_block| {
+                    if def_block == block_id {
+                        matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
+                    } else {
+                        dominators.dominates(def_block, block_id)
+                    }
+                })
+            }
         }
     }
 
@@ -1564,7 +1589,7 @@ impl CommonSubexprEliminator {
                             Self::offset_value(func, b, replacements, depth + 1)?;
                         Some((base, existing.wrapping_add(offset)))
                     } else {
-                        Some((OperandKey::Value(value), U256::ZERO))
+                        Some((Self::operand_key(func, value, replacements), U256::ZERO))
                     }
                 }
                 InstKind::Sub(a, b) => {
@@ -1572,7 +1597,7 @@ impl CommonSubexprEliminator {
                     let (base, existing) = Self::offset_value(func, a, replacements, depth + 1)?;
                     Some((base, existing.wrapping_sub(offset)))
                 }
-                _ => Some((OperandKey::Value(value), U256::ZERO)),
+                _ => Some((Self::operand_key(func, value, replacements), U256::ZERO)),
             },
         }
     }
@@ -1585,6 +1610,9 @@ impl CommonSubexprEliminator {
         let value = mir_utils::resolve_replacement(value, replacements);
         match func.value(value) {
             Value::Immediate(imm) => OperandKey::Immediate(imm.clone()),
+            Value::Inst(inst) if let Some(key) = frame_constant_key(&func.inst(*inst).kind) => {
+                OperandKey::FrameConstant(key)
+            }
             _ => OperandKey::Value(value),
         }
     }
@@ -1599,6 +1627,9 @@ impl CommonSubexprEliminator {
             (OperandKey::Immediate(_), OperandKey::Value(_)) => Ordering::Less,
             (OperandKey::Value(_), OperandKey::Immediate(_)) => Ordering::Greater,
             (OperandKey::Value(a), OperandKey::Value(b)) => a.index().cmp(&b.index()),
+            (OperandKey::FrameConstant(a), OperandKey::FrameConstant(b)) => a.cmp(b),
+            (OperandKey::FrameConstant(_), _) => Ordering::Greater,
+            (_, OperandKey::FrameConstant(_)) => Ordering::Less,
         }
     }
 
@@ -1717,4 +1748,14 @@ fn pure_leaf_functions(
         }
     }
     pure
+}
+
+/// A key for an environment read whose word is fixed for the whole call frame: a nullary
+/// environment read the schema marks rematerializable, keyed by its mnemonic.
+fn frame_constant_key(kind: &InstKind) -> Option<&'static str> {
+    let definition = kind.op_def();
+    (definition.effect == EffectKind::EnvironmentRead
+        && definition.traits.contains(OpTraits::REMATERIALIZABLE)
+        && !kind.any_operand(|_| true))
+    .then_some(definition.mnemonic)
 }
