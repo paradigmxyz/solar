@@ -38,10 +38,10 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     mstore v71, 33
     jump bb1
   bb1:
-    v5 = phi [bb0: 0], [bb2: v7]
+    v5 = phi [bb0: 0], [bb3: v7]
     v6 = lt v5, 33
-    jumpi v6, bb2, bb3
-  bb3:
+    jumpi v6, bb3, bb2
+  bb2:
     v72 = mload 64 !metadata(memory=scratch)
     v42 = add v72, 32
     v43 = add v42, 32
@@ -80,19 +80,19 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     v28 = mload v65
     v29 = byte 0, v28
     v31 = eq v29, 1
+    v33 = eq v21, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v35 = and v31, v33
     jump bb5
   bb5:
-    v32 = phi [bb4: v31], [bb9: false]
-    v33 = eq v21, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v35 = and v32, v33
-    v38 = zext i1 v35 to i256
+    v34 = phi [bb9: false], [bb4: v35]
+    v38 = zext i1 v34 to i256
     mstore 0, v38
     returndata 0, 32
   bb8:
     mstore 32, 65
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb2:
+  bb3:
     v7 = add v5, 1
     v62 = add v71, v5
     v63 = add v62, 32
@@ -102,36 +102,29 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
 
 fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
   bb0:
-    v55 = mload 64 !metadata(memory=scratch)
-    v56 = add v55, 160
-    mstore 64, v56
-    mstore v55, 33
-    v38 = add v55, 32
+    v54 = mload 64 !metadata(memory=scratch)
+    v55 = add v54, 160
+    mstore 64, v55
+    mstore v54, 33
+    v38 = add v54, 32
     mstore v38, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-    v40 = add v55, 64
+    v40 = add v54, 64
     mstore v40, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v54 = add v55, 96
-    mstore v54, 2
-    v42 = add v55, 128
+    v53 = add v54, 96
+    mstore v53, 2
+    v42 = add v54, 128
     mstore v42, 0x2223000000000000000000000000000000000000000000000000000000000000
-    v57 = mload 64
-    v58 = add v57, 96
-    mstore 64, v58
-    mstore v57, 35
-    v44 = add v57, 32
+    v56 = mload 64
+    v57 = add v56, 96
+    mstore 64, v57
+    mstore v56, 35
+    v44 = add v56, 32
     icall @mcopy_words, v44, v38, 33
     v46 = add v44, 33
     icall @mcopy_words, v46, v42, 2
-    v6 = mload v57
-    v7 = eq v6, 35
-    jumpi v7, bb1, bb2
-  bb1:
-    v10 = keccak256 v44, v6
+    v10 = keccak256 v44, 35
     v11 = eq v10, 0x6af3077298100e75aa14e950ca068835b7f2b5fdaaebc811322ad87e3c5d271a
-    jump bb2
-  bb2:
-    v12 = phi [bb1: v11], [bb0: false]
-    v35 = zext i1 v12 to i256
+    v35 = zext i1 v11 to i256
     mstore 0, v35 !metadata(memory=scratch)
     returndata 0, 32
 }
