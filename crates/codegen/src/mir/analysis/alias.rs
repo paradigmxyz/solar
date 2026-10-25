@@ -1855,13 +1855,21 @@ impl AliasAnalysis {
         }
     }
 
-    /// Returns whether an address is computed by adding a runtime value to a pointer, on any path
-    /// of a select or phi. A chain too deep to follow counts as indexed.
+    /// Returns whether an address is computed with a runtime value, on any path of a select or
+    /// phi: added to a pointer, or through any arithmetic this does not follow. Pointers that
+    /// come from an allocation, a load, a call, or an argument, and constant offsets from them,
+    /// are not. A chain too deep to follow counts as indexed.
     fn address_has_runtime_index(func: &Function, address: ValueId, depth: u32) -> bool {
         let Some(depth) = depth.checked_sub(1) else { return true };
         let Value::Inst(inst) = func.value(address) else { return false };
         let indexed = |value| Self::address_has_runtime_index(func, value, depth);
         match &func.inst(*inst).kind {
+            InstKind::Alloc { .. }
+            | InstKind::Fmp
+            | InstKind::Load(..)
+            | InstKind::ICall { .. }
+            | InstKind::InternalFrameAddr(_)
+            | InstKind::FrameLoad { .. } => false,
             InstKind::PtrAdd(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
             InstKind::Add(first, second) => match (func.value_u64(*first), func.value_u64(*second))
             {
@@ -1869,10 +1877,13 @@ impl AliasAnalysis {
                 (Some(_), None) => indexed(*second),
                 (None, None) => true,
             },
+            InstKind::Sub(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
             InstKind::Select(_, first, second) => indexed(*first) || indexed(*second),
             InstKind::Phi(incoming) => incoming.iter().any(|&(_, value)| indexed(value)),
             InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => indexed(*value),
-            _ => false,
+            InstKind::MakeSlice { ptr, .. } => indexed(*ptr),
+            InstKind::ExtractValue { aggregate, .. } => indexed(*aggregate),
+            _ => true,
         }
     }
 

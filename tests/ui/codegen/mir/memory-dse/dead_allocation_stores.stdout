@@ -382,3 +382,21 @@
       returndata 0, 32
   }
   
+  fn @indexed_through_sub(arg0: i256, arg1: i256, arg2: i1) {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+      mstore v1, arg0
+      v2 = ptradd v0, arg1
+      v3 = ptradd v2, 64
+      v4 = ptrtoint ptr<memory> v3 to i256
+      v5 = sub v4, 32
+      v6 = inttoptr i256 v5 to ptr<memory>
+      v7 = select arg2, v6, v0
+      mstore v7, 1
+      v8 = alloc 64
+      v9 = mload v8
+      mstore 0, v9
+      returndata 0, 32
+  }
+  
