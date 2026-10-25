@@ -233,7 +233,7 @@ rustc-hash = "2.0"
 scoped-tls = "1.0"
 semver = "1.0"
 smallvec = { version = "1", features = ["const_generics", "union"] }
-smolgen = { version = "0.1", features = ["gitcl"] }
+smolgen = { git = "https://github.com/alloy-rs/smolgen", rev = "1101d5c55038e15cebde8abc0061763dd61fa21f", features = ["gitcl"] }
 thread_local = "1.1"
 tokio = { version = "1.47", default-features = false }
 tokio-util = { version = "0.7", default-features = false }

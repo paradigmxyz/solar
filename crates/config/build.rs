@@ -20,50 +20,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     let cargo = smolgen::Cargo::builder().features(true).target_triple(true).build();
     let build = smolgen::Build::builder().build_timestamp(true).build();
+    // Tracking the git HEAD reruns this script, and rebuilds every crate above this one, on every
+    // commit and checkout. Debug builds skip it and keep the SHA from the last run of this script.
+    // Release profiles keep tracking HEAD, so their version matches the checkout.
+    let track_head = env::var("PROFILE")? != "debug";
     let git = smolgen::Gitcl::builder()
         .describe(false, true, None)
         .dirty(true)
         .sha(false)
         .vcs_info_fallback(true)
+        .rerun_on_head_change(track_head)
         .build();
-    let mut emitter = smolgen::Emitter::new();
-    emitter
+    smolgen::Emitter::new()
         .default_on_error()
         .add_instructions(&cargo)?
         .add_instructions(&build)?
-        .add_instructions(&git)?;
+        .add_instructions(&git)?
+        .emit_and_set()?;
 
-    let mut instructions = Vec::new();
-    emitter.emit_to(&mut instructions)?;
-    // Tracking the git HEAD reruns this script, and rebuilds every crate above this one, on every
-    // commit and checkout. Debug builds skip it and keep the SHA from the last run of this script.
-    // Release profiles keep tracking HEAD, so their version matches the checkout.
-    let skip_head_tracking = env::var("PROFILE").is_ok_and(|profile| profile == "debug");
-    for line in String::from_utf8(instructions)?.lines() {
-        let is_git_path = line.starts_with("cargo:rerun-if-changed=")
-            && line != "cargo:rerun-if-changed=build.rs";
-        if !(skip_head_tracking && is_git_path) {
-            println!("{line}");
-        }
-    }
-
-    let vars = emitter.cargo_rustc_env_map();
-    let vergen_env = |key: smolgen::VergenKey| match vars.get(&key) {
-        Some(value) if value != VERGEN_IDEMPOTENT_OUTPUT => value.as_str(),
-        _ => VERSION_UNKNOWN,
-    };
-
-    let sha = vergen_env(smolgen::VergenKey::GitSha);
+    let sha = vergen_env("VERGEN_GIT_SHA");
     let sha_short = sha.get(..7).unwrap_or(&sha);
 
     let is_dev = {
-        let is_dirty = vergen_env(smolgen::VergenKey::GitDirty) == "true";
+        let is_dirty = vergen_env("VERGEN_GIT_DIRTY") == "true";
 
         // > git describe --always --tags
         // if not on a tag: v0.2.0-beta.3-82-g1939939b
         // if on a tag: v0.2.0-beta.3
-        let not_on_tag =
-            vergen_env(smolgen::VergenKey::GitDescribe).ends_with(&format!("-g{sha_short}"));
+        let not_on_tag = vergen_env("VERGEN_GIT_DESCRIBE").ends_with(&format!("-g{sha_short}"));
 
         is_dirty || not_on_tag
     };
@@ -72,7 +56,7 @@ fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     let version = env::var("CARGO_PKG_VERSION").unwrap();
     let version_suffixed = format!("{version}{version_suffix}");
 
-    let timestamp = vergen_env(smolgen::VergenKey::BuildTimestamp);
+    let timestamp = env::var("VERGEN_BUILD_TIMESTAMP").unwrap();
 
     let short_version = format!("{version_suffixed} ({sha_short} {timestamp})");
     println!("cargo:rustc-env=SHORT_VERSION={short_version}");
@@ -81,7 +65,7 @@ fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = env::var("OUT_DIR").unwrap();
     let profile = out_dir.rsplit(std::path::MAIN_SEPARATOR).nth(3).unwrap();
 
-    let mut cargo_features = vergen_env(smolgen::VergenKey::CargoFeatures).to_string();
+    let mut cargo_features = env::var("VERGEN_CARGO_FEATURES").unwrap();
     let ignore = ["clap", "version", "serde"];
     for feature in ignore {
         cargo_features = cargo_features
@@ -113,6 +97,14 @@ fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(feature = "version")]
+fn vergen_env(key: &str) -> String {
+    match env::var(key) {
+        Ok(value) if value != VERGEN_IDEMPOTENT_OUTPUT => value,
+        _ => VERSION_UNKNOWN.to_string(),
+    }
 }
 
 fn solc_version() -> String {
