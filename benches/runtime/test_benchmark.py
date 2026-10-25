@@ -1479,6 +1479,8 @@ class GasKindsTests(unittest.TestCase):
             # CODECOPY the runtime behind this 12-byte prefix, then RETURN it.
             return f"{push(size)}{push(12)}{push(0)}39{push(size)}{push(0)}f3{runtime}"
 
+        # CALLVALUE PUSH1 jump JUMPI then a JUMPDEST PUSH0 PUSH0 REVERT, as constructor and runtime.
+        child_initcode = "34600e57600a60125f39600a5ff35b5f5ffd" + "3460065700005b5f5ffd"
         # Reverts after growing memory: the REVERT step arrives through `fault`.
         reverter = push(50000, 2) + push(0) + "fd"
         with socket.socket() as probe:
@@ -1496,14 +1498,17 @@ class GasKindsTests(unittest.TestCase):
                 # CALL the reverter, then the identity precompile after a frame with steps.
                 push(0) * 5 + push(int(reverter_address, 16), 20) + "5af150",
                 push(0) * 2 + push(0x40) + push(0) + push(4) + "5afa50",
-                # CREATE a contract whose 32-byte code costs 6400 gas to deposit.
-                push(0x602060_00F3, 5)
+                # CREATE a contract with a guard in its constructor and a 10-byte runtime that
+                # has one (2000 gas to deposit), then CALL it.
+                push(int(child_initcode, 16), 28)
                 + push(0)
                 + "52"
-                + push(5)
-                + push(27)
+                + push(28)
+                + push(4)
                 + push(0)
                 + "f0"
+                + push(0) * 5
+                + "855af150"
                 + "50"
                 + "00",
             ]
@@ -1525,8 +1530,10 @@ class GasKindsTests(unittest.TestCase):
         self.assertEqual(kinds["execution_gas"] + kinds["intrinsic_gas"], gas)
         self.assertEqual(sum(kinds["gas_kinds"].values()), kinds["execution_gas"])
         self.assertGreater(kinds["gas_kinds"]["precompile"], 0)
-        self.assertGreater(kinds["gas_kinds"]["mem_expansion"], 9000)
-        self.assertGreater(kinds["gas_kinds"]["call"], 32000 + 6400)
+        self.assertTrue(9000 < kinds["gas_kinds"]["mem_expansion"] < 10000)
+        self.assertGreater(kinds["gas_kinds"]["call"], 32000 + 2000)
+        # The constructor's guard must not hide the runtime's.
+        self.assertGreaterEqual(kinds["gas_kinds"].get("guard", 0), 13)
 
     @unittest.skipUnless(shutil.which("node"), "node is not installed")
     def test_tracer_is_a_javascript_object_literal(self) -> None:

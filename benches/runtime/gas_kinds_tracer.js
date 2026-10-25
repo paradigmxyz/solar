@@ -119,7 +119,9 @@
     try { raw = db.getCode(toAddress(addr)); } catch (e) { raw = null; }
     var len = raw ? raw.length : 0;
     for (var i = 0; i < len; i++) code.push(raw[i]);
-    info = this.codes[addr] = { code: code, len: len, memo: {} };
+    info = { code: code, len: len, memo: {} };
+    // Code that is not there yet (init code of a create) must be read again later.
+    if (len > 0) this.codes[addr] = info;
     return info;
   },
 
