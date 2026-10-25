@@ -1,4 +1,5 @@
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard paris
+//@[paris] compile-flags: -Osize --evm-version paris
 //@ run-call: require32 1 =>
 //@ run-call-fail: require32 0 => 0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002062697077444b5259352e666d7441484f563239636a7178454c535a362d676e75
 //@ run-call: require33 1 =>
@@ -25,7 +26,7 @@
 // evaluated, with its side effects, before the condition. Every revert returns the exact ABI
 // encoding of `Error(string)`; the 32-byte message keeps the short path, and the others cover
 // one, two, and three padded data words; the 200-byte repeated word exercises the splat that
-// the size objective prefers.
+// the size objective prefers; `paris` covers its copy loop before `mcopy`.
 library Messages {
     string constant MEMBER = "cjqxELSZ6-gnuBIPW3 dkryFMT07ahovC";
 }

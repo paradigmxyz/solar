@@ -22,7 +22,7 @@ use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
     FunctionId, InstKind, InstructionMetadata, MirType, Module, PhaseCategory, PtrLocation,
     RequireKind, RevertKind, RevertPayload,
-    lower::data::{DataDest, copy_data_to_memory},
+    lower::{DataDest, copy_data_to_memory},
     pass::MirPass,
     transform::utils::expand_block,
 };
@@ -186,8 +186,6 @@ fn emit_payload(
             builder.invalid();
         }
         RevertPayload::LongString(bytes) => {
-            // The message is written first and the words that do not depend on it last, so tail
-            // merging shares them across sites.
             // pointer = fmp
             // write message at pointer + 68: stores, a splat, or a data copy by cost
             // mstore pointer + 36, length
@@ -198,6 +196,8 @@ fn emit_payload(
             let pointer = builder.fmp();
             let dest = DataDest { base: pointer, offset: 68 };
             copy_data_to_memory(gcx, module, builder, dest, &bytes, padded, None);
+            // NOTE: the selector word zeroes bytes 4..32, so the offset store follows it, and the
+            // message-independent stores come last so that tail merging shares them.
             for (offset, word) in
                 [(36, U256::from(bytes.len())), (0, ERROR_SELECTOR), (4, U256::from(32))]
             {
