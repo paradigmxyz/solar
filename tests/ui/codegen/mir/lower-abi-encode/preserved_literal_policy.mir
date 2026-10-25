@@ -1,11 +1,13 @@
-//@ revisions: legacy native size
+//@ revisions: legacy native size size_native
 //@ compile-flags: -Zmir-pipeline=lower-abi-encode
 //@[legacy] compile-flags: -Ogas --evm-version paris
-//@[legacy] filecheck: --check-prefixes=CHECK,FOLD
+//@[legacy] filecheck: --check-prefixes=CHECK,FOLD,GONE,SHORTFOLD
 //@[native] compile-flags: -Ogas --evm-version cancun
-//@[native] filecheck: --check-prefixes=CHECK,COPY
+//@[native] filecheck: --check-prefixes=CHECK,COPY,KEPT,SHORTCOPY
 //@[size] compile-flags: -Osize --evm-version paris
-//@[size] filecheck: --check-prefixes=CHECK,COPY
+//@[size] filecheck: --check-prefixes=CHECK,COPY,GONE,SHORTFOLD
+//@[size_native] compile-flags: -Osize --evm-version cancun
+//@[size_native] filecheck: --check-prefixes=CHECK,COPY,GONE,SHORTFOLD
 @module PreservedLiteralPolicy
 
 // CHECK-LABEL: (after lower-abi-encode)
@@ -52,11 +54,11 @@ fn @scratch() -> slice<memory> {
 // Nothing reads the allocation after the encoding that the block reverts with, so the
 // folded literal's allocation and stores are removed rather than repeated beside the encoding.
 // CHECK: fn @unobserved_revert
-// FOLD: - {{ *}}v0 = alloc 96 !metadata(preserves_fmp)
-// FOLD: + revert
-// COPY: {{^ .*}}alloc 96 !metadata(preserves_fmp)
-// COPY: + mcopy
-// COPY: + revert
+// GONE: - {{ *}}v0 = alloc 96 !metadata(preserves_fmp)
+// GONE: + revert
+// KEPT: {{^ .*}}alloc 96 !metadata(preserves_fmp)
+// KEPT: + mcopy
+// KEPT: + revert
 fn @unobserved_revert() {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -73,11 +75,11 @@ fn @unobserved_revert() {
 
 // The same holds for a return.
 // CHECK: fn @unobserved_return
-// FOLD: - {{ *}}v0 = alloc 96 !metadata(preserves_fmp)
-// FOLD: + returndata
-// COPY: {{^ .*}}alloc 96 !metadata(preserves_fmp)
-// COPY: + mcopy
-// COPY: + returndata
+// GONE: - {{ *}}v0 = alloc 96 !metadata(preserves_fmp)
+// GONE: + returndata
+// KEPT: {{^ .*}}alloc 96 !metadata(preserves_fmp)
+// KEPT: + mcopy
+// KEPT: + returndata
 fn @unobserved_return() {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -105,6 +107,28 @@ fn @observed_return() {
     mstore v1, 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
     v2 = ptradd v0, 64
     mstore v2, 0x2122232425262728292a2b2c2d2e2f3000000000000000000000000000000000
+    v3 = abi_encode [memory_bytes], scratch, args v0
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    v6 = fmp
+    mstore v6, 1
+    returndata v4, v5
+}
+
+// A short literal that a later access keeps observable folds under the size objective, where its
+// stores take fewer bytes than the length computation and copy, and under gas before Cancun.
+// CHECK: fn @short_observed
+// CHECK: {{^ .*}}alloc 64 !metadata(preserves_fmp)
+// SHORTFOLD-NOT: mcopy
+// SHORTFOLD: + returndata
+// SHORTCOPY: + mcopy
+// SHORTCOPY: + returndata
+fn @short_observed() {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 4
+    v1 = ptradd v0, 32
+    mstore v1, 0x150b7a0200000000000000000000000000000000000000000000000000000000
     v3 = abi_encode [memory_bytes], scratch, args v0
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
