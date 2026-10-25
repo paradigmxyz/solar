@@ -4,7 +4,9 @@ bb0:
   callvalue
   push bb3
   jumpi
-  push 0x100000000000000000000000000000000000000000000000000000000
+  push 224
+  push 2
+  exp
   push 0
   calldataload
   div
@@ -29,7 +31,9 @@ bb0:
   callvalue
   push bb4
   jumpi
-  push 0x100000000000000000000000000000000000000000000000000000000
+  push 224
+  push 2
+  exp
   push 0
   calldataload
   div
@@ -87,13 +91,14 @@ bb9:
   mstore
   push 0
   sload
+  push 0
   push 64
   mload
-  push 0
   push 32
-  dup 3
   add
   mstore
+  push 64
+  mload
   push 32
   dup 2
   add

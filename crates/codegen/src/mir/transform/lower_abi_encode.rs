@@ -29,10 +29,11 @@
 //! and initialization remain for later observers. A revert or return of a
 //! scratch encoding of words and one literal, with only pure instructions
 //! between them, has no observer, so the literal's allocation goes too rather
-//! than repeating the payload as stores beside the folded copy. This is
-//! limited to gas-mode encodings before Cancun.
-//! NOTE: Duplicating preserved payloads can grow native-MCOPY encoders and
-//! size-mode copies; keep their copies until their full code shape is priced.
+//! than repeating the payload as stores beside the folded copy. The cost
+//! model decides each preserved literal (`Target::folds_preserved_literal`):
+//! gas mode folds before Cancun, where the copy is a loop; size mode folds
+//! every unobserved literal and any other whose stores take fewer bytes than
+//! the length computation and copy they replace, with or without native MCOPY.
 //!
 //! Element loops. Full-word memory arrays and calldata word arrays copy as one
 //! block. Memory words that need cleanup use a guarded do-while over a
@@ -41,8 +42,7 @@
 //! stores keep their order. Allocations of at most one element keep a counted
 //! loop, whose rotation would add an entry guard and an exit phi. Byte tails
 //! zero their last padded word before writing the length header, which needs
-//! no branch even for an empty tail; size mode keeps the guarded store,
-//! because those tails share better under machine outlining.
+//! no branch even for an empty tail.
 //!
 //! In-place returns. Under the gas and size objectives, a terminal external
 //! return of a fresh full-word array or byte string that is not a literal
@@ -103,7 +103,7 @@ impl MirPass for LowerAbiEncode {
         let target = Target::new(gcx);
         let (fresh_object_returns, mut destructive_returns) =
             plan_destructive_terminal_returns(&target, module);
-        let mut helpers = synthesize_array_helpers(&target, module, revert_strings);
+        let mut helpers = synthesize_array_helpers(module, revert_strings);
         synthesize_tuple_helpers(
             &target,
             module,
@@ -124,10 +124,7 @@ impl MirPass for LowerAbiEncode {
                 constructors.insert(id);
             }
         }
-        let mut inline_helpers = EncodeHelpers {
-            branchless_byte_tails: !target.optimization().is_size(),
-            ..EncodeHelpers::default()
-        };
+        let mut inline_helpers = EncodeHelpers::default();
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
@@ -198,7 +195,6 @@ struct EncodeHelpers {
     tuples: FxHashMap<TupleHelperKey, FunctionId>,
     /// Proven on the original function, before encoding emits raw memory operations.
     literal_objects: FxHashSet<ValueId>,
-    branchless_byte_tails: bool,
 }
 
 /// Builds `encode_abi_tuple(args.., [selector]) -> encoded` for every encoding shape at least
@@ -280,11 +276,7 @@ fn is_terminal_scratch(mode: AbiEncodeMode, terminator: Option<&Terminator>) -> 
 /// Builds `encode_abi_array(value, dest) -> length` for every memory array layout whose
 /// element-wise loop at least two sites would otherwise expand inline. Inner layouts are built
 /// first so an outer helper's element encoding calls the inner helper.
-fn synthesize_array_helpers(
-    target: &Target,
-    module: &mut Module,
-    revert_strings: RevertStrings,
-) -> EncodeHelpers {
+fn synthesize_array_helpers(module: &mut Module, revert_strings: RevertStrings) -> EncodeHelpers {
     fn count_sites(
         func: &Function,
         ty: &AbiType,
@@ -339,10 +331,7 @@ fn synthesize_array_helpers(
         .collect::<Vec<_>>();
     keys.sort_by_key(|(first, key)| (array_depth(&key.element), *first));
 
-    let mut helpers = EncodeHelpers {
-        branchless_byte_tails: !target.optimization().is_size(),
-        ..EncodeHelpers::default()
-    };
+    let mut helpers = EncodeHelpers::default();
     for (_, key) in keys {
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_array));
         {
@@ -424,12 +413,16 @@ fn lower_function(
         return false;
     }
     helpers.literal_objects = literal_objects_at_encodes(func);
-    let fold_preserved = target.optimization().is_gas() && !target.evm_version().has_mcopy();
+    let unobserved = terminal_scratch_literals(func, &helpers.literal_objects);
     helpers.literal_objects.retain(|&object| {
-        fold_preserved
-            || !matches!(func.value(object), Value::Inst(inst) if func.inst(*inst).metadata.preserves_fmp())
+        let Value::Inst(inst) = func.value(object) else { return true };
+        !func.inst(*inst).metadata.preserves_fmp()
+            || target.folds_preserved_literal(unobserved.contains(&object), || {
+                literal_bytes(func, object, defining_block(func, *inst)?)
+            })
     });
-    let terminal_literals = terminal_scratch_literals(func, &helpers.literal_objects);
+    let mut terminal_literals = unobserved;
+    terminal_literals.retain(|object| helpers.literal_objects.contains(object));
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
@@ -1149,14 +1142,7 @@ fn encode_dynamic_body(
     match ty {
         AbiType::Bytes(location) => {
             let location = effective_slice_location(builder.func(), value, *location);
-            encode_bytes(
-                builder,
-                value,
-                dest,
-                location,
-                helpers.literal_objects.contains(&value),
-                helpers.branchless_byte_tails,
-            )
+            encode_bytes(builder, value, dest, location, helpers.literal_objects.contains(&value))
         }
         AbiType::DynamicArray { element, location } => {
             let location = effective_slice_location(builder.func(), value, *location);
@@ -1463,7 +1449,6 @@ fn encode_bytes(
     dest: ValueId,
     location: PtrLocation,
     literal_folding: bool,
-    branchless_padding: bool,
 ) -> ValueId {
     if literal_folding
         && location == PtrLocation::Memory
@@ -1488,11 +1473,6 @@ fn encode_bytes(
         PtrLocation::Memory => memory_object_len(builder, value),
         _ => builder.slice_len(value),
     };
-    if !branchless_padding {
-        // mstore dest, len
-        builder.store(dest, len);
-    }
-
     let word = builder.imm(32);
     let thirty_one = builder.imm(31);
     let mask = builder.not(thirty_one);
@@ -1500,28 +1480,14 @@ fn encode_bytes(
     let padded = builder.and(rounded, mask);
     let data_dest = builder.add(dest, word);
 
-    if branchless_padding {
-        // last = dest + padded
-        // store last, 0
-        // mstore dest, len
-        // For an empty tail, last == dest; write the header after zeroing it.
-        let last = builder.add(dest, padded);
-        let zero = builder.imm(0);
-        builder.store(last, zero);
-        builder.store(dest, len);
-    } else {
-        // if padded != 0: mstore dest + padded, 0
-        let zero_block = builder.create_block();
-        let copy_block = builder.create_block();
-        let empty = builder.eq_zero(padded);
-        builder.branch(empty, copy_block, zero_block);
-        builder.switch_to_block(zero_block);
-        let last = builder.add(dest, padded);
-        let zero = builder.imm(0);
-        builder.store(last, zero);
-        builder.jump(copy_block);
-        builder.switch_to_block(copy_block);
-    }
+    // last = dest + padded
+    // store last, 0
+    // mstore dest, len
+    // For an empty tail, last == dest; write the header after zeroing it.
+    let last = builder.add(dest, padded);
+    let zero = builder.imm(0);
+    builder.store(last, zero);
+    builder.store(dest, len);
     let data_source = match location {
         PtrLocation::Memory => builder.memory_data(value),
         _ => builder.slice_ptr(value),
@@ -1692,8 +1658,8 @@ fn literal_object_uses(func: &Function, object: ValueId) -> impl Iterator<Item =
 }
 
 /// Returns the bytes represented by an immutable literal object when all active
-/// uses are initialization operations preceding this encoding in the same block.
-/// The caller must also exclude opaque observers using the original IR.
+/// uses, apart from encodings, are initialization operations preceding this encoding in the
+/// same block. The caller must also exclude opaque observers using the original IR.
 fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec<u8>> {
     if func.value_ty(object) != Some(MirType::MEMPTR) {
         return None;
@@ -1712,7 +1678,9 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
         if !func.blocks[block].instructions.contains(&inst) {
             return None;
         }
-        if func.is_object_derivation(inst) {
+        if func.is_object_derivation(inst)
+            || matches!(func.inst(inst).kind, InstKind::AbiEncode { .. })
+        {
             continue;
         }
         // Payload offset and stored word.
@@ -1759,6 +1727,13 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
     Some(bytes)
 }
 
+/// The block that holds `inst`.
+fn defining_block(func: &Function, inst: InstId) -> Option<BlockId> {
+    func.blocks
+        .iter_enumerated()
+        .find_map(|(id, block)| block.instructions.contains(&inst).then_some(id))
+}
+
 /// Removes a literal object's initialization after its encoding has embedded
 /// the bytes directly in the output. The object must have no active use other
 /// than its allocation and literal stores; otherwise the object remains live. An allocation
@@ -1774,14 +1749,10 @@ fn remove_literal_objects(
         if func.inst(*defining_inst).metadata.preserves_fmp() && !unobserved.contains(&object) {
             continue;
         }
-        let Some(block) = func
-            .blocks
-            .iter_enumerated()
-            .find_map(|(id, block)| block.instructions.contains(defining_inst).then_some(id))
-        else {
-            continue;
-        };
-        if literal_bytes(func, object, block).is_none() {
+        if defining_block(func, *defining_inst)
+            .and_then(|block| literal_bytes(func, object, block))
+            .is_none()
+        {
             continue;
         }
         removed.insert(*defining_inst);

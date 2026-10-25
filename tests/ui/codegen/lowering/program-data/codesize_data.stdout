@@ -198,7 +198,7 @@ bb7:
   return
 bb8:
   push 1
-  dup 1
+  push 1
   codesize
   sub
   push 0

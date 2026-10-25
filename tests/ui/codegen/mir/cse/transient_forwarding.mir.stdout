@@ -1,0 +1,54 @@
+// === ROOT/tests/ui/codegen/mir/cse/transient_forwarding.sol:TransientForwarding ===
+@module TransientForwarding
+fn @stored(arg0: i256) -> i256 [selector=0x8c396222, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    tstore 0, arg0
+    v0 = tload 0
+    ret v0
+}
+
+fn @storedTwice(arg0: i256) -> i256 [selector=0x3f8a2dde, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    tstore 0, arg0
+    v0 = checked_add uint256, arg0, 1
+    tstore 0, v0
+    v1 = tload 0
+    ret v1
+}
+
+fn @afterCall(arg0: i256) -> i256 [selector=0x848c400d, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    tstore 0, arg0
+    v0 = address
+    v1 = gas
+    mstore 0, 0x52efea6e !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
+    v5 = zext i160 v0 to i256
+    v6 = call v1, v5, 0, 28, 4, 0, 0
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = tload 0
+    ret v7
+}
+
+fn @otherSlot(arg0: i256) -> i256 [selector=0x37d0548b, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    tstore 0, arg0
+    tstore 1, 1
+    v0 = tload 1
+    v1 = tload 0
+    v2 = checked_add uint256, v0, v1
+    v3 = checked_sub uint256, v2, arg0
+    ret v3
+}
+
+fn @clear() [selector=0x52efea6e, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    tstore 0, 0
+    ret
+}

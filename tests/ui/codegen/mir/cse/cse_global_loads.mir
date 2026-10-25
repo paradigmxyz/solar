@@ -24,6 +24,8 @@ fn @dominating_mload(arg0: i1) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @dominating_sload{{[( ]}}
 // CHECK: - {{v[0-9]+}} = sload 0
+// CHECK: + ret 7
+// CHECK: - {{v[0-9]+}} = sload 0
 // CHECK: + ret {{v[0-9]+}}
 fn @dominating_sload(arg0: i1) -> i256 {
   bb0:

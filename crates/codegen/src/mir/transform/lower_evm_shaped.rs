@@ -60,7 +60,7 @@ impl MirPass for LowerEvmShaped {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let changed = lower_evm_shaped(module);
-        if let Err(error) = module.advance_phase(gcx.dcx(), MirPhase::Lowered) {
+        if let Err(error) = module.advance_phase(gcx, MirPhase::Lowered) {
             analyses.fail(error);
         }
         changed

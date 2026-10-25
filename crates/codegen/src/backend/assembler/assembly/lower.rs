@@ -42,7 +42,7 @@ impl Assembler<'_> {
             !input_is_valid || ir::verify::Verifier::is_valid(program),
             "EVM IR pipeline invalidated a valid module"
         );
-        let _legalized = ir::legalize_shifts(self.gcx, program);
+        let _legalized = ir::legalize_revert(self.gcx, program);
         if !succeeded() {
             return false;
         }
