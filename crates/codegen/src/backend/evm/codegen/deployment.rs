@@ -67,6 +67,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let call_graph = CallGraphInfo::new(module);
         (self.heap_pointer_return_functions, self.heap_pointer_args) =
             Self::collect_heap_pointer_facts(module);
+        self.heap_prefix = Self::heap_prefix_offsets(module);
         // The switch planner prices tail calls to empty bodies as shared terminals.
         self.empty_stop_functions = Self::empty_stop_functions(module);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
@@ -366,11 +367,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.reset_artifact(module);
 
             let internal_targets = call_graph.reachable_callees_from(std::iter::once(ctor_id));
-            let heap_prefix = Self::heap_prefix_offsets(module);
             let heap_guard = internal_targets
                 .iter()
                 .chain([ctor_id])
-                .map(|func_id| heap_prefix.guard(func_id, &module.functions[func_id]))
+                .map(|func_id| self.heap_prefix.guard(func_id, &module.functions[func_id]))
                 .max()
                 .unwrap_or(0);
 
