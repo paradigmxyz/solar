@@ -1452,15 +1452,28 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
 }
 
-/// Checks all SSA, type, and representation invariants against the requested phase.
+/// Checks the module against the requested phase.
+///
+/// With `full`, checks all SSA, type, and representation invariants. Otherwise checks only the
+/// phase contract: the routing entry, ABI wrappers, word types, and instructions that must be
+/// lowered by the phase boundary.
 pub(crate) fn validate_phase(
     dcx: &DiagCtxt,
     module: &Module,
     phase: MirPhase,
     parallel: bool,
+    full: bool,
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
-    validator.validate_module_at_phase(module, phase, parallel);
+    if full {
+        validator.validate_module_at_phase(module, phase, parallel);
+    } else {
+        validator.validate_module_phase(module, phase);
+        for (id, func) in module.iter_functions() {
+            validator.function = Some(id);
+            validator.validate_function_phase(phase, func);
+        }
+    }
     validator.error.map_or(Ok(()), Err)
 }
 

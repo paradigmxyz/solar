@@ -333,7 +333,10 @@ builds and with `-Zvalidate-ir`; validate untrusted textual MIR fully at ingress
 The backend should receive a verified immutable view after the last MIR pass,
 so a phase label cannot bypass checking and later mutation cannot silently
 invalidate the checked view. Keep full validation costs out of every release
-pass invocation.
+pass invocation. Without full validation, a phase transition still checks the
+phase contract: the routing entry, ABI wrappers, word types, and instructions
+that must be lowered by then, so a skipped lowering stops the pipeline in every
+build.
 
 Optimization passes preserve the current representation. Required lowering
 passes declare their input requirements and fail clearly when a custom pipeline

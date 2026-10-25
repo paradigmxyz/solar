@@ -438,7 +438,10 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
             compiler_info(spec, root)
             for spec in (
                 args.compiler
-                or ["solc=solc --standard-json", "solar=solar --standard-json"]
+                or [
+                    "solc=solc --standard-json",
+                    "solar=solar --standard-json -Zvalidate-ir=true",
+                ]
             )
         ]
     if len({compiler["name"] for compiler in compilers}) != len(compilers):
