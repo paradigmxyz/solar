@@ -873,7 +873,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/constant_values_too_large.sol`.
 
-### CODEGEN-014: Static struct arrays in calldata encode without wrapping reads
+### CODEGEN-014: Static arrays in calldata encode without wrapping reads
 
 - ID: CODEGEN-014
 - Status: intentional
@@ -885,8 +885,16 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   calldata from offset zero. No ABI-validated calldata reaches this: a nested
   array's length word has to be readable at its pointer, so its data pointer
   and length keep every element below 2^64.
-- Rationale: The block copy is one `CALLDATACOPY` instead of a per-field
-  loop, which is what makes forwarding arrays of static structs small. Only a
-  pointer that assembly assigned can differ.
+  The same holds for a fixed array of `int256` or of a user-defined value
+  type over a full word: `solc` block-copies only `uint256` and `bytes32`
+  arrays and loads other element types one word at a time, but `AbiType` does
+  not tell `int256` or such a type from `uint256`, so `solar` copies them as
+  one block too. Unlike the struct arrays, a struct member of this type can
+  differ for ABI-valid calldata, through a negative tail offset that puts the
+  member across 2^256.
+- Rationale: The block copy is one `CALLDATACOPY` instead of a per-word loop,
+  which is what makes forwarding such arrays small. It matches `solc` for
+  `uint256` and `bytes32` arrays, the common case. Only a pointer that
+  assembly assigned can differ for struct arrays.
 - Coverage: `tests/ui/codegen/lowering/run-call/abi_calldata_forward_shapes.sol`
   covers the nested tails and fixed arrays that ABI-valid calldata can wrap.
