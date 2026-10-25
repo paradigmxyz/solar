@@ -418,9 +418,11 @@ fn rewrite_as_fmp_store(
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
 
-/// Emits `ptr + size`, which allocation proved or checked not to wrap, marked so the sum keeps the
-/// bound of `ptr`.
+/// Emits `ptr + size`, marked so the sum keeps the bound of `ptr`. A wrapped sum is unreachable:
+/// a checked allocation tests it, and an unchecked one is followed by the write that fills the
+/// range, which runs out of gas first.
 fn bump(builder: &mut FunctionBuilder<'_>, ptr: ValueId, size: ValueId) -> ValueId {
+    // next = add ptr, size !metadata(fmp_bump)
     let next = builder.add(ptr, size);
     if let Value::Inst(inst) = builder.func().value(next) {
         let inst = *inst;

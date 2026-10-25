@@ -1151,9 +1151,10 @@ impl AliasAnalysis {
                         // Aggregate payloads can follow references into distinct child objects.
                         effects.read_any(AddressSpace::Memory);
                     }
-                    (RequireKind::CustomError(_), [_, selector, values @ ..])
+                    (RequireKind::CustomError(layout), [_, selector, values @ ..])
                         if func.value_u256(*selector).is_none()
-                            || values.len() > MAX_SCRATCH_ERROR_WORDS =>
+                            || values.len() > MAX_SCRATCH_ERROR_WORDS
+                            || !layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_))) =>
                     {
                         // The revert path encodes the payload at the free-memory pointer.
                         effects.read(Access::Location(Location::Memory(Self::fmp_location())));

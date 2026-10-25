@@ -237,8 +237,8 @@ impl InstructionMetadata {
         self.flags.fmp_bump()
     }
 
-    /// Marks the sum of an allocation's pointer and size that allocation proved or checked not to
-    /// wrap, so the sum is not below the pointer.
+    /// Marks the sum of an allocation's pointer and size, which cannot wrap in a program that
+    /// completes, so the sum is not below the pointer.
     pub(crate) fn set_fmp_bump(&mut self, value: bool) {
         self.flags.set_fmp_bump(value);
     }
