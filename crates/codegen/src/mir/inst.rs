@@ -1018,11 +1018,17 @@ impl InstKind {
         }
     }
 
+    /// Returns whether this is a `shl`, `shr`, or `sar`.
+    #[must_use]
+    pub(crate) const fn is_shift(&self) -> bool {
+        matches!(self, Self::Shl(..) | Self::Shr(..) | Self::Sar(..))
+    }
+
     /// Returns whether the textual form lists the stored operands in reverse: shifts are stored
     /// in EVM stack order but read as `value, shift`.
     #[must_use]
     pub(crate) const fn reverses_text_operands(&self) -> bool {
-        matches!(self, Self::Shl(..) | Self::Shr(..) | Self::Sar(..))
+        self.is_shift()
     }
 }
 

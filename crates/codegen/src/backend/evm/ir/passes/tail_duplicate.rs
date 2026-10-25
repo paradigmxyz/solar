@@ -12,7 +12,7 @@
 //! remain with loop layout. Block order and existing label identities stay intact. A tail left
 //! without references is removed, and assembly omits labels whose last reference disappears.
 //! Debug origins remain on the copied operations and never affect eligibility.
-//! Opcodes awaiting fork legalization stay shared because their expansion is not priced here.
+//! Opcodes the target lacks stay shared.
 //! Copies start beyond the one-byte address range, using an instruction-only lower bound on the
 //! prefix size, so they cannot widen the labels and indexed tables packed by block layout.
 

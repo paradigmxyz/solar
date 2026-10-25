@@ -17,7 +17,7 @@ pub(super) mod data;
 mod dce;
 mod inline_returns;
 mod late_structural;
-mod legalize_shifts;
+mod legalize_revert;
 mod loop_layout;
 mod outline;
 mod peephole;
@@ -31,7 +31,7 @@ mod terminal_dedup;
 mod terminal_layout;
 pub(super) mod utils;
 
-pub(in crate::backend) use legalize_shifts::legalize_shifts;
+pub(in crate::backend) use legalize_revert::legalize_revert;
 pub(super) use peephole::CleanBlocks;
 pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
@@ -104,7 +104,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &compact_pushes::CompactPushes,
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
-    &legalize_shifts::LegalizeShifts,
+    &legalize_revert::LegalizeRevert,
     &cfg_simplify::CfgSimplify::FINAL,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
@@ -164,7 +164,6 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify::EARLY,
     &reorder_pushes::FINAL_REORDER_PUSHES,
     &peephole::Peephole::EARLY,
-    &peephole::Cleanup(block_cse::BlockCse),
     &peephole::Cleanup(dce::Dce),
     &peephole::Cleanup(stack_normalize::StackNormalize::EARLY),
     &block_layout::BlockLayout,

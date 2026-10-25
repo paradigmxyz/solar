@@ -442,6 +442,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub switch_max_bit_slice_gas_code_growth: Option<usize>,
 
+    /// Pack indexed jump table entries wider than one byte into words and pick them with a shift
+    /// and a mask. Off by default: jump analysis in bytecode JITs cannot resolve the pick.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub pack_wide_jump_tables: bool,
+
     /// Assert instead of logging when a value is live across a planned stack edge into an
     /// already-emitted block without a spill home.
     #[cfg_attr(feature = "clap", arg(long))]

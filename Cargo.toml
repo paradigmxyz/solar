@@ -233,7 +233,7 @@ rustc-hash = "2.0"
 scoped-tls = "1.0"
 semver = "1.0"
 smallvec = { version = "1", features = ["const_generics", "union"] }
-smolgen = { version = "0.1", features = ["gitcl"] }
+smolgen = { version = "0.1.1", features = ["gitcl"] }
 thread_local = "1.1"
 tokio = { version = "1.47", default-features = false }
 tokio-util = { version = "0.7", default-features = false }

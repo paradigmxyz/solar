@@ -352,6 +352,11 @@ impl Target {
     /// run per invocation when weighing code growth inside it: GCC's estimate
     /// for such loops.
     pub(crate) const UNCOUNTED_LOOP_ITERATIONS: u64 = 10;
+
+    /// How many consecutive MIR instructions must repeat for the backend's tail merge and
+    /// outlining to share them. Six kept corpus bytecode smallest in `-Osize`; shorter runs
+    /// match common idioms that no pass shares, and longer ones miss shared wrappers.
+    pub(crate) const SHARED_RUN_INSTRUCTIONS: usize = 6;
     /// How many times more often the stack planner counts a block for each loop around it.
     pub(crate) const LOOP_BLOCK_WEIGHT: u32 = 8;
     /// The most the stack planner counts any block, however deeply nested.
@@ -429,6 +434,11 @@ impl Target {
 
     pub(crate) fn optimization(&self) -> OptimizationMode {
         self.optimization
+    }
+
+    /// Whether the stack planner searches for cheaper plans; `-O none` takes its first plan.
+    pub(crate) fn optimizes_stack_plans(&self) -> bool {
+        !matches!(self.optimization, OptimizationMode::None)
     }
 
     pub(crate) fn expected_executions(&self) -> u64 {
@@ -688,6 +698,25 @@ impl Target {
 
     /// Estimated code of one block, priced as in [`Self::code_estimate`].
     pub(crate) fn block_code_estimate(&self, func: &Function, block: BlockId) -> Cost {
+        let mut cost = self.block_instructions_estimate(func, block);
+        let block = &func.blocks[block];
+        if let Some(terminator) = &block.terminator {
+            // An unconditional edge does not pay the conditional jump's higher gas price.
+            // Other CFG edges retain the conservative conditional-edge estimate.
+            if matches!(terminator, Terminator::Jump(_)) {
+                cost += self.jump();
+            } else {
+                for _ in 0..terminator.successors().len() {
+                    cost += self.branch();
+                }
+            }
+        }
+        cost
+    }
+
+    /// Estimated code of the instructions of one block with the pushes of their immediates,
+    /// without its terminator.
+    pub(crate) fn block_instructions_estimate(&self, func: &Function, block: BlockId) -> Cost {
         let block = &func.blocks[block];
         let mut cost = Cost::ZERO;
         for &inst in &block.instructions {
@@ -702,17 +731,6 @@ impl Target {
                     cost += self.push(value);
                 }
             });
-        }
-        if let Some(terminator) = &block.terminator {
-            // An unconditional edge does not pay the conditional jump's higher gas price.
-            // Other CFG edges retain the conservative conditional-edge estimate.
-            if matches!(terminator, Terminator::Jump(_)) {
-                cost += self.jump();
-            } else {
-                for _ in 0..terminator.successors().len() {
-                    cost += self.branch();
-                }
-            }
         }
         cost
     }
@@ -801,6 +819,19 @@ impl Target {
         let guarded = Cost::new(guard.gas + copy.gas, guard.bytes + copy.bytes + looped.bytes);
         self.cmp(guarded, looped).is_lt()
     }
+    /// The factor `2**shift` that a constant shift lowered to `MUL` or `DIV` pushes, or `None`
+    /// when computing it with `EXP` costs less over the deployment lifetime. Shifts of 256 or
+    /// more give a zero factor, which matches the wrapped `EXP` result.
+    pub(crate) fn legacy_shift_factor(&self, shift: U256) -> Option<U256> {
+        let two = U256::from(2);
+        let factor =
+            if shift < U256::from(256) { U256::ONE << shift.to::<usize>() } else { U256::ZERO };
+        let folded = self.opcode(op::push(factor.byte_len().max(1) as u8));
+        let computed = self.push(shift)
+            + self.push(two)
+            + self.opcode_with_immediates(op::EXP, &[Some(two), Some(shift)]);
+        self.cmp_lifetime(folded, computed).is_le().then_some(factor)
+    }
 
     /// Whether legacy splat expansion beats the selected ordinary lowering in size.
     /// For word stores, the first two stores are common; price each remaining materialized
@@ -814,16 +845,7 @@ impl Target {
         data_copy: bool,
     ) -> bool {
         let word_size = op::WORD_BYTES;
-        let loop_body = self.jump()
-            + self.branch()
-            + self.dup().times(7)
-            + self.opcode(op::ADD).times(4)
-            + self.opcode(op::LT)
-            + self.opcode(op::MLOAD)
-            + self.opcode(op::MSTORE)
-            + self.opcode(op::POP).times(3)
-            + self.push(U256::ZERO)
-            + self.push(U256::from(word_size));
+        let loop_body = self.word_copy_loop();
         let mut copies = Cost::ZERO;
         let mut filled = 2 * word_size;
         while filled < size {
@@ -853,6 +875,85 @@ impl Target {
                 })
                 .sum::<Cost>();
             copies.bytes < stores.bytes
+        }
+    }
+
+    /// One iteration of a word-by-word memory copy loop, with its counter and cursor moves.
+    fn word_copy_loop(&self) -> Cost {
+        self.jump()
+            + self.branch()
+            + self.dup().times(7)
+            + self.opcode(op::ADD).times(4)
+            + self.opcode(op::LT)
+            + self.opcode(op::MLOAD)
+            + self.opcode(op::MSTORE)
+            + self.opcode(op::POP).times(3)
+            + self.push(U256::ZERO)
+            + self.push(U256::from(op::WORD_BYTES))
+    }
+
+    /// Whether an ABI encoding writes a literal byte string as stores of its own words, beside
+    /// the preserved object that already holds it, instead of copying that object. `bytes`
+    /// reads the literal, which only the size objective needs. `removes_original` says nothing
+    /// reads the object afterwards, so folding also drops its allocation and stores. Gas ranks
+    /// the stores above the copy loop that runs before MCOPY and below the copy instruction
+    /// that follows it. Size compares the stores with the length computation, padding store,
+    /// and copy they replace, and folds whenever the object goes away, since the stores then
+    /// only move.
+    pub(crate) fn folds_preserved_literal(
+        &self,
+        removes_original: bool,
+        bytes: impl FnOnce() -> Option<Vec<u8>>,
+    ) -> bool {
+        match self.optimization {
+            OptimizationMode::Gas => !self.evm_version.has_mcopy(),
+            OptimizationMode::Size => {
+                if removes_original {
+                    return true;
+                }
+                let Some(bytes) = bytes() else { return false };
+                let word_size = op::WORD_BYTES;
+                let size = U256::from(bytes.len().next_multiple_of(word_size));
+                // mstore dest, len; mstore dest + 32 + 32 * i, word; tail = dest + 32 + size
+                let folded = self.push(U256::from(bytes.len()))
+                    + self.dup()
+                    + self.opcode(op::MSTORE)
+                    + bytes
+                        .chunks(word_size)
+                        .map(|chunk| {
+                            let mut word = [0; op::WORD_BYTES];
+                            word[..chunk.len()].copy_from_slice(chunk);
+                            self.push(U256::from_be_bytes(word))
+                                + self.push(U256::from(word_size))
+                                + self.dup()
+                                + self.opcode(op::ADD)
+                                + self.opcode(op::MSTORE)
+                        })
+                        .sum::<Cost>()
+                    + self.push(size)
+                    + self.opcode(op::ADD);
+                // len = mload object; padded = (len + 31) & ~31; mstore dest + padded, 0;
+                // mstore dest, len; copy data to dest + 32; tail = dest + 32 + padded
+                let copy = if self.evm_version.has_mcopy() {
+                    self.opcode(op::MCOPY)
+                } else {
+                    self.word_copy_loop()
+                };
+                let copied = self.dup()
+                    + self.opcode(op::MLOAD)
+                    + self.push(U256::from(word_size - 1)).times(2)
+                    + self.opcode(op::ADD)
+                    + self.opcode(op::NOT)
+                    + self.opcode(op::AND)
+                    + (self.dup() + self.opcode(op::ADD)).times(2)
+                    + self.push(U256::ZERO)
+                    + (self.dup() + self.opcode(op::MSTORE)).times(2)
+                    + (self.push(U256::from(word_size)) + self.opcode(op::ADD)).times(2)
+                    + self.dup().times(3)
+                    + copy;
+                folded.bytes < copied.bytes
+            }
+            _ => false,
         }
     }
 
@@ -1249,6 +1350,28 @@ mod tests {
         assert!(target.legacy_splat_is_profitable(word, 96, true));
         assert!(target.legacy_splat_is_profitable(word, 5120, true));
     }
+
+    #[test]
+    fn preserved_literals_fold_by_objective() {
+        let folds = |target: Target, removes_original, len| {
+            target.folds_preserved_literal(removes_original, || Some(vec![0x41; len]))
+        };
+        let gas = |evm_version| Target::with(evm_version, OptimizationMode::Gas, 200);
+        let size = |evm_version| Target::with(evm_version, OptimizationMode::Size, 1);
+        // Gas folds only where the copy would be a loop, and never reads the literal.
+        assert!(gas(EvmVersion::Paris).folds_preserved_literal(false, || None));
+        assert!(!gas(EvmVersion::Cancun).folds_preserved_literal(true, || None));
+        // The stores of a short string cost fewer bytes than the length math and a copy.
+        assert!(folds(size(EvmVersion::Cancun), false, 4));
+        assert!(!folds(size(EvmVersion::Cancun), false, 32));
+        // The copy loop is longer than MCOPY, so longer strings still fold before Cancun.
+        assert!(folds(size(EvmVersion::Paris), false, 32));
+        assert!(!folds(size(EvmVersion::Paris), false, 64));
+        // Folding that drops the original object only moves the stores.
+        assert!(folds(size(EvmVersion::Cancun), true, 64));
+        assert!(!size(EvmVersion::Cancun).folds_preserved_literal(false, || None));
+    }
+
     #[test]
     fn terminal_copy_sharing() {
         let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
@@ -1263,5 +1386,19 @@ mod tests {
         assert!(size.shares_terminal_copy(medium, 3));
         // One site never pays for a jump.
         assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
+    }
+
+    #[test]
+    fn legacy_shifts_push_the_factor_when_it_costs_less() {
+        let shift = |bits| U256::from(bits);
+        let size = Target::with(EvmVersion::Byzantium, OptimizationMode::Size, 1);
+        assert_eq!(size.legacy_shift_factor(shift(8)), Some(U256::from(256)));
+        assert_eq!(size.legacy_shift_factor(shift(224)), None);
+        // 24 more bytes of deposit outweigh the 63 gas of `EXP` unless the code runs often.
+        let few = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 1);
+        assert_eq!(few.legacy_shift_factor(shift(224)), None);
+        let many = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
+        assert_eq!(many.legacy_shift_factor(shift(224)), Some(U256::ONE << 224));
+        assert_eq!(many.legacy_shift_factor(shift(256)), Some(U256::ZERO));
     }
 }

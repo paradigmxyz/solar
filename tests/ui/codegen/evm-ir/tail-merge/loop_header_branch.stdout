@@ -1,0 +1,58 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/loop_header_branch.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/loop_header_branch.evmir (after tail-merge) ===
+  @module LoopHeaderBranch
+  bb0:
+    push 9
+    push 7
+    push 0
+    calldataload
+    dup 1
+    jumpi bb1, bb2
+  bb1 [loop]:
+    dup 1
+    push bb3
+    jumpi
+-   push 1
+-   push 2
+-   add
+-   push 32
+-   mstore
+-   stop
++   jump bb5
+  bb2 [loop]:
+    dup 1
+    push bb4
+    jumpi
+-   push 1
+-   push 2
+-   add
+-   push 32
+-   mstore
+-   stop
++   jump bb5
+  bb3 [loop]:
+    swap 2
+    dup 2
+    add
+    swap 2
+    push 1
+    swap 1
+    sub
+    jump bb1
+  bb4 [loop]:
+    swap 2
+    dup 2
+    add
+    swap 2
+    push 2
+    swap 1
+    sub
+    jump bb2
++ bb5 [loop]:
++   push 1
++   push 2
++   add
++   push 32
++   mstore
++   stop
+  

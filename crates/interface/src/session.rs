@@ -9,7 +9,10 @@ use solar_config::{
 use std::{
     fmt,
     path::{Path, PathBuf},
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 /// Information about the current compiler session.
@@ -24,6 +27,8 @@ pub struct Session {
     /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
     /// one with `SessionBuilder`.
     thread_pool: OnceLock<rayon::ThreadPool>,
+    /// The code generation jobs that wait for a worker.
+    queued_jobs: AtomicUsize,
 }
 
 impl Default for Session {
@@ -172,7 +177,13 @@ impl SessionBuilder {
         });
         let mut opts = opts.unwrap_or_default();
         Session::infer_language(&mut opts);
-        let sess = Session { globals, dcx, opts, thread_pool: OnceLock::new() };
+        let sess = Session {
+            globals,
+            dcx,
+            opts,
+            thread_pool: OnceLock::new(),
+            queued_jobs: AtomicUsize::new(0),
+        };
         sess.reconfigure();
         debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
         sess
@@ -394,6 +405,22 @@ impl Session {
             && !unstable.print_after_each
             && !unstable.pass_diff
             && !unstable.time_passes
+    }
+
+    /// Records a code generation job that waits for a worker.
+    pub fn queue_job(&self) {
+        self.queued_jobs.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Records that a worker took a queued code generation job.
+    pub fn start_job(&self) {
+        self.queued_jobs.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    /// Returns `true` if code generation jobs wait for a worker, so that work split off a running
+    /// job would only compete with them.
+    pub fn has_queued_jobs(&self) -> bool {
+        self.queued_jobs.load(Ordering::Relaxed) != 0
     }
 
     /// Returns `true` if the given output should be emitted.

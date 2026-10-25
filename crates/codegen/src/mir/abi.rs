@@ -457,28 +457,18 @@ impl AbiWordValidator {
     }
 
     /// Builds the condition that is true when `word` is canonical.
-    pub(crate) fn condition(
-        self,
-        builder: &mut FunctionBuilder<'_>,
-        word: ValueId,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
+    pub(crate) fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
             Self::Unsigned(bits) | Self::LeftAligned(bits) => {
-                if has_bitwise_shifting {
-                    let shift = builder.imm(u64::from(bits));
-                    let shifted = if matches!(self, Self::Unsigned(_)) {
-                        builder.shr(word, shift)
-                    } else {
-                        builder.shl(word, shift)
-                    };
-                    builder.eq_zero(shifted)
+                // shifted = word >> bits (or word << bits)
+                // valid = shifted == 0
+                let shift = builder.imm(u64::from(bits));
+                let shifted = if matches!(self, Self::Unsigned(_)) {
+                    builder.shr(word, shift)
                 } else {
-                    let mask = self.canonical_mask().expect("masked validator has a mask");
-                    let mask = builder.imm(mask);
-                    let canonical = builder.and(word, mask);
-                    builder.eq(word, canonical)
-                }
+                    builder.shl(word, shift)
+                };
+                builder.eq_zero(shifted)
             }
             Self::SignExtend(byte_index) => {
                 let byte_index = builder.imm(byte_index);
@@ -486,13 +476,8 @@ impl AbiWordValidator {
                 builder.eq(word, canonical)
             }
             Self::Bool => {
-                if has_bitwise_shifting {
-                    let two = builder.imm(2);
-                    builder.lt(word, two)
-                } else {
-                    let canonical = builder.ne_zero(word);
-                    builder.eq(word, canonical)
-                }
+                let two = builder.imm(2);
+                builder.lt(word, two)
             }
             Self::EnumRange(variants) => {
                 let variants = builder.imm(variants);
