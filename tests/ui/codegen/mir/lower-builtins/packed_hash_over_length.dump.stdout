@@ -20,11 +20,11 @@ fn @signed() [selector=0x24401e82, abi_wrapper, pure] {
     v9 = or v4, 0x19457468657265756d205369676e6564204d6573736167653a0a00
     mstore v15, v9
     v11 = add v0, 27
-    v19 = add v15, 5
-    v12 = keccak256 v19, v11
+    v18 = add v15, 5
+    v12 = keccak256 v18, v11
     mstore v15, v0
-    mstore 128, v12
-    returndata 128, 32
+    mstore 0, v12 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -73,11 +73,11 @@ fn @narrow() [selector=0x3e18eba5, abi_wrapper, pure] {
     v2 = mload v14
     mstore v14, 0xfffeabcd
     v10 = add v2, 4
-    v18 = add v14, 28
-    v11 = keccak256 v18, v10
+    v17 = add v14, 28
+    v11 = keccak256 v17, v10
     mstore v14, v2
-    mstore 128, v11
-    returndata 128, 32
+    mstore 0, v11 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -88,9 +88,9 @@ fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
     mstore 96, 0x1020304
     v10 = add v5, 4
     v11 = keccak256 124, v10
-    mstore 128, v11
-    mstore 160, v5
-    returndata 128, 64
+    mstore 0, v11 !metadata(memory=scratch)
+    mstore 32, v5 !metadata(memory=scratch)
+    returndata 0, 64
 }
 
 fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
@@ -101,10 +101,10 @@ fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
   bb2:
     v6 = icall @decode_calldata_type
     v1 = mload v6
-    v10 = add v6, 32
-    v3 = keccak256 v10, v1
-    mstore 128, v3
-    returndata 128, 32
+    v9 = add v6, 32
+    v3 = keccak256 v9, v1
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -116,19 +116,19 @@ fn @tooLong() [selector=0x3db8dd3c, abi_wrapper, pure] {
     jumpi v19, bb1, bb2
   bb2:
     v20 = icall @decode_calldata_type
-    v24 = add v20, 32
+    v23 = add v20, 32
     v2 = mload v20
-    v29 = mload 64 !metadata(memory=scratch)
-    mstore v29, 1
-    v9 = add v29, 32
+    v28 = mload 64 !metadata(memory=scratch)
+    mstore v28, 1
+    v9 = add v28, 32
     mstore v9, 0x200000000000000000000000000000000000000000000000000000000000000
-    v11 = add v29, 33
-    mcopy v11, v24, v2
+    v11 = add v28, 33
+    mcopy v11, v23, v2
     v14 = add v11, v2
-    v16 = sub v14, v29
-    v17 = keccak256 v29, v16
-    mstore 128, v17
-    returndata 128, 32
+    v16 = sub v14, v28
+    v17 = keccak256 v28, v16
+    mstore 0, v17 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -138,34 +138,33 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v0 = calldatasize
     v1 = calldataload 4
     v2 = add v1, 4
-    v3 = add v2, 32
-    v4 = gt v1, 0xffffffffffffffff
-    v5 = gt v3, v0
-    v6 = or v4, v5
-    jumpi v6, bb1, bb2
+    v4 = sub v0, 36
+    v5 = gt v1, v4
+    jumpi v5, bb1, bb2
   bb2:
-    v8 = calldataload v2
-    v10 = add v8, 63
-    v11 = lt v10, v8
-    jumpi v11, bb3, bb4
+    v6 = calldataload v2
+    v7 = add v2, 32
+    v8 = add v6, 63
+    v9 = lt v8, v6
+    jumpi v9, bb3, bb4
   bb4:
-    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v26 = mload 64 !metadata(memory=scratch)
-    v27 = add v26, v13
-    v28 = lt v27, v26
-    v29 = gt v27, 0xffffffffffffffff
-    v30 = or v28, v29
-    jumpi v30, bb3, bb6
+    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, v11
+    v26 = lt v25, v24
+    v27 = gt v25, 0xffffffffffffffff
+    v28 = or v26, v27
+    jumpi v28, bb3, bb6
   bb6:
-    mstore 64, v27 !metadata(memory=scratch)
-    mstore v26, v8
-    v15 = sub v0, v3
-    v16 = gt v8, v15
-    jumpi v16, bb1, bb5
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v6
+    v13 = sub v0, v7
+    v14 = gt v6, v13
+    jumpi v14, bb1, bb5
   bb5:
-    v23 = add v26, 32
-    calldatacopy v23, v3, v8
-    ret v26
+    v21 = add v24, 32
+    calldatacopy v21, v7, v6
+    ret v24
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

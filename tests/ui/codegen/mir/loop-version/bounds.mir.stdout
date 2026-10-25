@@ -3,6 +3,142 @@
 @types
   struct0: {ptr<memory>, ptr<memory>}
 
+fn @siftValues(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x979efdba, pure, abi_params=[uint256, uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
+  bb0:
+    v0 = mul arg0, 1
+    v1 = eq 1, 0
+    v2 = div v0, 1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = zext i1 v4 to i256
+    v6 = eq v5, 0
+    icall panic_if<0x41>, v6
+    v7 = add v0, 1
+    v8 = lt v7, v0
+    icall panic_if<0x41>, v8
+    v9 = mul v7, 32
+    v10 = eq 32, 0
+    v11 = div v9, 32
+    v12 = eq v11, v7
+    v13 = or v10, v12
+    v14 = zext i1 v13 to i256
+    v15 = eq v14, 0
+    icall panic_if<0x41>, v15
+    v16 = alloc zeroed checked v9
+    mstore v16, arg0
+    jump bb1
+  bb1:
+    v17 = phi [bb0: arg0], [bb3: v17]
+    v18 = phi [bb0: arg1], [bb3: v18]
+    v19 = phi [bb0: v16], [bb3: v19]
+    v20 = phi [bb0: 0], [bb3: v30]
+    v21 = lt v20, v17
+    jumpi v21, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v31 = mload v19
+    v32 = lt 0, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = ptradd v19, 32
+    mstore v34, 100
+    jump bb7
+  bb7:
+    v35 = phi [bb2: v17], [bb9: v35]
+    v36 = phi [bb2: v18], [bb9: v36]
+    v37 = phi [bb2: v19], [bb9: v37]
+    v38 = phi [bb2: v20], [bb9: v38]
+    v39 = phi [bb2: 0], [bb9: v64]
+    v40 = phi [bb2: 1], [bb9: v73]
+    v41 = lt v40, v36
+    jumpi v41, bb10, bb11
+  bb11:
+    jump bb8
+  bb8:
+    v74 = checked_add uint256, 100, v39
+    v75 = mload v37
+    v76 = lt v39, v75
+    v77 = eq v76, false
+    icall panic_if<0x32>, v77
+    v78 = shl v39, 5
+    v79 = ptradd v37, v78
+    v80 = ptradd v79, 32
+    mstore v80, v74
+    ret v37
+  bb10:
+    v42 = shr v40, 1
+    v43 = mload v37
+    v44 = lt v40, v43
+    v45 = eq v44, false
+    icall panic_if<0x32>, v45
+    v46 = shl v40, 5
+    v47 = ptradd v37, v46
+    v48 = ptradd v47, 32
+    v49 = mload v48
+    v50 = checked_add uint256, v40, 1
+    v51 = lt v50, v36
+    jumpi v51, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    v52 = checked_add uint256, v40, 1
+    v53 = mload v37
+    v54 = lt v52, v53
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
+    v56 = shl v52, 5
+    v57 = ptradd v37, v56
+    v58 = ptradd v57, 32
+    v59 = mload v58
+    v60 = gt v49, v59
+    jumpi v60, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    v61 = checked_add uint256, v40, 1
+    jump bb18
+  bb18:
+    v62 = phi [bb16: v61], [bb17: v40]
+    v63 = phi [bb16: v59], [bb17: v49]
+    jump bb15
+  bb15:
+    v64 = phi [bb18: v62], [bb14: v40]
+    v65 = phi [bb18: v63], [bb14: v49]
+    v66 = mload v37
+    v67 = lt v42, v66
+    v68 = eq v67, false
+    icall panic_if<0x32>, v68
+    v69 = shl v42, 5
+    v70 = ptradd v37, v69
+    v71 = ptradd v70, 32
+    mstore v71, v65
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v72 = shl v64, 1
+    v73 = or v72, 1
+    jump bb7
+  bb4:
+    v22 = checked_mul uint256, v20, 7
+    v23 = checked_rem uint256, v22, 11
+    v24 = mload v19
+    v25 = lt v20, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = shl v20, 5
+    v28 = ptradd v19, v27
+    v29 = ptradd v28, 32
+    mstore v29, v23
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v30 = checked_add uint256, v20, 1
+    jump bb1
+}
+
 fn @siftUp(arg0: i256, arg1: i256) -> struct0 [selector=0xf06414cf, pure, abi_params=[uint256, uint256], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, uint256>, array<_, uint256>]] {
   bb0:
     v0 = mul arg0, 1

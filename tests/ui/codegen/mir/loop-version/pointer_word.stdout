@@ -93,7 +93,6 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     v76 = eq v87, 0
     jumpi v76, bb8, bb1
   bb8:
-    v114 = add arg2, 32
     jump bb5
   bb5:
     v33 = phi [bb8: v7], [bb15: v35]
@@ -130,7 +129,8 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     revert 28, 36
   bb15:
     v52 = shl v49, 5
-    v104 = add v114, v52
+    v103 = add arg2, v52
+    v104 = add v103, 32
     mstore v104, v35
     jump bb5
   bb16:
@@ -147,36 +147,35 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v0 = calldatasize
     v1 = calldataload arg0
     v2 = add v1, 4
-    v3 = add v2, 32
-    v4 = gt v1, 0xffffffffffffffff
-    v5 = gt v3, v0
-    v6 = or v4, v5
-    jumpi v6, bb1, bb2
+    v4 = sub v0, 36
+    v5 = gt v1, v4
+    jumpi v5, bb1, bb2
   bb2:
-    v8 = calldataload v2
-    v10 = gt v8, 0x7fffffffffffffe
-    jumpi v10, bb3, bb4
+    v6 = calldataload v2
+    v7 = add v2, 32
+    v8 = gt v6, 0x7fffffffffffffe
+    jumpi v8, bb3, bb4
   bb4:
-    v11 = add v8, 1
-    v12 = shl v11, 5
-    v27 = mload 64 !metadata(memory=scratch)
-    v28 = add v27, v12
-    v29 = lt v28, v27
-    v30 = gt v28, 0xffffffffffffffff
-    v31 = or v29, v30
-    jumpi v31, bb3, bb6
+    v9 = add v6, 1
+    v10 = shl v9, 5
+    v25 = mload 64 !metadata(memory=scratch)
+    v26 = add v25, v10
+    v27 = lt v26, v25
+    v28 = gt v26, 0xffffffffffffffff
+    v29 = or v27, v28
+    jumpi v29, bb3, bb6
   bb6:
-    mstore 64, v28 !metadata(memory=scratch)
-    mstore v27, v8
-    v15 = sub v0, v3
-    v16 = shr v15, 5
-    v17 = gt v8, v16
-    jumpi v17, bb1, bb5
+    mstore 64, v26 !metadata(memory=scratch)
+    mstore v25, v6
+    v12 = shl v6, 5
+    v13 = sub v0, v7
+    v14 = shr v13, 5
+    v15 = gt v6, v14
+    jumpi v15, bb1, bb5
   bb5:
-    v14 = shl v8, 5
-    v24 = add v27, 32
-    calldatacopy v24, v3, v14
-    ret v27
+    v22 = add v25, 32
+    calldatacopy v22, v7, v12
+    ret v25
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
