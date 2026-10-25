@@ -390,6 +390,13 @@ def with_optimizer_runs(input_text: str, optimizer_runs: int | None) -> str:
     return json.dumps(payload)
 
 
+def with_optimizer_disabled(input_text: str) -> str:
+    """Disables the optimizer of a Standard JSON input, which makes Solar run at `-O none`."""
+    payload = json.loads(input_text)
+    payload.setdefault("settings", {}).setdefault("optimizer", {})["enabled"] = False
+    return json.dumps(payload)
+
+
 def compiler_input(
     test_case: TestCase,
     evm_version: str | None,
@@ -1842,6 +1849,8 @@ def merge_reference_compiler(
         for data in compilers.values()
         if isinstance(data, dict) and data.get("input_fingerprint")
     }
+    # Our compiler may get a different input (`--solar-no-optimizer`) than the references.
+    current_fingerprints.add(entry.get("reference_input_fingerprint"))
     if not reference_fingerprint or reference_fingerprint not in current_fingerprints:
         return False
     if entry.get("gas_profile") != reference.get("gas_profile"):
@@ -1947,6 +1956,7 @@ def run_test_case(
     repeat_long_compiles: bool = False,
     artifact_root: Path | None = None,
     optimizer_runs: int | None = None,
+    solar_optimizer: bool = True,
 ) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "test_id": test_case.test_id,
@@ -1966,12 +1976,22 @@ def run_test_case(
         if test_case.project_file is not None and not test_case.project_path.exists()
         else compiler_input(test_case, evm_version, optimizer_runs)
     )
+    if prepared_input is not None:
+        entry["reference_input_fingerprint"] = prepared_input[2]
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
+        spec_input = prepared_input
+        if prepared_input is not None and spec.kind == "solar" and not solar_optimizer:
+            input_text = with_optimizer_disabled(prepared_input[0])
+            spec_input = (
+                input_text,
+                prepared_input[1],
+                hashlib.sha256(input_text.encode()).hexdigest(),
+            )
         compiled = compile_case(
             spec,
             test_case,
-            prepared_input,
+            spec_input,
             compile_repeats,
             repeat_long_compiles,
         )
@@ -1980,10 +2000,8 @@ def run_test_case(
         compiler_entry.pop("runtime_bytecode", None)
         entry["compilers"][spec.compiler_id] = compiler_entry
 
-        if artifact_root is not None and prepared_input is not None:
-            artifact_error = write_artifacts(
-                artifact_root, spec, test_case, prepared_input
-            )
+        if artifact_root is not None and spec_input is not None:
+            artifact_error = write_artifacts(artifact_root, spec, test_case, spec_input)
             if artifact_error:
                 compiler_entry["artifact_error"] = artifact_error
                 verbose_log(
@@ -2217,9 +2235,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Override Standard JSON `optimizer.runs` for every benchmark case; below 200 Solar optimizes for size",
     )
     parser.add_argument(
+        "--solar-no-optimizer",
+        action="store_true",
+        help="Disable the optimizer in Solar's Standard JSON input only, so Solar runs at -O none; other compilers keep the case settings",
+    )
+    parser.add_argument(
         "--reference-results",
         type=Path,
         help="Compare with saved reference compiler results without running reference compilers",
+    )
+    parser.add_argument(
+        "--reference-compilers",
+        choices=("solc", "solx", "oksolc"),
+        nargs="+",
+        default=("solc", "solx", "oksolc"),
+        help="Compilers to reuse from --reference-results (default: all)",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument(
@@ -2401,7 +2431,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     reference_specs = (
         [
             CompilerSpec(name, name, Path(name), name)
-            for name in ("solc", "solx", "oksolc")
+            for name in args.reference_compilers
             if name not in {spec.compiler_id for spec in specs}
         ]
         if args.reference_results
@@ -2486,6 +2516,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             f"Forcing optimizer runs {args.optimizer_runs} ({objective} objective for Solar)"
         )
+    if args.solar_no_optimizer:
+        print("Disabling the optimizer for Solar (-O none)")
     print(f"Running {len(tests)} tests")
     if args.jobs > 1:
         print(f"Running {args.jobs} tests at a time without compile times")
@@ -2505,6 +2537,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.repeat_long_compiles,
                 args.artifacts,
                 args.optimizer_runs,
+                not args.solar_no_optimizer,
             )
         except Exception as exc:
             print(
@@ -2519,6 +2552,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return result
 
     results = []
+    missing_references = []
     timings = {}
     anvil_proc = None
     executor = ThreadPoolExecutor(args.jobs) if args.jobs > 1 else None
@@ -2574,6 +2608,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                                 dirs_exist_ok=True,
                             )
                 else:
+                    missing_references.append((test.test_id, compiler_id))
                     print(
                         _color(
                             f"[{test.test_id}] matching {compiler_id} reference result not found",
@@ -2632,6 +2667,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "format_version": 1,
         "evm_version_override": args.evm_version,
         "optimizer_runs_override": args.optimizer_runs,
+        "solar_optimizer_disabled": args.solar_no_optimizer,
         "timings": timings,
         "results": results,
     }
@@ -2655,7 +2691,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         for compiler_id, data in result["compilers"].items()
         if data.get("gas_status") == "failed"
     ]
-    if (failed or runtime_failed or gas_failed) and not args.allow_failures:
+    deploy_failed = [
+        (result["test_id"], compiler_id)
+        for result in results
+        for compiler_id, data in result["compilers"].items()
+        if data.get("deploy_status") == "failed"
+    ]
+    if (
+        failed or runtime_failed or gas_failed or deploy_failed or missing_references
+    ) and not args.allow_failures:
+        if missing_references:
+            print(
+                _color(
+                    f"{len(missing_references)} reference results not found, so those cases were not compared; use --allow-failures to keep exit code 0",
+                    RED,
+                ),
+                file=sys.stderr,
+            )
         if failed:
             print(
                 _color(
@@ -2676,6 +2728,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(
                 _color(
                     f"{len(gas_failed)} gas transaction runs failed; use --allow-failures to keep exit code 0",
+                    RED,
+                ),
+                file=sys.stderr,
+            )
+        if deploy_failed:
+            print(
+                _color(
+                    f"{len(deploy_failed)} deployments failed; use --allow-failures to keep exit code 0",
                     RED,
                 ),
                 file=sys.stderr,

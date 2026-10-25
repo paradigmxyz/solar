@@ -263,6 +263,33 @@ class CorpusTests(unittest.TestCase):
         )
         self.assertEqual(benchmark.with_optimizer_runs(original, None), original)
 
+    def test_solar_no_optimizer_changes_only_solar_input(self) -> None:
+        case = benchmark.TEST_CASES[0]
+        specs = [
+            benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc"),
+            benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),
+        ]
+        inputs = {}
+
+        def compile_case(spec, _case, prepared_input, *_args):
+            inputs[spec.compiler_id] = prepared_input
+            return {"status": "failed", "input_fingerprint": prepared_input[2]}
+
+        with mock.patch.object(benchmark, "compile_case", side_effect=compile_case):
+            result = benchmark.run_test_case(
+                case, specs, False, "smoke", "rpc", "key", solar_optimizer=False
+            )
+
+        solc_input, solar_input = (
+            json.loads(inputs[name][0]) for name in ("solc", "solar")
+        )
+        self.assertTrue(solc_input["settings"]["optimizer"]["enabled"])
+        self.assertFalse(solar_input["settings"]["optimizer"]["enabled"])
+        solc_input["settings"]["optimizer"]["enabled"] = False
+        self.assertEqual(solc_input, solar_input)
+        self.assertEqual(result["reference_input_fingerprint"], inputs["solc"][2])
+        self.assertNotEqual(inputs["solc"][2], inputs["solar"][2])
+
     def test_compiler_output_fingerprint_ignores_diagnostic_order(self) -> None:
         first = json.dumps(
             {
@@ -454,6 +481,52 @@ class FailureHandlingTests(unittest.TestCase):
             {"solar", "solc", "solx", "oksolc"},
         )
 
+    def test_unmatched_reference_results_fail_unless_failures_are_allowed(
+        self,
+    ) -> None:
+        case = benchmark.TEST_CASES[0]
+        entry = {
+            "test_id": case.test_id,
+            "suite": case.suite,
+            "gas_profile": "smoke",
+            "compilers": {"solar": {"status": "ok", "input_fingerprint": "new"}},
+        }
+        reference = {
+            **entry,
+            "compilers": {"solc": {"status": "ok", "input_fingerprint": "old"}},
+        }
+        for flags, expected in (([], 1), (["--allow-failures"], 0)):
+            with (
+                self.subTest(flags=flags),
+                tempfile.TemporaryDirectory() as directory,
+                mock.patch.object(benchmark, "find_binary", return_value=Path("solar")),
+                mock.patch.object(
+                    benchmark, "binary_version", return_value=("0.2.0", "")
+                ),
+                mock.patch.object(benchmark, "run_test_case", return_value=entry),
+                mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+            ):
+                reference_path = Path(directory) / "reference.json"
+                reference_path.write_text(json.dumps({"results": [reference]}))
+                return_code = benchmark.main(
+                    [
+                        "--solar",
+                        "solar",
+                        "--reference-results",
+                        str(reference_path),
+                        "--reference-compilers",
+                        "solc",
+                        "--tests",
+                        case.test_id,
+                        "--output",
+                        str(Path(directory) / "results.json"),
+                        *flags,
+                    ]
+                )
+            self.assertEqual(return_code, expected)
+            self.assertIn("matching solc reference result not found", stderr.getvalue())
+            self.assertNotIn("matching solx", stderr.getvalue())
+
     def test_live_oksolc_with_saved_references(self) -> None:
         case = benchmark.TEST_CASES[0]
         for jobs in (1, 8):
@@ -592,6 +665,7 @@ class FailureHandlingTests(unittest.TestCase):
                             "solar",
                             "--reference-results",
                             str(reference_path),
+                            "--allow-failures",
                             "--output",
                             str(Path(directory) / "results.json"),
                             *flags,
@@ -1101,6 +1175,23 @@ class ArtifactTests(unittest.TestCase):
         )
         self.assertEqual(artifacts["runtime.disasm"], "4\n")
         self.assertEqual(json.loads(output), {"contracts": {}})
+
+    def test_merges_reference_results_for_solar_no_optimizer_input(self) -> None:
+        entry = {
+            "test_id": "test",
+            "suite": "runtime",
+            "reference_input_fingerprint": "shared",
+            "compilers": {"solar": {"input_fingerprint": "solar-only"}},
+        }
+        references = {
+            ("runtime", "test"): {
+                "compilers": {
+                    "solc": {"status": "failed", "input_fingerprint": "shared"}
+                }
+            }
+        }
+
+        self.assertTrue(benchmark.merge_reference_compiler(entry, references, "solc"))
 
     def test_rejects_reference_results_for_different_inputs(self) -> None:
         entry = {
