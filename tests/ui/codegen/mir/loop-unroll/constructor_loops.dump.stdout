@@ -65,7 +65,7 @@ fn @get() [selector=0x9507d39a, abi_wrapper, view] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v3 = sload arg0 !metadata(storage=symbolic(arg0))
+    v3 = sload arg0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 8 !metadata(memory=scratch)
     v12 = keccak256 0, 64 !metadata(memory=scratch)

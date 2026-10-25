@@ -7,9 +7,11 @@
 //! revisit their callees with updated call counts. The pipeline repeats this
 //! pass after lowering and cleanup expose smaller bodies.
 //!
-//! Size mode admits only tiny bodies whose estimated bytes do not grow. Gas
-//! mode also considers scalar loop helpers, constant-argument wrappers, and
-//! callees sharing a direct constant-slot read with the call block. The latter
+//! Size mode admits tiny bodies whose estimated bytes do not grow, and consumes
+//! sole-use callees, adding to the body the code the backend would stop sharing
+//! with other functions (see `shared_runs`). Gas mode also considers scalar loop
+//! helpers, constant-argument wrappers, and callees sharing a direct
+//! constant-slot read with the call block. The latter
 //! must not write storage or observe gas; later CSE removes redundant reads.
 //! Reference-returning helpers stay shared except for transparent forwarders
 //! and one-word literals used once per emitted artifact. Shared void forwarders
@@ -71,6 +73,9 @@ use solar_sema::Gcx;
 
 mod dispatch;
 mod guards;
+mod shared_runs;
+
+use shared_runs::SharedRuns;
 
 /// One inlining policy, before and after physical memory lowering.
 pub(crate) enum Inline {
@@ -98,12 +103,10 @@ impl MirPass for Inline {
         let mut changed = false;
         for _ in 0..4 {
             let calls = analyses.fresh_call_summaries(module);
-            let straight_line = if target.optimization().is_gas() {
-                module.creation_pricing_functions().1
-            } else {
-                DenseBitSet::new_empty(module.functions.len())
-            };
-            let stats = MirInliner { target, physical, calls, straight_line }.run(module);
+            let straight_line = module.creation_pricing_functions().1;
+            let shared_runs = (!target.optimization().is_gas()).then(|| SharedRuns::new(module));
+            let stats =
+                MirInliner { target, physical, calls, straight_line, shared_runs }.run(module);
             for &caller in &stats.modified {
                 analyses.invalidate_local_summary(caller);
             }
@@ -163,6 +166,8 @@ struct MirInliner {
     /// The creation-only functions that run a bounded number of times, whose code the creation
     /// model prices.
     straight_line: DenseBitSet<MirFunctionId>,
+    /// The runs of instructions the backend shares between functions. Size mode only.
+    shared_runs: Option<SharedRuns>,
 }
 
 impl MirInliner {
@@ -547,8 +552,7 @@ impl MirInliner {
             && (!summary.has_icall || summary.is_transparent_forwarder || (memory_wrapper && gas))
             && (single_call || !summary.void_forwarder_adds_args)
             && (!summary.has_control_flow || summary.is_check_wrapper);
-        let consume = gas
-            && single_call
+        let consume = single_call
             && summary.internal_frame_size == 0
             && !summary.has_reference_return
             && summary.instruction_count <= 256;
@@ -595,7 +599,7 @@ impl MirInliner {
             return false;
         }
 
-        self.inline_lifetime_cost_improves(target, summary, site, single_call)
+        self.inline_lifetime_cost_improves(module, target, summary, site, single_call)
     }
 
     /// Compares runtime protocol savings over the expected contract lifetime
@@ -606,14 +610,21 @@ impl MirInliner {
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libevmasm/Inliner.cpp#L139>
     fn inline_lifetime_cost_improves(
         &self,
+        module: &Module,
         target: Target,
         summary: MirInlineSummary,
         site: CallSite,
         single_call: bool,
     ) -> bool {
-        let inlined_bytes = summary.estimated_code_size;
+        let mut inlined_bytes = summary.estimated_code_size;
         let mut removed_bytes = estimated_icall_code_size(&target, site);
         if single_call {
+            // Consuming the callee leaves the code the backend shares with other functions
+            // emitted again.
+            inlined_bytes += self
+                .shared_runs
+                .as_ref()
+                .map_or(0, |runs| runs.shared_bytes(&target, module, site.callee));
             removed_bytes = removed_bytes.saturating_add(
                 summary.estimated_code_size
                     + estimated_internal_return_code_size(&target, summary, site),

@@ -55,26 +55,47 @@
       ret
   }
   
-  fn @discard(arg0: i256) {
+  fn @discard_other_caller(arg0: i256) {
     bb0:
-      v0 = icall @value_sink, arg0
+      icall @discard, arg0
       ret
   }
   
-  fn @value_sink(arg0: i256) -> i256 {
+  fn @discard(arg0: i256) {
     bb0:
-      v0 = ne arg0, 0
-      jumpi v0, bb1, bb2
+-     v0 = icall @value_sink, arg0
+-     ret
+- }
+- 
+- fn @value_sink(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = ne arg0, 0
+-     jumpi v0, bb1, bb2
++     jump bb2
     bb2:
++     v1 = ne arg0, 0
++     jumpi v1, bb3, bb4
++   bb4:
       revert 0, 0
-    bb1:
+-   bb1:
++   bb3:
       sstore 0, arg0
-      ret arg0
+-     ret arg0
++     jump bb1
++   bb1:
++     v2 = phi [bb3: arg0]
++     ret
   }
   
   fn @effect_caller(arg0: i256, arg1: i256) {
     bb0:
       icall @effect, arg0, arg1
+      ret
+  }
+  
+  fn @effect_other_caller(arg0: i256, arg1: i256) {
+    bb0:
+      icall @effect, arg1, arg0
       ret
   }
   
@@ -149,26 +170,40 @@
       ret
   }
   
-  fn @discard(arg0: i256) {
+  fn @discard_other_caller(arg0: i256) {
     bb0:
-      v0 = icall @value_sink, arg0
+      icall @discard, arg0
       ret
   }
   
-  fn @value_sink(arg0: i256) -> i256 {
+  fn @discard(arg0: i256) {
     bb0:
-      v0 = ne arg0, 0
-      jumpi v0, bb1, bb2
-    bb2:
+-     jump bb2
+-   bb2:
+      v1 = ne arg0, 0
+-     jumpi v1, bb3, bb4
+-   bb4:
++     jumpi v1, bb1, bb2
++   bb2:
       revert 0, 0
+-   bb3:
+-     sstore 0, arg0
+-     jump bb1
     bb1:
-      sstore 0, arg0
-      ret arg0
+-     v2 = phi [bb3: arg0]
++     sstore 0, arg0
+      ret
   }
   
   fn @effect_caller(arg0: i256, arg1: i256) {
     bb0:
       icall @effect, arg0, arg1
+      ret
+  }
+  
+  fn @effect_other_caller(arg0: i256, arg1: i256) {
+    bb0:
+      icall @effect, arg1, arg0
       ret
   }
   

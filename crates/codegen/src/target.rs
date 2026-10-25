@@ -352,6 +352,11 @@ impl Target {
     /// run per invocation when weighing code growth inside it: GCC's estimate
     /// for such loops.
     pub(crate) const UNCOUNTED_LOOP_ITERATIONS: u64 = 10;
+
+    /// How many consecutive MIR instructions must repeat for the backend's tail merge and
+    /// outlining to share them. Six kept corpus bytecode smallest in `-Osize`; shorter runs
+    /// match common idioms that no pass shares, and longer ones miss shared wrappers.
+    pub(crate) const SHARED_RUN_INSTRUCTIONS: usize = 6;
     /// How many times more often the stack planner counts a block for each loop around it.
     pub(crate) const LOOP_BLOCK_WEIGHT: u32 = 8;
     /// The most the stack planner counts any block, however deeply nested.
@@ -429,6 +434,11 @@ impl Target {
 
     pub(crate) fn optimization(&self) -> OptimizationMode {
         self.optimization
+    }
+
+    /// Whether the stack planner searches for cheaper plans; `-O none` takes its first plan.
+    pub(crate) fn optimizes_stack_plans(&self) -> bool {
+        !matches!(self.optimization, OptimizationMode::None)
     }
 
     pub(crate) fn expected_executions(&self) -> u64 {
