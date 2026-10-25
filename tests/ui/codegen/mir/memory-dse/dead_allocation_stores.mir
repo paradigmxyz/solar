@@ -345,3 +345,14 @@ fn @checked_size(arg0: i256) {
     mstore v1, arg0
     stop
 }
+
+// A constant addend that wraps is a subtraction, so the size is not the sum of its bounds.
+// CHECK-LABEL: {{^[ +].*}}fn @wrapped_size{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @wrapped_size(arg0: i256) {
+  bb0:
+    v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v1 = alloc v0
+    mstore v1, arg0
+    stop
+}

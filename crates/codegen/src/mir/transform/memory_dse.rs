@@ -2154,6 +2154,15 @@ impl AllocWalk<'_> {
         };
         let bound = |value| Self::size_lower_bound(func, value, depth);
         match func.inst(*inst).kind {
+            // A constant that does not fit a word count is a wrapped subtraction, such as
+            // `add x, 2^256 - 32` for `x - 32`, which lowers the sum.
+            InstKind::Add(a, b)
+                if [a, b]
+                    .iter()
+                    .any(|&v| func.value_u64(v).is_none() && func.value_u256(v).is_some()) =>
+            {
+                0
+            }
             InstKind::Add(a, b) => bound(a).saturating_add(bound(b)),
             // `and x, mask` is monotonic in `x` when the mask only clears low bits.
             InstKind::And(x, mask) | InstKind::And(mask, x)
