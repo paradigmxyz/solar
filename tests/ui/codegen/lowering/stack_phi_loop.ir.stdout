@@ -59,6 +59,13 @@ bb7:
   push 0
   push 0
   jump bb10
+bb10 [loop]:
+  dup 4
+  dup 2
+  lt
+  push bb12
+  jumpi
+  jump bb46
 bb12 [loop]:
   push 3
   dup 2
@@ -74,13 +81,13 @@ bb12 [loop]:
   jumpi
   push 1
   add
-  jump bb10
-bb10 [loop]:
   dup 4
   dup 2
   lt
   push bb12
   jumpi
+  jump bb46
+bb46:
   pop
   push 0
   mstore
@@ -125,6 +132,13 @@ bb18 [loop]:
   swap 1
   swap 2
   jump bb20
+bb20 [loop]:
+  dup 2
+  dup 2
+  lt
+  push bb22
+  jumpi
+  jump bb47
 bb22 [loop]:
   dup 1
   dup 1
@@ -140,13 +154,13 @@ bb22 [loop]:
   jumpi
   push 1
   add
-  jump bb20
-bb20 [loop]:
   dup 2
   dup 2
   lt
   push bb22
   jumpi
+  jump bb47
+bb47:
   pop
   pop
   push 0
@@ -192,6 +206,13 @@ bb29 [loop]:
 bb31 [loop]:
   push 0
   jump bb32
+bb32 [loop]:
+  dup 4
+  dup 2
+  lt
+  push bb34
+  jumpi
+  jump bb48
 bb34 [loop]:
   dup 1
   dup 3
@@ -207,13 +228,13 @@ bb34 [loop]:
   jumpi
   push 1
   add
-  jump bb32
-bb32 [loop]:
   dup 4
   dup 2
   lt
   push bb34
   jumpi
+  jump bb48
+bb48:
   pop
   push 1
   add
@@ -241,6 +262,11 @@ bb38:
   sub
   dup 4
   jump bb40
+bb40 [loop]:
+  dup 2
+  push bb42
+  jumpi
+  jump bb49
 bb42 [loop]:
   dup 4
   dup 2
@@ -269,11 +295,11 @@ bb42 [loop]:
   push 1
   add
   swap 1
-  jump bb40
-bb40 [loop]:
   dup 2
   push bb42
   jumpi
+  jump bb49
+bb49:
   push 0
   sstore
   stop

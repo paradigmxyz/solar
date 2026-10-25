@@ -27,14 +27,18 @@ contract Loops {
     }
 
     // The exit results are pushed after the branches that leave the loop, so the
-    // loop carries no extra word and pops nothing.
+    // loop carries no extra word and pops nothing. The latch repeats the header's
+    // branch.
     // CHECK: calldatacopy
     // CHECK: {{bb[0-9]+}} [loop]:
+    // CHECK: jumpi
+    // CHECK-NEXT: jump [[EXIT:bb[0-9]+]]
+    // CHECK-NEXT: {{bb[0-9]+}} [loop]:
     // CHECK-NEXT: push 1{{$}}
     // CHECK-NEXT: add
-    // CHECK-NEXT: jump [[HEADER:bb[0-9]+]]
-    // CHECK-NEXT: [[HEADER]] [loop]:
     // CHECK: jumpi
+    // CHECK-NEXT: jump [[EXIT]]
+    // CHECK-NEXT: [[EXIT]]:
     // CHECK-NEXT: push 1{{$}}
     // CHECK-NEXT: push 0
     function ascii(bytes memory s) external pure returns (bool) {

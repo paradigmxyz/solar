@@ -15,13 +15,13 @@
   bb2:
     push 0
     jump bb3
-- bb3:
--   dup 1
--   push 8
--   gt
--   push bb4
--   jumpi
--   jump bb5
+  bb3:
+    dup 1
+    push 8
+    gt
+    push bb4
+    jumpi
+    jump bb5
   bb4:
     push 1
     add
@@ -29,8 +29,7 @@
     iszero
     push bb6
     jumpi
-    jump bb3
-+ bb3:
+-   jump bb3
 +   dup 1
 +   push 8
 +   gt

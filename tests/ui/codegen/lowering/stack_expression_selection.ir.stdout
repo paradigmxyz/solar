@@ -186,16 +186,23 @@ bb29:
   calldataload
   push 0
   jump bb31
-bb33 [loop]:
-  push 1
-  add
-  jump bb31
 bb31 [loop]:
   dup 2
   dup 2
   lt
   push bb33
   jumpi
+  jump bb35
+bb33 [loop]:
+  push 1
+  add
+  dup 2
+  dup 2
+  lt
+  push bb33
+  jumpi
+  jump bb35
+bb35:
   push 0
   mstore
   push 32

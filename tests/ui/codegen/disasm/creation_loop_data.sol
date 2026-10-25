@@ -7,6 +7,7 @@
 // as the runtime does, instead of storing each from a push on every iteration.
 // CHECK-LABEL: @module LoopData_deployment
 // CHECK: [loop]:
+// CHECK: [loop]:
 // CHECK-NEXT: push 128
 // CHECK-NEXT: push_data literal_{{[0-9]+}}
 contract LoopData {

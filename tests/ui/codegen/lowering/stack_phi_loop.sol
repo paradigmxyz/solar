@@ -21,13 +21,17 @@ contract StackPhiLoop {
     // CHECK: mul
     // CHECK-NEXT: push 11
     // CHECK-NEXT: add
+    // The latch repeats the header's test and branch to the body.
     // CHECK: jump [[CARRIED_HEADER:bb[0-9]+]]
-    // CHECK: {{bb[0-9]+}} [loop]:
-    // CHECK: jumpi
-    // CHECK: jump [[CARRIED_HEADER]]
     // CHECK-NEXT: [[CARRIED_HEADER]] [loop]:
     // CHECK: lt
+    // CHECK-NEXT: push [[CARRIED_BODY:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK: [[CARRIED_BODY]] [loop]:
     // CHECK: jumpi
+    // CHECK: lt
+    // CHECK-NEXT: push [[CARRIED_BODY]]
+    // CHECK-NEXT: jumpi
     function loopCarried(uint256 n, bool flag) public pure returns (uint256) {
         uint256 step = flag ? 7 : 11;
         uint256 acc = 0;

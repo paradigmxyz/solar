@@ -7,9 +7,9 @@
 
 contract LoopRotation {
     // CHECK-LABEL: (runtime) ===
-    // The latch falls into the header, whose branch closes the loop, so an
-    // iteration runs no `JUMP`. The overflow check branches to the cold panic
-    // block, so the hot path falls through it.
+    // The latch repeats the header's test and branch, so an iteration runs no
+    // `JUMP` and only the body's `JUMPDEST`. The overflow check branches to the
+    // cold panic block, so the hot path falls through it.
     // CHECK: {{^}}JUMP{{$}}
     // CHECK-NEXT: {{^}}; [[BODY:bb[0-9]+]]{{$}}
     // CHECK-NEXT: JUMPDEST
@@ -17,8 +17,6 @@ contract LoopRotation {
     // CHECK: PUSH{{[12]}} {{0x[0-9a-f]+}} ; [[PANIC:bb[0-9]+]]
     // CHECK-NEXT: JUMPI
     // CHECK-NOT: {{^}}JUMP{{$}}
-    // CHECK: {{^}}; {{bb[0-9]+}}{{$}}
-    // CHECK-NEXT: JUMPDEST
     // CHECK-NOT: {{^}};
     // CHECK: PUSH{{[12]}} {{0x[0-9a-f]+}} ; [[BODY]]
     // CHECK-NEXT: JUMPI

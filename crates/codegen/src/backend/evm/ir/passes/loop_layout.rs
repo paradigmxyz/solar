@@ -10,6 +10,23 @@
 //! turns around, since a turned test that keeps its jump to the header would pay that jump on
 //! every iteration.
 //!
+//! A header whose branch is a bare test, `test; push body; jumpi; exit`, moves its latch a second
+//! way. The latch repeats the test and branch, `...; test; push body; jumpi; jump exit`, and
+//! follows the header, so the preheader still falls into the header, which only it reaches, and
+//! every iteration enters the body's `JUMPDEST` alone instead of the body's and then the
+//! header's. Code after the header's branch moves to a new block placed after the latch, which
+//! the header and the latch both reach. The header's jump to it replaces the preheader's jump, so
+//! a loop that never runs pays what rotating it would. The copy is priced with the target's cost
+//! model: its bytes, over their lifetime, against one saved `JUMPDEST` for each of
+//! `UNCOUNTED_LOOP_ITERATIONS` iterations, so `-Ztune=interpreter` also prices the saved dispatch.
+//! Only the pushes, stack operations, and position-independent computations that tail duplication
+//! may copy qualify as the test. The preheader's saved jump, once per loop, is not counted. When
+//! the copy does not pay, or the latch turns around, the latch moves before the header as above.
+//! On evm2's interpreter (AMD Zen 5), solady's hex loop took 101 gas and 1,282 instructions per
+//! iteration this way, against 102 and 1,302 for the rotated loop. Its JIT ran both in about the
+//! same cycles, 12.9 to 14.5 against 14.1 to 15.2 per iteration, as it merges the gas checks of
+//! the two `JUMPDEST` sections.
+//!
 //! Size mode skips the pass. A move trades the latch's jump for the preheader's, which is
 //! byte-neutral, except that a turned test drops its `iszero`. Moving latches in size mode
 //! measured 113 runtime bytes larger across the benchmark corpus, and moving only turned latches
@@ -27,23 +44,24 @@
 //! edge's estimated mass. Without the loop odds, the inner loop of a nested pair looked no hotter
 //! than its entry from the outer loop, which kept a jump on every iteration. This is a static
 //! frequency heuristic, not a guarantee for every input. Other existing fallthroughs remain
-//! intact, and no instruction or condition is duplicated.
+//! intact. Only the header copy duplicates instructions.
 //!
-//! All rewrites preserve explicit block identities, instructions, and stack effects. Changing
-//! physical order never splits a block or alters its debug metadata. This pass runs last so
+//! All other rewrites preserve explicit block identities, instructions, and stack effects.
+//! Changing physical order never alters debug metadata. Copied instructions keep theirs, and the
+//! jump that splits a header from its exit has none. This pass runs last so
 //! subsequent trace construction cannot undo the chosen loop fallthroughs.
 
 use super::{
     EvmPass,
     block_layout::{BlockLayout, is_physical_terminal_boundary, layout_successor},
-    utils::remap_block_order,
+    utils::{FreshLabels, copyable_cost, is_split_point, remap_block_order},
 };
 use crate::{
     backend::evm::{
-        ir::{BlockId, Instruction, Module, TerminatorKind},
+        ir::{Block, BlockId, Instruction, Module, Terminator, TerminatorKind},
         op,
     },
-    target::Target,
+    target::{Cost, Target},
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -60,7 +78,7 @@ impl EvmPass for LoopLayout {
         if !gcx.sess.opts.optimization.is_gas() {
             return false;
         }
-        BlockLayout.run_pass(gcx, module) | place_loop_latches(module)
+        BlockLayout.run_pass(gcx, module) | place_loop_latches(module, &Target::new(gcx))
     }
 }
 
@@ -153,7 +171,7 @@ fn backedge_weights(
 /// Gives a loop's latch the fallthrough currently owned by its one-time preheader.
 /// An adjacent header/latch pair also qualifies when the header's physical
 /// terminator leaves no fallthrough into the latch.
-fn place_loop_latches(module: &mut Module) -> bool {
+fn place_loop_latches(module: &mut Module, target: &Target) -> bool {
     let mut order = module.blocks.indices().collect::<Vec<_>>();
     // Position of each block in `order`.
     let mut positions = (0..order.len()).collect::<IndexVec<BlockId, _>>();
@@ -226,15 +244,38 @@ fn place_loop_latches(module: &mut Module) -> bool {
                 true
             };
             if visited <= 256 && reachable.contains(latch) && hotter {
-                if inverted {
-                    invert_latch(module, latch, header);
+                let branch =
+                    if inverted { None } else { copyable_branch(module, target, header, latch) };
+                if let Some(branch) = branch {
+                    let exit = copy_header(module, header, latch, branch);
+                    branches.0[header] = None;
                     branches.0[latch] = None;
-                }
-                // preheader; header ... latch; jump header
-                // -> preheader; jump header; latch; header ...
-                order[h..=l].rotate_right(1);
-                for (offset, &block) in order[h..=l].iter().enumerate() {
-                    positions[block] = h + offset;
+                    predecessors = None;
+                    // preheader; header; exit ... latch; jump header
+                    // -> preheader; header; latch; exit ...
+                    order[h + 1..=l].rotate_right(1);
+                    let mut end = l;
+                    if let Some(exit) = exit {
+                        order.insert(h + 2, exit);
+                        positions.push(h + 2);
+                        branches.0.push(None);
+                        reachable = DenseBitSet::new_empty(module.blocks.len());
+                        end = order.len() - 1;
+                    }
+                    for (offset, &block) in order[h + 1..=end].iter().enumerate() {
+                        positions[block] = h + 1 + offset;
+                    }
+                } else {
+                    if inverted {
+                        invert_latch(module, latch, header);
+                        branches.0[latch] = None;
+                    }
+                    // preheader; header ... latch; jump header
+                    // -> preheader; jump header; latch; header ...
+                    order[h..=l].rotate_right(1);
+                    for (offset, &block) in order[h..=l].iter().enumerate() {
+                        positions[block] = h + offset;
+                    }
                 }
                 moved.insert(header);
             }
@@ -265,6 +306,77 @@ fn latch_header(module: &Module, block: BlockId) -> Option<(BlockId, bool)> {
         return Some((header, true));
     }
     Some((target, false))
+}
+
+/// The index of the `jumpi` of a header `test; push body; jumpi; exit ...` whose test and branch
+/// the latch can repeat, when the header's `JUMPDEST` that this saves on each iteration pays for
+/// the copy's bytes. The loop runs `UNCOUNTED_LOOP_ITERATIONS` times, as in [`taken_share`]; the
+/// preheader's saved jump is not counted.
+fn copyable_branch(
+    module: &Module,
+    target: &Target,
+    header: BlockId,
+    latch: BlockId,
+) -> Option<usize> {
+    let latch = &module.blocks[latch];
+    let block = &module.blocks[header];
+    let branch =
+        block.instructions.iter().position(|inst| inst.as_evm_opcode() == Some(op::JUMPI))?;
+    let test = &block.instructions[..branch.checked_sub(1)?];
+    block.instructions[branch - 1].pushed_block()?;
+    if !is_split_point(&latch.instructions, latch.instructions.len())
+        || !is_split_point(&block.instructions, branch + 1)
+    {
+        return None;
+    }
+    let copy =
+        test.iter().try_fold(target.label_push() + target.opcode(op::JUMPI), |cost, inst| {
+            Some(cost + copyable_cost(target, inst)?)
+        })?;
+    let saved = Cost { bytes: 0, ..target.opcode(op::JUMPDEST) }
+        .times(Target::UNCOUNTED_LOOP_ITERATIONS as u32);
+    (target.lifetime_gas(Cost::new(0, copy.bytes)) < target.lifetime_gas(saved)).then_some(branch)
+}
+
+/// Appends the header's test and branch, up to the `jumpi` at `branch`, to the latch, and has the
+/// latch continue where the header does. A header with code after its branch gives that code to a
+/// new block, which is returned.
+fn copy_header(
+    module: &mut Module,
+    header: BlockId,
+    latch: BlockId,
+    branch: usize,
+) -> Option<BlockId> {
+    let block = &module.blocks[header];
+    let copy = block.instructions[..=branch].to_vec();
+    let (exit, split) = match block.terminator.as_ref().map(|term| &term.kind) {
+        Some(&TerminatorKind::Jump(exit)) if branch + 1 == block.instructions.len() => {
+            (exit, false)
+        }
+        _ => {
+            let label = FreshLabels::new(module).take(1).expect("fresh label")[0];
+            let block = &mut module.blocks[header];
+            // header: test; push body; jumpi; exit_tail
+            // -> header: test; push body; jumpi; jump exit
+            //    exit: exit_tail
+            let mut exit = Block::new(label);
+            exit.metadata.hotness = block.metadata.hotness;
+            exit.metadata.repeats = block.metadata.repeats;
+            exit.instructions = block.instructions.split_off(branch + 1);
+            exit.terminator = block.terminator.take();
+            let exit = module.blocks.push(exit);
+            // NOTE: The jump to the split exit has no source location of its own.
+            let mut jump = Terminator::new(TerminatorKind::Jump(exit));
+            jump.metadata.mark_debug_info_dropped();
+            module.blocks[header].terminator = Some(jump);
+            (exit, true)
+        }
+    };
+    let latch = &mut module.blocks[latch];
+    // ...; jump header -> ...; test; push body; jumpi; jump exit
+    latch.instructions.extend(copy);
+    latch.terminator.as_mut().expect("latch has a terminator").kind = TerminatorKind::Jump(exit);
+    split.then_some(exit)
 }
 
 /// Turns a latch's conditional jump back to its header around, so the header can follow it.

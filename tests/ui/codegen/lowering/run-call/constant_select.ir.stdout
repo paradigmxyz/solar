@@ -266,6 +266,13 @@ bb19 [continuation]:
   dup 3
   add
   jump bb71
+bb71 [loop]:
+  dup 4
+  dup 4
+  lt
+  push bb73
+  jumpi
+  jump bb85
 bb73 [loop]:
   push 0
   dup 2
@@ -276,13 +283,13 @@ bb73 [loop]:
   swap 2
   push 1
   add
-  jump bb71
-bb71 [loop]:
   dup 4
   dup 4
   lt
   push bb73
   jumpi
+  jump bb85
+bb85:
   pop
   swap 2
   pop
@@ -310,6 +317,13 @@ bb25:
   shr
   push 0
   jump bb27
+bb27 [loop]:
+  dup 2
+  dup 2
+  lt
+  push bb30
+  jumpi
+  jump bb83
 bb30 [loop]:
   dup 1
   push 5
@@ -323,13 +337,13 @@ bb30 [loop]:
   sstore
   push 1
   add
-  jump bb27
-bb27 [loop]:
   dup 2
   dup 2
   lt
   push bb30
   jumpi
+  jump bb83
+bb83:
   pop
   swap 2
   push 31
@@ -479,6 +493,14 @@ bb36:
   swap 2
   push 0
   jump bb37
+bb37 [loop]:
+  dup 4
+  dup 2
+  lt
+  push bb39
+  jumpi
+  swap 2
+  jump bb38
 bb39 [loop]:
   dup 1
   push 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
@@ -491,13 +513,13 @@ bb39 [loop]:
   mstore
   push 1
   add
-  jump bb37
-bb37 [loop]:
   dup 4
   dup 2
   lt
   push bb39
   jumpi
+  jump bb84
+bb84:
   swap 2
   jump bb38
 bb44:

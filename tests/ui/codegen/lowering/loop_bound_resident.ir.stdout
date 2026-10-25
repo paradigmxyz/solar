@@ -26,6 +26,13 @@ bb0:
   push 4
   calldataload
   jump bb6
+bb6 [loop]:
+  dup 4
+  dup 4
+  lt
+  push bb8
+  jumpi
+  jump bb9
 bb8 [loop]:
   dup 2
   dup 4
@@ -35,13 +42,13 @@ bb8 [loop]:
   add
   swap 2
   add
-  jump bb6
-bb6 [loop]:
   dup 4
   dup 4
   lt
   push bb8
   jumpi
+  jump bb9
+bb9:
   push 0
   mstore
   push 32
@@ -163,10 +170,6 @@ bb4:
   swap 2
   pop
   jump bb9
-bb12 [loop]:
-  swap 1
-  pop
-  jump bb9
 bb9 [loop]:
   dup 3
   dup 2
@@ -174,6 +177,18 @@ bb9 [loop]:
   iszero
   push bb11
   jumpi
+  jump bb14
+bb12 [loop]:
+  swap 1
+  pop
+  dup 3
+  dup 2
+  gt
+  iszero
+  push bb11
+  jumpi
+  jump bb14
+bb14:
   push 32
   dup 2
   sub

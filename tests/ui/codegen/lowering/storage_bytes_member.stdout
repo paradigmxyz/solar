@@ -730,6 +730,14 @@ bb65:
   swap 3
   pop
   jump bb66
+bb66 [loop]:
+  dup 3
+  dup 2
+  sub
+  push bb68
+  jumpi
+  swap 3
+  jump bb67
 bb68 [loop]:
   dup 1
   sload
@@ -740,13 +748,13 @@ bb68 [loop]:
   mstore
   push 1
   add
-  jump bb66
-bb66 [loop]:
   dup 3
   dup 2
   sub
   push bb68
   jumpi
+  jump bb75
+bb75:
   swap 3
   jump bb67
 bb38 [cold]:

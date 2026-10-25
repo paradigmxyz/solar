@@ -12,6 +12,11 @@ bb0:
   not
   push 0
   jump bb2
+bb2 [loop]:
+  dup 2
+  push bb4
+  jumpi
+  jump bb6
 bb4 [loop]:
   push 128
   push_data literal_1
@@ -23,11 +28,11 @@ bb4 [loop]:
   push 1
   add
   swap 1
-  jump bb2
-bb2 [loop]:
   dup 2
   push bb4
   jumpi
+  jump bb6
+bb6:
   push 0
   sstore
   push 31

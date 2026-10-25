@@ -8,8 +8,8 @@
 //!
 //! Only immediate pushes, physical stack operations, and position-independent computations qualify.
 //! Immutable patches and protected predecessor boundaries are excluded. Cold tails stay shared.
-//! Straight-line loop joins qualify, but no branches are copied: header tests and loop rotation
-//! remain with loop layout. Block order and existing label identities stay intact. A tail left
+//! Straight-line loop joins qualify, but no branches are copied: loop layout repeats header tests
+//! and rotates loops. Block order and existing label identities stay intact. A tail left
 //! without references is removed, and assembly omits labels whose last reference disappears.
 //! Debug origins remain on the copied operations and never affect eligibility.
 //! Opcodes the target lacks stay shared.
@@ -18,7 +18,10 @@
 
 use super::{
     EvmPass,
-    utils::{count_block_references, instruction_size_lower_bound, is_split_point, retain_blocks},
+    utils::{
+        copyable_cost, count_block_references, instruction_size_lower_bound, is_split_point,
+        retain_blocks,
+    },
 };
 use crate::{
     backend::evm::{
@@ -90,18 +93,7 @@ impl EvmPass for TailDuplicate {
             let growth = tail.instructions.iter().try_fold(
                 copied_transfer.bytes - transfer.bytes,
                 |n, inst| {
-                    let bytes = if inst.is_encoded_push() {
-                        target.push(inst.concrete_immediate()?).bytes
-                    } else if let Some(stack) = inst.as_stack_op() {
-                        target.stack_op(stack)?.bytes
-                    } else if op::is_unaffected_by_preceding_push(inst.opcode)
-                        && op::is_available(inst.opcode, target.evm_version())
-                    {
-                        target.opcode(inst.opcode).bytes
-                    } else {
-                        return None;
-                    };
-                    let growth = n + bytes;
+                    let growth = n + copyable_cost(&target, inst)?.bytes;
                     profitable(growth).then_some(growth)
                 },
             );

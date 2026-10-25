@@ -20,15 +20,20 @@ contract CheckedLoopStorage {
     // CHECK-LABEL: @module CheckedLoopStorage_runtime
     // A checked loop keeps its counter and accumulator on the operand stack.
     // The counter starts at two and steps by one, so its increment cannot
-    // wrap within any affordable number of iterations: the latch is a plain
-    // jump back to the header.
+    // wrap within any affordable number of iterations: the latch repeats the
+    // header's test and branches back to the body.
     // CHECK: mul
     // CHECK-NOT: mstore
     // CHECK: div
     // CHECK-NOT: mstore
     // CHECK: jumpi
     // CHECK: add
-    // CHECK-NEXT: jump
+    // CHECK-NEXT: dup 3
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: gt
+    // CHECK-NEXT: iszero
+    // CHECK-NEXT: push
+    // CHECK-NEXT: jumpi
     function compute(uint256 n) external {
         result = 1;
         for (uint256 i = 2; i <= n; ++i) {

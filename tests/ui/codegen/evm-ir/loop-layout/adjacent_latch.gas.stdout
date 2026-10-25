@@ -12,10 +12,6 @@
     push 3
     push 0
     jump bb3
-+ bb4:
-+   push 1
-+   add
-+   jump bb3
   bb3:
     dup 2
     dup 2
@@ -23,8 +19,14 @@
     push bb4
     jumpi
     jump bb1
-- bb4:
--   push 1
--   add
+  bb4:
+    push 1
+    add
 -   jump bb3
++   dup 2
++   dup 2
++   lt
++   push bb4
++   jumpi
++   jump bb1
   

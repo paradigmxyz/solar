@@ -9,7 +9,7 @@ use crate::{
         ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
         op,
     },
-    target::Target,
+    target::{Cost, Target},
 };
 use solar_data_structures::{
     index::{IndexVec, index_vec},
@@ -167,6 +167,23 @@ pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> 
     // Labels and data offsets are address-sensitive. They may resolve to
     // zero, so one byte is the only safe lower bound before assembly.
     1
+}
+
+/// The cost of an instruction a copy of its block may repeat: an immediate push, a physical stack
+/// operation, or a position-independent computation. `None` for anything else, such as a label
+/// or an immutable, which assembly patches by position.
+pub(super) fn copyable_cost(target: &Target, inst: &Instruction) -> Option<Cost> {
+    if inst.is_encoded_push() {
+        Some(target.push(inst.concrete_immediate()?))
+    } else if let Some(stack) = inst.as_stack_op() {
+        target.stack_op(stack)
+    } else if op::is_unaffected_by_preceding_push(inst.opcode)
+        && op::is_available(inst.opcode, target.evm_version())
+    {
+        Some(target.opcode(inst.opcode))
+    } else {
+        None
+    }
 }
 
 /// Returns whether a terminator ends the current physical fallthrough trace.

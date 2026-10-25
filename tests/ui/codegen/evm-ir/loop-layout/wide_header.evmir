@@ -1,0 +1,28 @@
+//@ revisions: gas interpreter size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=loop-layout
+//@[interpreter] compile-flags: -Ogas -Ztune=interpreter -Zevm-ir-pipeline=loop-layout
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=loop-layout
+// The header's test is too wide to repeat for the one `JUMPDEST` each iteration saves, so the
+// latch moves before the header, unless the interpreter's dispatch of that `JUMPDEST` pays for it.
+@module WideHeader
+bb0:
+  push 3
+  push 0
+  jump bb1
+bb1:
+  dup 2
+  push 0x123456
+  add
+  dup 2
+  lt
+  push bb3
+  jumpi
+  jump bb2
+bb2:
+  pop
+  pop
+  stop
+bb3:
+  push 1
+  add
+  jump bb1

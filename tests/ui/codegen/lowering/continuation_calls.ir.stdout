@@ -99,6 +99,11 @@ bb32:
   push 0
   swap 1
   jump bb33
+bb33 [loop]:
+  dup 1
+  push bb35
+  jumpi
+  jump bb36
 bb35 [loop]:
   dup 4
   dup 3
@@ -110,11 +115,11 @@ bb35 [loop]:
   jumpi
   push 1
   add
-  jump bb33
-bb33 [loop]:
   dup 1
   push bb35
   jumpi
+  jump bb36
+bb36:
   pop
   swap 2
   pop

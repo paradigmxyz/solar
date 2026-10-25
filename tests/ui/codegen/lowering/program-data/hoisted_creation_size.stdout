@@ -80,6 +80,11 @@ bb0:
   sub
   push 0
   jump bb6
+bb6 [loop]:
+  dup 2
+  push bb8
+  jumpi
+  jump bb11
 bb8 [loop]:
   pop
   push 64
@@ -100,11 +105,11 @@ bb8 [loop]:
   push 1
   add
   swap 1
-  jump bb6
-bb6 [loop]:
   dup 2
   push bb8
   jumpi
+  jump bb11
+bb11:
   push 0
   mstore
   push 32
