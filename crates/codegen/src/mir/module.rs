@@ -233,6 +233,7 @@ impl Module {
     ///
     /// Skips the check when `advance_phase` passed it and nothing changed the module since,
     /// unless `recheck` is set. Without `recheck`, the check covers only the phase contract.
+    /// Targets without shift opcodes always check that no shift is left.
     pub(crate) fn as_lowered(
         &self,
         gcx: solar_sema::Gcx<'_>,
@@ -256,6 +257,9 @@ impl Module {
                 gcx.sess.is_parallel_codegen(),
                 recheck,
             )?;
+        }
+        if !gcx.sess.opts.evm_version.has_bitwise_shifting() {
+            crate::mir::analysis::validate_legal_shifts(dcx, self)?;
         }
         Ok(LoweredModule(self))
     }

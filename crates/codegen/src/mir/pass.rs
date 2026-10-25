@@ -101,6 +101,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
+    &lower_shifts::LowerShifts,
     &evm_inst_schedule::EvmInstSchedule,
     &heap_floor::HeapFloor,
 ];
@@ -384,6 +385,8 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
+    // Targets without shift opcodes get arithmetic instead, so scheduling orders its operands.
+    &lower_shifts::LowerShifts,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 

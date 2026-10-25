@@ -41,6 +41,7 @@ pub(crate) mod lower_mcopy;
 pub(crate) mod lower_memory_objects;
 pub(crate) mod lower_memory_zero;
 mod lower_packed;
+pub(crate) mod lower_shifts;
 pub(crate) mod lower_slices;
 mod lower_storage_arrays;
 mod lower_storage_bytes;

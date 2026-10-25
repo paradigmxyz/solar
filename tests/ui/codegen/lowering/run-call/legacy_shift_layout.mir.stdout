@@ -1,0 +1,118 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/legacy_shift_layout.sol:LegacyShiftLayout ===
+@module LegacyShiftLayout
+fn @layout(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x3f3109b7, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 0)
+    v1 = keccak256_packed (uint256 arg0, uint256 1)
+    v2 = keccak256_packed (uint256 arg0, uint256 2)
+    v3 = keccak256_packed (uint256 arg0, uint256 3)
+    v4 = keccak256_packed (uint256 arg0, uint256 4)
+    v5 = keccak256_packed (uint256 arg0, uint256 5)
+    v6 = keccak256_packed (uint256 arg0, uint256 6)
+    v7 = keccak256_packed (uint256 arg0, uint256 7)
+    v8 = keccak256_packed (uint256 arg0, uint256 8)
+    v9 = keccak256_packed (uint256 arg0, uint256 9)
+    v10 = keccak256_packed (uint256 arg0, uint256 10)
+    v11 = keccak256_packed (uint256 arg0, uint256 11)
+    v12 = keccak256_packed (uint256 arg0, uint256 12)
+    v13 = keccak256_packed (uint256 arg0, uint256 13)
+    v14 = keccak256_packed (uint256 arg0, uint256 14)
+    v15 = keccak256_packed (uint256 arg0, uint256 15)
+    v16 = keccak256_packed (uint256 arg0, uint256 16)
+    v17 = ne arg1, 0
+    jumpi v17, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v18 = calldataload 36
+    v19 = calldataload 68
+    v20 = shl v18, v19
+    v21 = add 160, v20
+    jump bb4
+  bb4:
+    v22 = phi [bb1: arg0], [bb6: v22]
+    v23 = phi [bb1: arg1], [bb6: v23]
+    v24 = phi [bb1: arg2], [bb6: v24]
+    v25 = phi [bb1: 0], [bb6: v25]
+    v26 = phi [bb1: v0], [bb6: v26]
+    v27 = phi [bb1: v1], [bb6: v27]
+    v28 = phi [bb1: v2], [bb6: v28]
+    v29 = phi [bb1: v3], [bb6: v29]
+    v30 = phi [bb1: v4], [bb6: v30]
+    v31 = phi [bb1: v5], [bb6: v31]
+    v32 = phi [bb1: v6], [bb6: v32]
+    v33 = phi [bb1: v7], [bb6: v33]
+    v34 = phi [bb1: v8], [bb6: v34]
+    v35 = phi [bb1: v9], [bb6: v35]
+    v36 = phi [bb1: v10], [bb6: v36]
+    v37 = phi [bb1: v11], [bb6: v37]
+    v38 = phi [bb1: v12], [bb6: v38]
+    v39 = phi [bb1: v13], [bb6: v39]
+    v40 = phi [bb1: v14], [bb6: v40]
+    v41 = phi [bb1: v15], [bb6: v41]
+    v42 = phi [bb1: v16], [bb6: v42]
+    v43 = phi [bb1: v20], [bb6: v43]
+    v44 = phi [bb1: v19], [bb6: v44]
+    v45 = phi [bb1: v21], [bb6: v45]
+    v46 = phi [bb1: 160], [bb6: v50]
+    v47 = lt v46, v45
+    v48 = zext i1 v47 to i256
+    v49 = ne v48, 0
+    jumpi v49, bb7, bb8
+  bb8:
+    jump bb5
+  bb5:
+    mstore v45, v22
+    v51 = sub v45, 160
+    v52 = add v51, 32
+    v53 = keccak256 160, v52
+    jump bb3
+  bb3:
+    v54 = phi [bb5: v22], [bb2: arg0]
+    v55 = phi [bb5: v23], [bb2: arg1]
+    v56 = phi [bb5: v24], [bb2: arg2]
+    v57 = phi [bb5: v53], [bb2: 0]
+    v58 = phi [bb5: v26], [bb2: v0]
+    v59 = phi [bb5: v27], [bb2: v1]
+    v60 = phi [bb5: v28], [bb2: v2]
+    v61 = phi [bb5: v29], [bb2: v3]
+    v62 = phi [bb5: v30], [bb2: v4]
+    v63 = phi [bb5: v31], [bb2: v5]
+    v64 = phi [bb5: v32], [bb2: v6]
+    v65 = phi [bb5: v33], [bb2: v7]
+    v66 = phi [bb5: v34], [bb2: v8]
+    v67 = phi [bb5: v35], [bb2: v9]
+    v68 = phi [bb5: v36], [bb2: v10]
+    v69 = phi [bb5: v37], [bb2: v11]
+    v70 = phi [bb5: v38], [bb2: v12]
+    v71 = phi [bb5: v39], [bb2: v13]
+    v72 = phi [bb5: v40], [bb2: v14]
+    v73 = phi [bb5: v41], [bb2: v15]
+    v74 = phi [bb5: v42], [bb2: v16]
+    v75 = xor v58, v59
+    v76 = xor v75, v60
+    v77 = xor v76, v61
+    v78 = xor v77, v62
+    v79 = xor v78, v63
+    v80 = xor v79, v64
+    v81 = xor v80, v65
+    v82 = xor v81, v66
+    v83 = xor v82, v67
+    v84 = xor v83, v68
+    v85 = xor v84, v69
+    v86 = xor v85, v70
+    v87 = xor v86, v71
+    v88 = xor v87, v72
+    v89 = xor v88, v73
+    v90 = xor v89, v74
+    v91 = xor v57, v90
+    ret v91
+  bb7:
+    mstore v46, v22
+    jump bb9
+  bb9:
+    jump bb6
+  bb6:
+    v50 = add v46, 32
+    jump bb4
+}

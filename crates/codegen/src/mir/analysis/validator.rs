@@ -1483,6 +1483,35 @@ pub(crate) fn validate_phase(
     validator.error.map_or(Ok(()), Err)
 }
 
+/// Rejects shifts in a module that targets an EVM version without shift opcodes.
+///
+/// `lower-shifts` removes them, so one left after lowering means that pass did not run.
+pub(crate) fn validate_legal_shifts(
+    dcx: &DiagCtxt,
+    module: &Module,
+) -> solar_interface::Result<()> {
+    let mut validator = Validator::new(dcx);
+    for (id, func) in module.functions.iter_enumerated() {
+        validator.function = Some(id);
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                let kind = &func.inst(inst_id).kind;
+                if kind.is_shift() {
+                    validator.emit_at_inst(
+                        format_args!(
+                            "`{}` instruction survives lowering for an EVM version without shifts",
+                            kind.mnemonic()
+                        ),
+                        block_id,
+                        inst_id,
+                    );
+                }
+            }
+        }
+    }
+    validator.error.map_or(Ok(()), Err)
+}
+
 /// Matches result components without recursive traversal or expanding repeated empty structs.
 fn return_abi_matches(
     module: &Module,
