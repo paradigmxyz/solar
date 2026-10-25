@@ -100,8 +100,8 @@ In CI, PRs pass the exact-base result as `--reference-results`, so solc runs onl
 revision. Solx 0.1.8 is pinned and runs only on pushes to main, never in PR jobs, even ones that
 rebuild a missing baseline; its columns appear when the downloaded main artifact has matching
 results. Oksolc runs on main, PRs, and manual runs; PRs add `--oksolc` to `--reference-results` so
-they include oksolc before a main baseline has it. CI builds oksolc revision
-`d5ff7399356b1ad238c839278a334e13e0e2dc81` with Zig 0.16.0, ReleaseFast, for the baseline CPU so the
+they include oksolc before a main baseline has it. CI builds oksolc v0.2.2, revision
+`c465a262edc835afff32951ee2d64e827bc16c3d`, with Zig 0.17.0, ReleaseFast, for the baseline CPU so the
 cached binary runs on any runner of that architecture. The upstream build disables the browser UI by
 default, so it needs no source patch, TypeScript, or Bun. The cache key covers revision, Zig
 version, OS, architecture, and build settings; a hit skips the shallow checkout and build. Solx and
