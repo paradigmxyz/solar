@@ -62,7 +62,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if changed {
             module.invalidate_lowered_check();
         }
-        let Ok(lowered) = module.as_lowered(self.gcx.dcx(), should_validate_ir(self.gcx)) else {
+        let Ok(lowered) = module.as_lowered(self.gcx, should_validate_ir(self.gcx)) else {
             return false;
         };
         let module = &*lowered;

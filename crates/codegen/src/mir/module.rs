@@ -203,11 +203,16 @@ impl Module {
     /// Checks the destination representation before advancing the phase.
     pub(crate) fn advance_phase(
         &mut self,
-        dcx: &solar_interface::diagnostics::DiagCtxt,
+        gcx: solar_sema::Gcx<'_>,
         phase: MirPhase,
     ) -> solar_interface::Result<()> {
         assert!(phase >= self.phase, "MIR phase cannot regress");
-        crate::mir::analysis::validate_phase(dcx, self, phase)?;
+        crate::mir::analysis::validate_phase(
+            gcx.dcx(),
+            self,
+            phase,
+            gcx.sess.is_parallel_codegen(),
+        )?;
         self.phase = phase;
         self.lowered_checked = phase == MirPhase::Lowered;
         Ok(())
@@ -224,9 +229,10 @@ impl Module {
     /// unless `recheck` is set.
     pub(crate) fn as_lowered(
         &self,
-        dcx: &solar_interface::diagnostics::DiagCtxt,
+        gcx: solar_sema::Gcx<'_>,
         recheck: bool,
     ) -> solar_interface::Result<LoweredModule<'_>> {
+        let dcx = gcx.dcx();
         if self.phase != MirPhase::Lowered {
             return Err(dcx
                 .err(format!(
@@ -237,7 +243,12 @@ impl Module {
                 .emit());
         }
         if recheck || !self.lowered_checked {
-            crate::mir::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
+            crate::mir::analysis::validate_phase(
+                dcx,
+                self,
+                MirPhase::Lowered,
+                gcx.sess.is_parallel_codegen(),
+            )?;
         }
         Ok(LoweredModule(self))
     }

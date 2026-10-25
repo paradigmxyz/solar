@@ -49,6 +49,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
+    sync,
 };
 use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
@@ -693,10 +694,10 @@ impl<'a> Validator<'a> {
 
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
-        self.validate_module_at_phase(module, module.phase());
+        self.validate_module_at_phase(module, module.phase(), false);
     }
 
-    fn validate_module_at_phase(&mut self, module: &Module, phase: MirPhase) {
+    fn validate_module_at_phase(&mut self, module: &Module, phase: MirPhase, parallel: bool) {
         self.returning_functions = Some(module.returning_functions());
         self.prepare_return_abi_validation(module);
         for (id, ty) in module.struct_types.iter_enumerated() {
@@ -714,11 +715,33 @@ impl<'a> Validator<'a> {
         }
         self.validate_module_phase(module, phase);
         self.validate_immutable_declarations(module);
+        if parallel && self.functions_are_valid(module, phase) {
+            return;
+        }
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
             self.validate_function(module, func, phase);
         }
         self.function = None;
+    }
+
+    /// Checks the functions in parallel with their diagnostics discarded.
+    ///
+    /// A module with a finding is checked again in function order, so diagnostics keep their
+    /// serial order.
+    fn functions_are_valid(&self, module: &Module, phase: MirPhase) -> bool {
+        let returning_functions = &self.returning_functions;
+        let return_field_counts = &self.return_field_counts;
+        sync::par_try_map(module.functions.len() > 1, module.functions.indices().collect(), |id| {
+            let dcx = DiagCtxt::with_silent_emitter(None);
+            let mut validator = Validator::new(&dcx);
+            validator.returning_functions = returning_functions.clone();
+            validator.return_field_counts = return_field_counts.clone();
+            validator.function = Some(id);
+            validator.validate_function(module, &module.functions[id], phase);
+            validator.error.map_or(Ok(()), |_| Err(()))
+        })
+        .is_ok()
     }
 
     fn prepare_return_abi_validation(&mut self, module: &Module) {
@@ -1434,9 +1457,10 @@ pub(crate) fn validate_phase(
     dcx: &DiagCtxt,
     module: &Module,
     phase: MirPhase,
+    parallel: bool,
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
-    validator.validate_module_at_phase(module, phase);
+    validator.validate_module_at_phase(module, phase, parallel);
     validator.error.map_or(Ok(()), Err)
 }
 
