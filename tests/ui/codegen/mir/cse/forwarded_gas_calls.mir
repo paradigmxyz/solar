@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=storage-load-cse
+//@compile-flags: -Zmir-pipeline=storage-cse
 //@filecheck:
 @module ForwardedGasCalls
 

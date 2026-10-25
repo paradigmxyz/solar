@@ -1,0 +1,43 @@
+- // === ROOT/tests/ui/codegen/mir/cse/extended_blocks.mir (before storage-cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/extended_blocks.mir (after storage-cse) ===
+  @module StorageCseExtendedBlocks
+  fn @store_then_jump(arg0: i256) -> i256 {
+    bb0:
+      v0 = sload 7
+      v1 = or v0, arg0
+      sstore 7, v1
+      jump bb1
+    bb1:
+-     v2 = sload 7
+-     v3 = and v2, 255
++     v3 = and v1, 255
+      ret v3
+  }
+  
+  fn @load_in_both_arms(arg0: i1) -> i256 {
+    bb0:
+      v0 = sload 3
+      jumpi arg0, bb1, bb2
+    bb2:
+      v3 = sload 3
+      ret v3
+    bb1:
+-     v1 = sload 3
+-     v2 = add v0, v1
++     v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @join_starts_empty(arg0: i1) -> i256 {
+    bb0:
+      v0 = sload 5
+      jumpi arg0, bb1, bb2
+    bb1:
+      sstore 5, 1
+      jump bb2
+    bb2:
+      v1 = sload 5
+      v2 = add v0, v1
+      ret v2
+  }
+  

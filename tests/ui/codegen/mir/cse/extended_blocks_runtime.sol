@@ -5,7 +5,7 @@
 //@ run-call: aliasedSlotInBranch true, 1 => 1
 //@ run-call: aliasedSlotInBranch false, 0 => 0
 //@ run-call: callChangesSlot => 7
-contract StorageLoadCseExtendedBlocks {
+contract StorageCseExtendedBlocks {
     uint256[2] words;
 
     function aliasedElement(uint256 i) external returns (uint256) {

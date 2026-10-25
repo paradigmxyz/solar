@@ -1,6 +1,6 @@
 //! All-path dead storage-store elimination.
 //!
-//! This pass removes persistent `sstore` instructions inside a single basic
+//! This pass removes persistent `sstore` and transient `tstore` instructions inside a single basic
 //! block or across CFG edges when a later store to the same definitely-known slot overwrites them
 //! before any storage observer can see the intermediate value. It also removes
 //! repeated equal stores when no intervening instruction can clobber storage.
@@ -9,8 +9,11 @@
 //! successors. An exit that returns or stops starts with no slots, and a least
 //! fixed point prevents a loop from justifying its own dead stores. An exit that
 //! reverts, directly or through a tail call to a function that never returns,
-//! starts with every slot: the revert discards every storage write, so a store
-//! that only reaches it is dead unless something reads the slot first. Reads,
+//! starts with every slot: the revert discards every storage and transient-storage write, so a
+//! store that only reaches it is dead unless something reads the slot first. A return or stop
+//! commits persistent writes and leaves transient writes readable by a re-entrant `tload`, so
+//! neither kind is dead on those exits. Each space keeps its own facts, so an access to one
+//! never kills a fact about the other. Reads,
 //! possible aliases and unknown call effects kill facts. Only after convergence are stores erased;
 //! local equal store removal then runs with the same alias barriers. Run after storage
 //! forwarding so packed read-modify-write chains expose their overwritten
@@ -50,7 +53,10 @@ impl MirPass for StorageDse {
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
             if func.instructions().any(|inst| {
-                matches!(func.inst(inst).kind, InstKind::Store(.., PtrLocation::Storage))
+                matches!(
+                    func.inst(inst).kind,
+                    InstKind::Store(.., PtrLocation::Storage | PtrLocation::Transient)
+                )
             }) {
                 selected.insert(id);
             }
@@ -104,7 +110,7 @@ struct StorageStoreEliminator<'a> {
 }
 
 struct RunState {
-    stored_values: FxHashMap<StorageAlias, ValueId>,
+    stored_values: FxHashMap<Location, ValueId>,
     dead: DenseBitSet<InstId>,
 }
 
@@ -127,7 +133,7 @@ impl<'a> StorageStoreEliminator<'a> {
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         self.annotated_aliases |=
-            func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
+            func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
 
         let cfg = &*self.cfg;
         let mut incoming = index_vec![Overwritten::none(); func.blocks.len()];
@@ -196,7 +202,8 @@ impl<'a> StorageStoreEliminator<'a> {
     }
 
     /// The slots an exit discards before its terminator: every slot when it reverts, none
-    /// when it can commit storage.
+    /// when it can commit storage. A return or stop keeps transient writes too, because a
+    /// re-entrant call can still read them.
     fn exit_facts(&self, func: &Function, terminator: &Terminator) -> Overwritten {
         let reverts = terminator.reverts()
             || matches!(*terminator, Terminator::TailCall { function, .. }
@@ -205,7 +212,7 @@ impl<'a> StorageStoreEliminator<'a> {
             return Overwritten::none();
         }
         // A reverting callee can still read a slot into its revert data.
-        let mut facts = Overwritten::All;
+        let mut facts = Overwritten::all();
         let effects = self.alias.terminator_mod_ref(func, terminator);
         Self::apply_reverse_effects(&self.alias, &effects, &mut facts);
         facts
@@ -224,17 +231,22 @@ impl<'a> StorageStoreEliminator<'a> {
                 later_writes.clear();
             }
             match &func.inst(inst_id).kind {
-                InstKind::Store(slot, _, PtrLocation::Storage) => {
-                    let alias = aa.storage_alias(func, inst_id, *slot);
-                    if later_writes.contains(&alias) {
+                &InstKind::Store(
+                    slot,
+                    _,
+                    location @ (PtrLocation::Storage | PtrLocation::Transient),
+                ) => {
+                    let space = Space::of(location);
+                    let alias = aa.storage_alias(func, inst_id, slot);
+                    if later_writes.facts(space).contains(&alias) {
                         if let Some(dead) = &mut dead {
                             dead.insert(inst_id);
                         }
                         continue;
                     }
 
-                    later_writes.remove_aliasing(aa, alias);
-                    later_writes.insert(alias);
+                    later_writes.facts_mut(space).remove_aliasing(aa, space, alias);
+                    later_writes.facts_mut(space).insert(alias);
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref(func, inst_id);
@@ -254,7 +266,7 @@ impl<'a> StorageStoreEliminator<'a> {
         &mut self,
         func: &mut Function,
         block_id: BlockId,
-        stored_values: &mut FxHashMap<StorageAlias, ValueId>,
+        stored_values: &mut FxHashMap<Location, ValueId>,
         dead: &mut DenseBitSet<InstId>,
     ) {
         let aa = &*self.alias;
@@ -263,16 +275,21 @@ impl<'a> StorageStoreEliminator<'a> {
 
         for &inst_id in &func.blocks[block_id].instructions {
             match &func.inst(inst_id).kind {
-                InstKind::Store(slot, value, PtrLocation::Storage) => {
-                    let alias = aa.storage_alias(func, inst_id, *slot);
-                    if stored_values.get(&alias).is_some_and(|&stored| stored == *value) {
+                &InstKind::Store(
+                    slot,
+                    value,
+                    location @ (PtrLocation::Storage | PtrLocation::Transient),
+                ) => {
+                    let location =
+                        Space::of(location).location(aa.storage_alias(func, inst_id, slot));
+                    if stored_values.get(&location).is_some_and(|&stored| stored == value) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
                         continue;
                     }
 
-                    Self::remove_aliasing_map(aa, stored_values, alias);
-                    stored_values.insert(alias, *value);
+                    Self::remove_aliasing_map(aa, stored_values, location);
+                    stored_values.insert(location, value);
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref(func, inst_id);
@@ -290,28 +307,34 @@ impl<'a> StorageStoreEliminator<'a> {
 
     fn remove_aliasing_map(
         aa: &AliasAnalysis,
-        values: &mut FxHashMap<StorageAlias, ValueId>,
-        alias: StorageAlias,
+        values: &mut FxHashMap<Location, ValueId>,
+        location: Location,
     ) {
-        values.retain(|cached, _| {
-            !aa.alias(Location::Storage(*cached), Location::Storage(alias)).may_alias()
-        });
+        values.retain(|cached, _| !aa.alias(*cached, location).may_alias());
     }
 
     fn apply_reverse_effects(aa: &AliasAnalysis, effects: &ModRef, later_writes: &mut Overwritten) {
-        if effects.observes_gas()
-            || effects.reads_anywhere(AddressSpace::Storage)
-            || effects.writes_anywhere(AddressSpace::Storage)
-        {
+        if effects.observes_gas() {
             later_writes.clear();
             return;
         }
 
-        // ModRef describes possible writes, not definite overwrites. Only
-        // an explicit sstore can establish a later write on every path.
-        for &access in effects.reads() {
-            if let Access::Location(Location::Storage(alias)) = access {
-                later_writes.remove_aliasing(aa, alias);
+        for space in Space::ALL {
+            if effects.reads_anywhere(space.address_space())
+                || effects.writes_anywhere(space.address_space())
+            {
+                later_writes.facts_mut(space).clear();
+                continue;
+            }
+
+            // ModRef describes possible writes, not definite overwrites. Only
+            // an explicit store can establish a later write on every path.
+            for &access in effects.reads() {
+                if let Access::Location(location) = access
+                    && let Some(alias) = space.alias_of(location)
+                {
+                    later_writes.facts_mut(space).remove_aliasing(aa, space, alias);
+                }
             }
         }
     }
@@ -319,44 +342,142 @@ impl<'a> StorageStoreEliminator<'a> {
     fn apply_forward_writes(
         aa: &AliasAnalysis,
         effects: &ModRef,
-        stored_values: &mut FxHashMap<StorageAlias, ValueId>,
+        stored_values: &mut FxHashMap<Location, ValueId>,
     ) {
-        if effects.observes_gas() || effects.writes_anywhere(AddressSpace::Storage) {
+        if effects.observes_gas() {
             stored_values.clear();
             return;
         }
         for &access in effects.writes() {
-            if let Access::Location(Location::Storage(alias)) = access {
-                Self::remove_aliasing_map(aa, stored_values, alias);
+            match access {
+                Access::Any(space) => {
+                    stored_values.retain(|location, _| location.address_space() != space);
+                }
+                Access::Location(location) => {
+                    Self::remove_aliasing_map(aa, stored_values, location)
+                }
             }
         }
     }
 }
 
+/// A space of storage slots whose stores the pass removes.
+#[derive(Clone, Copy, Debug)]
+enum Space {
+    /// Persistent storage, which a revert discards and a return commits.
+    Storage,
+    /// Transient storage, which a revert discards and a return keeps readable to later calls of
+    /// the transaction.
+    Transient,
+}
+
+impl Space {
+    const ALL: [Self; 2] = [Self::Storage, Self::Transient];
+
+    /// The space a storage or transient store writes.
+    fn of(location: PtrLocation) -> Self {
+        match location {
+            PtrLocation::Storage => Self::Storage,
+            PtrLocation::Transient => Self::Transient,
+            _ => unreachable!("not a storage space: {location:?}"),
+        }
+    }
+
+    fn address_space(self) -> AddressSpace {
+        match self {
+            Self::Storage => AddressSpace::Storage,
+            Self::Transient => AddressSpace::Transient,
+        }
+    }
+
+    /// The slot `location` names, if it lies in this space.
+    fn alias_of(self, location: Location) -> Option<StorageAlias> {
+        match (self, location) {
+            (Self::Storage, Location::Storage(alias))
+            | (Self::Transient, Location::Transient(alias)) => Some(alias),
+            _ => None,
+        }
+    }
+
+    fn location(self, alias: StorageAlias) -> Location {
+        match self {
+            Self::Storage => Location::Storage(alias),
+            Self::Transient => Location::Transient(alias),
+        }
+    }
+}
+
 /// Slots that every path from a program point overwrites or discards before anything observes
-/// them.
+/// them, per space.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Overwritten {
-    /// Every slot: each path reverts, which discards every storage write.
-    All,
-    /// The slots a later store on every path overwrites.
-    Slots(FxHashSet<StorageAlias>),
+struct Overwritten {
+    storage: Slots,
+    transient: Slots,
 }
 
 impl Overwritten {
     fn none() -> Self {
-        Self::Slots(FxHashSet::default())
+        Self { storage: Slots::none(), transient: Slots::none() }
+    }
+
+    /// Every slot of every space: each path reverts.
+    fn all() -> Self {
+        Self { storage: Slots::All, transient: Slots::All }
+    }
+
+    fn facts(&self, space: Space) -> &Slots {
+        match space {
+            Space::Storage => &self.storage,
+            Space::Transient => &self.transient,
+        }
+    }
+
+    fn facts_mut(&mut self, space: Space) -> &mut Slots {
+        match space {
+            Space::Storage => &mut self.storage,
+            Space::Transient => &mut self.transient,
+        }
+    }
+
+    fn clear(&mut self) {
+        *self = Self::none();
+    }
+
+    fn intersect(&mut self, other: &Self) {
+        self.storage.intersect(&other.storage);
+        self.transient.intersect(&other.transient);
+    }
+
+    /// Drops the symbolic slots computed from `value`.
+    fn remove_based_on(&mut self, value: ValueId) {
+        self.storage.remove_based_on(value);
+        self.transient.remove_based_on(value);
+    }
+}
+
+/// The overwritten slots of one space.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Slots {
+    /// Every slot: each path reverts, which discards every write.
+    All,
+    /// The slots a later store on every path overwrites.
+    Set(FxHashSet<StorageAlias>),
+}
+
+impl Slots {
+    fn none() -> Self {
+        Self::Set(FxHashSet::default())
     }
 
     fn contains(&self, alias: &StorageAlias) -> bool {
         match self {
             Self::All => true,
-            Self::Slots(slots) => slots.contains(alias),
+            Self::Set(slots) => slots.contains(alias),
         }
     }
 
     fn insert(&mut self, alias: StorageAlias) {
-        if let Self::Slots(slots) = self {
+        if let Self::Set(slots) = self {
             slots.insert(alias);
         }
     }
@@ -368,18 +489,18 @@ impl Overwritten {
     fn intersect(&mut self, other: &Self) {
         match (&mut *self, other) {
             (_, Self::All) => {}
-            (Self::All, Self::Slots(_)) => *self = other.clone(),
-            (Self::Slots(slots), Self::Slots(other)) => slots.retain(|alias| other.contains(alias)),
+            (Self::All, Self::Set(_)) => *self = other.clone(),
+            (Self::Set(slots), Self::Set(other)) => slots.retain(|alias| other.contains(alias)),
         }
     }
 
     /// Drops every slot that may alias `alias`. Every slot but those cannot be named, so a read
     /// on a reverting path keeps none.
-    fn remove_aliasing(&mut self, aa: &AliasAnalysis, alias: StorageAlias) {
+    fn remove_aliasing(&mut self, aa: &AliasAnalysis, space: Space, alias: StorageAlias) {
         match self {
             Self::All => self.clear(),
-            Self::Slots(slots) => slots.retain(|cached| {
-                !aa.alias(Location::Storage(*cached), Location::Storage(alias)).may_alias()
+            Self::Set(slots) => slots.retain(|&cached| {
+                !aa.alias(space.location(cached), space.location(alias)).may_alias()
             }),
         }
     }
@@ -387,7 +508,7 @@ impl Overwritten {
     /// Drops the symbolic slots computed from `value`, which name a different slot on the next
     /// loop iteration. A revert discards that slot too, so every slot stays.
     fn remove_based_on(&mut self, value: ValueId) {
-        if let Self::Slots(slots) = self {
+        if let Self::Set(slots) = self {
             slots.retain(|alias| match *alias {
                 StorageAlias::Slot(_) => true,
                 StorageAlias::Symbolic(base) | StorageAlias::Offset { base, .. } => base != value,

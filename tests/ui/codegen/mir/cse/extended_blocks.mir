@@ -1,6 +1,6 @@
-//@compile-flags: -Zmir-pipeline=storage-load-cse
+//@compile-flags: -Zmir-pipeline=storage-cse
 //@filecheck:
-@module StorageLoadCseExtendedBlocks
+@module StorageCseExtendedBlocks
 
 // A block entered only from the block before it continues that block's facts,
 // as when inlining leaves a callee's read in its own block after the caller's
@@ -24,7 +24,7 @@ fn @store_then_jump(arg0: i256) -> i256 {
 // arm that reads nothing else keeps its own load rather than carrying the first
 // one, as within a block.
 // CHECK-LABEL: {{^[ +].*}}fn @load_in_both_arms{{[( ]}}
-// CHECK: + [[LOAD:v[0-9]+]] = sload 3 !metadata
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = sload 3
 // CHECK: + {{v[0-9]+}} = add [[LOAD]], [[LOAD]]
 // CHECK-LABEL: {{^[ +].*}}fn @join_starts_empty{{[( ]}}
 fn @load_in_both_arms(arg0: i1) -> i256 {

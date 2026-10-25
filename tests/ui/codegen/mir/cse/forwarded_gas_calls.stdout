@@ -1,10 +1,9 @@
-- // === ROOT/tests/ui/codegen/mir/storage-load-cse/forwarded_gas_calls.mir (before storage-load-cse) ===
-+ // === ROOT/tests/ui/codegen/mir/storage-load-cse/forwarded_gas_calls.mir (after storage-load-cse) ===
+- // === ROOT/tests/ui/codegen/mir/cse/forwarded_gas_calls.mir (before storage-cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/forwarded_gas_calls.mir (after storage-cse) ===
   @module ForwardedGasCalls
   fn @after_forwarding_helper(arg0: i256) -> i256 {
     bb0:
--     v0 = sload 0
-+     v0 = sload 0 !metadata(storage=slot(0))
+      v0 = sload 0
       v1 = icall @forwards_gas, arg0
 -     v2 = sload 0
 -     v3 = add v0, v2
@@ -22,11 +21,9 @@
   
   fn @after_observing_helper() -> i256 {
     bb0:
--     v0 = sload 0
-+     v0 = sload 0 !metadata(storage=slot(0))
+      v0 = sload 0
       v1 = icall @returns_gas
--     v2 = sload 0
-+     v2 = sload 0 !metadata(storage=slot(0))
+      v2 = sload 0
       v3 = add v0, v2
       v4 = add v3, v1
       ret v4

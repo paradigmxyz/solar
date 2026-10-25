@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (before storage-load-cse) ===
-+ // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (after storage-load-cse) ===
+- // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (before storage-cse) ===
++ // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (after storage-cse) ===
   @module StorageDseControlFlow
   fn @both_paths(arg0: i1) {
     bb0:
@@ -15,37 +15,29 @@
   
   fn @one_path_reads(arg0: i1) -> i256 {
     bb0:
--     sstore 0, 1
-+     sstore 0, 1 !metadata(storage=slot(0))
+      sstore 0, 1
       jumpi arg0, bb1, bb2
     bb2:
--     sstore 0, 3
-+     sstore 0, 3 !metadata(storage=slot(0))
+      sstore 0, 3
       ret 0
     bb1:
 -     v0 = sload 0
--     sstore 0, 2
+      sstore 0, 2
 -     ret v0
-+     sstore 0, 2 !metadata(storage=slot(0))
 +     ret 1
   }
   
   fn @one_path_reads_after_alias(arg0: i1, arg1: i256) -> i256 {
     bb0:
--     sstore 0, 1
-+     sstore 0, 1 !metadata(storage=slot(0))
+      sstore 0, 1
       jumpi arg0, bb1, bb2
     bb2:
--     sstore 0, 3
-+     sstore 0, 3 !metadata(storage=slot(0))
+      sstore 0, 3
       ret 0
     bb1:
--     sstore arg1, 5
--     v0 = sload 0
--     sstore 0, 2
-+     sstore arg1, 5 !metadata(storage=symbolic(arg1))
-+     v0 = sload 0 !metadata(storage=slot(0))
-+     sstore 0, 2 !metadata(storage=slot(0))
+      sstore arg1, 5
+      v0 = sload 0
+      sstore 0, 2
       ret v0
   }
   
@@ -64,21 +56,18 @@
   
   fn @packed(arg0: i256, arg1: i256) {
     bb0:
--     v0 = sload 0
-+     v0 = sload 0 !metadata(storage=slot(0))
+      v0 = sload 0
       v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
       v2 = and arg0, 255
       v3 = or v1, v2
--     sstore 0, v3
+      sstore 0, v3
 -     v4 = sload 0
 -     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-+     sstore 0, v3 !metadata(storage=slot(0))
 +     v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
       v6 = and arg1, 255
       v7 = shl v6, 8
       v8 = or v5, v7
--     sstore 0, v8
-+     sstore 0, v8 !metadata(storage=slot(0))
+      sstore 0, v8
       stop
   }
   
@@ -129,27 +118,34 @@
   
   fn @one_path_reads(arg0: i1) -> i256 {
     bb0:
--     sstore 0, 1 !metadata(storage=slot(0))
+-     sstore 0, 1
       jumpi arg0, bb1, bb2
     bb2:
-      sstore 0, 3 !metadata(storage=slot(0))
+-     sstore 0, 3
++     sstore 0, 3 !metadata(storage=slot(0))
       ret 0
     bb1:
-      sstore 0, 2 !metadata(storage=slot(0))
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
       ret 1
   }
   
   fn @one_path_reads_after_alias(arg0: i1, arg1: i256) -> i256 {
     bb0:
-      sstore 0, 1 !metadata(storage=slot(0))
+-     sstore 0, 1
++     sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
     bb2:
-      sstore 0, 3 !metadata(storage=slot(0))
+-     sstore 0, 3
++     sstore 0, 3 !metadata(storage=slot(0))
       ret 0
     bb1:
-      sstore arg1, 5 !metadata(storage=symbolic(arg1))
-      v0 = sload 0 !metadata(storage=slot(0))
-      sstore 0, 2 !metadata(storage=slot(0))
+-     sstore arg1, 5
+-     v0 = sload 0
+-     sstore 0, 2
++     sstore arg1, 5 !metadata(storage=symbolic(arg1))
++     v0 = sload 0 !metadata(storage=slot(0))
++     sstore 0, 2 !metadata(storage=slot(0))
       ret v0
   }
   
@@ -170,16 +166,18 @@
   
   fn @packed(arg0: i256, arg1: i256) {
     bb0:
-      v0 = sload 0 !metadata(storage=slot(0))
+-     v0 = sload 0
++     v0 = sload 0 !metadata(storage=slot(0))
       v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
       v2 = and arg0, 255
       v3 = or v1, v2
--     sstore 0, v3 !metadata(storage=slot(0))
+-     sstore 0, v3
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
       v6 = and arg1, 255
       v7 = shl v6, 8
       v8 = or v5, v7
-      sstore 0, v8 !metadata(storage=slot(0))
+-     sstore 0, v8
++     sstore 0, v8 !metadata(storage=slot(0))
       stop
   }
   

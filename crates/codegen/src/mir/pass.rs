@@ -47,14 +47,14 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &const_fold::ConstFold,
     &readonly_eval::ReadonlyEval,
-    &cse::Cse,
+    &cse::Cse::All,
     &cse::FmpCse,
     &pre::Pre,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
     &byte_run::ByteRunLoads,
-    &storage_load_cse::StorageLoadCse,
+    &cse::Cse::Storage,
     &storage_dse::StorageDse,
     &load_pre::LoadPre::All,
     &load_pre::LoadPre::Storage,
@@ -193,13 +193,13 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &egraph::Egraph,
     &word_sequence::WordSequence::Early,
     &pre::Pre,
-    &storage_load_cse::StorageLoadCse,
+    &cse::Cse::Storage,
     &storage_dse::StorageDse,
     // Checked array loops reload one object's length before every bounds
     // check. Unify the dominated reads while object identity is explicit, so
     // load PRE and LICM see one loop-invariant load and the later check passes
     // compare against one bound.
-    &cse::Cse,
+    &cse::Cse::All,
     &load_pre::LoadPre::All,
     // Element reads of arrays that only ever hold canonical words drop their
     // type masks while the accesses are still semantic and calls explicit.
@@ -277,7 +277,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_abi_encode::LowerAbiEncode,
     // Packed storage writes leave read-modify-write sequences. Forward whole
     // words before deleting the overwritten stores, then simplify masks.
-    &storage_load_cse::StorageLoadCse,
+    &cse::Cse::Storage,
     &storage_dse::StorageDse,
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
@@ -287,7 +287,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &inline::Inline::Semantic,
     // Late CSE reduces runtime gas after ABI encoding lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
-    &GasOnly::new(cse::Cse),
+    &GasOnly::new(cse::Cse::All),
     // Common dominated loads before PRE replaces join loads with phis, then
     // fold checks exposed by forwarding the stored values.
     &GasOnly::new(load_pre::LoadPre::Storage),
@@ -306,8 +306,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // boundary.
     &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
-    &GasOnly::new(cse::Cse),
-    &SizeOnly::new(cse::Cse),
+    &GasOnly::new(cse::Cse::All),
+    &SizeOnly::new(cse::Cse::All),
     // Physical memory accesses let CSE unify semantic lengths with raw loads.
     // Repeated bounds checks then use the same condition as a dominating guard:
     // branch condition, body, exit; body: ...; branch condition, checked, panic
