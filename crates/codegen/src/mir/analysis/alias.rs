@@ -1508,15 +1508,19 @@ impl AliasAnalysis {
     /// or above the heap start, and a location at offset `n` in it starts at or above
     /// `HEAP_START + n`. `Allocation` bases come only from the provenance snapshot, which
     /// assigns them to unique allocations.
+    // NOTE: Like `pointer_lower_bound`, this trusts the pointer to enter the function at or above
+    // the heap start, which memory-unsafe assembly in a caller could violate.
     fn absolute_below_allocation(alloc: MemoryLocation, other: MemoryLocation) -> bool {
-        matches!(alloc.address.base, MemoryBase::Allocation(_))
+        if matches!(alloc.address.base, MemoryBase::Allocation(_))
             && other.address.base == MemoryBase::Absolute
-            && matches!(other.size, LocationSize::Const(size)
-            if other.address.offset.checked_add(size).is_some_and(|end| {
-                EvmMemoryLayout::HEAP_START
-                    .checked_add(alloc.address.offset)
-                    .is_some_and(|start| end <= start)
-            }))
+            && let Some(size) = other.size.as_const()
+            && let Some(end) = other.address.offset.checked_add(size)
+            && let Some(start) = EvmMemoryLayout::HEAP_START.checked_add(alloc.address.offset)
+        {
+            end <= start
+        } else {
+            false
+        }
     }
 
     /// Computes a memory-range relationship after addresses are canonicalized.
