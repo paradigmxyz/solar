@@ -76,26 +76,22 @@ bb73:
   push 4
   dup 2
   add
-  push 32
-  dup 2
-  add
-  swap 2
-  push 0
-  not
-  push 192
-  shr
-  lt
+  swap 1
+  push 36
   calldatasize
-  dup 4
-  gt
-  or
+  sub
+  lt
   push bb8
   jumpi
+  dup 1
   calldataload
-  push 63
-  dup 2
+  swap 1
+  push 32
   add
-  dup 2
+  push 63
+  dup 3
+  add
+  dup 3
   dup 2
   lt
   push bb72
@@ -522,13 +518,13 @@ bb69 [loop]:
   swap 1
   jump
 bb76 [continuation]:
-  dup 2
+  dup 3
   dup 2
   mstore
-  dup 3
+  dup 2
   calldatasize
   sub
-  dup 3
+  dup 4
   gt
   push bb8
   jumpi
@@ -536,6 +532,7 @@ bb76 [continuation]:
   dup 2
   add
   swap 3
+  swap 2
   swap 1
   swap 3
   calldatacopy

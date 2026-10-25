@@ -2079,14 +2079,13 @@ impl LowerAbiCx {
         let offset = builder.load(head, PtrLocation::Calldata);
         let base = builder.add(tuple_base, offset);
         let word = builder.imm(32);
-        let target_end = builder.add(base, word);
-        let max_offset = builder.imm(u64::MAX);
-        let offset_overflow = builder.gt(offset, max_offset);
-        let head_out_of_range = builder.gt(target_end, input_end);
-        let head_invalid = builder.or(offset_overflow, head_out_of_range);
         if builder.encodes_revert_reasons() {
             // Report solc's checks separately: an unencodable offset belongs to the enclosing
             // tuple, struct, or array, then the head range, length, and stride checks.
+            let target_end = builder.add(base, word);
+            let max_offset = builder.imm(u64::MAX);
+            let offset_overflow = builder.gt(offset, max_offset);
+            let head_out_of_range = builder.gt(target_end, input_end);
             *current = builder.revert_if(offset_overflow, offset_reason);
             *current =
                 builder.revert_if(head_out_of_range, RevertReason::InvalidCalldataArrayOffset);
@@ -2095,6 +2094,12 @@ impl LowerAbiCx {
             Self::guard_bytes_data(builder, data, len, input_end, current, false);
             return (base, data, len);
         }
+        // The checked head word lies in the input at or after `tuple_base`, so
+        // `input_end - tuple_base >= 32` and the bound cannot wrap. Any offset above it, including
+        // one above `u64::MAX` or one that wraps `base + 32`, is out of range.
+        let tuple_remaining = builder.sub(input_end, tuple_base);
+        let max_offset = builder.sub(tuple_remaining, word);
+        let head_invalid = builder.gt(offset, max_offset);
         let len = builder.load(base, PtrLocation::Calldata);
         let data = builder.add(base, word);
         let remaining = builder.sub(input_end, data);
@@ -2305,11 +2310,14 @@ impl LowerAbiCx {
         // Every dynamic ABI value starts with a word-sized head. Check that
         // word while forming the absolute address so nested offsets cannot
         // wrap or require a second range guard in the value-specific decoder.
-        let target_end = builder.add_u64_offset(target, 32);
-        let max_offset = builder.imm(u64::MAX);
-        let overflow = builder.gt(offset, max_offset);
-        let out_of_range = builder.gt(target_end, input_end);
-        let invalid = builder.or(overflow, out_of_range);
+        // The checked head word lies in the input at or after `base`, so
+        // `input_end - base >= 32` and the bound cannot wrap. Any offset above
+        // it, including one above `u64::MAX` or one that wraps `target + 32`,
+        // is out of range.
+        let remaining = builder.sub(input_end, base);
+        let word = builder.imm(32);
+        let max_offset = builder.sub(remaining, word);
+        let invalid = builder.gt(offset, max_offset);
         *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayOffset);
         target
     }

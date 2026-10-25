@@ -359,7 +359,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn ensure_error_catch_match_helper(&mut self) -> FunctionId {
         // valid = len >= 68
         // offset = mload(data + 4)
-        // valid &= offset <= u64::MAX && offset + 36 <= len
+        // valid &= offset <= len - 36
         // msg_len = mload(data + 4 + offset)
         // valid &= msg_len <= u64::MAX && msg_len <= len - (offset + 36)
         self.lazy_helper(sym::try_decode_error_message, |_, function| {
@@ -380,16 +380,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.switch_to_block(check_offset);
             let payload_ptr = builder.add_u64_offset(data_ptr, 4);
             let offset = builder.load(payload_ptr, PtrLocation::Memory);
-            let max_u64 = builder.imm(u64::MAX);
-            let offset_too_large = builder.gt(offset, max_u64);
-            let message_data_offset = builder.add_u64_offset(offset, 36);
-            let head_out_of_range = builder.gt(message_data_offset, data_len);
-            let invalid_offset = builder.or(offset_too_large, head_out_of_range);
+            // The length check above gives `data_len >= 68`, so the bound cannot wrap. The length
+            // of memory is far below `u64::MAX`, so an offset above it is out of range too.
+            let head_size = builder.imm(36);
+            let max_offset = builder.sub(data_len, head_size);
+            let invalid_offset = builder.gt(offset, max_offset);
             builder.branch(invalid_offset, no_match, check_length);
 
             builder.switch_to_block(check_length);
             let message_ptr = builder.add(payload_ptr, offset);
             let length = builder.load(message_ptr, PtrLocation::Memory);
+            let max_u64 = builder.imm(u64::MAX);
+            let message_data_offset = builder.add_u64_offset(offset, 36);
             let length_too_large = builder.gt(length, max_u64);
             let remaining = builder.sub(data_len, message_data_offset);
             let data_out_of_range = builder.gt(length, remaining);
