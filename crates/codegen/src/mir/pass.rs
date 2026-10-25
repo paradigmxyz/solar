@@ -453,6 +453,37 @@ pub(crate) fn run_function_pass(
     run_function_pass_with(module, analyses, FunctionAnalysisRequirements::NONE, &run)
 }
 
+/// Runs the function-local step of a pass that edits the module beyond the runner's bookkeeping:
+/// bodyless functions first, then the bodied ones through [`run_function_pass`], so idle workers
+/// can share them. The pass drops every cached analysis when it changes anything, as a serial
+/// loop over the module does, and prices no creation code.
+#[must_use]
+pub(crate) fn run_lowering_function_pass(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
+) -> bool {
+    analyses.prices_creation = false;
+    let mut changed = false;
+    for (function, func) in module.functions.iter_mut_enumerated() {
+        if func.blocks.is_empty() {
+            let bundle = FunctionAnalyses {
+                function,
+                alias: None,
+                cfg: None,
+                unreported_edit: Cell::new(false),
+                creation_only: false,
+                straight_line_creation: false,
+            };
+            changed |= run(func, &bundle);
+            analyses.unreported_edit |= bundle.unreported_edit.get();
+        }
+    }
+    changed |= run_function_pass(module, analyses, run);
+    analyses.preserved_by_pass = false;
+    changed
+}
+
 /// Runs a function-local transform with alias analysis available on demand.
 #[must_use]
 pub(crate) fn run_function_pass_with_alias(
@@ -601,6 +632,8 @@ type FunctionRun<'a> = &'a (dyn Fn(&mut Function, &FunctionAnalyses) -> bool + S
 
 /// Per-function analysis snapshots handed to a pass run.
 pub(crate) struct FunctionAnalyses {
+    /// The function the transform runs on.
+    function: FunctionId,
     /// Shared alias analysis; provenance and address memos build lazily.
     alias: Option<Rc<AliasAnalysis>>,
     /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
@@ -614,6 +647,11 @@ pub(crate) struct FunctionAnalyses {
 }
 
 impl FunctionAnalyses {
+    /// Returns the id of the function the running transform edits.
+    pub(crate) fn function(&self) -> FunctionId {
+        self.function
+    }
+
     /// Returns the alias analysis requested by the running transform.
     pub(crate) fn alias(&self) -> &Rc<AliasAnalysis> {
         self.alias.as_ref().expect("function pass must request alias analysis")
@@ -757,6 +795,7 @@ impl ModuleAnalyses {
     ) -> FunctionAnalyses {
         let (creation_only, straight_line_creation) = self.creation_pricing(func_id, module);
         FunctionAnalyses {
+            function: func_id,
             alias: requirements.alias().then(|| {
                 if let Some(alias) = self.alias.get(&func_id) {
                     return Rc::clone(alias);
@@ -1034,6 +1073,7 @@ fn run_parallel_function_pass(
         tasks,
         |(id, func, alias, cfg, (creation_only, straight_line_creation))| {
             let bundle = FunctionAnalyses {
+                function: id,
                 alias: alias.map(Rc::new),
                 cfg: cfg.map(Rc::new),
                 unreported_edit: Cell::new(false),
