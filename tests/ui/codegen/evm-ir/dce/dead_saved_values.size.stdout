@@ -35,11 +35,11 @@
     push 1
     push 2
     dup 1
-    dup 2
+-   dup 2
     add
-    swap 1
+-   swap 1
     pop
-    pop
+-   pop
     gas
     stop
   bb4:
@@ -104,13 +104,14 @@
     stop
   bb11:
     push 7
-    dup 1
+-   dup 1
     push 1
-    dup 3
+-   dup 3
++   dup 2
     add
     pop
     pop
-    pop
+-   pop
     gas
     stop
   bb12:
