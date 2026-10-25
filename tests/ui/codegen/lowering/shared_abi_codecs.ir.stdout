@@ -9,26 +9,21 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type
     v4 = icall @encodeFirst.body, v3
-    v30 = mload 64 !metadata(memory=scratch)
-    v10 = add v30, 32
-    mstore v30, 32
+    v29 = mload 64 !metadata(memory=scratch)
+    v10 = add v29, 32
+    mstore v29, 32
     v13 = mload v4
-    mstore v10, v13
     v15 = add v13, 31
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v17 = add v10, 32
-    v18 = eq v16, 0
-    jumpi v18, bb4, bb3
-  bb3:
-    v19 = add v10, v16
-    mstore v19, 0
-    jump bb4
-  bb4:
-    v21 = add v17, v16
-    v27 = add v4, 32
-    mcopy v17, v27, v13 !metadata(memory=heap, disjoint)
-    v23 = sub v21, v30
-    returndata v30, v23
+    v18 = add v10, v16
+    mstore v18, 0
+    mstore v10, v13
+    v20 = add v17, v16
+    v26 = add v4, 32
+    mcopy v17, v26, v13 !metadata(memory=heap, disjoint)
+    v22 = sub v20, v29
+    returndata v29, v22
   bb1:
     revert 0, 0
 }
@@ -41,26 +36,21 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type
     v7 = icall @encode_abi_tuple, v3
-    v30 = mload 64 !metadata(memory=scratch)
-    v10 = add v30, 32
-    mstore v30, 32
+    v29 = mload 64 !metadata(memory=scratch)
+    v10 = add v29, 32
+    mstore v29, 32
     v13 = mload v7
-    mstore v10, v13
     v15 = add v13, 31
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v17 = add v10, 32
-    v18 = eq v16, 0
-    jumpi v18, bb4, bb3
-  bb3:
-    v19 = add v10, v16
-    mstore v19, 0
-    jump bb4
-  bb4:
-    v21 = add v17, v16
-    v27 = add v7, 32
-    mcopy v17, v27, v13 !metadata(memory=heap, disjoint)
-    v23 = sub v21, v30
-    returndata v30, v23
+    v18 = add v10, v16
+    mstore v18, 0
+    mstore v10, v13
+    v20 = add v17, v16
+    v26 = add v7, 32
+    mcopy v17, v26, v13 !metadata(memory=heap, disjoint)
+    v22 = sub v20, v29
+    returndata v29, v22
   bb1:
     revert 0, 0
 }
