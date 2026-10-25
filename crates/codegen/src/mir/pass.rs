@@ -283,6 +283,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // corpus's bytecode.
     &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
+    // Forwarding has replaced the reads of allocation headers, which leaves their stores dead
+    // while the allocations are still atomic.
+    &memory_dse::MemoryDse,
     &lower_dispatch::LowerDispatch,
     &lower_structs::LowerStructs,
     // Hoisted ABI guards leave empty wrapper entries and unreachable reverts.

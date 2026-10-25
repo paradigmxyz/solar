@@ -80,9 +80,6 @@ bb6:
   add
   push 64
   mstore
-  dup 2
-  dup 2
-  mstore
   push 32
   add
   dup 2

@@ -80,9 +80,6 @@ bb7 [continuation]:
   add
   push 64
   mstore
-  dup 3
-  dup 2
-  mstore
   push 32
   add
   dup 3
@@ -133,9 +130,6 @@ bb11 [continuation]:
   dup 2
   add
   push 64
-  mstore
-  dup 3
-  dup 2
   mstore
   push 32
   add

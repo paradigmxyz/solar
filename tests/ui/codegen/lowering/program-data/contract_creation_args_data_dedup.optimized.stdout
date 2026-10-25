@@ -115,12 +115,7 @@ bb6:
   push 192
   push 64
   mstore
-  push 128
-  push 32
-  dup 2
-  mstore
-  push 32
-  add
+  push 160
   push 11
   dup 2
   mstore
@@ -175,12 +170,7 @@ bb12:
   push 192
   push 64
   mstore
-  push 128
-  push 32
-  dup 2
-  mstore
-  push 32
-  add
+  push 160
   push 22
   dup 2
   mstore

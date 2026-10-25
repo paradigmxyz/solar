@@ -196,13 +196,8 @@ bb12 [continuation]:
   swap 1
   swap 3
   calldatacopy
-  dup 1
-  push 64
-  dup 4
-  add
-  mstore
+  swap 3
   push 96
-  dup 5
   add
   calldataload
   dup 1
@@ -210,19 +205,9 @@ bb12 [continuation]:
   shr
   push bb3
   jumpi
-  dup 1
-  push 96
-  dup 5
-  add
-  mstore
-  dup 5
-  push 128
-  dup 5
-  add
-  mstore
-  swap 2
+  swap 1
   mload
-  swap 3
+  swap 2
   mload
   dup 1
   mload
@@ -230,14 +215,6 @@ bb12 [continuation]:
   dup 3
   add
   push 0
-  swap 7
-  pop
-  swap 1
-  swap 2
-  swap 3
-  swap 4
-  swap 5
-  swap 6
   jump bb15
 bb19 [loop]:
   dup 4
@@ -262,20 +239,20 @@ bb19 [loop]:
   eq
   iszero
   swap 2
-  dup 9
+  dup 8
   add
   swap 3
   push 32
   add
-  swap 8
+  swap 7
   dup 4
   lt
   swap 1
   swap 2
   or
-  swap 7
+  swap 6
   swap 2
-  swap 7
+  swap 6
   push bb22
   jumpi
   jump bb15
@@ -289,6 +266,7 @@ bb15 [loop]:
   pop
   pop
   pop
+  swap 2
   mload
   push 0x3e8
   dup 2
@@ -298,13 +276,14 @@ bb15 [loop]:
   lt
   push bb22
   jumpi
-  dup 3
+  dup 2
   add
-  swap 2
-  dup 3
+  swap 1
+  dup 2
   lt
   push bb22
   jumpi
+  swap 1
   push 0
   mstore
   push 4
