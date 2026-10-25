@@ -872,3 +872,21 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol`,
   `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/constant_values_too_large.sol`.
+
+### CODEGEN-014: Static struct arrays in calldata encode without wrapping reads
+
+- ID: CODEGEN-014
+- Status: intentional
+- Difference: When inline assembly sets a calldata array variable whose
+  elements are static structs, `abi.encode`, external calls, events and errors
+  copy its elements from calldata as one block. A pointer that assembly moved
+  so that an element straddles 2^256 reads zeros from the block copy, where
+  `solc` loads each field at its own address, and a field past the wrap reads
+  calldata from offset zero. No ABI-validated calldata reaches this: a nested
+  array's length word has to be readable at its pointer, so its data pointer
+  and length keep every element below 2^64.
+- Rationale: The block copy is one `CALLDATACOPY` instead of a per-field
+  loop, which is what makes forwarding arrays of static structs small. Only a
+  pointer that assembly assigned can differ.
+- Coverage: `tests/ui/codegen/lowering/run-call/abi_calldata_forward_shapes.sol`
+  covers the nested tails and fixed arrays that ABI-valid calldata can wrap.

@@ -1233,6 +1233,13 @@ fn encode_static_slice(
                 head = offset_ptr(builder, head, field.head_size());
             }
         }
+        AbiType::FixedArray { .. } if location == PtrLocation::Calldata && is_word_block(ty) => {
+            // Like solc, copy the words as one block, which reads zeros from an address that
+            // wraps past the end of the address space where per-word loads would wrap around.
+            // calldatacopy head_addr, source, head_size
+            let size = builder.imm(ty.head_size());
+            copy_source_data(builder, location, head_addr, source, size);
+        }
         AbiType::FixedArray { element, len } => {
             let length = builder.imm(*len);
             let stride = builder.imm(element.head_size());
@@ -1703,6 +1710,12 @@ fn encode_calldata_elements(
 
     builder.switch_to_block(done);
     current_tail
+}
+
+/// Whether `ty` is a fixed array of full words. Solc copies each such array as one block, an
+/// array of those arrays one block at a time.
+fn is_word_block(ty: &AbiType) -> bool {
+    matches!(ty, AbiType::FixedArray { element, .. } if matches!(element.as_ref(), AbiType::Word(None)))
 }
 
 /// Whether a static calldata value holds a word that ABI decoding would validate.
