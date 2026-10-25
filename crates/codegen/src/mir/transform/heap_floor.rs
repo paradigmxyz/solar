@@ -528,6 +528,12 @@ fn call_results<'a>(
     })
 }
 
+/// Returns the words every function of `module` computes from heap pointers, for passes that
+/// need to know where an access may reach. See [`module_heap_addresses`].
+pub(super) fn heap_addresses_of(module: &Module) -> IndexVec<FunctionId, DenseBitSet<ValueId>> {
+    module_heap_addresses(module, &collect_call_sites(module))
+}
+
 /// Returns the words every function computes from heap pointers. A parameter holds one when every
 /// call passes one in and, in an external function, when it is a memory object, which the ABI
 /// decodes into the heap; an external function's integers come from calldata, and a function no
@@ -1715,23 +1721,26 @@ impl<'a> PointerUses<'a> {
     /// Returns the internal calls and tail calls to each function.
     fn all_call_sites(&mut self) -> &IndexVec<FunctionId, Vec<CallSite>> {
         let module = self.module;
-        self.call_sites.get_or_insert_with(|| {
-            let mut sites = index_vec![Vec::new(); module.functions.len()];
-            for (caller, func) in module.functions.iter_enumerated() {
-                for (block, data) in func.blocks.iter_enumerated() {
-                    for (index, &inst_id) in data.instructions.iter().enumerate() {
-                        if let InstKind::ICall { function: Callee::Function(callee), .. } =
-                            func.inst(inst_id).kind
-                        {
-                            sites[callee].push(CallSite::Call(caller, block, index));
-                        }
-                    }
-                    if let Some(&Terminator::TailCall { function, .. }) = data.terminator.as_ref() {
-                        sites[function].push(CallSite::Tail(caller));
-                    }
+        self.call_sites.get_or_insert_with(|| collect_call_sites(module))
+    }
+}
+
+/// Returns the internal calls and tail calls to each function.
+fn collect_call_sites(module: &Module) -> IndexVec<FunctionId, Vec<CallSite>> {
+    let mut sites = index_vec![Vec::new(); module.functions.len()];
+    for (caller, func) in module.functions.iter_enumerated() {
+        for (block, data) in func.blocks.iter_enumerated() {
+            for (index, &inst_id) in data.instructions.iter().enumerate() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst_id).kind
+                {
+                    sites[callee].push(CallSite::Call(caller, block, index));
                 }
             }
-            sites
-        })
+            if let Some(&Terminator::TailCall { function, .. }) = data.terminator.as_ref() {
+                sites[function].push(CallSite::Tail(caller));
+            }
+        }
     }
+    sites
 }

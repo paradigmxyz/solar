@@ -1,0 +1,89 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedObjects
+
+// A read through a memory object does not observe the free-memory pointer: the compiler assumes,
+// as in `heap-floor`, that a heap pointer plus a constant, or the range of the object itself,
+// does not cover the slot. Each function below dies at its keccak and reads an object after it.
+// CHECK:   fn @field_read{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg1
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @field_read(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x01020301] {
+  bb0:
+    v0 = alloc arg1
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = add v2, 32
+    v4 = mload v3
+    ret v4
+}
+
+// CHECK:   fn @object_hash{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg1
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @object_hash(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x01020302] {
+  bb0:
+    v0 = alloc arg1
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = keccak256 v2, arg1
+    ret v3
+}
+
+// An element at an index the program computes may wrap onto the slot when assembly forges the
+// object's length, so it counts as a read of it.
+// CHECK:   fn @forged_index{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @forged_index(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x01020303] {
+  bb0:
+    v0 = alloc arg1
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = add v2, arg1
+    v4 = mload v3
+    ret v4
+}
+
+// A raw integer address cast to a pointer is not a heap pointer.
+// CHECK:   fn @integer_address{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @integer_address(arg0: i256, arg1: i256) -> i256 [selector=0x01020304] {
+  bb0:
+    v0 = alloc arg1
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = inttoptr i256 arg0 to ptr<memory>
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = mload v3
+    ret v4
+}
+
+// Neither is a word loaded from memory.
+// CHECK:   fn @loaded_address{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @loaded_address(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x01020305] {
+  bb0:
+    v0 = alloc arg1
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = ptrtoint ptr<memory> arg0 to i256
+    v3 = mload v2
+    v4 = mload v3
+    ret v4
+}
+
+// Nor is a value that calldata computes.
+// CHECK:   fn @calldata_address{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @calldata_address(arg0: i256) -> i256 [selector=0x01020306] {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = calldataload 4
+    v3 = mload v2
+    ret v3
+}

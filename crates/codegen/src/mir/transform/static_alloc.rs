@@ -58,10 +58,14 @@
 //! caller that reads the slot itself or calls a function that does; a function without callers
 //! returns into compiler-generated code. A read in an unrelated function changes nothing. A read
 //! counts unless its address is at or above the heap start by `AliasAnalysis`'s heap-pointer
-//! assumption, so a variable address or size counts too. The exception is the bubbled revert data
-//! of a failed call, which a copy has just overwritten. A partial constant write of the slot counts
-//! as well. Allocations marked as source-visible FMP advances and those that static placement
-//! takes are left alone. `msize` is not tracked.
+//! assumption, so a variable address or size counts too. A heap pointer plus a constant does not
+//! count, as `heap-floor` assumes: an allocation, a memory object, or a parameter that every call
+//! fills with one, read at a constant offset or over its own range, as a hash or copy of the object
+//! does. Raw integer addresses, words loaded from memory, calldata, and an index the program
+//! computes, which a forged length can wrap onto the slot, still count. The other exception is the
+//! bubbled revert data of a failed call, which a copy has just overwritten. A partial constant
+//! write of the slot counts as well. Allocations marked as source-visible FMP advances and those
+//! that static placement takes are left alone. `msize` is not tracked.
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, ArgIdx, BlockId, Callee,
@@ -74,6 +78,7 @@ use crate::mir::{
     memory::EvmMemoryLayout,
     op_schema::{RawMemoryAccess, RawMemorySize},
     pass::{MirPass, ModuleAnalyses},
+    transform::heap_floor::heap_addresses_of,
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -771,6 +776,8 @@ impl UnreservedAnalysis<'_> {
 /// Where the free-memory pointer may be observed after an allocation: by a read in the same
 /// function, by a callee that runs after it, or by the code that runs after the function returns.
 struct FmpObservers {
+    /// The words each function computes from heap pointers.
+    heap: IndexVec<FunctionId, DenseBitSet<ValueId>>,
     /// The functions that contain a read of the pointer's slot.
     readers: DenseBitSet<FunctionId>,
     /// The functions that read the slot themselves or call, directly or not, one that does.
@@ -783,10 +790,12 @@ struct FmpObservers {
 impl FmpObservers {
     fn new(module: &Module, calls: &CallGraphInfo) -> Self {
         let count = module.functions.len();
+        let heap = heap_addresses_of(module);
         let mut readers = DenseBitSet::new_empty(count);
         for (func_id, func) in module.functions.iter_enumerated() {
-            if func.instructions().any(|inst| reads_fmp_slot(func, inst))
-                || func.blocks.indices().any(|block| terminator_reads_fmp_slot(func, block))
+            let heap = &heap[func_id];
+            if func.instructions().any(|inst| reads_fmp_slot(func, heap, inst))
+                || func.blocks.indices().any(|block| terminator_reads_fmp_slot(func, heap, block))
             {
                 readers.insert(func_id);
             }
@@ -817,13 +826,14 @@ impl FmpObservers {
                 stack.extend_from_slice(&callers[caller]);
             }
         }
-        Self { readers, reads_reach, returns_to_reader }
+        Self { heap, readers, reads_reach, returns_to_reader }
     }
 
     /// The position of the last observation in each block of the function: a read, a call to a
     /// function that reaches a read, or a return to a caller that does. A terminator sits after
     /// the block's last instruction.
     fn events(&self, func_id: FunctionId, func: &Function) -> FxHashMap<BlockId, usize> {
+        let heap = &self.heap[func_id];
         let mut events = FxHashMap::default();
         for (block, data) in func.blocks.iter_enumerated() {
             let mut last = None;
@@ -832,7 +842,7 @@ impl FmpObservers {
                     InstKind::ICall { function: Callee::Function(callee), .. } => {
                         self.reads_reach.contains(callee)
                     }
-                    _ => self.readers.contains(func_id) && reads_fmp_slot(func, inst),
+                    _ => self.readers.contains(func_id) && reads_fmp_slot(func, heap, inst),
                 };
                 if observes {
                     last = Some(position);
@@ -841,7 +851,7 @@ impl FmpObservers {
             let terminator_observes = match data.terminator {
                 Some(Terminator::TailCall { function, .. }) => self.reads_reach.contains(function),
                 Some(Terminator::Return { .. }) => self.returns_to_reader.contains(func_id),
-                _ => self.readers.contains(func_id) && terminator_reads_fmp_slot(func, block),
+                _ => self.readers.contains(func_id) && terminator_reads_fmp_slot(func, heap, block),
             };
             if terminator_observes {
                 last = Some(data.instructions.len());
@@ -859,7 +869,7 @@ impl FmpObservers {
 /// heap-pointer assumption; a constant range that misses the slot, or an unsized one, does not
 /// escape that rule. A write of the whole word does not count: the entry's initialization writes
 /// it, and it ignores the old pointer.
-fn reads_fmp_slot(func: &Function, inst: InstId) -> bool {
+fn reads_fmp_slot(func: &Function, heap: &DenseBitSet<ValueId>, inst: InstId) -> bool {
     let mut hit = false;
     func.inst(inst).kind.visit_raw_memory(|access, address, size| {
         let len = match size {
@@ -867,7 +877,9 @@ fn reads_fmp_slot(func: &Function, inst: InstId) -> bool {
             RawMemorySize::Value(size) => func.value_u64(size),
         };
         hit |= match access {
-            RawMemoryAccess::Read => AliasAnalysis::range_may_overlap_fmp(func, address, len),
+            RawMemoryAccess::Read => {
+                !heap.contains(address) && AliasAnalysis::range_may_overlap_fmp(func, address, len)
+            }
             // A patch has constant bounds; a whole-word write ignores the old pointer.
             RawMemoryAccess::Write | RawMemoryAccess::PartialWrite => {
                 func.value_u64(address).is_some()
@@ -883,12 +895,13 @@ fn reads_fmp_slot(func: &Function, inst: InstId) -> bool {
 
 /// Whether the block's `revert` or `returndata` may read the slot, apart from the bubbled revert
 /// data of a failed call.
-fn terminator_reads_fmp_slot(func: &Function, block: BlockId) -> bool {
+fn terminator_reads_fmp_slot(func: &Function, heap: &DenseBitSet<ValueId>, block: BlockId) -> bool {
     let data = &func.blocks[block];
     matches!(
         data.terminator,
         Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size })
-            if AliasAnalysis::range_may_overlap_fmp(func, offset, func.value_u64(size))
+            if !heap.contains(offset)
+                && AliasAnalysis::range_may_overlap_fmp(func, offset, func.value_u64(size))
                 && !reads_copied_returndata(func, &data.instructions, offset, size)
     )
 }

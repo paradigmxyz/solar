@@ -1,0 +1,69 @@
+- // === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_objects.mir (before defer-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_objects.mir (after defer-alloc) ===
+  @module DeferAllocUnreservedObjects
+  fn @field_read(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x01020301] {
+    bb0:
+-     v0 = alloc arg1
++     v0 = fmp
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = ptrtoint ptr<memory> arg0 to i256
+      v3 = add v2, 32
+      v4 = mload v3
+      ret v4
+  }
+  
+  fn @object_hash(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x01020302] {
+    bb0:
+-     v0 = alloc arg1
++     v0 = fmp
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = ptrtoint ptr<memory> arg0 to i256
+      v3 = keccak256 v2, arg1
+      ret v3
+  }
+  
+  fn @forged_index(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x01020303] {
+    bb0:
+      v0 = alloc arg1
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = ptrtoint ptr<memory> arg0 to i256
+      v3 = add v2, arg1
+      v4 = mload v3
+      ret v4
+  }
+  
+  fn @integer_address(arg0: i256, arg1: i256) -> i256 [selector=0x01020304] {
+    bb0:
+      v0 = alloc arg1
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = inttoptr i256 arg0 to ptr<memory>
+      v3 = ptrtoint ptr<memory> v2 to i256
+      v4 = mload v3
+      ret v4
+  }
+  
+  fn @loaded_address(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x01020305] {
+    bb0:
+      v0 = alloc arg1
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = ptrtoint ptr<memory> arg0 to i256
+      v3 = mload v2
+      v4 = mload v3
+      ret v4
+  }
+  
+  fn @calldata_address(arg0: i256) -> i256 [selector=0x01020306] {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = calldataload 4
+      v3 = mload v2
+      ret v3
+  }
+  
