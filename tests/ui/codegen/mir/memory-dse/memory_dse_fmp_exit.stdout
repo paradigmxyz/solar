@@ -181,3 +181,12 @@
       stop
   }
   
+  fn @keep_bump_before_return_through_decoded_word(arg0: slice<memory>) {
+    bb0:
+      v0 = abi_decode [uint256], arg0
+      v1 = mload 64
+      v2 = add v1, 32
+      mstore 64, v2
+      returndata v0, 32
+  }
+  
