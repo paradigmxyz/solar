@@ -698,6 +698,25 @@ impl Target {
 
     /// Estimated code of one block, priced as in [`Self::code_estimate`].
     pub(crate) fn block_code_estimate(&self, func: &Function, block: BlockId) -> Cost {
+        let mut cost = self.block_instructions_estimate(func, block);
+        let block = &func.blocks[block];
+        if let Some(terminator) = &block.terminator {
+            // An unconditional edge does not pay the conditional jump's higher gas price.
+            // Other CFG edges retain the conservative conditional-edge estimate.
+            if matches!(terminator, Terminator::Jump(_)) {
+                cost += self.jump();
+            } else {
+                for _ in 0..terminator.successors().len() {
+                    cost += self.branch();
+                }
+            }
+        }
+        cost
+    }
+
+    /// Estimated code of the instructions of one block with the pushes of their immediates,
+    /// without its terminator.
+    pub(crate) fn block_instructions_estimate(&self, func: &Function, block: BlockId) -> Cost {
         let block = &func.blocks[block];
         let mut cost = Cost::ZERO;
         for &inst in &block.instructions {
@@ -712,17 +731,6 @@ impl Target {
                     cost += self.push(value);
                 }
             });
-        }
-        if let Some(terminator) = &block.terminator {
-            // An unconditional edge does not pay the conditional jump's higher gas price.
-            // Other CFG edges retain the conservative conditional-edge estimate.
-            if matches!(terminator, Terminator::Jump(_)) {
-                cost += self.jump();
-            } else {
-                for _ in 0..terminator.successors().len() {
-                    cost += self.branch();
-                }
-            }
         }
         cost
     }
