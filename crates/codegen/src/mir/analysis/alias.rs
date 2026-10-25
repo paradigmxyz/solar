@@ -1904,12 +1904,23 @@ impl AliasAnalysis {
         if let Some(address) = address.as_absolute() {
             return Self::const_range_may_overlap_fmp(address, size.as_const());
         }
-        Self::address_lower_bound(func, address)
+        Self::address_lower_bound(func, address, size)
             .is_none_or(|bound| bound < EvmMemoryLayout::HEAP_START)
     }
 
-    /// Returns a conservative lower bound for the first byte of a canonical address.
-    pub(crate) fn address_lower_bound(func: &Function, address: MemoryAddress) -> Option<u64> {
+    /// Returns a conservative lower bound for the first byte of an access of `size` at a
+    /// canonical address, which holds even when a runtime index wraps around.
+    ///
+    /// An access of unknown extent through a non-absolute base is a runtime-indexed `ptradd`
+    /// whose index the canonical address discards, so it has no bound.
+    pub(crate) fn address_lower_bound(
+        func: &Function,
+        address: MemoryAddress,
+        size: LocationSize,
+    ) -> Option<u64> {
+        if size == LocationSize::Unknown && address.as_absolute().is_none() {
+            return None;
+        }
         match address.base {
             MemoryBase::Absolute => Some(address.offset),
             // An allocation is a heap pointer.

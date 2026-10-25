@@ -689,7 +689,8 @@ impl MemoryStoreEliminator {
             match access {
                 Access::Any(AddressSpace::Memory) => *live = MemLive::All,
                 Access::Location(Location::Memory(location)) => {
-                    let bound = AliasAnalysis::address_lower_bound(func, location.address);
+                    let bound =
+                        AliasAnalysis::address_lower_bound(func, location.address, location.size);
                     // Only an absolute address makes the size an exact extent.
                     let size = location.address.as_absolute().and(location.size.as_const());
                     Self::mark_range(live, bound, size);

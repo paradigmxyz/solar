@@ -290,3 +290,17 @@ fn @remove_store_before_constant_ptradd_read(arg0: i256) {
     mstore 32, v2
     revert 32, 32
 }
+
+// A write through a runtime index can wrap around to the free-memory-pointer word, so the
+// reload is not forwarded across it.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_reload_across_runtime_ptradd_write{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_reload_across_runtime_ptradd_write(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    mstore 64, 512
+    v1 = ptradd v0, arg0
+    mstore v1, 768
+    v2 = mload 64
+    ret v2
+}

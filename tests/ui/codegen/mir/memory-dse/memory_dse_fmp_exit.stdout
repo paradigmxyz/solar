@@ -210,3 +210,13 @@
       revert 32, 32
   }
   
+  fn @keep_reload_across_runtime_ptradd_write(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      mstore 64, 512
+      v1 = ptradd v0, arg0
+      mstore v1, 768
+      v2 = mload 64
+      ret v2
+  }
+  
