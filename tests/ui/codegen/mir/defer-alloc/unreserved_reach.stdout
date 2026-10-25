@@ -1,0 +1,105 @@
+- // === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_reach.mir (before defer-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_reach.mir (after defer-alloc) ===
+  @module DeferAllocUnreservedReach
+  fn @unrelated(arg0: i256) {
+    bb0:
+-     v0 = alloc arg0
++     v0 = fmp
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      stop
+  }
+  
+  fn @reader() -> i256 {
+    bb0:
+      v0 = mload 64
+      ret v0
+  }
+  
+  fn @callee_after(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = icall @reader
+      stop
+  }
+  
+  fn @callee_before(arg0: i256) {
+    bb0:
+      v0 = icall @reader
+-     v1 = alloc arg0
++     v1 = fmp
+      mstore v1, 1
+      v2 = keccak256 v1, 32
+      stop
+  }
+  
+  fn @callee_chain(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = icall @forwards
+      stop
+  }
+  
+  fn @forwards() -> i256 {
+    bb0:
+      v0 = icall @reader
+      ret v0
+  }
+  
+  fn @tail_call_reader(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      tail_call @reader
+  }
+  
+  fn @inner_of_reader(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      ret
+  }
+  
+  fn @outer_reader(arg0: i256) -> i256 {
+    bb0:
+      v0 = mload 64
+      icall @inner_of_reader, arg0
+      ret v0
+  }
+  
+  fn @inner_of_sibling(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      ret
+  }
+  
+  fn @outer_sibling(arg0: i256) {
+    bb0:
+      icall @inner_of_sibling, arg0
+      v0 = icall @reader
+      ret
+  }
+  
+  fn @inner_of_unrelated(arg0: i256) {
+    bb0:
+-     v0 = alloc arg0
++     v0 = fmp
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      ret
+  }
+  
+  fn @outer_unrelated(arg0: i256) {
+    bb0:
+      icall @inner_of_unrelated, arg0
+      ret
+  }
+  

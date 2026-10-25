@@ -1,0 +1,106 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedObservers
+
+// Assembly can read the free-memory pointer after an allocation and see its bump, as `mload(0x40)`
+// before and after a call that allocates, so a read that may cover slot 64 keeps the bump. Each
+// function below dies at its keccak and reads the slot after it.
+// CHECK:   fn @load_after{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @load_after(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = mload 64
+    ret v2
+}
+
+// A sized range that covers the slot counts too, here as the data of a `revert`.
+// CHECK:   fn @range_after{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @range_after(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    revert 64, 32
+}
+
+// A read through an address the compiler cannot place on the heap may read the slot.
+// CHECK:   fn @variable_address_after{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @variable_address_after(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = mload arg1
+    ret v2
+}
+
+// So may a read of a variable number of bytes from low memory.
+// CHECK:   fn @variable_size_after{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @variable_size_after(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = keccak256 0, arg1
+    stop
+}
+
+// A partial write keeps the other bytes of the old pointer.
+// CHECK:   fn @partial_write_after{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @partial_write_after(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    mstore8 64, 1
+    stop
+}
+
+// A read on the other side of a loop back edge follows the allocation too.
+// CHECK:   fn @load_around_loop{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @load_around_loop(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = mload 64
+    v0 = alloc arg0
+    mstore v0, v1
+    v2 = keccak256 v0, 32
+    jumpi true, bb1, bb2
+  bb2:
+    stop
+}
+
+// A read before the allocation, a write of the whole word (the entry's initialization), and the
+// bubbled revert data of a failed call observe nothing.
+// CHECK:   fn @load_before{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @load_before(arg0: i256) {
+  bb0:
+    v1 = mload 64
+    v0 = alloc arg0
+    mstore v0, v1
+    v2 = keccak256 v0, 32
+    stop
+}
+
+// CHECK:   fn @whole_word_write_after{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @whole_word_write_after(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    mstore 64, 128
+    stop
+}

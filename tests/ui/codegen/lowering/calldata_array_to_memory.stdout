@@ -214,17 +214,11 @@ bb18:
   dup 2
   add
   push 32
-  dup 2
-  lt
+  gt
   push bb34
   jumpi
   push 64
   mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
   dup 4
   dup 2
   mstore

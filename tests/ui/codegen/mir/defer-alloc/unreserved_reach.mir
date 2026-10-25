@@ -1,0 +1,131 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedReach
+
+// A reader of the free-memory pointer keeps the bump of an allocation only when it can run after
+// it: in the same function, in a callee that runs after it, or in the code that resumes when its
+// function returns. A reader in an unrelated function does not.
+// CHECK:   fn @unrelated{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @unrelated(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    stop
+}
+
+fn @reader() -> i256 {
+  bb0:
+    v0 = mload 64
+    ret v0
+}
+
+// A callee that reads the slot, called after the allocation, observes its bump.
+// CHECK:   fn @callee_after{{.*}}
+// CHECK-NOT: + {{.*}}v0 = fmp
+fn @callee_after(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = icall @reader
+    stop
+}
+
+// The same call before the allocation observes nothing.
+// CHECK:   fn @callee_before{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @callee_before(arg0: i256) {
+  bb0:
+    v2 = icall @reader
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    stop
+}
+
+// A callee reached through a chain of calls counts.
+// CHECK:   fn @callee_chain{{.*}}
+// CHECK-NOT: + {{.*}}v0 = fmp
+fn @callee_chain(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = icall @forwards
+    stop
+}
+
+fn @forwards() -> i256 {
+  bb0:
+    v0 = icall @reader
+    ret v0
+}
+
+// A tail call to a reader counts.
+// CHECK:   fn @tail_call_reader{{.*}}
+// CHECK-NOT: + {{.*}}v0 = fmp
+fn @tail_call_reader(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    tail_call @reader
+}
+
+// A caller that reads the slot resumes after the function returns.
+// CHECK:   fn @inner_of_reader{{.*}}
+// CHECK-NOT: + {{.*}}v0 = fmp
+fn @inner_of_reader(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    ret
+}
+
+fn @outer_reader(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    icall @inner_of_reader, arg0
+    ret v0
+}
+
+// So does a caller that calls a reader after it.
+// CHECK:   fn @inner_of_sibling{{.*}}
+// CHECK-NOT: + {{.*}}v0 = fmp
+fn @inner_of_sibling(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    ret
+}
+
+fn @outer_sibling(arg0: i256) {
+  bb0:
+    icall @inner_of_sibling, arg0
+    v0 = icall @reader
+    ret
+}
+
+// A caller that cannot reach a reader does not.
+// CHECK:   fn @inner_of_unrelated{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @inner_of_unrelated(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    ret
+}
+
+fn @outer_unrelated(arg0: i256) {
+  bb0:
+    icall @inner_of_unrelated, arg0
+    ret
+}

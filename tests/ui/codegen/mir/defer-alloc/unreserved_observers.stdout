@@ -1,0 +1,80 @@
+- // === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_observers.mir (before defer-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_observers.mir (after defer-alloc) ===
+  @module DeferAllocUnreservedObservers
+  fn @load_after(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = mload 64
+      ret v2
+  }
+  
+  fn @range_after(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      revert 64, 32
+  }
+  
+  fn @variable_address_after(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = mload arg1
+      ret v2
+  }
+  
+  fn @variable_size_after(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      v2 = keccak256 0, arg1
+      stop
+  }
+  
+  fn @partial_write_after(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      mstore8 64, 1
+      stop
+  }
+  
+  fn @load_around_loop(arg0: i256) {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = mload 64
+      v1 = alloc arg0
+      mstore v1, v0
+      v2 = keccak256 v1, 32
+      jumpi true, bb1, bb2
+    bb2:
+      stop
+  }
+  
+  fn @load_before(arg0: i256) {
+    bb0:
+      v0 = mload 64
+-     v1 = alloc arg0
++     v1 = fmp
+      mstore v1, v0
+      v2 = keccak256 v1, 32
+      stop
+  }
+  
+  fn @whole_word_write_after(arg0: i256) {
+    bb0:
+-     v0 = alloc arg0
++     v0 = fmp
+      mstore v0, 1
+      v1 = keccak256 v0, 32
+      mstore 64, 128
+      stop
+  }
+  
