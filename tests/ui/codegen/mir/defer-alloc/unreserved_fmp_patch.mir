@@ -1,0 +1,21 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedFmpPatch
+
+// A partial write of the free-memory pointer keeps the other bytes of the old value, so it
+// observes the bump like a read does. A write of the whole word does not, and the entry's
+// initialization is one.
+// CHECK:   fn @helper{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @helper(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    revert v0, 32
+}
+
+fn @patch() {
+  bb0:
+    mstore8 64, 1
+    stop
+}

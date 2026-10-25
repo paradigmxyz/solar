@@ -747,7 +747,8 @@ impl UnreservedAnalysis<'_> {
 }
 
 /// Whether the function reads a constant, sized range that overlaps the free-memory pointer's slot,
-/// the way assembly reads the pointer. Writes do not count: the entry's initialization writes it.
+/// the way assembly reads the pointer, or patches part of it. A write of the whole word does not
+/// count: the entry's initialization writes it, and it ignores the old pointer.
 fn accesses_fmp_slot(func: &Function) -> bool {
     let overlaps = |address, size: Option<u64>| {
         func.value_u64(address).is_some()
@@ -757,14 +758,13 @@ fn accesses_fmp_slot(func: &Function) -> bool {
     func.instructions().any(|inst| {
         let mut hit = false;
         func.inst(inst).kind.visit_raw_memory(|access, address, size| {
-            hit |= access == RawMemoryAccess::Read
-                && overlaps(
-                    address,
-                    match size {
-                        RawMemorySize::Bytes(len) => Some(len),
-                        RawMemorySize::Value(size) => func.value_u64(size),
-                    },
-                );
+            let len = match size {
+                RawMemorySize::Bytes(len) => Some(len),
+                RawMemorySize::Value(size) => func.value_u64(size),
+            };
+            let whole_word = func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                && len == Some(EvmMemoryLayout::WORD_SIZE);
+            hit |= overlaps(address, len) && (access == RawMemoryAccess::Read || !whole_word);
         });
         hit
     }) || func.blocks.iter().any(|block| {
