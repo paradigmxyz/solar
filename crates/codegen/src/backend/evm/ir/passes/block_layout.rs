@@ -22,7 +22,7 @@ use super::{
 use crate::{
     backend::{
         assembler::assembly::{
-            estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound,
+            TablePacking, estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound,
         },
         evm::{
             ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
@@ -231,7 +231,7 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
 }
 
 // Reserve space for tables whose absolute targets fit in one-byte entries. Widening
-// such a table replaces BYTE with shifts and masking on every dispatch.
+// such a table replaces the BYTE pick with a larger stride table.
 fn terminal_packing_budget(
     gcx: Gcx<'_>,
     module: &Module,
@@ -271,7 +271,7 @@ fn terminal_packing_budget(
                     targets.len(),
                     1,
                     gcx.sess.opts.evm_version,
-                    gcx.sess.opts.optimization.is_size(),
+                    TablePacking::new(&gcx.sess.opts),
                 );
             }
         }
@@ -394,7 +394,7 @@ fn estimated_terminator_size(
                 targets.len(),
                 target_width as u8,
                 gcx.sess.opts.evm_version,
-                gcx.sess.opts.optimization.is_size(),
+                TablePacking::new(&gcx.sess.opts),
             )
         }
         TerminatorKind::Op(opcode) => model.opcode(*opcode).bytes as usize,

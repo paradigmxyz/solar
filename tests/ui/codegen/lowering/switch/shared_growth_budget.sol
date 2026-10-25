@@ -1,4 +1,4 @@
-//@ compile-flags: -O gas -Zdump=evm-ir,evm-ir-runtime -Zswitch-max-gas-code-growth=100 -Zswitch-max-bit-slice-gas-code-growth=63
+//@ compile-flags: -O gas -Zdump=evm-ir,evm-ir-runtime -Zswitch-max-gas-code-growth=150 -Zswitch-max-bit-slice-gas-code-growth=110
 //@ filecheck:
 
 contract SwitchSharedGrowthBudget {
