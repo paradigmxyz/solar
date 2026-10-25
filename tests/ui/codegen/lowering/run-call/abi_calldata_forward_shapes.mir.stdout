@@ -330,6 +330,37 @@ fn @encodeHolder(arg0: slice<calldata>) -> i256 [selector=0xba4a62a6, pure, abi_
     ret v3
 }
 
+fn @encodeForgedSlice(arg0: slice<calldata>) -> i256 [selector=0xb6061ce7, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = gt v1, v1
+    v3 = lt v1, 1
+    v4 = or v2, v3
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v4
+    v6 = sub v1, 1
+    v7 = ptradd v0, 64
+    v8 = make_calldata_slice v7, v6
+    v9 = shl 1, 250
+    v10 = extract_value slice<calldata>, v8, 0
+    v11 = make_calldata_slice v10, v9
+    v12 = extract_value slice<calldata>, v11, 1
+    v13 = mul v12, 64
+    v14 = eq 64, 0
+    v15 = div v13, 64
+    v16 = eq v15, v12
+    v17 = or v14, v16
+    v18 = zext i1 v17 to i256
+    v19 = eq v18, 0
+    icall panic_if<0x41>, v19
+    v20 = abi_encode [calldata_array<tuple<word, word>>], scratch, args v11
+    v21 = extract_value slice<memory>, v20, 0
+    v22 = extract_value slice<memory>, v20, 1
+    v23 = keccak256 v21, v22
+    ret v23
+}
+
 fn @encodeFlags(arg0: slice<calldata>) -> i256 [selector=0x2faa18d0, pure, abi_params=[array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [calldata_array<tuple<word<bool>, word<int8>, word<enum 3>, word<bytes4>>>], scratch, args arg0

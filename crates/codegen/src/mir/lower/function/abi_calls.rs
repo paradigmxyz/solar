@@ -141,14 +141,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.is_decoded_external_argument(value) {
             return;
         }
-        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
-            || !matches!(ty.peel_refs().kind, TyKind::DynArray(_))
-        {
+        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
             return;
         }
         let AbiType::DynamicArray { element, location: PtrLocation::Calldata } = abi_type else {
             return;
         };
+        // A slice of words is not checked: its copy reads from where it lies. A slice of
+        // composite elements is encoded one element at a time, from a byte count that must not
+        // wrap.
+        let checked = match ty.peel_refs().kind {
+            TyKind::DynArray(_) => true,
+            TyKind::Slice(_) => !matches!(element.as_ref(), AbiType::Word(_)),
+            _ => false,
+        };
+        if !checked {
+            return;
+        }
         // bytes = checked(length * element_head_size)
         let word = self.builder.imm(element.head_size());
         let length = self.builder.slice_len(value);
