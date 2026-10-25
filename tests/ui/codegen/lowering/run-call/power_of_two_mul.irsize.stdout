@@ -98,39 +98,35 @@ bb19 [loop]:
   and
   push bb21
   jumpi
-  swap 2
-  iszero
-  iszero
-  swap 3
-  swap 2
-  swap 3
-  swap 1
-  dup 3
-  swap 1
-  sub
+  dup 6
+  dup 1
+  dup 1
   mul
-  add
-  swap 2
+  swap 7
+  dup 8
+  div
+  swap 6
   push 1
   shr
-  swap 1
-  dup 4
-  dup 1
-  mul
-  swap 4
-  dup 1
-  dup 6
-  div
+  swap 6
   eq
   or
   iszero
-  dup 2
+  dup 4
+  dup 6
   iszero
   iszero
+  swap 3
+  sub
+  swap 3
+  iszero
+  swap 2
   and
   push bb21
   jumpi
-  swap 1
+  iszero
+  mul
+  add
   jump bb17
 bb21 [cold]:
   push 17

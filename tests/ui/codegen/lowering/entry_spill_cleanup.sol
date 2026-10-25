@@ -18,7 +18,7 @@
 // CHECK: jump [[HEADER:bb[0-9]+]]
 // CHECK: [[HEADER]] [loop]:
 // CHECK-NEXT: dup 5
-// CHECK-NEXT: dup 4
+// CHECK-NEXT: dup 2
 // CHECK-NEXT: sub
 // CHECK-NEXT: push {{bb[0-9]+}}
 // CHECK-NEXT: jumpi

@@ -21,4 +21,13 @@
     push 0
     mstore
     stop
+  bb2 [loop] [stack=2]:
+-   swap 1
++   pop
+    push 1
+    add
+-   swap 1
+-   pop
+    push 0
+    jump bb2
   

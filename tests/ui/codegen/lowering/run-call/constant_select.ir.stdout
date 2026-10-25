@@ -342,10 +342,6 @@ bb27 [loop]:
   push 5
   shl
   swap 1
-  swap 2
-  add
-  mload
-  swap 1
   push 32
   sub
   push 3
@@ -354,6 +350,9 @@ bb27 [loop]:
   not
   swap 1
   shl
+  swap 2
+  add
+  mload
   and
   swap 1
   push 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563

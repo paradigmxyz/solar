@@ -117,13 +117,11 @@ bb18 [loop]:
   push bb24
   jumpi
   pop
+  swap 1
+  pop
   push 36
   calldataload
   push 0
-  swap 3
-  pop
-  swap 1
-  swap 2
   jump bb20
 bb22 [loop]:
   dup 1
