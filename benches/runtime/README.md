@@ -109,8 +109,8 @@ CI also runs the runtime corpus a second time with `--solar-no-optimizer` (the "
 runtime results" step of the codegen runtime job): live solc, one compile repeat, `--gas
 --gas-profile hot`, no report or comment. The job fails on any compile, deployment, gas, or runtime
 failure and on any runtime mismatch with solc. `-O none` must give the same runtime results as
-`-Ogas` and `-Osize`; only gas and size may differ. It runs solc live because the exact-base
-results never match a PR that changes the corpus inputs.
+`-Ogas` and `-Osize`; only gas and size may differ. It runs solc live because saved solc results carry the
+unmodified input fingerprint, which our `-O none` input never matches.
 
 In CI, PRs pass the exact-base result as `--reference-results`, so solc runs only on the base
 revision. Solx 0.1.8 is pinned and runs only on pushes to main, never in PR jobs, even ones that

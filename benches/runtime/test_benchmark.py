@@ -480,16 +480,31 @@ class FailureHandlingTests(unittest.TestCase):
             {"solar", "solc", "solx", "oksolc"},
         )
 
-    def test_solar_no_optimizer_run_fails_on_deploy_failure(self) -> None:
+    def test_solar_no_optimizer_run_fails_on_any_failure(self) -> None:
         case = benchmark.TEST_CASES[0]
-        entry = {
+        for failure, message in (
+            ({"status": "failed"}, "1 compiler runs failed"),
+            ({"deploy_status": "failed"}, "1 deployments failed"),
+            ({"gas_status": "failed"}, "1 gas transaction runs failed"),
+        ):
+            entry = {
+                "test_id": case.test_id,
+                "suite": case.suite,
+                "compilers": {"solar": {"status": "ok", **failure}},
+            }
+            self.check_failure_exit_codes(case, entry, message)
+        mismatch = {
             "test_id": case.test_id,
             "suite": case.suite,
-            "compilers": {"solar": {"status": "ok", "deploy_status": "failed"}},
+            "runtime_status": "mismatch",
+            "compilers": {"solar": {"status": "ok"}},
         }
+        self.check_failure_exit_codes(case, mismatch, "1 runtime checks failed")
+
+    def check_failure_exit_codes(self, case, entry, message) -> None:
         for flags, expected in (([], 1), (["--allow-failures"], 0)):
             with (
-                self.subTest(flags=flags),
+                self.subTest(message=message, flags=flags),
                 tempfile.TemporaryDirectory() as directory,
                 mock.patch.object(benchmark, "find_binary", return_value=Path("solar")),
                 mock.patch.object(
@@ -517,7 +532,7 @@ class FailureHandlingTests(unittest.TestCase):
             self.assertEqual(return_code, expected)
             self.assertTrue(run_case.call_args.args[-1])
             self.assertTrue(document["solar_optimizer_disabled"])
-            self.assertEqual("1 deployments failed" in stderr.getvalue(), expected == 1)
+            self.assertEqual(message in stderr.getvalue(), expected == 1)
 
     def test_solar_no_optimizer_rejects_reference_results(self) -> None:
         with (
