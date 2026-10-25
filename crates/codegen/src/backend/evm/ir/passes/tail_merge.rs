@@ -34,8 +34,18 @@
 //! the continuing path avoids an extra jump, while the exiting path may still share the terminal
 //! suffix. This bounded frequency heuristic is independent of optional loop markers. Simpler
 //! layouts, larger loops, stack-only latches and memory/call bodies retain the existing sharing
-//! policy; broadly preventing their tail merges increased corpus bytecode size. Size mode may
-//! share across the branch as before.
+//! policy; broadly preventing their tail merges increased corpus bytecode size.
+//!
+//! Size mode keeps the branch of every block marked `in_loop` in its original block, so a loop
+//! header is `cond; push body; jumpi; jump exit_tail` and never `cond; push body; push shared;
+//! jump` into a shared `jumpi`. The shared block compiles in evm2's JIT to one switch on a target
+//! reloaded from the in-memory EVM stack. LLVM forwards neither the store nor the load, so every
+//! loop using the block merges through that switch and keeps its 256-bit values in memory. Against
+//! the better of solc 0.8.38 via-IR and legacy at one optimizer run, the JIT time of the
+//! seeded-words and verified-words runtime cases goes from +51% and +54% to -6% and -5%, and their
+//! interpreter time from -14% and -31% to -22% and -38%. The cost is 0.08% more runtime bytes over
+//! the runtime benchmark, repaid by 0.15% less execution gas. Exit tails after the branch are
+//! still shared, and blocks outside loops share across their branches as before.
 
 use super::{
     EvmPass,
@@ -140,8 +150,11 @@ impl RunState {
             }
             // Do not use loop bodies to seed sharing groups. They may reuse a tail
             // from a non-loop path to preserve common loop entries.
-            let keep_branches =
-                gcx.sess.opts.optimization.is_gas() && has_short_word_backedge(module, block_id);
+            let keep_branches = if gcx.sess.opts.optimization.is_gas() {
+                has_short_word_backedge(module, block_id)
+            } else {
+                block.metadata.in_loop
+            };
             let matched = self.longest_common_tail(module, block, keep_branches);
             let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
 
