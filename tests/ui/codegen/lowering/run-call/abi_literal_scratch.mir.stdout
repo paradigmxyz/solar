@@ -89,13 +89,7 @@ fn @fail(arg0: i256) [selector=0x132e4f3c, pure, abi_params=[uint256], abi_retur
   bb3:
     ret
   bb1:
-    v1 = alloc 96 !metadata(preserves_fmp)
-    mstore v1, 37
-    v2 = ptradd v1, 32
-    mstore v2, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
-    v3 = ptradd v1, 64
-    mstore v3, 0x6f7264732c000000000000000000000000000000000000000000000000000000
-    icall require<error_string>, false, v1
+    icall require<long_string hex"73637261746368206c69746572616c2074686174207370616e732074776f20776f7264732c">, false
     invalid
 }
 

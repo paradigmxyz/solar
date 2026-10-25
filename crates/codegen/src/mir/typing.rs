@@ -148,7 +148,7 @@ pub(super) fn callee_types(
         Builtin::Require(kind) => {
             let mut types = smallvec![MirType::I1];
             match kind {
-                RequireKind::EmptyString => {}
+                RequireKind::EmptyString | RequireKind::LongString(_) => {}
                 RequireKind::ShortString => types.extend([MirType::I256, MirType::I256]),
                 RequireKind::ErrorString => types.push(bytes),
                 RequireKind::CustomError(layout) => {

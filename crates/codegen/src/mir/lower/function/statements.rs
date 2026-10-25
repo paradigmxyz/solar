@@ -426,12 +426,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.prepare_custom_error_payload(error_id, *args);
         }
 
-        if let Some(bytes) = self.constant_string_bytes(expr)
-            && (1..=32).contains(&bytes.as_byte_str().len())
-        {
-            let length = self.builder.imm(bytes.as_byte_str().len() as u64);
-            let data = self.lower_string_literal_word(bytes.as_byte_str());
-            return Some(RevertPayload::ShortString { length, data });
+        if let Some(bytes) = self.constant_string_bytes(expr) {
+            let bytes = bytes.as_byte_str();
+            if (1..=32).contains(&bytes.len()) {
+                let length = self.builder.imm(bytes.len() as u64);
+                let data = self.lower_string_literal_word(bytes);
+                return Some(RevertPayload::ShortString { length, data });
+            }
+            if bytes.len() > 32 {
+                return Some(RevertPayload::LongString(Bytes::copy_from_slice(bytes)));
+            }
         }
 
         let literal = expr.peel_parens();

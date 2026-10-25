@@ -4,7 +4,7 @@
 //! calldata, memory, and return handling belongs to the MIR lowering passes.
 
 mod contract;
-mod data;
+pub(crate) mod data;
 mod function;
 mod storage;
 mod types;

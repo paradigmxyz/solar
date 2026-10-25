@@ -1152,6 +1152,7 @@ symbols! {
         load_storage_struct_array,
         load_storage_word_array,
         log,
+        long_string,
         loop_depth,
         lowered,
         make_calldata_slice,

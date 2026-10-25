@@ -1,6 +1,7 @@
 //! Semantic failures retained until conditional checks are expanded.
 
 use super::{AbiLayoutRef, ValueId};
+use alloy_primitives::Bytes;
 use solar_interface::{Symbol, sym};
 
 /// Solidity's built-in `Panic(uint256)` error codes.
@@ -237,6 +238,7 @@ pub(crate) enum RevertKind {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum RevertPayload {
     ShortString { length: ValueId, data: ValueId },
+    LongString(Bytes),
     EmptyString,
     ErrorString(ValueId),
     CustomError { selector: ValueId, layout: AbiLayoutRef, values: Box<[ValueId]> },
