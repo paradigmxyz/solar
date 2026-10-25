@@ -13,7 +13,7 @@
 //! there are no nested shared tails. Nested tails keep their placement
 //! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
 //! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order.
-//! Loop-only paths do not create sharing groups.
+//! In gas mode, loop-only paths do not create sharing groups.
 //! Replacement jumps retain the suffix's entry location before its origins are merged, so
 //! single-origin source maps do not lose both callers' locations on a shared body.
 //! In gas mode, hot sharing must repay its transfer over the optimizer run count.
@@ -34,8 +34,18 @@
 //! the continuing path avoids an extra jump, while the exiting path may still share the terminal
 //! suffix. This bounded frequency heuristic is independent of optional loop markers. Simpler
 //! layouts, larger loops, stack-only latches and memory/call bodies retain the existing sharing
-//! policy; broadly preventing their tail merges increased corpus bytecode size. Size mode may
-//! share across the branch as before.
+//! policy; broadly preventing their tail merges increased corpus bytecode size.
+//!
+//! Size mode keeps the branch of every block marked `in_loop` in its original block. A loop
+//! header stays `cond; push body; jumpi; jump exit_tail` and is never `cond; push body; push
+//! shared; jump` into a shared `jumpi`. evm2's JIT turns that shared block into one switch on a
+//! jump target it reloads from the in-memory EVM stack. LLVM cannot remove that store and load, so
+//! every loop that uses the block goes through the switch and keeps its 256-bit values in memory.
+//! On evm2 against the better of solc 0.8.38 via-IR and legacy at one optimizer run, the
+//! seeded-words and verified-words benchmark cases were +51% and +54% in the JIT with the shared
+//! block and are -6% and -5% without it. The interpreter gains too, from -14% and -31% to -22% and
+//! -38%. The benchmark's runtime bytes grow by 0.08% and its execution gas falls by 0.15%. Exit
+//! tails after the branch are still shared, and blocks outside loops share across their branches.
 
 use super::{
     EvmPass,
@@ -140,8 +150,11 @@ impl RunState {
             }
             // Do not use loop bodies to seed sharing groups. They may reuse a tail
             // from a non-loop path to preserve common loop entries.
-            let keep_branches =
-                gcx.sess.opts.optimization.is_gas() && has_short_word_backedge(module, block_id);
+            let keep_branches = if gcx.sess.opts.optimization.is_gas() {
+                has_short_word_backedge(module, block_id)
+            } else {
+                block.metadata.in_loop
+            };
             let matched = self.longest_common_tail(module, block, keep_branches);
             let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
 
