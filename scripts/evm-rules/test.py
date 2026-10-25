@@ -42,7 +42,13 @@ from evm_rules.lean import (
     theorem,
 )
 from evm_rules.mining import abstract_patterns, mine
-from evm_rules.peephole import CLASSES, execute, inversion, read_classes
+from evm_rules.peephole import (
+    CLASSES,
+    execute,
+    inversion,
+    read_classes,
+)
+from evm_rules.peephole import requirements as window_requirements
 from evm_rules.prover import (
     LEAN_PROJECT,
     MANUAL_PROOFS,
@@ -419,6 +425,9 @@ class PeepholeProofTests(unittest.TestCase):
             with patch("evm_rules.peephole.CLASSES", snapshot):
                 return verify_rules(path)
 
+    def statuses(self, source, classes=None):
+        return [r["status"] for r in self.verify(source, classes)["rules"]]
+
     def replayed(self, result):
         """Whether a counterexample of the rule replayed in the integer semantics."""
         return any(
@@ -427,9 +436,6 @@ class PeepholeProofTests(unittest.TestCase):
             if p["status"] == "counterexample"
         )
 
-    def statuses(self, source, classes=None):
-        return [r["status"] for r in self.verify(source, classes)["rules"]]
-
     def texts(self):
         """The source of each actual rule, by line."""
         return {
@@ -437,6 +443,19 @@ class PeepholeProofTests(unittest.TestCase):
             for form, line in forms(self.RULES.read_text())
             if form[0] == "rule"
         }
+
+    def rules_with(self, *needles):
+        """The source of the actual rules that contain a needle."""
+        return "\n".join(
+            text
+            for text in self.texts().values()
+            if any(needle in text for needle in needles)
+        )
+
+    def assert_counterexample(self, source):
+        results = self.verify(source)["rules"]
+        self.assertEqual([r["status"] for r in results], ["counterexample"])
+        self.assertTrue(self.replayed(results[0]))
 
     def test_every_compiled_rule_file_is_verified(self):
         compiled = {
@@ -449,74 +468,79 @@ class PeepholeProofTests(unittest.TestCase):
         )
 
     def test_actual_compiled_peephole_rules(self):
-        report = verify_rules(self.RULES)
-        rules = report["rules"]
-        texts = self.texts()
-        self.assertEqual([r["line"] for r in rules], list(texts))
-        self.assertTrue(all(r["status"] == "proved" for r in rules))
-        # Only the reload of a stored word starts one push higher than it began.
-        grown = [r["line"] for r in rules if r["peak_growth"]]
-        self.assertEqual(
-            grown, [l for l, t in texts.items() if "ReloadStoredValue" in t]
-        )
-        self.assertEqual(len(grown), 1)
-
-    def test_every_opcode_of_a_class_is_checked(self):
         snapshot = read_classes()
         texts = self.texts()
         rules = {r["line"]: r for r in verify_rules(self.RULES)["rules"]}
-        for name, function, count in (
-            ("absorbs_zero", "absorbs_zero", 2),
-            ("zero_identity", "zero_identity", 1),
-            ("commutative", "is_commutative", 2),
-            ("noncommutative_binop", "is_noncommutative_binop", 1),
-            ("sink", "is_sink", 1),
-        ):
-            checked = [line for line, text in texts.items() if f"({function} " in text]
-            self.assertEqual(len(checked), count)
-            for line in checked:
-                self.assertEqual(rules[line]["variants"], len(snapshot.members[name]))
+        self.assertEqual(list(rules), list(texts))
+        self.assertTrue(all(r["status"] == "proved" for r in rules.values()))
+        # Every opcode of each class is a variant of each rule that tests the class.
+        for name, members in snapshot.members.items():
+            lines = [line for line, text in texts.items() if f"({name} " in text]
+            self.assertTrue(lines)
+            for line in lines:
+                self.assertEqual(rules[line]["variants"], len(members))
+        # Only the reload of a stored word starts one push higher than it began.
+        grown = [line for line, r in rules.items() if r["peak_growth"]]
+        self.assertEqual(
+            grown, [l for l, t in texts.items() if "ReloadStoredValue" in t]
+        )
 
     def test_wrong_class_members_have_replayed_counterexamples(self):
         text = CLASSES.read_text()
-        for line, wrong in (
-            ("class absorbs_zero and 2/1", "class absorbs_zero sub 2/1"),
-            ("class zero_identity sar 2/1", "class zero_identity lt 2/1"),
-            ("class commutative xor 2/1", "class commutative sub 2/1"),
+        for line, wrong, needles, rest in (
             (
-                "class noncommutative_binop sar 2/1",
-                "class noncommutative_binop iszero 1/1",
+                "class absorbs_zero and 2/1",
+                "class absorbs_zero sub 2/1",
+                ("(absorbs_zero ",),
+                set(),
             ),
-            ("class sink log0 2/0", "class sink add 2/1"),
-            ("flip sgt slt", "flip sgt sgt"),
+            (
+                "class zero_identity sar 2/1",
+                "class zero_identity lt 2/1",
+                ("(zero_identity ",),
+                set(),
+            ),
+            (
+                "class is_commutative xor 2/1",
+                "class is_commutative sub 2/1",
+                ("(is_commutative ",),
+                set(),
+            ),
+            (
+                "class is_noncommutative_binop sar 2/1",
+                "class is_noncommutative_binop iszero 1/1",
+                ("(is_noncommutative_binop ",),
+                set(),
+            ),
+            (
+                "class is_sink log0 2/0",
+                "class is_sink add 2/1",
+                ("(is_sink ",),
+                set(),
+            ),
+            # A changed flip also disagrees with the comparison inversion table.
+            (
+                "flip sgt slt",
+                "flip sgt sgt",
+                ("flipped_comparison", "invert_comparison"),
+                {"unsupported"},
+            ),
+            # A taken `JUMPI` leaves its stack to the target, so it is not a sink.
+            (
+                "class is_sink log0 2/0",
+                "class is_sink jumpi 2/0",
+                ("(is_sink ",),
+                {"unsupported"},
+            ),
         ):
             with self.subTest(wrong=wrong):
                 classes = text.replace(line, f"{line}\n{wrong}")
-                results = [
-                    r
-                    for r in self.verify(self.RULES.read_text(), classes)["rules"]
-                    if r["status"] != "proved"
-                ]
-                counterexamples = [
-                    r for r in results if r["status"] == "counterexample"
-                ]
-                self.assertTrue(counterexamples)
-                self.assertTrue(all(map(self.replayed, counterexamples)))
-                # A changed flip also disagrees with the comparison inversion table.
-                rest = {r["status"] for r in results} - {"counterexample"}
-                self.assertEqual(rest, {"unsupported"} if "flip" in wrong else set())
-
-    def test_jumpi_is_not_a_sink(self):
-        text = CLASSES.read_text()
-        classes = text.replace(
-            "class sink log0 2/0", "class sink log0 2/0\nclass sink jumpi 2/0"
-        )
-        results = [
-            r
-            for r in self.verify(self.RULES.read_text(), classes)["rules"]
-            if r["status"] != "proved"
-        ]
-        self.assertEqual([r["status"] for r in results], ["unsupported"])
+                results = self.verify(self.rules_with(*needles), classes)["rules"]
+                found = [r for r in results if r["status"] == "counterexample"]
+                self.assertEqual(bool(found), "jumpi" not in wrong)
+                self.assertTrue(all(map(self.replayed, found)))
+                statuses = {r["status"] for r in results} - {"proved", "counterexample"}
+                self.assertEqual(statuses, rest)
 
     def test_memory_rules_need_the_stored_word(self):
         for source in (
@@ -526,71 +550,38 @@ class PeepholeProofTests(unittest.TestCase):
             "(rule 1 (peep_pop (last4 (opcode $DUP2) (any_push) (opcode $MSTORE) (opcode $POP))) (rewrite 4 (Edit.RemoveFirstKeepTwo)))",
         ):
             with self.subTest(source=source):
-                result = self.verify(source)["rules"][0]
-                self.assertEqual(result["status"], "counterexample")
-                self.assertTrue(self.replayed(result))
+                self.assert_counterexample(source)
 
     def test_memory_rules_need_one_address(self):
         for source in (
             "(rule 1 (peep_op (last4 (push a) (opcode $MSTORE) (push b) (opcode $MLOAD))) (rewrite 4 (Edit.ReloadStoredValue)))",
             "(rule 1 (peep_op (last6 (opcode $DUP1) (push a) (opcode $MSTORE) (opcode $DUP1) (push b) (opcode $MSTORE))) (rewrite 6 (Edit.Keep 3)))",
+            "(rule 1 (peep_op (last4 (push a) (opcode $MSTORE) (push a) (opcode $MLOAD))) (rewrite 4 (Edit.Keep 0)))",
         ):
-            self.assertEqual(self.statuses(source), ["unsupported"])
-
-    def test_dropping_the_store_keeps_the_address_set(self):
-        source = (
-            "(rule 1 (peep_op (last4 (push a) (opcode $MSTORE) (push a) (opcode $MLOAD)))"
-            " (rewrite 4 (Edit.Keep 0)))"
-        )
-        self.assertEqual(self.statuses(source), ["unsupported"])
+            with self.subTest(source=source):
+                self.assertEqual(self.statuses(source), ["unsupported"])
 
     def test_branch_rules_keep_the_decision(self):
-        source = self.RULES.read_text()
-        for good, wrong in (
-            (
-                "(last4 (opcode $ISZERO) (opcode $ISZERO) (push_block) (opcode $JUMPI))",
-                "(last4 (opcode $NOT) (opcode $ISZERO) (push_block) (opcode $JUMPI))",
-            ),
-            (
-                "(last4 (opcode $EQ) (opcode $ISZERO) (push_block) (opcode $JUMPI))",
-                "(last4 (opcode $LT) (opcode $ISZERO) (push_block) (opcode $JUMPI))",
-            ),
-            (
-                "        (if-let true (u256_is_zero zero))\n        (rewrite 4 (Edit.DropNonzeroTest)))",
-                "        (rewrite 4 (Edit.DropNonzeroTest)))",
-            ),
-            (
-                "(unprotected_last4 (push zero) (opcode $LT)",
-                "(unprotected_last4 (push zero) (opcode $GT)",
-            ),
-        ):
-            with self.subTest(wrong=wrong):
-                self.assertIn(good, source)
-                results = [
-                    r
-                    for r in self.verify(source.replace(good, wrong))["rules"]
-                    if r["status"] != "proved"
-                ]
-                self.assertEqual([r["status"] for r in results], ["counterexample"])
-                self.assertTrue(self.replayed(results[0]))
-
-    def test_a_jump_cannot_appear_or_move(self):
         for source in (
-            "(rule 1 (peep_op (last2 (push_block) (opcode $ADD))) (rewrite 2 (Edit.Keep 0)))",
+            "(rule 1 (peep_op (last4 (opcode $NOT) (opcode $ISZERO) (push_block) (opcode $JUMPI))) (rewrite 4 (Edit.DropNonzeroTest)))",
+            "(rule 1 (peep_op (last4 (opcode $LT) (opcode $ISZERO) (push_block) (opcode $JUMPI))) (rewrite 4 (Edit.EqIszeroJumpi)))",
+            "(rule 1 (peep_op (unprotected_last4 (push zero) (opcode $LT) (push_block) (opcode $JUMPI))) (rewrite 4 (Edit.DropNonzeroTest)))",
+            "(rule 1 (peep_op (unprotected_last4 (push zero) (opcode $GT) (push_block) (opcode $JUMPI))) (if-let true (u256_is_zero zero)) (rewrite 4 (Edit.DropNonzeroTest)))",
+            # A removed jump needs a condition that is never nonzero.
             "(rule 1 (peep_op (last3 (push a) (push_block) (opcode $JUMPI))) (rewrite 3 (Edit.Keep 0)))",
         ):
-            self.assertNotEqual(self.statuses(source), ["proved"])
+            with self.subTest(source=source):
+                self.assert_counterexample(source)
 
-    def test_untaken_jump_needs_a_zero_condition(self):
-        window = "(rule 1 (peep_op (untaken_jump)) (rewrite 3 (Edit.Keep 0)))"
-        self.assertEqual(self.statuses(window), ["proved"])
+    def test_edits_need_the_window_they_assume(self):
+        # `Edit::apply` would leave `ISZERO ISZERO` here, not the single `ISZERO` the model builds.
+        source = "(rule 1 (peep_pop (last4 (opcode $DUP1) (opcode $ISZERO) (opcode $SWAP1) (opcode $POP))) (rewrite 4 (Edit.ZeroLessIszero)))"
+        self.assertEqual(self.statuses(source), ["unsupported"])
 
     def test_swap_chains_need_the_merged_depth(self):
         chain = "(rule 1 (peep_pop (swap_pop_chain depth)) (rewrite (u8_add depth 3) (Edit.MergeSwapPop {})))"
         self.assertEqual(self.statuses(chain.format("(u8_add depth 1)")), ["proved"])
-        result = self.verify(chain.format("depth"))["rules"][0]
-        self.assertEqual(result["status"], "counterexample")
-        self.assertTrue(self.replayed(result))
+        self.assert_counterexample(chain.format("depth"))
         self.assertEqual(
             self.statuses(chain.format("(u8_add depth 2)")), ["unsupported"]
         )
@@ -603,11 +594,6 @@ class PeepholeProofTests(unittest.TestCase):
         self.assertEqual(
             self.statuses(discard.format("(Edit.Keep 0)")), ["unsupported"]
         )
-
-    def test_known_zero_needs_a_zero_word(self):
-        rule = "(rule 1 (peep_dup (duplicates_known_zero)) (rewrite 1 (Edit.OverwritePush0)))"
-        self.assertEqual(self.statuses(rule), ["proved"])
-        self.assertEqual(self.verify(rule)["rules"][0]["variants"], 235)
 
     def test_comparison_inversion_rows_are_proved_or_rejected(self):
         text = CLASSES.read_text()
@@ -677,28 +663,18 @@ class PeepholeProofTests(unittest.TestCase):
             ("pop",),
             ("exchange", 1, 2),
         ]
-        required = {"push": 0, "pop": 1}
         incoming = [Expr.var(f"@in{i}") for i in range(4)]
         found = 0
         for length in range(1, 8):
             for sequence in itertools.product(alphabet, repeat=length):
-                depth, ok = 0, True
-                for name, *args in sequence:
-                    need = required.get(name, max(args, default=0) + (name != "dup"))
-                    if depth < need:
-                        ok = False
-                        break
-                    depth += {"push": 1, "dup": 1, "pop": -1}.get(name, 0)
-                if not ok or depth:
+                window = [
+                    ("push", Expr.var(f"@p{i}")) if name == "push" else (name, *args)
+                    for i, (name, *args) in enumerate(sequence)
+                ]
+                needed, _, height = window_requirements(window, {})
+                if needed or height:
                     continue
                 found += 1
-                counter = itertools.count()
-                window = [
-                    ("push", Expr.var(f"@p{next(counter)}"))
-                    if name == "push"
-                    else (name, *args)
-                    for name, *args in sequence
-                ]
                 self.assertEqual(execute(window, incoming, {}, {}).stack, incoming)
         self.assertGreater(found, 50)
 

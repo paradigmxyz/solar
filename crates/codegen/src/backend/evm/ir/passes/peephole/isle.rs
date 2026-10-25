@@ -749,6 +749,19 @@ mod tests {
         ("smax", U256::from_limbs([u64::MAX, u64::MAX, u64::MAX, u64::MAX >> 1])),
     ];
 
+    /// Words at which a bound adjusted by one can wrap.
+    const EDGES: [&str; 4] = ["zero", "max", "smin", "smax"];
+
+    type Class = (&'static str, fn(&mut PeepContext<'_>, u8) -> bool);
+
+    const CLASSES: [Class; 5] = [
+        ("absorbs_zero", |context, opcode| context.absorbs_zero(opcode)),
+        ("zero_identity", |context, opcode| context.zero_identity(opcode)),
+        ("is_commutative", |context, opcode| context.is_commutative(opcode)),
+        ("is_noncommutative_binop", |context, opcode| context.is_noncommutative_binop(opcode)),
+        ("is_sink", |context, opcode| context.is_sink(opcode)),
+    ];
+
     fn word_name(value: U256) -> String {
         WORDS
             .iter()
@@ -763,33 +776,24 @@ mod tests {
     #[test]
     fn peephole_classes() {
         let mut context = PeepContext::new(&[], EvmVersion::Osaka);
+        let opcodes: Vec<_> = (u8::MIN..=u8::MAX)
+            .filter_map(|opcode| op::mnemonic(opcode).map(|mnemonic| (opcode, mnemonic)))
+            .collect();
         let mut table = String::new();
-        let classes: [(&str, fn(&mut PeepContext<'_>, u8) -> bool); 5] = [
-            ("absorbs_zero", |context, opcode| context.absorbs_zero(opcode)),
-            ("zero_identity", |context, opcode| context.zero_identity(opcode)),
-            ("commutative", |context, opcode| context.is_commutative(opcode)),
-            ("noncommutative_binop", |context, opcode| context.is_noncommutative_binop(opcode)),
-            ("sink", |context, opcode| context.is_sink(opcode)),
-        ];
-        for (class, member) in classes {
-            for opcode in u8::MIN..=u8::MAX {
-                if let Some(mnemonic) = op::mnemonic(opcode)
-                    && member(&mut context, opcode)
-                {
+        for (class, member) in CLASSES {
+            for &(opcode, mnemonic) in &opcodes {
+                if member(&mut context, opcode) {
                     let (inputs, outputs) = op::stack_io(opcode).unwrap();
                     writeln!(table, "class {class} {mnemonic} {inputs}/{outputs}").unwrap();
                 }
             }
         }
-        for opcode in u8::MIN..=u8::MAX {
-            if let Some(mnemonic) = op::mnemonic(opcode)
-                && let Some(flipped) = context.flipped_comparison(opcode)
-            {
+        for &(opcode, mnemonic) in &opcodes {
+            if let Some(flipped) = context.flipped_comparison(opcode) {
                 writeln!(table, "flip {mnemonic} {}", op::mnemonic(flipped).unwrap()).unwrap();
             }
         }
-        for opcode in u8::MIN..=u8::MAX {
-            let Some(mnemonic) = op::mnemonic(opcode) else { continue };
+        for &(opcode, mnemonic) in &opcodes {
             for (x, x_value) in WORDS {
                 if let Some(result) = eval::eval_opcode(opcode, &[x_value]) {
                     writeln!(table, "fold1 {mnemonic} {x} {}", word_name(result)).unwrap();
@@ -825,12 +829,11 @@ mod tests {
                 let mnemonic = op::mnemonic(opcode).unwrap();
                 let flipped = op::mnemonic(flipped).unwrap();
                 writeln!(table, "invert {mnemonic} {depth} {delta} {flipped}").unwrap();
-                for (edge, edge_value) in WORDS {
-                    if matches!(edge, "zero" | "max" | "smin" | "smax") {
-                        let verdict =
-                            if probe(edge_value).is_some() { "accepted" } else { "rejected" };
-                        writeln!(table, "edge {mnemonic} {depth} {edge} {verdict}").unwrap();
-                    }
+                for edge in EDGES {
+                    let (_, edge_value) = WORDS.iter().find(|(name, _)| *name == edge).unwrap();
+                    let verdict =
+                        if probe(*edge_value).is_some() { "accepted" } else { "rejected" };
+                    writeln!(table, "edge {mnemonic} {depth} {edge} {verdict}").unwrap();
                 }
             }
         }

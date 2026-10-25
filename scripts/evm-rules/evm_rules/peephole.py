@@ -39,11 +39,11 @@ WORD_OPS = {
 # Opcodes the machine models directly: memory words and the branch decision.
 STRUCTURAL_OPS = {"mstore": (2, 0), "mload": (1, 1), "jumpi": (2, 0)}
 CLASS_GUARDS = {
-    "absorbs_zero": "absorbs_zero",
-    "zero_identity": "zero_identity",
-    "is_commutative": "commutative",
-    "is_noncommutative_binop": "noncommutative_binop",
-    "is_sink": "sink",
+    "absorbs_zero",
+    "zero_identity",
+    "is_commutative",
+    "is_noncommutative_binop",
+    "is_sink",
 }
 # The class of rules that ends in each kind of instruction, and each extractor's own.
 TAIL_ROOTS = {
@@ -76,7 +76,7 @@ CONTRACTS = {
         "Edit::apply keeps the instructions the model keeps and overwrites opcodes only",
         "an overwritten POP or SWAP1 opcode lowers to the same physical stack operation",
         "sufficient input stack and gas; untouched deeper stack prefix",
-        "protected boundaries and push removability are guarded by the window extractors",
+        "the window extractors decide protected boundaries and push removability",
     ],
     "memory": [
         "memory is word-granular: only reads and writes of one address are related",
@@ -159,8 +159,8 @@ class Classes:
         return self.members[name]
 
 
-def read_classes(path=None):
-    return Classes((path or CLASSES).read_text())
+def read_classes():
+    return Classes(CLASSES.read_text())
 
 
 def read_word(token):
@@ -259,7 +259,6 @@ class Run:
         self.stack = list(inputs)
         self.memory = None
         self.touched = set()
-        self.memory_ops = False
         self.effects = []
         self.jump = None
 
@@ -292,12 +291,10 @@ def execute(sequence, inputs, atoms, io):
             address, value = stack.pop(), stack.pop()
             run.memory = ("store", run.memory, address, value)
             run.touched.add(address)
-            run.memory_ops = True
         elif args[0] == "mload":
             address = stack.pop()
             stack.append(read(run.memory, address, atoms))
             run.touched.add(address)
-            run.memory_ops = True
         elif args[0] == "jumpi":
             run.jump = (stack.pop(), stack.pop())
         else:
@@ -331,12 +328,12 @@ def obligation(before, after, io, assumptions=()):
     differences = []
     for a, b in zip(lhs.stack, rhs.stack, strict=True):
         differences += different(a, b)
-    memory = lhs.memory_ops or rhs.memory_ops
+    memory = bool(lhs.touched or rhs.touched)
     if memory:
         if lhs.effects or rhs.effects:
             raise Unsupported("memory operations and other effects in one window")
-        if lhs.touched != rhs.touched:
-            raise Unsupported("replacement touches different memory addresses")
+        if len(lhs.touched | rhs.touched) != 1 or lhs.touched != rhs.touched:
+            raise Unsupported("memory rules must touch exactly one address")
         witness = Expr.var("@k")
         differences += different(
             read(lhs.memory, witness, atoms), read(rhs.memory, witness, atoms)
@@ -441,7 +438,7 @@ def read_guards(guards):
         if bound == "true" and function in ("u256_is_zero", "u256_is_one"):
             constants[argument] = int(function == "u256_is_one")
         elif bound == "true" and function in CLASS_GUARDS:
-            classes[argument] = CLASS_GUARDS[function]
+            classes[argument] = function
         elif function == "flipped_comparison" and is_variable(bound):
             flips[bound] = argument
         else:
@@ -524,15 +521,17 @@ def apply_edit(edit, before, bindings):
     name, *args = edit
     count = len(before)
 
-    def fits(minimum, *kinds):
-        if count < minimum or any(before[i][0] != kind for i, kind in kinds):
+    def fits(size, *kinds, exact=False):
+        if count != size if exact else count < size:
+            raise Unsupported(f"edit {name} does not fit its window")
+        if any(before[i][0] != kind for i, kind in kinds):
             raise Unsupported(f"edit {name} does not fit its window")
 
     match name, args:
         case "Edit.Keep", [length] if length.isdecimal() and int(length) <= count:
             return before[: int(length)]
         case "Edit.OverwritePush0", []:
-            fits(1, (0, "dup"))
+            fits(1, (0, "dup"), exact=True)
             return [("push", ZERO)]
         case "Edit.RemoveFirstKeepOne", []:
             fits(2)
@@ -563,16 +562,16 @@ def apply_edit(edit, before, bindings):
             fits(2, (0, "swap"))
             return before[1:]
         case "Edit.ZeroLessIszero", []:
-            fits(3)
+            fits(3, exact=True)
             return [("op", "iszero")]
         case "Edit.ReloadStoredValue", []:
-            fits(4, (3, "op"))
+            fits(4, (3, "op"), exact=True)
             return [("dup", 1), before[2], before[1]]
         case "Edit.DropNonzeroTest", []:
-            fits(4, (2, "block"), (3, "op"))
+            fits(4, (2, "block"), (3, "op"), exact=True)
             return [before[2], ("op", "jumpi")]
         case "Edit.EqIszeroJumpi", []:
-            fits(4, (0, "op"), (1, "op"), (2, "block"), (3, "op"))
+            fits(4, (0, "op"), (1, "op"), (2, "block"), (3, "op"), exact=True)
             return [("op", "sub"), before[2], ("op", "jumpi")]
         case "Edit.StackOps", [first, second]:
             fits(2)
@@ -656,14 +655,7 @@ def extractor_variants(name, args, skip, edit, snapshot, io):
         if skip != length or edit != ("Edit.Keep", "0"):
             raise Unsupported("unmodeled window or rewrite extent")
         # The window reads only words it pushed, so it never touches the incoming stack.
-        yield {
-            "bindings": {},
-            "difference": ZERO,
-            "preconditions": [],
-            "peak_growth": 0,
-            "memory": False,
-            "branch": False,
-        }
+        yield variant({}, [], [], io)
     elif name == "untaken_jump":
         if args or skip != "3" or edit != ("Edit.Keep", "0"):
             raise Unsupported("unmodeled window or rewrite extent")
@@ -775,8 +767,6 @@ def peephole_theorems(rule, snapshot):
         names = {}
         difference = rename(entry["difference"], names)
         preconditions = tuple(rename(c, names) for c in entry["preconditions"])
-        shapes[difference, preconditions] = (
-            shapes.get((difference, preconditions), 0) + 1
-        )
+        shapes[difference, preconditions] = None
     growth = max(entry["peak_growth"] for entry in variants)
     return shapes, len(variants), growth, contracts
