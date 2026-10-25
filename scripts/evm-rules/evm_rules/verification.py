@@ -24,12 +24,14 @@ from .expr import Expr, Unsupported
 from .isle import ISLE, Context, Rule, forms, rule_sources
 from .late import late_obligation, late_rules
 from .lean import canonical, simplify
+from .peephole import peephole_rules, peephole_theorems, read_classes
 from .prover import MANUAL_PROOFS, Checker, job, prove
 from .stack import stack_rules, stack_variants
 
 DEFAULT_FILES = [
     ISLE / "mir/word",
     ISLE / "mir/word_sequence",
+    ISLE / "evm-ir/peephole.isle",
     ISLE / "evm-ir/stack_peephole.isle",
     ISLE / "evm-ir/late_word.isle",
     ISLE / "mir/egraph",
@@ -79,6 +81,30 @@ def obligations(path):
                 entry["theorems"] = [
                     (f"{entry['name']}_{index}", shape, Expr.const(0), [])
                     for index, shape in enumerate(shapes)
+                ]
+            except FAILURES as error:
+                entry["error"] = str(error)
+            yield entry
+        return
+    if path.name == "peephole.isle":
+        snapshot = read_classes()
+        for rule in peephole_rules(path):
+            entry = {
+                "line": rule.line,
+                "name": f"{path.stem}_L{rule.line}",
+                "sha256": rule.digest,
+            }
+            try:
+                shapes, variants, growth, contracts = peephole_theorems(rule, snapshot)
+                entry.update(variants=variants, peak_growth=growth, contracts=contracts)
+                entry["theorems"] = [
+                    (
+                        f"{entry['name']}_{index}",
+                        difference,
+                        Expr.const(0),
+                        list(conditions),
+                    )
+                    for index, (difference, conditions) in enumerate(shapes)
                 ]
             except FAILURES as error:
                 entry["error"] = str(error)

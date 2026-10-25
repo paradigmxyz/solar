@@ -39,7 +39,7 @@ jobs:
           if [[ "$EVENT_NAME" != pull_request ]]; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
-            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen/isle scripts/evm-rules .github/scripts/install_lean.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
+            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen/isle crates/codegen/src/backend/evm/ir/passes/peephole scripts/evm-rules .github/scripts/install_lean.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
             if [[ -n "$changed" ]]; then
               echo 'run=true' >> "$GITHUB_OUTPUT"
             else

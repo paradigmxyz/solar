@@ -227,6 +227,7 @@ def main():
             "crates/codegen/src/mir/transform/word_sequence/isle.rs",
             "crates/codegen/src/backend/evm/codegen/select.rs",
             "crates/codegen/src/backend/evm/ir/passes/peephole.rs",
+            "crates/codegen/src/backend/evm/ir/passes/peephole/classes.snap",
             "crates/codegen/src/backend/evm/ir/passes/peephole/isle.rs",
             "crates/codegen/src/backend/evm/op.rs",
         )

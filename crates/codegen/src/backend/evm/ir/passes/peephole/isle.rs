@@ -730,3 +730,110 @@ impl generated::Context for PeepContext<'_> {
         Rewrite { skip, edit: *edit }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{generated::Context as _, *};
+    use crate::backend::evm::ir::Instruction;
+    use std::fmt::Write;
+
+    /// Words that exercise wrapping, signs and shift counts in the constant evaluator.
+    const WORDS: [(&str, U256); 8] = [
+        ("zero", U256::ZERO),
+        ("one", U256::ONE),
+        ("two", U256::from_limbs([2, 0, 0, 0])),
+        ("31", U256::from_limbs([31, 0, 0, 0])),
+        ("32", U256::from_limbs([32, 0, 0, 0])),
+        ("max", U256::MAX),
+        ("smin", U256::from_limbs([0, 0, 0, 1 << 63])),
+        ("smax", U256::from_limbs([u64::MAX, u64::MAX, u64::MAX, u64::MAX >> 1])),
+    ];
+
+    fn word_name(value: U256) -> String {
+        WORDS
+            .iter()
+            .find(|(_, word)| *word == value)
+            .map_or_else(|| format!("{value:#x}"), |(name, _)| (*name).to_string())
+    }
+
+    /// Exports what the offline rule verifier reads from the Rust extractors: every opcode of
+    /// each class the peephole rules test, the constant evaluator's results in pop order, and
+    /// the bound adjustment of `invert_comparison`. The verifier proves each rule for every
+    /// listed opcode and checks the evaluator's results against its own word semantics.
+    #[test]
+    fn peephole_classes() {
+        let mut context = PeepContext::new(&[], EvmVersion::Osaka);
+        let mut table = String::new();
+        let classes: [(&str, fn(&mut PeepContext<'_>, u8) -> bool); 5] = [
+            ("absorbs_zero", |context, opcode| context.absorbs_zero(opcode)),
+            ("zero_identity", |context, opcode| context.zero_identity(opcode)),
+            ("commutative", |context, opcode| context.is_commutative(opcode)),
+            ("noncommutative_binop", |context, opcode| context.is_noncommutative_binop(opcode)),
+            ("sink", |context, opcode| context.is_sink(opcode)),
+        ];
+        for (class, member) in classes {
+            for opcode in u8::MIN..=u8::MAX {
+                if let Some(mnemonic) = op::mnemonic(opcode)
+                    && member(&mut context, opcode)
+                {
+                    let (inputs, outputs) = op::stack_io(opcode).unwrap();
+                    writeln!(table, "class {class} {mnemonic} {inputs}/{outputs}").unwrap();
+                }
+            }
+        }
+        for opcode in u8::MIN..=u8::MAX {
+            if let Some(mnemonic) = op::mnemonic(opcode)
+                && let Some(flipped) = context.flipped_comparison(opcode)
+            {
+                writeln!(table, "flip {mnemonic} {}", op::mnemonic(flipped).unwrap()).unwrap();
+            }
+        }
+        for opcode in u8::MIN..=u8::MAX {
+            let Some(mnemonic) = op::mnemonic(opcode) else { continue };
+            for (x, x_value) in WORDS {
+                if let Some(result) = eval::eval_opcode(opcode, &[x_value]) {
+                    writeln!(table, "fold1 {mnemonic} {x} {}", word_name(result)).unwrap();
+                }
+                for (y, y_value) in WORDS {
+                    if let Some(result) = eval::eval_opcode(opcode, &[x_value, y_value]) {
+                        writeln!(table, "fold2 {mnemonic} {x} {y} {}", word_name(result)).unwrap();
+                    }
+                }
+            }
+        }
+        // PUSH c; [DUP2]; compare; ISZERO. The `DUP2` reads the word below `c`, so `c` stays one
+        // word below the top of the stack.
+        for opcode in [LT, GT, SLT, SGT] {
+            for depth in 0..=1 {
+                let probe = |value: U256| {
+                    let mut window = vec![Instruction::push_value(value)];
+                    if depth == 1 {
+                        window.push(Instruction::stack_op(StackOp::Dup(2)));
+                    }
+                    window.push(Instruction::opcode(opcode));
+                    invert_comparison(&window, EvmVersion::Osaka)
+                };
+                let value = U256::from(5);
+                let (_, bound, flipped) = probe(value).unwrap();
+                let delta = if bound == value + U256::ONE {
+                    "+1"
+                } else if bound == value - U256::ONE {
+                    "-1"
+                } else {
+                    panic!("unexpected bound {bound:#x}")
+                };
+                let mnemonic = op::mnemonic(opcode).unwrap();
+                let flipped = op::mnemonic(flipped).unwrap();
+                writeln!(table, "invert {mnemonic} {depth} {delta} {flipped}").unwrap();
+                for (edge, edge_value) in WORDS {
+                    if matches!(edge, "zero" | "max" | "smin" | "smax") {
+                        let verdict =
+                            if probe(edge_value).is_some() { "accepted" } else { "rejected" };
+                        writeln!(table, "edge {mnemonic} {depth} {edge} {verdict}").unwrap();
+                    }
+                }
+            }
+        }
+        snapbox::assert_data_eq!(table, snapbox::file!["classes.snap"]);
+    }
+}

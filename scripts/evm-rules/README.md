@@ -3,7 +3,9 @@
 This is an offline search and verification lane for the **actual ISLE source
 compiled into the optimizer**. Under `crates/codegen/isle/`, it checks MIR
 rewrites in `mir/word`, `mir/word_sequence` and `mir/egraph`, and physical EVM
-IR rules in `evm-ir/stack_peephole.isle` and `evm-ir/late_word.isle`. Each rule becomes a
+IR rules in `evm-ir/peephole.isle`, `evm-ir/stack_peephole.isle` and
+`evm-ir/late_word.isle`. Every rule file compiled into the optimizer is verified;
+a test fails when a new `evm-ir` rule file is not. Each rule becomes a
 theorem about EVM semantics written in Lean 4, and Lean proves it; no SMT
 solver takes part. The compiler itself has no prover dependency.
 
@@ -314,8 +316,67 @@ Malformed input bytecode and out-of-gas behavior are excluded. The Rust window
 facets, edits and target lowering remain trusted and are recorded by hash.
 The guarded five-op window rejects protected instruction boundaries; focused
 window-helper tests check this guard.
-Other peepholes, especially memory and branch rewrites, are not covered by this
-lane. Unknown syntax, guards, edits or operations fail verification.
+Unknown syntax, guards, edits or operations fail verification.
+
+## Peephole rules
+
+`evm_rules/peephole.py` checks every rule of `evm-ir/peephole.isle`. It reads the
+window the rule matches and the `Edit` it applies, runs both instruction sequences on
+one symbolic stack, and requires them to agree on every touched stack word, the
+memory, the ordered effects and the branch decision. The replacement may not need more
+input words or change the stack height. Each `Edit` that the rules use is modeled as
+`Edit::apply` implements it, on the window it assumes; any other edit, guard, window,
+extent or opcode makes the rule unsupported, never proved. Windows with variable
+depths are checked at every legal depth: `DUPn` and `SWAPn` from 1 through 235,
+every `EXCHANGE n m` with `n < m` and `n + m <= 30`, `swap_pop_chain` for every `n`
+whose merged `SWAP(n+1)` is encodable, and `swap_discard_chain` for every length up to
+236.
+
+Branch rules (`ISZERO ISZERO`, `PUSH 0 LT`, `EQ ISZERO` before a label push and
+`JUMPI`) compare the target and the stack, and require the same decision: the jump is
+taken under the same condition, zero against nonzero. A removed `JUMPI` must have a
+condition that is provably zero. Memory rules model memory as a function from words to
+words: `MSTORE` updates it, `MLOAD` reads it, and an initial read is a free word, with
+equal addresses reading equal words. The checker compares the final memory at an
+arbitrary address and requires both sequences to touch the same addresses, so memory
+expansion agrees. This model is word-granular. It relates only reads and writes of one
+address, which is all that the rules do, and it does not model overlapping unaligned
+writes, gas or memory size beyond the touched addresses. A window may not mix memory
+operations with other effects. Any other opcode with stack inputs is an effect that
+both sequences must perform in the same order on equal operands; its result is a word
+that the two sequences share.
+
+The opcode classes (`absorbs_zero`, `zero_identity`, `is_commutative`,
+`is_noncommutative_binop`, `is_sink`, `flipped_comparison`) come from the Rust
+classification, not from a second list. `cargo nextest run -p solar-codegen
+peephole_classes` exports each class, with the stack inputs and outputs of its
+opcodes, to `crates/codegen/src/backend/evm/ir/passes/peephole/classes.snap`, and the
+checker proves the rule for every opcode listed. The same snapshot lists the constant
+evaluator's results on boundary words in pop order, which the checker replays in its
+independent integer semantics, and the bound adjustment, flipped opcode and rejected
+wrapping bounds of `invert_comparison`. Regenerate it with
+`SNAPSHOTS=overwrite cargo nextest run -p solar-codegen peephole_classes`.
+
+The extractors with nontrivial logic stay trusted contracts, recorded in each rule's
+report with the proofs and hashed with the Rust sources: `invert_comparison`,
+`fold_constants`, `fold_unary_constant`, `noop_stack_suffix`, `swap_pop_chain`,
+`swap_discard_chain`, `duplicates_known_zero` and `untaken_jump`. The proof covers the
+identity each contract implies. For `invert_comparison`, a constant, operands that
+cannot observe it, a comparison and `ISZERO` become the adjusted constant, the same
+operands and the flipped comparison, for every constant that the bound does not wrap
+around, at either depth and unsigned or signed; the signed bound moves in biased
+order. For `fold_constants` the folded word is the evaluator's result, so the
+checked identity is that the model and the evaluator agree. `duplicates_known_zero`
+needs a zero at the duplicated depth, and the swap and pop chains are checked for
+every depth. `noop_stack_suffix` trusts that the window reads only words that its
+own pushes created and ends at depth zero. The tests check that this implies an
+unchanged stack for every such sequence up to length seven. The extractors' matching of
+those shapes, the window and protected-boundary guards, push removability,
+`materialize_immediate`, and the lowering of overwritten opcodes remain trusted.
+
+Rules do not rederive stack limits. `PUSH x MSTORE PUSH x MLOAD -> DUP1 PUSH x MSTORE`
+raises the peak stack height by one word. The report records each rule's peak growth,
+and the codegen stack model's 1024-word limit is not rechecked after this rewrite.
 
 The late word lane models bounded physical windows around shift-count
 computations. One extractor requires a closed computation that leaves exactly
