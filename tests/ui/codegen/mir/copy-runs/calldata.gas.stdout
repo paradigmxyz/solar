@@ -1,0 +1,61 @@
+// === ROOT/tests/ui/codegen/mir/copy-runs/calldata.sol:Test ===
+@module Test
+@phase lowered
+fn @run() [selector=0xc0406226, abi_wrapper, pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    calldatacopy v0, 4, 96
+    returndata v0, 96
+}
+
+fn @between() [selector=0x2699ae07, abi_wrapper, pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore v0, v1
+    mstore 0, 1 !metadata(memory=scratch)
+    v2 = calldataload 36
+    v3 = add v0, 32
+    mstore v3, v2
+    returndata v0, 64
+}
+
+fn @gap() [selector=0x6c32c0a6, abi_wrapper, pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore v0, v1
+    v2 = calldataload 68
+    v3 = add v0, 32
+    mstore v3, v2
+    returndata v0, 64
+}
+
+fn @single() [selector=0xde3e828e, abi_wrapper, pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore v0, v1
+    returndata v0, 32
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x2699ae07 => bb2, 0x6c32c0a6 => bb3, 0xc0406226 => bb4, 0xde3e828e => bb5]
+  bb5:
+    tail_call @single
+  bb4:
+    tail_call @run
+  bb3:
+    tail_call @gap
+  bb2:
+    tail_call @between
+  bb6:
+    revert 0, 0
+}

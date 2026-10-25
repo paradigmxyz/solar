@@ -1,0 +1,46 @@
+// === ROOT/tests/ui/codegen/mir/copy-runs/calldata_runtime.sol:Test ===
+@module Test
+fn @run() [selector=0xc0406226, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore v0, v1
+    v2 = calldataload 36
+    v3 = add v0, 32
+    mstore v3, v2
+    v4 = calldataload 68
+    v5 = add v0, 64
+    mstore v5, v4
+    returndata v0, 96
+}
+
+fn @between() [selector=0x2699ae07, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore v0, v1
+    mstore 0, 1 !metadata(memory=scratch)
+    v2 = calldataload 36
+    v3 = add v0, 32
+    mstore v3, v2
+    returndata v0, 64
+}
+
+fn @gap() [selector=0x6c32c0a6, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore v0, v1
+    v2 = calldataload 68
+    v3 = add v0, 32
+    mstore v3, v2
+    returndata v0, 64
+}
+
+fn @single() [selector=0xde3e828e, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore v0, v1
+    returndata v0, 32
+}

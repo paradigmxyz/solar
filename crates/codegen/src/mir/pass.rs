@@ -56,6 +56,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
     &byte_run::ByteRunLoads,
+    &copy_runs::CopyRuns,
     &cse::Cse::Storage,
     &storage_dse::StorageDse,
     &pre::Pre::Reads,
@@ -342,6 +343,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // extraction; fuse the run into the one read it is a field of, before the
     // loop passes below hoist and step addresses the run no longer uses.
     &byte_run::ByteRunLoads,
+    // Runs of adjacent word copies, from ABI encoding and struct copies, become one bulk copy once
+    // their addresses share a base. The loop passes below see the copy instead of the words.
+    &copy_runs::CopyRuns,
     // Memory lowering materializes each element access as `add base, 32`
     // plus an index term inside the loop that reads it. Hoist the invariant
     // base once the physical form is final, so a hot loop carries one word

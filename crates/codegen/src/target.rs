@@ -899,6 +899,53 @@ impl Target {
         let guarded = Cost::new(guard.gas + copy.gas, guard.bytes + copy.bytes + looped.bytes);
         self.cmp(guarded, looped).is_lt()
     }
+    /// Whether one bulk copy of `words` adjacent words, `CALLDATACOPY` from calldata or `MCOPY`
+    /// from memory, improves on a load and a store for each word. `kept_loads` of the loads have
+    /// other users and stay, so only their stores go, and the value and address each store reads
+    /// are already on the stack. `dest` and `src` are the constant first addresses, or `None` for
+    /// an address computed at run time: the first word of a computed address is a duplicate of
+    /// its base, and each later word adds its offset to that.
+    pub(crate) fn bulk_word_copy_improves(
+        &self,
+        words: u32,
+        kept_loads: u32,
+        from_calldata: bool,
+        dest: Option<u64>,
+        src: Option<u64>,
+    ) -> bool {
+        let (load, copy) = if from_calldata {
+            (op::CALLDATALOAD, op::CALLDATACOPY)
+        } else {
+            (op::MLOAD, op::MCOPY)
+        };
+        let address = |first: Option<u64>, word: u32| match first {
+            Some(first) => self.push(U256::from(first + u64::from(word) * 32)),
+            None if word == 0 => self.dup(),
+            None => self.dup() + self.push(U256::from(word * 32)) + self.opcode(op::ADD),
+        };
+        let loaded = words.saturating_sub(kept_loads);
+        let word_by_word: Cost = (0..loaded)
+            .map(|word| {
+                self.opcode(load)
+                    + address(src, word)
+                    + self.opcode(op::MSTORE)
+                    + address(dest, word)
+            })
+            .sum::<Cost>()
+            + (self.opcode(op::MSTORE) + self.dup().times(2)).times(kept_loads);
+        // The values that stay are live through the copy's operands, which costs a stack move.
+        let live = self.dup().times(kept_loads.min(1));
+        let bulk = self.opcode(copy)
+            + self.push(U256::from(words * 32))
+            + address(src, 0)
+            + address(dest, 0)
+            + live
+            + self.copied_words(words as usize * 32);
+        let gas = i64::from(self.runtime_gas(word_by_word)) - i64::from(self.runtime_gas(bulk));
+        let bytes = i64::from(word_by_word.bytes) - i64::from(bulk.bytes);
+        self.improves(gas, bytes)
+    }
+
     /// The factor `2**shift` that a constant shift lowered to `MUL` or `DIV` pushes, or `None`
     /// when computing it with `EXP` costs less over the deployment lifetime. Shifts of 256 or
     /// more give a zero factor, which matches the wrapped `EXP` result.
@@ -1440,6 +1487,25 @@ mod tests {
         assert!(!size.guards_block_copy(2));
         assert!(gas.guards_block_copy(2));
         assert!(gas.guards_block_copy(8));
+    }
+
+    #[test]
+    fn bulk_word_copy_replaces_runs_that_save_bytes() {
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        // Two words at computed addresses take a load, a store and an offset for each; the
+        // copy needs its length, one source and one destination.
+        assert!(size.bulk_word_copy_improves(2, 0, true, None, None));
+        assert!(size.bulk_word_copy_improves(2, 0, false, None, None));
+        assert!(gas.bulk_word_copy_improves(2, 0, true, None, None));
+        // At constant addresses a load and a store cost a push each, the same bytes as the copy.
+        assert!(!size.bulk_word_copy_improves(2, 2, true, Some(32), Some(4)));
+        // Words already loaded and left on the stack leave only their stores to remove, and the
+        // copy pays a stack move for them.
+        assert!(!size.bulk_word_copy_improves(2, 2, true, None, None));
+        assert!(size.bulk_word_copy_improves(3, 3, true, None, None));
+        // The copy's word gas never outweighs a load and a store of each word.
+        assert!(gas.bulk_word_copy_improves(16, 0, true, Some(0x80), Some(4)));
     }
 
     #[test]

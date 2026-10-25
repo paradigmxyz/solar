@@ -87,6 +87,7 @@ time: <TIME>	MIR TimePasses integer-cleanup changed=false
 time: <TIME>	MIR TimePasses egraph changed=true
 time: <TIME>	MIR TimePasses word-sequence changed=false
 time: <TIME>	MIR TimePasses byte-run-loads changed=false
+time: <TIME>	MIR TimePasses copy-runs changed=false
 time: <TIME>	MIR TimePasses licm changed=false
 time: <TIME>	MIR TimePasses loop-unroll changed=false
 time: <TIME>	MIR TimePasses check-elim changed=false

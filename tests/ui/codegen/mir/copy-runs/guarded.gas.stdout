@@ -1,0 +1,105 @@
+// === ROOT/tests/ui/codegen/mir/copy-runs/guarded.sol:Test ===
+@module Test
+@phase lowered
+fn @guarded() [selector=0x72f7a030, abi_wrapper, pure] {
+  bb0:
+    v0 = calldataload 4
+    v1 = calldataload 36
+    v2 = calldatasize
+    v3 = gt v0, v2
+    v6 = sub v2, v0
+    v7 = gt v1, v6
+    v23 = or v3, v7
+    v10 = add v0, v1
+    v11 = sub v2, v10
+    v12 = lt v11, 96
+    v24 = or v23, v12
+    jumpi v24, bb1, bb2
+  bb2:
+    v15 = mload 64 !metadata(memory=scratch)
+    calldatacopy v15, v10, 96
+    returndata v15, 96
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded() [selector=0xfc6562ec, abi_wrapper, pure] {
+  bb0:
+    v0 = calldataload 4
+    v1 = calldataload 36
+    v2 = calldatasize
+    v3 = sub v2, v0
+    v4 = gt v1, v3
+    v7 = add v0, v1
+    v8 = sub v2, v7
+    v9 = lt v8, 96
+    v20 = or v4, v9
+    jumpi v20, bb1, bb2
+  bb2:
+    v12 = mload 64 !metadata(memory=scratch)
+    v13 = calldataload v7
+    mstore v12, v13
+    v14 = add v7, 32
+    v15 = calldataload v14
+    v16 = add v12, 32
+    mstore v16, v15
+    v17 = add v7, 64
+    v18 = calldataload v17
+    v19 = add v12, 64
+    mstore v19, v18
+    returndata v12, 96
+  bb1:
+    revert 0, 0
+}
+
+fn @bounded() [selector=0xbb013a8d, abi_wrapper, pure] {
+  bb0:
+    v0 = calldataload 4
+    v9 = shr v0, 64
+    v1 = ne v9, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    v4 = mload 64 !metadata(memory=scratch)
+    calldatacopy v4, v0, 64
+    returndata v4, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @wrapping() [selector=0xa03e0682, abi_wrapper, pure] {
+  bb0:
+    v0 = calldataload 4
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = calldataload v0
+    mstore v1, v2
+    v3 = add v0, 32
+    v4 = calldataload v3
+    v5 = add v1, 32
+    mstore v5, v4
+    v6 = add v0, 64
+    v7 = calldataload v6
+    v8 = add v1, 64
+    mstore v8, v7
+    returndata v1, 96
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x72f7a030 => bb2, 0xa03e0682 => bb3, 0xbb013a8d => bb4, 0xfc6562ec => bb5]
+  bb5:
+    tail_call @unguarded
+  bb4:
+    tail_call @bounded
+  bb3:
+    tail_call @wrapping
+  bb2:
+    tail_call @guarded
+  bb6:
+    revert 0, 0
+}

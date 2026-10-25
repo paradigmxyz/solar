@@ -7,6 +7,7 @@ pub(crate) mod check_elim;
 pub(crate) mod coalesce_allocs;
 pub(super) mod const_fold;
 pub(crate) mod copy_elision;
+pub(crate) mod copy_runs;
 pub(crate) mod cse;
 pub(crate) mod dce;
 pub(crate) mod egraph;

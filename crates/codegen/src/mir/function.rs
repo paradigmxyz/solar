@@ -408,6 +408,17 @@ impl Function {
         self.instructions.len()
     }
 
+    /// Returns the sizes of the value and instruction tables, for [`Self::truncate_to`].
+    pub(crate) fn allocation_mark(&self) -> (usize, usize) {
+        (self.values.len(), self.instructions.len())
+    }
+
+    /// Drops the values and instructions allocated since `mark`. No block or operand may use them.
+    pub(crate) fn truncate_to(&mut self, (values, instructions): (usize, usize)) {
+        self.values.truncate(values);
+        self.instructions.truncate(instructions);
+    }
+
     /// Returns the IDs of all active instructions in block order.
     pub(crate) fn instructions(&self) -> impl Iterator<Item = InstId> + '_ {
         self.blocks.iter().flat_map(|block| block.instructions.iter().copied())

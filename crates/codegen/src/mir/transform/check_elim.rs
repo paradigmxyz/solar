@@ -322,6 +322,34 @@ impl MirPass for LateCheckElim {
     }
 }
 
+/// Returns the conditions of `queries` that are false wherever their instruction runs, by the
+/// facts the dominating branches and checks establish. A condition is an existing value, not
+/// necessarily one a block computes. The function is not changed.
+pub(crate) fn conditions_false(
+    func: &Function,
+    queries: &[(InstId, ValueId)],
+) -> FxHashSet<ValueId> {
+    let mut eliminator = CheckEliminator::new(None);
+    eliminator.non_strict_sums = true;
+    for &(inst, condition) in queries {
+        eliminator.queries.entry(inst).or_default().push(condition);
+    }
+    let cfg = CfgInfo::new(func);
+    let mut relevant = branch_inputs(func, &cfg);
+    let mut pending = queries.iter().map(|&(_, condition)| condition).collect::<Vec<_>>();
+    while let Some(value) = pending.pop() {
+        if relevant.insert(value)
+            && let Value::Inst(inst) = func.value(value)
+        {
+            pending.extend(func.inst(*inst).operands());
+        }
+    }
+    eliminator.universal_relations = universal_relations(func, &relevant);
+    let facts = eliminator.join_facts(func, &cfg, &relevant);
+    let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
+    eliminator.refuted
+}
+
 /// Recognizes short unconditional failure paths: a chain of jumps to a block that aborts,
 /// including through outlined revert helpers and other functions that never return.
 /// This only selects profitable candidates; range analysis proves the edge unreachable.
@@ -660,6 +688,10 @@ struct CheckEliminator<'a> {
     equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
     unfailing: Vec<(InstId, InstKind)>,
+    /// Conditions to evaluate where an instruction runs, for [`conditions_false`].
+    queries: FxHashMap<InstId, SmallVec<[ValueId; 2]>>,
+    /// The conditions of `queries` that are false wherever their instruction runs.
+    refuted: FxHashSet<ValueId>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -675,6 +707,9 @@ struct CheckEliminator<'a> {
     reverse_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
     /// Differences indexed under their subtrahend: `b` maps to every `(a, a - b)`.
     difference_index: Option<DifferenceIndex>,
+    /// Whether `a + b <= end` follows from `b <= end - a` and `a <= end`, as well as from
+    /// `b < end - a`. Set only for [`conditions_false`], which no pass's output relies on.
+    non_strict_sums: bool,
     /// Depth of the sum-bound lemma, which asks relational questions of its own.
     sum_depth: usize,
     /// Values above a strict edge, shared by queries in the same fact scope.
@@ -908,6 +943,13 @@ impl<'a> CheckEliminator<'a> {
                     }
 
                     for &id in &func.blocks[block].instructions {
+                        if let Some(conditions) = self.queries.get(&id).cloned() {
+                            for condition in conditions {
+                                if self.eval_truth(func, condition, MAX_DEPTH) == Some(false) {
+                                    self.refuted.insert(condition);
+                                }
+                            }
+                        }
                         if !self.equalities.is_empty() {
                             self.propagate_equalities_into(func, cfg, id);
                         }
@@ -1519,8 +1561,15 @@ impl<'a> CheckEliminator<'a> {
     /// with `start <= end` puts `start + k` below `end`, because the scope
     /// computing `end - start` without wrapping makes the difference exact.
     /// The sum stays below `end`, so it cannot wrap either. Passing `None` for
-    /// `limit` asks only for wrap freedom.
-    fn sum_stays_below(&mut self, func: &Function, sum: ValueId, limit: Option<ValueId>) -> bool {
+    /// `limit` asks only for wrap freedom. With `strict` false the offset may equal the
+    /// difference, so the sum may reach `end`.
+    fn sum_stays_below(
+        &mut self,
+        func: &Function,
+        sum: ValueId,
+        limit: Option<ValueId>,
+        strict: bool,
+    ) -> bool {
         const MAX_SUM_DEPTH: usize = 2;
         if self.sum_depth >= MAX_SUM_DEPTH {
             return false;
@@ -1536,8 +1585,18 @@ impl<'a> CheckEliminator<'a> {
                 .cloned()
                 .unwrap_or_default();
             candidates.into_iter().any(|(minuend, difference)| {
-                self.has_relation(func, Relation::Lt(offset, difference))
-                    && self.has_relation(func, Relation::Le(base, minuend))
+                let below = if strict {
+                    Relation::Lt(offset, difference)
+                } else {
+                    Relation::Le(offset, difference)
+                };
+                let base_fits = self.has_relation(func, Relation::Le(base, minuend))
+                    || (self.non_strict_sums
+                        && const_of(func, base).is_some_and(|base| {
+                            self.range_of(func, minuend, MAX_DEPTH).lo >= base
+                        }));
+                self.has_relation(func, below)
+                    && base_fits
                     && limit.is_none_or(|limit| {
                         minuend == limit || self.has_relation(func, Relation::Le(minuend, limit))
                     })
@@ -1649,6 +1708,13 @@ impl<'a> CheckEliminator<'a> {
         if start == end && !needs_strict {
             return true;
         }
+        // `a + b <= end` follows from `b <= end - a` and `a <= end`, whichever edges `a + b` has.
+        if self.non_strict_sums
+            && let Relation::Le(sum, limit) = relation
+            && self.sum_stays_below(func, sum, Some(limit), false)
+        {
+            return true;
+        }
         if self.relations.len() <= 1 && self.universal_relations.is_empty() {
             // A single strict/equal edge also proves a non-strict comparison.
             // Every other single-edge implication was covered by direct lookup.
@@ -1674,13 +1740,12 @@ impl<'a> CheckEliminator<'a> {
         // which the edges above could not express because the difference
         // relates the offset rather than the sum.
         match relation {
-            Relation::Lt(sum, limit) => self.sum_stays_below(func, sum, Some(limit)),
+            Relation::Lt(sum, limit) => self.sum_stays_below(func, sum, Some(limit), true),
             // `a <= a + b` needs only that the sum cannot wrap.
-            Relation::Le(base, sum) => {
-                matches!(inst_kind(func, sum), Some(&InstKind::Add(x, y)) if x == base || y == base)
-                    && self.sum_stays_below(func, sum, None)
+            Relation::Le(base, sum) if matches!(inst_kind(func, sum), Some(&InstKind::Add(x, y)) if x == base || y == base) => {
+                self.sum_stays_below(func, sum, None, true)
             }
-            Relation::Eq(..) | Relation::Ne(..) => false,
+            Relation::Le(..) | Relation::Eq(..) | Relation::Ne(..) => false,
         }
     }
 

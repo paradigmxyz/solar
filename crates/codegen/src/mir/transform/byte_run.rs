@@ -282,7 +282,7 @@ fn push_leaf(
 ///
 /// `add` wraps, so the split is exact for any operands: two addresses with
 /// equal addend lists differ by exactly the difference of their constants.
-fn address_key(func: &Function, address: ValueId) -> Option<(Vec<ValueId>, u64)> {
+pub(super) fn address_key(func: &Function, address: ValueId) -> Option<(Vec<ValueId>, u64)> {
     let mut base = Vec::new();
     let mut offset = 0u64;
     let mut pending = Vec::new();
@@ -381,7 +381,7 @@ fn byte_read(func: &Function, inst: InstId) -> Option<(Vec<ValueId>, u64, ValueI
 
 /// Removes instructions left without users by the rewrites above. Returns whether anything was
 /// removed.
-fn sweep_dead(func: &mut Function) -> bool {
+pub(super) fn sweep_dead(func: &mut Function) -> bool {
     let mut swept = false;
     loop {
         let uses = super::egraph::use_counts(func);

@@ -1,0 +1,129 @@
+// === ROOT/tests/ui/codegen/mir/copy-runs/guarded_runtime.sol:Test ===
+@module Test
+fn @guarded() [selector=0x72f7a030, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = calldataload 4
+    v1 = calldataload 36
+    v2 = calldatasize
+    v3 = gt v0, v2
+    v4 = zext i1 v3 to i256
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v6 = sub v2, v0
+    v7 = gt v1, v6
+    v8 = zext i1 v7 to i256
+    v9 = ne v8, 0
+    jumpi v9, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v10 = add v0, v1
+    v11 = sub v2, v10
+    v12 = lt v11, 96
+    v13 = zext i1 v12 to i256
+    v14 = ne v13, 0
+    jumpi v14, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    v15 = mload 64 !metadata(memory=scratch)
+    v16 = calldataload v10
+    mstore v15, v16
+    v17 = add v10, 32
+    v18 = calldataload v17
+    v19 = add v15, 32
+    mstore v19, v18
+    v20 = add v10, 64
+    v21 = calldataload v20
+    v22 = add v15, 64
+    mstore v22, v21
+    returndata v15, 96
+  bb7:
+    revert 0, 0
+  bb4:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded() [selector=0xfc6562ec, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = calldataload 4
+    v1 = calldataload 36
+    v2 = calldatasize
+    v3 = sub v2, v0
+    v4 = gt v1, v3
+    v5 = zext i1 v4 to i256
+    v6 = ne v5, 0
+    jumpi v6, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v7 = add v0, v1
+    v8 = sub v2, v7
+    v9 = lt v8, 96
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v12 = mload 64 !metadata(memory=scratch)
+    v13 = calldataload v7
+    mstore v12, v13
+    v14 = add v7, 32
+    v15 = calldataload v14
+    v16 = add v12, 32
+    mstore v16, v15
+    v17 = add v7, 64
+    v18 = calldataload v17
+    v19 = add v12, 64
+    mstore v19, v18
+    returndata v12, 96
+  bb4:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}
+
+fn @bounded() [selector=0xbb013a8d, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = calldataload 4
+    v1 = gt v0, 0xffffffffffffffff
+    v2 = zext i1 v1 to i256
+    v3 = ne v2, 0
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = calldataload v0
+    mstore v4, v5
+    v6 = add v0, 32
+    v7 = calldataload v6
+    v8 = add v4, 32
+    mstore v8, v7
+    returndata v4, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @wrapping() [selector=0xa03e0682, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = calldataload 4
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = calldataload v0
+    mstore v1, v2
+    v3 = add v0, 32
+    v4 = calldataload v3
+    v5 = add v1, 32
+    mstore v5, v4
+    v6 = add v0, 64
+    v7 = calldataload v6
+    v8 = add v1, 64
+    mstore v8, v7
+    returndata v1, 96
+}
