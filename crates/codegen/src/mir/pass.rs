@@ -360,7 +360,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(indvar_simplify::IndVarSimplify),
     // Counted loops test their bound once per two iterations once their
     // physical shape is final; the cleanup below drops the unread clones.
-    // Below `LOOP_COPY_MIN_RUNS` this only counts up-counting loops from `-n` to zero, which
+    // Size mode copies no loops; there it only counts up-counting loops from `-n` to zero, which
     // shrinks them.
     &loop_unroll::LoopUnroll,
     // The unrolled main loop's test bounds the first copy's counter, so its
