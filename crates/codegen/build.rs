@@ -1,6 +1,5 @@
 //! Compiles the ISLE rewrite rules under `isle/` into Rust source.
 
-use cranelift_isle::codegen::{CodegenOptions, Prefix};
 use std::{env, fs, path::PathBuf};
 
 /// Rule sets and the ISLE files each one is compiled from, prelude first.
@@ -55,9 +54,9 @@ fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     let isle_dir = manifest_dir.join("isle");
     // Keep the file names embedded in generated code independent of the checkout location.
-    let options = CodegenOptions {
+    let options = cranelift_isle::codegen::CodegenOptions {
         exclude_global_allow_pragmas: true,
-        prefixes: vec![Prefix {
+        prefixes: vec![cranelift_isle::codegen::Prefix {
             prefix: manifest_dir.display().to_string(),
             name: "solar-codegen".into(),
         }],
@@ -65,7 +64,10 @@ fn main() {
     };
     for (name, files) in RULE_SETS {
         // `select` runs per candidate inside the cost model and the inliner, so it stays silent.
-        let options = CodegenOptions { emit_logging: *name != "select", ..options.clone() };
+        let options = cranelift_isle::codegen::CodegenOptions {
+            emit_logging: *name != "select",
+            ..options.clone()
+        };
         let inputs: Vec<PathBuf> = files.iter().map(|file| isle_dir.join(file)).collect();
         for input in &inputs {
             println!("cargo:rerun-if-changed={}", input.display());
