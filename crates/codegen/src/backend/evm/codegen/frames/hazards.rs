@@ -28,9 +28,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Fixed-width copies have the same explicit-memory contract as
             // `mstore`: arbitrary destinations in hand-written assembly may
             // alias compiler memory. The forwarding-buffer protocol is for
-            // variable-length writes that can sweep over every spill slot.
+            // variable-length writes that can sweep over every spill slot, and
+            // for fixed-width writes through a low sweeping pointer, as for `mstore`.
             if func.value_u64(size).is_some() {
-                return None;
+                return Self::is_low_sweeping_pointer(func, dest).then_some(dest);
             }
             let below_spills = func.value_u64(dest).is_some_and(|dest| {
                 let mut visiting = DenseBitSet::new_empty(func.num_values());
@@ -478,5 +479,46 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let Some(size) = size else { return true };
         offset.checked_add(size).is_none_or(|range_end| range_end > start)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::FunctionBuilder;
+    use solar_interface::Ident;
+
+    #[test]
+    fn fixed_width_writes_through_low_sweeping_pointer_are_hazards() {
+        let mut function = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut function);
+        // loop: low = phi [0, low + 64]; high = phi [0x1000, high + 64]
+        //   mstore low, 1; calldatacopy low, 4, 64; calldatacopy high, 4, 64; calldatacopy 0, 4, 64
+        let entry = builder.current_block();
+        let body = builder.create_block();
+        builder.jump(body);
+        builder.switch_to_block(body);
+        let (zero, start, step) = (builder.imm(0), builder.imm(0x1000), builder.imm(64));
+        let low = builder.phi(vec![(entry, zero)]);
+        let high = builder.phi(vec![(entry, start)]);
+        let one = builder.imm(1);
+        builder.store(low, one);
+        builder.copy(low, step, step, PtrLocation::Calldata);
+        builder.copy(high, step, step, PtrLocation::Calldata);
+        builder.copy(zero, step, step, PtrLocation::Calldata);
+        let (next_low, next_high) = (builder.add(low, step), builder.add(high, step));
+        builder.add_phi_incoming(low, body, next_low);
+        builder.add_phi_incoming(high, body, next_high);
+        builder.jump(body);
+        let writes = function.blocks[body]
+            .instructions
+            .iter()
+            .filter(|&&inst| {
+                matches!(function.inst(inst).kind, InstKind::Store(..) | InstKind::Copy(..))
+            })
+            .map(|&inst| EvmCodegen::dynamic_spill_write_dest(&function, inst).is_some())
+            .collect::<Vec<_>>();
+        // The store and the copy through the low pointer; not the high pointer or the constant.
+        assert_eq!(writes, [true, true, false, false]);
     }
 }
