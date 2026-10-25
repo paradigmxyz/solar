@@ -13,7 +13,7 @@
 //! there are no nested shared tails. Nested tails keep their placement
 //! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
 //! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order.
-//! Loop-only paths do not create sharing groups.
+//! In gas mode, loop-only paths do not create sharing groups.
 //! Replacement jumps retain the suffix's entry location before its origins are merged, so
 //! single-origin source maps do not lose both callers' locations on a shared body.
 //! In gas mode, hot sharing must repay its transfer over the optimizer run count.
@@ -36,16 +36,16 @@
 //! layouts, larger loops, stack-only latches and memory/call bodies retain the existing sharing
 //! policy; broadly preventing their tail merges increased corpus bytecode size.
 //!
-//! Size mode keeps the branch of every block marked `in_loop` in its original block, so a loop
-//! header is `cond; push body; jumpi; jump exit_tail` and never `cond; push body; push shared;
-//! jump` into a shared `jumpi`. The shared block compiles in evm2's JIT to one switch on a target
-//! reloaded from the in-memory EVM stack. LLVM forwards neither the store nor the load, so every
-//! loop using the block merges through that switch and keeps its 256-bit values in memory. Against
-//! the better of solc 0.8.38 via-IR and legacy at one optimizer run, the JIT time of the
-//! seeded-words and verified-words runtime cases goes from +51% and +54% to -6% and -5%, and their
-//! interpreter time from -14% and -31% to -22% and -38%. The cost is 0.08% more runtime bytes over
-//! the runtime benchmark, repaid by 0.15% less execution gas. Exit tails after the branch are
-//! still shared, and blocks outside loops share across their branches as before.
+//! Size mode keeps the branch of every block marked `in_loop` in its original block. A loop
+//! header stays `cond; push body; jumpi; jump exit_tail` and is never `cond; push body; push
+//! shared; jump` into a shared `jumpi`. evm2's JIT turns that shared block into one switch on a
+//! jump target it reloads from the in-memory EVM stack. LLVM cannot remove that store and load, so
+//! every loop that uses the block goes through the switch and keeps its 256-bit values in memory.
+//! On evm2 against the better of solc 0.8.38 via-IR and legacy at one optimizer run, the
+//! seeded-words and verified-words benchmark cases were +51% and +54% in the JIT with the shared
+//! block and are -6% and -5% without it. The interpreter gains too, from -14% and -31% to -22% and
+//! -38%. The benchmark's runtime bytes grow by 0.08% and its execution gas falls by 0.15%. Exit
+//! tails after the branch are still shared, and blocks outside loops share across their branches.
 
 use super::{
     EvmPass,
