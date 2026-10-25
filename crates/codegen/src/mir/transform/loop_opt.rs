@@ -31,30 +31,42 @@
 //! hoisted base costs more in reloads of the words it displaces than its in-loop recomputation
 //! saved. At most a fixed number of instructions leave one loop.
 //!
-//! The pass runs once on the semantic MIR and once more in gas mode after memory lowering,
+//! The pass runs once on the semantic MIR and once more after memory lowering,
 //! which materializes each element access as `add base, 32` plus an index term inside the
 //! loop that reads it; the late run hoists that base so a hot loop carries one word instead
 //! of reloading its argument and re-adding the header on every iteration.
 //!
-//! In gas mode, an unsigned checked product inside a loop whose factor `y` is defined before
+//! An unsigned checked product inside a loop whose factor `y` is defined before
 //! the loop, lowered as `y == 0 || (x * y) / y == x` or, with `y` first, as a check that
 //! divides by `x`, becomes `x <= MAX / y - (y == 0)`, with the bound computed once in the
 //! preheader. A nonzero `y` keeps the product below `2^256`
 //! exactly when `x <= MAX / y`. A zero `y` turns the bound into `0 - 1 = MAX`, which every
-//! `x` meets. Each iteration then compares instead of dividing. The check keeps its branch,
-//! which panics when the comparison fails: flipping the branch so the check could merge with
-//! the add overflow check after it made the loop carry more words, and it measured slower.
-//! The rewrite is skipped in loops that check the gas left, since the bound runs first.
+//! `x` meets. Each iteration then compares instead of dividing. The rewrite is skipped in loops
+//! that check the gas left, since the bound runs first.
+//!
+//! In gas mode the check keeps its branch, which panics when the comparison fails: flipping the
+//! branch so the check could merge with the add overflow check after it made the loop carry more
+//! words, and it measured slower. In size mode the comparison is the branch condition itself,
+//! with the edges swapped, so `merge-aborts` joins it with the next check's test and no
+//! `iszero` remains. The bound is one more word the loop carries, and it replaces a division
+//! whose operands the schedule shuffles: size mode rewrites only when the target prices the bound
+//! and the comparisons below the checks they replace, and the loop stays within
+//! [`LOOP_CARRY_BUDGET`]. A loop carrying seven words grew by two bytes, while loops carrying
+//! two and four shrank by one and four.
 
-use crate::mir::{
-    BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value, ValueId,
-    analysis::{
-        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
-        Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
+use crate::{
+    mir::{
+        BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
+        Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
+        ValueId,
+        analysis::{
+            AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
+            Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
+        },
+        pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+        utils as mir_utils,
     },
-    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
-    utils as mir_utils,
+    target::Target,
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
@@ -100,6 +112,7 @@ impl MirPass for Licm {
             |func, analyses| {
                 let mut optimizer = LoopOptimizer {
                     hoist_cheap,
+                    target: Target::new(gcx),
                     alias: Rc::clone(analyses.alias()),
                     hoisted: 0,
                     annotated_aliases: false,
@@ -149,6 +162,7 @@ struct LoopOptimizer {
     /// hoisting only widens its choice; the cost is bytecode when the value is spilled, which
     /// gas mode accepts.
     hoist_cheap: bool,
+    target: Target,
     alias: Rc<AliasAnalysis>,
     /// Number of instructions hoisted or rewritten.
     hoisted: usize,
@@ -171,13 +185,14 @@ impl LoopOptimizer {
         }
 
         let loops = loop_info.loops.values().cloned().collect::<Vec<_>>();
-        if self.hoist_cheap {
-            for loop_data in &loops {
-                // The product's limit runs before the loop, so whatever in the loop checks the gas
-                // left would see what the limit cost before the first check paid for it.
-                if !self.loop_checks_gas_left(func, loop_data) {
-                    self.hoisted += reduce_product_checks(func, loop_data);
-                }
+        for loop_data in &loops {
+            // The product's limit runs before the loop, so whatever in the loop checks the gas
+            // left would see what the limit cost before the first check paid for it.
+            if !self.loop_checks_gas_left(func, loop_data) {
+                self.hoisted +=
+                    reduce_product_checks(func, loop_data, &self.target, |func, blocks| {
+                        Self::carried_words(func, loop_data, blocks)
+                    });
             }
         }
         let inst_blocks = func.inst_block_table();
@@ -1069,7 +1084,12 @@ impl LoopOptimizer {
 /// Rewrites each check of a product `x * y` with a factor `y` defined before the loop, lowered as
 /// `d == 0 || (x * y) / d == q` for either order of the factors, into `x <= MAX / y - (y == 0)`,
 /// computing the bound once in the preheader. Returns the number of checks rewritten.
-fn reduce_product_checks(func: &mut Function, loop_data: &Loop) -> usize {
+fn reduce_product_checks(
+    func: &mut Function,
+    loop_data: &Loop,
+    target: &Target,
+    carried_words: impl FnOnce(&Function, &IndexVec<InstId, Option<BlockId>>) -> usize,
+) -> usize {
     let Some(preheader) = loop_data.preheader else { return 0 };
     let inst_blocks = func.inst_block_table();
     let outside = |func: &Function, value: ValueId| match *func.value(value) {
@@ -1096,6 +1116,31 @@ fn reduce_product_checks(func: &mut Function, loop_data: &Loop) -> usize {
             }
         }
     }
+    let gas = target.optimization().is_gas();
+    if !gas && !checks.is_empty() {
+        let carried = carried_words(func, &inst_blocks);
+        // Each bound is one more carried word and pays only when enough checks share it.
+        let mut groups = Vec::<(ValueId, u32)>::new();
+        for &(.., y, _) in &checks {
+            match groups.iter_mut().find(|(factor, _)| *factor == y) {
+                Some((_, count)) => *count += 1,
+                None => groups.push((y, 1)),
+            }
+        }
+        let mut accepted = Vec::new();
+        for (y, count) in groups {
+            if carried + accepted.len() < LOOP_CARRY_BUDGET
+                && target.product_bound_is_profitable(count)
+            {
+                accepted.push(y);
+            }
+        }
+        checks.retain(|&(.., y, _)| accepted.contains(&y));
+    }
+    if checks.is_empty() {
+        return 0;
+    }
+    let uses = super::egraph::use_counts(func);
     let mut limits = FxHashMap::default();
     for &(block, inst, x, y, zero) in &checks {
         let context = func.inst(inst).metadata.debug_context();
@@ -1114,6 +1159,12 @@ fn reduce_product_checks(func: &mut Function, loop_data: &Loop) -> usize {
             let wide = builder.cast(zero, MirType::I256);
             builder.sub(quotient, wide)
         });
+        if !gas && flip_check(func, block, inst, &uses) {
+            // overflows = gt x, limit
+            // jumpi overflows, abort, next
+            func.inst_mut(inst).kind = InstKind::Gt(x, limit);
+            continue;
+        }
         // overflows = gt x, limit
         let mut overflows = Instruction::new(InstKind::Gt(x, limit), Some(MirType::I1));
         overflows.metadata.copy_debug_context(&func.inst(inst).metadata);
@@ -1126,6 +1177,30 @@ fn reduce_product_checks(func: &mut Function, loop_data: &Loop) -> usize {
         func.inst_mut(inst).kind = InstKind::Eq(overflows, zero);
     }
     checks.len()
+}
+
+/// Swaps the edges of the branch that tests only `inst`, so the check's result becomes the
+/// condition that aborts.
+fn flip_check(
+    func: &mut Function,
+    block: BlockId,
+    inst: InstId,
+    uses: &IndexVec<ValueId, u32>,
+) -> bool {
+    let Some(check) = func.inst_result_value(inst) else { return false };
+    if uses[check] != 1 {
+        return false;
+    }
+    let Some(Terminator::Branch { condition, then_block, else_block }) =
+        &mut func.blocks[block].terminator
+    else {
+        return false;
+    };
+    if *condition != check {
+        return false;
+    }
+    std::mem::swap(then_block, else_block);
+    true
 }
 
 /// Matches `d == 0` and `(x * y) / d == q`, where `d` and `q` are the factors `x` and `y` in
