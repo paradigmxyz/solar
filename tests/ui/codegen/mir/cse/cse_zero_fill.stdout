@@ -80,3 +80,27 @@
       ret v2
   }
   
+  fn @fold_past_absolute_store(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 96
+      memory_zero v0, 96
+      mstore 128, arg0
+      v1 = ptradd v0, 32
+-     v2 = mload v1
+      v3 = ptrtoint ptr<memory> v0 to i256
+      v4 = mload v3
+-     v5 = add v2, v4
++     v5 = add 0, v4
+      ret v5
+  }
+  
+  fn @keep_after_absolute_store_in_allocation(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 96
+      memory_zero v0, 96
+      mstore 160, arg0
+      v1 = ptradd v0, 32
+      v2 = mload v1
+      ret v2
+  }
+  

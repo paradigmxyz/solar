@@ -98,3 +98,34 @@ fn @cap_zero_fill() -> i256 {
     v3 = add v1, v2
     ret v3
 }
+
+// An allocation starts at or above the heap start, so an absolute store that ends at or below
+// that address plus the word's offset cannot overwrite the word.
+// CHECK-LABEL: {{^[ +].*}}fn @fold_past_absolute_store{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mload {{v[0-9]+}}
+// CHECK: {{^ +}}[[KEPT:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK: + {{v[0-9]+}} = add 0, [[KEPT]]
+fn @fold_past_absolute_store(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 96
+    memory_zero v0, 96
+    mstore 128, arg0
+    v1 = ptradd v0, 32
+    v2 = mload v1
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = mload v3
+    v5 = add v2, v4
+    ret v5
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_after_absolute_store_in_allocation{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload {{v[0-9]+}}
+fn @keep_after_absolute_store_in_allocation(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 96
+    memory_zero v0, 96
+    mstore 160, arg0
+    v1 = ptradd v0, 32
+    v2 = mload v1
+    ret v2
+}
