@@ -1,0 +1,24 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/zero_less_iszero.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/zero_less_iszero.evmir (after peephole) ===
+  @module module
+  bb0:
+    calldatasize
+-   push 0
+-   lt
+    iszero
+    push bb1
+    jumpi
+    stop
+  bb1:
+    stop
+  bb2:
+    calldatasize
+-   push 2
+-   lt
+-   iszero
++   push 3
++   gt
+    push bb1
+    jumpi
+    stop
+  

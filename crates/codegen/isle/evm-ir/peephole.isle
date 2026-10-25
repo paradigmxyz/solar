@@ -43,6 +43,7 @@
   (OverwriteTwo (opcode u8))
   (MergeSwapPop (depth u8))
   (InvertComparison (value U256) (opcode u8))
+  (ZeroLessIszero)
   (ReloadStoredValue)
   (DropNonzeroTest)
   (EqIszeroJumpi)
@@ -282,6 +283,11 @@
 (extern constructor protected_count protected_count)
 (decl pure protected_mask_profitable () bool)
 (extern constructor protected_mask_profitable protected_mask_profitable)
+
+;; `PUSH 0 LT ISZERO -> ISZERO`: unsigned `0 < x` tests nonzero, so its negation is `x == 0`.
+(rule 230 (peep_op (last3 (push zero) (opcode $LT) (opcode $ISZERO)))
+        (if-let true (u256_is_zero zero))
+        (rewrite 3 (Edit.ZeroLessIszero)))
 
 ;; PUSH c; independent operands; compare; ISZERO => PUSH c±1; operands; opposite compare.
 ;; Reject wrapping bounds, protected windows, and larger materializations.
