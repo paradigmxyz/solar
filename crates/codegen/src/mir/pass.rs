@@ -465,18 +465,16 @@ pub(crate) fn run_lowering_function_pass(
 ) -> bool {
     analyses.prices_creation = false;
     let mut changed = false;
-    for (function, func) in module.functions.iter_mut_enumerated() {
-        if func.blocks.is_empty() {
-            let bundle = FunctionAnalyses {
-                function,
-                alias: None,
-                cfg: None,
-                unreported_edit: Cell::new(false),
-                creation_only: false,
-                straight_line_creation: false,
-            };
-            changed |= run(func, &bundle);
-            analyses.unreported_edit |= bundle.unreported_edit.get();
+    for id in module.functions.indices() {
+        if module.functions[id].blocks.is_empty() {
+            changed |= run_function_pass_cached(
+                analyses,
+                module,
+                id,
+                FunctionAnalysisRequirements::NONE,
+                None,
+                &run,
+            );
         }
     }
     changed |= run_function_pass(module, analyses, run);

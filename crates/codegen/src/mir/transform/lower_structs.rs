@@ -134,7 +134,7 @@ fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<b
             .ok_or("local frame offsets cannot be rebased for the expanded signature")?;
         shifts.push(offsets);
     }
-    let _ = run_lowering_function_pass(module, analyses, |func, function_analyses| {
+    Ok(run_lowering_function_pass(module, analyses, |func, function_analyses| {
         // unreachable aggregate definitions -> removed blocks and phi inputs
         let _ = super::cfg_simplify::remove_unreachable_blocks(func);
         lower_function(func, &layouts);
@@ -143,8 +143,7 @@ fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<b
             func.inst_mut(inst).kind = InstKind::InternalFrameAddr(offset);
         }
         true
-    });
-    Ok(true)
+    }))
 }
 
 /// Checks the slice representation contract before exposing a field's two words.
