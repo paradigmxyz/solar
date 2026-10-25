@@ -73,7 +73,7 @@ Options:
           Override the per-switch bit-slice table growth limit for benchmarking
 
       -Ztune <TUNE>
-          Tune generated code for an execution engine (default: `none`; values: `none`, `interpreter`, `jit`)
+          Tune generated code for an execution engine (default: `none`; values: `none`, `interpreter`)
 
       -Zassert-planned-edge-spill-home
           Assert instead of logging when a value is live across a planned stack edge into an already-emitted block without a spill home

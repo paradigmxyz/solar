@@ -283,8 +283,6 @@ str_enum! {
         None,
         /// Tune for an interpreter, which spends time on every executed instruction.
         Interpreter,
-        /// Tune for a JIT compiler, which cannot resolve computed jumps.
-        Jit,
     }
 }
 

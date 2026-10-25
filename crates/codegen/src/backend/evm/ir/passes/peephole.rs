@@ -399,7 +399,7 @@ impl Edit {
             }
             Self::FoldConstants { value } => {
                 instructions.truncate(start);
-                materialize_immediate(instructions, &target, value);
+                materialize_immediate(instructions, target.evm_version(), value);
             }
             Self::RemoveFirstKeepOne => {
                 instructions.remove(start);

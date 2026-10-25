@@ -38,12 +38,15 @@ pub(in crate::backend::evm) use passes::SharedSchedules;
 pub(crate) use passes::compact_pushes;
 pub(in crate::backend) mod verify;
 
+pub(crate) use passes::compact_pushes::immediate_materialization_cost;
 pub use passes::{
     ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_passes_no_validate,
     run_pipeline,
 };
 pub(in crate::backend) use passes::{
-    compact_pushes::{ImmediateMaterialization, ImmediateMaterializationOp},
+    compact_pushes::{
+        ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
+    },
     data::pack_linked_data,
     legalize_shifts,
 };

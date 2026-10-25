@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{ImmediateMaterialization, Instruction},
+        ir::{ImmediateMaterialization, Instruction, immediate_materialization_cost},
         op,
         op::*,
     },
@@ -20,6 +20,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_config::EvmVersion;
 
 /// How far back a rule may simulate the block's stack.
 const MAX_STACK_WINDOW: usize = 24;
@@ -27,7 +28,7 @@ const MAX_STACK_WINDOW: usize = 24;
 /// Inverts a comparison against a protected constant without increasing stack usage.
 pub(crate) fn invert_comparison(
     instructions: &[Instruction],
-    target: &Target,
+    evm_version: EvmVersion,
 ) -> Option<(usize, U256, u8)> {
     let end = instructions.len().checked_sub(1)?;
     let comparison = &instructions[end];
@@ -54,10 +55,10 @@ pub(crate) fn invert_comparison(
             };
             // A shorter encoding may need an extra temporary stack word.
             if let Some(bound) = bound.map(|bound| bound ^ bias)
-                && ImmediateMaterialization::new(target, bound).stack_peak()
-                    <= ImmediateMaterialization::new(target, value).stack_peak()
-                && op::push_len(target.evm_version(), bound)
-                    <= target.push(value).bytes as usize + 1
+                && ImmediateMaterialization::new(evm_version, bound).stack_peak()
+                    <= ImmediateMaterialization::new(evm_version, value).stack_peak()
+                && op::push_len(evm_version, bound)
+                    <= immediate_materialization_cost(evm_version, value).0 + 1
             {
                 return Some((start, bound, opposite));
             }
@@ -690,7 +691,7 @@ impl generated::Context for PeepContext<'_> {
         if iszero.as_evm_opcode() != Some(ISZERO) || iszero.keeps_with_next() {
             return None;
         }
-        let (start, bound, opposite) = invert_comparison(comparison, &self.target)?;
+        let (start, bound, opposite) = invert_comparison(comparison, self.target.evm_version())?;
         Some(((self.instructions.len() - start) as u8, bound, opposite))
     }
 

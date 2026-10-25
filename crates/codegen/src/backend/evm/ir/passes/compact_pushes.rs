@@ -4,14 +4,7 @@
 //! concrete immediate, this pass compares the literal encoding with a fixed set of equivalent
 //! recipes: `PUSH0; NOT` for an all-ones word, `NOT` of a shorter inverse, and shift-based forms
 //! for masks or values with trailing zero bytes. It then emits the recipe with the fewest encoded
-//! bytes, keeping the literal on ties so the pass never increases code size.
-//!
-//! Engines that execute each instruction at a cost of their own change the choice. Under
-//! `-Ztune=interpreter`, [`Target::prefers_push`] ranks the literal and the recipes by lifetime
-//! gas, so `PUSH0; NOT` still replaces a 32-byte literal, while the three extra instructions of an
-//! address mask recipe cost more than the bytes its literal adds. Under `-Ztune=jit` recipes cost
-//! nothing at run time, because evm2's JIT evaluates each one ahead of time, and the fewest bytes
-//! win.
+//! bytes, whatever the tune, keeping the literal on ties so the pass never increases code size.
 //!
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
 //! target supports them. [`Target::push`] uses the same selector, so other EVM IR passes can
@@ -29,7 +22,7 @@ use crate::{
         ir::{Instruction, Metadata, Module},
         op::{self, WORD_BYTES},
     },
-    target::{Cost, Target},
+    target::Cost,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -50,13 +43,14 @@ const EVM_WORD_BITS: usize = WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let target = Target::new(gcx);
+    let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
         if !block.instructions.iter().any(|inst| {
-            inst.concrete_immediate()
-                .is_some_and(|value| !matches!(select(&target, value).recipe, CompactPush::Literal))
+            inst.concrete_immediate().is_some_and(|value| {
+                !matches!(select(evm_version, value).recipe, CompactPush::Literal)
+            })
         }) {
             continue;
         }
@@ -68,7 +62,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 block.instructions.push(inst);
                 continue;
             };
-            let materialization = ImmediateMaterialization::new(&target, value);
+            let materialization = ImmediateMaterialization::new(evm_version, value);
             if matches!(materialization.recipe, CompactPush::Literal) {
                 block.instructions.push(inst);
             } else {
@@ -94,15 +88,15 @@ pub(in crate::backend) enum ImmediateMaterializationOp {
 /// The shortest selected materialization for one concrete immediate.
 #[derive(Clone, Copy)]
 pub(in crate::backend) struct ImmediateMaterialization {
-    target: Target,
+    evm_version: EvmVersion,
     value: U256,
     recipe: CompactPush,
 }
 
 impl ImmediateMaterialization {
-    /// Returns the materialization `target` selects for `value`.
-    pub(in crate::backend) fn new(target: &Target, value: U256) -> Self {
-        Self { target: *target, value, recipe: select(target, value).recipe }
+    /// Returns the materialization selected for `value` on `evm_version`.
+    pub(in crate::backend) fn new(evm_version: EvmVersion, value: U256) -> Self {
+        Self { evm_version, value, recipe: select(evm_version, value).recipe }
     }
 
     /// Returns the materialization's maximum relative stack height.
@@ -121,22 +115,22 @@ impl ImmediateMaterialization {
         match self.recipe {
             CompactPush::Literal => f(push(self.value)),
             CompactPush::FullWord => {
-                Self::new(&self.target, U256::ZERO).for_each_inner(f);
+                Self::new(self.evm_version, U256::ZERO).for_each_inner(f);
                 f(opcode(op::NOT));
             }
             CompactPush::LowerAllOnesMask { shift } => {
-                Self::new(&self.target, U256::ZERO).for_each_inner(f);
+                Self::new(self.evm_version, U256::ZERO).for_each_inner(f);
                 f(opcode(op::NOT));
-                Self::new(&self.target, U256::from(shift)).for_each_inner(f);
+                Self::new(self.evm_version, U256::from(shift)).for_each_inner(f);
                 f(opcode(op::SHR));
             }
             CompactPush::Not => {
-                Self::new(&self.target, !self.value).for_each_inner(f);
+                Self::new(self.evm_version, !self.value).for_each_inner(f);
                 f(opcode(op::NOT));
             }
             CompactPush::Shl { shift } => {
-                Self::new(&self.target, self.value >> usize::from(shift)).for_each_inner(f);
-                Self::new(&self.target, U256::from(shift)).for_each_inner(f);
+                Self::new(self.evm_version, self.value >> usize::from(shift)).for_each_inner(f);
+                Self::new(self.evm_version, U256::from(shift)).for_each_inner(f);
                 f(opcode(op::SHL));
             }
         }
@@ -145,7 +139,7 @@ impl ImmediateMaterialization {
     fn metrics(self) -> ImmediateMaterializationMetrics {
         // A literal is one push, which the visitor below would measure the same way.
         if matches!(self.recipe, CompactPush::Literal) {
-            let (encoded_len, static_gas) = literal_cost(self.target.evm_version(), self.value);
+            let (encoded_len, static_gas) = literal_cost(self.evm_version, self.value);
             return ImmediateMaterializationMetrics {
                 encoded_len,
                 static_gas,
@@ -157,7 +151,7 @@ impl ImmediateMaterialization {
         let mut depth = 0usize;
         self.for_each(|materialized| match materialized {
             ImmediateMaterializationOp::Push(value) => {
-                let (len, gas) = literal_cost(self.target.evm_version(), value);
+                let (len, gas) = literal_cost(self.evm_version, value);
                 metrics.encoded_len += len;
                 metrics.static_gas += gas;
                 metrics.steps += 1;
@@ -188,12 +182,12 @@ struct ImmediateMaterializationMetrics {
 
 pub(super) fn materialize_immediate(
     instructions: &mut Vec<Instruction>,
-    target: &Target,
+    evm_version: EvmVersion,
     value: U256,
 ) {
     materialize_selected(
         instructions,
-        ImmediateMaterialization::new(target, value),
+        ImmediateMaterialization::new(evm_version, value),
         &Metadata::default(),
     );
 }
@@ -221,13 +215,28 @@ struct Selected {
     recipe: CompactPush,
 }
 
-/// Returns the cost of the materialization `target` selects for `value`.
-pub(crate) fn immediate_materialization_cost(target: &Target, value: U256) -> Cost {
-    select(target, value).cost
+/// Returns the cost of the selected immediate materialization.
+pub(crate) fn immediate_materialization(evm_version: EvmVersion, value: U256) -> Cost {
+    select(evm_version, value).cost
 }
 
-fn select(target: &Target, value: U256) -> Selected {
-    let evm_version = target.evm_version();
+/// Returns the byte length and gas cost of the selected immediate materialization.
+pub(crate) fn immediate_materialization_cost(
+    evm_version: EvmVersion,
+    value: U256,
+) -> (usize, usize) {
+    let cost = immediate_materialization(evm_version, value);
+    (cost.bytes as usize, cost.gas as usize)
+}
+
+pub(in crate::backend) fn immediate_materialization_len(
+    evm_version: EvmVersion,
+    value: U256,
+) -> usize {
+    select(evm_version, value).cost.bytes as usize
+}
+
+fn select(evm_version: EvmVersion, value: U256) -> Selected {
     let width = push_width(evm_version, value);
     let literal =
         Selected { cost: select_literal(evm_version, value), recipe: CompactPush::Literal };
@@ -238,8 +247,8 @@ fn select(target: &Target, value: U256) -> Selected {
         return literal;
     }
     let mut best = literal;
-    let mut consider = |cost, recipe| {
-        if target.prefers_push(cost, best.cost) {
+    let mut consider = |cost: Cost, recipe| {
+        if cost.bytes < best.cost.bytes {
             best = Selected { cost, recipe };
         }
     };
@@ -256,7 +265,7 @@ fn select(target: &Target, value: U256) -> Selected {
             let shift = EVM_WORD_BITS - usize::from(width) * 8;
             consider(
                 zero + Cost::fixed_opcode(op::NOT)
-                    + select(target, U256::from(shift)).cost
+                    + select(evm_version, U256::from(shift)).cost
                     + Cost::fixed_opcode(op::SHR),
                 CompactPush::LowerAllOnesMask { shift: shift as u8 },
             );
@@ -266,7 +275,10 @@ fn select(target: &Target, value: U256) -> Selected {
     if width as usize == WORD_BYTES {
         let inverted = !value;
         if push_width(evm_version, inverted) < width {
-            consider(select(target, inverted).cost + Cost::fixed_opcode(op::NOT), CompactPush::Not);
+            consider(
+                select(evm_version, inverted).cost + Cost::fixed_opcode(op::NOT),
+                CompactPush::Not,
+            );
         }
     }
 
@@ -278,8 +290,8 @@ fn select(target: &Target, value: U256) -> Selected {
         let shift = trailing_zero_bytes * 8;
         let shifted = value >> shift;
         consider(
-            select(target, shifted).cost
-                + select(target, U256::from(shift)).cost
+            select(evm_version, shifted).cost
+                + select(evm_version, U256::from(shift)).cost
                 + Cost::fixed_opcode(op::SHL),
             CompactPush::Shl { shift: shift as u8 },
         );
@@ -334,7 +346,8 @@ enum CompactPush {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_config::{OptimizationMode, Tune};
+    use crate::target::Target;
+    use solar_config::OptimizationMode;
 
     /// `Target::push` prices the instructions the selector emits.
     #[test]
@@ -348,19 +361,14 @@ mod tests {
             ]);
         }
         for evm_version in [EvmVersion::Paris, EvmVersion::Osaka] {
-            for tune in [Tune::None, Tune::Interpreter, Tune::Jit] {
-                for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
-                    let target = Target::with(evm_version, optimization, 200).tuned(tune);
-                    for &value in &values {
-                        let metrics = ImmediateMaterialization::new(&target, value).metrics();
-                        let cost = target.push(value);
-                        assert_eq!(
-                            (cost.bytes as usize, cost.gas as usize, cost.steps as usize),
-                            (metrics.encoded_len, metrics.static_gas, metrics.steps),
-                            "{value} on {evm_version} with {tune}"
-                        );
-                    }
-                }
+            for &value in &values {
+                let metrics = ImmediateMaterialization::new(evm_version, value).metrics();
+                let cost = Target::with(evm_version, OptimizationMode::Gas, 200).push(value);
+                assert_eq!(
+                    (cost.bytes as usize, cost.gas as usize, cost.steps as usize),
+                    (metrics.encoded_len, metrics.static_gas, metrics.steps),
+                    "{value} on {evm_version}"
+                );
             }
         }
     }

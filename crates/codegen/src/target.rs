@@ -379,7 +379,8 @@ impl Target {
     /// tail-call dispatch): every opcode costs about 7.3 cycles whatever its push width or
     /// `DUP` and `SWAP` depth, a `JUMPDEST` 7.6, while heavy opcodes cost about one cycle per
     /// gas (`EXP` of 2 k: 57 gas against 51 to 56 cycles). One dispatch is then worth about 4
-    /// gas of work beyond the 3 gas of a cheap opcode.
+    /// gas of work beyond the 3 gas of a cheap opcode. A fit of whole programs agrees: cycles grew
+    /// by 6.7 per executed opcode (R² 0.93), about 3.7 gas each.
     pub(crate) const INTERPRETER_DISPATCH_GAS: u32 = 4;
 
     /// How many consecutive MIR instructions must repeat for the backend's tail merge and
@@ -444,7 +445,7 @@ impl Target {
         if !creation || !self.optimization.is_gas() {
             return self;
         }
-        Self { creation: true, ..self }
+        Self { expected_executions: 1, creation: true, ..self }
     }
 
     /// Whether the model prices creation code, which only the gas objective does.
@@ -471,23 +472,13 @@ impl Target {
         self.optimization
     }
 
-    /// Whether code may jump to a computed or table-read target. evm2's JIT cannot resolve one,
-    /// and a single unresolved jump poisons its jump analysis of the whole contract: in a
-    /// measured loop, one such jump executed once before the loop turned a three-call-site
-    /// internal return into a dynamic jump and slowed the loop 8.4 times, from 12.6 to 106
-    /// cycles per iteration, while the interpreter did not change.
-    pub(crate) fn allows_indexed_jumps(&self) -> bool {
-        !matches!(self.tune, Tune::Jit)
-    }
-
     /// Whether the stack planner searches for cheaper plans; `-O none` takes its first plan.
     pub(crate) fn optimizes_stack_plans(&self) -> bool {
         !matches!(self.optimization, OptimizationMode::None)
     }
 
-    /// Executions of the code per deployment; creation code runs once.
     pub(crate) fn expected_executions(&self) -> u64 {
-        if self.creation { 1 } else { self.expected_executions }
+        self.expected_executions
     }
 
     /// The weight of a block inside one more loop than a block of weight `weight`.
@@ -498,7 +489,7 @@ impl Target {
 
     /// Whether the build expects enough executions to copy loop bodies for runtime gas.
     pub(crate) fn copies_loops(&self) -> bool {
-        self.expected_executions() >= Self::LOOP_COPY_MIN_RUNS
+        self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
     }
 
     /// Static gas of one opcode; unknown opcodes are free.
@@ -554,27 +545,10 @@ impl Target {
         self.opcode(op::PUSH2)
     }
 
-    /// Cost of pushing `value` through the materialization the push selector emits.
+    /// Cost of pushing `value` through the materialization the push selector emits: the one
+    /// with the fewest bytes, whatever the tune.
     pub(crate) fn push(&self, value: U256) -> Cost {
-        compact_pushes::immediate_materialization_cost(self, value)
-    }
-
-    /// Whether the push selector replaces a materialization of cost `current` with one of cost
-    /// `candidate`. Fewer bytes decide, since an engine that does not execute each instruction
-    /// pays only for the code: the interpreter ranks by lifetime gas, whose dispatch charge
-    /// makes extra instructions cost. Creation code selects as runtime code does, so every
-    /// pass sees one choice per constant.
-    pub(crate) fn prefers_push(&self, candidate: Cost, current: Cost) -> bool {
-        if self.charges_dispatch() {
-            self.runtime().cmp_lifetime(candidate, current).is_lt()
-        } else {
-            candidate.bytes < current.bytes
-        }
-    }
-
-    /// This model without creation pricing.
-    const fn runtime(self) -> Self {
-        Self { creation: false, ..self }
+        compact_pushes::immediate_materialization(self.evm_version, value)
     }
 
     /// Whether reading `value` as an immediate costs no more gas than a `DUP` and at most one
@@ -836,7 +810,7 @@ impl Target {
     /// Deployment-lifetime gas of `cost`: expected executions of its runtime
     /// gas plus the price of its bytes.
     pub(crate) fn lifetime_gas(&self, cost: Cost) -> u128 {
-        u128::from(self.runtime_gas(cost)) * u128::from(self.expected_executions())
+        u128::from(self.runtime_gas(cost)) * u128::from(self.expected_executions)
             + u128::from(cost.bytes) * u128::from(self.byte_gas())
     }
 
@@ -872,7 +846,7 @@ impl Target {
     /// on each expected execution.
     pub(crate) fn deposit_repays_gas(self, bytes: u64, gas: u64) -> bool {
         u128::from(bytes) * u128::from(self.byte_gas())
-            > u128::from(gas) * u128::from(self.expected_executions())
+            > u128::from(gas) * u128::from(self.expected_executions)
     }
 
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
@@ -1325,7 +1299,6 @@ mod tests {
         let cost = Cost::new(10, 4).with_steps(3);
         assert_eq!(Target::INTERPRETER_DISPATCH_GAS, 4);
         assert_eq!(none.runtime_gas(cost), 10);
-        assert_eq!(model(Tune::Jit).runtime_gas(cost), 10);
         assert_eq!(interpreter.runtime_gas(cost), 22);
         assert_eq!(interpreter.objective_key(cost), [22, 4]);
         assert_eq!(none.objective_key(cost), [10, 4]);
@@ -1339,37 +1312,17 @@ mod tests {
     }
 
     #[test]
-    fn push_selection_follows_the_engine() {
-        let model = |tune, optimization| {
-            Target::with(EvmVersion::Osaka, optimization, Target::DEFAULT_EXPECTED_EXECUTIONS)
-                .tuned(tune)
-        };
+    fn every_tune_selects_the_fewest_bytes() {
         let address_mask = (U256::ONE << 160) - U256::ONE;
-        // `PUSH0; NOT; PUSH1 0x60; SHR` against `PUSH20 0xff..ff`.
-        let recipe = Cost::new(11, 5).with_steps(4);
-        let literal = Cost::new(3, 21).with_steps(1);
-        for tune in [Tune::None, Tune::Jit] {
-            let target = model(tune, OptimizationMode::Gas);
-            assert_eq!(target.push(address_mask), recipe);
-            assert_eq!(target.push(U256::MAX), Cost::new(5, 2).with_steps(2));
+        for tune in [Tune::None, Tune::Interpreter] {
+            for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+                let target = Target::with(EvmVersion::Osaka, optimization, 200).tuned(tune);
+                // `PUSH0; NOT; PUSH1 0x60; SHR` against `PUSH20 0xff..ff`.
+                assert_eq!(target.push(address_mask), Cost::new(11, 5).with_steps(4));
+                // `PUSH0; NOT`.
+                assert_eq!(target.push(U256::MAX), Cost::new(5, 2).with_steps(2));
+            }
         }
-        let interpreter = model(Tune::Interpreter, OptimizationMode::Gas);
-        assert_eq!(interpreter.push(address_mask), literal);
-        // One extra instruction saves 31 bytes.
-        assert_eq!(interpreter.push(U256::MAX), Cost::new(5, 2).with_steps(2));
-        // Bytes lead when optimizing for size.
-        let size = model(Tune::Interpreter, OptimizationMode::Size);
-        assert_eq!(size.push(address_mask), recipe);
-        // Creation code selects as runtime code does.
-        assert_eq!(interpreter.priced_for(true).push(address_mask), literal);
-    }
-
-    #[test]
-    fn only_the_jit_rejects_indexed_jumps() {
-        let model = |tune| Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200).tuned(tune);
-        assert!(model(Tune::None).allows_indexed_jumps());
-        assert!(model(Tune::Interpreter).allows_indexed_jumps());
-        assert!(!model(Tune::Jit).allows_indexed_jumps());
     }
 
     #[test]
