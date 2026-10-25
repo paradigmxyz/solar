@@ -1,6 +1,6 @@
 //@ revisions: cse storage pre
 //@[cse] compile-flags: -Zmir-pipeline=cse
-//@[storage] compile-flags: -Zmir-pipeline=storage-load-cse
+//@[storage] compile-flags: -Zmir-pipeline=storage-cse
 //@[pre] compile-flags: -Zmir-pipeline=load-pre
 //@ filecheck:
 

@@ -1,6 +1,5 @@
 //! Optimization and transformation passes for the Solar compiler.
 
-pub(crate) mod adce;
 pub(crate) mod byte_run;
 pub(crate) mod call_cleanup;
 pub(crate) mod cfg_simplify;
@@ -57,7 +56,6 @@ pub(crate) mod specialize;
 pub(crate) mod sroa;
 pub(crate) mod static_alloc;
 pub(crate) mod storage_dse;
-pub(crate) mod storage_load_cse;
 pub(crate) mod storage_promotion;
 mod utils;
 

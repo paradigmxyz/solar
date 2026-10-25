@@ -9,10 +9,6 @@
 //! - `load-pre` tracks storage, transient-storage, memory, and keccak reads. It runs after CSE has
 //!   unified the dominated reads. Both families in one run, or pure expressions after CSE, left the
 //!   corpus larger.
-//! - `storage-pre` limits `load-pre` to storage and transient storage. It runs after builtin
-//!   expansion in the gas pipeline, when aggregate storage operations have exposed their loads and
-//!   stores. Memory reads remain outside that cleanup to avoid extending pointer lifetimes across
-//!   the representation boundary.
 //!
 //! Every rewrite replaces a join-block instruction with a phi over the per-predecessor values:
 //!
@@ -150,8 +146,6 @@ pub(crate) enum Pre {
     Pure,
     /// Storage, transient-storage, memory, and keccak reads.
     Reads,
-    /// Storage and transient-storage reads after builtin expansion.
-    Storage,
 }
 
 impl MirPass for Pre {
@@ -159,7 +153,6 @@ impl MirPass for Pre {
         match self {
             Self::Pure => "pre",
             Self::Reads => "load-pre",
-            Self::Storage => "storage-pre",
         }
     }
 
@@ -174,12 +167,11 @@ impl MirPass for Pre {
                 let target = analyses.target(gcx);
                 Eliminator::new(&target, Some(Rc::clone(analyses.cfg())), None).run(func)
             }),
-            Self::Reads | Self::Storage => {
+            Self::Reads => {
                 let summaries = analyses.call_summaries(module);
                 run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
                     let target = analyses.target(gcx);
                     let reads = ReadAnalyses {
-                        storage_only: matches!(self, Self::Storage),
                         alias: Rc::clone(analyses.alias()),
                         summaries: Arc::clone(&summaries),
                     };
@@ -220,11 +212,9 @@ struct Eliminator<'a> {
     target: &'a Target,
 }
 
-/// State for the read keys: which spaces to track, the alias analysis, and the call summaries.
+/// State for the read keys: the alias analysis and the call summaries.
 #[derive(Debug)]
 struct ReadAnalyses {
-    /// Whether to track only storage and transient-storage reads.
-    storage_only: bool,
     alias: Rc<AliasAnalysis>,
     /// Call summaries for the alias snapshot rebuilt after edge splitting.
     summaries: Arc<MemoryCallSummaries>,
@@ -737,16 +727,15 @@ impl<'a> Eliminator<'a> {
     ) -> (Vec<LoadKey>, FxHashMap<LoadKey, usize>) {
         let mut keys = Vec::new();
         let mut key_index: FxHashMap<LoadKey, usize> = FxHashMap::default();
-        let Some(reads) = &self.reads else { return (keys, key_index) };
+        if self.reads.is_none() {
+            return (keys, key_index);
+        }
         for &block in cfg.rpo() {
             if Self::join_above(func, cfg, block).is_none() {
                 continue;
             }
             for &inst_id in &func.blocks[block].instructions {
-                if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id)
-                    && (!reads.storage_only
-                        || matches!(key, LoadKey::Storage(_) | LoadKey::Transient(_)))
-                {
+                if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                     key_index.entry(key).or_insert_with(|| {
                         keys.push(key);
                         keys.len() - 1

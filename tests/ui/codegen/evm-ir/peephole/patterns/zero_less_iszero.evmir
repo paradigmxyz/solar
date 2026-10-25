@@ -1,0 +1,47 @@
+//@compile-flags: -Zevm-ir-pipeline=peephole
+//@filecheck:
+@module module
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: - push 0
+// CHECK-NEXT: - lt
+// CHECK-NEXT: iszero
+// CHECK: {{^[ +].*}}jumpi
+bb0:
+  calldatasize
+  push 0
+  lt
+  iszero
+  push bb1
+  jumpi
+  stop
+bb1:
+  stop
+
+// A nonzero left operand is not a zero test.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: - push 2
+// CHECK: - iszero
+// CHECK: + push 3
+// CHECK-NEXT: + gt
+bb2:
+  calldatasize
+  push 2
+  lt
+  iszero
+  push bb1
+  jumpi
+  stop
+
+// The zero below the value computes `x < 0`, which is not a zero test.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-NOT: - push 0
+// CHECK: {{^[ +].*}}jumpi
+bb3:
+  push 0
+  calldatasize
+  lt
+  iszero
+  push bb1
+  jumpi
+  stop
