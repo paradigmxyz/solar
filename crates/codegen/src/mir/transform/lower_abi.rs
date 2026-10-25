@@ -155,6 +155,10 @@ struct LowerAbiCx {
 struct DecodeOptions<'a> {
     constructor: bool,
     input_end: ValueId,
+    /// Whether `input_end` is at most `u64::MAX` above the input's base: calldata and constructor
+    /// arguments are, while `abi.decode` takes its length from a memory word or a slice that
+    /// inline assembly can set up to `2**255 - 1`.
+    bounded_input: bool,
     head_checked: bool,
     validate_array_elements: bool,
     helpers: Option<&'a FxHashMap<AbiParamType, FunctionId>>,
@@ -187,6 +191,7 @@ impl DecodeOptions<'_> {
         Self {
             constructor,
             input_end,
+            bounded_input: false,
             head_checked: false,
             validate_array_elements: true,
             helpers: None,
@@ -197,6 +202,10 @@ impl DecodeOptions<'_> {
 
     fn checked(self) -> Self {
         Self { head_checked: true, ..self }
+    }
+
+    fn bounded(self) -> Self {
+        Self { bounded_input: true, ..self }
     }
 
     /// Decodes a value nested in an aggregate whose offsets report `offset_reason`.
@@ -809,7 +818,9 @@ impl LowerAbiCx {
                 &mut current,
                 DecodeOptions {
                     helpers: (!helpers.is_empty()).then_some(helpers),
-                    ..DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked()
+                    ..DecodeOptions::new(false, input_end, self.has_bitwise_shifting)
+                        .checked()
+                        .bounded()
                 },
             );
             builder.set_return_type(ty.mir_type());
@@ -858,6 +869,7 @@ impl LowerAbiCx {
                 head,
                 tuple_base,
                 input_end,
+                true,
                 &mut current,
                 true,
                 RevertReason::InvalidTupleOffset,
@@ -1385,6 +1397,7 @@ impl LowerAbiCx {
                         validate_array_elements,
                         helpers: (!constructor && !helpers.is_empty()).then_some(helpers),
                         ..DecodeOptions::new(constructor, input_end, self.has_bitwise_shifting)
+                            .bounded()
                     };
                     if uses.is_empty() {
                         if ty.is_dynamic() && location != AbiParamLocation::Memory {
@@ -1508,7 +1521,8 @@ impl LowerAbiCx {
     }
 
     /// Validates the immediate ABI shape of a dynamic aggregate without
-    /// materializing its memory representation.
+    /// materializing its memory representation. Only entry points call it, so the input is
+    /// bounded.
     fn validate_dynamic_aggregate_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
@@ -1525,6 +1539,7 @@ impl LowerAbiCx {
             tuple_base,
             offset,
             input_end,
+            true,
             ty,
             current,
             RevertReason::InvalidTupleOffset,
@@ -1576,6 +1591,7 @@ impl LowerAbiCx {
         let DecodeOptions {
             constructor,
             input_end,
+            bounded_input,
             head_checked,
             validate_array_elements,
             helpers,
@@ -1616,6 +1632,7 @@ impl LowerAbiCx {
                 head,
                 tuple_base,
                 input_end,
+                bounded_input,
                 current,
                 head_checked,
                 options.offset_reason,
@@ -1639,6 +1656,7 @@ impl LowerAbiCx {
                 tuple_base,
                 offset,
                 input_end,
+                bounded_input,
                 ty,
                 current,
                 options.offset_reason,
@@ -2061,6 +2079,7 @@ impl LowerAbiCx {
         head: ValueId,
         tuple_base: ValueId,
         input_end: ValueId,
+        bounded_input: bool,
         current: &mut BlockId,
         head_checked: bool,
         offset_reason: RevertReason,
@@ -2095,11 +2114,9 @@ impl LowerAbiCx {
             return (base, data, len);
         }
         // if offset > input_end - tuple_base - 32 { revert(Error("invalid calldata array offset"))
-        // } The checked head word gives `input_end - tuple_base >= 32`, so the bound cannot
-        // wrap, and it rejects offsets above `u64::MAX` and offsets that wrap `base + 32`.
-        let tuple_remaining = builder.sub(input_end, tuple_base);
-        let max_offset = builder.sub(tuple_remaining, word);
-        let head_invalid = builder.gt(offset, max_offset);
+        // } for a bounded input, as in `fused_offset_invalid`.
+        let head_invalid =
+            Self::fused_offset_invalid(builder, tuple_base, offset, input_end, bounded_input);
         let len = builder.load(base, PtrLocation::Calldata);
         let data = builder.add(base, word);
         let remaining = builder.sub(input_end, data);
@@ -2266,6 +2283,7 @@ impl LowerAbiCx {
         base: ValueId,
         offset: ValueId,
         input_end: ValueId,
+        bounded_input: bool,
         ty: &crate::mir::AbiParamType,
         current: &mut BlockId,
         offset_reason: RevertReason,
@@ -2308,18 +2326,41 @@ impl LowerAbiCx {
             return target;
         }
 
-        // Every dynamic ABI value starts with a word-sized head, so checking the offset against
-        // `input_end - base - 32` proves the head word fits and the value-specific decoder needs no
-        // second range guard.
-        // if offset > input_end - base - 32 { revert(Error("invalid calldata array offset")) }
-        // The checked head word gives `input_end - base >= 32`, so the bound cannot wrap, and it
-        // rejects offsets above `u64::MAX` and offsets that wrap `target + 32`.
-        let remaining = builder.sub(input_end, base);
-        let word = builder.imm(32);
-        let max_offset = builder.sub(remaining, word);
-        let invalid = builder.gt(offset, max_offset);
+        // Every dynamic ABI value starts with a word-sized head, so one offset comparison proves
+        // the head word fits and the value-specific decoder needs no second range guard.
+        let invalid = Self::fused_offset_invalid(builder, base, offset, input_end, bounded_input);
         *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayOffset);
         target
+    }
+
+    /// Tests that a dynamic value's head offset is unencodable or puts its head word outside the
+    /// input, without revert strings.
+    ///
+    /// A bounded input is checked against `input_end - base - 32`, which cannot wrap given the
+    /// checked head word and also rejects offsets above `u64::MAX` and offsets that wrap
+    /// `base + offset + 32`. An unbounded one keeps the `u64::MAX` test, since `abi.decode` of a
+    /// long input would otherwise accept offsets solc rejects.
+    fn fused_offset_invalid(
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        offset: ValueId,
+        input_end: ValueId,
+        bounded_input: bool,
+    ) -> ValueId {
+        if bounded_input {
+            // offset > input_end - base - 32
+            let remaining = builder.sub(input_end, base);
+            let word = builder.imm(32);
+            let max_offset = builder.sub(remaining, word);
+            return builder.gt(offset, max_offset);
+        }
+        // offset > u64::MAX || base + offset + 32 > input_end
+        let target = builder.add(base, offset);
+        let target_end = builder.add_u64_offset(target, 32);
+        let max_offset = builder.imm(u64::MAX);
+        let overflow = builder.gt(offset, max_offset);
+        let out_of_range = builder.gt(target_end, input_end);
+        builder.or(overflow, out_of_range)
     }
 
     /// The debug message for a static aggregate whose head does not fit the input. Like solc,

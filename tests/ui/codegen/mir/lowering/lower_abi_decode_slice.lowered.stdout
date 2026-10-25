@@ -63,32 +63,35 @@
 +     v7 = ptrtoint ptr<memory> v1 to i256
 +     v8 = add v7, v6
 +     v9 = ptrtoint ptr<memory> v1 to i256
-+     v10 = sub v4, v9
-+     v11 = sub v10, 32
-+     v12 = gt v6, v11
-+     jumpi v12, bb1, bb3
++     v10 = add v9, v6
++     v11 = add v10, 32
++     v12 = gt v6, 0xffffffffffffffff
++     v13 = gt v11, v4
++     v14 = or v12, v13
++     v15 = zext i1 v14 to i256
++     jumpi v14, bb1, bb3
 +   bb3:
-+     v13 = mload v8
-+     v14 = add v8, 32
-+     v15 = add v13, 63
-+     v16 = lt v15, v13
-+     jumpi v16, bb4, bb5
++     v16 = mload v8
++     v17 = add v8, 32
++     v18 = add v16, 63
++     v19 = lt v18, v16
++     jumpi v19, bb4, bb5
 +   bb5:
-+     v17 = not 31
-+     v18 = and v15, v17
-+     v19 = alloc checked v18
-+     mstore v19, v13
-+     v20 = sub v4, v14
-+     v21 = gt v13, v20
-+     jumpi v21, bb1, bb6
++     v20 = not 31
++     v21 = and v18, v20
++     v22 = alloc checked v21
++     mstore v22, v16
++     v23 = sub v4, v17
++     v24 = gt v16, v23
++     jumpi v24, bb1, bb6
 +   bb6:
-+     v22 = inttoptr i256 v14 to ptr<memory>
-+     v23 = make_memory_slice v22, v13
-+     v24 = ptradd v19, 32
-+     v25 = extract_value slice<memory>, v23, 0
-+     v26 = extract_value slice<memory>, v23, 1
-+     mcopy v24, v25, v26
-+     ret v19
++     v25 = inttoptr i256 v17 to ptr<memory>
++     v26 = make_memory_slice v25, v16
++     v27 = ptradd v22, 32
++     v28 = extract_value slice<memory>, v26, 0
++     v29 = extract_value slice<memory>, v26, 1
++     mcopy v27, v28, v29
++     ret v22
 +   bb4:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
