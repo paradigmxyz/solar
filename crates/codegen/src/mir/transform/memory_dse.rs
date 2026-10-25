@@ -42,10 +42,11 @@
 //!   runtime-offset `add`) leaves the object alone. Distinct allocations do not overlap. Assembly
 //!   can still rebuild a pointer into a heap object from the free-memory pointer, so every other
 //!   read that may touch heap memory, such as a load through an unrelated pointer, `msize`, or a
-//!   callee with unknown reads, and every `ret` and tail call, reads the whole object. A deferred
-//!   object, which static placement keeps unrelated to the free-memory pointer, ignores them.
-//!   Functions observing gas keep their stores, since the stores pay for memory expansion. Writes
-//!   the object receives from copies and calls stay: only stores are candidates.
+//!   callee with unknown reads, and every `ret` and tail call, reads the whole object. A read that
+//!   may leave its own allocation reaches the objects allocated after it, not the ones before. A
+//!   deferred object, which static placement keeps unrelated to the free-memory pointer, ignores
+//!   them. Functions observing gas keep their stores, since the stores pay for memory expansion.
+//!   Writes the object receives from copies and calls stay: only stores are candidates.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
@@ -1696,12 +1697,13 @@ impl MemoryStoreEliminator {
     /// reachable after it overlaps the bytes it writes. A range read from offset `a` with a
     /// runtime length covers the bytes from `a` on, which is how the length word of a `bytes`
     /// object goes once forwarding has replaced its loads and the call or terminator reads only
-    /// the data after it. Distinct allocations do not overlap, so reads of other allocations
+    /// the data after it. Distinct allocations do not overlap, so reads inside other allocations
     /// never count. Assembly can still reach a heap object through a pointer rebuilt from the
     /// free-memory pointer, so every other read that may touch heap memory, and every `ret` and
-    /// tail call, reads all of it. A deferred object, which static placement keeps unrelated to
-    /// the free-memory pointer, ignores them. The allocation stays: later passes size and place
-    /// it, and the address arithmetic feeding the store dies with it.
+    /// tail call, reads all of it. A read that may leave its own allocation reaches the objects
+    /// allocated after it, not the ones before. A deferred object, which static placement keeps
+    /// unrelated to the free-memory pointer, ignores them. The allocation stays: later passes
+    /// size and place it, and the address arithmetic feeding the store dies with it.
     ///
     /// Removing a write can lower memory expansion, so functions observing gas keep their stores.
     fn remove_dead_allocation_stores(&mut self, func: &mut Function) {
@@ -1714,8 +1716,12 @@ impl MemoryStoreEliminator {
             return;
         }
         let mut users: FxHashMap<ValueId, SmallVec<[AllocUse; 4]>> = FxHashMap::default();
+        let mut positions = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for (index, &inst) in block.instructions.iter().enumerate() {
+                if matches!(func.inst(inst).kind, InstKind::Alloc { .. }) {
+                    positions.insert(inst, (block_id, index));
+                }
                 func.inst(inst).kind.visit_operands(|operand| {
                     users.entry(operand).or_default().push(AllocUse::Inst(inst, block_id, index));
                 });
@@ -1743,33 +1749,43 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        // Reads that may touch any heap object, as positions in their blocks.
         let mut heap_reads = Vec::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for (index, &inst) in block.instructions.iter().enumerate() {
-                if self.may_read_heap(func, &self.alias().instruction_mod_ref(func, inst)) {
-                    heap_reads.push((block_id, index));
-                }
+                let effects = self.alias().instruction_mod_ref(func, inst);
+                self.collect_heap_reads(func, &effects, (block_id, index), &mut heap_reads);
             }
-            if let Some(terminator) = &block.terminator
-                && (matches!(terminator, Terminator::Return { .. } | Terminator::TailCall { .. })
-                    || self.may_read_heap(func, &self.alias().terminator_mod_ref(func, terminator)))
-            {
-                heap_reads.push((block_id, usize::MAX));
+            if let Some(terminator) = &block.terminator {
+                let position = (block_id, usize::MAX);
+                if matches!(terminator, Terminator::Return { .. } | Terminator::TailCall { .. }) {
+                    heap_reads.push(HeapRead { position, beyond: None });
+                }
+                let effects = self.alias().terminator_mod_ref(func, terminator);
+                self.collect_heap_reads(func, &effects, position, &mut heap_reads);
             }
         }
 
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for (alloc, mut access) in candidates {
-            if !func.inst(alloc).metadata.deferred_alloc() {
-                access.reads.extend(heap_reads.iter().map(|&(block, index)| AllocRead {
-                    block,
-                    index,
-                    range: AllocRange { start: 0, end: None },
-                }));
-            }
+        for (alloc, access) in candidates {
+            let (alloc_block, alloc_index) = positions[&alloc];
+            let deferred = func.inst(alloc).metadata.deferred_alloc();
+            // An out-of-bounds read of an object that precedes this one can reach it.
+            let heap_reads = heap_reads.iter().filter(|read| {
+                !deferred
+                    && read.beyond.is_none_or(|object| {
+                        let (block, index) = positions[&object];
+                        object != alloc
+                            && (block == alloc_block && index < alloc_index
+                                || Self::block_reaches(cfg, block, alloc_block))
+                    })
+            });
+            let heap_reads = heap_reads.collect::<Vec<_>>();
             for store in &access.stores {
-                if !access.reads.iter().any(|read| Self::read_reaches(cfg, store, read)) {
+                if !access.reads.iter().any(|read| Self::read_reaches(cfg, store, read))
+                    && !heap_reads.iter().any(|read| {
+                        Self::position_reaches(cfg, (store.block, store.index), read.position)
+                    })
+                {
                     dead.insert(store.inst);
                 }
             }
@@ -1784,42 +1800,61 @@ impl MemoryStoreEliminator {
         }
     }
 
-    /// Returns whether `effects` read memory that a heap object may occupy, other than through
-    /// the pointer of one allocation, which the derivation of that pointer covers.
-    fn may_read_heap(&self, func: &Function, effects: &ModRef) -> bool {
-        effects.reads().iter().any(|access| match *access {
-            Access::Any(space) => space == AddressSpace::Memory,
-            Access::Location(Location::Memory(location)) => match location.address.base {
-                MemoryBase::Allocation(_)
-                | MemoryBase::DynamicAllocation(_)
-                | MemoryBase::InternalFrame => false,
-                // The reserved words below the heap.
-                MemoryBase::Absolute => match location.size.as_const() {
-                    Some(0) => false,
-                    Some(size) => !location
-                        .address
-                        .offset
-                        .checked_add(size)
-                        .is_some_and(|end| EvmMemoryLayout::is_reserved(end - 1)),
-                    None => true,
+    /// Records the reads in `effects` that may touch a heap object other than through the
+    /// pointer of one allocation, which the derivation of that pointer covers.
+    fn collect_heap_reads(
+        &self,
+        func: &Function,
+        effects: &ModRef,
+        position: (BlockId, usize),
+        heap_reads: &mut Vec<HeapRead>,
+    ) {
+        for access in effects.reads() {
+            let beyond = match *access {
+                Access::Any(AddressSpace::Memory) => None,
+                Access::Location(Location::Memory(location)) => match location.address.base {
+                    // An access within the bounds of an allocation.
+                    MemoryBase::Allocation(_)
+                    | MemoryBase::DynamicAllocation(_)
+                    | MemoryBase::InternalFrame => continue,
+                    MemoryBase::Absolute => {
+                        // The reserved words below the heap.
+                        let reserved = match location.size.as_const() {
+                            Some(0) => true,
+                            Some(size) => location
+                                .address
+                                .offset
+                                .checked_add(size)
+                                .is_some_and(|end| EvmMemoryLayout::is_reserved(end - 1)),
+                            None => false,
+                        };
+                        if reserved {
+                            continue;
+                        }
+                        None
+                    }
+                    // An access that may leave its allocation names it by its pointer, and
+                    // reaches only the objects above it.
+                    MemoryBase::Value(pointer) => self.allocation_site(func, pointer),
                 },
-                // An access that may leave its allocation's bounds names it by its pointer.
-                MemoryBase::Value(pointer) => !self.is_allocation_pointer(func, pointer),
-            },
-            Access::Location(_) => false,
-        })
+                Access::Any(_) | Access::Location(_) => continue,
+            };
+            heap_reads.push(HeapRead { position, beyond });
+        }
     }
 
-    fn is_allocation_pointer(&self, func: &Function, pointer: ValueId) -> bool {
-        let Value::Inst(inst) = func.value(pointer) else { return false };
-        matches!(func.inst(*inst).kind, InstKind::Alloc { .. })
+    /// Returns the allocation `pointer` is the result of, if it has a fresh provenance.
+    fn allocation_site(&self, func: &Function, pointer: ValueId) -> Option<InstId> {
+        let Value::Inst(inst) = func.value(pointer) else { return None };
+        (matches!(func.inst(*inst).kind, InstKind::Alloc { .. })
             && self.alias().memory_address(func, pointer).is_some_and(|address| {
                 matches!(
                     address.base,
                     MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site)
                         if site == *inst
                 )
-            })
+            }))
+        .then_some(*inst)
     }
 
     /// Collects the constant-offset stores into the allocation `alloc` and every read of its
@@ -1867,14 +1902,28 @@ impl MemoryStoreEliminator {
     }
 
     /// Returns whether `read` may observe bytes `store` wrote: it overlaps them and runs after
-    /// the store, later in its block or in a block the store's block can reach.
+    /// the store.
     fn read_reaches(cfg: &CfgInfo, store: &AllocStore, read: &AllocRead) -> bool {
         read.range.overlaps(store.range)
-            && (store.block == read.block && store.index < read.index
-                || cfg
-                    .transitive_reachability(store.block)
-                    .is_none_or(|reachable| reachable.contains(read.block)))
+            && Self::position_reaches(cfg, (store.block, store.index), (read.block, read.index))
     }
+
+    /// Returns whether `to` runs after `from`: later in its block or in a block `from`'s block
+    /// can reach.
+    fn position_reaches(cfg: &CfgInfo, from: (BlockId, usize), to: (BlockId, usize)) -> bool {
+        from.0 == to.0 && from.1 < to.1 || Self::block_reaches(cfg, from.0, to.0)
+    }
+
+    /// Returns whether a path of at least one edge leads from `from` to `to`.
+    fn block_reaches(cfg: &CfgInfo, from: BlockId, to: BlockId) -> bool {
+        cfg.transitive_reachability(from).is_none_or(|reachable| reachable.contains(to))
+    }
+}
+
+/// A read that may touch any heap object, or only the objects above the allocation `beyond`.
+struct HeapRead {
+    position: (BlockId, usize),
+    beyond: Option<InstId>,
 }
 
 /// A use of a value: an instruction at an index of its block, or a block's terminator.
@@ -2070,7 +2119,6 @@ impl AllocWalk<'_> {
         width: u64,
     ) {
         if addresses
-            && !at.runtime_index
             && let Some(range) = at.range(Some(width))
             && range.end.is_some_and(|end| self.size.is_none_or(|size| end <= size))
         {

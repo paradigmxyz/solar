@@ -97,22 +97,23 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
 
 fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
   bb0:
-    v53 = mload 64 !metadata(memory=scratch)
-    v54 = add v53, 160
-    mstore 64, v54
-    mstore v53, 33
-    v38 = add v53, 32
+    v54 = mload 64 !metadata(memory=scratch)
+    v55 = add v54, 160
+    mstore 64, v55
+    mstore v54, 33
+    v38 = add v54, 32
     mstore v38, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-    v40 = add v53, 64
+    v40 = add v54, 64
     mstore v40, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v52 = add v53, 96
-    mstore v52, 2
-    v42 = add v53, 128
+    v53 = add v54, 96
+    mstore v53, 2
+    v42 = add v54, 128
     mstore v42, 0x2223000000000000000000000000000000000000000000000000000000000000
-    v55 = mload 64
-    v56 = add v55, 96
-    mstore 64, v56
-    v44 = add v55, 32
+    v56 = mload 64
+    v57 = add v56, 96
+    mstore 64, v57
+    mstore v56, 35
+    v44 = add v56, 32
     icall @mcopy_words, v44, v38, 33
     v46 = add v44, 33
     icall @mcopy_words, v46, v42, 2

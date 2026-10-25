@@ -231,3 +231,48 @@ fn @returns_to_caller(arg0: i256) -> i256 {
     mstore v0, arg0
     ret 0
 }
+
+// A read past the end of an earlier allocation reaches the objects above it.
+// CHECK-LABEL: {{^[ +].*}}fn @neighbour_read{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @neighbour_read(arg0: i256) {
+  bb0:
+    v0 = alloc 32
+    v1 = alloc 32
+    mstore v1, arg0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = add v2, 32
+    v4 = mload v3
+    mstore 0, v4
+    returndata 0, 32
+}
+
+// The same through an allocation of runtime size.
+// CHECK-LABEL: {{^[ +].*}}fn @neighbour_read_dynamic{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @neighbour_read_dynamic(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc arg1
+    v1 = alloc 64
+    mstore v1, arg0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = add v2, 64
+    v4 = mload v3
+    mstore 0, v4
+    returndata 0, 32
+}
+
+// A read past the end of a later allocation never reaches an earlier one.
+// CHECK-LABEL: {{^[ +].*}}fn @read_from_later{{[( ]}}
+// CHECK: {{^-}} mstore v0, arg0
+fn @read_from_later(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = alloc arg1
+    v2 = ptrtoint ptr<memory> v1 to i256
+    v3 = add v2, 64
+    v4 = mload v3
+    mstore 0, v4
+    returndata 0, 32
+}
