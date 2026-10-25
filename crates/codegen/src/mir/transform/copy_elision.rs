@@ -23,8 +23,8 @@
 //! (see `heap-floor`), above the slot.
 
 use crate::mir::{
-    BlockId, EffectKind, Function, InstId, InstKind, MirType, Module, PtrLocation, RawMemoryAccess,
-    Terminator, Value, ValueId,
+    BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, RawMemoryAccess, Terminator,
+    Value, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
@@ -311,10 +311,7 @@ impl CopyElisionCx {
                         // and operations without a range read every derived operand.
                         let mut ranged = false;
                         let mut read = false;
-                        if matches!(
-                            kind.effect_kind(),
-                            EffectKind::MemoryRead | EffectKind::MemoryWrite
-                        ) {
+                        if kind.effect_kind().is_memory() {
                             kind.visit_raw_memory(|access, addr, _| {
                                 ranged = true;
                                 if derived.contains(&addr) {

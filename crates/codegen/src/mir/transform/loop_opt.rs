@@ -962,12 +962,9 @@ impl LoopOptimizer {
                     {
                         address_operands.push(*key);
                     }
-                    // Calls, creates, and logs do not count as address uses.
-                    _ if matches!(
-                        kind.effect_kind(),
-                        EffectKind::MemoryRead | EffectKind::MemoryWrite
-                    ) =>
-                    {
+                    // Calls, creates, logs, and `MemoryZero` do not count as address uses.
+                    InstKind::MemoryZero(..) => continue,
+                    _ if kind.effect_kind().is_memory() => {
                         kind.visit_raw_memory(|_, addr, _| address_operands.push(addr));
                     }
                     _ => continue,
