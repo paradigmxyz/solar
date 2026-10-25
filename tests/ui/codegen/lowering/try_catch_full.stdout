@@ -60,26 +60,18 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v40 = mload v182
     v208 = mload 64 !metadata(memory=scratch)
     v209 = add v208, 64
-    mstore 64, v209 !metadata(memory=scratch)
     mstore v208, 32
     v184 = add v208, 32
     mstore v184, v40
-    v210 = mload 64 !metadata(memory=scratch)
-    v130 = add v210, 64
-    mstore v210, 2
-    v132 = add v210, 32
+    v130 = add v208, 128
+    mstore v209, 2
+    v132 = add v208, 96
     mstore v132, 64
-    v135 = mload v208
-    v137 = add v135, 31
-    v138 = and v137, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v139 = add v130, 32
-    v140 = add v130, v138
-    mstore v140, 0
-    mstore v130, v135
-    v142 = add v139, v138
-    mcopy v139, v184, v135 !metadata(disjoint)
-    v144 = sub v142, v210
-    returndata v210, v144
+    mstore v139, 0
+    mstore v130, 32
+    mcopy v139, v184, 32 !metadata(disjoint)
+    returndata v209, 128
   bb4:
     v29 = sub v58, 4
     v178 = add v205, 36

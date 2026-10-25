@@ -109,3 +109,34 @@ fn @forwarded_address() -> i256 {
     v1 = mload v0
     ret v1
 }
+
+// A write through a heap pointer, a copy into it, and a call with an empty output range cannot
+// reach the word, so the stored word survives them.
+// CHECK-LABEL: @heap_writes_keep_word
+// CHECK: - {{v[0-9]+}} = mload 64
+// CHECK: + ret [[BUMP:v[0-9]+]]
+fn @heap_writes_keep_word(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, arg1
+    mstore 64, v1
+    mstore v0, arg1
+    v2 = add v0, 32
+    calldatacopy v2, arg0, arg1
+    v3 = delegatecall arg0, arg1, v2, arg1, 0, 0
+    v4 = mload 64
+    ret v4
+}
+
+// A copy whose destination is not a heap pointer may overwrite the word.
+// CHECK-LABEL: @low_copy_clobbers_word
+// CHECK: {{^ +}}calldatacopy arg0, 0, 32
+// CHECK-NEXT: {{^ +}}[[LOW:v[0-9]+]] = mload 64
+// CHECK-NEXT: {{^ +}}ret [[LOW]]
+fn @low_copy_clobbers_word(arg0: i256) -> i256 {
+  bb0:
+    mstore 64, 128
+    calldatacopy arg0, 0, 32
+    v0 = mload 64
+    ret v0
+}

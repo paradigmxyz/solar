@@ -654,17 +654,15 @@ bb61:
   dup 2
   dup 2
   lt
+  swap 1
   push 0
   not
   push 192
   shr
-  dup 3
-  gt
+  lt
   or
   push bb69
   jumpi
-  push 64
-  mstore
   swap 2
   dup 3
   mstore

@@ -39,8 +39,10 @@
 //! lifetimes. Overlapping writes and calls invalidate these entries through the usual alias checks.
 //!
 //! After allocation lowering, `fmp-cse` forwards reads of the free-memory-pointer slot within
-//! each block. It tracks one word, clears it at every other side effect, and never carries it
-//! across edges. A preceding load or store already expanded memory through the entire slot.
+//! each block. It tracks one word, clears it at every other side effect that may write the slot (a
+//! heap pointer plus a constant never reaches it), and never carries it across edges: a word kept
+//! live into a successor costs more stack traffic than the reload it saves. A preceding load or
+//! store already expanded memory through the entire slot.
 //!
 //! Safety contract:
 //! - cache only pure expressions, classified reads, and idempotent slot hashes.
@@ -89,7 +91,8 @@ use crate::mir::{
     },
     memory::EvmMemoryLayout,
     pass::{
-        MirPass, run_function_pass, run_selected_function_pass, run_selected_function_pass_cached,
+        MirPass, run_function_pass_with_alias, run_selected_function_pass,
+        run_selected_function_pass_cached,
     },
     utils as mir_utils,
 };
@@ -177,7 +180,8 @@ impl MirPass for FmpCse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_with_alias(module, analyses, |func, analyses| {
+            let alias = analyses.alias();
             let mut replacements = FxHashMap::default();
             let mut removed = DenseBitSet::new_empty(func.num_insts());
             for block in &func.blocks {
@@ -205,7 +209,11 @@ impl MirPass for FmpCse {
                         {
                             cached = Some(mir_utils::resolve_replacement(*value, &replacements));
                         }
-                        kind if kind.has_side_effects() => cached = None,
+                        kind if kind.has_side_effects()
+                            && alias.instruction_may_write_fmp(func, inst) =>
+                        {
+                            cached = None
+                        }
                         _ => {}
                     }
                 }

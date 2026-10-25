@@ -1807,6 +1807,22 @@ impl AliasAnalysis {
         Self::instruction_may_reset_fmp_with_summaries(func, inst, self.call_summaries.as_deref())
     }
 
+    /// Returns whether an instruction may write the free-memory-pointer word.
+    ///
+    /// Unlike [`Self::instruction_may_reset_fmp`], this also counts allocations that bump the
+    /// word, so a cached copy of it stays valid across an instruction only when this is false. A
+    /// heap pointer plus a constant never reaches the word, so such writes do not count.
+    #[must_use]
+    pub(crate) fn instruction_may_write_fmp(&self, func: &Function, inst: InstId) -> bool {
+        self.instruction_mod_ref(func, inst).writes().iter().any(|&access| match access {
+            Access::Any(AddressSpace::Memory) => true,
+            Access::Location(Location::Memory(location)) => {
+                Self::location_may_overlap_fmp(func, location)
+            }
+            Access::Any(_) | Access::Location(_) => false,
+        })
+    }
+
     /// Returns whether an instruction may terminate the current EVM call successfully.
     #[must_use]
     pub(crate) fn instruction_may_terminate(&self, func: &Function, inst: InstId) -> bool {
@@ -1863,13 +1879,45 @@ impl AliasAnalysis {
             return false;
         }
         if let Some(address) = func.value_u64(address) {
-            let Some(size) = size else { return true };
-            let Some(end) = address.checked_add(size) else { return true };
-            let fmp_end = EvmMemoryLayout::FMP_SLOT + EvmMemoryLayout::WORD_SIZE;
-            return address < fmp_end && end > EvmMemoryLayout::FMP_SLOT;
+            return Self::const_range_may_overlap_fmp(address, size);
         }
         Self::pointer_lower_bound(func, address, 0)
             .is_none_or(|address| address < EvmMemoryLayout::HEAP_START)
+    }
+
+    /// Returns whether a canonical memory location may touch the reserved FMP word.
+    fn location_may_overlap_fmp(func: &Function, location: MemoryLocation) -> bool {
+        let MemoryLocation { address, size } = location;
+        if size == LocationSize::Const(0) {
+            return false;
+        }
+        if let Some(address) = address.as_absolute() {
+            return Self::const_range_may_overlap_fmp(address, size.as_const());
+        }
+        Self::address_lower_bound(func, address)
+            .is_none_or(|bound| bound < EvmMemoryLayout::HEAP_START)
+    }
+
+    /// Returns a conservative lower bound for the first byte of a canonical address.
+    pub(crate) fn address_lower_bound(func: &Function, address: MemoryAddress) -> Option<u64> {
+        match address.base {
+            MemoryBase::Absolute => Some(address.offset),
+            // An allocation is a heap pointer.
+            MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_) => {
+                EvmMemoryLayout::HEAP_START.checked_add(address.offset)
+            }
+            MemoryBase::Value(base) => {
+                Self::pointer_lower_bound(func, base, 0)?.checked_add(address.offset)
+            }
+            MemoryBase::InternalFrame => None,
+        }
+    }
+
+    fn const_range_may_overlap_fmp(address: u64, size: Option<u64>) -> bool {
+        let Some(size) = size else { return true };
+        let Some(end) = address.checked_add(size) else { return true };
+        let fmp_end = EvmMemoryLayout::FMP_SLOT + EvmMemoryLayout::WORD_SIZE;
+        address < fmp_end && end > EvmMemoryLayout::FMP_SLOT
     }
 
     /// Returns a conservative lower bound for a compiler-owned pointer.
@@ -1878,7 +1926,11 @@ impl AliasAnalysis {
     /// subtract from a pointer, and a typed argument may still originate in
     /// opaque code. Only monotonic derivations from compiler-owned bases prove
     /// that a write cannot reach reserved low memory.
-    fn pointer_lower_bound(func: &Function, value: ValueId, depth: usize) -> Option<u64> {
+    pub(crate) fn pointer_lower_bound(
+        func: &Function,
+        value: ValueId,
+        depth: usize,
+    ) -> Option<u64> {
         if depth > 8 {
             return None;
         }
@@ -1909,6 +1961,27 @@ impl AliasAnalysis {
                     .or_else(|| {
                         Self::pointer_lower_bound(func, *second, depth + 1)
                             .and_then(|base| base.checked_add(func.value_u64(*first)?))
+                    })
+                    .or_else(|| {
+                        // `add p, x` with a runtime `x` is the allocator bump when the program
+                        // stores it as the free-memory pointer. The allocation either proved the
+                        // bump valid or panicked before this store, so the word is not below `p`.
+                        // The same fact makes a forwarded reload of the slot, now this sum, as
+                        // high as the `mload 64` it replaces. A sum nothing stores there, such as
+                        // a computed index, may wrap, and a stored word that is no sum is data.
+                        let bound = Self::pointer_lower_bound(func, *first, depth + 1)
+                            .or_else(|| Self::pointer_lower_bound(func, *second, depth + 1))?;
+                        func.instructions()
+                            .any(|inst| {
+                                matches!(
+                                    func.inst(inst).kind,
+                                    InstKind::Store(address, stored, PtrLocation::Memory)
+                                        if stored == value
+                                            && func.value_u64(address)
+                                                == Some(EvmMemoryLayout::FMP_SLOT)
+                                )
+                            })
+                            .then_some(bound)
                     })
             }
             InstKind::Sub(base, offset)

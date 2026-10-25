@@ -1,0 +1,223 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck:
+@module MemoryDseFmpExit
+
+// A heap pointer plus a constant never reaches the free-memory-pointer word, so a bump stored
+// before an exit that reads through the heap pointer is dead.
+// CHECK-LABEL: {{^[ +].*}}fn @remove_bump_before_heap_return{{[( ]}}
+// CHECK: - mstore 64, {{v[0-9]+}}
+// CHECK: {{^[ +].*}}returndata [[PTR:v[0-9]+]], 32
+fn @remove_bump_before_heap_return(arg0: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    mstore v0, arg0
+    returndata v0, 32
+}
+
+// A write that only fills memory, such as a copy, cannot make the store observable.
+// CHECK-LABEL: {{^[ +].*}}fn @remove_bump_before_heap_copy{{[( ]}}
+// CHECK: - mstore 64, {{v[0-9]+}}
+// CHECK: {{^[ +].*}}calldatacopy
+// CHECK: {{^[ +].*}}revert {{v[0-9]+}}, arg1
+fn @remove_bump_before_heap_copy(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 64
+    mstore 64, v1
+    calldatacopy v0, arg0, arg1
+    revert v0, arg1
+}
+
+// The bump of two allocations that copy into the heap and return it: reloading the slot
+// forwards the first bump, which makes the first store dead as well.
+// CHECK-LABEL: {{^[ +].*}}fn @remove_both_bumps{{[( ]}}
+// CHECK: - mstore 64, {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = mload 64
+// CHECK: - mstore 64, {{v[0-9]+}}
+// CHECK: {{^[ +].*}}returndata {{v[0-9]+}}, arg1
+fn @remove_both_bumps(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, arg1
+    mstore 64, v1
+    mstore v0, arg1
+    v2 = add v0, 32
+    calldatacopy v2, arg0, arg1
+    v3 = mload 64
+    v4 = add v3, arg1
+    mstore 64, v4
+    mstore v3, arg1
+    v5 = add v3, 32
+    returndatacopy v5, 0, arg1
+    returndata v5, arg1
+}
+
+// An exit that reads through an unrelated pointer may cover the word.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_bump_before_unknown_return{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, {{v[0-9]+}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_bump_before_unknown_return(arg0: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    returndata arg0, 32
+}
+
+// A stored word that is no sum is data, so it gives the pointer no bound.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_data_before_return_through_it{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, arg0
+// CHECK-NOT: {{^[-+]}}
+fn @keep_data_before_return_through_it(arg0: i256) {
+  bb0:
+    mstore 64, arg0
+    returndata arg0, 32
+}
+
+// A sum that nothing stores in the slot, such as a computed index, may wrap around to it.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_before_computed_offset{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, arg1
+// CHECK-NOT: {{^[-+]}}
+fn @keep_store_before_computed_offset(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, arg0
+    mstore 64, arg1
+    returndata v1, 32
+}
+
+// A range that starts below the heap, or whose start is a low constant, covers the word.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_bump_before_low_constant_range{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, {{v[0-9]+}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_bump_before_low_constant_range(arg0: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    returndata 0, arg0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_bump_before_covering_constant_range{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, {{v[0-9]+}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_bump_before_covering_constant_range() {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    revert 32, 64
+}
+
+// A later read that may cover the word keeps the store.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_bump_read_by_hash{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, {{v[0-9]+}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_bump_read_by_hash(arg0: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    v2 = keccak256 0, 96
+    mstore v0, v2
+    returndata v0, 32
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_bump_read_by_unknown_load{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, {{v[0-9]+}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_bump_read_by_unknown_load(arg0: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    v2 = mload arg0
+    mstore v0, v2
+    returndata v0, 32
+}
+
+// Gas observers stay conservative.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_bump_before_gas{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, {{v[0-9]+}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_bump_before_gas() {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    v2 = gas
+    mstore v0, v2
+    returndata v0, 32
+}
+
+// A heap write cannot change the word, so the reload is forwarded across it; a write that may
+// reach the word cannot be crossed.
+// CHECK-LABEL: {{^[ +].*}}fn @forward_reload_across_heap_write{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mload 64
+// CHECK: + ret {{v[0-9]+}}
+fn @forward_reload_across_heap_write(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    mstore v0, arg0
+    calldatacopy v1, 0, arg0
+    v2 = mload 64
+    ret v2
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_reload_across_unknown_write{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_reload_across_unknown_write(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    mstore arg0, 1
+    v2 = mload 64
+    ret v2
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_reload_across_allocation_bump{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_reload_across_allocation_bump() -> i256 {
+  bb0:
+    v0 = mload 64
+    mstore 64, 160
+    v1 = alloc 32
+    v2 = mload 64
+    ret v2
+}
+
+// Every exit of the branch reads through the heap pointer, so the store dies.
+// CHECK-LABEL: {{^[ +].*}}fn @remove_bump_before_branch_heap_exits{{[( ]}}
+// CHECK: - mstore 64, {{v[0-9]+}}
+fn @remove_bump_before_branch_heap_exits(arg0: i1) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    jumpi arg0, bb1, bb2
+  bb1:
+    returndata v0, 32
+  bb2:
+    revert v0, 4
+}
+
+// One exit that may read the word keeps the store for both.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_bump_before_branch_unknown_exit{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, {{v[0-9]+}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_bump_before_branch_unknown_exit(arg0: i1, arg1: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    jumpi arg0, bb1, bb2
+  bb1:
+    returndata v0, 32
+  bb2:
+    revert arg1, 4
+}
