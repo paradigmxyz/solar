@@ -3,8 +3,8 @@
 //! Before Constantinople, `SHL` and `SHR` do not exist. The EVM IR pass `legalize-shifts` rewrites
 //! them to `MUL` and `DIV` by `2**shift`, but it runs after stack scheduling and sees only the
 //! scheduled instruction stream. The shift's operands then sit in shift-first order, so a
-//! right shift needs an extra `SWAP1` before its `DIV`, which costs a byte and three gas that the
-//! division's own operand order would not.
+//! right shift needs an extra `SWAP1` before its `DIV` that the division's own operand order
+//! would not.
 //!
 //! This pass runs before scheduling and rewrites `shl(c, x)` to `mul(x, 2**c)` and `shr(c, x)` to
 //! `div(x, 2**c)`, with a zero factor when `c` is 256 or more, as the wrapped `EXP` result is.
@@ -61,9 +61,8 @@ impl MirPass for LowerShifts {
                 else {
                     continue;
                 };
-                // factor = 2**shift
-                // %result = mul %value, factor   (shl)
-                // %result = div %value, factor   (shr)
+                // v = mul value, 2**shift (shl)
+                // v = div value, 2**shift (shr)
                 let factor = func.alloc_value(Value::Immediate(Immediate::I256(factor)));
                 let kind =
                     if right { InstKind::Div(value, factor) } else { InstKind::Mul(value, factor) };

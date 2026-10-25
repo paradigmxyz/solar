@@ -82,6 +82,7 @@ pub(in crate::backend) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> 
 
 /// Replaces `shl(shift, value)` with `value * 2**shift` and `shr(shift, value)` with
 /// `value / 2**shift`, folding a literal shift push into the factor when that is cheaper.
+/// `lower-shifts` handles constant shifts before scheduling; this is the backstop for the rest.
 fn append_shift(target: Target, out: &mut Vec<Instruction>, shr: bool) {
     let two = U256::from(2);
     let factor = out

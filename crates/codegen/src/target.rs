@@ -1243,20 +1243,6 @@ mod tests {
     }
 
     #[test]
-    fn legacy_shifts_push_the_factor_when_it_costs_less() {
-        let shift = |bits| U256::from(bits);
-        let size = Target::with(EvmVersion::Byzantium, OptimizationMode::Size, 1);
-        assert_eq!(size.legacy_shift_factor(shift(8)), Some(U256::from(256)));
-        assert_eq!(size.legacy_shift_factor(shift(224)), None);
-        // 24 more bytes of deposit outweigh the 63 gas of `EXP` unless the code runs often.
-        let few = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 1);
-        assert_eq!(few.legacy_shift_factor(shift(224)), None);
-        let many = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
-        assert_eq!(many.legacy_shift_factor(shift(224)), Some(U256::ONE << 224));
-        assert_eq!(many.legacy_shift_factor(shift(256)), Some(U256::ZERO));
-    }
-
-    #[test]
     fn terminal_copy_sharing() {
         let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
@@ -1270,5 +1256,19 @@ mod tests {
         assert!(size.shares_terminal_copy(medium, 3));
         // One site never pays for a jump.
         assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
+    }
+
+    #[test]
+    fn legacy_shifts_push_the_factor_when_it_costs_less() {
+        let shift = |bits| U256::from(bits);
+        let size = Target::with(EvmVersion::Byzantium, OptimizationMode::Size, 1);
+        assert_eq!(size.legacy_shift_factor(shift(8)), Some(U256::from(256)));
+        assert_eq!(size.legacy_shift_factor(shift(224)), None);
+        // 24 more bytes of deposit outweigh the 63 gas of `EXP` unless the code runs often.
+        let few = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 1);
+        assert_eq!(few.legacy_shift_factor(shift(224)), None);
+        let many = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
+        assert_eq!(many.legacy_shift_factor(shift(224)), Some(U256::ONE << 224));
+        assert_eq!(many.legacy_shift_factor(shift(256)), Some(U256::ZERO));
     }
 }
