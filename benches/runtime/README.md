@@ -55,8 +55,8 @@ call that ran it. Three kinds regroup steps by role: `recipe` for a pure op on c
 the same block (`PUSH0 NOT`), `guard` for a JUMPI whose branch always reverts with its target push
 and condition chain, and `fmp` for free-memory-pointer loads, stores, and bumps. The call is
 checked against receipt gas; a trace that cannot explain it fails the run's `gas_kinds_status`
-(without `--allow-failures`, the exit code too) and leaves receipt gas as measured. Tracing costs
-tens of milliseconds a call. Reference compilers that run live get the same fields.
+(without `--allow-failures`, the exit code too) and leaves receipt gas as measured. Reference
+compilers that run live get the same fields.
 
 `--artifacts PATH` writes a file tree per runtime case and compiler from an extra, untimed compile.
 Each compiler directory has a `sources/` tree of every embedded Standard JSON source, keeping paths,

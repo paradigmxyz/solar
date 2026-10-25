@@ -59,9 +59,9 @@ CAST_DEPLOY_TIMEOUT = 45
 CAST_TX_TIMEOUT = 30
 CAST_READ_TIMEOUT = 10
 CAST_RPC_TIMEOUT = 10
+CAST_GAS_LIMIT = "80000000"
 CAST_TRACE_TIMEOUT = 120
 GAS_KINDS_TRACER = Path(__file__).with_name("gas_kinds_tracer.js")
-CAST_GAS_LIMIT = "80000000"
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
 ARTIFACT_DUMP_KINDS = (
     "mir",
@@ -1093,8 +1093,9 @@ def trace_gas_kinds(
     """Traces a mined call and splits its execution gas by opcode kind.
 
     The result holds `execution_gas`, the gas of the executed steps before the refund, and
-    `gas_kinds`, which sums to it. Receipt gas is the steps plus the intrinsic gas minus the
-    applied refund, or the EIP-7623 calldata floor when that is higher (`calldata_floor`).
+    `gas_kinds`, which sums to it. Receipt gas must be the steps plus the intrinsic gas minus the
+    applied refund, or the EIP-7623 calldata floor when that is higher (`calldata_floor`);
+    any other receipt gas means the trace missed gas.
     """
     if tx_hash is None:
         return None, "transaction receipt missing transactionHash"
@@ -1120,14 +1121,19 @@ def trace_gas_kinds(
     intrinsic_gas = gas_limit - first_gas
     applied_refund = min(refund, (execution_gas + intrinsic_gas) // 5)
     expected = execution_gas + intrinsic_gas - applied_refund
-    if receipt_gas < expected:
-        return None, f"traced gas {expected} exceeds receipt gas {receipt_gas}"
+    # Calldata costs 4 gas per token and the floor 10, with no access list or creation.
+    floor = 21000 + (intrinsic_gas - 21000) * 5 // 2
+    if receipt_gas != max(expected, floor):
+        return (
+            None,
+            f"traced gas {expected} (floor {floor}) does not explain receipt gas {receipt_gas}",
+        )
     return {
         "execution_gas": execution_gas,
         "gas_kinds": {kind: gas for kind, gas in sorted(kinds.items()) if gas},
         "intrinsic_gas": intrinsic_gas,
         "gas_refund": applied_refund,
-        "calldata_floor": receipt_gas > expected,
+        "calldata_floor": floor > expected,
     }, ""
 
 

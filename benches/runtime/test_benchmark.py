@@ -1346,15 +1346,17 @@ class GasKindsTests(unittest.TestCase):
         (kinds, _), _ = self.trace_gas_kinds(43354 - 8670, trace)
         assert kinds is not None
         self.assertEqual((kinds["gas_refund"], kinds["calldata_floor"]), (8670, False))
-        (kinds, _), _ = self.trace_gas_kinds(60000, self.trace())
+        floor = self.trace(kinds={"push": 100}, exec=100)
+        (kinds, _), _ = self.trace_gas_kinds(21510, floor)
         assert kinds is not None
         self.assertTrue(kinds["calldata_floor"])
-        self.assertEqual(kinds["execution_gas"], 22150)
+        self.assertEqual(kinds["execution_gas"], 100)
 
     def test_rejects_traces_that_do_not_explain_receipt_gas(self) -> None:
         for receipt_gas, trace, error, message in (
             (43354, self.trace(exec=22151), "", "sum to 22150, not 22151"),
-            (43000, self.trace(), "", "traced gas 43354 exceeds receipt gas 43000"),
+            (43000, self.trace(), "", "does not explain receipt gas 43000"),
+            (50000, self.trace(), "", "does not explain receipt gas 50000"),
             (43354, self.trace(firstGas=-1), "", "malformed gas trace"),
             (43354, {"kinds": {}}, "", "malformed gas trace"),
             (43354, None, "rpc down", "rpc down"),
@@ -1459,6 +1461,66 @@ class GasKindsTests(unittest.TestCase):
         self.assertTrue(
             stderr.getvalue().endswith("error: --gas-kinds requires --gas\n")
         )
+
+    @unittest.skipUnless(
+        shutil.which("anvil") and shutil.which("cast"),
+        "anvil and cast are not installed",
+    )
+    def test_tracer_explains_receipt_gas_of_nested_frames(self) -> None:
+        def push(value: int, size: int = 1) -> str:
+            return f"{0x5F + size:02x}{value:0{2 * size}x}"
+
+        def deploy(runtime: str) -> str:
+            size = len(runtime) // 2
+            # CODECOPY the runtime behind this 12-byte prefix, then RETURN it.
+            return f"{push(size)}{push(12)}{push(0)}39{push(size)}{push(0)}f3{runtime}"
+
+        # Reverts after growing memory: the REVERT step arrives through `fault`.
+        reverter = push(50000, 2) + push(0) + "fd"
+        rpc_url = "http://127.0.0.1:8721"
+        anvil = benchmark.start_anvil(rpc_url)
+        self.addCleanup(benchmark.stop_anvil, anvil)
+        reverter_address, _, error = benchmark.deploy_creation_code(
+            deploy(reverter), (), None, rpc_url, benchmark.DEFAULT_PRIVATE_KEY
+        )
+        self.assertEqual(error, "")
+        assert reverter_address is not None
+        runtime = "".join(
+            [
+                # CALL the reverter, then the identity precompile after a frame with steps.
+                push(0) * 5 + push(int(reverter_address, 16), 20) + "5af150",
+                push(0) * 2 + push(0x40) + push(0) + push(4) + "5afa50",
+                # CREATE a contract whose 32-byte code costs 6400 gas to deposit.
+                push(0x602060_00F3, 5)
+                + push(0)
+                + "52"
+                + push(5)
+                + push(27)
+                + push(0)
+                + "f0"
+                + "50"
+                + "00",
+            ]
+        )
+        address, _, error = benchmark.deploy_creation_code(
+            deploy(runtime), (), None, rpc_url, benchmark.DEFAULT_PRIVATE_KEY
+        )
+        self.assertEqual(error, "")
+        assert address is not None
+        gas, tx_hash, error = benchmark.send_call(
+            address, "f()", (), rpc_url, benchmark.DEFAULT_PRIVATE_KEY
+        )
+        self.assertEqual(error, "")
+        assert gas is not None
+        kinds, error = benchmark.trace_gas_kinds(tx_hash, gas, rpc_url)
+        self.assertEqual(error, "")
+        assert kinds is not None
+        self.assertFalse(kinds["calldata_floor"])
+        self.assertEqual(kinds["execution_gas"] + kinds["intrinsic_gas"], gas)
+        self.assertEqual(sum(kinds["gas_kinds"].values()), kinds["execution_gas"])
+        self.assertGreater(kinds["gas_kinds"]["precompile"], 0)
+        self.assertGreater(kinds["gas_kinds"]["mem_expansion"], 9000)
+        self.assertGreater(kinds["gas_kinds"]["call"], 32000 + 6400)
 
     @unittest.skipUnless(shutil.which("node"), "node is not installed")
     def test_tracer_is_a_javascript_object_literal(self) -> None:

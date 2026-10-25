@@ -28,7 +28,7 @@
   refund: 0,
   firstGas: -1,
   pendingTo: null,
-  enterDepth: 0,
+  enterExec: [],
 
   setup: function () {
     var po = [], pu = [], k = [], i;
@@ -197,6 +197,7 @@
     // Frames deeper than this one have ended.
     for (var d = this.frames.length - 1; d > depth; d--) {
       if (this.frames[d]) this.finish(this.frames[d]);
+      this.frames[d] = undefined;
       this.frames.length = d;
     }
     var f = this.frame(log, depth);
@@ -255,33 +256,39 @@
 
   enter: function (frame) {
     this.pendingTo = toHex(frame.getTo());
-    this.enterDepth += 1;
+    this.enterExec.push(this.exec);
   },
 
   exit: function (res) {
     // The parent frame is the deepest frame that is not the exiting child.
-    var parentDepth = this.enterDepth;
-    this.enterDepth -= 1;
+    var parentDepth = this.enterExec.length;
+    var execBefore = this.enterExec.pop();
     var p = this.frames[parentDepth];
     var child = this.frames[parentDepth + 1];
+    if (child) this.finish(child);
     if (p) {
-      p.childUsed = res.getGasUsed();
+      // A callee with steps is charged what its steps counted, so the gas that no step carries (the
+      // code deposit of a create, gas burned by a failure) stays on the call step. A callee without
+      // steps is a precompile or an empty account, charged by the gas it used.
+      p.childUsed = child ? this.exec - execBefore : res.getGasUsed();
       p.childHadSteps = !!child;
     }
-    if (child) {
-      this.finish(child);
-      this.frames.length = parentDepth + 1;
-    }
+    // Clear the entry itself: truncating `length` alone leaves it readable in the JS engine.
+    this.frames[parentDepth + 1] = undefined;
+    this.frames.length = parentDepth + 1;
     this.pendingTo = null;
   },
 
-  fault: function (log, db) {},
+  // Anvil reports a step that reverts or fails here instead of through `step`.
+  fault: function (log, db) {
+    this.step(log, db);
+  },
 
   result: function (ctx, db) {
     for (var d = this.frames.length - 1; d >= 1; d--) {
       if (this.frames[d]) this.finish(this.frames[d]);
     }
     return { kinds: this.kinds, exec: this.exec, refund: this.refund, firstGas: this.firstGas,
-      gasLimit: ctx.gas, gasUsed: ctx.gasUsed };
+      gasLimit: ctx.gas };
   }
 }

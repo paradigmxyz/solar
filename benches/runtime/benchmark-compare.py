@@ -1287,6 +1287,7 @@ def comparison_has_changes(
                 )
             )
             or any(call["delta"] not in (None, 0) for call in row["gas_calls"])
+            or any(kind["delta"] not in (None, 0) for kind in row["gas_kinds"].values())
             or (
                 row.get("artifacts_available", {}).get("before")
                 and row.get("artifacts_available", {}).get("after")
