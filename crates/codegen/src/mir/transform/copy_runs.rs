@@ -69,6 +69,7 @@ use crate::{
         BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module,
         PtrLocation, Value, ValueId,
         analysis::{AliasAnalysis, LocationSize},
+        memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_function_pass_with_alias},
     },
     target::Target,
@@ -390,6 +391,13 @@ fn price_run(
     let shared = |index: &usize| uses.get(pairs[*index].value).copied().unwrap_or(0) > 1;
     let kept_loads = run.iter().filter(|&index| shared(index)).count();
     if from_memory {
+        // The loads that follow a multi-word call and read its extra results through the buffer
+        // belong to the call's stack protocol, which the backend recognizes only as loads.
+        if run.iter().any(|&index| {
+            pairs[index].src.base.iter().any(|&base| reads_multi_return_buffer_pointer(func, base))
+        }) {
+            return None;
+        }
         // A load that stays must not read after the copy has written.
         if run.iter().any(|index| {
             shared(index) && pairs[*index].load_position.is_some_and(|at| at > first.position)
@@ -425,4 +433,12 @@ fn price_run(
         source,
         dropped: run[1..].iter().map(|&index| pairs[index].store).collect(),
     })
+}
+
+/// Whether `value` is the buffer pointer a multi-word call's caller reads to find the extra
+/// results.
+fn reads_multi_return_buffer_pointer(func: &Function, value: ValueId) -> bool {
+    matches!(*func.value(value), Value::Inst(inst)
+        if matches!(func.inst(inst).kind, InstKind::Load(slot, PtrLocation::Memory)
+            if func.value_u64(slot) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT)))
 }

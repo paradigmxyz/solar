@@ -1,0 +1,58 @@
+// === ROOT/tests/ui/codegen/mir/copy-runs/multi_return_runtime.sol:Test ===
+@module Test
+@types
+  struct0: {i256, i256, i256, i256}
+
+fn @two(arg0: i256) -> struct0 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v5 = checked_sub uint256, arg0, 1
+    v6 = icall @two, v5
+    v7 = extract_value struct0, v6, 0
+    v8 = extract_value struct0, v6, 1
+    v9 = extract_value struct0, v6, 2
+    v10 = extract_value struct0, v6, 3
+    v11 = checked_add uint256, v7, arg0
+    v12 = checked_add uint256, v8, arg0
+    v13 = insert_value struct0, undef struct0, 0, v11
+    v14 = insert_value struct0, v13, 1, v12
+    v15 = insert_value struct0, v14, 2, v9
+    v16 = insert_value struct0, v15, 3, v10
+    ret v16
+  bb1:
+    v1 = insert_value struct0, undef struct0, 0, 1
+    v2 = insert_value struct0, v1, 1, 2
+    v3 = insert_value struct0, v2, 2, 3
+    v4 = insert_value struct0, v3, 3, 4
+    ret v4
+}
+
+fn @i(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x02600c94, pure, abi_params=[array<4, uint256>, uint256], abi_returns=[array<4, word>], abi_return_params=[array<4, uint256>]] {
+  bb0:
+    v0 = icall @two, arg1
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = extract_value struct0, v0, 2
+    v4 = extract_value struct0, v0, 3
+    v5 = lt 0, 4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    mstore arg0, v2
+    v7 = lt 1, 4
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd arg0, 32
+    mstore v9, v3
+    v10 = lt 2, 4
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd arg0, 64
+    mstore v12, v4
+    v13 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v13, 128
+    ret arg0
+}
