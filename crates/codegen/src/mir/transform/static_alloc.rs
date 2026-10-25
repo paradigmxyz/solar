@@ -800,30 +800,31 @@ impl FmpObservers {
                 readers.insert(func_id);
             }
         }
-        let mut reads_reach = DenseBitSet::new_empty(count);
         let mut callers = index_vec![Vec::new(); count];
         for func_id in module.functions.indices() {
-            let reach = calls.reachable_callees_from([func_id]);
-            if readers.contains(func_id) || reach.iter().any(|callee| readers.contains(callee)) {
-                reads_reach.insert(func_id);
-            }
             for callee in calls.callees(func_id) {
                 callers[callee].push(func_id);
             }
         }
+        // The functions that read the slot or call, directly or not, one that does.
+        let mut reads_reach = readers.clone();
+        let mut pending = readers.iter().collect::<Vec<_>>();
+        while let Some(func_id) = pending.pop() {
+            for &caller in &callers[func_id] {
+                if reads_reach.insert(caller) {
+                    pending.push(caller);
+                }
+            }
+        }
+        // The functions below a function in `reads_reach`: a function resumes in one of its
+        // transitive callers, so it returns to a reader when a caller reaches one.
         let mut returns_to_reader = DenseBitSet::new_empty(count);
-        for func_id in module.functions.indices() {
-            let mut seen = DenseBitSet::new_empty(count);
-            let mut stack = callers[func_id].clone();
-            while let Some(caller) = stack.pop() {
-                if !seen.insert(caller) {
-                    continue;
+        let mut pending = reads_reach.iter().collect::<Vec<_>>();
+        while let Some(func_id) = pending.pop() {
+            for callee in calls.callees(func_id) {
+                if returns_to_reader.insert(callee) {
+                    pending.push(callee);
                 }
-                if reads_reach.contains(caller) {
-                    returns_to_reader.insert(func_id);
-                    break;
-                }
-                stack.extend_from_slice(&callers[caller]);
             }
         }
         Self { heap, readers, reads_reach, returns_to_reader }
