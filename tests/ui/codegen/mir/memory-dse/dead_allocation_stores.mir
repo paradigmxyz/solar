@@ -381,3 +381,19 @@ fn @frame_range(arg0: i256, arg1: i256) {
     v1 = internal_frame_addr 0
     revert v1, arg1
 }
+
+// A write through a runtime index wraps, may rewind the free-memory pointer, and so may put the
+// next object over an earlier one.
+// CHECK-LABEL: {{^[ +].*}}fn @indexed_write_before{{[( ]}}
+// CHECK: {{^ +}}mstore v2, arg0
+fn @indexed_write_before(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    v1 = ptradd v0, arg1
+    mstore v1, 1
+    v2 = alloc 64
+    mstore v2, arg0
+    v3 = mload v0
+    mstore 0, v3
+    returndata 0, 32
+}
