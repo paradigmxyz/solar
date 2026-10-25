@@ -19,7 +19,7 @@
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
     Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-    PtrLocation, ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    PtrLocation, Value, ValueId, memory::EvmMemoryLayout, pass::MirPass,
     transform::utils::redirect_successor_predecessors,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -122,7 +122,7 @@ fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
         // ptr = inttoptr (load memory 64) to ptr<memory>
         let free = builder.load(slot, PtrLocation::Memory);
         let ptr = builder.cast(free, MirType::MEMPTR);
-        let next = builder.add(ptr, size);
+        let next = bump(&mut builder, ptr, size);
         let bump_overflow = builder.lt(next, ptr);
         let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
         let over_limit = builder.gt(next, limit);
@@ -207,7 +207,7 @@ fn lower_function(func: &mut Function) -> bool {
                     instruction.metadata.set_preserves_fmp(false);
                     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
                     builder.func_mut().blocks[block].instructions.push(inst);
-                    let next = builder.add(word, size);
+                    let next = bump(&mut builder, word, size);
                     store_fmp(&mut builder, next);
                     initialize(&mut builder, ptr, size, semantics.initialization);
                 }
@@ -229,7 +229,7 @@ fn lower_function(func: &mut Function) -> bool {
                         .expect("allocation must produce a value");
                     rewrite_as_fmp_load(&mut builder, inst);
                     builder.func_mut().blocks[block].instructions.push(inst);
-                    let next = builder.add(ptr, size);
+                    let next = bump(&mut builder, ptr, size);
                     store_fmp(&mut builder, next);
                     initialize(&mut builder, ptr, size, semantics.initialization);
                 }
@@ -349,7 +349,7 @@ fn lower_checked_alloc(
     let mut builder = FunctionBuilder::new(func);
     builder.switch_to_block(block);
     rewrite_as_fmp_load(&mut builder, inst);
-    let next = builder.add(ptr, size);
+    let next = bump(&mut builder, ptr, size);
     let bump_overflow = builder.lt(next, ptr);
     let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
     let over_limit = builder.gt(next, limit);
@@ -416,6 +416,17 @@ fn rewrite_as_fmp_store(
     instruction.metadata.set_effect(None);
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
+}
+
+/// Emits `ptr + size`, which allocation proved or checked not to wrap, marked so the sum keeps the
+/// bound of `ptr`.
+fn bump(builder: &mut FunctionBuilder<'_>, ptr: ValueId, size: ValueId) -> ValueId {
+    let next = builder.add(ptr, size);
+    if let Value::Inst(inst) = builder.func().value(next) {
+        let inst = *inst;
+        builder.func_mut().inst_mut(inst).metadata.set_fmp_bump(true);
+    }
+    next
 }
 
 fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: crate::mir::ValueId) {

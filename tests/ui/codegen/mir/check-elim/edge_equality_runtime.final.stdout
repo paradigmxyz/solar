@@ -29,7 +29,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v10 = add v9, 63
     v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v50 = mload 64 !metadata(memory=scratch)
-    v51 = add v50, v13
+    v51 = add v50, v13 !metadata(fmp_bump)
     mstore 64, v51 !metadata(memory=scratch)
     mstore v50, v9
     v41 = add v50, 32
@@ -67,7 +67,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb4:
     v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v26 = mload 64 !metadata(memory=scratch)
-    v27 = add v26, v13
+    v27 = add v26, v13 !metadata(fmp_bump)
     v28 = lt v27, v26
     v29 = gt v27, 0xffffffffffffffff
     v30 = or v28, v29

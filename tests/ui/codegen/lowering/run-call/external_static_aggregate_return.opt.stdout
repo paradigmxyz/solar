@@ -43,7 +43,7 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     jumpi v11, bb4, bb5
   bb5:
     v31 = mload 64 !metadata(memory=scratch)
-    v32 = add v31, 192
+    v32 = add v31, 192 !metadata(fmp_bump)
     mstore 64, v32 !metadata(memory=scratch)
     v33 = calldatasize
     calldatacopy v31, v33, 96
@@ -137,7 +137,7 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v37 = mload 64 !metadata(memory=scratch)
-    v38 = add v37, 128
+    v38 = add v37, 128 !metadata(fmp_bump)
     mstore 64, v38 !metadata(memory=scratch)
     mstore v37, 0x62dc843600000000000000000000000000000000000000000000000000000000
     v29 = add v37, 4
@@ -182,7 +182,7 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v65 = mload 64 !metadata(memory=scratch)
-    v66 = add v65, 160
+    v66 = add v65, 160 !metadata(fmp_bump)
     mstore 64, v66 !metadata(memory=scratch)
     mstore v65, 0x9510f21200000000000000000000000000000000000000000000000000000000
     v51 = add v65, 4
@@ -249,7 +249,7 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v36 = mload 64 !metadata(memory=scratch)
-    v37 = add v36, 128
+    v37 = add v36, 128 !metadata(fmp_bump)
     mstore 64, v37 !metadata(memory=scratch)
     mstore v36, 0x62dc843600000000000000000000000000000000000000000000000000000000
     v28 = add v36, 4
@@ -292,7 +292,7 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v59 = mload 64 !metadata(memory=scratch)
-    v60 = add v59, 160
+    v60 = add v59, 160 !metadata(fmp_bump)
     mstore 64, v60 !metadata(memory=scratch)
     mstore v59, 0xf4d7be1100000000000000000000000000000000000000000000000000000000
     v50 = add v59, 4
@@ -338,7 +338,7 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     v0: i256 = address
     v1 = gas
     v35 = mload 64 !metadata(memory=scratch)
-    v36 = add v35, 96
+    v36 = add v35, 96 !metadata(fmp_bump)
     mstore 64, v36 !metadata(memory=scratch)
     mstore v35, 0xe3b21a7a00000000000000000000000000000000000000000000000000000000
     v34 = add v35, 32

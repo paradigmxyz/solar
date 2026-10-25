@@ -12,7 +12,7 @@
       calldatacopy v2, arg1, 32
 -     v3 = alloc 64 !metadata(preserves_fmp)
 +     v3 = inttoptr i256 v5 to ptr<memory> !metadata(memory=scratch)
-+     v6 = add v5, 64
++     v6 = add v5, 64 !metadata(fmp_bump)
 +     mstore 64, v6 !metadata(memory=scratch)
       v4 = ptrtoint ptr<memory> v3 to i256
       ret v4
@@ -29,7 +29,7 @@
 -     v2 = alloc 64 !metadata(preserves_fmp)
 +     v5 = mload 64 !metadata(memory=scratch)
 +     v2 = inttoptr i256 v5 to ptr<memory> !metadata(memory=scratch)
-+     v6 = add v5, 64
++     v6 = add v5, 64 !metadata(fmp_bump)
 +     mstore 64, v6 !metadata(memory=scratch)
       v3 = ptrtoint ptr<memory> v2 to i256
       ret v3
@@ -46,7 +46,7 @@
 -     v3 = alloc 64 !metadata(preserves_fmp)
 +     v8 = mload 64 !metadata(memory=scratch)
 +     v3 = inttoptr i256 v8 to ptr<memory> !metadata(memory=scratch)
-+     v9 = add v8, 64
++     v9 = add v8, 64 !metadata(fmp_bump)
 +     mstore 64, v9 !metadata(memory=scratch)
       v4 = ptrtoint ptr<memory> v3 to i256
       v5 = ptrtoint ptr<memory> v2 to i256
@@ -64,7 +64,7 @@
 -     v2 = alloc 64
 +     v5 = mload 64 !metadata(memory=scratch)
 +     v2 = inttoptr i256 v5 to ptr<memory> !metadata(memory=scratch)
-+     v6 = add v5, 64
++     v6 = add v5, 64 !metadata(fmp_bump)
 +     mstore 64, v6 !metadata(memory=scratch)
       v3 = ptrtoint ptr<memory> v2 to i256
       ret v3

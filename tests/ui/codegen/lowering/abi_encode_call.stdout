@@ -13,7 +13,7 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     jumpi v44, bb1, bb2
   bb2:
     v39 = mload 64 !metadata(memory=scratch)
-    v40 = add v39, 128
+    v40 = add v39, 128 !metadata(fmp_bump)
     mstore v39, 68
     v33 = add v39, 32
     mstore v33, 0xa9059cbb00000000000000000000000000000000000000000000000000000000

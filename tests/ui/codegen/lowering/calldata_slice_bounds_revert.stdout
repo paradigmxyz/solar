@@ -28,7 +28,7 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     v17 = add v6, 63
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v20
+    v58 = add v57, v20 !metadata(fmp_bump)
     mstore v57, v6
     v39 = add v58, 32
     mstore v58, 32
@@ -74,7 +74,7 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     v17 = add v6, 63
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v20
+    v58 = add v57, v20 !metadata(fmp_bump)
     mstore v57, v6
     v39 = add v58, 32
     mstore v58, 32

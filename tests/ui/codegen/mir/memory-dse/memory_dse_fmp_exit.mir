@@ -31,7 +31,8 @@ fn @remove_bump_before_heap_copy(arg0: i256, arg1: i256) {
 }
 
 // The bump of two allocations that copy into the heap and return it: reloading the slot
-// forwards the first bump, which makes the first store dead as well.
+// forwards the first bump, which keeps the bound of the pointer it was added to, so the first
+// store is dead as well.
 // CHECK-LABEL: {{^[ +].*}}fn @remove_both_bumps{{[( ]}}
 // CHECK: - mstore 64, {{v[0-9]+}}
 // CHECK: - {{v[0-9]+}} = mload 64
@@ -40,13 +41,13 @@ fn @remove_bump_before_heap_copy(arg0: i256, arg1: i256) {
 fn @remove_both_bumps(arg0: i256, arg1: i256) {
   bb0:
     v0 = mload 64
-    v1 = add v0, arg1
+    v1 = add v0, arg1 !metadata(fmp_bump)
     mstore 64, v1
     mstore v0, arg1
     v2 = add v0, 32
     calldatacopy v2, arg0, arg1
     v3 = mload 64
-    v4 = add v3, arg1
+    v4 = add v3, arg1 !metadata(fmp_bump)
     mstore 64, v4
     mstore v3, arg1
     v5 = add v3, 32
@@ -220,4 +221,32 @@ fn @keep_bump_before_branch_unknown_exit(arg0: i1, arg1: i256) {
     returndata v0, 32
   bb2:
     revert arg1, 4
+}
+
+// A sum the program computes may wrap around to the word even when it is stored there, so only
+// the allocator's marked bump keeps the bound of its pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_unmarked_sum_stored_in_fmp{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, {{v[0-9]+}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_unmarked_sum_stored_in_fmp(arg0: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, arg0
+    mstore 64, v1
+    returndata v1, 32
+}
+
+// A string error is encoded at the free-memory pointer on the revert path, so the bump stays.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_bump_before_error_string{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 64, {{v[0-9]+}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_bump_before_error_string(arg0: i1) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 64
+    mstore 64, v1
+    mstore v0, 5
+    v2 = inttoptr i256 v0 to ptr<memory>
+    icall require<error_string>, arg0, v2
+    stop
 }

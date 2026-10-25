@@ -1096,6 +1096,7 @@ symbols! {
         external_call,
         extract_value,
         fmp,
+        fmp_bump,
         fn_: "fn",
         frame_load,
         frame_store,

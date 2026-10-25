@@ -122,7 +122,7 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     jumpi v46, bb1, bb2
   bb2:
     v44 = mload 64 !metadata(memory=scratch)
-    v45 = add v44, 96
+    v45 = add v44, 96 !metadata(fmp_bump)
     mstore 64, v45 !metadata(memory=scratch)
     v8 = calldataload v2
     mstore v44, v8
@@ -175,7 +175,7 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     jumpi v22, bb1, bb2
   bb2:
     v20 = mload 64 !metadata(memory=scratch)
-    v21 = add v20, 96
+    v21 = add v20, 96 !metadata(fmp_bump)
     mstore 64, v21 !metadata(memory=scratch)
     v8 = icall @decode_calldata_type.2, v2, v2
     mstore v20, v8
@@ -214,7 +214,7 @@ fn @entry() [entry] {
 fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
+    v2 = add v0, arg0 !metadata(fmp_bump)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

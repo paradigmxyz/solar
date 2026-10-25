@@ -126,7 +126,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v11 = add v8, 1
     v12 = shl v11, 5
     v27 = mload 64 !metadata(memory=scratch)
-    v28 = add v27, v12
+    v28 = add v27, v12 !metadata(fmp_bump)
     v29 = lt v28, v27
     v30 = gt v28, 0xffffffffffffffff
     v31 = or v29, v30

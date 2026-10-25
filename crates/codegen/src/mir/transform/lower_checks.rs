@@ -18,17 +18,13 @@
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
-    FunctionId, InstKind, InstructionMetadata, MirType, Module, PhaseCategory, PtrLocation,
-    RequireKind, RevertKind, RevertPayload, pass::MirPass, transform::utils::expand_block,
+    FunctionId, InstKind, InstructionMetadata, MAX_SCRATCH_ERROR_WORDS, MirType, Module,
+    PhaseCategory, PtrLocation, RequireKind, RevertKind, RevertPayload, pass::MirPass,
+    transform::utils::expand_block,
 };
 use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
 use std::sync::Arc;
-
-/// Word arguments of a custom error staged in scratch memory. The payload spans
-/// `[28, 32 * (words + 1))`; a longer one would end above the heap start at `0x80`, and a
-/// constant memory range there moves the spill area of every entry reaching it.
-const MAX_SCRATCH_ERROR_WORDS: usize = 3;
 
 pub(crate) struct LowerChecks;
 

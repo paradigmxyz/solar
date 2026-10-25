@@ -231,6 +231,18 @@ impl InstructionMetadata {
         self.flags.set_preserves_fmp(value);
     }
 
+    /// Returns whether this sum is an allocator bump that does not wrap.
+    #[must_use]
+    pub(crate) fn fmp_bump(&self) -> bool {
+        self.flags.fmp_bump()
+    }
+
+    /// Marks the sum of an allocation's pointer and size that allocation proved or checked not to
+    /// wrap, so the sum is not below the pointer.
+    pub(crate) fn set_fmp_bump(&mut self, value: bool) {
+        self.flags.set_fmp_bump(value);
+    }
+
     /// Returns whether this copy's source and destination ranges never overlap.
     #[must_use]
     pub(crate) fn disjoint(&self) -> bool {
@@ -257,6 +269,7 @@ impl MetadataFlags {
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
+    const FMP_BUMP: u16 = 0b10_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -327,6 +340,18 @@ impl MetadataFlags {
             self.0 |= Self::PRESERVES_FMP;
         } else {
             self.0 &= !Self::PRESERVES_FMP;
+        }
+    }
+
+    fn fmp_bump(self) -> bool {
+        self.0 & Self::FMP_BUMP != 0
+    }
+
+    fn set_fmp_bump(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::FMP_BUMP;
+        } else {
+            self.0 &= !Self::FMP_BUMP;
         }
     }
 
@@ -743,6 +768,7 @@ impl Instruction {
         // %result = old(operands) -> %result = equivalent(new_operands)
         self.kind = kind;
         self.invalidate_operand_metadata();
+        self.metadata.set_fmp_bump(false);
         if !matches!(self.kind, InstKind::Alloc { .. }) {
             self.metadata.clear_deferred_alloc();
             self.metadata.set_preserves_fmp(false);

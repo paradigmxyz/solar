@@ -4,7 +4,7 @@
 fn @f() [selector=0x26121ff0, abi_wrapper, pure] {
   bb0:
     v21 = mload 64 !metadata(memory=scratch)
-    v22 = add v21, 192
+    v22 = add v21, 192 !metadata(fmp_bump)
     mstore 64, v22
     mstore v21, 160
     v11 = add v21, 32

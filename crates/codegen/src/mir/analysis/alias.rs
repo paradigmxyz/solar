@@ -10,8 +10,8 @@
 use super::{CfgInfo, MemoryCallSummaries};
 use crate::mir::{
     AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
-    ImmutableId, InstId, InstKind, MemoryRegion, MirType, PtrLocation, RequireKind, StorageAlias,
-    Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    ImmutableId, InstId, InstKind, MAX_SCRATCH_ERROR_WORDS, MemoryRegion, MirType, PtrLocation,
+    RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -1141,13 +1141,22 @@ impl AliasAnalysis {
                 };
                 match (kind, args.as_ref()) {
                     (RequireKind::ErrorString, [_, value]) => {
-                        read_memory(&mut effects, *value, SizeOperand::Unknown)
+                        read_memory(&mut effects, *value, SizeOperand::Unknown);
+                        // The revert path encodes the string at the free-memory pointer.
+                        effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                     }
                     (RequireKind::CustomError(layout), _)
                         if layout.types.iter().any(Self::abi_type_reads_memory) =>
                     {
                         // Aggregate payloads can follow references into distinct child objects.
                         effects.read_any(AddressSpace::Memory);
+                    }
+                    (RequireKind::CustomError(_), [_, selector, values @ ..])
+                        if func.value_u256(*selector).is_none()
+                            || values.len() > MAX_SCRATCH_ERROR_WORDS =>
+                    {
+                        // The revert path encodes the payload at the free-memory pointer.
+                        effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                     }
                     _ => {}
                 }
@@ -1963,25 +1972,13 @@ impl AliasAnalysis {
                             .and_then(|base| base.checked_add(func.value_u64(*first)?))
                     })
                     .or_else(|| {
-                        // `add p, x` with a runtime `x` is the allocator bump when the program
-                        // stores it as the free-memory pointer. The allocation either proved the
-                        // bump valid or panicked before this store, so the word is not below `p`.
-                        // The same fact makes a forwarded reload of the slot, now this sum, as
-                        // high as the `mload 64` it replaces. A sum nothing stores there, such as
-                        // a computed index, may wrap, and a stored word that is no sum is data.
-                        let bound = Self::pointer_lower_bound(func, *first, depth + 1)
-                            .or_else(|| Self::pointer_lower_bound(func, *second, depth + 1))?;
-                        func.instructions()
-                            .any(|inst| {
-                                matches!(
-                                    func.inst(inst).kind,
-                                    InstKind::Store(address, stored, PtrLocation::Memory)
-                                        if stored == value
-                                            && func.value_u64(address)
-                                                == Some(EvmMemoryLayout::FMP_SLOT)
-                                )
-                            })
-                            .then_some(bound)
+                        // The allocator's bump `p + size` is not below `p`: allocation proved or
+                        // checked that it does not wrap. A sum the program computes, such as an
+                        // index, may wrap, so it keeps no bound.
+                        func.inst(*inst)
+                            .metadata
+                            .fmp_bump()
+                            .then(|| Self::pointer_lower_bound(func, *first, depth + 1))?
                     })
             }
             InstKind::Sub(base, offset)

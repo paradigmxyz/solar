@@ -12,7 +12,7 @@
 // CHECK: +     [[WORD:v[0-9]+]] = mload 64 !metadata(memory=scratch)
 // CHECK: +     [[PTR:v[0-9]+]] = inttoptr i256 [[WORD]] to ptr<memory> !metadata(memory=scratch, span=10..20)
 // CHECK-NOT: +     {{.*}}ptrtoint
-// CHECK: +     [[END:v[0-9]+]] = add [[WORD]], 32
+// CHECK: +     [[END:v[0-9]+]] = add [[WORD]], 32 !metadata(fmp_bump)
 // CHECK: +     mstore 64, [[END]] !metadata(memory=scratch)
 // CHECK-LABEL: + fn @alloc(arg0: i256) -> ptr<memory> {
 // CHECK: +     [[POINTER:v[0-9]+]] = mload 64 !metadata(memory=scratch)
