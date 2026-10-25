@@ -2094,9 +2094,9 @@ impl LowerAbiCx {
             Self::guard_bytes_data(builder, data, len, input_end, current, false);
             return (base, data, len);
         }
-        // The checked head word lies in the input at or after `tuple_base`, so
-        // `input_end - tuple_base >= 32` and the bound cannot wrap. Any offset above it, including
-        // one above `u64::MAX` or one that wraps `base + 32`, is out of range.
+        // if offset > input_end - tuple_base - 32 { revert(Error("invalid calldata array offset"))
+        // } The checked head word gives `input_end - tuple_base >= 32`, so the bound cannot
+        // wrap, and it rejects offsets above `u64::MAX` and offsets that wrap `base + 32`.
         let tuple_remaining = builder.sub(input_end, tuple_base);
         let max_offset = builder.sub(tuple_remaining, word);
         let head_invalid = builder.gt(offset, max_offset);
@@ -2278,7 +2278,8 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
         );
         if builder.encodes_revert_reasons() {
-            // The same comparisons as below, split so each reports its own message:
+            // Split so each comparison reports its own message; without revert strings, arrays
+            // and bytes fuse them into one comparison below:
             // if offset > 0xffffffffffffffff { revert(Error(offset_reason)) }
             // if offset > input_end - base { revert(Error("struct ... too short" | "stride")) }
             //   or, for arrays and bytes,
@@ -2307,13 +2308,12 @@ impl LowerAbiCx {
             return target;
         }
 
-        // Every dynamic ABI value starts with a word-sized head. Check that
-        // word while forming the absolute address so nested offsets cannot
-        // wrap or require a second range guard in the value-specific decoder.
-        // The checked head word lies in the input at or after `base`, so
-        // `input_end - base >= 32` and the bound cannot wrap. Any offset above
-        // it, including one above `u64::MAX` or one that wraps `target + 32`,
-        // is out of range.
+        // Every dynamic ABI value starts with a word-sized head, so checking the offset against
+        // `input_end - base - 32` proves the head word fits and the value-specific decoder needs no
+        // second range guard.
+        // if offset > input_end - base - 32 { revert(Error("invalid calldata array offset")) }
+        // The checked head word gives `input_end - base >= 32`, so the bound cannot wrap, and it
+        // rejects offsets above `u64::MAX` and offsets that wrap `target + 32`.
         let remaining = builder.sub(input_end, base);
         let word = builder.imm(32);
         let max_offset = builder.sub(remaining, word);

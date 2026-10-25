@@ -380,8 +380,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.switch_to_block(check_offset);
             let payload_ptr = builder.add_u64_offset(data_ptr, 4);
             let offset = builder.load(payload_ptr, PtrLocation::Memory);
-            // The length check above gives `data_len >= 68`, so the bound cannot wrap. The length
-            // of memory is far below `u64::MAX`, so an offset above it is out of range too.
+            // `data_len >= 68` from the check above, so `data_len - 36` cannot wrap. It also
+            // rejects offsets above `u64::MAX`, as returndata is far shorter.
             let head_size = builder.imm(36);
             let max_offset = builder.sub(data_len, head_size);
             let invalid_offset = builder.gt(offset, max_offset);
