@@ -1560,20 +1560,25 @@ fn memory_object_len(builder: &mut FunctionBuilder<'_>, value: ValueId) -> Value
     builder.memory_len(value)
 }
 
-/// Counts the top-level byte-string arguments of the module's encodings, each a site whose tail
-/// the encoder writes inline or shares through a helper.
+/// Counts the top-level byte-string arguments of the module's encodings whose shape another
+/// encoding repeats. Only those sites can share a tail run: runs of different shapes differ in
+/// stack layout.
 fn byte_tail_sites(module: &Module) -> usize {
-    module
-        .functions
-        .iter()
-        .flat_map(|func| {
-            func.instructions().filter_map(|inst| match &func.inst(inst).kind {
-                InstKind::AbiEncode { layout, .. } => Some(layout),
-                _ => None,
-            })
-        })
-        .map(|layout| layout.types.iter().filter(|ty| matches!(ty, AbiType::Bytes(_))).count())
-        .sum()
+    let mut shapes = FxHashMap::<TupleHelperKey, (usize, usize)>::default();
+    for func in &module.functions {
+        for inst in func.instructions() {
+            if let InstKind::AbiEncode { mode, selector, args, layout } = &func.inst(inst).kind {
+                let sites =
+                    layout.types.iter().filter(|ty| matches!(ty, AbiType::Bytes(_))).count();
+                let (encodes, bytes) = shapes
+                    .entry(TupleHelperKey::of(func, *mode, *selector, args, layout))
+                    .or_default();
+                *encodes += 1;
+                *bytes += sites;
+            }
+        }
+    }
+    shapes.values().filter(|(encodes, _)| *encodes > 1).map(|(_, bytes)| bytes).sum()
 }
 
 /// Finds literal bytes candidates whose allocation and encoding share a block, with
