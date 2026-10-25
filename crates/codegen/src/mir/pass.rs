@@ -187,10 +187,6 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // memory passes. Only the phis: merging blocks this early hides the
     // short-circuit shapes jump threading recognizes after check elimination.
     &cfg_simplify::SimplifyTrivialPhis,
-    // Early frame scalarization improves size but can increase hot-path gas.
-    &SizeOnly::new(cfg_simplify::CfgSimplify),
-    &SizeOnly::new(frame_promotion::FrameSlotPromotion),
-    &SizeOnly::new(sroa::Sroa),
     &sccp::Sccp,
     &pure_eval::PureEval,
     &egraph::Egraph,
@@ -288,11 +284,10 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &memory_dse::MemoryDse,
     // Expose callee reads before late CSE and storage PRE.
     &inline::Inline::Semantic,
-    // Late CSE reduces runtime gas after ABI encoding lowering, but can grow
-    // bytecode through longer live ranges, so keep it out of `-Osize`.
-    &GasOnly::new(cse::Cse),
+    &cse::Cse,
     // Common dominated loads before PRE replaces join loads with phis, then
-    // fold checks exposed by forwarding the stored values.
+    // fold checks exposed by forwarding the stored values. Gas-only: under `-Osize`
+    // both grow the corpus's bytecode.
     &GasOnly::new(load_pre::LoadPre::Storage),
     &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
@@ -309,8 +304,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // boundary.
     &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
-    &GasOnly::new(cse::Cse),
-    &SizeOnly::new(cse::Cse),
+    &cse::Cse,
     // Physical memory accesses let CSE unify semantic lengths with raw loads.
     // Repeated bounds checks then use the same condition as a dominating guard:
     // branch condition, body, exit; body: ...; branch condition, checked, panic
@@ -364,14 +358,18 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(loop_opt::Licm),
     // With the base hoisted, each element address is `base + scale * index`
     // plus invariants; carry it as a pointer stepped on the latch instead of
-    // rebuilding it from the index every iteration.
+    // rebuilding it from the index every iteration. Gas-only: under `-Osize` it grows
+    // nearly every contract.
     &GasOnly::new(indvar_simplify::IndVarSimplify),
     // Counted loops test their bound once per two iterations once their
     // physical shape is final; the cleanup below drops the unread clones.
-    &GasOnly::new(loop_unroll::LoopUnroll),
+    // Size mode copies no loops; there it only counts up-counting loops from `-n` to zero, which
+    // shrinks them.
+    &loop_unroll::LoopUnroll,
     // The unrolled main loop's test bounds the first copy's counter, so its
-    // overflow checks fold.
-    &GasOnly::new(check_elim::CheckElim),
+    // overflow checks fold. Memory and integer lowering also leave guards that
+    // fold here in every mode.
+    &check_elim::CheckElim,
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,
