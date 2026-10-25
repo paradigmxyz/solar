@@ -27,10 +27,9 @@ fn @header(arg0: i256) -> i256 {
 // SIZE-LABEL: fn @load(
 // SIZE: [[BASE:v[0-9]+]] = storage_array_data_slot arg0
 // SIZE: [[INDEX:v[0-9]+]] = phi
-// SIZE-NEXT: [[ADDRESS:v[0-9]+]] = phi [{{bb[0-9]+}}: [[BASE]]], [{{bb[0-9]+}}: [[NEXT:v[0-9]+]]]
 // SIZE-NEXT: [[MORE:v[0-9]+]] = lt [[INDEX]], {{v[0-9]+}}
-// SIZE: sload [[ADDRESS]]
-// SIZE: [[NEXT]] = add [[ADDRESS]], 1
+// SIZE: [[ADDRESS:v[0-9]+]] = add [[BASE]], [[INDEX]]
+// SIZE-NEXT: sload [[ADDRESS]]
 fn @load(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0 !metadata(span=20..30, modifier_depth=2)
