@@ -21,11 +21,6 @@
 //!    the length of an array the loop fills, then reads the preheader's stored value. This case
 //!    never inserts reads.
 //!
-//! The `storage-pre` variant limits the key universe to storage and transient storage.
-//! It runs after builtin expansion in the gas pipeline, when aggregate storage operations
-//! have exposed their loads and stores. Memory reads remain outside that cleanup to avoid
-//! extending pointer lifetimes across the representation boundary.
-//!
 //! # Keys
 //!
 //! One key universe per function:
@@ -118,19 +113,11 @@ use solar_data_structures::{
 use std::{cell::OnceCell, collections::BTreeMap, rc::Rc, sync::Arc};
 
 /// Function pass for load PRE.
-pub(crate) enum LoadPre {
-    /// Track every supported read kind.
-    All,
-    /// Track storage and transient-storage reads after builtin expansion.
-    Storage,
-}
+pub(crate) struct LoadPre;
 
 impl MirPass for LoadPre {
     fn name(&self) -> &'static str {
-        match self {
-            Self::All => "load-pre",
-            Self::Storage => "storage-pre",
-        }
+        "load-pre"
     }
 
     fn run_pass(
@@ -143,7 +130,6 @@ impl MirPass for LoadPre {
         run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
             let target = analyses.target(gcx);
             let mut eliminator = LoadRedundancyEliminator {
-                storage_only: matches!(self, Self::Storage),
                 liveness: OnceCell::new(),
                 cfg: Some(Rc::clone(analyses.cfg())),
                 stats: LoadPreStats::default(),
@@ -175,7 +161,6 @@ impl LoadPreStats {
 /// Dataflow-based redundancy eliminator for memory-dependent reads.
 #[derive(Debug)]
 struct LoadRedundancyEliminator<'a> {
-    storage_only: bool,
     liveness: OnceCell<Liveness>,
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
@@ -564,10 +549,7 @@ impl<'a> LoadRedundancyEliminator<'a> {
                 continue;
             }
             for &inst_id in &func.blocks[block].instructions {
-                if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id)
-                    && (!self.storage_only
-                        || matches!(key, LoadKey::Storage(_) | LoadKey::Transient(_)))
-                {
+                if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                     key_index.entry(key).or_insert_with(|| {
                         keys.push(key);
                         keys.len() - 1

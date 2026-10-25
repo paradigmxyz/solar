@@ -25,9 +25,9 @@ fn @constructor() [abi_wrapper, constructor] {
     v12 = and v4, v11
     jumpi v12, bb5, bb6
   bb5:
-    v13 = add v8, 31
-    v14 = shr v13, 5
-    icall @clear_storage_words, 0, 0, v14
+    v14 = add v8, 31
+    v15 = shr v14, 5
+    icall @clear_storage_words, 0, 0, v15
     jump bb6
   bb6:
     sstore 0, 0x102030000000000000000000000000000000000000000000000000000000006 !metadata(storage=slot(0))
@@ -56,10 +56,10 @@ fn @f() [selector=0x26121ff0, abi_wrapper] {
     jumpi v65, bb1, bb2
   bb1:
     mstore 0, 0 !metadata(memory=scratch)
-    v118 = sub 0, v8
+    v119 = sub 0, v8
     jump bb5
   bb5:
-    v74 = phi [bb1: v118], [bb6: v77]
+    v74 = phi [bb1: v119], [bb6: v77]
     v75 = phi [bb1: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563], [bb6: v78]
     v76 = ne v74, 0
     jumpi v76, bb6, bb2

@@ -38,10 +38,6 @@
 //! Constant word and semantic length writes seed the same read cache without extending register
 //! lifetimes. Overlapping writes and calls invalidate these entries through the usual alias checks.
 //!
-//! After allocation lowering, `fmp-cse` forwards reads of the free-memory-pointer slot within
-//! each block. It tracks one word, clears it at every other side effect, and never carries it
-//! across edges. A preceding load or store already expanded memory through the entire slot.
-//!
 //! Safety contract:
 //! - cache only pure expressions, classified reads, and idempotent slot hashes.
 //! - invalidate slot hashes when either their input or scratch memory may change.
@@ -98,9 +94,7 @@ use crate::mir::{
         MemoryLocation, returning_blocks,
     },
     memory::EvmMemoryLayout,
-    pass::{
-        MirPass, run_function_pass, run_selected_function_pass, run_selected_function_pass_cached,
-    },
+    pass::{MirPass, run_selected_function_pass, run_selected_function_pass_cached},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
@@ -203,66 +197,6 @@ impl MirPass for Cse {
         // summaries remain conservative after redundant reads and computations disappear.
         analyses.preserve_call_summaries();
         changed
-    }
-}
-
-/// Forwards local free-memory-pointer reads after allocation lowering.
-pub(crate) struct FmpCse;
-
-impl MirPass for FmpCse {
-    fn name(&self) -> &'static str {
-        "fmp-cse"
-    }
-
-    fn run_pass(
-        &self,
-        _gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            let mut replacements = FxHashMap::default();
-            let mut removed = DenseBitSet::new_empty(func.num_insts());
-            for block in &func.blocks {
-                let mut cached = None;
-                for &inst in &block.instructions {
-                    match &func.inst(inst).kind {
-                        InstKind::Load(ptr, PtrLocation::Memory)
-                            if func
-                                .value_u64(mir_utils::resolve_replacement(*ptr, &replacements))
-                                == Some(EvmMemoryLayout::FMP_SLOT) =>
-                        {
-                            let result = func.inst_result_value(inst).unwrap();
-                            if let Some(value) = cached {
-                                // mload FMP_SLOT -> preceding load or stored word
-                                replacements.insert(result, value);
-                                removed.insert(inst);
-                            } else {
-                                cached = Some(result);
-                            }
-                        }
-                        InstKind::Store(ptr, value, PtrLocation::Memory)
-                            if func
-                                .value_u64(mir_utils::resolve_replacement(*ptr, &replacements))
-                                == Some(EvmMemoryLayout::FMP_SLOT) =>
-                        {
-                            cached = Some(mir_utils::resolve_replacement(*value, &replacements));
-                        }
-                        kind if kind.has_side_effects() => cached = None,
-                        _ => {}
-                    }
-                }
-            }
-            if replacements.is_empty() {
-                return false;
-            }
-            // Replace forwarded loads in all uses, then remove their definitions.
-            func.replace_uses_canonicalized(&replacements);
-            for block in &mut func.blocks {
-                block.instructions.retain(|inst| !removed.contains(*inst));
-            }
-            true
-        })
     }
 }
 
