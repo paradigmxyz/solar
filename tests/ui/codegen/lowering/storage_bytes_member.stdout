@@ -190,7 +190,8 @@ bb26 [loop]:
   dup 4
   push 0
   mstore
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+  push 255
+  not
   and
   swap 1
   push 0
