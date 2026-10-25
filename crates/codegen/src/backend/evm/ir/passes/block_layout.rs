@@ -231,7 +231,7 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
 }
 
 // Reserve space for tables whose absolute targets fit in one-byte entries. Widening
-// such a table replaces BYTE with shifts and masking on every dispatch.
+// such a table replaces the BYTE pick with a larger stride table.
 fn terminal_packing_budget(
     gcx: Gcx<'_>,
     module: &Module,

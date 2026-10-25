@@ -14,9 +14,10 @@
 // picks for each case set.
 
 contract SmallDense {
-    // Table labels need two bytes, so they cannot be packed into a word. The
-    // stride table is dearer than testing four keys one by one.
+    // The planner prices the stride table, which is dearer than testing four
+    // keys one by one.
     // CHECK-LABEL: @module SmallDense_runtime
+    // CHECK: push 3{{$}}
     // CHECK-NOT: indexed_jump
     fallback() external {
         assembly {

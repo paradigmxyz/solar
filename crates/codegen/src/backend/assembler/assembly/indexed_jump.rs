@@ -18,9 +18,10 @@
 //! pick on the JIT. A 40-case stride table tied binary search on the JIT, ran 36-39% faster on the
 //! interpreter and used 25-31% less gas.
 //!
-//! The switch planner prices the encoding chosen here, through `estimated_indexed_jump_code_size`
-//! and `packs_indexed_jump`, so tables that cost too much as stride tables lose to binary or
-//! linear search.
+//! The switch planner prices tables through `estimated_indexed_jump_code_size` and
+//! `packs_indexed_jump`. It plans with the widest target width, so it prices the stride table; a
+//! table may still pack when the final offsets fit one byte. Tables that cost too much as stride
+//! tables lose to binary or linear search.
 
 use super::{Program, lower};
 use crate::backend::{
@@ -211,8 +212,8 @@ pub(super) fn initialize_indexed_jump_widths(
         let encoding = lowerings[table.source].table.expect("indexed jump table lowering");
         lowerings[table.source].table = Some(IndexedJumpEncoding {
             width: 1,
-            packed: encoding.packed,
             base: encoding.base.map(|(base, _)| (base, 1)),
+            ..encoding
         });
         if !encoding.packed {
             lowerings[table.source].outlined_entry_width = Some(1);
@@ -474,7 +475,7 @@ fn update_indexed_jump_encoding(
     let absolute = if encoding.packed {
         IndexedJumpEncoding { packed: false, ..encoding }
     } else {
-        make_indexed_jump_encoding(targets.len(), absolute_width, None, evm_version)
+        IndexedJumpEncoding { width: absolute_width, packed: false, base: None }
     };
     if !allow_relative {
         return absolute;
@@ -530,9 +531,6 @@ pub(in crate::backend) fn estimated_indexed_jump_code_size(
 
 /// Returns whether an indexed jump of `table_len` targets of `target_width` bytes picks its
 /// target out of a packed word with `BYTE`.
-///
-/// Wider entries are never packed: the pick needs a shift and mask that bytecode analyzers cannot
-/// bound, so they use the stride table instead.
 pub(in crate::backend) fn packs_indexed_jump(
     table_len: usize,
     target_width: usize,
@@ -712,11 +710,12 @@ fn estimated_terminator_size(
 
 fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) -> usize {
     let byte_offset = WORD_BYTES - table.len;
-    let table_len = 4
-        + table.len
-        + usize::from(byte_offset != 0)
-            * (immediate_materialization_len(evm_version, U256::from(byte_offset)) + 1);
-    table_len + usize::from(table.base_width) + usize::from(table.base_width != 0) * 2
+    let offset_len = usize::from(byte_offset != 0)
+        * (immediate_materialization_len(evm_version, U256::from(byte_offset)) + 1);
+    4 + table.len
+        + offset_len
+        + usize::from(table.base_width)
+        + usize::from(table.base_width != 0) * 2
 }
 
 pub(super) fn lower(
@@ -745,7 +744,7 @@ pub(super) fn lower(
             program.push_op(op::ADD);
         }
         labels.reverse();
-        program.push_packed_labels(labels.into_boxed_slice(), base, 1);
+        program.push_packed_labels(labels.into_boxed_slice(), base);
         program.push_op(op::SWAP1);
         program.push_op(op::BYTE);
         if let Some(base) = base {

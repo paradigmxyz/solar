@@ -26,12 +26,11 @@ pub(in crate::backend) use inst::{
 };
 pub(crate) use inst::{DeferredConst, Label};
 
-/// Labels packed into one fixed-width immediate.
+/// One-byte labels packed into one immediate.
 #[derive(Clone, Debug)]
 pub(in crate::backend) struct PackedLabels {
     pub(in crate::backend) labels: Box<[Label]>,
     pub(in crate::backend) base: Option<Label>,
-    pub(in crate::backend) label_width: u8,
 }
 
 /// A compact label-bearing opcode stream ready for relocation and byte encoding.
@@ -135,14 +134,10 @@ impl Program {
         &mut self,
         labels: Box<[Label]>,
         base: Option<Label>,
-        label_width: u8,
     ) {
         assert!(!labels.is_empty(), "packed labels must not be empty");
-        assert!(
-            labels.len() * usize::from(label_width) <= WORD_BYTES,
-            "packed labels must fit one EVM word"
-        );
-        let labels = self.packed_labels.push(PackedLabels { labels, base, label_width });
+        assert!(labels.len() <= WORD_BYTES, "packed labels must fit one EVM word");
+        let labels = self.packed_labels.push(PackedLabels { labels, base });
         self.push(AsmInst::push_packed_labels(labels));
     }
 
