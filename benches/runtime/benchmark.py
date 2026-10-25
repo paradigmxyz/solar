@@ -1977,12 +1977,12 @@ def run_test_case(
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
         spec_input = prepared_input
-        if prepared_input is not None and spec.kind == "solar" and solar_no_optimizer:
-            input_text = with_optimizer_disabled(prepared_input[0])
+        no_optimizer = spec.kind == "solar" and solar_no_optimizer
+        if prepared_input is not None and no_optimizer:
+            # Keep the fingerprint of the unmodified case input, so reference results match.
             spec_input = (
-                input_text,
-                prepared_input[1],
-                hashlib.sha256(input_text.encode()).hexdigest(),
+                with_optimizer_disabled(prepared_input[0]),
+                *prepared_input[1:],
             )
         compiled = compile_case(
             spec,
@@ -1992,6 +1992,8 @@ def run_test_case(
             repeat_long_compiles,
         )
         compiler_entry = dict(compiled)
+        if no_optimizer:
+            compiler_entry["optimizer_disabled"] = True
         compiler_entry.pop("bytecode", None)
         compiler_entry.pop("runtime_bytecode", None)
         entry["compilers"][spec.compiler_id] = compiler_entry
@@ -2240,6 +2242,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="Compare with saved reference compiler results without running reference compilers",
     )
+    parser.add_argument(
+        "--reference-compilers",
+        choices=("solc", "solx", "oksolc"),
+        nargs="+",
+        default=("solc", "solx", "oksolc"),
+        help="Compilers to reuse from --reference-results (default: all)",
+    )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument(
         "--projects", nargs="*", help="Subset of repository project names to run"
@@ -2305,11 +2314,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.compile_repeats = 1
     if args.reference_results and (args.solc or args.solx):
         parser.error("--reference-results cannot be combined with --solc or --solx")
-    if args.reference_results and args.solar_no_optimizer:
-        parser.error(
-            "--solar-no-optimizer changes Solar's input fingerprint, which "
-            "--reference-results cannot match; pass --solc instead"
-        )
     try:
         reference_results = (
             load_reference_results(args.reference_results)
@@ -2425,7 +2429,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     reference_specs = (
         [
             CompilerSpec(name, name, Path(name), name)
-            for name in ("solc", "solx", "oksolc")
+            for name in args.reference_compilers
             if name not in {spec.compiler_id for spec in specs}
         ]
         if args.reference_results

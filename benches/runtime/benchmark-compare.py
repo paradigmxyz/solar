@@ -113,6 +113,8 @@ def compare_runs(
             input_reason = "input fingerprint missing"
         elif old["input_fingerprint"] != new["input_fingerprint"]:
             input_reason = "compiler inputs differ"
+        elif bool(old.get("optimizer_disabled")) != bool(new.get("optimizer_disabled")):
+            input_reason = "optimizer settings differ"
         if input_reason:
             issues.append(input_reason)
 
@@ -980,9 +982,14 @@ def baseline_compile_time(
         return None
     if current_fingerprint != baseline_fingerprint:
         return None
-    current_input = compiler_data(result, compiler).get("input_fingerprint")
-    baseline_input = compiler_data(baseline, compiler).get("input_fingerprint")
-    if not current_input or current_input != baseline_input:
+    current_data = compiler_data(result, compiler)
+    baseline_data = compiler_data(baseline, compiler)
+    current_input = current_data.get("input_fingerprint")
+    if not current_input or current_input != baseline_data.get("input_fingerprint"):
+        return None
+    if bool(current_data.get("optimizer_disabled")) != bool(
+        baseline_data.get("optimizer_disabled")
+    ):
         return None
     return successful_compile_time(baseline, compiler)
 

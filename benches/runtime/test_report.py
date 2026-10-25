@@ -701,6 +701,17 @@ class CompileTimeReportTests(unittest.TestCase):
         self.assertIn("| bench | 11.0 ms (n/a) | 100.0 ms (✅ +809.09%) |", text)
         self.assertTrue(benchmark.has_baseline_changes([current], [baseline]))
 
+    def test_compile_time_baseline_ignores_different_optimizer_setting(self):
+        current = self.timed_result("bench", 0.100, 0.011)
+        current["compilers"]["solar"]["optimizer_disabled"] = True
+        baseline = self.timed_result("bench", 0.100, 0.010)
+        text = "\n".join(
+            benchmark.compile_time_report(
+                [current], {("repository", "bench"): baseline}, "`main`"
+            )
+        )
+        self.assertIn("| bench | 11.0 ms (n/a) | 100.0 ms (✅ +809.09%) |", text)
+
     def test_whole_project_rows_skip_missing_codegen(self):
         result = {
             "test_id": "heavy-project",
@@ -1102,6 +1113,13 @@ class RunComparisonTests(unittest.TestCase):
             [row["test_id"] for row in comparison["rows"]],
             ["failed", "input", "paired", "removed"],
         )
+
+    def test_disabled_optimizer_results_are_not_compared_with_optimized_ones(self):
+        before = self.fixture()
+        after = self.fixture(optimizer_disabled=True, runtime_size=90)
+        comparison = benchmark.compare_runs([after], [before])
+        self.assertEqual(comparison["rows"][0]["issues"], ["optimizer settings differ"])
+        self.assertEqual(comparison["totals"]["runtime_size"]["tests"], [])
 
     def test_summary_weights_contract_ratios_equally(self):
         before = [

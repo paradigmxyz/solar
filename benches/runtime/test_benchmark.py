@@ -276,7 +276,7 @@ class CorpusTests(unittest.TestCase):
             return {"status": "failed", "input_fingerprint": prepared_input[2]}
 
         with mock.patch.object(benchmark, "compile_case", side_effect=compile_case):
-            benchmark.run_test_case(
+            result = benchmark.run_test_case(
                 case, specs, False, "smoke", "rpc", "key", solar_no_optimizer=True
             )
 
@@ -287,7 +287,12 @@ class CorpusTests(unittest.TestCase):
         self.assertFalse(solar_input["settings"]["optimizer"]["enabled"])
         solc_input["settings"]["optimizer"]["enabled"] = False
         self.assertEqual(solc_input, solar_input)
-        self.assertNotEqual(inputs["solc"][2], inputs["solar"][2])
+        self.assertEqual(inputs["solc"][2], inputs["solar"][2])
+        self.assertEqual(
+            result["compilers"]["solar"]["input_fingerprint"], inputs["solc"][2]
+        )
+        self.assertTrue(result["compilers"]["solar"]["optimizer_disabled"])
+        self.assertNotIn("optimizer_disabled", result["compilers"]["solc"])
 
     def test_compiler_output_fingerprint_ignores_diagnostic_order(self) -> None:
         first = json.dumps(
@@ -533,20 +538,6 @@ class FailureHandlingTests(unittest.TestCase):
             self.assertTrue(run_case.call_args.args[-1])
             self.assertTrue(document["solar_optimizer_disabled"])
             self.assertEqual(message in stderr.getvalue(), expected == 1)
-
-    def test_solar_no_optimizer_rejects_reference_results(self) -> None:
-        with (
-            mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
-            self.assertRaises(SystemExit) as error,
-        ):
-            benchmark.main(
-                ["--solar-no-optimizer", "--reference-results", "results.json"]
-            )
-        self.assertEqual(error.exception.code, 2)
-        self.assertIn(
-            "--solar-no-optimizer changes Solar's input fingerprint",
-            stderr.getvalue(),
-        )
 
     def test_live_oksolc_with_saved_references(self) -> None:
         case = benchmark.TEST_CASES[0]

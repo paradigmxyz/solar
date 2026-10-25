@@ -359,17 +359,28 @@ jobs:
       - name: Check -O none runtime results
         run: |
           set -euo pipefail
-          python3 benches/runtime/benchmark.py --verbose \
-            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar target/release/solar-head \
-            --solar-no-optimizer \
-            --mode runtime \
-            --suite all \
-            --compile-repeats 1 \
-            --gas \
-            --gas-profile hot \
-            --start-anvil \
+          args=(
+            --verbose
+            --solar target/release/solar-head
+            --solar-no-optimizer
+            --mode runtime
+            --suite all
+            --compile-repeats 1
+            --gas
+            --gas-profile hot
+            --start-anvil
             --output "$RUNNER_TEMP/onone-results.json"
+          )
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" && \
+            -f target/codegen-bench/baseline/results.json ]]; then
+            args+=(
+              --reference-results target/codegen-bench/baseline/results.json
+              --reference-compilers solc
+            )
+          else
+            args+=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}")
+          fi
+          python3 benches/runtime/benchmark.py "${args[@]}"
 
   codspeed:
     if: >-
