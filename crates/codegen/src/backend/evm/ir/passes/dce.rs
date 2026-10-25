@@ -9,9 +9,9 @@
 //! The simulation stops when an ordinary instruction consumes the selected occurrence, when the
 //! target cannot encode a required replacement stack operation, or when another live occurrence
 //! cannot be reached. Candidate costs use the target's lowered stack operations. A rewrite must
-//! improve bytes or static gas without making the other metric worse. Duplicate retargeting runs
-//! in size mode too: across the benchmark corpus it shrank runtime code with one contract growing
-//! by one byte.
+//! improve bytes or static gas without making the other metric worse. Duplicate retargeting also
+//! runs in size mode, where it shrank runtime code across the benchmark corpus with one contract
+//! growing by one byte.
 //!
 //! Non-expanding edits compact instructions in place; edits that add stack operations use a
 //! reusable scratch buffer.
