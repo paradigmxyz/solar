@@ -36,15 +36,16 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             gcx.hir.par_error_ids().for_each(|id| check_error(gcx, id));
         },
         {
-            typeck_results = merge_typeck_results(
-                gcx,
-                units
-                    .par_iter()
-                    .fold(TypeckResults::default, |results, &(source, unit)| {
-                        checker::check(gcx, source, unit, results)
-                    })
-                    .collect::<Vec<_>>(),
-            );
+            let check_unit = |results, &(source, unit)| checker::check(gcx, source, unit, results);
+            // Few units finish faster than the pool wakes up.
+            typeck_results = if units.len() < PAR_UNITS {
+                units.iter().fold(TypeckResults::default(), check_unit)
+            } else {
+                merge_typeck_results(
+                    gcx,
+                    units.par_iter().fold(TypeckResults::default, check_unit).collect::<Vec<_>>(),
+                )
+            };
         },
     );
     gcx.set_typeck_results(typeck_results);
@@ -144,8 +145,8 @@ fn merge_typeck_results<'gcx>(
     merged
 }
 
-/// The fewest units for which visiting them in parallel pays.
-const PAR_VISIT_UNITS: usize = 256;
+/// The fewest units for which checking them in parallel pays.
+const PAR_UNITS: usize = 64;
 
 /// A part of a source that is checked on its own.
 #[derive(Clone, Copy)]
@@ -178,8 +179,7 @@ fn par_visit_items<'gcx, V: Visit<'gcx>>(
             Unit::Item(_, item) => visitor.visit_nested_item(item),
         };
     };
-    // Few units finish faster than the pool wakes up.
-    if units.len() < PAR_VISIT_UNITS {
+    if units.len() < PAR_UNITS {
         units.iter().for_each(visit);
     } else {
         units.par_iter().for_each(visit);
