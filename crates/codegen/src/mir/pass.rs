@@ -48,7 +48,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &const_fold::ConstFold,
     &readonly_eval::ReadonlyEval,
     &cse::Cse,
-    &cse::FmpCse,
     &pre::Pre,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
@@ -56,8 +55,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &byte_run::ByteRunLoads,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
-    &load_pre::LoadPre::All,
-    &load_pre::LoadPre::Storage,
+    &load_pre::LoadPre,
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
     &loop_reduce::LoopReduce,
@@ -83,7 +81,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &sroa::Sroa,
     &copy_elision::CopyElision,
     &dce::Dce,
-    &adce::Adce,
     &lower_arithmetic::LowerArithmetic,
     &lower_builtins::LowerBuiltins,
     &lower_checks::LowerChecks,
@@ -193,14 +190,12 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &egraph::Egraph,
     &word_sequence::WordSequence::Early,
     &pre::Pre,
-    &storage_load_cse::StorageLoadCse,
-    &storage_dse::StorageDse,
     // Checked array loops reload one object's length before every bounds
     // check. Unify the dominated reads while object identity is explicit, so
     // load PRE and LICM see one loop-invariant load and the later check passes
     // compare against one bound.
     &cse::Cse,
-    &load_pre::LoadPre::All,
+    &load_pre::LoadPre,
     // Element reads of arrays that only ever hold canonical words drop their
     // type masks while the accesses are still semantic and calls explicit.
     &element_cleanup::ElementCleanup,
@@ -218,7 +213,6 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::CfgSimplify,
     &sroa::Sroa,
     &memory_dse::MemoryDse,
-    &adce::Adce,
     &dce::Dce,
     // Late control-flow rewrites expose scalar simplifications.
     // Thread and clean the CFG first so the rest of this sequence observes the
@@ -258,7 +252,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &frame_promotion::FrameSlotPromotion,
     &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
-    &adce::Adce,
     &lower_abi::LowerAbi,
     // ABI lowering exposes canonical-word helpers to the same inlining policy.
     &inline::Inline::Semantic,
@@ -283,14 +276,12 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence::Late,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
-    // Expose callee reads before late CSE and storage PRE.
+    // Expose callee reads before late CSE.
     &inline::Inline::Semantic,
     // Late CSE reduces runtime gas after ABI encoding lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly::new(cse::Cse),
-    // Common dominated loads before PRE replaces join loads with phis, then
-    // fold checks exposed by forwarding the stored values.
-    &GasOnly::new(load_pre::LoadPre::Storage),
+    // Fold checks exposed by forwarding the stored values.
     &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
     &lower_dispatch::LowerDispatch,
@@ -385,7 +376,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 
 /// Optimizes lowered word SSA before physical stack scheduling.
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
-    &GasOnly::new(cse::FmpCse),
     &const_fold::ConstFold,
     &cfg_simplify::BranchSimplify,
     // Reconstruct old induction values on exits before selecting physical stack order.

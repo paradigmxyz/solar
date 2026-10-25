@@ -152,12 +152,9 @@ HIR -> semantic MIR
 These are responsibilities and dependency constraints, not a benchmarked new
 pass ordering. The conversion may contain several named passes and local
 cleanup steps without introducing another stable phase. The gas pipeline runs
-CSE, storage PRE, and range-check elimination after aggregate expansion.
-First eliminate repeated dominated loads, then replace join loads with phis and
-fold checks that forwarding exposes. Storage PRE leaves memory reads alone to
-avoid extending pointer lifetimes. After allocation expansion, gas mode forwards
-free-memory-pointer loads within each block, discarding the cached word at other
-side effects. ABI expansion can create object operations
+CSE and range-check elimination after aggregate expansion. Repeated dominated
+loads go first; the check elimination folds checks that forwarding exposes.
+ABI expansion can create object operations
 and aggregate results; flatten structs before lowering memory objects, and keep
 allocation identity until placement has finished. Any newly introduced helper must pass through the remaining required
 lowerings too. Expansion must not leave a high-level operation behind merely
@@ -497,7 +494,7 @@ Use operations with narrow, explicit contracts:
 - A redirect that introduces a predecessor must explicitly supply or construct
   each new phi value. Neither a generic setter nor a repair scan can infer it.
 
-SCCP, check elimination, DCE, ADCE, CFG simplification, and jump threading use
+SCCP, check elimination, DCE, CFG simplification, and jump threading use
 these operations. Loop preheader creation prepares its phis before redirecting
 edges. PRE uses `split_edge`; ABI continuation splitting transfers successor
 links and phi inputs with the terminator. Replacing a body with a helper call
