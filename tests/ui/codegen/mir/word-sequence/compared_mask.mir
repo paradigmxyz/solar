@@ -1,0 +1,50 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=word-sequence
+//@ filecheck:
+@module ComparedMask
+
+// A `bytes4` compared with selectors keeps its top bits as a pair of shifts.
+// CHECK-LABEL: {{^[ +].*}}fn @selectors{{[( ]}}
+// CHECK: + [[LOW:v[0-9]+]] = shr arg0, 224
+// CHECK: + {{v[0-9]+}} = shl [[LOW]], 224
+fn @selectors(arg0: i256) -> i1 {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = eq v0, 0x01ffc9a700000000000000000000000000000000000000000000000000000000
+    v2 = eq v0, 0x80ac58cd00000000000000000000000000000000000000000000000000000000
+    v3 = or v1, v2
+    ret v3
+}
+
+// A repeated re-mask of the same value does not count as a second use.
+// CHECK-LABEL: {{^[ +].*}}fn @remasked{{[( ]}}
+// CHECK: + {{v[0-9]+}} = shr {{v[0-9]+}}, 224
+fn @remasked(arg0: i256) -> i1 {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = eq v1, 0x01ffc9a700000000000000000000000000000000000000000000000000000000
+    ret v2
+}
+
+// The stack can keep a mask that several values share.
+// CHECK-LABEL: {{^[ +].*}}fn @shared_mask{{[( ]}}
+// CHECK-NOT: {{^[+].*}}shr
+fn @shared_mask(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = eq v0, 0x01ffc9a700000000000000000000000000000000000000000000000000000000
+    v3 = eq v1, 0x80ac58cd00000000000000000000000000000000000000000000000000000000
+    v4 = or v2, v3
+    ret v4
+}
+
+// Without a comparison, a packed field keeps its mask for the blend rules.
+// CHECK-LABEL: {{^[ +].*}}fn @packed{{[( ]}}
+// CHECK-NOT: {{^[+].*}}shr
+fn @packed(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v1 = or v0, arg1
+    ret v1
+}
