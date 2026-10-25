@@ -29,9 +29,6 @@ bb5 [cold]:
   push 0
   revert
 bb6:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 160
@@ -73,8 +70,7 @@ bb6:
   push 31
   not
   and
-  push 64
-  mload
+  push 128
   swap 1
   dup 2
   add

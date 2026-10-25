@@ -172,8 +172,7 @@ bb17:
   mstore
   push 4
   calldataload
-  push 64
-  mload
+  push 128
   push 96
   dup 2
   add

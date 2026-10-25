@@ -72,7 +72,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v236 = or v235, v186
     jumpi v236, bb5, bb30
   bb30:
-    v233 = mload 64
+    v233 = heap_floor
     v234 = add v233, 64
     mstore 64, v234
     v3 = shl v182, 5
@@ -286,7 +286,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v76 = or v4, v6
     jumpi v76, bb1, bb2
   bb2:
-    v74 = mload 64
+    v74 = heap_floor
     v75 = add v74, 96
     mstore 64, v75
     v8 = calldataload v2

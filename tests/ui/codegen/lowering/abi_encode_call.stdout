@@ -12,7 +12,7 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v44 = ne v43, 0
     jumpi v44, bb1, bb2
   bb2:
-    v39 = mload 64 !metadata(memory=scratch)
+    v39 = heap_floor
     v40 = add v39, 128
     mstore 64, v40 !metadata(memory=scratch)
     mstore v39, 68
@@ -55,7 +55,7 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     jumpi v35, bb1, bb2
   bb2:
     v0 = gas
-    v29 = mload 64 !metadata(memory=scratch)
+    v29 = heap_floor
     v30 = add v29, 128
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, 68

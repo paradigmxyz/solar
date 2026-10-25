@@ -97,9 +97,9 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
 
 fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
   bb0:
-    v54 = mload 64 !metadata(memory=scratch)
+    v54 = heap_floor
     v55 = add v54, 160
-    mstore 64, v55
+    mstore 64, v55 !metadata(memory=scratch)
     mstore v54, 33
     v38 = add v54, 32
     mstore v38, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20

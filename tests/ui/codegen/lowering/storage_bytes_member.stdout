@@ -646,8 +646,7 @@ bb61:
   push 31
   not
   and
-  push 64
-  mload
+  push 128
   swap 1
   dup 2
   add

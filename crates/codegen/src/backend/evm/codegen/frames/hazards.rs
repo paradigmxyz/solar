@@ -404,20 +404,24 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Returns whether a function can read or observe the reserved free-memory-pointer word, or
     /// write part of it. Unknown offsets and lengths are conservatively overlapping; constant
-    /// ranges proven disjoint from `[0x40, 0x60)` keep the lazy entry initialization optimization.
+    /// ranges proven disjoint from `[0x40, 0x60)`, and ranges addressed from the heap, which
+    /// starts above the slot, keep the lazy entry initialization optimization.
     /// A full-word store to the slot overwrites the initialization without observing it, and a
     /// `revert` or `return` range in the block of such a store reads the stored word.
     pub(in crate::backend::evm::codegen) fn function_may_observe_free_memory_slot(
         func: &Function,
     ) -> bool {
+        // An address that is not a constant overlaps unless the heap it lies in starts above the
+        // slot.
         let overlaps = |offset, size| {
             Self::constant_memory_range_may_overlap_fmp(
                 func.value_u64(offset),
                 func.value_u64(size),
-            )
+            ) && AliasAnalysis::range_may_overlap_fmp(func, offset, func.value_u64(size))
         };
         let overlaps_const = |offset, size| {
             Self::constant_memory_range_may_overlap_fmp(func.value_u64(offset), Some(size))
+                && AliasAnalysis::range_may_overlap_fmp(func, offset, Some(size))
         };
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
             InstKind::Store(..) if func.is_fmp_slot_store(inst_id) => false,

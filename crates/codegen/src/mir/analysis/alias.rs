@@ -1718,7 +1718,7 @@ impl AliasAnalysis {
         };
         match func.inst(*inst_id).kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
-            InstKind::Fmp | InstKind::Alloc { .. } => MemoryRegion::Heap,
+            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => MemoryRegion::Heap,
             InstKind::Load(address, PtrLocation::Memory)
                 if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
@@ -1889,6 +1889,7 @@ impl AliasAnalysis {
         match &func.inst(*inst).kind {
             InstKind::Fmp
             | InstKind::Alloc { .. }
+            | InstKind::HeapFloor
             | InstKind::AbiEncode { .. }
             | InstKind::AbiDecode { .. } => Some(EvmMemoryLayout::HEAP_START),
             InstKind::Load(address, PtrLocation::Memory)

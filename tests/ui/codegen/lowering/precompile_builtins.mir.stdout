@@ -3,7 +3,7 @@
 @phase lowered
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
-    v15 = mload 64 !metadata(memory=scratch)
+    v15 = heap_floor
     mstore v15, 1
     v4 = add v15, 32
     mstore v4, 28
@@ -29,7 +29,7 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
 
 fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
   bb0:
-    v15 = mload 64 !metadata(memory=scratch)
+    v15 = heap_floor
     mstore v15, 0
     v4 = add v15, 32
     mstore v4, 0
@@ -95,7 +95,7 @@ fn @shaWord() [selector=0x1a7d61f8, abi_wrapper, pure] {
     v12 = lt v11, 36
     jumpi v12, bb3, bb4
   bb4:
-    v17 = mload 64 !metadata(memory=scratch)
+    v17 = heap_floor
     v18 = add v17, 64
     mstore 64, v18 !metadata(memory=scratch)
     mstore v17, 32
@@ -123,7 +123,7 @@ fn @ripemdWord() [selector=0x5c2b7c72, abi_wrapper, pure] {
     v13 = lt v12, 36
     jumpi v13, bb3, bb4
   bb4:
-    v18 = mload 64 !metadata(memory=scratch)
+    v18 = heap_floor
     v19 = add v18, 64
     mstore 64, v19 !metadata(memory=scratch)
     mstore v18, 32

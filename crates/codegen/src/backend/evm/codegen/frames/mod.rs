@@ -145,13 +145,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         })
     }
 
-    pub(in crate::backend::evm::codegen) fn is_external_entry(func: &Function) -> bool {
-        Self::is_runtime_function(func)
-            && (func.selector.is_some()
-                || func.attributes.is_receive
-                || func.attributes.is_fallback)
-    }
-
     pub(in crate::backend::evm::codegen) fn is_runtime_function(func: &Function) -> bool {
         !func.attributes.is_constructor
     }
@@ -810,8 +803,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (&(func_id, offset), &(id, _)) in &self.static_frame_addr_consts {
             self.asm.set_deferred_const(id, U256::from(frame_bases[&func_id] + offset));
         }
+        // Every entry has a floor, whether or not it initializes the pointer: a fresh read in a
+        // function it reaches takes the floor in place of the slot.
         let free_memory_floors: FxHashMap<FunctionId, u64> = self
-            .runtime_free_memory_consts
+            .runtime_entry_reachability
             .keys()
             .copied()
             .map(|entry| {
@@ -846,15 +841,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             let floor = free_memory_floors[&entry];
             self.asm.set_deferred_const(id, U256::from(floor));
         }
-        // A clamped free-memory-pointer store keeps the highest initial pointer of the entries
-        // that reach its function; one that no entry reaches never runs.
+        // A heap floor is the highest initial pointer of the entries that run its function before
+        // control passes to another entry; one that no entry runs never executes.
         for (func_id, id) in std::mem::take(&mut self.fmp_floor_consts) {
             let floor = free_memory_floors
                 .iter()
                 .filter(|&(entry, _)| {
-                    self.runtime_entry_reachability
-                        .get(entry)
-                        .is_some_and(|reachable| reachable.contains(func_id))
+                    own_reach.get(entry).is_some_and(|reach| reach.contains(func_id))
                 })
                 .map(|(_, &floor)| floor)
                 .max()
@@ -1259,7 +1252,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 })
             }
             Value::Inst(inst_id) => match &func.inst(*inst_id).kind {
-                InstKind::Fmp | InstKind::Alloc { .. } => Some(0),
+                InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => Some(0),
                 InstKind::Load(address, PtrLocation::Memory)
                     if Self::heap_prefix_constant(func, *address, 0)
                         == Some(U256::from(EvmMemoryLayout::FMP_SLOT)) =>

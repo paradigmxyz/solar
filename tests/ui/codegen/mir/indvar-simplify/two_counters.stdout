@@ -46,23 +46,29 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v98 = add v97, 4
     v100 = sub v95, 36
     v101 = gt v97, v100
-    v169 = or v96, v101
-    jumpi v169, bb13, bb14
+    v178 = or v96, v101
+    jumpi v178, bb13, bb14
   bb14:
     v102 = calldataload v98
     v103 = add v98, 32
     v104 = add v102, 63
     v105 = lt v104, v102
-    jumpi v105, bb5, bb15
-  bb15:
     v107 = and v104, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v163 = icall @alloc, v107
-    mstore v163, v102
+    v168 = heap_floor
+    v169 = add v168, v107
+    v170 = lt v169, v168
+    v171 = gt v169, 0xffffffffffffffff
+    v172 = or v170, v171
+    v179 = or v105, v172
+    jumpi v179, bb5, bb17
+  bb17:
+    mstore 64, v169 !metadata(memory=scratch)
+    mstore v168, v102
     v109 = sub v95, v103
     v110 = gt v102, v109
-    jumpi v110, bb13, bb16
-  bb16:
-    v155 = add v163, 32
+    jumpi v110, bb13, bb15
+  bb15:
+    v155 = add v168, 32
     calldatacopy v155, v103, v102
     v1 = div v102, 3
     v74 = shl v1, 2
@@ -75,16 +81,23 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     jumpi v4, bb5, bb6
   bb6:
     v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v162 = icall @alloc, v6
-    v165 = calldatasize
-    calldatacopy v162, v165, v6
+    v162 = mload 64 !metadata(memory=scratch)
+    v163 = add v162, v6
+    v164 = lt v163, v162
+    v165 = gt v163, 0xffffffffffffffff
+    v166 = or v164, v165
+    jumpi v166, bb5, bb16
+  bb16:
+    mstore 64, v163 !metadata(memory=scratch)
+    v174 = calldatasize
+    calldatacopy v162, v174, v6
     mstore v162, v74
-    v166 = add v162, 32
+    v175 = add v162, 32
     jump bb1
   bb1:
-    v12 = phi [bb6: 0], [bb10: v91]
-    v13 = phi [bb6: 0], [bb10: v93]
-    v167 = phi [bb6: v166], [bb10: v168]
+    v12 = phi [bb16: 0], [bb10: v91]
+    v13 = phi [bb16: 0], [bb10: v93]
+    v176 = phi [bb16: v175], [bb10: v177]
     v81 = add v12, 2
     v15 = lt v81, v102
     jumpi v15, bb3, bb2
@@ -105,27 +118,27 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v127 = add v123, 64
     returndata v162, v127
   bb4:
-    v19 = mload v163
+    v19 = mload v168
     v20 = lt v12, v19
     jumpi v20, bb8, bb7
   bb8:
-    v134 = add v163, v12
+    v134 = add v168, v12
     v135 = add v134, 32
     v24 = mload v135
     v25 = byte 0, v24
-    mstore8 v167, v25
+    mstore8 v176, v25
     v33 = add v12, 1
-    v34 = mload v163
+    v34 = mload v168
     v35 = lt v33, v34
     jumpi v35, bb9, bb7
   bb9:
-    v140 = add v163, v33
+    v140 = add v168, v33
     v141 = add v140, 32
     v39 = mload v141
     v40 = byte 0, v39
-    v144 = add v167, 1
+    v144 = add v176, 1
     mstore8 v144, v40
-    v50 = mload v163
+    v50 = mload v168
     v51 = lt v81, v50
     jumpi v51, bb10, bb7
   bb7:
@@ -133,17 +146,17 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb10:
-    v146 = add v163, v81
+    v146 = add v168, v81
     v147 = add v146, 32
     v55 = mload v147
     v56 = byte 0, v55
-    v150 = add v167, 2
+    v150 = add v176, 2
     mstore8 v150, v56
-    v153 = add v167, 3
+    v153 = add v176, 3
     mstore8 v153, 0
     v91 = add v12, 3
     v93 = add v13, 4
-    v168 = add v167, 4
+    v177 = add v176, 4
     jump bb1
   bb11:
     mstore 32, 17 !metadata(memory=scratch)
@@ -198,21 +211,4 @@ fn @entry() [entry] {
     tail_call @pack
   bb5:
     revert 0, 0
-}
-
-fn @alloc(arg0: i256) -> i256 {
-  bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
-    v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
-  bb2:
-    mstore 64, v2 !metadata(memory=scratch)
-    ret v0
-  bb1:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

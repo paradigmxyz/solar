@@ -22,9 +22,6 @@ bb0:
   sub
   push bb4
   jumpi
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 160
@@ -73,8 +70,7 @@ bb7 [continuation]:
   push 31
   not
   and
-  push 64
-  mload
+  push 128
   swap 1
   dup 2
   add
@@ -104,9 +100,6 @@ bb7 [continuation]:
   push 0
   return
 bb9:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 160
@@ -127,8 +120,7 @@ bb11 [continuation]:
   push 31
   not
   and
-  push 64
-  mload
+  push 128
   swap 1
   dup 2
   add

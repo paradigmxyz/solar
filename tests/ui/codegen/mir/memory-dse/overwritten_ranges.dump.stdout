@@ -43,7 +43,7 @@ fn @allocated() [selector=0x6649a3b9, abi_wrapper, pure] {
     v10 = lt v9, 68
     jumpi v10, bb1, bb2
   bb2:
-    v26 = mload 64 !metadata(memory=scratch)
+    v26 = heap_floor
     v27 = add v26, 96
     v28 = lt v27, v26
     v29 = gt v27, 0xffffffffffffffff

@@ -501,8 +501,7 @@ bb39:
   lt
   push bb11
   jumpi
-  push 64
-  mload
+  push 128
   push 64
   dup 2
   add
@@ -597,8 +596,7 @@ bb86:
   sub
   mul
   add
-  push 64
-  mload
+  push 128
   push 64
   dup 2
   add

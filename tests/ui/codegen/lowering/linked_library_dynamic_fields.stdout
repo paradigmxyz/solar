@@ -450,31 +450,29 @@ bb8:
   or
   push bb4
   jumpi
+  dup 3
   push 32
-  dup 4
   add
+  dup 1
   push 32
-  dup 2
-  lt
+  gt
   push bb14
   jumpi
-  push 64
-  mload
-  swap 1
-  dup 2
+  push 128
+  dup 1
+  push 32
+  add
+  swap 2
   add
   push 64
   mstore
   swap 5
-  dup 6
+  push 128
   mstore
-  push 32
-  dup 6
-  add
-  swap 3
   swap 2
   swap 1
-  swap 3
+  push 128
+  swap 5
   calldatacopy
   push 63
   dup 3

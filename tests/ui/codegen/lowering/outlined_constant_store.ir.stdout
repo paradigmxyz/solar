@@ -293,8 +293,7 @@ bb16 [cold] [continuation]:
 bb17 [cold] [continuation]:
   revert
 bb18:
-  push 64
-  mload
+  push 128
   push 96
   dup 2
   add

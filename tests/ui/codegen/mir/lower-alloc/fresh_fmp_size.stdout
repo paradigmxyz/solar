@@ -1,0 +1,56 @@
+- // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp_size.mir (before lower-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp_size.mir (after lower-alloc) ===
+  @module FreshFmpSize
+  fn @first(arg0: i256) -> i256 [selector=0x10000001] {
+    bb0:
+-     v0 = alloc zeroed checked arg0
+-     v1 = ptrtoint ptr<memory> v0 to i256
++     v2 = icall @alloc, arg0
++     memory_zero v2, arg0
++     v1 = ptrtoint ptr<memory> v2 to i256
+      ret v1
+  }
+  
+  fn @second(arg0: i256) -> i256 [selector=0x10000002] {
+    bb0:
+-     v0 = alloc zeroed checked arg0
+-     v1 = ptrtoint ptr<memory> v0 to i256
++     v2 = icall @alloc, arg0
++     memory_zero v2, arg0
++     v1 = ptrtoint ptr<memory> v2 to i256
+      ret v1
+  }
+  
+  fn @unchecked() -> i256 [selector=0x10000003] {
+    bb0:
+-     v0 = fmp
+-     v1 = alloc 32
++     v3 = heap_floor
++     v0 = inttoptr i256 v3 to ptr<memory> !metadata(memory=scratch)
++     v4 = heap_floor
++     v1 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
++     v5 = add v4, 32
++     mstore 64, v5 !metadata(memory=scratch)
+      v2 = ptrtoint ptr<memory> v1 to i256
+      ret v2
++ }
++ 
++ fn @alloc(arg0: i256) -> ptr<memory> {
++   bb0:
++     v0 = mload 64 !metadata(memory=scratch)
++     v1 = inttoptr i256 v0 to ptr<memory>
++     v2 = add v0, arg0
++     v3 = lt v2, v0
++     v4 = gt v2, 0xffffffffffffffff
++     v5 = or v3, v4
++     v6 = zext i1 v5 to i256
++     jumpi v5, bb1, bb2
++   bb2:
++     mstore 64, v2 !metadata(memory=scratch)
++     ret v1
++   bb1:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  

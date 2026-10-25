@@ -802,7 +802,9 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
     for inst_id in func.instructions() {
         let kind = &func.inst(inst_id).kind;
         let root = match kind {
-            InstKind::Fmp | InstKind::ICall { function: Callee::Function(_), .. } => true,
+            InstKind::Fmp
+            | InstKind::HeapFloor
+            | InstKind::ICall { function: Callee::Function(_), .. } => true,
             InstKind::Load(address, PtrLocation::Memory) => {
                 func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT)
             }
@@ -861,7 +863,10 @@ fn observe_sources(
 /// using transient heap scratch can expose a pointer's position relative to the heap.
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
+        InstKind::Fmp
+        | InstKind::HeapFloor
+        | InstKind::SetFmp(_)
+        | InstKind::MappingSlotBytes(..) => true,
         InstKind::Load(address, PtrLocation::Memory)
         | InstKind::Store(address, _, PtrLocation::Memory) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
@@ -931,6 +936,9 @@ fn is_fmp_derived(
             InstKind::Load(address, PtrLocation::Memory) => {
                 func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
             }
+            // A pointer built from the floor only moves the heap up: the floor is the lowest word
+            // the pointer holds.
+            InstKind::HeapFloor => true,
             InstKind::Add(first, second) => {
                 (is_fmp_derived(func, first, visiting, anchor, supported)
                     && is_nonnegative_offset(func, second))

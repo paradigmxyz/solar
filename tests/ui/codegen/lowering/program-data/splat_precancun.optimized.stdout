@@ -6,9 +6,9 @@
 
 fn @data() -> i256 [may_return_memory, pure] {
   bb0:
-    v8 = mload 64 !metadata(memory=scratch)
+    v8 = heap_floor
     v9 = add v8, 224
-    mstore 64, v9
+    mstore 64, v9 !metadata(memory=scratch)
     mstore v8, 161
     v4 = add v8, 192
     mstore v4, 0
@@ -43,9 +43,9 @@ fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
 
 fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
   bb0:
-    v12 = mload 64 !metadata(memory=scratch)
+    v12 = heap_floor
     v13 = add v12, 96
-    mstore 64, v13
+    mstore 64, v13 !metadata(memory=scratch)
     mstore v12, 33
     v8 = add v12, 32
     mstore v8, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
@@ -58,9 +58,9 @@ fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
 
 fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
   bb0:
-    v23 = mload 64 !metadata(memory=scratch)
+    v23 = heap_floor
     v24 = add v23, 128
-    mstore 64, v24
+    mstore 64, v24 !metadata(memory=scratch)
     mstore v23, 96
     v10 = add v23, 32
     mstore v10, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
@@ -150,8 +150,7 @@ bb7:
   push bb8
   jump bb16
 bb16:
-  push 64
-  mload
+  push 128
   push 224
   dup 2
   add
@@ -209,12 +208,7 @@ bb10 [continuation]:
   iszero
   jump bb17
 bb11:
-  push 96
-  push 128
-  dup 1
-  push 64
-  mstore
-  add
+  push 224
   push 64
   mstore
   push bb20
