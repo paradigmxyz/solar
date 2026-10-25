@@ -152,6 +152,8 @@ struct ArtifactData {
 
 struct FoundrySolc {
     path: PathBuf,
+    /// Keeps the wrapper script alive.
+    _dir: Option<tempfile::TempDir>,
 }
 
 impl FoundrySolc {
@@ -312,8 +314,32 @@ fn workspace_root() -> PathBuf {
 }
 
 /// A `solc`-compatible executable for `FOUNDRY_SOLC`.
+///
+/// Forge passes no compiler flags, so on Unix a wrapper script adds `-Zvalidate-ir=true` and keeps
+/// full MIR validation on release binaries.
 fn foundry_solc() -> FoundrySolc {
-    FoundrySolc { path: get_solar_binary() }
+    let binary = get_solar_binary();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::Builder::new()
+            .prefix("solar-foundry-solc-")
+            .permissions(fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .expect("failed to create Foundry compiler directory");
+        let path = dir.path().join("solc");
+        let script = format!(
+            "#!/bin/sh\nexec '{}' -Zvalidate-ir=true \"$@\"\n",
+            binary.display().to_string().replace('\'', "'\\''")
+        );
+        fs::write(&path, script).expect("failed to write Foundry compiler wrapper");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755))
+            .expect("failed to make Foundry compiler wrapper executable");
+        FoundrySolc { path, _dir: Some(dir) }
+    }
+    #[cfg(not(unix))]
+    FoundrySolc { path: binary, _dir: None }
 }
 
 /// Checks if forge is available.

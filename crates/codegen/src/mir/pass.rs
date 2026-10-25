@@ -51,14 +51,14 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &const_fold::ConstFold,
     &readonly_eval::ReadonlyEval,
     &cse::Cse::All,
-    &pre::Pre,
+    &pre::Pre::Pure,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
     &byte_run::ByteRunLoads,
     &cse::Cse::Storage,
     &storage_dse::StorageDse,
-    &load_pre::LoadPre,
+    &pre::Pre::Reads,
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
     &loop_reduce::LoopReduce,
@@ -189,13 +189,13 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &egraph::Egraph,
     &word_sequence::WordSequence::Early,
-    &pre::Pre,
+    &pre::Pre::Pure,
     // Checked array loops reload one object's length before every bounds
     // check. Unify the dominated reads while object identity is explicit, so
     // load PRE and LICM see one loop-invariant load and the later check passes
     // compare against one bound.
     &cse::Cse::All,
-    &load_pre::LoadPre,
+    &pre::Pre::Reads,
     // Element reads of arrays that only ever hold canonical words drop their
     // type masks while the accesses are still semantic and calls explicit.
     &element_cleanup::ElementCleanup,

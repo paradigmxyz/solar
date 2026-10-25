@@ -1382,6 +1382,16 @@ impl<'a> Validator<'a> {
         }
     }
 
+    /// Checks only what the phase promises, without the SSA, CFG, and type invariants.
+    fn validate_phase_contract(&mut self, module: &Module, phase: MirPhase) {
+        self.validate_module_phase(module, phase);
+        for (id, func) in module.iter_functions() {
+            self.function = Some(id);
+            self.validate_function_phase(phase, func);
+        }
+        self.function = None;
+    }
+
     fn validate_function_phase(&mut self, phase: MirPhase, func: &Function) {
         if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
         {
@@ -1452,15 +1462,24 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
 }
 
-/// Checks all SSA, type, and representation invariants against the requested phase.
+/// Checks the module against the requested phase.
+///
+/// With `full`, checks all SSA, type, and representation invariants. Otherwise checks only the
+/// phase contract: the routing entry, ABI wrappers, word types, and instructions that must be
+/// lowered by the phase boundary.
 pub(crate) fn validate_phase(
     dcx: &DiagCtxt,
     module: &Module,
     phase: MirPhase,
     parallel: bool,
+    full: bool,
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
-    validator.validate_module_at_phase(module, phase, parallel);
+    if full {
+        validator.validate_module_at_phase(module, phase, parallel);
+    } else {
+        validator.validate_phase_contract(module, phase);
+    }
     validator.error.map_or(Ok(()), Err)
 }
 
