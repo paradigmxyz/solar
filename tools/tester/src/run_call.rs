@@ -342,6 +342,10 @@ impl Flag for OnoneRerun {
             return Ok(());
         }
         let mut command = with_onone(&command);
+        let stdin = config.status.path().with_extension(config.extension("stdin"));
+        if stdin.exists() {
+            command.stdin(std::fs::File::open(stdin).map_err(|err| error(err.to_string()))?);
+        }
         let output = command.output().map_err(|err| error(format!("failed to spawn: {err}")))?;
         if !output.status.success() {
             return Err(error(format!(
@@ -363,7 +367,7 @@ fn applies(scoped: &[String], revision: &str) -> bool {
 }
 
 fn compiles_onone(command: &Command) -> bool {
-    let mut args = command.get_args().filter_map(|arg| arg.to_str());
+    let mut args = command.get_args().filter_map(|arg| arg.to_str()).take_while(|&arg| arg != "--");
     let mut mode = None;
     while let Some(arg) = args.next() {
         match arg {
@@ -374,18 +378,27 @@ fn compiles_onone(command: &Command) -> bool {
     mode == Some("none")
 }
 
-/// Copies `command` with every `-O`/`--optimize` flag replaced by `-O none`.
+/// Copies `command` with every `-O`/`--optimize` option replaced by `-O none`, placed before
+/// any `--` terminator.
 fn with_onone(command: &Command) -> Command {
     let mut onone = Command::new(command.get_program());
     let mut args = command.get_args();
+    let mut terminated = false;
     while let Some(arg) = args.next() {
         match arg.to_str() {
+            Some("--") => {
+                onone.args(["-O", "none", "--"]).args(args);
+                terminated = true;
+                break;
+            }
             Some("-O" | "--optimize") => _ = args.next(),
             Some(arg) if arg.starts_with("-O") || arg.starts_with("--optimize=") => {}
             _ => _ = onone.arg(arg),
         }
     }
-    onone.args(["-O", "none"]);
+    if !terminated {
+        onone.args(["-O", "none"]);
+    }
     for (key, value) in command.get_envs() {
         match value {
             Some(value) => onone.env(key, value),
@@ -1082,6 +1095,12 @@ mod tests {
         let command = with_onone(&command);
         let args = command.get_args().map(|arg| arg.to_str().unwrap()).collect::<Vec<_>>();
         assert_eq!(args, ["-j1", "t.sol", "-Zfoo", "--optimize-runs", "9", "-O", "none"]);
+
+        let mut command = Command::new("solar");
+        command.args(["-Ogas", "--", "-Osize", "--optimize=none"]);
+        let command = with_onone(&command);
+        let args = command.get_args().map(|arg| arg.to_str().unwrap()).collect::<Vec<_>>();
+        assert_eq!(args, ["-O", "none", "--", "-Osize", "--optimize=none"]);
     }
 
     #[test]
@@ -1089,7 +1108,13 @@ mod tests {
         for args in [&["-O", "none"][..], &["-Ogas", "--optimize=none"], &["-Onone"]] {
             assert!(compiles_onone(Command::new("solar").args(args)), "{args:?}");
         }
-        for args in [&[][..], &["-O", "none", "-Osize"], &["--optimize", "gas"], &["-Zfoo=none"]] {
+        for args in [
+            &[][..],
+            &["-O", "none", "-Osize"],
+            &["--optimize", "gas"],
+            &["-Zfoo=none"],
+            &["--", "-Onone"],
+        ] {
             assert!(!compiles_onone(Command::new("solar").args(args)), "{args:?}");
         }
     }
