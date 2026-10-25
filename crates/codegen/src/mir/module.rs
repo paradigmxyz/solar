@@ -7,7 +7,10 @@ use super::{
 };
 use crate::{
     link::{ContractCode, LibraryTable},
-    mir::analysis::{CfgInfo, direct_callees},
+    mir::{
+        analysis::{CfgInfo, direct_callees},
+        pass_manager::should_validate_ir,
+    },
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
@@ -201,6 +204,8 @@ impl Module {
     }
 
     /// Checks the destination representation before advancing the phase.
+    ///
+    /// Release builds check only the phase contract, unless `-Zvalidate-ir` is set.
     pub(crate) fn advance_phase(
         &mut self,
         gcx: solar_sema::Gcx<'_>,
@@ -212,6 +217,7 @@ impl Module {
             self,
             phase,
             gcx.sess.is_parallel_codegen(),
+            should_validate_ir(gcx),
         )?;
         self.phase = phase;
         self.lowered_checked = phase == MirPhase::Lowered;
@@ -226,7 +232,7 @@ impl Module {
     /// Checks backend legality and borrows the module without permitting further rewrites.
     ///
     /// Skips the check when `advance_phase` passed it and nothing changed the module since,
-    /// unless `recheck` is set.
+    /// unless `recheck` is set. Without `recheck`, the check covers only the phase contract.
     pub(crate) fn as_lowered(
         &self,
         gcx: solar_sema::Gcx<'_>,
@@ -248,6 +254,7 @@ impl Module {
                 self,
                 MirPhase::Lowered,
                 gcx.sess.is_parallel_codegen(),
+                recheck,
             )?;
         }
         Ok(LoweredModule(self))
