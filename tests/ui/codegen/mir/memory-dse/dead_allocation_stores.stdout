@@ -245,3 +245,18 @@
       returndata 0, 32
   }
   
+  fn @unbounded_size(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = alloc arg1
+      mstore v0, arg0
+      stop
+  }
+  
+  fn @checked_size(arg0: i256) {
+    bb0:
+      v0 = add arg0, 32
+      v1 = alloc checked v0
+      mstore v1, arg0
+      stop
+  }
+  

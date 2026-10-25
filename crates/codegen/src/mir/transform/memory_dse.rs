@@ -46,10 +46,11 @@
 //!   `msize`, or a callee with unknown reads, and every `ret` and tail call, reads the whole
 //!   object. A read that may leave its own allocation reaches the objects allocated after it, not
 //!   the ones before. A deferred object, which static placement keeps unrelated to the free-memory
-//!   pointer, ignores them. A store past the end of an object, or past the length word of a
-//!   runtime-sized one, may write over the next object and stays. Functions observing gas keep
-//!   their stores, since the stores pay for memory expansion. Writes the object receives from
-//!   copies and calls stay: only stores are candidates.
+//!   pointer, ignores them. A store that may reach past the end of its object may write over the
+//!   next one and stays: the size of an infallible allocation, whose arithmetic cannot wrap, is
+//!   bounded below through sums and word-rounding masks, and other runtime sizes have no bound.
+//!   Functions observing gas keep their stores, since the stores pay for memory expansion. Writes
+//!   the object receives from copies and calls stay: only stores are candidates.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
@@ -70,8 +71,8 @@
 //! there, before memory-zero lowering turns them into copies or loops.
 
 use crate::mir::{
-    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, MirType, Module,
-    PtrLocation, Terminator, Value, ValueId,
+    AllocationFailure, BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion,
+    MirType, Module, PtrLocation, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
         MemoryAddress, MemoryBase, MemoryLocation, ModRef,
@@ -1875,10 +1876,14 @@ impl MemoryStoreEliminator {
         alloc: InstId,
         pointer: ValueId,
     ) -> Option<AllocAccesses> {
-        let InstKind::Alloc { size, .. } = func.inst(alloc).kind else { return None };
+        let InstKind::Alloc { size, semantics } = func.inst(alloc).kind else { return None };
         let mut walk = AllocWalk {
             func,
-            size: func.value_u64(size),
+            size: if semantics.failure == AllocationFailure::Infallible {
+                AllocWalk::size_lower_bound(func, size, 4)
+            } else {
+                func.value_u64(size).unwrap_or(0)
+            },
             derived: FxHashMap::from_iter([(pointer, AllocPointer::START)]),
             worklist: vec![pointer],
             accesses: AllocAccesses::default(),
@@ -2007,9 +2012,8 @@ struct AllocAccesses {
 /// The walk over the values derived from one allocation pointer.
 struct AllocWalk<'a> {
     func: &'a Function,
-    /// The constant byte size of the allocation. A runtime size is assumed to cover the length
-    /// word every dynamic Solidity object starts with, and no more.
-    size: Option<u64>,
+    /// A lower bound of the allocation's byte size.
+    size: u64,
     derived: FxHashMap<ValueId, AllocPointer>,
     worklist: Vec<ValueId>,
     accesses: AllocAccesses,
@@ -2132,11 +2136,33 @@ impl AllocWalk<'_> {
     ) {
         if addresses
             && let Some(range) = at.range(Some(width))
-            && range
-                .end
-                .is_some_and(|end| end <= self.size.unwrap_or(EvmMemoryLayout::DYNAMIC_HEADER_SIZE))
+            && range.end.is_some_and(|end| end <= self.size)
         {
             self.accesses.stores.push(AllocStore { inst, block, index, range });
+        }
+    }
+
+    /// A lower bound of the size of an infallible allocation, whose size arithmetic has been
+    /// proven not to wrap: constants, sums, and masks that clear low bits, such as the rounding
+    /// of a length to whole words.
+    fn size_lower_bound(func: &Function, size: ValueId, depth: u32) -> u64 {
+        if let Some(size) = func.value_u256(size) {
+            return crate::mir::utils::u256_to_u64(size).unwrap_or(u64::MAX);
+        }
+        let (Value::Inst(inst), Some(depth)) = (func.value(size), depth.checked_sub(1)) else {
+            return 0;
+        };
+        let bound = |value| Self::size_lower_bound(func, value, depth);
+        match func.inst(*inst).kind {
+            InstKind::Add(a, b) => bound(a).saturating_add(bound(b)),
+            // `and x, mask` is monotonic in `x` when the mask only clears low bits.
+            InstKind::And(x, mask) | InstKind::And(mask, x)
+                if let Some(mask) = func.value_u256(mask)
+                    && (!mask & (!mask).wrapping_add(U256::from(1))).is_zero() =>
+            {
+                crate::mir::utils::u256_to_u64(U256::from(bound(x)) & mask).unwrap_or(u64::MAX)
+            }
+            _ => 0,
         }
     }
 
