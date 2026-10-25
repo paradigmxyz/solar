@@ -287,14 +287,6 @@ impl Cost {
         Self { steps, ..self }
     }
 
-    /// Whether this costs no more gas and bytes than `other` and less of one. Executed
-    /// instructions only matter to an engine that dispatches them: see [`Target::dominates`].
-    pub(crate) fn dominates(self, other: Self) -> bool {
-        self.gas <= other.gas
-            && self.bytes <= other.bytes
-            && (self.gas, self.bytes) != (other.gas, other.bytes)
-    }
-
     /// Cost of an opcode whose static gas is identical on every EVM version.
     /// Panics for unknown opcodes or a fork-dependent gas tier.
     pub(crate) const fn fixed_opcode(opcode: u8) -> Self {
@@ -830,14 +822,15 @@ impl Target {
         }
     }
 
-    /// Whether `a` is no worse than `b` in every dimension the model ranks and better in one.
+    /// Whether `a` costs no more than `b` in every dimension the model ranks and less in one.
     /// Executed instructions count only when the engine dispatches them.
     pub(crate) fn dominates(&self, a: Cost, b: Cost) -> bool {
-        if self.charges_dispatch() {
-            a.gas <= b.gas && a.bytes <= b.bytes && a.steps <= b.steps && a != b
-        } else {
-            a.dominates(b)
-        }
+        let ranked = |cost: Cost| {
+            let steps = if self.charges_dispatch() { cost.steps } else { 0 };
+            (cost.gas, cost.bytes, steps)
+        };
+        let (a, b) = (ranked(a), ranked(b));
+        a.0 <= b.0 && a.1 <= b.1 && a.2 <= b.2 && a != b
     }
 
     /// Deployment-lifetime gas of `cost`: expected executions of its runtime
@@ -1318,10 +1311,10 @@ mod tests {
         let amsterdam = Target::with(EvmVersion::Amsterdam, OptimizationMode::Gas, 200);
         assert_eq!(amsterdam.stack_op(op::StackOp::Dup(17)), Some(one(3, 2)));
         assert_eq!(amsterdam.stack_op(op::StackOp::Exchange(1, 2)), Some(one(3, 2)));
-        assert!(Cost::new(3, 2).dominates(Cost::new(9, 3)));
-        assert!(Cost::new(9, 2).dominates(Cost::new(9, 3)));
-        assert!(!Cost::new(9, 3).dominates(Cost::new(9, 3)));
-        assert!(!Cost::new(3, 4).dominates(Cost::new(9, 3)));
+        assert!(target.dominates(Cost::new(3, 2), Cost::new(9, 3)));
+        assert!(target.dominates(Cost::new(9, 2), Cost::new(9, 3)));
+        assert!(!target.dominates(Cost::new(9, 3), Cost::new(9, 3)));
+        assert!(!target.dominates(Cost::new(3, 4), Cost::new(9, 3)));
     }
 
     #[test]
@@ -1343,8 +1336,6 @@ mod tests {
         assert!(!interpreter.dominates(more_steps, cost));
         assert!(interpreter.dominates(Cost::new(10, 4).with_steps(2), cost));
         assert!(!none.dominates(Cost::new(10, 4).with_steps(2), cost));
-        // Executed instructions do not change what `Cost::dominates` ranks.
-        assert!(!Cost::new(10, 4).with_steps(2).dominates(cost));
     }
 
     #[test]
@@ -1429,6 +1420,8 @@ mod tests {
         assert_eq!(
             shared,
             Cost::new(3 * ((90 + 3 * 24 + 5 * 6) + (24 + 3 * 8)), 3 * 11 + 103)
+                // Per site: 63 instructions to call (3 exactly, then 60 for the other 180 gas) and
+                // 15 to return (1 exactly, then 14 for the other 40 gas).
                 .with_steps(3 * (63 + 15))
         );
         assert_eq!(expanded, Cost::new(0, 300));

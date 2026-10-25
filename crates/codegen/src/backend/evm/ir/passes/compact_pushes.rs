@@ -8,9 +8,10 @@
 //!
 //! Engines that execute each instruction at a cost of their own change the choice. Under
 //! `-Ztune=interpreter`, [`Target::prefers_push`] ranks the literal and the recipes by lifetime
-//! gas, so `PUSH0; NOT` still replaces a 32-byte literal, while an address mask costs more
-//! executed instructions than its literal's extra bytes are worth. Under `-Ztune=jit` recipes
-//! cost nothing, because evm2's JIT folds each one to a constant, and the fewest bytes win.
+//! gas, so `PUSH0; NOT` still replaces a 32-byte literal, while the three extra instructions of an
+//! address mask recipe cost more than the bytes its literal adds. Under `-Ztune=jit` recipes cost
+//! nothing at run time, because evm2's JIT evaluates each one ahead of time, and the fewest bytes
+//! win.
 //!
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
 //! target supports them. [`Target::push`] uses the same selector, so other EVM IR passes can
@@ -339,7 +340,7 @@ mod tests {
     #[test]
     fn selected_cost_matches_emitted_instructions() {
         let mut values = vec![U256::ZERO, U256::ONE, U256::MAX, U256::from(0x1234_5678_9abc_u64)];
-        for bits in [40, 64, 160, 248, 255] {
+        for bits in [40usize, 64, 160, 248, 255] {
             values.extend([
                 U256::ONE << bits,
                 (U256::ONE << bits) - U256::ONE,

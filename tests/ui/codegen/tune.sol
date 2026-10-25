@@ -6,6 +6,11 @@
 //@[jit] compile-flags: -O gas -Ztune=jit -Zdump=evm-ir-runtime
 //@[jit] filecheck: --check-prefixes=CHECK,JIT
 //@ normalize-stdout-test: "(?s).+" -> ""
+//@ run-call: mask 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0 => 0x0000000000000000000000009abcdef0123456789abcdef0123456789abcdef0
+//@ run-call: invert 0 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: pick 0 => 10
+//@ run-call: pick 3 => 40
+//@ run-call: pick 4 => 0
 
 contract AddressMask {
     // The address mask costs three more executed instructions as a recipe than as a literal,
@@ -52,6 +57,31 @@ contract DenseSwitch {
             case 2 { return(0, 3) }
             case 3 { return(0, 4) }
             default { revert(0, 0) }
+        }
+    }
+}
+
+contract Runtime {
+    function mask(uint x) external pure returns (uint r) {
+        assembly {
+            r := and(x, 0xffffffffffffffffffffffffffffffffffffffff)
+        }
+    }
+
+    function invert(uint x) external pure returns (uint r) {
+        assembly {
+            r := not(x)
+        }
+    }
+
+    function pick(uint x) external pure returns (uint r) {
+        assembly {
+            switch x
+            case 0 { r := 10 }
+            case 1 { r := 20 }
+            case 2 { r := 30 }
+            case 3 { r := 40 }
+            default { r := 0 }
         }
     }
 }

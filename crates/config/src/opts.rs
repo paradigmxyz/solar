@@ -434,6 +434,14 @@ pub struct UnstableOpts {
     )]
     pub switch_lowering: SwitchLowering,
 
+    /// Override the artifact-wide bytecode growth budget for gas-optimized switches.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub switch_max_gas_code_growth: Option<usize>,
+
+    /// Override the per-switch bit-slice table growth limit for benchmarking.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub switch_max_bit_slice_gas_code_growth: Option<usize>,
+
     /// Tune generated code for an execution engine (default: `none`; values: `none`,
     /// `interpreter`, `jit`).
     #[cfg_attr(
@@ -447,14 +455,6 @@ pub struct UnstableOpts {
         )
     )]
     pub tune: Tune,
-
-    /// Override the artifact-wide bytecode growth budget for gas-optimized switches.
-    #[cfg_attr(feature = "clap", arg(long))]
-    pub switch_max_gas_code_growth: Option<usize>,
-
-    /// Override the per-switch bit-slice table growth limit for benchmarking.
-    #[cfg_attr(feature = "clap", arg(long))]
-    pub switch_max_bit_slice_gas_code_growth: Option<usize>,
 
     /// Assert instead of logging when a value is live across a planned stack edge into an
     /// already-emitted block without a spill home.

@@ -117,10 +117,14 @@ version-independent tiers in constants.
 
 `Target::new(gcx)` builds the model from the session's EVM version,
 optimization mode, and optimizer runs. It answers opcode and MIR operation
-costs as `Cost { gas, bytes }` (sizing dynamic work from known immediate
-operands), push materialization cost, deposit economics
+costs as `Cost { gas, bytes, steps }` (sizing dynamic work from known immediate
+operands, and counting executed instructions), push materialization cost, deposit economics
 (`CODE_DEPOSIT_GAS_PER_BYTE`, `lifetime_gas`), and objective ordering
 (`objective_key`, `cmp`, `improves`).
+`-Ztune` selects the execution engine: `Target::runtime_gas` is the one runtime price
+every ranking uses, gas for `none` and `jit` and gas plus a dispatch charge per
+executed instruction for `interpreter`, and `Target::prefers_push` and
+`Target::allows_indexed_jumps` answer the push selector and switch planner.
 Creation code has its own model, `Target::priced_for(true)`, under the gas
 objective. It runs once per deployment, and the deployment transaction pays
 calldata gas (`byte_gas`: 16 per byte, 68 before Istanbul) for each byte instead
