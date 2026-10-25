@@ -40,18 +40,19 @@
 //!   replaced its loads and the call or terminator reads only the data after it. Any other use of a
 //!   derived pointer (a stored value, a phi, an internal call argument, a `ret`, a `sub`, a
 //!   runtime-offset `add`) leaves the object alone, as does a heap object that follows a
-//!   free-memory pointer reset and so may lie over an earlier one. Other allocations do not
-//!   overlap. Assembly can still rebuild a pointer into a heap object from the free-memory pointer,
-//!   so every other read that may touch heap memory, such as a load through an unrelated pointer,
-//!   `msize`, or a callee with unknown reads, reads the whole object. A `ret` or tail call reads no
-//!   object whose pointer it does not receive. A read that may leave its own allocation reaches the
-//!   objects allocated after it, not the ones before. A write-only deferred object, which static
-//!   placement keeps unrelated to the free-memory pointer, ignores them. A store that may reach
-//!   past the end of its object may write over the next one and stays: the size of an infallible
-//!   allocation, whose arithmetic cannot wrap, is bounded below through sums and word-rounding
-//!   masks, and other runtime sizes have no bound. Functions observing gas keep their stores, since
-//!   the stores pay for memory expansion. Writes the object receives from copies and calls stay:
-//!   only stores are candidates.
+//!   free-memory pointer reset and so may lie over an earlier one, as does every exposed object of
+//!   a function that writes through a runtime index, which may wrap and rewind the pointer. Other
+//!   allocations do not overlap. Assembly can still rebuild a pointer into a heap object from the
+//!   free-memory pointer, so every other read that may touch heap memory, such as a load through an
+//!   unrelated pointer, `msize`, or a callee with unknown reads, reads the whole object. A `ret` or
+//!   tail call reads no object whose pointer it does not receive. A read that may leave its own
+//!   allocation reaches the objects allocated after it, not the ones before. A write-only deferred
+//!   object, which static placement keeps unrelated to the free-memory pointer, ignores them. A
+//!   store that may reach past the end of its object may write over the next one and stays: the
+//!   size of an infallible allocation, whose arithmetic cannot wrap, is bounded below through sums
+//!   and word-rounding masks, and other runtime sizes have no bound. Functions observing gas keep
+//!   their stores, since the stores pay for memory expansion. Writes the object receives from
+//!   copies and calls stay: only stores are candidates.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
@@ -1772,14 +1773,12 @@ impl MemoryStoreEliminator {
         }
 
         let mut heap_reads = Vec::new();
-        let mut wrapping_writes = Vec::new();
+        let mut wrapping_writes = false;
         for (block_id, block) in func.blocks.iter_enumerated() {
             for (index, &inst) in block.instructions.iter().enumerate() {
                 let effects = self.alias().instruction_mod_ref(func, inst);
                 self.collect_heap_reads(func, &effects, (block_id, index), &mut heap_reads);
-                if self.alias().instruction_may_wrap_write(func, inst) {
-                    wrapping_writes.push((block_id, index));
-                }
+                wrapping_writes |= self.alias().instruction_may_wrap_write(func, inst);
             }
             if let Some(terminator) = &block.terminator {
                 let effects = self.alias().terminator_mod_ref(func, terminator);
@@ -1790,12 +1789,9 @@ impl MemoryStoreEliminator {
         let mut dead = DenseBitSet::new_empty(func.num_insts());
         for (alloc, access, exposed) in candidates {
             let (alloc_block, alloc_index) = positions[&alloc];
-            // A write that wraps may rewind the free-memory pointer, which freshness ignores.
-            if exposed
-                && wrapping_writes
-                    .iter()
-                    .any(|&write| Self::position_reaches(cfg, write, (alloc_block, alloc_index)))
-            {
+            // A write that wraps may rewind the free-memory pointer, which freshness ignores, and
+            // put any object over an earlier one.
+            if exposed && wrapping_writes {
                 continue;
             }
             // An out-of-bounds read of an object that precedes this one can reach it.
