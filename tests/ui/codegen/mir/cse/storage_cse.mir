@@ -1,8 +1,8 @@
-//@compile-flags: -Zmir-pipeline=storage-load-cse
+//@compile-flags: -Zmir-pipeline=storage-cse
 //@filecheck:
-@module StorageLoadCse
+@module StorageCse
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_across_disjoint_constant_store{{[( ]}}
-// CHECK: + [[LOAD:v[0-9]+]] = sload 0
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = sload 0
 // CHECK: + {{v[0-9]+}} = add [[LOAD]], [[LOAD]]
 fn @reuse_across_disjoint_constant_store() -> i256 {
   bb0:
@@ -14,8 +14,8 @@ fn @reuse_across_disjoint_constant_store() -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @forward_after_same_slot_store{{[( ]}}
+// CHECK: {{^[ +].*}}sstore 0, 9
 // CHECK: - {{v[0-9]+}} = sload 0
-// CHECK: + sstore 0, 9
 // CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, 9
 fn @forward_after_same_slot_store() -> i256 {
   bb0:
@@ -27,9 +27,9 @@ fn @forward_after_same_slot_store() -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_after_symbolic_store{{[( ]}}
-// CHECK: + {{v[0-9]+}} = sload 0
-// CHECK: + sstore arg0, 9
-// CHECK: + {{v[0-9]+}} = sload 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
+// CHECK: {{^[ +].*}}sstore arg0, 9
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
 fn @keep_after_symbolic_store(arg0: i256) -> i256 {
   bb0:
     v1 = sload 0
@@ -40,7 +40,7 @@ fn @keep_after_symbolic_store(arg0: i256) -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_across_disjoint_offset_store{{[( ]}}
-// CHECK: + [[LOAD:v[0-9]+]] = sload
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = sload
 // CHECK: + {{v[0-9]+}} = add [[LOAD]], [[LOAD]]
 fn @reuse_across_disjoint_offset_store(arg0: i256) -> i256 {
   bb0:
@@ -55,8 +55,8 @@ fn @reuse_across_disjoint_offset_store(arg0: i256) -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_when_reuse_extends_live_range{{[( ]}}
-// CHECK: + {{v[0-9]+}} = sload 0
-// CHECK: + [[SECOND:v[0-9]+]] = sload 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
+// CHECK: {{^[ +].*}}[[SECOND:v[0-9]+]] = sload 0
 // CHECK: {{^[ +].*}}ret [[SECOND]]
 fn @keep_when_reuse_extends_live_range() -> i256 {
   bb0:

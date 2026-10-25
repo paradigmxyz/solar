@@ -70,11 +70,21 @@
 //! A word store or a semantic length store also seeds the cache with the stored
 //! value under the written location, so a later load of that exact word forwards
 //! the value instead of reading memory; the ordinary clobber rules retire the
-//! entry. Inside loops, a cheap load is only replaced by a value cached in a
-//! dominating block when that value is already live into the loading block or
-//! the address is loop-invariant: reviving a dead value across the loop body
+//! entry. An exact `sstore` or `tstore` seeds the cache the same way, which exposes packed
+//! field updates as word expressions for storage DSE and forwards a transient write to its
+//! reads. In the storage-only mode below, a storage or transient read whose earlier read of
+//! the same slot has no later use stays and replaces the cache entry, so forwarding never
+//! makes a loaded word live longer. A stored word is forwarded, since the store already keeps
+//! it live, unless it is itself an unused earlier read of that slot. Inside loops, a cheap load is
+//! only replaced by a value cached in a dominating block when that value is already live into the
+//! loading block or the address is loop-invariant: reviving a dead value across the loop body
 //! costs the scheduler more stack traffic than the load it removes. Acyclic
 //! reuse is unchanged. Loop and liveness facts are built only when a candidate reuse needs them.
+//!
+//! `storage-cse` runs the same walk over storage and transient-storage reads and stores alone.
+//! It leaves arithmetic, memory reads, and phi sinking to the full pass, which grows bytecode
+//! through longer live ranges; forwarding stored words does not, so the lowering pipeline runs
+//! the storage-only mode in every optimization mode, right before storage DSE.
 //!
 //! Unchanged functions without internal calls can skip later runs until their
 //! body changes; callers must still observe any improved callee summaries.
@@ -103,11 +113,22 @@ use solar_sema::hir::StateMutability;
 use std::{cell::OnceCell, cmp::Ordering, ops::Range, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
-pub(crate) struct Cse;
+pub(crate) enum Cse {
+    /// Common every supported expression.
+    All,
+    /// Common only storage and transient-storage reads, forwarding stored words to later reads.
+    Storage,
+}
+
+/// Unchanged-body cache key of [`Cse::Storage`], which skips less than [`Cse::All`] does.
+struct StorageCse;
 
 impl MirPass for Cse {
     fn name(&self) -> &'static str {
-        "cse"
+        match self {
+            Self::All => "cse",
+            Self::Storage => "storage-cse",
+        }
     }
 
     fn run_pass(
@@ -116,9 +137,20 @@ impl MirPass for Cse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let storage_only = matches!(self, Self::Storage);
         let mut leaves = DenseBitSet::new_empty(module.functions.len());
         let mut callers = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
+            if storage_only
+                && !func.instructions().any(|inst| {
+                    matches!(
+                        func.inst(inst).kind,
+                        InstKind::Load(.., PtrLocation::Storage | PtrLocation::Transient)
+                    )
+                })
+            {
+                continue;
+            }
             if func
                 .instructions()
                 .any(|inst| matches!(func.inst(inst).kind, InstKind::ICall { .. }))
@@ -139,7 +171,13 @@ impl MirPass for Cse {
                 .nth(1)
                 .is_none()
                 && !func.instructions().any(|inst| {
-                    matches!(func.inst(inst).kind, InstKind::Store(.., PtrLocation::Memory))
+                    matches!(
+                        func.inst(inst).kind,
+                        InstKind::Store(
+                            ..,
+                            PtrLocation::Memory | PtrLocation::Storage | PtrLocation::Transient
+                        )
+                    )
                 })
             {
                 return false;
@@ -147,6 +185,7 @@ impl MirPass for Cse {
             let mut eliminator = CommonSubexprEliminator {
                 call_summaries: summaries.as_ref().map(Arc::clone),
                 pure_calls: pure_calls.as_ref().map(Arc::clone),
+                storage_only,
                 ..Default::default()
             };
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
@@ -154,7 +193,11 @@ impl MirPass for Cse {
         };
         // A callee's new summary can expose CSE in an unchanged caller. Only cache
         // functions whose result depends entirely on their own body.
-        let mut changed = run_selected_function_pass_cached::<Self>(module, analyses, &leaves, run);
+        let mut changed = if storage_only {
+            run_selected_function_pass_cached::<StorageCse>(module, analyses, &leaves, run)
+        } else {
+            run_selected_function_pass_cached::<Self>(module, analyses, &leaves, run)
+        };
         changed |= run_selected_function_pass(module, analyses, &callers, run);
         // CSE replaces equivalent values without changing control flow. Its old call
         // summaries remain conservative after redundant reads and computations disappear.
@@ -241,6 +284,8 @@ struct CommonSubexprEliminator {
     /// Pure leaf functions whose calls depend on their arguments alone, per
     /// [`pure_leaf_functions`].
     pure_calls: Option<Arc<DenseBitSet<FunctionId>>>,
+    /// Common only storage and transient-storage reads.
+    storage_only: bool,
 }
 
 /// A normalized expression key for CSE lookup.
@@ -335,6 +380,8 @@ struct MemoryReuseFacts {
 
 struct GlobalCseContext<'a> {
     liveness: OnceCell<Liveness>,
+    /// Block live sets and last uses, built for the first storage read that meets an earlier read.
+    use_liveness: OnceCell<Liveness>,
     dom_tree: &'a DominatorTree,
     block_clobbers: &'a [(BlockId, Vec<Clobber>)],
     /// Where each side effect's clobbers sit in `block_clobbers`.
@@ -476,16 +523,19 @@ impl CommonSubexprEliminator {
     }
 
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
-        self.sink_redundant_phi_expressions(func, cfg);
+        if !self.storage_only {
+            self.sink_redundant_phi_expressions(func, cfg);
+        }
 
         self.alias().clear_cached_addresses();
         self.process_global_pure(func, cfg);
 
         // Process each block independently (local CSE)
         let block_ids = func.blocks.indices();
+        let liveness = OnceCell::new();
         for block_id in block_ids {
             self.alias().clear_cached_addresses();
-            self.process_block(func, block_id);
+            self.process_block(func, block_id, &liveness);
         }
 
         self.eliminated_count
@@ -542,6 +592,7 @@ impl CommonSubexprEliminator {
         let mut dead = DenseBitSet::new_empty(func.num_insts());
         let mut ctx = GlobalCseContext {
             liveness: OnceCell::new(),
+            use_liveness: OnceCell::new(),
             dom_tree,
             block_clobbers: &block_clobbers,
             side_effect_clobbers: &side_effect_clobbers,
@@ -699,7 +750,7 @@ impl CommonSubexprEliminator {
         worklist.push((BlockId::ENTRY, ExprCache::default()));
         while let Some((block_id, mut cache)) = worklist.pop() {
             let mut gas_observed = self.gas().at_entry(block_id);
-            for &inst_id in &func.blocks[block_id].instructions {
+            for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
                 let kind = &func.inst(inst_id).kind;
                 if self.gas().observes(inst_id) {
                     cache.clear_stateful();
@@ -720,6 +771,14 @@ impl CommonSubexprEliminator {
                 {
                     if matches!(key, ExprKey::MLoad(_))
                         && !Self::memory_reuse_pays_off(func, ctx, block_id, *cached, kind)
+                        || self.reload_shortens_life(
+                            func,
+                            key,
+                            *cached,
+                            &ctx.use_liveness,
+                            block_id,
+                            inst_idx,
+                        )
                     {
                         // Reload instead of extending the cached value's live range.
                         cache.insert(key.clone(), *result);
@@ -1027,7 +1086,12 @@ impl CommonSubexprEliminator {
     }
 
     /// Processes a single basic block.
-    fn process_block(&mut self, func: &mut Function, block_id: BlockId) {
+    fn process_block(
+        &mut self,
+        func: &mut Function,
+        block_id: BlockId,
+        liveness: &OnceCell<Liveness>,
+    ) {
         // Map from expression key to the ValueId that computed it
         let mut expr_cache = ExprCache::default();
 
@@ -1060,6 +1124,10 @@ impl CommonSubexprEliminator {
                 && let Some(&cached_value) = expr_cache.get(key)
                 && func.value_ty(*result) == func.value_ty(cached_value)
             {
+                if self.reload_shortens_life(func, key, cached_value, liveness, block_id, index) {
+                    expr_cache.insert(key.clone(), *result);
+                    continue;
+                }
                 // repeated expression with unchanged read/write dependencies -> cached value
                 replacements.insert(*result, cached_value);
                 to_remove.insert(inst_id);
@@ -1097,13 +1165,61 @@ impl CommonSubexprEliminator {
     ) -> Option<(ExprKey, ValueId)> {
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
         match *kind {
-            InstKind::Store(addr, stored, PtrLocation::Memory) => {
+            InstKind::Store(addr, stored, PtrLocation::Memory) if !self.storage_only => {
                 let key =
                     self.memory_range_key(func, inst_id, value(addr), LocationSize::Const(32))?;
                 Some((ExprKey::MLoad(key), value(stored)))
             }
+            InstKind::Store(
+                slot,
+                stored,
+                location @ (PtrLocation::Storage | PtrLocation::Transient),
+            ) => {
+                let alias = self.alias().storage_alias_after_replacements(
+                    func,
+                    inst_id,
+                    slot,
+                    replacements,
+                );
+                let key = match location {
+                    PtrLocation::Storage => ExprKey::SLoad(alias),
+                    _ => ExprKey::TLoad(alias),
+                };
+                Some((key, value(stored)))
+            }
             _ => None,
         }
+    }
+
+    /// Whether forwarding `cached` to the read `key` would only stretch the live range of a loaded
+    /// word: it is a storage or transient read of the same slot that nothing at or after `inst_idx`
+    /// uses. The later read stays and takes over the cache entry. A stored word is always
+    /// forwarded, since the store already holds it live. Only the storage-only mode keeps such
+    /// reads; the full pass merges them, as it always has.
+    fn reload_shortens_life(
+        &self,
+        func: &Function,
+        key: &ExprKey,
+        cached: ValueId,
+        liveness: &OnceCell<Liveness>,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> bool {
+        if !self.storage_only {
+            return false;
+        }
+        let Value::Inst(def) = *func.value(cached) else { return false };
+        let loaded = match (key, &func.inst(def).kind) {
+            (ExprKey::SLoad(alias), InstKind::Load(slot, PtrLocation::Storage))
+            | (ExprKey::TLoad(alias), InstKind::Load(slot, PtrLocation::Transient)) => {
+                self.alias().storage_alias(func, def, *slot) == *alias
+            }
+            _ => false,
+        };
+        loaded
+            && !liveness
+                .get_or_init(|| Liveness::compute(func))
+                .is_used_at_or_after(cached, block, inst_idx)
     }
 
     /// Creates a normalized expression key for an instruction.
@@ -1115,6 +1231,11 @@ impl CommonSubexprEliminator {
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ExprKey> {
+        if self.storage_only
+            && !matches!(kind, InstKind::Load(.., PtrLocation::Storage | PtrLocation::Transient))
+        {
+            return None;
+        }
         if !kind.effects().can_common() && !self.is_restoring_call(kind) && !self.is_pure_call(kind)
         {
             return None;

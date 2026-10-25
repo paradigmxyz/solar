@@ -155,9 +155,15 @@ cleanup steps without introducing another stable phase. The gas pipeline runs
 CSE, storage PRE, and range-check elimination after aggregate expansion.
 First eliminate repeated dominated loads, then replace join loads with phis and
 fold checks that forwarding exposes. Storage PRE leaves memory reads alone to
-avoid extending pointer lifetimes. After allocation expansion, gas mode forwards
-free-memory-pointer loads within each block, discarding the cached word at other
-side effects. ABI expansion can create object operations
+avoid extending pointer lifetimes. Before storage DSE, a storage-only CSE mode
+forwards each exact `sstore` and `tstore` word to later reads of that slot in
+both optimization modes, so packed read-modify-write stores reach DSE as word
+expressions. A read stays when the earlier read of its slot has no later use,
+so forwarding never extends a loaded word's lifetime. Storage DSE also removes
+overwritten `tstore`s: a revert discards transient writes, while a return, stop,
+or call leaves them readable by a re-entrant `tload`. After allocation
+expansion, gas mode forwards free-memory-pointer loads within each block,
+discarding the cached word at other side effects. ABI expansion can create object operations
 and aggregate results; flatten structs before lowering memory objects, and keep
 allocation identity until placement has finished. Any newly introduced helper must pass through the remaining required
 lowerings too. Expansion must not leave a high-level operation behind merely

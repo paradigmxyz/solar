@@ -1,5 +1,5 @@
-// === ROOT/tests/ui/codegen/mir/storage-load-cse/extended_blocks_runtime.sol:StorageLoadCseExtendedBlocks ===
-@module StorageLoadCseExtendedBlocks
+// === ROOT/tests/ui/codegen/mir/cse/extended_blocks_runtime.sol:StorageCseExtendedBlocks ===
+@module StorageCseExtendedBlocks
 fn @aliasedElement(arg0: i256) -> i256 [selector=0x7d7000ed, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 0, 2
