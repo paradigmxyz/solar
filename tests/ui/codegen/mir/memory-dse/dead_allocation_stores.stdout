@@ -311,3 +311,15 @@
       stop
   }
   
+  fn @indexed_write_before(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = alloc 64
+      v1 = ptradd v0, arg1
+      mstore v1, 1
+      v2 = alloc 64
+      mstore v2, arg0
+      v3 = mload v0
+      mstore 0, v3
+      returndata 0, 32
+  }
+  

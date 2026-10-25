@@ -1769,10 +1769,14 @@ impl MemoryStoreEliminator {
         }
 
         let mut heap_reads = Vec::new();
+        let mut wrapping_writes = Vec::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for (index, &inst) in block.instructions.iter().enumerate() {
                 let effects = self.alias().instruction_mod_ref(func, inst);
                 self.collect_heap_reads(func, &effects, (block_id, index), &mut heap_reads);
+                if Self::may_wrap_write(&effects) {
+                    wrapping_writes.push((block_id, index));
+                }
             }
             if let Some(terminator) = &block.terminator {
                 let effects = self.alias().terminator_mod_ref(func, terminator);
@@ -1784,6 +1788,14 @@ impl MemoryStoreEliminator {
         for (alloc, access) in candidates {
             let (alloc_block, alloc_index) = positions[&alloc];
             let deferred = func.inst(alloc).metadata.deferred_alloc();
+            // A write that wraps may rewind the free-memory pointer, which freshness ignores.
+            if !deferred
+                && wrapping_writes
+                    .iter()
+                    .any(|&write| Self::position_reaches(cfg, write, (alloc_block, alloc_index)))
+            {
+                continue;
+            }
             // An out-of-bounds read of an object that precedes this one can reach it.
             let heap_reads = heap_reads.iter().filter(|read| {
                 !deferred
@@ -1870,6 +1882,18 @@ impl MemoryStoreEliminator {
             };
             heap_reads.push(HeapRead { position, beyond });
         }
+    }
+
+    /// Returns whether `effects` write memory through a runtime index, which wraps and so may land
+    /// on the free-memory pointer.
+    fn may_wrap_write(effects: &ModRef) -> bool {
+        effects.writes().iter().any(|access| {
+            matches!(
+                access,
+                Access::Location(Location::Memory(location))
+                    if location.size == LocationSize::Unknown
+            )
+        })
     }
 
     /// Returns the allocation `pointer` is the result of, if it has a fresh provenance.
