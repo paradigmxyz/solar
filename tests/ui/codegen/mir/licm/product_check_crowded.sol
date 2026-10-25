@@ -5,7 +5,7 @@
 //@ run-call-fail: crowded 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 2, 3, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 
 contract ProductCheckCrowded {
-    // A loop that already carries five words keeps its division: the bound would be a sixth.
+    // A loop that carries many words keeps its division: the bound would be one more.
     // CHECK-LABEL: @module ProductCheckCrowded_runtime
     // CHECK: [loop]:
     // CHECK: div
