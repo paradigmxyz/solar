@@ -14,11 +14,12 @@ run one discovered project.
 The Foundry runner runs solc once per project, with the project's own optimizer
 settings, as the baseline. It then runs the compiler at `-O none`, `-O gas`, and
 `-O size`, whatever the project's `foundry.toml` says, and every level must pass
-every test. A failing level is named in the output, and the other levels still
-run. Set `SOLAR_FOUNDRY_OPTIMIZATION=none|gas|size` to run one level, such as
-`SOLAR_FOUNDRY_OPTIMIZATION=none cargo tq foundry`. Only gas use and code size
-may differ between levels; a test that passes at one level and fails at another
-is a compiler bug.
+every test. A level that fails its assertions is named in the output, and the
+other levels are still judged. Set `SOLAR_FOUNDRY_OPTIMIZATION` (see below) to
+run one level, such as `SOLAR_FOUNDRY_OPTIMIZATION=none cargo tq foundry`. Only
+gas use and code size may differ between levels. The gas and size comparisons
+printed for each level are against solc at the project's own optimizer settings,
+which is unoptimized for most projects.
 
 Arguments after a UI-mode suite name (`ui`, `mir`, `evm-ir`, `standard-json`,
 `solc-solidity`, `solc-yul`) filter tests by path substring, as in
@@ -99,8 +100,8 @@ Seaport at `SOLAR_FOUNDRY_OPTIMIZATION=none` fails 16 tests that pass at `gas`
 and `size`. `FuzzInscribers._getStorageSlotForOrderHash` uses `vm.accesses` to
 assert that `getOrderStatus` reads storage with exactly one `SLOAD`, which holds
 only in an optimized build; an unoptimized build reads the packed slot once per
-field. Treat those failures as expected at `none` and the test as an
-optimized-build assumption, not a compiler bug.
+field. Treat those failures as expected at `none`: the test assumes an
+optimized build.
 
 A green run can still hide tests that fail under both compilers; check the
 reported baseline failures before claiming full coverage.
@@ -119,7 +120,9 @@ Environment variables:
   when sources pin an exact `pragma solidity`), `skip_tests` and
   `skip_contracts` (arrays of `{ pattern, reason }`; `reason` is required), and
   `notes`.
-- `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports.
+- `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports. The `solar`
+  entry maps each optimization level (`none`, `gas`, `size`, or `project` when
+  the project's own settings apply) to its run.
 - `SOLAR_FOUNDRY_SKIP`: skip the default Foundry suite. Without it, a missing
   `forge` or Solar binary fails the suite instead of passing silently.
 - `SOLAR_FOUNDRY_COMPILER`: Solar executable to use instead of the one Cargo
