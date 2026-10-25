@@ -732,7 +732,7 @@ impl<'a> Validator<'a> {
     fn functions_are_valid(&self, module: &Module, phase: MirPhase) -> bool {
         let returning_functions = &self.returning_functions;
         let return_field_counts = &self.return_field_counts;
-        sync::par_try_map(module.functions.len() > 1, module.functions.indices().collect(), |id| {
+        sync::par_try_map(true, module.functions.indices().collect(), |id| {
             let dcx = DiagCtxt::with_silent_emitter(None);
             let mut validator = Validator::new(&dcx);
             validator.returning_functions = returning_functions.clone();
