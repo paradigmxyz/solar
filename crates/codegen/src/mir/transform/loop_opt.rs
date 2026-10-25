@@ -952,22 +952,23 @@ impl LoopOptimizer {
                 let kind = &func.inst(user_inst).kind;
                 let mut address_operands = ArrayVec::<ValueId, 2>::new();
                 match kind {
-                    InstKind::Load(addr, _)
-                    | InstKind::Store(addr, ..)
-                    | InstKind::Store8(addr, _)
-                    | InstKind::Keccak256(addr, _)
-                    | InstKind::Copy(addr, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
-                    | InstKind::DataCopy(_, addr, _)
-                    | InstKind::CodeCopy(addr, _, _)
-                    | InstKind::ExtCodeCopy(_, addr, _, _) => address_operands.push(*addr),
+                    // Storage and transient slots are not memory ranges but are checked as
+                    // addresses too.
+                    InstKind::Load(addr, _) | InstKind::Store(addr, ..) => {
+                        address_operands.push(*addr);
+                    }
                     InstKind::MappingSlotBytes(key, _)
                         if func.value_ty(*key) == Some(MirType::MEMPTR) =>
                     {
                         address_operands.push(*key);
                     }
-                    InstKind::Copy(dst, src, _, PtrLocation::Memory) => {
-                        address_operands.push(*dst);
-                        address_operands.push(*src);
+                    // Calls, creates, and logs do not count as address uses.
+                    _ if matches!(
+                        kind.effect_kind(),
+                        EffectKind::MemoryRead | EffectKind::MemoryWrite
+                    ) =>
+                    {
+                        kind.visit_raw_memory(|_, addr, _| address_operands.push(addr));
                     }
                     _ => continue,
                 }
