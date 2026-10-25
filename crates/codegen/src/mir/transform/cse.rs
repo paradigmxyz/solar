@@ -1116,7 +1116,10 @@ impl CommonSubexprEliminator {
         }
         let Value::Inst(def) = *func.value(cached) else { return false };
         let loaded = match (key, &func.inst(def).kind) {
-            (ExprKey::SlotLoad(read), InstKind::Load(slot, location)) => {
+            (
+                ExprKey::SlotLoad(read),
+                InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)),
+            ) => {
                 Location::slot(*location, self.alias().storage_alias(func, def, *slot))
                     == Some(*read)
             }
