@@ -25,18 +25,6 @@ fn @checked(arg0: i256) {
     revert v0, 32
 }
 
-// A read of the free-memory pointer before the allocation is not a use of the region.
-// CHECK:   fn @fmp_read_before{{.*}}
-// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
-// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
-fn @fmp_read_before(arg0: i256) {
-  bb0:
-    v1 = mload 64
-    v0 = alloc arg0
-    mstore v0, v1
-    revert v0, 32
-}
-
 // Uses in different branches share one lifetime that ends on every path.
 // CHECK:   fn @branches{{.*}}
 // CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0

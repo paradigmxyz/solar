@@ -1,0 +1,15 @@
+- // === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_fmp_range_read.mir (before defer-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_fmp_range_read.mir (after defer-alloc) ===
+  @module DeferAllocUnreservedFmpRangeRead
+  fn @helper(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      revert v0, 32
+  }
+  
+  fn @observer() {
+    bb0:
+      revert 64, 32
+  }
+  

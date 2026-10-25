@@ -671,8 +671,9 @@ reserving its final size. The flag round-trips through MIR text.
 An `fmp` result is an unreserved region: the next allocation reuses it, so its pointer must
 die before anything else reads or advances the free-memory pointer. After physical inlining,
 `defer-alloc` rewrites a non-escaping infallible `alloc` to `fmp` when that holds. Zeroed
-allocations keep an explicit `memory_zero`. Checked allocations, `preserves_fmp` allocations,
-and those followed by a raw load of slot 64 in the same function keep their bump.
+allocations keep an explicit `memory_zero`. Checked allocations and `preserves_fmp` allocations
+keep their bump, and so does every allocation of a module that reads a constant range covering
+slot 64, since assembly can see the missing bump.
 
 Load PRE inserts reads only when the join prefix cannot revert, terminate, or
 diverge. Availability on one predecessor does not make it safe to execute a load

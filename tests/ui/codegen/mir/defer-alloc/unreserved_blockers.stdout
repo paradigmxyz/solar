@@ -28,34 +28,12 @@
       revert v0, 32
   }
   
-  fn @assembly_reads_fmp(arg0: i256) {
+  fn @variable_address_read(arg0: i256, arg1: i256) {
     bb0:
       v0 = alloc arg0
-      v1 = mload 64
+      v1 = mload arg1
       mstore v0, v1
       revert v0, 32
-  }
-  
-  fn @assembly_reads_fmp_after(arg0: i256) -> i256 {
-    bb0:
-      v0 = alloc arg0
-      mstore v0, 1
-      v1 = keccak256 v0, 32
-      v2 = mload 64
-      ret v2
-  }
-  
-  fn @assembly_reads_fmp_in_loop(arg0: i256) {
-    bb0:
-      jump bb1
-    bb1:
-      v0 = mload 64
-      v1 = alloc arg0
-      mstore v1, v0
-      v2 = keccak256 v1, 32
-      jumpi true, bb1, bb2
-    bb2:
-      stop
   }
   
   fn @assembly_writes_absolute(arg0: i256) {
@@ -106,10 +84,96 @@
   
   fn @allocates() {
     bb0:
--     v0 = alloc 32
-+     v0 = fmp
+      v0 = alloc 32 !metadata(preserves_fmp)
       mstore v0, 1
       ret
+  }
+  
+  fn @callee_writes_absolute(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      icall @writes_absolute
+      revert v0, 32
+  }
+  
+  fn @writes_absolute() {
+    bb0:
+      mstore 0x1000, 1
+      ret
+  }
+  
+  fn @callee_writes_argument(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      icall @writes_argument, arg1
+      revert v0, 32
+  }
+  
+  fn @writes_argument(arg0: i256) {
+    bb0:
+      mstore arg0, 1
+      ret
+  }
+  
+  fn @allocation_only(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = alloc arg0 !metadata(preserves_fmp)
+      revert v0, 32
+  }
+  
+  fn @fmp_only(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = fmp
+      revert v0, 32
+  }
+  
+  fn @msize_only(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      v1 = msize
+      revert v0, 32
+  }
+  
+  fn @preserves_fmp(arg0: i256) {
+    bb0:
+      v0 = alloc arg0 !metadata(preserves_fmp)
+      mstore v0, 1
+      revert v0, 32
+  }
+  
+  fn @blocker_in_middle_block(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      jump bb1
+    bb1:
+      mstore 0x1000, 1
+      jump bb2
+    bb2:
+      revert v0, 32
+  }
+  
+  fn @blocker_between_uses(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      mstore 0x1000, 1
+      jump bb1
+    bb1:
+      revert v0, 32
+  }
+  
+  fn @pointer_as_size(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      v1 = ptrtoint ptr<memory> v0 to i256
+      revert 0, v1
   }
   
   fn @loop_carried(arg0: i256) -> i256 {

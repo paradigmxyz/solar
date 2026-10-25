@@ -50,10 +50,11 @@
 //! slot 64 qualify. Memory-safe assembly may write past the FMP only after reading it, so the
 //! first rule covers it, and the second covers assembly writing absolute addresses.
 //!
-//! Assembly can see the missing bump after the lifetime, so a raw load of slot 64 that follows the
-//! allocation on any path in the same function keeps it, as do allocations marked as
-//! source-visible FMP advances. The scan does not follow calls or callers. Allocations that static
-//! placement takes are left alone.
+//! Assembly can see a missing bump anywhere in the contract, as `mload(0x40)` before and after a
+//! call that allocates, and the test suite pins such deltas. So one read of a constant range that
+//! covers slot 64, in any function of the module, keeps every bump. Allocations marked as
+//! source-visible FMP advances and those that static placement takes are left alone. `msize` and
+//! reads through variable addresses outside the lifetime are not tracked.
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, ArgIdx, BlockId, Callee,
@@ -98,9 +99,13 @@ impl MirPass for DeferAlloc {
         let summaries = analyses.call_summaries(module);
         let mut candidates = Vec::new();
         let mut unreserved = Vec::new();
+        // Assembly can observe a missing bump anywhere in the contract, as `mload(0x40)` before
+        // and after a call, so one such access anywhere keeps every bump.
+        let unreserved_allowed =
+            matches!(self, Self::Late) && !module.functions.iter().any(accesses_fmp_slot);
         for (func_id, func) in module.functions.iter_enumerated() {
             let eligible = eligible_static_allocations(func_id, func, &calls, &summaries);
-            if matches!(self, Self::Late) {
+            if unreserved_allowed {
                 let placed = eligible.iter().map(|candidate| candidate.alloc).collect::<Vec<_>>();
                 unreserved.extend(
                     eligible_unreserved_allocations(func, &calls, &summaries, &placed)
@@ -520,28 +525,11 @@ fn eligible_unreserved_allocations(
     allocs.retain(|placement| cfg.is_reachable(placement.block));
 
     let mut positions = index_vec![(BlockId::ENTRY, 0); func.num_insts()];
-    let mut last_fmp_load = FxHashMap::default();
     for (block, data) in func.blocks.iter_enumerated() {
         for (position, &inst) in data.instructions.iter().enumerate() {
             positions[inst] = (block, position);
-            if let InstKind::Load(address, PtrLocation::Memory) = func.inst(inst).kind
-                && func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-            {
-                last_fmp_load.insert(block, position);
-            }
         }
     }
-    // Blocks that reach a block with such a load through at least one edge.
-    let mut reaches_fmp_load = DenseBitSet::new_empty(cfg.num_blocks());
-    let mut pending = last_fmp_load.keys().copied().collect::<Vec<_>>();
-    while let Some(block) = pending.pop() {
-        for &pred in cfg.predecessors(block) {
-            if reaches_fmp_load.insert(pred) {
-                pending.push(pred);
-            }
-        }
-    }
-
     let analysis = UnreservedAnalysis {
         func,
         cfg,
@@ -550,8 +538,6 @@ fn eligible_unreserved_allocations(
         calls,
         summaries,
         positions,
-        last_fmp_load,
-        reaches_fmp_load,
     };
     allocs.retain(|&placement| analysis.is_unreserved(placement));
     allocs
@@ -566,25 +552,12 @@ struct UnreservedAnalysis<'a> {
     summaries: &'a MemoryCallSummaries,
     /// The block and position of every placed instruction.
     positions: IndexVec<InstId, (BlockId, usize)>,
-    /// The last raw load of the free-memory pointer's slot, which assembly uses to read it, in
-    /// each block that has one.
-    last_fmp_load: FxHashMap<BlockId, usize>,
-    /// The blocks that reach a block with such a load through at least one edge.
-    reaches_fmp_load: DenseBitSet<BlockId>,
 }
 
 impl UnreservedAnalysis<'_> {
     fn is_unreserved(&self, Placement { alloc, block: alloc_block, position }: Placement) -> bool {
         let func = self.func;
         let ptr = func.inst_result_value(alloc).expect("allocation must produce a value");
-        // Assembly can read the free-memory pointer after the allocation and see its bump, as
-        // `mload(0x40)` before and after a call that allocates, so the allocation keeps it. The
-        // check covers this function only.
-        if self.reaches_fmp_load.contains(alloc_block)
-            || self.last_fmp_load.get(&alloc_block).is_some_and(|&load| load > position)
-        {
-            return false;
-        }
         let Some(derived) = derive_pointers(func, ptr, &self.uses, None) else { return false };
         let Some(use_ends) = self.pointer_uses(alloc, &derived) else { return false };
 
@@ -771,6 +744,36 @@ impl UnreservedAnalysis<'_> {
             }
         }
     }
+}
+
+/// Whether the function reads a constant, sized range that overlaps the free-memory pointer's slot,
+/// the way assembly reads the pointer. Writes do not count: the entry's initialization writes it.
+fn accesses_fmp_slot(func: &Function) -> bool {
+    let overlaps = |address, size: Option<u64>| {
+        func.value_u64(address).is_some()
+            && size.is_some()
+            && AliasAnalysis::range_may_overlap_fmp(func, address, size)
+    };
+    func.instructions().any(|inst| {
+        let mut hit = false;
+        func.inst(inst).kind.visit_raw_memory(|access, address, size| {
+            hit |= access == RawMemoryAccess::Read
+                && overlaps(
+                    address,
+                    match size {
+                        RawMemorySize::Bytes(len) => Some(len),
+                        RawMemorySize::Value(size) => func.value_u64(size),
+                    },
+                );
+        });
+        hit
+    }) || func.blocks.iter().any(|block| {
+        matches!(
+            block.terminator,
+            Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size })
+                if overlaps(offset, func.value_u64(size))
+        )
+    })
 }
 
 /// Whether a write of `len` bytes at `address` stays inside the scratch words below the

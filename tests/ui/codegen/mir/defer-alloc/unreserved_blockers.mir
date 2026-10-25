@@ -41,44 +41,15 @@ fn @external_call_at_pointer(arg0: i256) {
     revert v0, 32
 }
 
-// Assembly that reads the free-memory pointer can derive a region from it.
-// CHECK:   fn @assembly_reads_fmp{{.*}}
+// Assembly that reads through a variable address may read the free-memory pointer's slot.
+// CHECK:   fn @variable_address_read{{.*}}
 // CHECK-NOT: + {{.*}}fmp
-fn @assembly_reads_fmp(arg0: i256) {
+fn @variable_address_read(arg0: i256, arg1: i256) {
   bb0:
     v0 = alloc arg0
-    v1 = mload 64
+    v1 = mload arg1
     mstore v0, v1
     revert v0, 32
-}
-
-// Assembly that reads the free-memory pointer after the allocation sees its bump, so the
-// allocation keeps it even though the region is dead by then.
-// CHECK:   fn @assembly_reads_fmp_after{{.*}}
-// CHECK-NOT: + {{.*}}fmp
-fn @assembly_reads_fmp_after(arg0: i256) -> i256 {
-  bb0:
-    v0 = alloc arg0
-    mstore v0, 1
-    v1 = keccak256 v0, 32
-    v2 = mload 64
-    ret v2
-}
-
-// The read can also come around a loop back edge.
-// CHECK:   fn @assembly_reads_fmp_in_loop{{.*}}
-// CHECK-NOT: + {{.*}}fmp
-fn @assembly_reads_fmp_in_loop(arg0: i256) {
-  bb0:
-    jump bb1
-  bb1:
-    v1 = mload 64
-    v0 = alloc arg0
-    mstore v0, v1
-    v2 = keccak256 v0, 32
-    jumpi true, bb1, bb2
-  bb2:
-    stop
 }
 
 // Assembly that writes an absolute address can overwrite the region.
@@ -131,7 +102,7 @@ fn @phi_escape(arg0: i256, arg1: i1) -> i256 {
 
 // A callee that allocates moves the free-memory pointer under the region.
 // CHECK:   fn @callee_allocates{{.*}}
-// CHECK: alloc arg0
+// CHECK-NOT: + {{.*}}fmp
 fn @callee_allocates(arg0: i256) {
   bb0:
     v0 = alloc arg0
@@ -144,9 +115,124 @@ fn @callee_allocates(arg0: i256) {
 
 fn @allocates() {
   bb0:
-    v0 = alloc 32
+    v0 = alloc 32 !metadata(preserves_fmp)
     mstore v0, 1
     ret
+}
+
+// A callee that writes an absolute address can overwrite the region.
+// CHECK:   fn @callee_writes_absolute{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @callee_writes_absolute(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    icall @writes_absolute
+    revert v0, 32
+}
+
+fn @writes_absolute() {
+  bb0:
+    mstore 4096, 1
+    ret
+}
+
+// A callee that writes through a pointer the allocation does not address can too.
+// CHECK:   fn @callee_writes_argument{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @callee_writes_argument(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    icall @writes_argument, arg1
+    revert v0, 32
+}
+
+fn @writes_argument(arg0: i256) {
+  bb0:
+    mstore arg0, 1
+    ret
+}
+
+// Each blocker below is the only one in its function. A second allocation inside the lifetime
+// hands out the same memory.
+// CHECK:   fn @allocation_only{{.*}}
+// CHECK-NOT: + {{.*}}v0 = fmp
+fn @allocation_only(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = alloc arg0 !metadata(preserves_fmp)
+    revert v0, 32
+}
+
+// A read of the free-memory pointer inside the lifetime can derive a region from it.
+// CHECK:   fn @fmp_only{{.*}}
+// CHECK-NOT: + {{.*}}v0 = fmp
+fn @fmp_only(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = fmp
+    revert v0, 32
+}
+
+// So can a read of the memory size, which changes with the region.
+// CHECK:   fn @msize_only{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @msize_only(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = msize
+    revert v0, 32
+}
+
+// An allocation marked as a source-visible advance keeps its bump.
+// CHECK:   fn @preserves_fmp{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @preserves_fmp(arg0: i256) {
+  bb0:
+    v0 = alloc arg0 !metadata(preserves_fmp)
+    mstore v0, 1
+    revert v0, 32
+}
+
+// A block between the allocation and its use is part of the lifetime.
+// CHECK:   fn @blocker_in_middle_block{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @blocker_in_middle_block(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    jump bb1
+  bb1:
+    mstore 4096, 1
+    jump bb2
+  bb2:
+    revert v0, 32
+}
+
+// So is the rest of a block that has a use, when another use follows in a later block.
+// CHECK:   fn @blocker_between_uses{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @blocker_between_uses(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    mstore 4096, 1
+    jump bb1
+  bb1:
+    revert v0, 32
+}
+
+// The pointer cannot also be the size of the terminator's range.
+// CHECK:   fn @pointer_as_size{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @pointer_as_size(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    revert 0, v1
 }
 
 // A pointer returned to the caller from a loop iteration stays a phi use.
