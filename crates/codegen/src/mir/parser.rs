@@ -53,7 +53,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet, StdEntry},
 };
 use solar_interface::{
-    BytePos, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
+    BytePos, ByteSymbol, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
 use solar_parse::{PErr, PResult};
 use solar_sema::hir;
@@ -1038,8 +1038,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .map_err(|_| self.parser.error("ABI fixed-array length does not fit in u64"))?;
                 self.parser.expect(TokenKind::Comma)?;
                 let element = Box::new(self.parse_abi_type()?);
+                // A split `>>` still owes its closer, so the next comma belongs to the caller.
+                let wordwise = self.pending_gt == 0 && self.parser.eat(TokenKind::Comma);
+                if wordwise && self.parser.parse_ident()? != sym::wordwise {
+                    return Err(self.parser.error("expected `wordwise` after the array element"));
+                }
                 self.expect_gt()?;
-                AbiType::FixedArray { element, len }
+                AbiType::FixedArray {
+                    block_copy: !wordwise && matches!(*element, AbiType::Word(None)),
+                    element,
+                    len,
+                }
             }
             sym::tuple => {
                 self.parser.expect(TokenKind::Lt)?;
@@ -1994,6 +2003,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Lt)?;
                     let kind = match self.parser.parse_ident()? {
                         sym::short_string => super::RequireKind::ShortString,
+                        sym::long_string => super::RequireKind::LongString(ByteSymbol::intern(
+                            &self.parser.parse_data_bytes()?,
+                        )),
                         sym::empty_string => super::RequireKind::EmptyString,
                         sym::error_string => super::RequireKind::ErrorString,
                         sym::custom_error => {

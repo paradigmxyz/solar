@@ -98,7 +98,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn is_constant_storage_value(&self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                self.constant_storage_bytes(expr).is_some()
+                self.constant_bytes(expr).is_some()
             }
             TyKind::Struct(struct_id) => {
                 let Some((callee, args, _)) = expr.peel_parens().as_call() else {
@@ -132,18 +132,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Array(..) | TyKind::DynArray(..) => false,
             TyKind::Elementary(_) => self.cx.gcx.const_eval().eval_expr(expr).is_ok(),
             _ => false,
-        }
-    }
-
-    fn constant_storage_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
-        if let ExprKind::Lit(lit) = &expr.peel_parens().kind
-            && let LitKind::Str(_, bytes, _) = lit.kind
-        {
-            Some(bytes)
-        } else if let Ok(ConstValue::Bytes(bytes, _)) = self.cx.gcx.const_eval().eval_expr(expr) {
-            Some(*bytes)
-        } else {
-            None
         }
     }
 
@@ -222,7 +210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                let value = self.constant_storage_bytes(expr)?;
+                let value = self.constant_bytes(expr)?;
                 self.store_constant_storage_bytes(
                     access.slot,
                     value.as_byte_str_in(self.cx.gcx.sess),
