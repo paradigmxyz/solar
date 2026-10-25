@@ -6,9 +6,8 @@ use crate::{
 use solar_config::{
     CompileOpts, CompilerOutput, CompilerStage, Language, SINGLE_THREADED_TARGET, UnstableOpts,
 };
-use solar_data_structures::sync::Mutex;
 use std::{
-    fmt, io,
+    fmt,
     path::{Path, PathBuf},
     sync::{
         Arc, OnceLock,
@@ -28,8 +27,6 @@ pub struct Session {
     /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
     /// one with `SessionBuilder`.
     thread_pool: OnceLock<rayon::ThreadPool>,
-    /// The workers of `thread_pool` that [`spawn_workers`](Self::spawn_workers) has yet to start.
-    pending_workers: Mutex<Vec<rayon::ThreadBuilder>>,
     /// The code generation jobs that wait for a worker.
     queued_jobs: AtomicUsize,
 }
@@ -185,7 +182,6 @@ impl SessionBuilder {
             dcx,
             opts,
             thread_pool: OnceLock::new(),
-            pending_workers: Mutex::new(Vec::new()),
             queued_jobs: AtomicUsize::new(0),
         };
         sess.reconfigure();
@@ -475,33 +471,6 @@ impl Session {
         solar_data_structures::sync::scope(self.is_parallel(), op)
     }
 
-    /// Starts the worker threads of the thread pool, if they are not running yet.
-    ///
-    /// When `opts.unstable.use_current_thread` is set, the thread that
-    /// [enters](Self::enter) the session is the first worker, and the others only start here:
-    /// starting a thread and filling its allocator heap costs more than compiling a small input.
-    /// Call this once there is enough work to share. Otherwise, and on later calls, it does
-    /// nothing.
-    pub fn spawn_workers(&self) {
-        let workers = std::mem::take(&mut *self.pending_workers.lock());
-        if workers.is_empty() {
-            return;
-        }
-        trace!(workers = workers.len(), "spawning rayon workers");
-        // Spawning a thread takes tens of microseconds, so let a helper thread spawn them all.
-        let globals = self.globals.clone();
-        let result = std::thread::Builder::new().name("solar-spawner".into()).spawn(move || {
-            for worker in workers {
-                if spawn_worker(globals.clone(), worker).is_err() {
-                    break;
-                }
-            }
-        });
-        if let Err(e) = result {
-            self.handle_thread_pool_build_error(e);
-        }
-    }
-
     /// Sets up the session globals and executes the given closure in the thread pool.
     ///
     /// The thread pool and globals are stored in this [`Session`] itself, meaning multiple
@@ -581,15 +550,18 @@ impl Session {
     fn thread_pool(&self) -> &rayon::ThreadPool {
         self.thread_pool.get_or_init(|| {
             trace!(threads = self.threads(), "building rayon thread pool");
-            let lazy = self.opts.unstable.use_current_thread;
             self.thread_pool_builder()
                 .spawn_handler(|thread| {
-                    if lazy {
-                        self.pending_workers.lock().push(thread);
-                        Ok(())
-                    } else {
-                        spawn_worker(self.globals.clone(), thread)
+                    let mut builder = std::thread::Builder::new();
+                    if let Some(name) = thread.name() {
+                        builder = builder.name(name.to_string());
                     }
+                    if let Some(size) = thread.stack_size() {
+                        builder = builder.stack_size(size);
+                    }
+                    let globals = self.globals.clone();
+                    builder.spawn(move || globals.set(|| thread.run()))?;
+                    Ok(())
                 })
                 .build()
                 .unwrap_or_else(|e| self.handle_thread_pool_build_error(e))
@@ -605,14 +577,14 @@ impl Session {
             .stack_size(thread_stack_size());
         // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
         // install and run in the default global thread pool.
-        if threads == 1 || self.opts.unstable.use_current_thread {
+        if threads == 1 {
             builder = builder.use_current_thread();
         }
         builder
     }
 
     #[cold]
-    fn handle_thread_pool_build_error(&self, e: impl fmt::Display) -> ! {
+    fn handle_thread_pool_build_error(&self, e: rayon::ThreadPoolBuildError) -> ! {
         let mut err = self.dcx.fatal(format!("failed to build the rayon thread pool: {e}"));
         if self.is_parallel() {
             if SINGLE_THREADED_TARGET {
@@ -622,19 +594,6 @@ impl Session {
         }
         err.emit()
     }
-}
-
-/// Spawns a rayon worker thread that runs with the given session globals.
-fn spawn_worker(globals: Arc<SessionGlobals>, thread: rayon::ThreadBuilder) -> io::Result<()> {
-    let mut builder = std::thread::Builder::new();
-    if let Some(name) = thread.name() {
-        builder = builder.name(name.to_string());
-    }
-    if let Some(size) = thread.stack_size() {
-        builder = builder.stack_size(size);
-    }
-    builder.spawn(move || globals.set(|| thread.run()))?;
-    Ok(())
 }
 
 /// Returns the stack size of compiler threads: `RUST_MIN_STACK` if set, or 16 MiB.

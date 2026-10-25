@@ -43,13 +43,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
                     // TODO: Parallelize more.
                     checker::check(gcx, id)
                 })
-                .reduce(TypeckResults::default, |mut a, mut b| {
-                    // Merge the smaller results into the larger ones, keeping the base slots in
-                    // source order.
-                    if a.expr_types.len() < b.expr_types.len() {
-                        std::mem::swap(&mut a.base_slots, &mut b.base_slots);
-                        std::mem::swap(&mut a, &mut b);
-                    }
+                .reduce(TypeckResults::default, |mut a, b| {
                     merge_typeck_results(gcx, &mut a, b);
                     a
                 });

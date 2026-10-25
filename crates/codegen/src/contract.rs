@@ -7,10 +7,7 @@ use crate::{
         ContractBytecodes, EmbeddedBytecodes, LibraryRelocation, LibraryTable, QualifiedName,
         RelocatableBytecode,
     },
-    mir::{
-        Module, lower,
-        pass::{has_parallel_work, run_pipeline},
-    },
+    mir::{Module, lower, pass::run_pipeline},
 };
 use alloy_primitives::Bytes;
 use either::Either;
@@ -191,11 +188,6 @@ pub fn generate_contract_bytecodes(
     let contract_count = gcx.hir.contract_ids().len();
 
     let parallel = gcx.sess.is_parallel_codegen();
-    // Several contracts share the workers. A single contract starts them in `schedule`, once it is
-    // large enough to use them.
-    if parallel && graph.reachable.count() > 1 {
-        gcx.sess.spawn_workers();
-    }
     let priorities = if parallel {
         graph.scheduling_priorities(gcx)
     } else {
@@ -487,9 +479,6 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         .entered();
         let mut module = lower::lower_contract(gcx, contract_id);
         gcx.dcx().has_errors()?;
-        if gcx.sess.is_parallel_codegen() && has_parallel_work(&module) {
-            gcx.sess.spawn_workers();
-        }
         let capture_mir = captures.mir.contains(contract_id);
         let needs_backend = captures.bytecode.contains(contract_id)
             || captures.evm_ir.contains(contract_id)

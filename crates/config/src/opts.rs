@@ -453,15 +453,6 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(skip))]
     pub forget_gcx: bool,
 
-    /// Run the compilation on the calling thread, which becomes the first worker of the thread
-    /// pool for good, and start the other workers only once there is enough work.
-    ///
-    /// The `solar` binary sets this when it can give its main thread the stack size of a worker.
-    /// It exits right after compiling, so it can leak the thread's pool registration. Library
-    /// callers should leave it unset, as a thread can join only one pool.
-    #[cfg_attr(feature = "clap", arg(skip))]
-    pub use_current_thread: bool,
-
     // ----------------------------------------
     // Please add new options above this point!
     // ----------------------------------------
