@@ -7,20 +7,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty.encodes_as_slot()
     }
 
-    pub(super) fn needs_calldata_materialization(&self, value: ValueId, ty: &AbiType) -> bool {
-        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
-            return false;
-        }
-        match ty {
-            AbiType::FixedArray { .. } | AbiType::Tuple(_) => ty.is_dynamic(),
-            AbiType::DynamicArray { element, .. } => !matches!(
-                element.as_ref(),
-                AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_)
-            ),
-            _ => false,
-        }
-    }
-
     /// Whether `abi_type` is a calldata array of words, which an encoding copies from where it
     /// lies once [`Self::validate_calldata_word_array`] validated its elements.
     pub(super) fn is_calldata_word_array(abi_type: &AbiType) -> bool {
@@ -58,13 +44,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Validates a static calldata aggregate in place so ABI encoding can read
     /// its words directly without copying the aggregate to memory.
-    pub(super) fn validate_calldata_static_argument(
-        &mut self,
-        value: ValueId,
-        ty: Ty<'gcx>,
-    ) -> bool {
+    pub(super) fn validate_calldata_static_argument(&mut self, value: ValueId, ty: Ty<'gcx>) {
         let needs_validation = self.needs_calldata_aggregate_validation(value, ty);
-        self.validate_calldata_static_argument_inner(value, ty, needs_validation)
+        self.validate_calldata_static_argument_inner(value, ty, needs_validation);
     }
 
     fn validate_calldata_static_argument_inner(
@@ -159,14 +141,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.is_decoded_external_argument(value) {
             return;
         }
-        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
-            || !matches!(ty.peel_refs().kind, TyKind::DynArray(_))
-        {
+        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
             return;
         }
         let AbiType::DynamicArray { element, location: PtrLocation::Calldata } = abi_type else {
             return;
         };
+        // A slice of words is not checked: its copy reads from where it lies. A slice of
+        // composite elements is encoded one element at a time, from a byte count that must not
+        // wrap.
+        let checked = match ty.peel_refs().kind {
+            TyKind::DynArray(_) => true,
+            TyKind::Slice(_) => !matches!(element.as_ref(), AbiType::Word(_)),
+            _ => false,
+        };
+        if !checked {
+            return;
+        }
         // bytes = checked(length * element_head_size)
         let word = self.builder.imm(element.head_size());
         let length = self.builder.slice_len(value);
@@ -341,8 +332,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if word_array && !self.is_decoded_external_argument(value) {
             self.validate_calldata_word_array(value, ty);
         }
-        let needs_materialization = self.needs_calldata_materialization(value, &abi_type)
-            || (needs_validation && !word_array);
+        // The encoder validates a dynamic calldata aggregate while it encodes it from where it
+        // lies.
+        let needs_materialization = needs_validation && !word_array && !abi_type.is_dynamic();
         if needs_materialization && !validated_static {
             value = self.materialize_calldata_argument(ty, value, argument.span)?;
             abi_type = Self::memory_abi_type(abi_type);
@@ -374,39 +366,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn memory_abi_type(ty: AbiType) -> AbiType {
-        Self::abi_type_at_location(ty, PtrLocation::Memory)
-    }
-
-    fn abi_type_at_location(ty: AbiType, location: PtrLocation) -> AbiType {
-        match ty {
-            AbiType::Word(cleanup) => AbiType::Word(cleanup),
-            AbiType::Function => AbiType::Function,
-            AbiType::Bytes(_) => AbiType::Bytes(location),
-            AbiType::DynamicArray { element, .. } => AbiType::DynamicArray {
-                element: Box::new(Self::abi_type_at_location(*element, location)),
-                location,
-            },
-            AbiType::FixedArray { element, len } => AbiType::FixedArray {
-                element: Box::new(Self::abi_type_at_location(*element, location)),
-                len,
-            },
-            AbiType::Tuple(fields) => AbiType::Tuple(
-                fields
-                    .into_vec()
-                    .into_iter()
-                    .map(|field| Self::abi_type_at_location(field, location))
-                    .collect(),
-            ),
-        }
+        ty.at_location(PtrLocation::Memory)
     }
 
     pub(super) fn abi_type_for_value(&self, value: ValueId, ty: AbiType) -> AbiType {
         if let Some(location) = self.builder.func().value_slice_location(value) {
             match ty {
-                AbiType::Bytes(_) => AbiType::Bytes(location),
-                AbiType::DynamicArray { element, .. } => {
-                    AbiType::DynamicArray { element, location }
-                }
+                AbiType::Bytes(_) | AbiType::DynamicArray { .. } => ty.at_location(location),
                 ty => ty,
             }
         } else if matches!(

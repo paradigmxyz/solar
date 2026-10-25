@@ -29,16 +29,8 @@ impl AbiType {
             return false;
         }
         match (self, actual) {
-            (Self::FixedArray { .. } | Self::Tuple(_), MirType::Slice(PtrLocation::Calldata)) => {
-                !self.is_dynamic()
-            }
-            (
-                Self::DynamicArray { element, .. },
-                MirType::Slice(location @ (PtrLocation::Calldata | PtrLocation::Returndata)),
-            ) => {
+            (Self::DynamicArray { element, .. }, MirType::Slice(PtrLocation::Returndata)) => {
                 matches!(element.as_ref(), Self::Word(_) | Self::Function)
-                    || (location == PtrLocation::Calldata
-                        && matches!(element.as_ref(), Self::Bytes(_)))
             }
             _ => true,
         }

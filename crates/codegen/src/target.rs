@@ -879,6 +879,26 @@ impl Target {
         self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
     }
 
+    /// Whether encoding static calldata elements of `element_words` words keeps a block copy
+    /// behind a wrap guard, with the per-word loop as the fallback, rather than running the
+    /// loop alone. Solc loads each word at its own address, and a block copy reads zeros where
+    /// the range crosses 2^256, so the guard sends only a range that wraps to the loop. The
+    /// guard adds a copy and a branch to code that holds the loop already, and one element
+    /// is priced: the copy must save gas on it to pay for those bytes, which only the gas
+    /// objective counts.
+    pub(crate) fn guards_block_copy(&self, element_words: u64) -> bool {
+        let words = u32::try_from(element_words).unwrap_or(u32::MAX);
+        // One iteration: a load, a store, and the address step for each word, and the branch.
+        let step = self.opcode(op::CALLDATALOAD) + self.opcode(op::MSTORE) + self.opcode(op::ADD);
+        let looped = step.times(words) + self.branch();
+        // Overflow test of the range end, the branch around the loop, and the copy.
+        let guard = self.opcode(op::ADD) + self.opcode(op::LT) + self.branch();
+        let copy = self.opcode(op::CALLDATACOPY)
+            + self.copied_words(usize::try_from(element_words.saturating_mul(32)).unwrap_or(0));
+        // The loop stays in the guarded shape as the fallback, so only its bytes remain.
+        let guarded = Cost::new(guard.gas + copy.gas, guard.bytes + copy.bytes + looped.bytes);
+        self.cmp(guarded, looped).is_lt()
+    }
     /// The factor `2**shift` that a constant shift lowered to `MUL` or `DIV` pushes, or `None`
     /// when computing it with `EXP` costs less over the deployment lifetime. Shifts of 256 or
     /// more give a zero factor, which matches the wrapped `EXP` result.
@@ -1409,6 +1429,17 @@ mod tests {
         assert!(target.cmp(shared, expanded).is_lt());
         let (shared, expanded) = target.helper_sharing(26, 2, 2, 2);
         assert!(target.cmp(shared, expanded).is_gt());
+    }
+
+    #[test]
+    fn calldata_block_copy_guard_pays_only_for_gas() {
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        // The guard adds a copy and a branch to the loop it keeps: bytes under the size
+        // objective, and a copy that beats the loop's gas on even one element under gas.
+        assert!(!size.guards_block_copy(2));
+        assert!(gas.guards_block_copy(2));
+        assert!(gas.guards_block_copy(8));
     }
 
     #[test]
