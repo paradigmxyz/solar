@@ -74,24 +74,23 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     v9 = lt v8, 36
     v10 = calldataload 4
     v11 = add v10, 4
-    v12 = add v11, 32
-    v13 = gt v10, 0xffffffffffffffff
-    v14 = gt v12, v8
-    v15 = or v13, v14
-    v17 = calldataload v11
-    v19 = sub v8, v12
-    v20 = gt v17, v19
-    v23 = or v15, v20
-    v45 = or v9, v23
-    jumpi v45, bb1, bb2
+    v13 = sub v8, 36
+    v14 = gt v10, v13
+    v15 = calldataload v11
+    v16 = add v11, 32
+    v17 = sub v8, v16
+    v18 = gt v15, v17
+    v19 = or v14, v18
+    v42 = or v9, v19
+    jumpi v42, bb1, bb2
   bb2:
-    v30 = icall @u32, v12, v17
-    v38 = mload 32 !metadata(memory=scratch)
-    v32 = add v38, 32
-    v33 = mload v32
-    v34 = icall @u16, v12, v17, v33
-    mstore 0, v30
-    mstore 32, v34
+    v27 = icall @u32, v16, v15
+    v35 = mload 32 !metadata(memory=scratch)
+    v29 = add v35, 32
+    v30 = mload v29
+    v31 = icall @u16, v16, v15, v30
+    mstore 0, v27
+    mstore 32, v31
     returndata 0, 64
   bb1:
     revert 0, 0
