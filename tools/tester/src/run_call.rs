@@ -242,12 +242,12 @@ macro_rules! impl_flag {
 impl_flag!(RunCall);
 impl_flag!(RunCallFail);
 
-/// Runs a test's calls on `-O none` output when none of its revisions compile at `-O none`, so a
-/// miscompile there fails the normal UI suite.
+/// Runs a test's calls on `-O none` output, so a miscompile there fails the normal UI suite.
 ///
-/// Each revision gets one extra compile of its own command line with `-O` replaced by `-O none`,
-/// and runs the calls that apply to that revision. A test with a `-O none` revision, such as
-/// `codegen-matrix: standard` whose `mir` revision already runs every unscoped call, is not rerun.
+/// Each revision that does not already compile at `-O none` gets one extra compile of its own
+/// command line with `-O` replaced by `-O none`, and runs the calls that apply to that revision.
+/// A test with `codegen-matrix: standard` is not rerun: its `mir` revision already runs every
+/// unscoped call.
 #[derive(Debug, Clone)]
 pub(crate) struct OnoneRerun {
     calls: Vec<(Vec<String>, RunCall)>,
@@ -260,9 +260,7 @@ impl OnoneRerun {
 
     /// Collects the calls of `src`, or `None` if the test needs no rerun.
     pub(crate) fn new(src: &str) -> Option<Self> {
-        if codegen_matrix::is_standard(src)
-            || src.lines().any(|line| has_onone_flag(line) || is_skip_directive(line))
-        {
+        if codegen_matrix::is_standard(src) || src.lines().any(is_skip_directive) {
             return None;
         }
         let mut rerun = Self { calls: Vec::new(), failures: Vec::new() };
@@ -335,7 +333,11 @@ impl Flag for OnoneRerun {
         }
         let error = |message: String| flag_error(Self::NAME, format!("at `-O none`: {message}"));
         let spec_id = spec_id(config).map_err(error)?;
-        let mut command = with_onone(&config.build_command(build_manager)?);
+        let command = config.build_command(build_manager)?;
+        if compiles_onone(&command) {
+            return Ok(());
+        }
+        let mut command = with_onone(&command);
         let output = command.output().map_err(|err| error(format!("failed to spawn: {err}")))?;
         if !output.status.success() {
             return Err(error(format!(
@@ -362,21 +364,16 @@ fn is_skip_directive(line: &str) -> bool {
     })
 }
 
-fn has_onone_flag(line: &str) -> bool {
-    if !parse_directive(line).is_some_and(|(directive, _)| directive.starts_with("compile-flags")) {
-        return false;
-    }
-    let mut args = line.split_whitespace().peekable();
+fn compiles_onone(command: &Command) -> bool {
+    let mut args = command.get_args().filter_map(|arg| arg.to_str());
+    let mut mode = None;
     while let Some(arg) = args.next() {
-        let value = match arg {
-            "-O" | "--optimize" => args.peek().copied(),
-            _ => arg.strip_prefix("-O").or_else(|| arg.strip_prefix("--optimize=")),
-        };
-        if value == Some("none") {
-            return true;
+        match arg {
+            "-O" | "--optimize" => mode = args.next(),
+            _ => mode = arg.strip_prefix("-O").or_else(|| arg.strip_prefix("--optimize=")).or(mode),
         }
     }
-    false
+    mode == Some("none")
 }
 
 /// Copies `command` with every `-O`/`--optimize` flag replaced by `-O none`.
@@ -1090,19 +1087,12 @@ mod tests {
     }
 
     #[test]
-    fn detects_onone_compile_flags() {
-        for line in [
-            "//@ compile-flags: -O none",
-            "//@[a] compile-flags: -Onone --emit=abi",
-            "//@ compile-flags: --optimize none",
-            "//@ compile-flags: --optimize=none",
-        ] {
-            assert!(has_onone_flag(line), "{line}");
+    fn detects_onone_commands() {
+        for args in [&["-O", "none"][..], &["-Ogas", "--optimize=none"], &["-Onone"]] {
+            assert!(compiles_onone(Command::new("solar").args(args)), "{args:?}");
         }
-        for line in
-            ["//@ compile-flags: -Ogas", "//@ compile-flags: -O size", "// compile-flags: -O none"]
-        {
-            assert!(!has_onone_flag(line), "{line}");
+        for args in [&[][..], &["-O", "none", "-Osize"], &["--optimize", "gas"], &["-Zfoo=none"]] {
+            assert!(!compiles_onone(Command::new("solar").args(args)), "{args:?}");
         }
     }
 
@@ -1113,7 +1103,6 @@ mod tests {
         assert_eq!((rerun.calls.len(), rerun.failures.len()), (2, 1));
         assert_eq!(rerun.calls[1].0, ["a", "b"]);
         assert!(OnoneRerun::new("//@ compile-flags: -Ogas\n").is_none());
-        assert!(OnoneRerun::new("//@ run-call: f\n//@ compile-flags: -O none\n").is_none());
         assert!(OnoneRerun::new("//@ run-call: f\n//@ skip-run-call-onone: layout\n").is_none());
         assert!(OnoneRerun::new("//@ codegen-matrix: standard\n//@ run-call: f\n").is_none());
     }

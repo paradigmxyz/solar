@@ -42,10 +42,9 @@ run a zero-argument `setUp()` if the contract defines one.
 
 Calls also run on `-O none` output, which must behave exactly like `-Ogas` and
 `-Osize`; only gas and size may differ. A test with `codegen-matrix: standard`
-already does this in its `mir` revision, and so does any test with a `-O none`
-revision. For every other test the runner compiles each revision's command line
-once more with `-O none` and runs the calls that apply to that revision on that
-output.
+already does this in its `mir` revision. For every other test the runner
+compiles each revision that does not already use `-O none` once more with
+`-O none` and runs the calls that apply to that revision on that output.
 
 - `//@ skip-run-call-onone: reason` skips that extra run for a test whose calls
   observe code layout rather than behavior, such as reading its own code. The
