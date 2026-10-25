@@ -699,6 +699,8 @@ pub struct ModuleAnalyses {
     local_summaries_preserved: bool,
     /// Whether the running pass may run its functions on several threads.
     parallel: bool,
+    /// Whether the running pass edited a function without reporting a change.
+    pub(crate) unreported_edit: bool,
     /// Whether the running pass prices creation code differently, which only the gas objective
     /// does.
     prices_creation: bool,
@@ -716,6 +718,7 @@ impl ModuleAnalyses {
 
     pub(crate) fn begin_pass(&mut self, prices_creation: bool, parallel: bool) {
         self.parallel = parallel;
+        self.unreported_edit = false;
         self.preserved_by_pass = false;
         self.call_summaries_preserved = false;
         self.local_summaries_preserved = false;
@@ -935,6 +938,7 @@ fn run_function_pass_cached(
     let changed = run(func, &bundle);
     if bundle.unreported_edit.get() {
         analyses.local_summaries.invalidate(func_id);
+        analyses.unreported_edit = true;
     }
     if changed {
         if let Some(cfg) = &bundle.cfg {
@@ -1077,6 +1081,7 @@ fn run_parallel_function_pass(
     for (id, outcome) in results {
         if outcome.unreported_edit {
             analyses.local_summaries.invalidate(id);
+            analyses.unreported_edit = true;
         }
         if outcome.changed {
             analyses.retain(id, outcome.keep_alias, false);
