@@ -46,13 +46,13 @@ struct Exposure<'gcx> {
     pointer_edges: FxHashMap<VariableId, Vec<VariableId>>,
     /// Each internal function with a binding its pointer flows into.
     pointer_values: Vec<(hir::FunctionId, VariableId)>,
-    pointer_calls: Vec<PointerCall>,
+    pointer_calls: Vec<PointerCall<'gcx>>,
     returns: &'gcx [VariableId],
     assembly: bool,
 }
 
 /// An internal function pointer call with the pointers it reads.
-struct PointerCall {
+struct PointerCall<'gcx> {
     call: hir::ExprId,
     /// Bindings the callee may read.
     callee: SmallVec<[VariableId; 4]>,
@@ -60,6 +60,8 @@ struct PointerCall {
     arguments: SmallVec<[VariableId; 4]>,
     /// Functions whose pointers the arguments take.
     functions: SmallVec<[hir::FunctionId; 1]>,
+    /// The parameter and return types of the pointer.
+    types: SmallVec<[Ty<'gcx>; 4]>,
 }
 
 impl<'gcx> Exposure<'gcx> {
@@ -285,11 +287,18 @@ impl<'gcx> Exposure<'gcx> {
         for argument in args.exprs() {
             self.pointer_sources(argument, &mut arguments, &mut functions);
         }
+        let types = match self.gcx.type_of_expr(callee.id).map(|ty| ty.kind) {
+            Some(TyKind::Fn(function)) => {
+                function.parameters.iter().chain(function.returns).copied().collect()
+            }
+            _ => SmallVec::new(),
+        };
         self.pointer_calls.push(PointerCall {
             call: call.id,
             callee: bindings,
             arguments,
             functions,
+            types,
         });
     }
 }
@@ -547,10 +556,20 @@ impl LoweringState {
         self.pointer_registry.assembly_exposed = exposed;
         self.pointer_registry.assembly_calls = calls;
 
+        // Assembly can pass a retyped call any word, and the callee's word comes back unchanged,
+        // so its dispatcher must not truncate the narrow types of the call.
         self.raw_pointer_types = exposure
             .raw
             .iter()
-            .map(|&id| types::TypeLowerer::mir_type(gcx.type_of_item(id.into())))
+            .map(|&id| gcx.type_of_item(id.into()))
+            .chain(
+                exposure
+                    .pointer_calls
+                    .iter()
+                    .filter(|call| self.pointer_registry.assembly_calls.contains(&call.call))
+                    .flat_map(|call| call.types.iter().copied()),
+            )
+            .map(types::TypeLowerer::mir_type)
             .filter(|ty| ty.integer_bits().is_some())
             .collect();
         self.raw_scalars = exposure.raw;

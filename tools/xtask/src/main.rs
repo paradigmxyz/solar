@@ -11,8 +11,8 @@ use xshell::{Shell, cmd};
 
 mod flags;
 
-const INT_FLAGS: &[&str] = &["--package=solar-compiler", "--test=tests"];
-const FOUNDRY_FLAGS: &[&str] = &["--package=solar-tester"];
+const INT_FLAGS: &[&str] = &["--test=tests"];
+const FOUNDRY_FLAGS: &[&str] = &["--test=it"];
 
 fn main() -> anyhow::Result<()> {
     let flags = flags::Xtask::from_env_or_exit();
@@ -28,13 +28,11 @@ fn main() -> anyhow::Result<()> {
             }
 
             if test_name.as_deref() == Some("foundry-external") {
-                // Release: external projects are compile-heavy, and the runner
-                // prefers an existing release binary over a fresh debug one.
-                cmd!(sh, "cargo build --release --package=solar-compiler --bin=solar").run()?;
-                let mut cmd = cmd!(sh, "cargo nextest run");
+                // Release: external projects are compile-heavy.
+                let mut cmd = cmd!(sh, "cargo nextest run --release");
                 cmd = cmd
                     .args(FOUNDRY_FLAGS)
-                    .arg("foundry::tests::external")
+                    .arg("foundry::external")
                     .arg("--run-ignored=only")
                     .arg("--no-capture");
                 if let Some(project) = rest.first() {
@@ -45,9 +43,8 @@ fn main() -> anyhow::Result<()> {
             }
 
             if test_name.as_deref().is_some_and(|name| matches!(name, "foundry" | "runtime")) {
-                cmd!(sh, "cargo build --package=solar-compiler --bin=solar").run()?;
                 let mut cmd = cmd!(sh, "cargo nextest run");
-                cmd = cmd.args(FOUNDRY_FLAGS).arg("foundry::tests::foundry").arg("--");
+                cmd = cmd.args(FOUNDRY_FLAGS).arg("foundry::foundry").arg("--");
                 if !rest.is_empty() {
                     cmd = cmd.args(rest);
                 }

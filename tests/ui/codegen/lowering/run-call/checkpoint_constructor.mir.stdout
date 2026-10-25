@@ -205,84 +205,69 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<uint9
     v12 = add v11, v10
     v13 = lt v12, v11
     icall panic_if<0x41>, v13
-    v14 = add v12, 31
-    v15 = lt v14, v12
-    icall panic_if<0x41>, v15
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc v17
-    datacopy CheckpointTarget_creation_code_0, v18, v11
-    v19 = extract_value slice<memory>, v9, 0
-    v20 = ptrtoint ptr<memory> v18 to i256
-    v21 = add v20, v11
-    mcopy v21, v19, v10 !metadata(memory=heap)
-    v22 = create 0, v18, v12
-    v23 = ne v22, i160 0
-    jumpi v23, bb2, bb1
+    v14 = fmp
+    datacopy CheckpointTarget_creation_code_0, v14, v11
+    v15 = extract_value slice<memory>, v9, 0
+    v16 = ptrtoint ptr<memory> v14 to i256
+    v17 = add v16, v11
+    mcopy v17, v15, v10 !metadata(memory=heap)
+    v18 = create 0, v14, v12
+    v19 = ne v18, i160 0
+    jumpi v19, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v24 = gas
-    v25 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
-    v26 = extract_value slice<memory>, v25, 0
-    v27 = extract_value slice<memory>, v25, 1
-    v28 = zext i160 v22 to i256
-    v29 = staticcall v24, v28, v26, v27, 0, 32
-    jumpi v29, bb4, bb3
+    v20 = gas
+    mstore 0, 0x8ee82b53 !metadata(memory=scratch)
+    v21 = zext i160 v18 to i256
+    v22 = staticcall v20, v21, 28, 4, 0, 32
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v30 = returndatasize
-    v31 = lt v30, 32
-    icall revert_if<tuple_data_too_short>, v31
-    v32 = add 0, 0
-    v33 = mload v32
-    v34 = shr v33, 96
-    v35 = eq v34, 0
-    v36 = eq v35, false
-    icall revert_if<empty>, v36
-    v37 = trunc i256 v33 to i96
-    ret v37
+    v23 = returndatasize
+    v24 = lt v23, 32
+    icall revert_if<tuple_data_too_short>, v24
+    v25 = add 0, 0
+    v26 = mload v25
+    v27 = shr v26, 96
+    v28 = eq v27, 0
+    v29 = eq v28, false
+    icall revert_if<empty>, v29
+    v30 = trunc i256 v26 to i96
+    ret v30
 }
 
 fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize ConstructorMultiReturn_creation_code_1
-    v2 = datasize ConstructorMultiReturn_creation_code_1, 31, aligned
-    v3 = alloc v2
-    datacopy ConstructorMultiReturn_creation_code_1, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize ConstructorMultiReturn_creation_code_1
+    v1 = fmp
+    datacopy ConstructorMultiReturn_creation_code_1, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
-    v10 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v11 = extract_value slice<memory>, v10, 0
-    v12 = extract_value slice<memory>, v10, 1
-    v13 = zext i160 v7 to i256
-    v14 = staticcall v9, v13, v11, v12, 0, 32
-    jumpi v14, bb4, bb3
+    v4 = gas
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 32
+    jumpi v6, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    v19 = shr v18, 8
-    v20 = eq v19, 0
-    v21 = eq v20, false
-    icall revert_if<empty>, v21
-    v22 = trunc i256 v18 to i8
-    ret v22
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = shr v10, 8
+    v12 = eq v11, 0
+    v13 = eq v12, false
+    icall revert_if<empty>, v13
+    v14 = trunc i256 v10 to i8
+    ret v14
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===

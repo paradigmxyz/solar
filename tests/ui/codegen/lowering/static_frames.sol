@@ -18,12 +18,12 @@ contract SF {
     // CHECK: [[GETTER]]:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
-    // CHECK-NEXT: push 128
+    // CHECK-NEXT: push 0
     // CHECK-NEXT: mstore
     // CHECK: return
-    // The entry's heap starts right above its return word.
+    // The return word lives in scratch memory, so the entry's heap starts at `0x80`.
     // CHECK: [[TOP]]:
-    // CHECK: push 160
+    // CHECK: push 128
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     uint256 public s;

@@ -204,59 +204,51 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0x1b2902dd, abi_params
     v3 = add v2, v1
     v4 = lt v3, v2
     icall panic_if<0x41>, v4
-    v5 = add v3, 31
-    v6 = lt v5, v3
-    icall panic_if<0x41>, v6
-    v7 = not 31
-    v8 = and v5, v7
-    v9 = alloc v8
-    datacopy Main_creation_code_0, v9, v2
-    v10 = extract_value slice<memory>, v0, 0
-    v11 = ptrtoint ptr<memory> v9 to i256
-    v12 = add v11, v2
-    mcopy v12, v10, v1 !metadata(memory=heap)
-    v13 = create 0, v9, v3
-    v14 = ne v13, i160 0
-    jumpi v14, bb2, bb1
+    v5 = fmp
+    datacopy Main_creation_code_0, v5, v2
+    v6 = extract_value slice<memory>, v0, 0
+    v7 = ptrtoint ptr<memory> v5 to i256
+    v8 = add v7, v2
+    mcopy v8, v6, v1 !metadata(memory=heap)
+    v9 = create 0, v5, v3
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = gas
-    v16 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v17 = extract_value slice<memory>, v16, 0
-    v18 = extract_value slice<memory>, v16, 1
-    v19 = zext i160 v13 to i256
-    v20 = staticcall v15, v19, v17, v18, 0, 32
-    jumpi v20, bb4, bb3
+    v11 = gas
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v12 = zext i160 v9 to i256
+    v13 = staticcall v11, v12, 28, 4, 0, 32
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = gas
+    mstore 0, 0xe2095c07 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v19 = zext i160 v9 to i256
+    v20 = staticcall v18, v19, 28, 36, 0, 32
+    jumpi v20, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
     v21 = returndatasize
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
     v24 = mload v23
-    v25 = gas
-    v26 = abi_encode [word], selector 0xe2095c0700000000000000000000000000000000000000000000000000000000, args arg0
-    v27 = extract_value slice<memory>, v26, 0
-    v28 = extract_value slice<memory>, v26, 1
-    v29 = zext i160 v13 to i256
-    v30 = staticcall v25, v29, v27, v28, 0, 32
-    jumpi v30, bb6, bb5
-  bb5:
-    revert_returndata
-  bb6:
-    v31 = returndatasize
-    v32 = lt v31, 32
-    icall revert_if<tuple_data_too_short>, v32
-    v33 = add 0, 0
-    v34 = mload v33
-    v35 = shr v34, 160
-    v36 = eq v35, 0
-    v37 = eq v36, false
-    icall revert_if<empty>, v37
-    v38 = trunc i256 v34 to i160
-    v39 = insert_value struct0, undef struct0, 0, v24
-    v40 = insert_value struct0, v39, 1, v38
-    ret v40
+    v25 = shr v24, 160
+    v26 = eq v25, 0
+    v27 = eq v26, false
+    icall revert_if<empty>, v27
+    v28 = trunc i256 v24 to i160
+    v29 = insert_value struct0, undef struct0, 0, v17
+    v30 = insert_value struct0, v29, 1, v28
+    ret v30
 }

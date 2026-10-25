@@ -1,0 +1,210 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_literal_scratch.sol:C ===
+@module C
+@types
+  struct0: {i256, ptr<memory>}
+  struct1: {ptr<memory>, i256}
+
+fn @hash(arg0: i256) -> i256 [selector=0xb189fd4c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 37
+    v1 = ptradd v0, 32
+    mstore v1, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
+    v2 = ptradd v0, 64
+    mstore v2, 0x6f72647321000000000000000000000000000000000000000000000000000000
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = abi_encode [word, memory_bytes], scratch, args arg0, v0
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
+    v7 = keccak256 v5, v6
+    ret v7
+}
+
+fn @observed(arg0: i256) -> i256 [selector=0x3a5fe8af, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = alloc 96 !metadata(preserves_fmp)
+    mstore v1, 37
+    v2 = ptradd v1, 32
+    mstore v2, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
+    v3 = ptradd v1, 64
+    mstore v3, 0x6f7264733f000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint ptr<memory> v1 to i256
+    v5 = abi_encode [word, memory_bytes], scratch, args arg0, v1
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    v8 = keccak256 v6, v7
+    v9 = add v0, 96
+    v10 = mload 64 !metadata(memory=scratch)
+    v11 = eq v10, v9
+    v12 = zext i1 v11 to i256
+    v13 = mload v0
+    v14 = eq v13, 37
+    v15 = zext i1 v14 to i256
+    v16 = and v15, v12
+    v17 = add v0, 32
+    v18 = mload v17
+    v19 = eq v18, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
+    v20 = zext i1 v19 to i256
+    v21 = and v16, v20
+    v22 = shl 0x6f7264733f, 216
+    v23 = add v0, 64
+    v24 = mload v23
+    v25 = eq v24, v22
+    v26 = zext i1 v25 to i256
+    v27 = and v21, v26
+    v28 = eq v8, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
+    v29 = eq v28, false
+    icall revert_if<empty>, v29
+    ret v27
+}
+
+fn @observedRevert(arg0: i256) [selector=0x8cf17d01, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = alloc 96 !metadata(preserves_fmp)
+    mstore v1, 37
+    v2 = ptradd v1, 32
+    mstore v2, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
+    v3 = ptradd v1, 64
+    mstore v3, 0x6f7264732e000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint ptr<memory> v1 to i256
+    v5 = abi_encode [word, memory_bytes], scratch, args arg0, v1
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    v8 = keccak256 v6, v7
+    v9 = lt v8, 1
+    v10 = zext i1 v9 to i256
+    v11 = shl v10, 5
+    v12 = add 64, v11
+    revert v0, v12
+}
+
+fn @fail(arg0: i256) [selector=0x132e4f3c, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = eq arg0, 7
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret
+  bb1:
+    v1 = alloc 96 !metadata(preserves_fmp)
+    mstore v1, 37
+    v2 = ptradd v1, 32
+    mstore v2, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
+    v3 = ptradd v1, 64
+    mstore v3, 0x6f7264732c000000000000000000000000000000000000000000000000000000
+    icall require<error_string>, false, v1
+    invalid
+}
+
+fn @aliased() [selector=0x1d15e393, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = alloc 64 !metadata(preserves_fmp)
+    mstore v1, 3
+    v2 = ptradd v1, 32
+    mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v3 = inttoptr i256 v0 to ptr<memory>
+    icall require<custom_error [memory_bytes, memory_bytes]>, false, 0xf37cd16000000000000000000000000000000000000000000000000000000000, v3, v1
+    invalid
+}
+
+fn @grown(arg0: i256) [selector=0x922be285, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 2
+    v1 = ptradd v0, 32
+    mstore v1, 0x6162000000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, arg0
+    v3 = alloc 64 !metadata(preserves_fmp)
+    mstore v3, 2
+    v4 = ptradd v3, 32
+    mstore v4, 0x6364000000000000000000000000000000000000000000000000000000000000
+    icall require<custom_error [memory_bytes, memory_bytes, word]>, false, 0x5c11eac300000000000000000000000000000000000000000000000000000000, v0, v3, 0
+    invalid
+}
+
+fn @pair(arg0: i256) -> struct0 [selector=0x645751af, pure, abi_params=[uint256], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 37
+    v1 = ptradd v0, 32
+    mstore v1, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
+    v2 = ptradd v0, 64
+    mstore v2, 0x6f7264733a000000000000000000000000000000000000000000000000000000
+    v3 = insert_value struct0, undef struct0, 0, arg0
+    v4 = insert_value struct0, v3, 1, v0
+    ret v4
+}
+
+fn @shifted() -> struct1 [selector=0xd461625c, pure, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 3
+    v1 = ptradd v0, 32
+    mstore v1, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v2 = not 31
+    v3 = and 63, v2
+    v4 = alloc zeroed checked v3
+    mstore v4, 0
+    v5 = ptrtoint ptr<memory> v4 to i256
+    v6 = insert_value struct1, undef struct1, 0, v0
+    v7 = insert_value struct1, v6, 1, v5
+    ret v7
+}
+
+fn @recycledHash(arg0: i256) -> i256 [selector=0x4e86729e, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 32
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mstore 64, v3 !metadata(memory=scratch)
+    v4 = alloc 64 !metadata(preserves_fmp)
+    mstore v4, 2
+    v5 = ptradd v4, 32
+    mstore v5, 0x1111000000000000000000000000000000000000000000000000000000000000
+    v6 = shl 0xabcd, 240
+    v7 = ptrtoint ptr<memory> v2 to i256
+    v8 = add v7, 32
+    mstore v8, v6
+    v9 = abi_encode [word, memory_bytes], scratch, args arg0, v4
+    v10 = extract_value slice<memory>, v9, 0
+    v11 = extract_value slice<memory>, v9, 1
+    v12 = keccak256 v10, v11
+    ret v12
+}
+
+fn @text() -> ptr<memory> [selector=0x1f1bd692, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 37
+    v1 = ptradd v0, 32
+    mstore v1, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
+    v2 = ptradd v0, 64
+    mstore v2, 0x6f7264733b000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @recycledText() -> ptr<memory> [selector=0xb5761dae, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 32
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mstore 64, v3 !metadata(memory=scratch)
+    v4 = alloc 64 !metadata(preserves_fmp)
+    mstore v4, 2
+    v5 = ptradd v4, 32
+    mstore v5, 0x3333000000000000000000000000000000000000000000000000000000000000
+    v6 = shl 0xabcd, 240
+    v7 = ptrtoint ptr<memory> v2 to i256
+    v8 = add v7, 32
+    mstore v8, v6
+    ret v4
+}

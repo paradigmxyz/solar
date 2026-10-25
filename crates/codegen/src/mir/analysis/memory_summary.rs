@@ -29,30 +29,6 @@ use std::{
     rc::Rc,
 };
 
-/// Includes observations in callees, conservatively retaining reads without a call summary.
-pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSummaries>) -> bool {
-    let callee_observes = |callee| {
-        summaries.and_then(|summaries| summaries.get(callee)).is_none_or(|s| s.may_observe_msize())
-    };
-    func.instructions().any(|inst| match &func.inst(inst).kind {
-        InstKind::MSize => true,
-        InstKind::ICall { function: Callee::Function(function), .. } => callee_observes(*function),
-        _ => false,
-    }) || func.blocks.iter().any(|block| {
-        matches!(&block.terminator, Some(Terminator::TailCall { function, .. }) if callee_observes(*function))
-    })
-}
-
-/// Returns whether any function in `module` reads `msize`. Internal calls share memory, so such a
-/// read observes the expansion of every memory access that runs before it, in callers and
-/// siblings as well as callees.
-pub(crate) fn module_may_observe_msize(module: &Module) -> bool {
-    module
-        .functions
-        .iter()
-        .any(|func| func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize)))
-}
-
 /// A bounded set of storage slots, or an unknown access to the whole space.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct SlotFootprint {
@@ -196,14 +172,12 @@ pub(crate) struct FunctionMemorySummary {
     may_recycle_fmp: bool,
     /// Whether the function may read or write the free-memory pointer directly.
     may_observe_fmp: bool,
-    /// Whether the function may read `msize`.
-    may_observe_msize: bool,
     /// Whether this function or a transitive callee may observe remaining gas.
     may_observe_gas: bool,
     /// Parameters whose pointer value may escape the call.
     captures: DenseBitSet<ArgIdx>,
     /// Parameters whose pointer value the function may relate to the heap: a value derived
-    /// from the parameter meets one derived from the free-memory pointer or `msize` in a
+    /// from the parameter meets one derived from the free-memory pointer in a
     /// single instruction.
     observes: DenseBitSet<ArgIdx>,
 }
@@ -224,7 +198,6 @@ impl FunctionMemorySummary {
             may_reset_fmp: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
-            may_observe_msize: false,
             may_observe_gas: false,
             captures: DenseBitSet::new_empty(params),
             observes: DenseBitSet::new_empty(params),
@@ -252,7 +225,6 @@ impl FunctionMemorySummary {
             may_reset_fmp: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
-            may_observe_msize: true,
             may_observe_gas: true,
             captures: DenseBitSet::new_filled(params),
             observes: DenseBitSet::new_filled(params),
@@ -263,11 +235,8 @@ impl FunctionMemorySummary {
     ///
     /// State reads remain discardable, matching ordinary DCE. Their incidental access-list
     /// warming does not pin a call whose result is unused.
-    pub(crate) fn can_discard_call(&self, observes_msize: bool) -> bool {
-        !(self.observable
-            || self.control.any()
-            || self.has_multiple_returns
-            || observes_msize && self.reads(AddressSpace::Memory))
+    pub(crate) fn can_discard_call(&self) -> bool {
+        !(self.observable || self.control.any() || self.has_multiple_returns)
     }
 
     /// Returns whether the function may read an address space.
@@ -309,12 +278,6 @@ impl FunctionMemorySummary {
         self.may_observe_fmp
     }
 
-    /// Returns whether the function may read `msize`, which an elided allocation would change.
-    #[must_use]
-    pub(crate) const fn may_observe_msize(&self) -> bool {
-        self.may_observe_msize
-    }
-
     /// Returns whether this function or a transitive callee may read remaining gas.
     #[must_use]
     pub(crate) const fn may_observe_gas(&self) -> bool {
@@ -331,7 +294,7 @@ impl FunctionMemorySummary {
     ///
     /// Dereferencing the pointer, or comparing it with values derived from itself, is
     /// placement-agnostic; only an instruction that also consumes a value derived from the
-    /// free-memory pointer or `msize` can observe where the object lies relative to the heap.
+    /// free-memory pointer can observe where the object lies relative to the heap.
     #[must_use]
     pub(crate) fn observes_param(&self, index: ArgIdx) -> bool {
         index.index() >= self.observes.domain_size() || self.observes.contains(index)
@@ -407,7 +370,6 @@ impl FunctionMemorySummary {
         self.may_reset_fmp |= other.may_reset_fmp;
         self.may_recycle_fmp |= other.may_recycle_fmp;
         self.may_observe_fmp |= other.may_observe_fmp;
-        self.may_observe_msize |= other.may_observe_msize;
         self.may_observe_gas |= other.may_observe_gas;
     }
 }
@@ -479,6 +441,24 @@ impl LocalSummaryCache {
         }
     }
 
+    /// Keeps the entries of the functions in `keep` under the ids [`Module`] gives them after
+    /// the others are removed.
+    pub(crate) fn retain_functions(&mut self, keep: &DenseBitSet<FunctionId>) {
+        if self.entries.len() != keep.domain_size() {
+            self.clear();
+            return;
+        }
+        let mut entries = std::mem::take(&mut self.entries).into_iter().collect::<Vec<_>>();
+        self.entries = keep.iter().map(|id| entries[id.index()].take()).collect();
+        let mut multiple_returns = DenseBitSet::new_empty(self.entries.len());
+        for (new_id, old_id) in keep.iter().enumerate() {
+            if self.multiple_returns.contains(old_id) {
+                multiple_returns.insert(FunctionId::from_usize(new_id));
+            }
+        }
+        self.multiple_returns = multiple_returns;
+    }
+
     /// Drops every entry.
     pub(crate) fn clear(&mut self) {
         self.entries = IndexVec::new();
@@ -544,6 +524,26 @@ impl MemoryCallSummaries {
             }
         }
 
+        // The internal calls of each target in body order, found once instead of on every visit.
+        let mut call_sites = index_vec![Vec::new(); module.functions.len()];
+        for func_id in &targets {
+            let func = &module.functions[func_id];
+            let sites = &mut call_sites[func_id];
+            for block in &func.blocks {
+                for &inst_id in &block.instructions {
+                    if let InstKind::ICall {
+                        function: Callee::Function(function), ref args, ..
+                    } = func.inst(inst_id).kind
+                    {
+                        sites.push((function, &args[..]));
+                    }
+                }
+                if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                    sites.push((*function, &args[..]));
+                }
+            }
+        }
+
         let mut worklist = targets.iter().collect::<VecDeque<_>>();
         let mut queued = targets;
         while let Some(func_id) = worklist.pop_front() {
@@ -551,32 +551,15 @@ impl MemoryCallSummaries {
             let func = &module.functions[func_id];
             let (sources, alias) = facts[func_id].as_ref().unwrap();
             let mut summary = local[func_id].clone().unwrap();
-            for block in &func.blocks {
-                for &inst_id in &block.instructions {
-                    if let InstKind::ICall {
-                        function: Callee::Function(function), ref args, ..
-                    } = func.inst(inst_id).kind
-                    {
-                        merge_call(
-                            &mut summary,
-                            func,
-                            summaries.get(function).and_then(Option::as_ref),
-                            args,
-                            sources,
-                            alias,
-                        );
-                    }
-                }
-                if let Some(Terminator::TailCall { function, args }) = &block.terminator {
-                    merge_call(
-                        &mut summary,
-                        func,
-                        summaries.get(*function).and_then(Option::as_ref),
-                        args,
-                        sources,
-                        alias,
-                    );
-                }
+            for &(function, args) in &call_sites[func_id] {
+                merge_call(
+                    &mut summary,
+                    func,
+                    summaries.get(function).and_then(Option::as_ref),
+                    args,
+                    sources,
+                    alias,
+                );
             }
 
             if summaries[func_id].as_ref() != Some(&summary) {
@@ -705,7 +688,6 @@ fn local_summary(
                 summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
             }
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
-            summary.may_observe_msize |= matches!(kind, InstKind::MSize);
             summary.may_observe_gas |=
                 matches!(kind, InstKind::Gas) && !forwarded_gas.contains(inst_id);
             // An instruction that consumes both a pointer-derived value and a heap-derived one
@@ -811,7 +793,7 @@ pub(crate) fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     returning
 }
 
-/// Values derived from the free-memory pointer or `msize`, through any computation except a
+/// Values derived from the free-memory pointer, through any computation except a
 /// load: a word read through such an address is data, not a heap position. Internal call
 /// results count as heap-derived, since a callee may return a heap position.
 fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
@@ -820,9 +802,7 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
     for inst_id in func.instructions() {
         let kind = &func.inst(inst_id).kind;
         let root = match kind {
-            InstKind::Fmp
-            | InstKind::MSize
-            | InstKind::ICall { function: Callee::Function(_), .. } => true,
+            InstKind::Fmp | InstKind::ICall { function: Callee::Function(_), .. } => true,
             InstKind::Load(address, PtrLocation::Memory) => {
                 func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT)
             }
@@ -875,15 +855,13 @@ fn observe_sources(
     }
 }
 
-/// Returns whether an instruction reads the free-memory pointer or the memory size directly.
+/// Returns whether an instruction reads the free-memory pointer directly.
 ///
 /// Compiler-owned allocations stay abstract. Raw pointer operations and semantic hashes
 /// using transient heap scratch can expose a pointer's position relative to the heap.
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize | InstKind::MappingSlotBytes(..) => {
-            true
-        }
+        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
         InstKind::Load(address, PtrLocation::Memory)
         | InstKind::Store(address, _, PtrLocation::Memory) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
