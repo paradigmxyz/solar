@@ -43,6 +43,8 @@ const MAX_ISLE_RETURNS: usize = 8;
     unused_variables
 )]
 mod generated {
+    use crate::isle_log as log;
+
     include!(concat!(env!("OUT_DIR"), "/egraph.isle.rs"));
 }
 
@@ -327,7 +329,7 @@ impl generated::Context for RuleContext<'_> {
         self.target.is_some_and(|target| {
             let after = target.push(replacement);
             let before = target.push(original);
-            after.gas <= before.gas && after.bytes <= before.bytes
+            target.runtime_gas(after) <= target.runtime_gas(before) && after.bytes <= before.bytes
         })
     }
 

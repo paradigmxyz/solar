@@ -574,6 +574,11 @@ fn display_inst_kind<'a>(
                     write!(f, "require<")?;
                     match kind {
                         RequireKind::ShortString => write!(f, "short_string")?,
+                        RequireKind::LongString(bytes) => write!(
+                            f,
+                            "long_string hex\"{}\"",
+                            alloy_primitives::hex::display(bytes.as_byte_str())
+                        )?,
                         RequireKind::EmptyString => write!(f, "empty_string")?,
                         RequireKind::ErrorString => write!(f, "error_string")?,
                         RequireKind::CustomError(layout) => write!(f, "custom_error {layout}")?,

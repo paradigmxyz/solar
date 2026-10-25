@@ -1,0 +1,26 @@
+//@ revisions: legacy native
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@[legacy] compile-flags: -Ogas --evm-version paris
+//@[legacy] filecheck: --check-prefixes=CHECK,FOLD
+//@[native] compile-flags: -Ogas --evm-version cancun
+//@[native] filecheck: --check-prefixes=CHECK,COPY
+@module PreservedLiteralRead
+
+// A read of the object after the encoding does not stop gas mode from folding before Cancun.
+// CHECK-LABEL: (after lower-abi-encode)
+// CHECK: fn @read_after_encode
+// CHECK: {{^ .*}}alloc 64 !metadata(preserves_fmp)
+// FOLD-NOT: mcopy
+// FOLD: ret v
+// COPY: + mcopy
+// COPY: ret v
+fn @read_after_encode() -> i256 {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 4
+    v1 = ptradd v0, 32
+    mstore v1, 0x150b7a0200000000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [memory_bytes], scratch, args v0
+    v4 = mload v0
+    ret v4
+}

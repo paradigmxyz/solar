@@ -404,7 +404,7 @@ impl PackedEncoder<'_, '_> {
                 };
                 self.builder.memory_store_word(output, destination, element_value);
             }
-            AbiType::FixedArray { element: nested, len } => {
+            AbiType::FixedArray { element: nested, len, .. } => {
                 // copy_packed_array(output, destination, value[i])
                 let nested_length = self.builder.imm(*len);
                 let (nested_value, nested_source) = match source {

@@ -1,0 +1,58 @@
+//@compile-flags: -Zmir-pipeline=storage-cse
+//@filecheck:
+@module StorageCseExtendedBlocks
+
+// A block entered only from the block before it continues that block's facts,
+// as when inlining leaves a callee's read in its own block after the caller's
+// packed-field write.
+// CHECK-LABEL: {{^[ +].*}}fn @store_then_jump{{[( ]}}
+// CHECK: - {{v[0-9]+}} = sload 7
+// CHECK: + {{v[0-9]+}} = and [[STORED:v[0-9]+]], 255
+fn @store_then_jump(arg0: i256) -> i256 {
+  bb0:
+    v1 = sload 7
+    v2 = or v1, arg0
+    sstore 7, v2
+    jump bb1
+  bb1:
+    v3 = sload 7
+    v4 = and v3, 0xff
+    ret v4
+}
+
+// Each arm of a branch has the branching block as its only predecessor. The
+// arm that reads nothing else keeps its own load rather than carrying the first
+// one, as within a block.
+// CHECK-LABEL: {{^[ +].*}}fn @load_in_both_arms{{[( ]}}
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = sload 3
+// CHECK: + {{v[0-9]+}} = add [[LOAD]], [[LOAD]]
+// CHECK-LABEL: {{^[ +].*}}fn @join_starts_empty{{[( ]}}
+fn @load_in_both_arms(arg0: i1) -> i256 {
+  bb0:
+    v1 = sload 3
+    jumpi arg0, bb1, bb2
+  bb1:
+    v2 = sload 3
+    v3 = add v1, v2
+    ret v3
+  bb2:
+    v4 = sload 3
+    ret v4
+}
+
+// A join may be entered with different values, so its facts start empty.
+// CHECK: {{^[ +].*}} = sload 5
+// CHECK: {{^[ +].*}}sstore 5, 1
+// CHECK: {{^[ +].*}} = sload 5
+fn @join_starts_empty(arg0: i1) -> i256 {
+  bb0:
+    v1 = sload 5
+    jumpi arg0, bb1, bb2
+  bb1:
+    sstore 5, 1
+    jump bb2
+  bb2:
+    v2 = sload 5
+    v3 = add v1, v2
+    ret v3
+}
