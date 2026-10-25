@@ -629,6 +629,12 @@ impl<'m> Run<'_, 'm, '_> {
     fn terminator(&mut self, block: BlockId, terminator: &Terminator) -> Result<BlockId, Outcome> {
         self.burn(1)?;
         let site = Site::Terminator(terminator);
+        // Lowering pushes a branch's target, or a table's words, above the stack before it jumps.
+        let growth = terminator.kind.lowering_stack_growth(self.machine.module.next_block(block));
+        if self.stack.len() + growth > MAX_STACK_DEPTH {
+            self.trace(block, site, &[], None);
+            return Err(Outcome::Halt(Halt::StackOverflow));
+        }
         match &terminator.kind {
             TerminatorKind::Jump(target) => {
                 self.trace(block, site, &[], None);

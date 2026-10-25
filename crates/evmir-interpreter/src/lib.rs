@@ -296,6 +296,15 @@ bb1: return  [0x0, 0x20]
         assert_eq!(execution.outcome, Outcome::Halt(Halt::StackUnderflow));
         let execution = run("bb0:\n  push 1\n  jump bb0\n", &[]);
         assert_eq!(execution.outcome, Outcome::Halt(Halt::StackOverflow));
+
+        // A jump that skips a block pushes its target on a full stack, and one that falls through
+        // pushes nothing.
+        let full = "  push 0\n".repeat(1024);
+        let execution =
+            run(&format!("bb0:\n{full}  jump bb2\nbb1:\n  stop\nbb2:\n  pop\n  stop\n"), &[]);
+        assert_eq!(execution.outcome, Outcome::Halt(Halt::StackOverflow));
+        let execution = run(&format!("bb0:\n{full}  jump bb1\nbb1:\n  pop\n  stop\n"), &[]);
+        assert_eq!(execution.outcome, Outcome::Success(Vec::new()));
     }
 
     #[test]
