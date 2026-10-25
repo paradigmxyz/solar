@@ -803,16 +803,7 @@ impl Target {
         data_copy: bool,
     ) -> bool {
         let word_size = op::WORD_BYTES;
-        let loop_body = self.jump()
-            + self.branch()
-            + self.dup().times(7)
-            + self.opcode(op::ADD).times(4)
-            + self.opcode(op::LT)
-            + self.opcode(op::MLOAD)
-            + self.opcode(op::MSTORE)
-            + self.opcode(op::POP).times(3)
-            + self.push(U256::ZERO)
-            + self.push(U256::from(word_size));
+        let loop_body = self.word_copy_loop();
         let mut copies = Cost::ZERO;
         let mut filled = 2 * word_size;
         while filled < size {
@@ -842,6 +833,85 @@ impl Target {
                 })
                 .sum::<Cost>();
             copies.bytes < stores.bytes
+        }
+    }
+
+    /// One iteration of a word-by-word memory copy loop, with its counter and cursor moves.
+    fn word_copy_loop(&self) -> Cost {
+        self.jump()
+            + self.branch()
+            + self.dup().times(7)
+            + self.opcode(op::ADD).times(4)
+            + self.opcode(op::LT)
+            + self.opcode(op::MLOAD)
+            + self.opcode(op::MSTORE)
+            + self.opcode(op::POP).times(3)
+            + self.push(U256::ZERO)
+            + self.push(U256::from(op::WORD_BYTES))
+    }
+
+    /// Whether an ABI encoding writes a literal byte string as stores of its own words, beside
+    /// the preserved object that already holds it, instead of copying that object. `bytes`
+    /// reads the literal, which only the size objective needs. `removes_original` says nothing
+    /// reads the object afterwards, so folding also drops its allocation and stores. Gas ranks
+    /// the stores above the copy loop that runs before MCOPY and below the copy instruction
+    /// that follows it. Size compares the stores with the length computation, padding store,
+    /// and copy they replace, and folds whenever the object goes away, since the stores then
+    /// only move.
+    pub(crate) fn folds_preserved_literal(
+        &self,
+        removes_original: bool,
+        bytes: impl FnOnce() -> Option<Vec<u8>>,
+    ) -> bool {
+        match self.optimization {
+            OptimizationMode::Gas => !self.evm_version.has_mcopy(),
+            OptimizationMode::Size => {
+                if removes_original {
+                    return true;
+                }
+                let Some(bytes) = bytes() else { return false };
+                let word_size = op::WORD_BYTES;
+                let size = U256::from(bytes.len().next_multiple_of(word_size));
+                // mstore dest, len; mstore dest + 32 + 32 * i, word; tail = dest + 32 + size
+                let folded = self.push(U256::from(bytes.len()))
+                    + self.dup()
+                    + self.opcode(op::MSTORE)
+                    + bytes
+                        .chunks(word_size)
+                        .map(|chunk| {
+                            let mut word = [0; op::WORD_BYTES];
+                            word[..chunk.len()].copy_from_slice(chunk);
+                            self.push(U256::from_be_bytes(word))
+                                + self.push(U256::from(word_size))
+                                + self.dup()
+                                + self.opcode(op::ADD)
+                                + self.opcode(op::MSTORE)
+                        })
+                        .sum::<Cost>()
+                    + self.push(size)
+                    + self.opcode(op::ADD);
+                // len = mload object; padded = (len + 31) & ~31; mstore dest + padded, 0;
+                // mstore dest, len; copy data to dest + 32; tail = dest + 32 + padded
+                let copy = if self.evm_version.has_mcopy() {
+                    self.opcode(op::MCOPY)
+                } else {
+                    self.word_copy_loop()
+                };
+                let copied = self.dup()
+                    + self.opcode(op::MLOAD)
+                    + self.push(U256::from(word_size - 1)).times(2)
+                    + self.opcode(op::ADD)
+                    + self.opcode(op::NOT)
+                    + self.opcode(op::AND)
+                    + (self.dup() + self.opcode(op::ADD)).times(2)
+                    + self.push(U256::ZERO)
+                    + (self.dup() + self.opcode(op::MSTORE)).times(2)
+                    + (self.push(U256::from(word_size)) + self.opcode(op::ADD)).times(2)
+                    + self.dup().times(3)
+                    + copy;
+                folded.bytes < copied.bytes
+            }
+            _ => false,
         }
     }
 
@@ -1227,6 +1297,28 @@ mod tests {
         assert!(target.legacy_splat_is_profitable(word, 96, true));
         assert!(target.legacy_splat_is_profitable(word, 5120, true));
     }
+
+    #[test]
+    fn preserved_literals_fold_by_objective() {
+        let folds = |target: Target, removes_original, len| {
+            target.folds_preserved_literal(removes_original, || Some(vec![0x41; len]))
+        };
+        let gas = |evm_version| Target::with(evm_version, OptimizationMode::Gas, 200);
+        let size = |evm_version| Target::with(evm_version, OptimizationMode::Size, 1);
+        // Gas folds only where the copy would be a loop, and never reads the literal.
+        assert!(gas(EvmVersion::Paris).folds_preserved_literal(false, || None));
+        assert!(!gas(EvmVersion::Cancun).folds_preserved_literal(true, || None));
+        // The stores of a short string cost fewer bytes than the length math and a copy.
+        assert!(folds(size(EvmVersion::Cancun), false, 4));
+        assert!(!folds(size(EvmVersion::Cancun), false, 32));
+        // The copy loop is longer than MCOPY, so longer strings still fold before Cancun.
+        assert!(folds(size(EvmVersion::Paris), false, 32));
+        assert!(!folds(size(EvmVersion::Paris), false, 64));
+        // Folding that drops the original object only moves the stores.
+        assert!(folds(size(EvmVersion::Cancun), true, 64));
+        assert!(!size(EvmVersion::Cancun).folds_preserved_literal(false, || None));
+    }
+
     #[test]
     fn terminal_copy_sharing() {
         let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
