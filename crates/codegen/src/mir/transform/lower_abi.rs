@@ -539,8 +539,12 @@ impl LowerAbiCx {
                     if return_types.get(index) == Some(&MirType::Slice(PtrLocation::Calldata))
                         && match &ty {
                             AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. } => true,
-                            AbiParamType::DynamicArray(_) => !layout.types[index]
-                                .accepts_input_type(MirType::Slice(PtrLocation::Calldata)),
+                            // Returns copy arrays of composite elements to memory and
+                            // canonicalize them there, with the ABI decoder's revert messages.
+                            AbiParamType::DynamicArray(element) => {
+                                !element.is_scalar_word()
+                                    && !matches!(element.as_ref(), AbiParamType::Bytes)
+                            }
                             _ => false,
                         }
                     {
@@ -3730,7 +3734,7 @@ fn encoder_cleans_return(abi: &AbiType, ty: &AbiParamType) -> bool {
                 && fields.iter().zip(tys).all(|(abi, ty)| encoder_cleans_return(abi, ty))
         }
         (
-            AbiType::FixedArray { element, len },
+            AbiType::FixedArray { element, len, .. },
             AbiParamType::FixedArray { element: ty, len: ty_len },
         ) => len == ty_len && encoder_cleans_return(element, ty),
         (
