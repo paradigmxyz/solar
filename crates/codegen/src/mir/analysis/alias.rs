@@ -1494,7 +1494,29 @@ impl AliasAnalysis {
         {
             return AliasResult::NoAlias;
         }
+        if Self::absolute_below_allocation(first, second)
+            || Self::absolute_below_allocation(second, first)
+        {
+            return AliasResult::NoAlias;
+        }
         Self::memory_alias_locations(first, second)
+    }
+
+    /// Returns whether `other` is an absolute range that ends at or below the start of `alloc`.
+    ///
+    /// No reset of the free-memory pointer precedes a unique allocation, so its pointer is at
+    /// or above the heap start, and a location at offset `n` in it starts at or above
+    /// `HEAP_START + n`. `Allocation` bases come only from the provenance snapshot, which
+    /// assigns them to unique allocations.
+    fn absolute_below_allocation(alloc: MemoryLocation, other: MemoryLocation) -> bool {
+        matches!(alloc.address.base, MemoryBase::Allocation(_))
+            && other.address.base == MemoryBase::Absolute
+            && matches!(other.size, LocationSize::Const(size)
+            if other.address.offset.checked_add(size).is_some_and(|end| {
+                EvmMemoryLayout::HEAP_START
+                    .checked_add(alloc.address.offset)
+                    .is_some_and(|start| end <= start)
+            }))
     }
 
     /// Computes a memory-range relationship after addresses are canonicalized.
