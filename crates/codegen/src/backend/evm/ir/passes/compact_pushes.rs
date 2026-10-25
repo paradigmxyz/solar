@@ -7,7 +7,7 @@
 //! bytes, whatever the tune, keeping the literal on ties so the pass never increases code size.
 //!
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
-//! target supports them. [`Target::push`] uses the same selector, so other EVM IR passes can
+//! target supports them. `Target::push` uses the same selector, so other EVM IR passes can
 //! compare a prospective rewrite with the bytes, static gas, and instructions that this pass will
 //! emit.
 //!
