@@ -702,7 +702,7 @@ impl MemoryStoreEliminator {
     /// Marks the slots a read through `offset` observes as live: the words of `[offset, offset +
     /// size)` for constants, otherwise every slot from the word holding the pointer's lower bound.
     fn mark_read(func: &Function, live: &mut MemLive, offset: ValueId, size: Option<u64>) {
-        let bound = AliasAnalysis::pointer_lower_bound(func, offset, 0);
+        let bound = AliasAnalysis::read_lower_bound(func, offset);
         // The size is exact only from a known start; an empty range reads nothing from any start.
         let size = size.filter(|&size| size == 0 || func.value_u64(offset).is_some());
         Self::mark_range(live, bound, size);

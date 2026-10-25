@@ -190,3 +190,23 @@
       returndata v0, 32
   }
   
+  fn @keep_store_before_runtime_ptradd_read(arg0: i256) {
+    bb0:
+      mstore 0, 0x1234
+      v0 = alloc 64
+      v1 = ptradd v0, arg0
+      v2 = mload v1
+      mstore 32, v2
+      revert 32, 32
+  }
+  
+  fn @remove_store_before_constant_ptradd_read(arg0: i256) {
+    bb0:
+-     mstore 0, 0x1234
+      v0 = alloc 64
+      v1 = ptradd v0, 32
+      v2 = mload v1
+      mstore 32, v2
+      revert 32, 32
+  }
+  

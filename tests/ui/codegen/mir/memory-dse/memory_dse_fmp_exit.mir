@@ -263,3 +263,30 @@ fn @keep_bump_before_return_through_decoded_word(arg0: slice<memory>) {
     mstore 64, v1
     returndata v2, 32
 }
+
+// A runtime index can wrap around to low memory when assembly forges the length it is checked
+// against, so a read through it may observe any slot; a constant offset cannot.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_before_runtime_ptradd_read{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 0, 0x1234
+// CHECK-NOT: {{^[-+]}}
+fn @keep_store_before_runtime_ptradd_read(arg0: i256) {
+  bb0:
+    mstore 0, 0x1234
+    v0 = alloc 64
+    v1 = ptradd v0, arg0
+    v2 = mload v1
+    mstore 32, v2
+    revert 32, 32
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @remove_store_before_constant_ptradd_read{{[( ]}}
+// CHECK: - mstore 0, 0x1234
+fn @remove_store_before_constant_ptradd_read(arg0: i256) {
+  bb0:
+    mstore 0, 0x1234
+    v0 = alloc 64
+    v1 = ptradd v0, 32
+    v2 = mload v1
+    mstore 32, v2
+    revert 32, 32
+}
