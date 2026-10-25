@@ -385,8 +385,7 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
-    // Constant shifts become `mul` and `div` by an immediate factor so that scheduling, not the
-    // late EVM IR legalization, orders their operands.
+    // Targets without shift opcodes get arithmetic instead, so scheduling orders its operands.
     &lower_shifts::LowerShifts,
     &evm_inst_schedule::EvmInstSchedule,
 ];

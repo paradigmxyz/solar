@@ -26,13 +26,13 @@ fn @narrow(arg0: i256) -> i256 {
     ret v2
 }
 
-// A 29-byte factor repays its bytes only when the code runs often. The dispatcher's selector
-// shift keeps `shr` under `-Osize` for the EVM IR pass to compute with `exp`.
+// A 29-byte factor repays its bytes only when the code runs often. Otherwise the factor is
+// computed with `exp`.
 // GAS-LABEL: fn @wide
 // GAS: + v0 = div arg0, 0x100000000000000000000000000000000000000000000000000000000
 // SIZE-LABEL: fn @wide
-// SIZE-NOT: div
-// SIZE: v0 = shr arg0, 224
+// SIZE: + v1 = exp 2, 224
+// SIZE-NEXT: + v0 = div arg0, v1
 // MODERN-LABEL: fn @wide
 fn @wide(arg0: i256) -> i256 {
   bb0:
@@ -56,18 +56,34 @@ fn @overflow(arg0: i256) -> i256 {
     ret v2
 }
 
-// Variable shifts and `sar` stay for the EVM IR pass.
+// A variable shift computes its factor with `exp`, shared by shifts of one amount in a block.
 // GAS-LABEL: fn @variable
-// GAS-NOT: = {{mul|div}}
+// GAS: + v3 = exp 2, arg1
+// GAS-NEXT: + v0 = mul arg0, v3
+// GAS-NEXT: + v1 = div arg0, v3
 // SIZE-LABEL: fn @variable
-// SIZE-NOT: = {{mul|div}}
+// SIZE: + v3 = exp 2, arg1
+// SIZE-NEXT: + v0 = mul arg0, v3
+// SIZE-NEXT: + v1 = div arg0, v3
 // MODERN-LABEL: fn @variable
 fn @variable(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = shl arg0, arg1
     v1 = shr arg0, arg1
-    v2 = sar arg0, 8
-    v3 = add v0, v1
-    v4 = add v3, v2
-    ret v4
+    v2 = add v0, v1
+    ret v2
+}
+
+// An arithmetic shift divides the value or its complement, whichever is nonnegative.
+// GAS-LABEL: fn @signed
+// GAS: + {{v[0-9]+}} = slt arg0, 0
+// GAS: + {{v[0-9]+}} = div {{v[0-9]+}}, 256
+// SIZE-LABEL: fn @signed
+// SIZE: + {{v[0-9]+}} = slt arg0, 0
+// SIZE: + {{v[0-9]+}} = div {{v[0-9]+}}, 256
+// MODERN-LABEL: fn @signed
+fn @signed(arg0: i256) -> i256 {
+  bb0:
+    v0 = sar arg0, 8
+    ret v0
 }

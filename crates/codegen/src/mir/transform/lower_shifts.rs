@@ -1,30 +1,37 @@
-//! Lower constant shifts to multiplication and division on EVM versions without shift opcodes.
+//! Lower shifts to arithmetic on EVM versions without shift opcodes.
 //!
-//! Before Constantinople, `SHL` and `SHR` do not exist. The EVM IR pass `legalize-shifts` rewrites
-//! them to `MUL` and `DIV` by `2**shift`, but it runs after stack scheduling and sees only the
-//! scheduled instruction stream. The shift's operands then sit in shift-first order, so a
-//! right shift needs an extra `SWAP1` before its `DIV` that the division's own operand order
-//! would not.
+//! Before Constantinople, `SHL`, `SHR`, and `SAR` do not exist. This pass runs at the end of the
+//! lowered pipeline, just before stack scheduling, and leaves no shift behind: later code,
+//! including the EVM IR pipeline, never sees an illegal one, and the backend rejects a module that
+//! still has one.
 //!
-//! This pass runs before scheduling and rewrites `shl(c, x)` to `mul(x, 2**c)` and `shr(c, x)` to
-//! `div(x, 2**c)`, with a zero factor when `c` is 256 or more, as the wrapped `EXP` result is.
-//! The scheduler then orders the operands. A shift is rewritten only when
-//! [`Target::legacy_shift_factor`](crate::target::Target::legacy_shift_factor) prefers pushing the
-//! factor, which is the same query the EVM IR pass makes; otherwise `legalize-shifts` computes the
-//! factor with `EXP`. Shifts by a variable amount and `SAR` stay for that pass, which remains the
-//! backstop for every shift left in the code.
+//! A left shift becomes `x * 2**s` and a logical right shift `x / 2**s`. The factor is an
+//! immediate for a constant `s` when [`Target::legacy_shift_factor`] prefers pushing it, and
+//! `exp(2, s)` otherwise, which also covers variable shifts. A shift of 256 or more gives a zero
+//! factor, as the wrapped `EXP` result does: `MUL` by zero clears the word, and so does `DIV`.
+//! Doing this before scheduling lets the scheduler order the factor and the value, which a rewrite
+//! after scheduling cannot do without an extra `SWAP1` for each right shift.
 //!
-//! The pass is disabled on targets with shifts, so it never changes their output. It runs last in
-//! the lowered pipeline, after every pass that matches shifts, because nothing downstream
-//! recognizes the products and quotients it creates as shifts again.
+//! An arithmetic right shift divides the value or its complement, whichever is nonnegative, and
+//! complements the quotient back: with `m` the sign mask (all ones for a negative value, else
+//! zero), `sar(s, x) = ((x ^ m) / 2**s) ^ m`. A zero factor then gives `m`, which is the result
+//! for any shift of 256 or more.
+//!
+//! The pass is disabled on targets with shifts, so it never changes their output. It must run
+//! after every pass that creates or matches shifts, because nothing downstream recognizes the
+//! products and quotients it creates as shifts again.
 
-use crate::mir::{
-    Immediate, InstKind, MirType, Module, Value,
-    pass::{MirPass, ModuleAnalyses, run_function_pass},
+use crate::{
+    mir::{
+        FunctionBuilder, InstId, InstKind, MirType, Module, ValueId,
+        pass::{MirPass, ModuleAnalyses, run_function_pass_with_cfg},
+    },
+    target::Target,
 };
+use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
-/// Rewrites constant `shl` and `shr` to `mul` and `div` by the factor `2**shift`.
+/// Rewrites `shl`, `shr`, and `sar` to arithmetic.
 pub(crate) struct LowerShifts;
 
 impl MirPass for LowerShifts {
@@ -36,40 +43,112 @@ impl MirPass for LowerShifts {
         !gcx.sess.opts.evm_version.has_bitwise_shifting()
     }
 
+    fn is_required(&self) -> bool {
+        true
+    }
+
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let shifts = func
-                .instructions()
-                .filter_map(|inst| match func.inst(inst).kind {
-                    InstKind::Shl(shift, value) => Some((inst, shift, value, false)),
-                    InstKind::Shr(shift, value) => Some((inst, shift, value, true)),
-                    _ => None,
+        run_function_pass_with_cfg(module, analyses, |func, analyses| {
+            let blocks = func
+                .blocks
+                .iter_enumerated()
+                .filter(|(_, block)| {
+                    block.instructions.iter().any(|&inst| func.inst(inst).kind.is_shift())
                 })
+                .map(|(id, _)| id)
                 .collect::<Vec<_>>();
-            if shifts.is_empty() {
+            if blocks.is_empty() {
                 return false;
             }
-            let target = analyses.target(gcx);
+            // A block outside every loop of creation-only code runs once, and is priced as creation
+            // code as the EVM IR passes price it.
+            let once = analyses.loop_aware_target(gcx);
+            let repeated = Target::new(gcx);
+            let cyclic = analyses.cfg().cyclic_blocks();
             let mut changed = false;
-            for (inst, shift, value, right) in shifts {
-                let word = |value| func.value_ty(value) == Some(MirType::I256);
-                if !word(value) || !word(shift) || !func.inst_result_value(inst).is_some_and(word) {
-                    continue;
+            for block in blocks {
+                let instructions = std::mem::take(&mut func.blocks[block].instructions);
+                let target = if cyclic.contains(block) { &repeated } else { &once };
+                let mut builder = FunctionBuilder::new(func);
+                builder.switch_to_block(block);
+                // Shifts by the same amount share one computed factor within a block.
+                let mut factors = FxHashMap::default();
+                for inst in instructions {
+                    if let Some(kind) = lower_shift(&mut builder, target, &mut factors, inst) {
+                        builder.func_mut().inst_mut(inst).replace_kind(kind);
+                        changed = true;
+                    }
+                    builder.func_mut().blocks[block].instructions.push(inst);
                 }
-                let Some(factor) =
-                    func.value_u256(shift).and_then(|shift| target.legacy_shift_factor(shift))
-                else {
-                    continue;
-                };
-                // v = mul value, 2**shift (shl)
-                // v = div value, 2**shift (shr)
-                let factor = func.alloc_value(Value::Immediate(Immediate::I256(factor)));
-                let kind =
-                    if right { InstKind::Div(value, factor) } else { InstKind::Mul(value, factor) };
-                func.inst_mut(inst).replace_kind(kind);
-                changed = true;
             }
             changed
         })
     }
+}
+
+/// Emits the helpers of a shift's arithmetic form and returns the operation that replaces it.
+fn lower_shift(
+    builder: &mut FunctionBuilder<'_>,
+    target: &Target,
+    factors: &mut FxHashMap<ValueId, ValueId>,
+    inst: InstId,
+) -> Option<InstKind> {
+    let (shift, value, arithmetic) = match builder.func().inst(inst).kind {
+        InstKind::Shl(shift, value) | InstKind::Shr(shift, value) => (shift, value, false),
+        InstKind::Sar(shift, value) => (shift, value, true),
+        _ => return None,
+    };
+    let left = matches!(builder.func().inst(inst).kind, InstKind::Shl(..));
+    let word = |builder: &FunctionBuilder<'_>, value| {
+        builder.func().value_ty(value) == Some(MirType::I256)
+    };
+    if !word(builder, value)
+        || !word(builder, shift)
+        || !builder.func().inst_result_value(inst).is_some_and(|result| word(builder, result))
+    {
+        return None;
+    }
+    let metadata = builder.func().inst(inst).metadata.debug_context();
+    builder.set_debug_context(&metadata);
+    let factor = shift_factor(builder, target, factors, shift);
+    if !arithmetic {
+        // v = mul value, factor (shl)
+        // v = div value, factor (shr)
+        return Some(if left {
+            InstKind::Mul(value, factor)
+        } else {
+            InstKind::Div(value, factor)
+        });
+    }
+    // negative = slt value, 0
+    // mask = sub 0, zext negative
+    // flipped = xor value, mask
+    // quotient = div flipped, factor
+    // v = xor quotient, mask
+    let zero = builder.imm(0);
+    let negative = builder.slt(value, zero);
+    let negative = builder.cast_word(negative);
+    let mask = builder.sub(zero, negative);
+    let flipped = builder.xor(value, mask);
+    let quotient = builder.div(flipped, factor);
+    Some(InstKind::Xor(quotient, mask))
+}
+
+/// Returns the value `2**shift`: an immediate when the target prefers pushing it.
+fn shift_factor(
+    builder: &mut FunctionBuilder<'_>,
+    target: &Target,
+    factors: &mut FxHashMap<ValueId, ValueId>,
+    shift: ValueId,
+) -> ValueId {
+    if let Some(shift) = builder.func().value_u256(shift)
+        && let Some(factor) = target.legacy_shift_factor(shift)
+    {
+        return builder.imm(factor);
+    }
+    *factors.entry(shift).or_insert_with(|| {
+        // factor = exp 2, shift
+        let two = builder.imm(2);
+        builder.exp(two, shift)
+    })
 }

@@ -13,7 +13,9 @@
   
   fn @wide(arg0: i256) -> i256 {
     bb0:
-      v0 = shr arg0, 224
+-     v0 = shr arg0, 224
++     v1 = exp 2, 224
++     v0 = div arg0, v1
       ret v0
   }
   
@@ -29,11 +31,24 @@
   
   fn @variable(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = shl arg0, arg1
-      v1 = shr arg0, arg1
-      v2 = sar arg0, 8
-      v3 = add v0, v1
-      v4 = add v3, v2
-      ret v4
+-     v0 = shl arg0, arg1
+-     v1 = shr arg0, arg1
++     v3 = exp 2, arg1
++     v0 = mul arg0, v3
++     v1 = div arg0, v3
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @signed(arg0: i256) -> i256 {
+    bb0:
+-     v0 = sar arg0, 8
++     v1 = slt arg0, 0
++     v2 = zext i1 v1 to i256
++     v3 = sub 0, v2
++     v4 = xor arg0, v3
++     v5 = div v4, 256
++     v0 = xor v5, v3
+      ret v0
   }
   

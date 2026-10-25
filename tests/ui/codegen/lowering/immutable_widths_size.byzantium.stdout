@@ -4,12 +4,11 @@ bb0:
   callvalue
   push bb3
   jumpi
-  push 0
-  calldataload
   push 224
   push 2
   exp
-  swap 1
+  push 0
+  calldataload
   div
   dup 1
   push 0x57de26a4
