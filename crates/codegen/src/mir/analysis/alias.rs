@@ -495,6 +495,7 @@ impl PointerProvenance {
         let mut allocations = FxHashMap::default();
         // The unique `alloc`s and the free-memory-pointer reads that no reset precedes.
         let mut positions = FxHashMap::default();
+        let (mut has_alloc, mut has_read) = (false, false);
         for (block_id, block) in func.blocks.iter_enumerated() {
             let entry_fresh = reachable.contains(block_id) && !poisoned.contains(block_id);
             for (index, &inst_id) in block.instructions.iter().enumerate() {
@@ -508,16 +509,18 @@ impl PointerProvenance {
                     );
                     if unique && matches!(func.inst(inst_id).kind, InstKind::Alloc { .. }) {
                         positions.insert(inst_id, (block_id, index));
+                        has_alloc = true;
                     }
                 } else if matches!(func.inst(inst_id).kind, InstKind::Fmp)
                     && entry_fresh
                     && first_resets[block_id].is_none_or(|first| index < first)
                 {
                     positions.insert(inst_id, (block_id, index));
+                    has_read = true;
                 }
             }
         }
-        let fresh_fmps = (!positions.is_empty())
+        let fresh_fmps = (has_alloc && has_read)
             .then(|| FreshFmps { dominators: cfg.dominators().clone(), positions });
 
         Self { allocations, fresh_fmps, addresses: RefCell::default() }
