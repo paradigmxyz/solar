@@ -30,4 +30,12 @@
 -   pop
     push 0
     jump bb2
+  bb4 [stack=2]:
+    swap 1
+    push 1
+    add
+    swap 1
+    pop
+    push 0
+    jump bb4
   

@@ -70,8 +70,8 @@
 //! naturally leave the carried words; the cheapest plan wins under the objective, weighting loop
 //! blocks by their nesting depth in gas mode. The orders of those rounds follow the words' uses
 //! and the latches, and so can miss the layout that lets a loop body compute the next value of one
-//! word before its last use of another and swap it in place. After the rounds, each header of the
-//! best plan, innermost loops first, is also laid out with each pair of its top
+//! word before its last use of another and swap it in place. After the rounds, each header that the
+//! best plan's hints lay out, innermost loops first, is also laid out with each pair of its top
 //! [`HEADER_EXCHANGED_WORDS`] words exchanged, one pair at a time, and replanned. The header keeps
 //! the exchange of the cheapest plan, if any beats the best, and the next header builds on it.
 //! Each replan costs time in proportion to the function's size, so a function takes at most
@@ -857,17 +857,25 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         let mut best = best.expect("at least one plan");
-        if target.optimizes_stack_plans() {
-            self.exchange_header_words(
+        let replan = |hints: &FxHashMap<BlockId, Layout>| {
+            Planner::new(
                 module,
                 info,
                 func_id,
                 analysis,
                 &target,
-                (&spilled, ret_spilled, restarts >= single_spills),
-                best_hints,
-                &mut tried,
-                &mut best,
+                &spilled,
+                ret_spilled,
+                restarts >= single_spills,
+                hints,
+            )
+            .ok()?
+            .plan()
+            .ok()
+        };
+        if target.optimizes_stack_plans() {
+            exchange_header_words(
+                func, analysis, &target, best_hints, &mut tried, &mut best, replan,
             );
         }
         let hints = FxHashMap::default();
@@ -896,70 +904,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             best = candidate.plan;
         }
         Ok(best)
-    }
-
-    /// Lays each loop header out with two of its top words exchanged, and keeps a plan only when
-    /// it is cheaper under the objective. A header takes the exchange that saves the most, and
-    /// the next header builds on it.
-    #[allow(clippy::too_many_arguments)]
-    fn exchange_header_words(
-        &self,
-        module: &Module,
-        info: &ModuleInfo,
-        func_id: FunctionId,
-        analysis: &Analysis,
-        target: &Target,
-        (spilled, ret_spilled, batch_spills): (&DenseBitSet<ValueId>, bool, bool),
-        mut hints: FxHashMap<BlockId, Layout>,
-        tried: &mut Vec<FxHashMap<BlockId, Layout>>,
-        best: &mut FunctionPlan,
-    ) {
-        // Replans cost time in proportion to the function's size, so large functions get fewer,
-        // spent on the innermost loops first.
-        let insts = module.functions[func_id].blocks.iter().map(|block| block.instructions.len());
-        let mut replans = HEADER_REPLAN_WORK / insts.sum::<usize>().max(1);
-        let depth =
-            |header| analysis.loops.all_loops().filter(|lp| lp.blocks.contains(header)).count();
-        let mut headers = hints.keys().copied().collect::<Vec<_>>();
-        headers.sort_by_cached_key(|&header| (std::cmp::Reverse(depth(header)), header));
-        for header in headers {
-            let base = hints[&header].clone();
-            let top = base.len() - base.len().min(HEADER_EXCHANGED_WORDS);
-            let mut chosen = base.clone();
-            for lower in top..base.len() {
-                for upper in lower + 1..base.len() {
-                    let mut layout = base.clone();
-                    layout.swap(lower, upper);
-                    if layout == base {
-                        continue;
-                    }
-                    hints.insert(header, layout.clone());
-                    if tried.contains(&hints) {
-                        continue;
-                    }
-                    let Some(left) = replans.checked_sub(1) else { return };
-                    replans = left;
-                    tried.push(hints.clone());
-                    if let Ok(planner) = Planner::new(
-                        module,
-                        info,
-                        func_id,
-                        analysis,
-                        target,
-                        spilled,
-                        ret_spilled,
-                        batch_spills,
-                        &hints,
-                    ) && let Ok(planned) = planner.plan()
-                        && target.cmp(planned.plan.cost, best.cost).is_lt()
-                    {
-                        *best = planned.plan;
-                        chosen = layout;
-                    }
-                }
-            }
-            hints.insert(header, chosen);
-        }
     }
 
     /// The callers along the deepest non-recursive call chain, when it is deeper than the EVM
@@ -1168,3 +1112,52 @@ fn icall(kind: &InstKind) -> Option<(FunctionId, &[ValueId])> {
 
 type Layout = Vec<Slot>;
 type Operands = SmallVec<[ValueId; 8]>;
+
+/// Lays each loop header of `hints` out with two of its top words exchanged, and keeps a plan
+/// only when it is cheaper under the objective. A header takes the exchange that saves the most,
+/// and the next header builds on it.
+fn exchange_header_words(
+    func: &Function,
+    analysis: &Analysis,
+    target: &Target,
+    mut hints: FxHashMap<BlockId, Layout>,
+    tried: &mut Vec<FxHashMap<BlockId, Layout>>,
+    best: &mut FunctionPlan,
+    replan: impl Fn(&FxHashMap<BlockId, Layout>) -> Option<Planned>,
+) {
+    // Replans cost time in proportion to the function's size, so large functions get fewer,
+    // spent on the innermost loops first.
+    let mut replans =
+        HEADER_REPLAN_WORK / func.blocks.iter().map(|b| b.instructions.len()).sum::<usize>().max(1);
+    let depth = |header| analysis.loops.all_loops().filter(|lp| lp.blocks.contains(header)).count();
+    let mut headers = hints.keys().copied().collect::<Vec<_>>();
+    headers.sort_by_cached_key(|&header| (std::cmp::Reverse(depth(header)), header));
+    for header in headers {
+        let base = hints[&header].clone();
+        let top = base.len() - base.len().min(HEADER_EXCHANGED_WORDS);
+        let mut chosen = base.clone();
+        for lower in top..base.len() {
+            for upper in lower + 1..base.len() {
+                let mut layout = base.clone();
+                layout.swap(lower, upper);
+                if layout == base {
+                    continue;
+                }
+                hints.insert(header, layout.clone());
+                if tried.contains(&hints) {
+                    continue;
+                }
+                let Some(left) = replans.checked_sub(1) else { return };
+                replans = left;
+                tried.push(hints.clone());
+                if let Some(planned) = replan(&hints)
+                    && target.cmp(planned.plan.cost, best.cost).is_lt()
+                {
+                    *best = planned.plan;
+                    chosen = layout;
+                }
+            }
+        }
+        hints.insert(header, chosen);
+    }
+}

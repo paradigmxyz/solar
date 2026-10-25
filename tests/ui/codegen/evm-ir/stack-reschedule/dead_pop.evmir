@@ -55,3 +55,14 @@ bb2 [loop, stack=2]:
   pop
   push 0
   jump bb2
+
+// Outside loops, a run of one operation is searched only when optimizing for size, as the
+// snapshots of the two revisions show.
+bb4 [stack=2]:
+  swap 1
+  push 1
+  add
+  swap 1
+  pop
+  push 0
+  jump bb4
