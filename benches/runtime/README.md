@@ -38,9 +38,9 @@ runs on the size-optimized code).
 
 `--solar-no-optimizer` sets `optimizer.enabled = false` in our compiler's Standard JSON input only, so
 we run at `-O none` while solc, solx, and oksolc keep each case's settings. It composes with
-`--optimizer-runs`, which still applies to the reference compilers. The saved input fingerprint of
-our compiler then differs from the references', so `--reference-results` matches on the fingerprint
-of the unmodified case input, stored as `reference_input_fingerprint`.
+`--optimizer-runs`, which still applies to the reference compilers. It conflicts with
+`--reference-results`: the input fingerprint of our compiler differs from the saved one, so nothing
+would match; run the references live with `--solc`.
 
 `--artifacts PATH` writes a file tree per runtime case and compiler from an extra, untimed compile.
 Each compiler directory has a `sources/` tree of every embedded Standard JSON source, keeping paths,
@@ -97,22 +97,20 @@ a matching reference result exists.
 - `--reference-results PATH` reuses solc, solx, and oksolc results from a prior run without running
   them; it conflicts with `--solc` and `--solx`. It copies compile, gas, and runtime data only for
   matching input fingerprints, then runs the usual cross-compiler checks. Live `--oksolc` results
-  override saved ones. A case without a matching reference result is a failure, as it cannot be
-  checked, unless `--allow-failures` is set. `--reference-compilers solc ...` limits the reused
-  compilers (default: all three).
+  override saved ones.
 
 Without `--allow-failures`, the exit status is 1 if any compiler fails to compile, a deployment or
-gas transaction fails, a runtime check fails or differs between compilers, or a reference result is
-missing.
+gas transaction fails, or a runtime check fails or differs between compilers.
 
 Reference compiler failures stay in the raw results but raise no report warnings or PR comments;
 failures of our compiler, and mismatches involving it, do.
 
 CI also runs the runtime corpus a second time with `--solar-no-optimizer` (the "Check -O none
-runtime results" step of the codegen runtime job). It reuses the solc results of the exact-base run
-(`--reference-results ... --reference-compilers solc`; pushes to main run solc live), uses one
-compile repeat, writes no report or comment, and fails the job on any failure or mismatch. `-O none`
-must give the same runtime results as `-Ogas` and `-Osize`; only gas and size may differ.
+runtime results" step of the codegen runtime job): live solc, one compile repeat, `--gas
+--gas-profile hot`, no report or comment. The job fails on any compile, deployment, gas, or runtime
+failure and on any runtime mismatch with solc. `-O none` must give the same runtime results as
+`-Ogas` and `-Osize`; only gas and size may differ. It runs solc live because the exact-base
+results never match a PR that changes the corpus inputs.
 
 In CI, PRs pass the exact-base result as `--reference-results`, so solc runs only on the base
 revision. Solx 0.1.8 is pinned and runs only on pushes to main, never in PR jobs, even ones that

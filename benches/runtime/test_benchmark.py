@@ -276,8 +276,8 @@ class CorpusTests(unittest.TestCase):
             return {"status": "failed", "input_fingerprint": prepared_input[2]}
 
         with mock.patch.object(benchmark, "compile_case", side_effect=compile_case):
-            result = benchmark.run_test_case(
-                case, specs, False, "smoke", "rpc", "key", solar_optimizer=False
+            benchmark.run_test_case(
+                case, specs, False, "smoke", "rpc", "key", solar_no_optimizer=True
             )
 
         solc_input, solar_input = (
@@ -287,7 +287,6 @@ class CorpusTests(unittest.TestCase):
         self.assertFalse(solar_input["settings"]["optimizer"]["enabled"])
         solc_input["settings"]["optimizer"]["enabled"] = False
         self.assertEqual(solc_input, solar_input)
-        self.assertEqual(result["reference_input_fingerprint"], inputs["solc"][2])
         self.assertNotEqual(inputs["solc"][2], inputs["solar"][2])
 
     def test_compiler_output_fingerprint_ignores_diagnostic_order(self) -> None:
@@ -481,19 +480,12 @@ class FailureHandlingTests(unittest.TestCase):
             {"solar", "solc", "solx", "oksolc"},
         )
 
-    def test_unmatched_reference_results_fail_unless_failures_are_allowed(
-        self,
-    ) -> None:
+    def test_solar_no_optimizer_run_fails_on_deploy_failure(self) -> None:
         case = benchmark.TEST_CASES[0]
         entry = {
             "test_id": case.test_id,
             "suite": case.suite,
-            "gas_profile": "smoke",
-            "compilers": {"solar": {"status": "ok", "input_fingerprint": "new"}},
-        }
-        reference = {
-            **entry,
-            "compilers": {"solc": {"status": "ok", "input_fingerprint": "old"}},
+            "compilers": {"solar": {"status": "ok", "deploy_status": "failed"}},
         }
         for flags, expected in (([], 1), (["--allow-failures"], 0)):
             with (
@@ -503,29 +495,43 @@ class FailureHandlingTests(unittest.TestCase):
                 mock.patch.object(
                     benchmark, "binary_version", return_value=("0.2.0", "")
                 ),
-                mock.patch.object(benchmark, "run_test_case", return_value=entry),
+                mock.patch.object(
+                    benchmark, "run_test_case", return_value=entry
+                ) as run_case,
                 mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
             ):
-                reference_path = Path(directory) / "reference.json"
-                reference_path.write_text(json.dumps({"results": [reference]}))
+                output = Path(directory) / "results.json"
                 return_code = benchmark.main(
                     [
                         "--solar",
                         "solar",
-                        "--reference-results",
-                        str(reference_path),
-                        "--reference-compilers",
-                        "solc",
+                        "--solar-no-optimizer",
                         "--tests",
                         case.test_id,
                         "--output",
-                        str(Path(directory) / "results.json"),
+                        str(output),
                         *flags,
                     ]
                 )
+                document = json.loads(output.read_text())
             self.assertEqual(return_code, expected)
-            self.assertIn("matching solc reference result not found", stderr.getvalue())
-            self.assertNotIn("matching solx", stderr.getvalue())
+            self.assertTrue(run_case.call_args.args[-1])
+            self.assertTrue(document["solar_optimizer_disabled"])
+            self.assertEqual("1 deployments failed" in stderr.getvalue(), expected == 1)
+
+    def test_solar_no_optimizer_rejects_reference_results(self) -> None:
+        with (
+            mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+            self.assertRaises(SystemExit) as error,
+        ):
+            benchmark.main(
+                ["--solar-no-optimizer", "--reference-results", "results.json"]
+            )
+        self.assertEqual(error.exception.code, 2)
+        self.assertIn(
+            "--solar-no-optimizer changes Solar's input fingerprint",
+            stderr.getvalue(),
+        )
 
     def test_live_oksolc_with_saved_references(self) -> None:
         case = benchmark.TEST_CASES[0]
@@ -665,7 +671,6 @@ class FailureHandlingTests(unittest.TestCase):
                             "solar",
                             "--reference-results",
                             str(reference_path),
-                            "--allow-failures",
                             "--output",
                             str(Path(directory) / "results.json"),
                             *flags,
@@ -1175,23 +1180,6 @@ class ArtifactTests(unittest.TestCase):
         )
         self.assertEqual(artifacts["runtime.disasm"], "4\n")
         self.assertEqual(json.loads(output), {"contracts": {}})
-
-    def test_merges_reference_results_for_solar_no_optimizer_input(self) -> None:
-        entry = {
-            "test_id": "test",
-            "suite": "runtime",
-            "reference_input_fingerprint": "shared",
-            "compilers": {"solar": {"input_fingerprint": "solar-only"}},
-        }
-        references = {
-            ("runtime", "test"): {
-                "compilers": {
-                    "solc": {"status": "failed", "input_fingerprint": "shared"}
-                }
-            }
-        }
-
-        self.assertTrue(benchmark.merge_reference_compiler(entry, references, "solc"))
 
     def test_rejects_reference_results_for_different_inputs(self) -> None:
         entry = {

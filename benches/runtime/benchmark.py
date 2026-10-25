@@ -1849,8 +1849,6 @@ def merge_reference_compiler(
         for data in compilers.values()
         if isinstance(data, dict) and data.get("input_fingerprint")
     }
-    # Our compiler may get a different input (`--solar-no-optimizer`) than the references.
-    current_fingerprints.add(entry.get("reference_input_fingerprint"))
     if not reference_fingerprint or reference_fingerprint not in current_fingerprints:
         return False
     if entry.get("gas_profile") != reference.get("gas_profile"):
@@ -1956,7 +1954,7 @@ def run_test_case(
     repeat_long_compiles: bool = False,
     artifact_root: Path | None = None,
     optimizer_runs: int | None = None,
-    solar_optimizer: bool = True,
+    solar_no_optimizer: bool = False,
 ) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "test_id": test_case.test_id,
@@ -1976,12 +1974,10 @@ def run_test_case(
         if test_case.project_file is not None and not test_case.project_path.exists()
         else compiler_input(test_case, evm_version, optimizer_runs)
     )
-    if prepared_input is not None:
-        entry["reference_input_fingerprint"] = prepared_input[2]
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
         spec_input = prepared_input
-        if prepared_input is not None and spec.kind == "solar" and not solar_optimizer:
+        if prepared_input is not None and spec.kind == "solar" and solar_no_optimizer:
             input_text = with_optimizer_disabled(prepared_input[0])
             spec_input = (
                 input_text,
@@ -2244,13 +2240,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="Compare with saved reference compiler results without running reference compilers",
     )
-    parser.add_argument(
-        "--reference-compilers",
-        choices=("solc", "solx", "oksolc"),
-        nargs="+",
-        default=("solc", "solx", "oksolc"),
-        help="Compilers to reuse from --reference-results (default: all)",
-    )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument(
         "--projects", nargs="*", help="Subset of repository project names to run"
@@ -2316,6 +2305,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.compile_repeats = 1
     if args.reference_results and (args.solc or args.solx):
         parser.error("--reference-results cannot be combined with --solc or --solx")
+    if args.reference_results and args.solar_no_optimizer:
+        parser.error(
+            "--solar-no-optimizer changes Solar's input fingerprint, which "
+            "--reference-results cannot match; pass --solc instead"
+        )
     try:
         reference_results = (
             load_reference_results(args.reference_results)
@@ -2431,7 +2425,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     reference_specs = (
         [
             CompilerSpec(name, name, Path(name), name)
-            for name in args.reference_compilers
+            for name in ("solc", "solx", "oksolc")
             if name not in {spec.compiler_id for spec in specs}
         ]
         if args.reference_results
@@ -2537,7 +2531,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.repeat_long_compiles,
                 args.artifacts,
                 args.optimizer_runs,
-                not args.solar_no_optimizer,
+                args.solar_no_optimizer,
             )
         except Exception as exc:
             print(
@@ -2552,7 +2546,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return result
 
     results = []
-    missing_references = []
     timings = {}
     anvil_proc = None
     executor = ThreadPoolExecutor(args.jobs) if args.jobs > 1 else None
@@ -2608,7 +2601,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                                 dirs_exist_ok=True,
                             )
                 else:
-                    missing_references.append((test.test_id, compiler_id))
                     print(
                         _color(
                             f"[{test.test_id}] matching {compiler_id} reference result not found",
@@ -2646,6 +2638,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                             f"\n{result['test_id']} {compiler_id} runtime {check.get('label')} error:\n"
                             f"{check.get('error', '')}"
                         )
+                if data.get("deploy_status") == "failed":
+                    print(
+                        f"\n{result['test_id']} {compiler_id} deploy error:\n"
+                        f"{data.get('deploy_error', '')}"
+                    )
                 for gas_result in data.get("gas_results") or []:
                     if gas_result.get("gas") is None:
                         print(
@@ -2698,16 +2695,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if data.get("deploy_status") == "failed"
     ]
     if (
-        failed or runtime_failed or gas_failed or deploy_failed or missing_references
+        failed or runtime_failed or gas_failed or deploy_failed
     ) and not args.allow_failures:
-        if missing_references:
-            print(
-                _color(
-                    f"{len(missing_references)} reference results not found, so those cases were not compared; use --allow-failures to keep exit code 0",
-                    RED,
-                ),
-                file=sys.stderr,
-            )
         if failed:
             print(
                 _color(
