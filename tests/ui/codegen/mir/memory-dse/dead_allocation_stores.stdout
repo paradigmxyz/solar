@@ -233,3 +233,15 @@
       returndata 0, 32
   }
   
+  fn @store_past_dynamic_end(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = alloc arg1
+      v1 = alloc 32
+      mstore v1, 7
+      v2 = ptradd v0, 32
+      mstore v2, arg0
+      v3 = mload v1
+      mstore 0, v3
+      returndata 0, 32
+  }
+  

@@ -38,3 +38,23 @@ fn @neighbour(arg0: i256) -> i256 [selector=0xf7374c27, pure, abi_params=[uint25
     v6 = mload v5
     ret v6
 }
+
+fn @grown(arg0: i256) -> i256 [selector=0x922be285, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = add arg0, 63
+    v1 = lt v0, arg0
+    icall panic_if<0x41>, v1
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc zeroed checked v3
+    mstore v4, arg0
+    v5 = not 31
+    v6 = and 95, v5
+    v7 = alloc zeroed checked v6
+    mstore v7, 32
+    v8 = ptrtoint ptr<memory> v4 to i256
+    v9 = add v8, 32
+    mstore v9, 0xdead
+    v10 = mload v7
+    ret v10
+}

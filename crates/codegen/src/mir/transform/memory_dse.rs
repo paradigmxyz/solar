@@ -46,9 +46,10 @@
 //!   `msize`, or a callee with unknown reads, and every `ret` and tail call, reads the whole
 //!   object. A read that may leave its own allocation reaches the objects allocated after it, not
 //!   the ones before. A deferred object, which static placement keeps unrelated to the free-memory
-//!   pointer, ignores them. Functions observing gas keep their stores, since the stores pay for
-//!   memory expansion. Writes the object receives from copies and calls stay: only stores are
-//!   candidates.
+//!   pointer, ignores them. A store past the end of an object, or past the length word of a
+//!   runtime-sized one, may write over the next object and stays. Functions observing gas keep
+//!   their stores, since the stores pay for memory expansion. Writes the object receives from
+//!   copies and calls stay: only stores are candidates.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
@@ -2006,7 +2007,8 @@ struct AllocAccesses {
 /// The walk over the values derived from one allocation pointer.
 struct AllocWalk<'a> {
     func: &'a Function,
-    /// The constant byte size of the allocation, if any.
+    /// The constant byte size of the allocation. A runtime size is assumed to cover the length
+    /// word every dynamic Solidity object starts with, and no more.
     size: Option<u64>,
     derived: FxHashMap<ValueId, AllocPointer>,
     worklist: Vec<ValueId>,
@@ -2117,7 +2119,8 @@ impl AllocWalk<'_> {
         }
     }
 
-    /// Records a `width`-byte store at the exact offset `at` of the object, if it fits.
+    /// Records a `width`-byte store at the exact offset `at` of the object, if it fits. A store
+    /// past the end of the object may write over the next one, which it then leaves alone.
     fn store(
         &mut self,
         addresses: bool,
@@ -2129,7 +2132,9 @@ impl AllocWalk<'_> {
     ) {
         if addresses
             && let Some(range) = at.range(Some(width))
-            && range.end.is_some_and(|end| self.size.is_none_or(|size| end <= size))
+            && range
+                .end
+                .is_some_and(|end| end <= self.size.unwrap_or(EvmMemoryLayout::DYNAMIC_HEADER_SIZE))
         {
             self.accesses.stores.push(AllocStore { inst, block, index, range });
         }
