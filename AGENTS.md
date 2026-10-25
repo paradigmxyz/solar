@@ -363,8 +363,6 @@ parser benchmarks, see [benches/README.md](benches/README.md).
 
 - Reuse the frozen baseline's results; do not rerun it.
 - Narrow with `--tests` while iterating.
-- Pass `--gas-kinds` with `--gas` to record execution gas and gas by opcode kind;
-  receipt gas hides changes on calls billed at the calldata floor.
 - Check output identity with compile-only runs and output fingerprints.
 - Use release binaries for corpus-wide compiles.
 - Make a local WIP commit before scripted bulk edits.
