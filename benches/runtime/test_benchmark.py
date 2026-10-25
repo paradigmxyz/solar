@@ -2,6 +2,8 @@ import hashlib
 import importlib.util
 import io
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -16,6 +18,8 @@ assert SPEC is not None and SPEC.loader is not None
 benchmark = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = benchmark
 SPEC.loader.exec_module(benchmark)
+
+from cases import GasCall
 
 
 class CorpusTests(unittest.TestCase):
@@ -1296,6 +1300,174 @@ class RpcTransportTests(unittest.TestCase):
             ("0xtx",),
             "http://127.0.0.1:8545",
         )
+
+
+class GasKindsTests(unittest.TestCase):
+    def trace(self, **values):
+        return {
+            "kinds": {"push": 30, "stack": 20, "storage": 22100},
+            "exec": 22150,
+            "refund": 0,
+            "firstGas": 78796,
+            "gasLimit": 100000,
+            **values,
+        }
+
+    def trace_gas_kinds(self, receipt_gas, trace=None, error=""):
+        with mock.patch.object(
+            benchmark, "rpc_request_from_file", return_value=(trace, error)
+        ) as request:
+            return benchmark.trace_gas_kinds(
+                "0xtx", receipt_gas, "http://127.0.0.1:8545"
+            ), request
+
+    def test_traces_the_call_and_splits_execution_gas(self) -> None:
+        (kinds, error), request = self.trace_gas_kinds(43354, self.trace())
+        self.assertEqual(error, "")
+        self.assertEqual(
+            kinds,
+            {
+                "execution_gas": 22150,
+                "gas_kinds": {"push": 30, "stack": 20, "storage": 22100},
+                "intrinsic_gas": 21204,
+                "gas_refund": 0,
+                "calldata_floor": False,
+            },
+        )
+        method, (tx_hash, options), rpc_url, _ = request.call_args.args
+        self.assertEqual(
+            (method, tx_hash, rpc_url),
+            ("debug_traceTransaction", "0xtx", "http://127.0.0.1:8545"),
+        )
+        self.assertEqual(options["tracer"], benchmark.gas_kinds_tracer())
+
+    def test_applies_capped_refund_and_detects_calldata_floor(self) -> None:
+        trace = self.trace(refund=1_000_000)
+        (kinds, _), _ = self.trace_gas_kinds(43354 - 8670, trace)
+        assert kinds is not None
+        self.assertEqual((kinds["gas_refund"], kinds["calldata_floor"]), (8670, False))
+        (kinds, _), _ = self.trace_gas_kinds(60000, self.trace())
+        assert kinds is not None
+        self.assertTrue(kinds["calldata_floor"])
+        self.assertEqual(kinds["execution_gas"], 22150)
+
+    def test_rejects_traces_that_do_not_explain_receipt_gas(self) -> None:
+        for receipt_gas, trace, error, message in (
+            (43354, self.trace(exec=22151), "", "sum to 22150, not 22151"),
+            (43000, self.trace(), "", "traced gas 43354 exceeds receipt gas 43000"),
+            (43354, self.trace(firstGas=-1), "", "malformed gas trace"),
+            (43354, {"kinds": {}}, "", "malformed gas trace"),
+            (43354, None, "rpc down", "rpc down"),
+        ):
+            with self.subTest(message=message):
+                (kinds, error_message), _ = self.trace_gas_kinds(
+                    receipt_gas, trace, error
+                )
+                self.assertIsNone(kinds)
+                self.assertIn(message, error_message)
+        self.assertEqual(
+            benchmark.trace_gas_kinds(None, 1, "rpc"),
+            (None, "transaction receipt missing transactionHash"),
+        )
+
+    def run_case(self, gas_kinds, trace_result):
+        case = next(case for case in benchmark.TEST_CASES if case.test_id == "counter")
+        spec = benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar")
+        calls = [GasCall("set", "set(uint256)", ("1",))]
+        with (
+            mock.patch.object(
+                benchmark, "compiler_input", return_value=("{}", 120, "input")
+            ),
+            mock.patch.object(
+                benchmark,
+                "compile_case",
+                return_value={"status": "ok", "bytecode": "00"},
+            ),
+            mock.patch.object(
+                benchmark, "deploy_contract", return_value=("address", 1, "")
+            ),
+            mock.patch.object(benchmark, "gas_calls", return_value=calls),
+            mock.patch.object(benchmark, "runtime_checks", return_value=[]),
+            mock.patch.object(benchmark, "send_call", return_value=(43354, "0xtx", "")),
+            mock.patch.object(
+                benchmark, "trace_gas_kinds", return_value=trace_result
+            ) as trace,
+        ):
+            result = benchmark.run_test_case(
+                case, [spec], True, "hot", "rpc", "key", gas_kinds=gas_kinds
+            )
+        return result["compilers"]["solar"], trace
+
+    def test_gas_results_record_execution_gas_and_kinds(self) -> None:
+        kinds = {"execution_gas": 20, "gas_kinds": {"push": 20}, "calldata_floor": True}
+        data, trace = self.run_case(True, (kinds, ""))
+        trace.assert_called_once_with("0xtx", 43354, "rpc")
+        self.assertEqual(data["gas_kinds_status"], "ok")
+        self.assertEqual(
+            data["gas_results"],
+            [
+                {
+                    "label": "set",
+                    "call": "set(uint256)",
+                    "args": ["1"],
+                    "gas": 43354,
+                    "comparison_exclusion_reason": None,
+                    **kinds,
+                }
+            ],
+        )
+
+    def test_trace_failure_keeps_receipt_gas_and_fails_the_trace_status(self) -> None:
+        data, _ = self.run_case(True, (None, "no trace"))
+        self.assertEqual((data["gas_status"], data["total_gas"]), ("ok", 43354))
+        self.assertEqual(data["gas_kinds_status"], "failed")
+        self.assertEqual(data["gas_results"][0]["gas_kinds_error"], "no trace")
+        self.assertNotIn("execution_gas", data["gas_results"][0])
+
+    def test_untraced_runs_record_receipt_gas_only(self) -> None:
+        data, trace = self.run_case(False, (None, ""))
+        trace.assert_not_called()
+        self.assertNotIn("gas_kinds_status", data)
+        self.assertEqual(
+            set(data["gas_results"][0]),
+            {"label", "call", "args", "gas", "comparison_exclusion_reason"},
+        )
+
+    def test_send_call_returns_receipt_gas_and_hash(self) -> None:
+        process = mock.Mock(
+            returncode=0,
+            stdout=json.dumps(
+                {"status": "0x1", "gasUsed": "0x5208", "transactionHash": "0xab"}
+            ),
+            stderr="",
+        )
+        with mock.patch.object(benchmark, "run", return_value=process):
+            self.assertEqual(
+                benchmark.send_call("0x1", "f()", (), "rpc", "key"), (21000, "0xab", "")
+            )
+            self.assertEqual(
+                benchmark.call_contract("0x1", "f()", (), "rpc", "key"), (21000, "")
+            )
+
+    def test_gas_kinds_requires_gas(self) -> None:
+        with (
+            mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+            self.assertRaises(SystemExit) as error,
+        ):
+            benchmark.main(["--gas-kinds"])
+        self.assertEqual(error.exception.code, 2)
+        self.assertTrue(
+            stderr.getvalue().endswith("error: --gas-kinds requires --gas\n")
+        )
+
+    @unittest.skipUnless(shutil.which("node"), "node is not installed")
+    def test_tracer_is_a_javascript_object_literal(self) -> None:
+        script = (
+            "const t = ("
+            + benchmark.gas_kinds_tracer()
+            + "); for (const f of ['step', 'enter', 'exit', 'fault', 'result']) if (typeof t[f] !== 'function') throw new Error(f)"
+        )
+        subprocess.run(["node", "-e", script], check=True)
 
 
 class ParallelRunTests(unittest.TestCase):
