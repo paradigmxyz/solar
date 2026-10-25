@@ -1,0 +1,67 @@
+// === ROOT/tests/ui/codegen/mir/lower-shifts/legacy_shifts.sol:LegacyShifts (runtime) ===
+@module LegacyShifts_runtime
+bb0:
+  callvalue
+  push bb6
+  jumpi
+  push 0x100000000000000000000000000000000000000000000000000000000
+  push 0
+  calldataload
+  div
+  dup 1
+  push 0x6626c818
+  eq
+  push bb5
+  jumpi
+  dup 1
+  push 0x97471385
+  eq
+  push bb4
+  jumpi
+  dup 1
+  push 0xcda3144d
+  eq
+  push bb3
+  jumpi
+  dup 1
+  push 0xd56d625c
+  sub
+  push bb6
+  jumpi
+  push 0
+  dup 1
+  mstore
+  push 32
+  push 0
+  return
+bb6 [cold]:
+  push 0
+  dup 1
+  revert
+bb3:
+  push 8
+  calldatasize
+  mul
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb4:
+  push 256
+  calldatasize
+  div
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb5:
+  push 256
+  calldatasize
+  mul
+  push 0
+  mstore
+  push 32
+  push 0
+  return

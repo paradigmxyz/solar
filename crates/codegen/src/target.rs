@@ -791,6 +791,20 @@ impl Target {
         self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
     }
 
+    /// The factor `2**shift` that a constant shift lowered to `MUL` or `DIV` pushes, or `None`
+    /// when computing it with `EXP` costs less over the deployment lifetime. Shifts of 256 or
+    /// more give a zero factor, which matches the wrapped `EXP` result.
+    pub(crate) fn legacy_shift_factor(&self, shift: U256) -> Option<U256> {
+        let two = U256::from(2);
+        let factor =
+            if shift < U256::from(256) { U256::ONE << shift.to::<usize>() } else { U256::ZERO };
+        let folded = self.opcode(op::push(factor.byte_len().max(1) as u8));
+        let computed = self.push(shift)
+            + self.push(two)
+            + self.opcode_with_immediates(op::EXP, &[Some(two), Some(shift)]);
+        self.cmp_lifetime(folded, computed).is_le().then_some(factor)
+    }
+
     /// Whether legacy splat expansion beats the selected ordinary lowering in size.
     /// For word stores, the first two stores are common; price each remaining materialized
     /// word, offset, store, and stack moves. For a data copy, include the pool and the splat's
@@ -1227,6 +1241,21 @@ mod tests {
         assert!(target.legacy_splat_is_profitable(word, 96, true));
         assert!(target.legacy_splat_is_profitable(word, 5120, true));
     }
+
+    #[test]
+    fn legacy_shifts_push_the_factor_when_it_costs_less() {
+        let shift = |bits| U256::from(bits);
+        let size = Target::with(EvmVersion::Byzantium, OptimizationMode::Size, 1);
+        assert_eq!(size.legacy_shift_factor(shift(8)), Some(U256::from(256)));
+        assert_eq!(size.legacy_shift_factor(shift(224)), None);
+        // 24 more bytes of deposit outweigh the 63 gas of `EXP` unless the code runs often.
+        let few = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 1);
+        assert_eq!(few.legacy_shift_factor(shift(224)), None);
+        let many = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
+        assert_eq!(many.legacy_shift_factor(shift(224)), Some(U256::ONE << 224));
+        assert_eq!(many.legacy_shift_factor(shift(256)), Some(U256::ZERO));
+    }
+
     #[test]
     fn terminal_copy_sharing() {
         let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);

@@ -84,15 +84,10 @@ pub(in crate::backend) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> 
 /// `value / 2**shift`, folding a literal shift push into the factor when that is cheaper.
 fn append_shift(target: Target, out: &mut Vec<Instruction>, shr: bool) {
     let two = U256::from(2);
-    let factor = out.last().and_then(Instruction::concrete_immediate).and_then(|shift| {
-        let factor =
-            if shift < U256::from(256) { U256::ONE << shift.to::<usize>() } else { U256::ZERO };
-        let folded = target.opcode(op::push(factor.byte_len().max(1) as u8));
-        let computed = target.push(shift)
-            + target.push(two)
-            + target.opcode_with_immediates(op::EXP, &[Some(two), Some(shift)]);
-        target.cmp_lifetime(folded, computed).is_le().then_some(factor)
-    });
+    let factor = out
+        .last()
+        .and_then(Instruction::concrete_immediate)
+        .and_then(|shift| target.legacy_shift_factor(shift));
     match factor {
         // push 2**shift
         Some(factor) => {

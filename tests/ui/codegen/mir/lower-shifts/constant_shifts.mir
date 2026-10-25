@@ -1,0 +1,73 @@
+//@ revisions: gas size modern
+//@[gas] compile-flags: -Ogas --evm-version byzantium -Zmir-pipeline=lower-shifts
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] compile-flags: -Osize --evm-version byzantium -Zmir-pipeline=lower-shifts
+//@[size] filecheck: --check-prefix=SIZE
+//@[modern] compile-flags: -Ogas --evm-version constantinople -Zmir-pipeline=lower-shifts
+//@[modern] filecheck: --check-prefix=MODERN --implicit-check-not={{mul|div}}
+@module ConstantShifts
+
+// A constant shift becomes `mul` or `div` by an immediate `2**shift` while pushing the factor is
+// cheaper than computing it with `exp`, so stack scheduling orders the operands.
+// GAS-LABEL: fn @narrow
+// GAS: - v0 = shl arg0, 8
+// GAS: - v1 = shr arg0, 8
+// GAS: + v0 = mul arg0, 256
+// GAS: + v1 = div arg0, 256
+// SIZE-LABEL: fn @narrow
+// SIZE: + v0 = mul arg0, 256
+// SIZE: + v1 = div arg0, 256
+// MODERN-LABEL: fn @narrow
+fn @narrow(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 8
+    v1 = shr arg0, 8
+    v2 = add v0, v1
+    ret v2
+}
+
+// A 29-byte factor repays its bytes only when the code runs often. The dispatcher's selector
+// shift keeps `shr` under `-Osize` for the EVM IR pass to compute with `exp`.
+// GAS-LABEL: fn @wide
+// GAS: + v0 = div arg0, 0x100000000000000000000000000000000000000000000000000000000
+// SIZE-LABEL: fn @wide
+// SIZE-NOT: div
+// SIZE: v0 = shr arg0, 224
+// MODERN-LABEL: fn @wide
+fn @wide(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 224
+    ret v0
+}
+
+// A shift of 256 or more clears the word, as the wrapped `2**shift` does.
+// GAS-LABEL: fn @overflow
+// GAS: + v0 = mul arg0, 0
+// GAS: + v1 = div arg0, 0
+// SIZE-LABEL: fn @overflow
+// SIZE: + v0 = mul arg0, 0
+// SIZE: + v1 = div arg0, 0
+// MODERN-LABEL: fn @overflow
+fn @overflow(arg0: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, 256
+    v1 = shr arg0, 300
+    v2 = add v0, v1
+    ret v2
+}
+
+// Variable shifts and `sar` stay for the EVM IR pass.
+// GAS-LABEL: fn @variable
+// GAS-NOT: = {{mul|div}}
+// SIZE-LABEL: fn @variable
+// SIZE-NOT: = {{mul|div}}
+// MODERN-LABEL: fn @variable
+fn @variable(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, arg1
+    v1 = shr arg0, arg1
+    v2 = sar arg0, 8
+    v3 = add v0, v1
+    v4 = add v3, v2
+    ret v4
+}

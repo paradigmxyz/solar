@@ -146,7 +146,6 @@ struct LowerAbiCx {
     calldata_slice_helper: Option<FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
     validated_abi_arguments: super::call_cleanup::ArgumentBits,
-    has_bitwise_shifting: bool,
     /// How compiler-generated decoding reverts are encoded.
     revert_strings: RevertStrings,
 }
@@ -162,7 +161,6 @@ struct DecodeOptions<'a> {
     head_checked: bool,
     validate_array_elements: bool,
     helpers: Option<&'a FxHashMap<AbiParamType, FunctionId>>,
-    has_bitwise_shifting: bool,
     /// The debug message for an out-of-range head offset, which depends on whether the value is
     /// a tuple element, a struct member, or an array element.
     offset_reason: RevertReason,
@@ -187,7 +185,7 @@ struct StaticBytesReturn {
 }
 
 impl DecodeOptions<'_> {
-    fn new(constructor: bool, input_end: ValueId, has_bitwise_shifting: bool) -> Self {
+    fn new(constructor: bool, input_end: ValueId) -> Self {
         Self {
             constructor,
             input_end,
@@ -195,7 +193,6 @@ impl DecodeOptions<'_> {
             head_checked: false,
             validate_array_elements: true,
             helpers: None,
-            has_bitwise_shifting,
             offset_reason: RevertReason::InvalidTupleOffset,
         }
     }
@@ -220,7 +217,6 @@ impl LowerAbiCx {
         if module.phase() == MirPhase::Lowered {
             return false;
         }
-        self.has_bitwise_shifting = evm_version.has_bitwise_shifting();
         self.function_params =
             module.functions.iter().map(|func| func.params.iter().copied().collect()).collect();
 
@@ -438,7 +434,6 @@ impl LowerAbiCx {
         static_bytes_return: Option<StaticBytesReturn>,
         decoded_params: &[Option<ValueId>],
     ) {
-        let has_bitwise_shifting = self.has_bitwise_shifting;
         let revert_strings = self.revert_strings;
         let Some(mut layout) = func.abi_returns.take() else { return };
         let return_blocks = func
@@ -549,12 +544,7 @@ impl LowerAbiCx {
                             _ => false,
                         }
                     {
-                        return materialize_calldata_return(
-                            &mut builder,
-                            &ty,
-                            value,
-                            has_bitwise_shifting,
-                        );
+                        return materialize_calldata_return(&mut builder, &ty, value);
                     }
                     // The encoder cleans each word it reads from a memory aggregate, so a
                     // cleaned copy would only clean every word twice.
@@ -645,7 +635,6 @@ impl LowerAbiCx {
                 module,
                 &ty,
                 &memory_type_helpers,
-                self.has_bitwise_shifting,
             );
             memory_type_helpers.insert(ty, helper);
         }
@@ -695,12 +684,9 @@ impl LowerAbiCx {
                     let result = builder.func().inst_result_value(inst);
                     if builder.func().value_slice_location(data) == Some(PtrLocation::Calldata) {
                         let layout = layout.clone();
-                        let Some(values) = decode_calldata_tuple(
-                            &mut builder,
-                            data,
-                            layout.as_ref(),
-                            self.has_bitwise_shifting,
-                        ) else {
+                        let Some(values) =
+                            decode_calldata_tuple(&mut builder, data, layout.as_ref())
+                        else {
                             return false;
                         };
                         if let Some(result) = result {
@@ -741,7 +727,6 @@ impl LowerAbiCx {
                         length,
                         layout.as_ref(),
                         (!memory_type_helpers.is_empty()).then_some(&memory_type_helpers),
-                        self.has_bitwise_shifting,
                     ) else {
                         return false;
                     };
@@ -818,9 +803,7 @@ impl LowerAbiCx {
                 &mut current,
                 DecodeOptions {
                     helpers: (!helpers.is_empty()).then_some(helpers),
-                    ..DecodeOptions::new(false, input_end, self.has_bitwise_shifting)
-                        .checked()
-                        .bounded()
+                    ..DecodeOptions::new(false, input_end).checked().bounded()
                 },
             );
             builder.set_return_type(ty.mir_type());
@@ -908,7 +891,6 @@ impl LowerAbiCx {
                 length,
                 layout.as_ref(),
                 (!memory_type_helpers.is_empty()).then_some(memory_type_helpers),
-                self.has_bitwise_shifting,
             )
             .expect("checked ABI layout");
             // field = cast decoded word to the declared field type
@@ -1352,7 +1334,7 @@ impl LowerAbiCx {
                     logical_values[index] = Some(word);
                 }
                 let Some(validator) = validator else { continue };
-                let valid = validator.condition(&mut builder, word, self.has_bitwise_shifting);
+                let valid = validator.condition(&mut builder, word);
                 let next = builder.create_block();
                 builder.branch(valid, next, validator_revert);
                 current = next;
@@ -1396,8 +1378,7 @@ impl LowerAbiCx {
                     let decode_options = DecodeOptions {
                         validate_array_elements,
                         helpers: (!constructor && !helpers.is_empty()).then_some(helpers),
-                        ..DecodeOptions::new(constructor, input_end, self.has_bitwise_shifting)
-                            .bounded()
+                        ..DecodeOptions::new(constructor, input_end).bounded()
                     };
                     if uses.is_empty() {
                         if ty.is_dynamic() && location != AbiParamLocation::Memory {
@@ -1595,7 +1576,6 @@ impl LowerAbiCx {
             head_checked,
             validate_array_elements,
             helpers,
-            has_bitwise_shifting,
             offset_reason,
         } = options;
         builder.switch_to_block(*current);
@@ -1683,13 +1663,7 @@ impl LowerAbiCx {
                     Self::aggregate_short_reason(ty, to_calldata),
                 );
             }
-            return Self::decode_static_calldata_argument(
-                builder,
-                ty,
-                base,
-                current,
-                has_bitwise_shifting,
-            );
+            return Self::decode_static_calldata_argument(builder, ty, base, current);
         }
         match ty {
             crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
@@ -2055,12 +2029,11 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         head: ValueId,
         current: &mut BlockId,
-        has_bitwise_shifting: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
         if let Some(validator) = ty.word_validator() {
             let value = builder.load(head, PtrLocation::Memory);
-            let valid = validator.condition(builder, value, has_bitwise_shifting);
+            let valid = validator.condition(builder, value);
             *current = builder.revert_if_zero(valid, RevertReason::Empty);
             return Self::normalize_abi_word(builder, ty, value);
         }
@@ -2068,7 +2041,7 @@ impl LowerAbiCx {
             return builder.load(head, PtrLocation::Memory);
         }
         let value = Self::decode_aggregate(builder, ty, head, |builder, ty, head, current| {
-            Self::decode_static_memory_argument(builder, ty, head, current, has_bitwise_shifting)
+            Self::decode_static_memory_argument(builder, ty, head, current)
         });
         *current = builder.current_block();
         value
@@ -2132,12 +2105,10 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         head: ValueId,
         current: &mut BlockId,
-        has_bitwise_shifting: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let mut valid = builder.imm(1);
-        let value =
-            Self::decode_static_calldata_value(builder, ty, head, &mut valid, has_bitwise_shifting);
+        let value = Self::decode_static_calldata_value(builder, ty, head, &mut valid);
         let invalid = builder.eq_zero(valid);
         *current = builder.revert_if(invalid, RevertReason::Empty);
         value
@@ -2148,11 +2119,10 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         head: ValueId,
         valid: &mut ValueId,
-        has_bitwise_shifting: bool,
     ) -> ValueId {
         if let Some(validator) = ty.word_validator() {
             let value = builder.load(head, PtrLocation::Calldata);
-            let condition = validator.condition(builder, value, has_bitwise_shifting);
+            let condition = validator.condition(builder, value);
             *valid = builder.and(*valid, condition);
             return Self::normalize_abi_word(builder, ty, value);
         }
@@ -2176,7 +2146,6 @@ impl LowerAbiCx {
                         element,
                         element_head,
                         &mut current,
-                        has_bitwise_shifting,
                     );
                     builder.switch_to_block(current);
                 });
@@ -2189,7 +2158,7 @@ impl LowerAbiCx {
             return object;
         }
         Self::decode_aggregate(builder, ty, head, |builder, ty, head, current| {
-            Self::decode_static_calldata_argument(builder, ty, head, current, has_bitwise_shifting)
+            Self::decode_static_calldata_argument(builder, ty, head, current)
         })
     }
 
@@ -2266,7 +2235,7 @@ impl LowerAbiCx {
         }
         let value = Self::load_input_word(builder, position, options.constructor);
         if let Some(validator) = ty.word_validator() {
-            Self::validate_abi_word(builder, value, validator, options.has_bitwise_shifting);
+            Self::validate_abi_word(builder, value, validator);
             *current = builder.current_block();
         }
         Self::normalize_abi_word(builder, ty, value)
@@ -2579,9 +2548,8 @@ impl LowerAbiCx {
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
         validator: AbiWordValidator,
-        has_bitwise_shifting: bool,
     ) -> ValueId {
-        let valid = validator.condition(builder, value, has_bitwise_shifting);
+        let valid = validator.condition(builder, value);
         builder.revert_if_zero(valid, RevertReason::Empty);
         value
     }
@@ -2616,7 +2584,6 @@ fn decode_memory_tuple(
     length: ValueId,
     layout: &AbiParamLayout,
     helpers: Option<&FxHashMap<crate::mir::AbiParamType, FunctionId>>,
-    has_bitwise_shifting: bool,
 ) -> Option<Vec<ValueId>> {
     let head_size = layout.checked_head_size()?;
     let mut current = builder.current_block();
@@ -2629,13 +2596,7 @@ fn decode_memory_tuple(
     for ty in &layout.types {
         let head = builder.add_u64_offset(base, head_offset);
         let value = if static_layout {
-            LowerAbiCx::decode_static_memory_argument(
-                builder,
-                ty,
-                head,
-                &mut current,
-                has_bitwise_shifting,
-            )
+            LowerAbiCx::decode_static_memory_argument(builder, ty, head, &mut current)
         } else {
             LowerAbiCx::decode_aggregate_argument(
                 builder,
@@ -2644,10 +2605,7 @@ fn decode_memory_tuple(
                 head,
                 base,
                 &mut current,
-                DecodeOptions {
-                    helpers,
-                    ..DecodeOptions::new(true, input_end, has_bitwise_shifting).checked()
-                },
+                DecodeOptions { helpers, ..DecodeOptions::new(true, input_end).checked() },
             )
         };
         values.push(value);
@@ -2681,7 +2639,6 @@ fn decode_calldata_tuple(
     builder: &mut FunctionBuilder<'_>,
     data: ValueId,
     layout: &AbiParamLayout,
-    has_bitwise_shifting: bool,
 ) -> Option<Vec<ValueId>> {
     let head_size = layout.checked_head_size()?;
     // base = ptrtoint (extract_value data, 0)
@@ -2700,13 +2657,7 @@ fn decode_calldata_tuple(
         builder.switch_to_block(current);
         let head = builder.add_u64_offset(base, head_offset);
         let value = if static_layout {
-            LowerAbiCx::decode_static_calldata_argument(
-                builder,
-                ty,
-                head,
-                &mut current,
-                has_bitwise_shifting,
-            )
+            LowerAbiCx::decode_static_calldata_argument(builder, ty, head, &mut current)
         } else {
             LowerAbiCx::decode_aggregate_argument(
                 builder,
@@ -2715,9 +2666,7 @@ fn decode_calldata_tuple(
                 head,
                 base,
                 &mut current,
-                DecodeOptions {
-                    ..DecodeOptions::new(false, input_end, has_bitwise_shifting).checked()
-                },
+                DecodeOptions::new(false, input_end).checked(),
             )
         };
         values.push(value);
@@ -2832,7 +2781,6 @@ fn synthesize_memory_decode_helper(
     module: &mut Module,
     ty: &AbiParamType,
     helpers: &FxHashMap<AbiParamType, FunctionId>,
-    has_bitwise_shifting: bool,
 ) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_type));
     {
@@ -2850,7 +2798,7 @@ fn synthesize_memory_decode_helper(
             &mut current,
             DecodeOptions {
                 helpers: (!helpers.is_empty()).then_some(helpers),
-                ..DecodeOptions::new(true, input_end, has_bitwise_shifting).checked()
+                ..DecodeOptions::new(true, input_end).checked()
             },
         );
         builder.set_return_type(ty.mir_type());
@@ -4017,7 +3965,6 @@ fn materialize_calldata_return(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiParamType,
     base: ValueId,
-    has_bitwise_shifting: bool,
 ) -> ValueId {
     if matches!(ty, AbiParamType::DynamicArray(_)) {
         // len = extract_value returned_slice, 1
@@ -4025,7 +3972,7 @@ fn materialize_calldata_return(
         // object = copy_calldata_value(data, len)
         let len = builder.slice_len(base);
         let data = builder.slice_ptr(base);
-        return copy_calldata_value(builder, ty, data, Some(len), has_bitwise_shifting);
+        return copy_calldata_value(builder, ty, data, Some(len));
     }
     // base = extract_value returned_slice, 0
     // check_range(base, head_size)
@@ -4043,7 +3990,7 @@ fn materialize_calldata_return(
         reason,
     );
     builder.switch_to_block(current);
-    copy_calldata_value(builder, ty, base, None, has_bitwise_shifting)
+    copy_calldata_value(builder, ty, base, None)
 }
 
 /// Copies a calldata value to memory with the checks solc applies when it re-encodes calldata
@@ -4057,7 +4004,6 @@ fn copy_calldata_value(
     ty: &AbiParamType,
     position: ValueId,
     length: Option<ValueId>,
-    has_bitwise_shifting: bool,
 ) -> ValueId {
     match ty {
         AbiParamType::Bytes => {
@@ -4092,13 +4038,7 @@ fn copy_calldata_value(
                 length,
                 position,
                 |builder, element, head, current| {
-                    let value = copy_calldata_member(
-                        builder,
-                        element,
-                        position,
-                        head,
-                        has_bitwise_shifting,
-                    );
+                    let value = copy_calldata_member(builder, element, position, head);
                     *current = builder.current_block();
                     value
                 },
@@ -4108,8 +4048,7 @@ fn copy_calldata_value(
         AbiParamType::FixedArray { .. } | AbiParamType::Tuple(_) if ty.is_dynamic() => {
             // for each member { object.member = copy_calldata_member(position + member_offset) }
             LowerAbiCx::decode_aggregate(builder, ty, position, |builder, member, head, current| {
-                let value =
-                    copy_calldata_member(builder, member, position, head, has_bitwise_shifting);
+                let value = copy_calldata_member(builder, member, position, head);
                 *current = builder.current_block();
                 value
             })
@@ -4117,13 +4056,8 @@ fn copy_calldata_value(
         _ => {
             // value = decode_static(position)
             let mut current = builder.current_block();
-            let value = LowerAbiCx::decode_static_calldata_argument(
-                builder,
-                ty,
-                position,
-                &mut current,
-                has_bitwise_shifting,
-            );
+            let value =
+                LowerAbiCx::decode_static_calldata_argument(builder, ty, position, &mut current);
             builder.switch_to_block(current);
             value
         }
@@ -4138,10 +4072,9 @@ fn copy_calldata_member(
     ty: &AbiParamType,
     base: ValueId,
     head: ValueId,
-    has_bitwise_shifting: bool,
 ) -> ValueId {
     if !ty.is_dynamic() {
-        return copy_calldata_value(builder, ty, head, None, has_bitwise_shifting);
+        return copy_calldata_value(builder, ty, head, None);
     }
     // offset = calldataload(head)
     // check_calldata_tail_offset(base, offset)
@@ -4153,11 +4086,11 @@ fn copy_calldata_member(
     builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size());
     let position = builder.add(base, offset);
     let Some(stride) = ty.calldata_stride() else {
-        return copy_calldata_value(builder, ty, position, None, has_bitwise_shifting);
+        return copy_calldata_value(builder, ty, position, None);
     };
     // length = calldataload(position)
     // data = calldata_tail_data(position + 32, length, stride)
     let length = builder.load(position, PtrLocation::Calldata);
     let data = builder.calldata_tail_data(tail, position, 32, length, end, stride);
-    copy_calldata_value(builder, ty, data, Some(length), has_bitwise_shifting)
+    copy_calldata_value(builder, ty, data, Some(length))
 }
