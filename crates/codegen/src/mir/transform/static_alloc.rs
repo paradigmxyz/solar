@@ -787,23 +787,39 @@ fn accesses_fmp_slot(func: &Function) -> bool {
 
 /// Whether a terminator reads exactly the returndata that a copy at the same constant address
 /// wrote, as a failed call does when it bubbles up its revert data: `returndatacopy 0, 0, n;
-/// revert 0, n` with both sizes `returndatasize`. Nothing between the copy and the terminator may
-/// write memory or call out.
+/// revert 0, n` with both sizes `returndatasize`. Both sizes must be read in the block, with no
+/// instruction in between that writes memory or calls out, so they come from the same returndata.
 fn reads_copied_returndata(
     func: &Function,
     instructions: &[InstId],
     offset: ValueId,
     size: ValueId,
 ) -> bool {
-    let is_returndata_size = |value| matches!(func.value(value), Value::Inst(inst) if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize));
-    if func.value_u64(offset).is_none() || !is_returndata_size(size) {
+    let returndata_size = |value| match func.value(value) {
+        Value::Inst(inst) if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize) => {
+            Some(*inst)
+        }
+        _ => None,
+    };
+    let (Some(offset), Some(size)) = (func.value_u64(offset), returndata_size(size)) else {
         return false;
-    }
+    };
+    // The terminator's size is read after the copy, and the copy's size before it, with only
+    // pure and environment reads between them.
+    let mut size_read = false;
+    let mut copy_size = None;
     for &inst in instructions.iter().rev() {
+        if copy_size.is_none() {
+            size_read |= inst == size;
+        } else if Some(inst) == copy_size {
+            return true;
+        }
         match func.inst(inst).kind {
-            InstKind::Copy(dest, _, copy_size, PtrLocation::Returndata) => {
-                return func.value_u64(dest) == func.value_u64(offset)
-                    && is_returndata_size(copy_size);
+            InstKind::Copy(dest, _, length, PtrLocation::Returndata)
+                if copy_size.is_none() && size_read && func.value_u64(dest) == Some(offset) =>
+            {
+                let Some(length) = returndata_size(length) else { return false };
+                copy_size = Some(length);
             }
             ref kind
                 if matches!(kind.effect_kind(), EffectKind::Pure | EffectKind::EnvironmentRead) => {
