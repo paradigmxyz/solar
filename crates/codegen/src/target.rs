@@ -337,6 +337,9 @@ impl Target {
     pub(crate) const CODE_DEPOSIT_GAS_PER_BYTE: u32 = 200;
     /// Gas of a nonzero calldata byte since Istanbul (EIP-2028).
     const CALLDATA_NONZERO_BYTE_GAS: u32 = 16;
+    /// Sites of a module among which the backend finds one matching run, measured over the
+    /// size corpus where guarded byte tails win in modules of about a hundred sites.
+    const OUTLINE_MATCH_ONE_IN: u64 = 1024;
     /// Gas of a nonzero calldata byte before Istanbul.
     const LEGACY_CALLDATA_NONZERO_BYTE_GAS: u32 = 68;
     /// Expected executions per deployment when the optimizer runs are not set;
@@ -850,6 +853,47 @@ impl Target {
             + self.push(U256::from(op::WORD_BYTES))
     }
 
+    /// The code that writes a byte string's length and zeroes its last padded word, and sets up
+    /// the copy of its data into an encoding: len = mload object; padded = (len + 31) & ~31;
+    /// mstore dest + padded, 0; mstore dest, len; tail = dest + 32 + padded.
+    fn byte_tail_run(&self) -> Cost {
+        let word_size = op::WORD_BYTES;
+        self.dup()
+            + self.opcode(op::MLOAD)
+            + self.push(U256::from(word_size - 1)).times(2)
+            + self.opcode(op::ADD)
+            + self.opcode(op::NOT)
+            + self.opcode(op::AND)
+            + (self.dup() + self.opcode(op::ADD)).times(2)
+            + self.push(U256::ZERO)
+            + (self.dup() + self.opcode(op::MSTORE)).times(2)
+            + (self.push(U256::from(word_size)) + self.opcode(op::ADD)).times(2)
+            + self.dup().times(3)
+    }
+
+    /// The copy of a byte string's data into an encoding.
+    fn byte_tail_copy(&self) -> Cost {
+        if self.evm_version.has_mcopy() { self.opcode(op::MCOPY) } else { self.word_copy_loop() }
+    }
+
+    /// Whether a module with `sites` byte-string encodings zeroes the last padded word of each
+    /// tail behind a branch rather than unconditionally. The guard costs a zero test and a branch
+    /// at every site. It repays that only when the backend shares the tail's run with another
+    /// site, which then costs a jump to one body instead of the run, copy included. Runs differ in
+    /// stack layout, so a site finds a partner with odds of one in
+    /// [`Self::OUTLINE_MATCH_ONE_IN`] per other site; the expected saving grows with the
+    /// module's sites. Gas never guards, since it does not share runs.
+    pub(crate) fn guards_byte_tails(&self, sites: usize) -> bool {
+        if !matches!(self.optimization, OptimizationMode::Size) {
+            return false;
+        }
+        let guard = self.opcode(op::ISZERO) + self.branch();
+        let run = (self.byte_tail_run() + self.byte_tail_copy()).bytes;
+        let shared_run = run.saturating_sub((self.label_push() + self.opcode(op::JUMP)).bytes);
+        (sites.saturating_sub(1) as u128) * u128::from(shared_run)
+            > u128::from(Self::OUTLINE_MATCH_ONE_IN) * u128::from(guard.bytes)
+    }
+
     /// Whether an ABI encoding writes a literal byte string as stores of its own words, beside
     /// the preserved object that already holds it, instead of copying that object. `bytes`
     /// reads the literal, which only the size objective needs. `removes_original` says nothing
@@ -890,25 +934,7 @@ impl Target {
                         .sum::<Cost>()
                     + self.push(size)
                     + self.opcode(op::ADD);
-                // len = mload object; padded = (len + 31) & ~31; mstore dest + padded, 0;
-                // mstore dest, len; copy data to dest + 32; tail = dest + 32 + padded
-                let copy = if self.evm_version.has_mcopy() {
-                    self.opcode(op::MCOPY)
-                } else {
-                    self.word_copy_loop()
-                };
-                let copied = self.dup()
-                    + self.opcode(op::MLOAD)
-                    + self.push(U256::from(word_size - 1)).times(2)
-                    + self.opcode(op::ADD)
-                    + self.opcode(op::NOT)
-                    + self.opcode(op::AND)
-                    + (self.dup() + self.opcode(op::ADD)).times(2)
-                    + self.push(U256::ZERO)
-                    + (self.dup() + self.opcode(op::MSTORE)).times(2)
-                    + (self.push(U256::from(word_size)) + self.opcode(op::ADD)).times(2)
-                    + self.dup().times(3)
-                    + copy;
+                let copied = self.byte_tail_run() + self.byte_tail_copy();
                 folded.bytes < copied.bytes
             }
             _ => false,
@@ -1317,6 +1343,21 @@ mod tests {
         // Folding that drops the original object only moves the stores.
         assert!(folds(size(EvmVersion::Cancun), true, 64));
         assert!(!size(EvmVersion::Cancun).folds_preserved_literal(false, || None));
+    }
+
+    #[test]
+    fn byte_tails_guard_where_runs_share() {
+        let size = |evm_version| Target::with(evm_version, OptimizationMode::Size, 1);
+        // The longer run of the copy loop repays its guard in fewer sites than MCOPY's.
+        assert!(!size(EvmVersion::Paris).guards_byte_tails(1));
+        assert!(!size(EvmVersion::Paris).guards_byte_tails(100));
+        assert!(size(EvmVersion::Paris).guards_byte_tails(130));
+        assert!(!size(EvmVersion::Cancun).guards_byte_tails(130));
+        assert!(size(EvmVersion::Cancun).guards_byte_tails(300));
+        // Gas does not share runs.
+        assert!(
+            !Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200).guards_byte_tails(5000)
+        );
     }
 
     #[test]

@@ -42,7 +42,9 @@
 //! stores keep their order. Allocations of at most one element keep a counted
 //! loop, whose rotation would add an entry guard and an exit phi. Byte tails
 //! zero their last padded word before writing the length header, which needs
-//! no branch even for an empty tail.
+//! no branch even for an empty tail. Size mode keeps the guarded store in a
+//! module with many byte tails, because the backend then shares the repeated
+//! guarded runs between sites (`Target::guards_byte_tails`).
 //!
 //! In-place returns. Under the gas and size objectives, a terminal external
 //! return of a fresh full-word array or byte string that is not a literal
@@ -103,7 +105,8 @@ impl MirPass for LowerAbiEncode {
         let target = Target::new(gcx);
         let (fresh_object_returns, mut destructive_returns) =
             plan_destructive_terminal_returns(&target, module);
-        let mut helpers = synthesize_array_helpers(module, revert_strings);
+        let guarded_byte_tails = target.guards_byte_tails(byte_tail_sites(module));
+        let mut helpers = synthesize_array_helpers(module, revert_strings, guarded_byte_tails);
         synthesize_tuple_helpers(
             &target,
             module,
@@ -124,7 +127,7 @@ impl MirPass for LowerAbiEncode {
                 constructors.insert(id);
             }
         }
-        let mut inline_helpers = EncodeHelpers::default();
+        let mut inline_helpers = EncodeHelpers { guarded_byte_tails, ..EncodeHelpers::default() };
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
@@ -195,6 +198,8 @@ struct EncodeHelpers {
     tuples: FxHashMap<TupleHelperKey, FunctionId>,
     /// Proven on the original function, before encoding emits raw memory operations.
     literal_objects: FxHashSet<ValueId>,
+    /// Whether byte tails zero their last padded word behind a branch.
+    guarded_byte_tails: bool,
 }
 
 /// Builds `encode_abi_tuple(args.., [selector]) -> encoded` for every encoding shape at least
@@ -276,7 +281,11 @@ fn is_terminal_scratch(mode: AbiEncodeMode, terminator: Option<&Terminator>) -> 
 /// Builds `encode_abi_array(value, dest) -> length` for every memory array layout whose
 /// element-wise loop at least two sites would otherwise expand inline. Inner layouts are built
 /// first so an outer helper's element encoding calls the inner helper.
-fn synthesize_array_helpers(module: &mut Module, revert_strings: RevertStrings) -> EncodeHelpers {
+fn synthesize_array_helpers(
+    module: &mut Module,
+    revert_strings: RevertStrings,
+    guarded_byte_tails: bool,
+) -> EncodeHelpers {
     fn count_sites(
         func: &Function,
         ty: &AbiType,
@@ -331,7 +340,7 @@ fn synthesize_array_helpers(module: &mut Module, revert_strings: RevertStrings) 
         .collect::<Vec<_>>();
     keys.sort_by_key(|(first, key)| (array_depth(&key.element), *first));
 
-    let mut helpers = EncodeHelpers::default();
+    let mut helpers = EncodeHelpers { guarded_byte_tails, ..EncodeHelpers::default() };
     for (_, key) in keys {
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_array));
         {
@@ -1142,7 +1151,14 @@ fn encode_dynamic_body(
     match ty {
         AbiType::Bytes(location) => {
             let location = effective_slice_location(builder.func(), value, *location);
-            encode_bytes(builder, value, dest, location, helpers.literal_objects.contains(&value))
+            encode_bytes(
+                builder,
+                value,
+                dest,
+                location,
+                helpers.literal_objects.contains(&value),
+                helpers.guarded_byte_tails,
+            )
         }
         AbiType::DynamicArray { element, location } => {
             let location = effective_slice_location(builder.func(), value, *location);
@@ -1449,6 +1465,7 @@ fn encode_bytes(
     dest: ValueId,
     location: PtrLocation,
     literal_folding: bool,
+    guarded_padding: bool,
 ) -> ValueId {
     if literal_folding
         && location == PtrLocation::Memory
@@ -1473,6 +1490,11 @@ fn encode_bytes(
         PtrLocation::Memory => memory_object_len(builder, value),
         _ => builder.slice_len(value),
     };
+    if guarded_padding {
+        // mstore dest, len
+        builder.store(dest, len);
+    }
+
     let word = builder.imm(32);
     let thirty_one = builder.imm(31);
     let mask = builder.not(thirty_one);
@@ -1480,14 +1502,28 @@ fn encode_bytes(
     let padded = builder.and(rounded, mask);
     let data_dest = builder.add(dest, word);
 
-    // last = dest + padded
-    // store last, 0
-    // mstore dest, len
-    // For an empty tail, last == dest; write the header after zeroing it.
-    let last = builder.add(dest, padded);
-    let zero = builder.imm(0);
-    builder.store(last, zero);
-    builder.store(dest, len);
+    if guarded_padding {
+        // if padded != 0: mstore dest + padded, 0
+        let zero_block = builder.create_block();
+        let copy_block = builder.create_block();
+        let empty = builder.eq_zero(padded);
+        builder.branch(empty, copy_block, zero_block);
+        builder.switch_to_block(zero_block);
+        let last = builder.add(dest, padded);
+        let zero = builder.imm(0);
+        builder.store(last, zero);
+        builder.jump(copy_block);
+        builder.switch_to_block(copy_block);
+    } else {
+        // last = dest + padded
+        // store last, 0
+        // mstore dest, len
+        // For an empty tail, last == dest; write the header after zeroing it.
+        let last = builder.add(dest, padded);
+        let zero = builder.imm(0);
+        builder.store(last, zero);
+        builder.store(dest, len);
+    }
     let data_source = match location {
         PtrLocation::Memory => builder.memory_data(value),
         _ => builder.slice_ptr(value),
@@ -1521,6 +1557,22 @@ fn memory_object_len(builder: &mut FunctionBuilder<'_>, value: ValueId) -> Value
         return builder.slice_len(value);
     }
     builder.memory_len(value)
+}
+
+/// Counts the byte-string arguments of the module's encodings, each a site whose tail the encoder
+/// writes inline or shares through a helper.
+fn byte_tail_sites(module: &Module) -> usize {
+    module
+        .functions
+        .iter()
+        .flat_map(|func| {
+            func.instructions().filter_map(|inst| match &func.inst(inst).kind {
+                InstKind::AbiEncode { layout, .. } => Some(layout),
+                _ => None,
+            })
+        })
+        .map(|layout| layout.types.iter().filter(|ty| matches!(ty, AbiType::Bytes(_))).count())
+        .sum()
 }
 
 /// Finds literal bytes candidates whose allocation and encoding share a block, with

@@ -1,0 +1,132 @@
+//@ compile-flags: -Osize
+//@ compile-flags: --evm-version paris
+//@ run-call: f3 0x => 0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: f23 0x0b => 0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010b00000000000000000000000000000000000000000000000000000000000000
+//@ run-call: f43 0x0b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c61 => 0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001f0b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6100
+//@ run-call: f63 0x0b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186 => 0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186
+//@ run-call: f83 0x0b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186ab => 0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000210b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186ab00000000000000000000000000000000000000000000000000000000000000
+
+// A module with many byte tails keeps their guarded padding store, which the backend shares
+// between sites, so empty and unaligned tails must still read back exactly.
+contract GuardedByteTails {
+    function f0(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f1(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f2(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f3(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f4(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f5(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f6(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f7(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f8(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f9(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f10(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f11(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f12(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f13(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f14(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f15(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f16(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f17(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f18(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f19(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f20(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f21(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f22(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f23(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f24(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f25(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f26(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f27(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f28(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f29(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f30(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f31(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f32(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f33(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f34(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f35(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f36(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f37(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f38(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f39(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f40(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f41(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f42(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f43(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f44(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f45(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f46(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f47(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f48(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f49(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f50(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f51(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f52(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f53(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f54(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f55(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f56(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f57(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f58(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f59(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f60(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f61(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f62(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f63(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f64(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f65(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f66(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f67(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f68(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f69(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f70(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f71(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f72(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f73(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f74(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f75(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f76(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f77(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f78(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f79(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f80(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f81(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f82(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f83(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f84(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f85(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f86(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f87(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f88(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f89(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f90(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f91(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f92(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f93(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f94(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f95(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f96(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f97(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f98(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f99(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f100(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f101(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f102(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f103(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f104(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f105(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f106(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f107(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f108(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f109(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f110(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f111(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f112(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f113(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f114(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f115(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f116(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f117(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f118(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+    function f119(bytes calldata data) external pure returns (bytes memory) { return abi.encode(data); }
+}
