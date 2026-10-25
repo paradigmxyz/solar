@@ -190,11 +190,9 @@ impl MirPass for LowerBuiltins {
                                 bytes_helper,
                             )
                         }
-                        InstKind::StorageBytesLoad(slot) => super::lower_storage_bytes::load(
-                            builder,
-                            slot,
-                            gcx.sess.opts.optimization.is_size(),
-                        ),
+                        InstKind::StorageBytesLoad(slot) => {
+                            super::lower_storage_bytes::load(builder, slot)
+                        }
                         InstKind::AddressCall { kind, address, input, gas, value } => {
                             lower_address_call(
                                 builder,
