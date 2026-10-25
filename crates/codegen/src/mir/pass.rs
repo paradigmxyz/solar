@@ -49,15 +49,15 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &readonly_eval::ReadonlyEval,
     &cse::Cse,
     &cse::FmpCse,
-    &pre::Pre,
+    &pre::Pre::Pure,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
     &byte_run::ByteRunLoads,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
-    &load_pre::LoadPre::All,
-    &load_pre::LoadPre::Storage,
+    &pre::Pre::Reads,
+    &pre::Pre::Storage,
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
     &loop_reduce::LoopReduce,
@@ -192,7 +192,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &egraph::Egraph,
     &word_sequence::WordSequence::Early,
-    &pre::Pre,
+    &pre::Pre::Pure,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     // Checked array loops reload one object's length before every bounds
@@ -200,7 +200,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // load PRE and LICM see one loop-invariant load and the later check passes
     // compare against one bound.
     &cse::Cse,
-    &load_pre::LoadPre::All,
+    &pre::Pre::Reads,
     // Element reads of arrays that only ever hold canonical words drop their
     // type masks while the accesses are still semantic and calls explicit.
     &element_cleanup::ElementCleanup,
@@ -290,7 +290,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::Cse),
     // Common dominated loads before PRE replaces join loads with phis, then
     // fold checks exposed by forwarding the stored values.
-    &GasOnly::new(load_pre::LoadPre::Storage),
+    &GasOnly::new(pre::Pre::Storage),
     &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
     &lower_dispatch::LowerDispatch,
