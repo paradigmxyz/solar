@@ -19,7 +19,6 @@ workspace = true
 smolgen = { workspace = true, optional = true, features = [
     "build",
     "cargo",
-    "emit_and_set",
     "vcs_info",
 ] }
 
