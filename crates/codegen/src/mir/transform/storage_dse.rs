@@ -13,11 +13,10 @@
 //! store that only reaches it is dead unless something reads the slot first. A return or stop
 //! commits persistent writes and leaves transient writes readable by a re-entrant `tload`, so
 //! neither kind is dead on those exits. Each space keeps its own facts, so an access to one
-//! never kills a fact about the other. Reads,
-//! possible aliases and unknown call effects kill facts. Only after convergence are stores erased;
-//! local equal store removal then runs with the same alias barriers. Run after storage
-//! forwarding so packed read-modify-write chains expose their overwritten
-//! stores without discarding preserved fields. A `gas` read clears both
+//! never kills a fact about the other. Reads, possible aliases and unknown call effects kill
+//! facts. Only after convergence are stores erased; local equal store removal then runs with the
+//! same alias barriers. Run after storage forwarding so packed read-modify-write chains expose
+//! their overwritten stores without discarding preserved fields. A `gas` read clears both
 //! forward and backward facts so measured storage writes remain explicit.
 //! Calls that may terminate the current EVM call clear backward facts because
 //! they can commit earlier writes without reaching the later overwrite.

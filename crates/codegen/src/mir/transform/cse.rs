@@ -71,13 +71,13 @@
 //! value under the written location, so a later load of that exact word forwards
 //! the value instead of reading memory; the ordinary clobber rules retire the
 //! entry. An exact `sstore` or `tstore` seeds the cache the same way, which exposes packed
-//! field updates as word expressions for storage DSE and lets a transient read see the word
-//! its own call wrote. A storage or transient read whose earlier read of the same slot has
-//! no later use stays and replaces the cache entry in the storage-only mode below, so forwarding
-//! never makes a loaded word live longer; a stored word is always forwarded, since the store
-//! already keeps it live. Inside loops, a cheap load is only replaced by a value cached in a
-//! dominating block when that value is already live into the loading block or
-//! the address is loop-invariant: reviving a dead value across the loop body
+//! field updates as word expressions for storage DSE and forwards a transient write to its
+//! reads. In the storage-only mode below, a storage or transient read whose earlier read of
+//! the same slot has no later use stays and replaces the cache entry, so forwarding never
+//! makes a loaded word live longer. A stored word is forwarded, since the store already keeps
+//! it live, unless it is itself an unused earlier read of that slot. Inside loops, a cheap load is
+//! only replaced by a value cached in a dominating block when that value is already live into the
+//! loading block or the address is loop-invariant: reviving a dead value across the loop body
 //! costs the scheduler more stack traffic than the load it removes. Acyclic
 //! reuse is unchanged. Loop and liveness facts are built only when a candidate reuse needs them.
 //!
@@ -1165,28 +1165,27 @@ impl CommonSubexprEliminator {
     ) -> Option<(ExprKey, ValueId)> {
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
         match *kind {
-            InstKind::Store(addr, stored, PtrLocation::Memory) => {
+            InstKind::Store(addr, stored, PtrLocation::Memory) if !self.storage_only => {
                 let key =
                     self.memory_range_key(func, inst_id, value(addr), LocationSize::Const(32))?;
                 Some((ExprKey::MLoad(key), value(stored)))
             }
-            InstKind::Store(slot, stored, PtrLocation::Storage) => {
+            InstKind::Store(
+                slot,
+                stored,
+                location @ (PtrLocation::Storage | PtrLocation::Transient),
+            ) => {
                 let alias = self.alias().storage_alias_after_replacements(
                     func,
                     inst_id,
                     slot,
                     replacements,
                 );
-                Some((ExprKey::SLoad(alias), value(stored)))
-            }
-            InstKind::Store(slot, stored, PtrLocation::Transient) => {
-                let alias = self.alias().storage_alias_after_replacements(
-                    func,
-                    inst_id,
-                    slot,
-                    replacements,
-                );
-                Some((ExprKey::TLoad(alias), value(stored)))
+                let key = match location {
+                    PtrLocation::Storage => ExprKey::SLoad(alias),
+                    _ => ExprKey::TLoad(alias),
+                };
+                Some((key, value(stored)))
             }
             _ => None,
         }
