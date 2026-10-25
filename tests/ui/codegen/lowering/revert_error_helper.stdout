@@ -172,36 +172,11 @@ bb17:
   mstore
   push 4
   calldataload
-  push 64
-  mload
-  push 96
-  dup 2
-  add
-  push 64
-  mstore
-  push 33
-  dup 2
-  mstore
-  push 32
-  dup 2
-  add
-  push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-  dup 2
-  mstore
-  push 33
-  push 248
-  shl
-  push 64
-  dup 4
-  add
-  mstore
   push 6
-  dup 4
+  dup 2
   lt
   push bb19
   jumpi
-  pop
-  pop
   push 0
   mstore
   push 32
@@ -226,51 +201,33 @@ bb22 [cold]:
 bb19 [cold]:
   push 64
   mload
+  push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
+  push 68
+  dup 3
+  add
+  mstore
+  push 33
+  push 248
+  shl
+  push 100
+  dup 3
+  add
+  mstore
+  push 33
+  push 36
+  dup 3
+  add
+  mstore
   push 0x8c379a0
   push 224
   shl
   dup 2
   mstore
+  push 32
   push 4
-  dup 2
-  add
-  push 32
-  dup 2
-  add
-  push 32
   dup 3
-  mstore
-  swap 4
-  mload
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 32
-  dup 7
-  add
-  push 0
-  dup 3
-  dup 9
   add
   mstore
-  dup 3
-  swap 1
-  swap 7
-  mstore
-  dup 6
-  add
-  swap 1
-  swap 2
-  swap 4
-  swap 1
-  swap 5
-  mcopy
-  swap 2
-  sub
-  push 4
-  add
+  push 132
   swap 1
   revert
