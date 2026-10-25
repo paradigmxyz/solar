@@ -129,3 +129,29 @@ fn @keep_after_absolute_store_in_allocation(arg0: i256) -> i256 {
     v2 = mload v1
     ret v2
 }
+
+// Reserved low memory stays `MayAlias` with an allocation.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_after_reserved_store{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload {{v[0-9]+}}
+fn @keep_after_reserved_store(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 96
+    memory_zero v0, 96
+    mstore 96, arg0
+    v1 = ptradd v0, 32
+    v2 = mload v1
+    ret v2
+}
+
+// A range that starts below the heap start and reaches past it may hit the allocation.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_after_straddling_copy{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload {{v[0-9]+}}
+fn @keep_after_straddling_copy() -> i256 {
+  bb0:
+    v0 = alloc 96
+    memory_zero v0, 96
+    calldatacopy 120, 0, 40
+    v1 = ptradd v0, 32
+    v2 = mload v1
+    ret v2
+}

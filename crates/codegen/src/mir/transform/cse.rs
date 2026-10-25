@@ -70,14 +70,14 @@
 //! field updates as word expressions for storage DSE and forwards a transient write to its
 //! reads. A constant-size `memory_zero` seeds the cache with zero for each full word it covers, up
 //! to a cap, so a later load of such a word folds to the constant. In the storage-only mode
-//! below, a storage or transient read whose earlier read of
-//! the same slot has no later use stays and replaces the cache entry, so forwarding never
-//! makes a loaded word live longer. A stored word is forwarded, since the store already keeps
-//! it live, unless it is itself an unused earlier read of that slot. Inside loops, a cheap load is
-//! only replaced by a value cached in a dominating block when that value is already live into the
-//! loading block or the address is loop-invariant: reviving a dead value across the loop body
-//! costs the scheduler more stack traffic than the load it removes. Acyclic
-//! reuse is unchanged. Loop and liveness facts are built only when a candidate reuse needs them.
+//! below, a storage or transient read whose earlier read of the same slot has no later use stays
+//! and replaces the cache entry, so forwarding never makes a loaded word live longer. A stored word
+//! is forwarded, since the store already keeps it live, unless it is itself an unused earlier read
+//! of that slot. Inside loops, a cheap load is only replaced by a value cached in a dominating
+//! block when that value is already live into the loading block or the address is loop-invariant:
+//! reviving a dead value across the loop body costs the scheduler more stack traffic than the load
+//! it removes. Acyclic reuse is unchanged. Loop and liveness facts are built only when a candidate
+//! reuse needs them.
 //!
 //! `storage-cse` runs the same walk over storage and transient-storage reads and stores alone.
 //! It leaves arithmetic, memory reads, and phi sinking to the full pass, which grows bytecode
