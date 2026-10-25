@@ -52,23 +52,16 @@ bb0:
   add
   dup 3
   jump bb6
+bb10 [loop]:
+  push 32
+  add
+  jump bb6
 bb6 [loop]:
   dup 2
   dup 2
   eq
   push bb9
   jumpi
-  jump bb11
-bb10 [loop]:
-  push 32
-  add
-  dup 2
-  dup 2
-  eq
-  push bb9
-  jumpi
-  jump bb11
-bb11:
   dup 1
   calldataload
   dup 4

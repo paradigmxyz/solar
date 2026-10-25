@@ -1,0 +1,32 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=loop-layout
+// The header's first branch leaves the loop through a hot block, so it is not the loop's test: the latch moves
+// before the header instead of repeating the guard.
+@module ExitGuard
+bb0:
+  push 3
+  push 0
+  jump bb1
+bb1:
+  dup 2
+  push 0
+  eq
+  push bb4
+  jumpi
+  dup 2
+  dup 2
+  lt
+  push bb3
+  jumpi
+  jump bb2
+bb2:
+  pop
+  pop
+  stop
+bb3:
+  push 1
+  add
+  jump bb1
+bb4:
+  push 0
+  push 0
+  revert

@@ -16,6 +16,7 @@ contract JoinEdgeReload {
     // does, reloads it on the exit edge after the branch, only when it ends.
     // CHECK-LABEL: @module JoinEdgeReload_runtime
     // CHECK: [loop]:
+    // CHECK: [loop]:
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: eq

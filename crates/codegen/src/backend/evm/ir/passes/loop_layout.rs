@@ -10,13 +10,15 @@
 //! turns around, since a turned test that keeps its jump to the header would pay that jump on
 //! every iteration.
 //!
-//! A header whose branch is a bare test, `test; push body; jumpi; exit`, moves its latch a second
-//! way. The latch repeats the test and branch, `...; test; push body; jumpi; jump exit`, and
-//! follows the header, so the preheader still falls into the header, and every iteration enters the
-//! body's `JUMPDEST` alone instead of the body's and then the header's. Code after the header's
-//! branch moves to a new block placed after the latch, which the header and the latch both reach.
-//! The header's jump to it replaces the preheader's jump, so a loop that never runs pays what
-//! rotating it would. The copy is priced with the target's cost model: its bytes, over their
+//! A header whose branch is a bare test, `test; push body; jumpi; exit`, with its body in the loop
+//! and its exit out of it, moves its latch a second way. A branch out of the loop, such as a guard,
+//! or an exit that stays in the loop would land on a `JUMPDEST` each iteration, so those headers
+//! take the first way. The latch repeats the test and branch, `...; test; push body; jumpi; jump
+//! exit`, and follows the header, so the preheader still falls into the header, and every iteration
+//! enters the body's `JUMPDEST` alone instead of the body's and then the header's. Code after the
+//! header's branch moves to a new block placed after the latch, which the header and the latch both
+//! reach. The header's jump to it replaces the preheader's jump, so a loop that never runs pays
+//! what rotating it would. The copy is priced with the target's cost model: its bytes, over their
 //! lifetime, against one saved `JUMPDEST` for each of `UNCOUNTED_LOOP_ITERATIONS` iterations, so
 //! `-Ztune=interpreter` also prices the saved dispatch. Only the pushes, stack operations, and
 //! position-independent computations that tail duplication may copy qualify as the test. The
@@ -217,26 +219,27 @@ fn place_loop_latches(module: &mut Module, target: &Target) -> bool {
                 }
                 pending.extend_from_slice(branches.get(module, block));
             }
-            let hotter = if reachable.contains(preheader) {
-                let predecessors = predecessors.get_or_insert_with(|| {
-                    let mut lists = IndexVec::<BlockId, SmallVec<[BlockId; 2]>>::from_vec(vec![
-                        SmallVec::new();
-                        module.blocks.len()
-                    ]);
-                    for block in module.blocks.indices() {
-                        if let Some(term) = &module.blocks[block].terminator {
-                            term.kind.visit_targets(|target| lists[target].push(block));
-                        }
-                        for &target in branches.get(module, block) {
-                            lists[target].push(block);
-                        }
+            let lists = predecessors.get_or_insert_with(|| {
+                let mut lists = IndexVec::<BlockId, SmallVec<[BlockId; 2]>>::from_vec(vec![
+                    SmallVec::new();
+                    module.blocks.len()
+                ]);
+                for block in module.blocks.indices() {
+                    if let Some(term) = &module.blocks[block].terminator {
+                        term.kind.visit_targets(|target| lists[target].push(block));
                     }
-                    lists
-                });
+                    for &target in branches.get(module, block) {
+                        lists[target].push(block);
+                    }
+                }
+                lists
+            });
+            let natural = natural_loop(lists, header, latch);
+            let hotter = if reachable.contains(preheader) {
                 // Without a natural loop, no branch counts as an exit.
-                let body = natural_loop(predecessors, header, latch)
-                    .unwrap_or_else(|| DenseBitSet::new_empty(module.blocks.len()));
-                let weights = backedge_weights(module, &mut branches, header, &body);
+                let empty = DenseBitSet::new_empty(module.blocks.len());
+                let body = natural.as_ref().unwrap_or(&empty);
+                let weights = backedge_weights(module, &mut branches, header, body);
                 let before = weights.get(&preheader).copied().unwrap_or(0);
                 let after = weights.get(&latch).copied().unwrap_or(0);
                 after != 0 && u128::from(after) > u128::from(before) * 2
@@ -244,7 +247,10 @@ fn place_loop_latches(module: &mut Module, target: &Target) -> bool {
                 true
             };
             if visited <= 256 && reachable.contains(latch) && hotter {
-                if !inverted && let Some(branch) = copyable_branch(module, target, header, latch) {
+                if !inverted
+                    && let Some(body) = &natural
+                    && let Some(branch) = copyable_branch(module, target, header, latch, body)
+                {
                     let exit = copy_header(module, header, latch, branch);
                     branches.0[header] = None;
                     branches.0[latch] = None;
@@ -306,23 +312,32 @@ fn latch_header(module: &Module, block: BlockId) -> Option<(BlockId, bool)> {
     Some((target, false))
 }
 
-/// The index of the `jumpi` of a header `test; push body; jumpi; exit ...`, with a hot `body`,
-/// whose test and branch the latch can repeat, when the header's `JUMPDEST` that this saves on each
-/// iteration pays for the copy's bytes. The loop runs `UNCOUNTED_LOOP_ITERATIONS` times, as in
-/// [`taken_share`]; the preheader's saved jump is not counted.
+/// The index of the `jumpi` of a header `test; push body; jumpi; exit ...`, with a `body` in the
+/// loop, whose test and branch the latch can repeat, when the header's `JUMPDEST` that this saves
+/// on each iteration pays for the copy's bytes. The loop runs `UNCOUNTED_LOOP_ITERATIONS` times, as
+/// in [`taken_share`]; the preheader's saved jump is not counted.
 fn copyable_branch(
     module: &Module,
     target: &Target,
     header: BlockId,
     latch: BlockId,
+    body: &DenseBitSet<BlockId>,
 ) -> Option<usize> {
     let latch = &module.blocks[latch];
     let block = &module.blocks[header];
     let branch =
         block.instructions.iter().position(|inst| inst.as_evm_opcode() == Some(op::JUMPI))?;
     let (push, test) = block.instructions[..branch].split_last()?;
-    // A branch to a cold block is a guard, not the loop's test.
-    if module.blocks[push.pushed_block()?].metadata.hotness.is_cold() {
+    // The latch branches back to the body and falls out of the loop. A branch out of the loop,
+    // such as a guard, or an exit that stays in the loop would land on a `JUMPDEST` each iteration.
+    if !body.contains(push.pushed_block()?)
+        || !block.terminator.as_ref().is_some_and(|term| {
+            matches!(
+                Continuation::of_terminator(module, body, &term.kind),
+                Continuation::Outside | Continuation::Cold
+            )
+        })
+    {
         return None;
     }
     if !is_split_point(&latch.instructions, latch.instructions.len())
