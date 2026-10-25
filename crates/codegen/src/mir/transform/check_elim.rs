@@ -144,7 +144,6 @@
 //! boolean that ABI decoding checked keeps its word instead of normalizing it again.
 //! It also uses runtime immutable bounds, since legalization can introduce masks after the
 //! earlier immutable pass. Constructor-reachable functions retain their full-word semantics.
-//! Late immutable mask removal can prevent outlining small getters, so use it only for gas.
 //! Run late check elimination after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
 
@@ -256,11 +255,7 @@ impl MirPass for IntegerCleanup {
             }
             true
         };
-        let bounds = if gcx.sess.opts.optimization.is_gas() {
-            runtime_immutable_bounds(module, gcx)
-        } else {
-            FxHashMap::default()
-        };
+        let bounds = runtime_immutable_bounds(module, gcx);
         if bounds.is_empty() {
             return run_function_pass(module, analyses, |func, _| cleanup(func, None));
         }

@@ -113,6 +113,8 @@ pub(super) struct Rewrite {
     unused_variables
 )]
 mod generated {
+    use crate::isle_log as log;
+
     include!(concat!(env!("OUT_DIR"), "/peephole.isle.rs"));
 }
 

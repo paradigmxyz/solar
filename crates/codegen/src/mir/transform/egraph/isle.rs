@@ -43,6 +43,8 @@ const MAX_ISLE_RETURNS: usize = 8;
     unused_variables
 )]
 mod generated {
+    use crate::isle_log as log;
+
     include!(concat!(env!("OUT_DIR"), "/egraph.isle.rs"));
 }
 

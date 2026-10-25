@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/evm-ir/tail-duplicate/legacy_shifts.evmir (before tail-duplicate) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/tail-duplicate/legacy_shifts.evmir (after tail-duplicate) ===
-  @module LegacyShiftTail
+- // === ROOT/tests/ui/codegen/evm-ir/tail-duplicate/shift_tail.evmir (before tail-duplicate) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-duplicate/shift_tail.evmir (after tail-duplicate) ===
+  @module ShiftTail
   bb0:
     push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
     push 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
@@ -47,7 +47,7 @@
     push 0
     return
   
-// === LegacyShiftTail (runtime) ===
+// === ShiftTail (runtime) ===
 PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
 PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0
 PUSH32 0x123456789abcdef013579bdf2468ace01234567890abcdef032547698badcfe0

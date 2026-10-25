@@ -324,16 +324,15 @@ unsupported cases before editing where practical. Otherwise discard the failed
 compilation's module; do not publish a partially lowered module as successful
 or clone every module just to provide rollback.
 
-Run a cheap representation check at each stable boundary in all builds. Check
-terminator targets, predecessor back-links, and call targets and arities there,
-including return contracts through tail calls, even when `-Zvalidate-ir=false`,
-so the backend can trust the maintained CFG and function signatures. Keep
-full SSA, dominance, and type verification after each changed pass in debug
-builds and with `-Zvalidate-ir`; validate untrusted textual MIR fully at ingress.
-The backend should receive a verified immutable view after the last MIR pass,
-so a phase label cannot bypass checking and later mutation cannot silently
-invalidate the checked view. Keep full validation costs out of every release
-pass invocation.
+Check the phase contract at each stable boundary in all builds: the routing
+entry, ABI wrappers, word types, and instructions that must be lowered by then.
+A skipped lowering stops the pipeline in every build. Keep full SSA, dominance,
+CFG, call, and type verification after each changed pass and at phase
+transitions in debug builds and with `-Zvalidate-ir`; validate untrusted
+textual MIR fully at ingress. The backend should receive a verified immutable
+view after the last MIR pass, so a phase label cannot bypass checking and later
+mutation cannot silently invalidate the checked view. Keep full validation
+costs out of every release pass invocation.
 
 Optimization passes preserve the current representation. Required lowering
 passes declare their input requirements and fail clearly when a custom pipeline
@@ -698,7 +697,8 @@ It moves the whole fallthrough trace, so moving a shared exit does not insert
 jumps between its predecessor blocks. Multi-block traces must end at an exit
 with at least four references beyond the low-address range; the stricter limit
 avoids moving hot code for weak size gains. Packing reserves space for one-byte
-indexed jump tables, since wider entries add shifts and masking to each lookup.
+indexed jump tables, since wider entries use a larger stride table, or shifts and masking
+with `-Zpack-wide-jump-tables`.
 
 Packed ABI encoding skips allocation rounding when every component occupies
 whole words, while retaining overflow checks. Storage-byte pushes place the

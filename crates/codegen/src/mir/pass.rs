@@ -51,14 +51,14 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &const_fold::ConstFold,
     &readonly_eval::ReadonlyEval,
     &cse::Cse::All,
-    &pre::Pre,
+    &pre::Pre::Pure,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence::Late,
     &byte_run::ByteRunLoads,
     &cse::Cse::Storage,
     &storage_dse::StorageDse,
-    &load_pre::LoadPre,
+    &pre::Pre::Reads,
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
     &loop_reduce::LoopReduce,
@@ -101,6 +101,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
+    &lower_shifts::LowerShifts,
     &evm_inst_schedule::EvmInstSchedule,
     &heap_floor::HeapFloor,
 ];
@@ -188,13 +189,13 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &egraph::Egraph,
     &word_sequence::WordSequence::Early,
-    &pre::Pre,
+    &pre::Pre::Pure,
     // Checked array loops reload one object's length before every bounds
     // check. Unify the dominated reads while object identity is explicit, so
     // load PRE and LICM see one loop-invariant load and the later check passes
     // compare against one bound.
     &cse::Cse::All,
-    &load_pre::LoadPre,
+    &pre::Pre::Reads,
     // Element reads of arrays that only ever hold canonical words drop their
     // type masks while the accesses are still semantic and calls explicit.
     &element_cleanup::ElementCleanup,
@@ -345,8 +346,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // plus an index term inside the loop that reads it. Hoist the invariant
     // base once the physical form is final, so a hot loop carries one word
     // instead of reloading its argument and re-adding the header every
-    // iteration.
-    &GasOnly::new(loop_opt::Licm),
+    // iteration. Checked products are lowered by now, so this run also
+    // replaces their in-loop divisions by one hoisted bound.
+    &loop_opt::Licm,
     // With the base hoisted, each element address is `base + scale * index`
     // plus invariants; carry it as a pointer stepped on the latch instead of
     // rebuilding it from the index every iteration. Gas-only: under `-Osize` it grows
@@ -384,6 +386,8 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
+    // Targets without shift opcodes get arithmetic instead, so scheduling orders its operands.
+    &lower_shifts::LowerShifts,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
@@ -451,6 +455,35 @@ pub(crate) fn run_function_pass(
     run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
 ) -> bool {
     run_function_pass_with(module, analyses, FunctionAnalysisRequirements::NONE, &run)
+}
+
+/// Runs the function-local step of a pass that edits the module beyond the runner's bookkeeping:
+/// bodyless functions first, then the bodied ones through [`run_function_pass`], so idle workers
+/// can share them. The pass drops every cached analysis when it changes anything, as a serial
+/// loop over the module does, and prices no creation code.
+#[must_use]
+pub(crate) fn run_lowering_function_pass(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
+) -> bool {
+    analyses.prices_creation = false;
+    let mut changed = false;
+    for id in module.functions.indices() {
+        if module.functions[id].blocks.is_empty() {
+            changed |= run_function_pass_cached(
+                analyses,
+                module,
+                id,
+                FunctionAnalysisRequirements::NONE,
+                None,
+                &run,
+            );
+        }
+    }
+    changed |= run_function_pass(module, analyses, run);
+    analyses.preserved_by_pass = false;
+    changed
 }
 
 /// Runs a function-local transform with alias analysis available on demand.
@@ -601,6 +634,8 @@ type FunctionRun<'a> = &'a (dyn Fn(&mut Function, &FunctionAnalyses) -> bool + S
 
 /// Per-function analysis snapshots handed to a pass run.
 pub(crate) struct FunctionAnalyses {
+    /// The function the transform runs on.
+    function: FunctionId,
     /// Shared alias analysis; provenance and address memos build lazily.
     alias: Option<Rc<AliasAnalysis>>,
     /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
@@ -614,6 +649,11 @@ pub(crate) struct FunctionAnalyses {
 }
 
 impl FunctionAnalyses {
+    /// Returns the id of the function the running transform edits.
+    pub(crate) fn function(&self) -> FunctionId {
+        self.function
+    }
+
     /// Returns the alias analysis requested by the running transform.
     pub(crate) fn alias(&self) -> &Rc<AliasAnalysis> {
         self.alias.as_ref().expect("function pass must request alias analysis")
@@ -757,6 +797,7 @@ impl ModuleAnalyses {
     ) -> FunctionAnalyses {
         let (creation_only, straight_line_creation) = self.creation_pricing(func_id, module);
         FunctionAnalyses {
+            function: func_id,
             alias: requirements.alias().then(|| {
                 if let Some(alias) = self.alias.get(&func_id) {
                     return Rc::clone(alias);
@@ -1034,6 +1075,7 @@ fn run_parallel_function_pass(
         tasks,
         |(id, func, alias, cfg, (creation_only, straight_line_creation))| {
             let bundle = FunctionAnalyses {
+                function: id,
                 alias: alias.map(Rc::new),
                 cfg: cfg.map(Rc::new),
                 unreported_edit: Cell::new(false),

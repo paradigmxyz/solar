@@ -36,6 +36,10 @@
 //! merge. A constant one-byte tail uses `MSTORE8` instead of reading and masking
 //! the destination word.
 //!
+//! At `-O none` the pass skips the memory-summary and alias analyses and takes the
+//! conservative answers: a runtime direction check for every copy that is not
+//! `disjoint` or at most one word, and no helper call for a copy that is not `disjoint`.
+//!
 //! The pass runs before `lower-alloc`, while allocations are still symbolic
 //! and provenance can tell them apart.
 
@@ -50,6 +54,7 @@ use crate::{
     },
     target::{Cost, Target},
 };
+use solar_config::OptimizationMode;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
@@ -93,11 +98,14 @@ impl MirPass for LowerMCopy {
         }
 
         let target = Target::new(gcx);
-        let summaries = analyses.call_summaries(module);
+        let summaries = (gcx.sess.opts.optimization != OptimizationMode::None)
+            .then(|| analyses.call_summaries(module));
         let sites = module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| copy_sites(func, !constructor_reachable.contains(id), &summaries))
+            .map(|(id, func)| {
+                copy_sites(func, !constructor_reachable.contains(id), summaries.as_ref())
+            })
             .collect::<IndexVec<FunctionId, _>>();
 
         // Sites of each shape call one helper when the objective ranks the shared loops above
@@ -166,12 +174,13 @@ struct CopySite {
 fn copy_sites(
     func: &Function,
     runtime: bool,
-    summaries: &Arc<MemoryCallSummaries>,
+    summaries: Option<&Arc<MemoryCallSummaries>>,
 ) -> Vec<CopySite> {
     if func.blocks.is_empty() || !func.instructions().any(|inst| is_mcopy(func, inst)) {
         return Vec::new();
     }
-    let alias = AliasAnalysis::with_call_summaries(func, summaries.clone());
+    let alias =
+        summaries.map(|summaries| AliasAnalysis::with_call_summaries(func, summaries.clone()));
     func.instructions()
         .filter_map(|inst| {
             let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
@@ -181,13 +190,14 @@ fn copy_sites(
             let direction = if disjoint {
                 CopyDirection::Forward
             } else {
-                copy_direction(func, &alias, dest, src, len)
+                copy_direction(func, alias.as_ref(), dest, src, len)
             };
             let shape = CopyShape { direction, whole_words: is_whole_words(func, len, 0) };
             // NOTE: a disjoint copy reads a Solidity memory object, which lies outside every
             // static frame unless assembly placed it there; see CODEGEN-009 in
             // `docs/SOLC_DIVERGENCE.md`.
-            let shareable = runtime && (disjoint || copy_helper_eligible(func, &alias, inst));
+            let shareable =
+                runtime && (disjoint || copy_helper_eligible(func, alias.as_ref(), inst));
             Some(CopySite { inst, shape, shareable })
         })
         .collect()
@@ -299,7 +309,8 @@ fn lower_function(
 }
 
 /// Returns whether a helper call frame is provably disjoint from both copy ranges.
-fn copy_helper_eligible(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
+fn copy_helper_eligible(func: &Function, alias: Option<&AliasAnalysis>, inst: InstId) -> bool {
+    let Some(alias) = alias else { return false };
     let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
         return false;
     };
@@ -329,7 +340,7 @@ enum CopyDirection {
 /// Selects a copy direction from pointer provenance when possible.
 fn copy_direction(
     func: &Function,
-    alias: &AliasAnalysis,
+    alias: Option<&AliasAnalysis>,
     dest: ValueId,
     src: ValueId,
     len: ValueId,
@@ -337,6 +348,7 @@ fn copy_direction(
     if func.value_u64(len).is_some_and(|len| len <= EvmMemoryLayout::WORD_SIZE) {
         return CopyDirection::Forward;
     }
+    let Some(alias) = alias else { return CopyDirection::Dynamic };
     let size = alias.location_size(func, len);
     let Some(dest_location) = alias.bare_memory_location(func, dest, size) else {
         return CopyDirection::Dynamic;

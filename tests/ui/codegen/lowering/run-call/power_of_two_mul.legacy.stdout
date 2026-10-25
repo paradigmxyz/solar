@@ -114,9 +114,9 @@ bb19 [loop]:
   sub
   mul
   add
-  swap 2
   push 2
   swap 1
+  swap 3
   div
   swap 1
   dup 4
@@ -239,11 +239,10 @@ bb29:
   push 32
   dup 4
   mul
-  dup 3
+  push 32
+  dup 4
   calldatasize
   sub
-  push 32
-  swap 1
   div
   dup 5
   gt
