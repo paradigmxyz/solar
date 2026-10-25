@@ -68,7 +68,9 @@
 //! the value instead of reading memory; the ordinary clobber rules retire the
 //! entry. An exact `sstore` or `tstore` seeds the cache the same way, which exposes packed
 //! field updates as word expressions for storage DSE and forwards a transient write to its
-//! reads. In the storage-only mode below, a storage or transient read whose earlier read of
+//! reads. A constant-size `memory_zero` seeds the cache with zero for each full word it covers, up
+//! to a cap, so a later load of such a word folds to the constant. In the storage-only mode
+//! below, a storage or transient read whose earlier read of
 //! the same slot has no later use stays and replaces the cache entry, so forwarding never
 //! makes a loaded word live longer. A stored word is forwarded, since the store already keeps
 //! it live, unless it is itself an unused earlier read of that slot. Inside loops, a cheap load is
@@ -170,7 +172,7 @@ impl MirPass for Cse {
                         InstKind::Store(
                             ..,
                             PtrLocation::Memory | PtrLocation::Storage | PtrLocation::Transient
-                        )
+                        ) | InstKind::MemoryZero(..)
                     )
                 })
             {
@@ -220,6 +222,9 @@ struct CommonSubexprEliminator {
     pure_calls: Option<Arc<DenseBitSet<FunctionId>>>,
     /// Common only storage and transient-storage reads.
     storage_only: bool,
+    /// The zero word a `memory_zero` forwards to later loads of the words it clears, if the
+    /// function has one.
+    zero_word: Option<ValueId>,
 }
 
 /// A normalized expression key for CSE lookup.
@@ -303,6 +308,10 @@ type MemRangeKey = MemoryLocation;
 /// instead of reloaded: the `DUP` reach less room for the block's own
 /// temporaries.
 const DIRECT_REUSE_LIVE_BUDGET: usize = 12;
+
+/// Words of one `memory_zero` that seed the cache with zero, bounding the entries a large fill
+/// adds.
+const MAX_ZERO_FILL_WORDS: u64 = 32;
 
 /// What decides whether a dominated block should reuse a cheap memory read
 /// instead of reloading it.
@@ -488,6 +497,7 @@ impl CommonSubexprEliminator {
         // fixed point. Drop only its value-address memo between iterations instead of rebuilding
         // alias analysis after every productive round.
         self.refresh_alias(func);
+        self.zero_word = (!self.storage_only).then(|| Self::zero_word(func)).flatten();
         self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
             let (before, merged) = (self.eliminated_count, self.eliminated_settled);
@@ -1125,6 +1135,52 @@ impl CommonSubexprEliminator {
         }
     }
 
+    /// Seeds `cache` with zero for each full word a constant-size `memory_zero` clears.
+    ///
+    /// memory_zero dest, size; ...; load word within it => 0
+    fn forward_zero_fill(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        kind: &InstKind,
+        replacements: &FxHashMap<ValueId, ValueId>,
+        cache: &mut ExprCache,
+    ) {
+        let (InstKind::MemoryZero(dest, size), Some(zero)) = (kind, self.zero_word) else { return };
+        let words = func
+            .value_u64(mir_utils::resolve_replacement(*size, replacements))
+            .map_or(0, |size| (size / 32).min(MAX_ZERO_FILL_WORDS));
+        if words == 0 {
+            return;
+        }
+        let dest = mir_utils::resolve_replacement(*dest, replacements);
+        let Some(fill) =
+            self.memory_range_key(func, inst_id, dest, LocationSize::Const(words * 32))
+        else {
+            return;
+        };
+        for word in 0..words {
+            let Some(address) = fill.address.checked_add(word * 32) else { return };
+            let key = MemRangeKey::new(address, LocationSize::Const(32));
+            cache.insert(ExprKey::MLoad(key), zero);
+        }
+    }
+
+    /// The function's `i256` zero for [`Self::forward_zero_fill`], created on first need.
+    fn zero_word(func: &mut Function) -> Option<ValueId> {
+        if !func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MemoryZero(..)))
+        {
+            return None;
+        }
+        let existing = (0..func.num_values()).map(ValueId::from_usize).find(|&value| {
+            matches!(func.value(value), Value::Immediate(Immediate::I256(word)) if word.is_zero())
+        });
+        Some(
+            existing
+                .unwrap_or_else(|| func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)))),
+        )
+    }
+
     /// Whether forwarding `cached` to the read `key` would only stretch the live range of a loaded
     /// word: it is a storage or transient read of the same slot that nothing at or after `inst_idx`
     /// uses. The later read stays and takes over the cache entry. A stored word is always
@@ -1376,6 +1432,7 @@ impl CommonSubexprEliminator {
             // store word, value; load word -> value
             expr_cache.insert(key, stored);
         }
+        self.forward_zero_fill(func, inst_id, kind, replacements, expr_cache);
     }
 
     /// Collects the cache-invalidating effects of a side-effecting instruction.

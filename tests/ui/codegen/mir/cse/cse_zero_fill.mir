@@ -1,0 +1,100 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+@module CseZeroFill
+
+// CHECK-LABEL: {{^[ +].*}}fn @fold_zeroed_words{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mload 0x400
+// CHECK: - {{v[0-9]+}} = mload 0x420
+// CHECK: - {{v[0-9]+}} = mload 0x440
+// CHECK: + {{v[0-9]+}} = add 0, arg0
+fn @fold_zeroed_words(arg0: i256) -> i256 {
+  bb0:
+    memory_zero 1024, 96
+    mstore 1056, arg0
+    v1 = mload 1024
+    v2 = mload 1056
+    v3 = mload 1088
+    v4 = add v1, v2
+    v5 = add v4, v3
+    ret v5
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @fold_in_dominated_block{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mload 0x400
+// CHECK: + ret 0
+fn @fold_in_dominated_block(arg0: i1) -> i256 {
+  bb0:
+    memory_zero 1024, 64
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = mload 1024
+    ret v1
+  bb2:
+    ret 1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @fold_fresh_allocation{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mload v1
+// CHECK: + ret 0
+fn @fold_fresh_allocation() -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    memory_zero v0, 64
+    v2 = mload v1
+    ret v2
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_after_overlapping_store{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0x400
+fn @keep_after_overlapping_store(arg0: i256) -> i256 {
+  bb0:
+    memory_zero 1024, 64
+    mstore 1040, arg0
+    v2 = mload 1024
+    ret v2
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_after_unknown_store{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0x400
+fn @keep_after_unknown_store(arg0: i256) -> i256 {
+  bb0:
+    memory_zero 1024, 64
+    mstore arg0, 1
+    v2 = mload 1024
+    ret v2
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_partial_word{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mload 0x400
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0x420
+// CHECK: + {{v[0-9]+}} = add 0, [[TAIL:v[0-9]+]]
+fn @keep_partial_word() -> i256 {
+  bb0:
+    memory_zero 1024, 48
+    v1 = mload 1024
+    v2 = mload 1056
+    v3 = add v1, v2
+    ret v3
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_dynamic_size{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0x400
+fn @keep_dynamic_size(arg0: i256) -> i256 {
+  bb0:
+    memory_zero 1024, arg0
+    v1 = mload 1024
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @cap_zero_fill{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mload 0x7e0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0x800
+fn @cap_zero_fill() -> i256 {
+  bb0:
+    memory_zero 1024, 1152
+    v1 = mload 2016
+    v2 = mload 2048
+    v3 = add v1, v2
+    ret v3
+}
