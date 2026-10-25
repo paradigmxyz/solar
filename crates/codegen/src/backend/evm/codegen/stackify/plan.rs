@@ -727,8 +727,9 @@ impl<'a> Planner<'a> {
             })
             .map(|inst| PlannedInst { inst, operands: func.inst(inst).kind.operands() })
             .collect();
-        let search = self.target.searches_stack_layouts();
-        let windows = if search { self.preplacement_windows(&planned) } else { Default::default() };
+        let optimize = self.target.optimizes_stack_plans();
+        let windows =
+            if optimize { self.preplacement_windows(&planned) } else { Default::default() };
         let mut placed = FxHashSet::default();
         for (position, step) in planned.iter().enumerate() {
             let inst = step.inst;
@@ -780,7 +781,7 @@ impl<'a> Planner<'a> {
             }
             self.plan_inst_inner(sim, block, step, &uses)?;
             uses.consume(&step.operands);
-            if search
+            if optimize
                 && let Some(result) = func.inst_result_value(inst)
                 && sim.stack.last() == Some(&Slot::Value(result))
             {

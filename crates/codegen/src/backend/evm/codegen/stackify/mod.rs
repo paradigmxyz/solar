@@ -70,11 +70,6 @@
 //! naturally leave the carried words; the cheapest plan wins under the objective, weighting loop
 //! blocks by their nesting depth in gas mode.
 //!
-//! `-O none` skips this search, which only lowers cost: it plans without the operand copy trial
-//! and the result swap, and keeps the first round's plan with the preheader layouts, so planning
-//! does less work and the code may use more gas and bytes. Spilling and restarts still run,
-//! because they keep every value within reach.
-//!
 //! Optimized functions also try keeping their most expensive repeated immediate on the stack.
 //! The trial materializes it once in the nearest block outside loops that dominates its uses,
 //! then treats it like a live value. A complete replan prices the resulting copies, shuffles,
@@ -84,6 +79,11 @@
 //! cannot fund more setup. Size mode reserves a jump's bytes as a margin: small local savings can
 //! disrupt later outlining. Within the defining block, materialization waits until the first use,
 //! or the terminator if only successors need it. Call-chain overflow retries omit this word.
+//!
+//! `-O none` takes the first plan: it plans each function once, with preheader loop layouts and
+//! without the operand copy trials, the result swap or constant retention, so the code may use
+//! more gas and bytes. Spilling and restarts still run, because they keep every value within
+//! reach.
 //!
 //! When a needed word lies beyond the target's reach, the value is spilled: it is stored once
 //! when defined, reloaded at every use, and planning restarts. After many restarts, every other
@@ -794,7 +794,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if round == 1
                     && restarts == 0
                     && call_spill == CallSpill::None
-                    && (target.optimization().is_gas() || target.optimization().is_size())
+                    && target.optimizes_stack_plans()
                 {
                     constant = planner.constant_to_retain();
                 }
@@ -824,7 +824,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             };
             if round == 1 {
-                if natural.is_empty() || !target.searches_stack_layouts() {
+                if natural.is_empty() || !target.optimizes_stack_plans() {
                     best = Some(plan);
                     break;
                 }
