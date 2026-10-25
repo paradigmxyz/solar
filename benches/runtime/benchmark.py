@@ -1109,8 +1109,9 @@ def trace_gas_kinds(
         return None, error or "trace result is not an object"
     try:
         kinds = {str(kind): int(gas) for kind, gas in trace["kinds"].items()}
-        execution_gas, refund, first_gas, gas_limit = (
-            int(trace[field]) for field in ("exec", "refund", "firstGas", "gasLimit")
+        execution_gas, refund, first_gas, gas_limit, root_spent = (
+            int(trace[field])
+            for field in ("exec", "refund", "firstGas", "gasLimit", "rootSpent")
         )
         if first_gas < 0:
             raise ValueError(first_gas)
@@ -1118,6 +1119,12 @@ def trace_gas_kinds(
         return None, f"malformed gas trace: {json.dumps(trace)[:200]}"
     if sum(kinds.values()) != execution_gas:
         return None, f"gas kinds sum to {sum(kinds.values())}, not {execution_gas}"
+    # The receipt cannot check calls billed at the floor, so the root frame's own gas does.
+    if root_spent != execution_gas:
+        return (
+            None,
+            f"traced steps carry {execution_gas} gas, the root frame spent {root_spent}",
+        )
     intrinsic_gas = gas_limit - first_gas
     applied_refund = min(refund, (execution_gas + intrinsic_gas) // 5)
     expected = execution_gas + intrinsic_gas - applied_refund

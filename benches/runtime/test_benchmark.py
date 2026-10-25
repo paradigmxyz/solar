@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -1304,7 +1305,7 @@ class RpcTransportTests(unittest.TestCase):
 
 class GasKindsTests(unittest.TestCase):
     def trace(self, **values):
-        return {
+        trace = {
             "kinds": {"push": 30, "stack": 20, "storage": 22100},
             "exec": 22150,
             "refund": 0,
@@ -1312,6 +1313,8 @@ class GasKindsTests(unittest.TestCase):
             "gasLimit": 100000,
             **values,
         }
+        trace.setdefault("rootSpent", trace["exec"])
+        return trace
 
     def trace_gas_kinds(self, receipt_gas, trace=None, error=""):
         with mock.patch.object(
@@ -1357,6 +1360,7 @@ class GasKindsTests(unittest.TestCase):
             (43354, self.trace(exec=22151), "", "sum to 22150, not 22151"),
             (43000, self.trace(), "", "does not explain receipt gas 43000"),
             (50000, self.trace(), "", "does not explain receipt gas 50000"),
+            (43354, self.trace(rootSpent=22000), "", "root frame spent 22000"),
             (43354, self.trace(firstGas=-1), "", "malformed gas trace"),
             (43354, {"kinds": {}}, "", "malformed gas trace"),
             (43354, None, "rpc down", "rpc down"),
@@ -1477,7 +1481,9 @@ class GasKindsTests(unittest.TestCase):
 
         # Reverts after growing memory: the REVERT step arrives through `fault`.
         reverter = push(50000, 2) + push(0) + "fd"
-        rpc_url = "http://127.0.0.1:8721"
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            rpc_url = f"http://127.0.0.1:{probe.getsockname()[1]}"
         anvil = benchmark.start_anvil(rpc_url)
         self.addCleanup(benchmark.stop_anvil, anvil)
         reverter_address, _, error = benchmark.deploy_creation_code(

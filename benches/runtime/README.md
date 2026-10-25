@@ -37,7 +37,7 @@ below 200 runs and for gas from 200, so `--optimizer-runs 1` makes a size benchm
 runs on the size-optimized code).
 
 `--gas-kinds` (needs `--gas`) traces every gas transaction with `debug_traceTransaction`, so the
-node must be anvil or another node with the geth JavaScript tracer; CI passes it. Each gas result
+node must be anvil (tested with 1.8.6); CI passes it. Each gas result
 then also records:
 
 - `execution_gas`: gas of the executed steps before the refund, without the transaction's

@@ -5,7 +5,8 @@
   // Every unit of execution gas lands in exactly one kind, so the kinds sum to `exec`. Call and
   // create steps carry only their own overhead: the callee's steps are attributed separately, and a
   // callee without steps (a precompile) is charged to `precompile`. Memory expansion is split off
-  // every step into `mem_expansion`.
+  // every step into `mem_expansion`. `rootSpent`, the gas the root frame spent by its own account,
+  // must equal `exec`; a step the engine dropped breaks that.
   //
   // Kinds, by opcode: stack (DUP/SWAP/POP), push, control (JUMP/JUMPI/JUMPDEST), arith, compare,
   // bitwise, memory, storage, transient, calldata, returndata, keccak, call, log, env, halt
@@ -27,6 +28,7 @@
   exec: 0,
   refund: 0,
   firstGas: -1,
+  rootEnd: -1,
   pendingTo: null,
   enterExec: [],
 
@@ -194,6 +196,7 @@
     var depth = log.getDepth();
     var gas = log.getGas();
     if (this.firstGas < 0) this.firstGas = gas;
+    if (depth === 1) this.rootEnd = gas - log.getCost();
     // Frames deeper than this one have ended.
     for (var d = this.frames.length - 1; d > depth; d--) {
       if (this.frames[d]) this.finish(this.frames[d]);
@@ -289,6 +292,6 @@
       if (this.frames[d]) this.finish(this.frames[d]);
     }
     return { kinds: this.kinds, exec: this.exec, refund: this.refund, firstGas: this.firstGas,
-      gasLimit: ctx.gas };
+      gasLimit: ctx.gas, rootSpent: this.firstGas - this.rootEnd };
   }
 }
