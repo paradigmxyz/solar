@@ -39,14 +39,16 @@
 //!   length covers the bytes from its start on, so a `bytes` length word dies once forwarding has
 //!   replaced its loads and the call or terminator reads only the data after it. Any other use of a
 //!   derived pointer (a stored value, a phi, an internal call argument, a `ret`, a `sub`, a
-//!   runtime-offset `add`) leaves the object alone. Distinct allocations do not overlap. Assembly
-//!   can still rebuild a pointer into a heap object from the free-memory pointer, so every other
-//!   read that may touch heap memory, such as a load through an unrelated pointer, `msize`, or a
-//!   callee with unknown reads, and every `ret` and tail call, reads the whole object. A read that
-//!   may leave its own allocation reaches the objects allocated after it, not the ones before. A
-//!   deferred object, which static placement keeps unrelated to the free-memory pointer, ignores
-//!   them. Functions observing gas keep their stores, since the stores pay for memory expansion.
-//!   Writes the object receives from copies and calls stay: only stores are candidates.
+//!   runtime-offset `add`) leaves the object alone, as does a heap object that follows a
+//!   free-memory pointer reset and so may lie over an earlier one. Other allocations do not
+//!   overlap. Assembly can still rebuild a pointer into a heap object from the free-memory pointer,
+//!   so every other read that may touch heap memory, such as a load through an unrelated pointer,
+//!   `msize`, or a callee with unknown reads, and every `ret` and tail call, reads the whole
+//!   object. A read that may leave its own allocation reaches the objects allocated after it, not
+//!   the ones before. A deferred object, which static placement keeps unrelated to the free-memory
+//!   pointer, ignores them. Functions observing gas keep their stores, since the stores pay for
+//!   memory expansion. Writes the object receives from copies and calls stay: only stores are
+//!   candidates.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
@@ -1697,10 +1699,11 @@ impl MemoryStoreEliminator {
     /// reachable after it overlaps the bytes it writes. A range read from offset `a` with a
     /// runtime length covers the bytes from `a` on, which is how the length word of a `bytes`
     /// object goes once forwarding has replaced its loads and the call or terminator reads only
-    /// the data after it. Distinct allocations do not overlap, so reads inside other allocations
-    /// never count. Assembly can still reach a heap object through a pointer rebuilt from the
-    /// free-memory pointer, so every other read that may touch heap memory, and every `ret` and
-    /// tail call, reads all of it. A read that may leave its own allocation reaches the objects
+    /// the data after it. Other allocations do not overlap, so reads inside them never count,
+    /// unless a free-memory-pointer reset precedes the object, which then keeps its stores.
+    /// Assembly can still reach a heap object through a pointer rebuilt from the free-memory
+    /// pointer, so every other read that may touch heap memory, and every `ret` and tail call,
+    /// reads all of it. A read that may leave its own allocation reaches the objects
     /// allocated after it, not the ones before. A deferred object, which static placement keeps
     /// unrelated to the free-memory pointer, ignores them. The allocation stays: later passes
     /// size and place it, and the address arithmetic feeding the store dies with it.
@@ -1735,6 +1738,12 @@ impl MemoryStoreEliminator {
         let candidates: Vec<_> = allocations
             .into_iter()
             .filter_map(|(alloc, pointer)| {
+                // After a free-memory-pointer reset, an object may lie over an earlier one.
+                if !func.inst(alloc).metadata.deferred_alloc()
+                    && self.allocation_site(func, pointer) != Some(alloc)
+                {
+                    return None;
+                }
                 let access = Self::allocation_accesses(func, &users, alloc, pointer)?;
                 (!access.stores.is_empty()).then_some((alloc, access))
             })

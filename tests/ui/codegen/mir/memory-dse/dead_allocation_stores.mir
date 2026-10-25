@@ -276,3 +276,35 @@ fn @read_from_later(arg0: i256, arg1: i256) {
     mstore 0, v4
     returndata 0, 32
 }
+
+// After a free-memory-pointer reset an object may lie over an earlier one.
+// CHECK-LABEL: {{^[ +].*}}fn @after_reset{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @after_reset(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    set_fmp v0 !metadata(preserves_fmp, effect=memory_write)
+    v1 = alloc 64
+    mstore v1, arg0
+    v2 = mload v0
+    mstore 0, v2
+    returndata 0, 32
+}
+
+// The same when only one path resets.
+// CHECK-LABEL: {{^[ +].*}}fn @reset_on_one_path{{[( ]}}
+// CHECK: {{^ +}}mstore v1, arg0
+fn @reset_on_one_path(arg0: i256, arg1: i1) {
+  bb0:
+    v0 = alloc 64
+    jumpi arg1, bb1, bb2
+  bb1:
+    set_fmp v0 !metadata(preserves_fmp, effect=memory_write)
+    jump bb2
+  bb2:
+    v1 = alloc 64
+    mstore v1, arg0
+    v2 = mload v0
+    mstore 0, v2
+    returndata 0, 32
+}
