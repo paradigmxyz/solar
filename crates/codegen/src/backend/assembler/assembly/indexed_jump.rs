@@ -1,27 +1,27 @@
 //! Indexed jump table planning and assembly lowering.
 //!
-//! An indexed jump takes its target from a table in one of two encodings:
+//! An indexed jump takes its target from a table in one of three encodings:
 //!
 //! - A packed word of one-byte entries, picked with `BYTE`, either absolute or relative to the
 //!   table's earliest target. It needs at most 32 entries.
 //! - A stride table: equal-width entry stubs, `JUMPDEST PUSHn target JUMP`, laid out densely with
 //!   no other `JUMPDEST` between them. The jump goes to `table + index * stride`.
+//! - With `-Zpack-wide-jump-tables`, entries wider than one byte packed into one or two words and
+//!   picked with a shift and a mask, as in `PUSH16 table; SHR; PUSH2 0xffff AND; JUMP`.
 //!
-//! Entries wider than one byte are never packed into a word and picked out with a shift and a
-//! mask, as in `PUSH16 table; SHR; PUSH2 0xffff AND; JUMP`. The JIT of evm2 (alloy-rs/evm2,
-//! PR #791) tracks jump targets as intervals. It resolves the `BYTE` pick and the stride table,
-//! whose target is a bounded interval, but not the shifted pick: `SHL 4` of `0..=7` becomes the
-//! interval `0..=112`, and `SHR` and `AND` on a packed word have no interval fold. One unresolved
-//! jump makes the JIT drop every jump resolution in the contract, including internal returns and
-//! the stride tables. Measured on evm2, an 8-case assembly switch in a loop with a hashed index
-//! tied across lowerings on the interpreter, while binary search ran 2.3x faster than the shifted
-//! pick on the JIT. A 40-case stride table tied binary search on the JIT, ran 36-39% faster on the
-//! interpreter and used 25-31% less gas.
+//! The shifted pick is off by default. The JIT of evm2 (alloy-rs/evm2, PR #791) tracks jump
+//! targets as intervals. It resolves the `BYTE` pick and the stride table, whose target is a
+//! bounded interval, but not the shifted pick: `SHL 4` of `0..=7` becomes the interval
+//! `0..=112`, and `SHR` and `AND` on a packed word have no interval fold. One unresolved jump
+//! makes the JIT drop every jump resolution in the contract, including internal returns and the
+//! stride tables. Measured on evm2, an 8-case assembly switch in a loop with a hashed index tied
+//! across lowerings on the interpreter, while binary search ran 2.3x faster than the shifted
+//! pick on the JIT. A 40-case stride table tied binary search on the JIT, ran 36-39% faster on
+//! the interpreter and used 25-31% less gas.
 //!
 //! The switch planner prices tables through `estimated_indexed_jump_code_size` and
-//! `packs_indexed_jump`. It plans with the widest target width, so it prices the stride table; a
-//! table may still pack when the final offsets fit one byte. Tables that cost too much as stride
-//! tables lose to binary or linear search.
+//! `packs_indexed_jump`. It plans with the widest target width, so without the flag it prices
+//! the stride table; a table may still pack when the final offsets fit one byte.
 
 use super::{Program, lower};
 use crate::backend::{
@@ -35,7 +35,7 @@ use crate::backend::{
     },
 };
 use alloy_primitives::U256;
-use solar_config::EvmVersion;
+use solar_config::{CompileOpts, EvmVersion};
 use solar_data_structures::index::{IndexVec, index_vec};
 
 fn push_immediate(
@@ -50,12 +50,35 @@ fn push_immediate(
     });
 }
 
+/// The packed table encodings the assembler may choose.
+#[derive(Clone, Copy, Debug)]
+pub(in crate::backend) struct TablePacking {
+    /// Allow base-relative entries and two packed words (set at `-Osize`).
+    pub(in crate::backend) two_words: bool,
+    /// Allow entries wider than one byte, picked out of a packed word with a shift and a mask
+    /// (`-Zpack-wide-jump-tables`).
+    pub(in crate::backend) wide: bool,
+}
+
+impl TablePacking {
+    pub(in crate::backend) fn new(opts: &CompileOpts) -> Self {
+        Self { two_words: opts.optimization.is_size(), wide: opts.unstable.pack_wide_jump_tables }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct IndexedJumpEncoding {
     width: u8,
-    /// Whether the table is one-byte entries packed into a word and picked with `BYTE`.
-    packed: bool,
+    packed_chunks: PackedTableChunks,
     base: Option<(BlockId, u8)>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum PackedTableChunks {
+    #[default]
+    None,
+    One,
+    Two,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -83,6 +106,8 @@ pub(in crate::backend) fn indexed_jump_target_width_bound(
 #[derive(Clone, Copy)]
 struct PackedTableEstimate {
     len: usize,
+    width: u8,
+    chunks: PackedTableChunks,
     base_width: u8,
 }
 
@@ -97,7 +122,7 @@ pub(super) struct IndexedJumpTable {
 pub(super) fn materialize_tables_with_metadata(
     module: &mut ir::Module,
     evm_version: EvmVersion,
-    allow_relative: bool,
+    packing: TablePacking,
 ) -> (IndexVec<BlockId, IndexedJumpLowering>, Vec<IndexedJumpTable>) {
     let tables = module
         .blocks
@@ -133,7 +158,7 @@ pub(super) fn materialize_tables_with_metadata(
                 &offsets,
                 global_width,
                 evm_version,
-                allow_relative,
+                packing,
             )
         })
         .collect::<Vec<_>>();
@@ -141,9 +166,11 @@ pub(super) fn materialize_tables_with_metadata(
     loop {
         let mut packed_estimates = index_vec![None; module.blocks.len()];
         for (table, encoding) in tables.iter().zip(&encodings) {
-            if encoding.packed {
+            if encoding.packed_chunks != PackedTableChunks::None {
                 packed_estimates[table.source] = Some(PackedTableEstimate {
                     len: table.targets.len(),
+                    width: encoding.width,
+                    chunks: encoding.packed_chunks,
                     base_width: encoding.base.map_or(0, |(_, width)| width),
                 });
             }
@@ -157,7 +184,7 @@ pub(super) fn materialize_tables_with_metadata(
                 &offsets,
                 global_width,
                 evm_version,
-                allow_relative,
+                packing,
             );
             if next != *encoding {
                 *encoding = next;
@@ -170,7 +197,7 @@ pub(super) fn materialize_tables_with_metadata(
     }
 
     for (table, encoding) in tables.iter_mut().zip(&encodings) {
-        if !encoding.packed {
+        if encoding.packed_chunks == PackedTableChunks::None {
             let mut entries = Vec::with_capacity(table.targets.len());
             for &target in &table.targets {
                 let mut block = ir::Block::new(next_label);
@@ -191,7 +218,7 @@ pub(super) fn materialize_tables_with_metadata(
     let mut lowerings = index_vec![IndexedJumpLowering::default(); module.blocks.len()];
     for (table, encoding) in tables.iter().zip(encodings) {
         lowerings[table.source].table = Some(encoding);
-        if !encoding.packed {
+        if encoding.packed_chunks == PackedTableChunks::None {
             lowerings[table.source].outlined_entry_width = Some(encoding.width);
             for &entry in &table.entries {
                 lowerings[entry].outlined_entry_width = Some(encoding.width);
@@ -207,15 +234,28 @@ pub(super) fn materialize_tables_with_metadata(
 pub(super) fn initialize_indexed_jump_widths(
     lowerings: &mut IndexVec<BlockId, IndexedJumpLowering>,
     tables: &[IndexedJumpTable],
+    evm_version: EvmVersion,
+    packing: TablePacking,
 ) {
     for table in tables {
         let encoding = lowerings[table.source].table.expect("indexed jump table lowering");
+        let chunks = if encoding.packed_chunks == PackedTableChunks::None {
+            PackedTableChunks::None
+        } else {
+            indexed_jump_packed_chunks(
+                table.targets.len(),
+                1,
+                evm_version,
+                packing,
+                outlined_indexed_jump_len(table.targets.len(), 1),
+            )
+        };
         lowerings[table.source].table = Some(IndexedJumpEncoding {
             width: 1,
+            packed_chunks: chunks,
             base: encoding.base.map(|(base, _)| (base, 1)),
-            ..encoding
         });
-        if !encoding.packed {
+        if chunks == PackedTableChunks::None {
             lowerings[table.source].outlined_entry_width = Some(1);
             for &entry in &table.entries {
                 lowerings[entry].outlined_entry_width = Some(1);
@@ -229,8 +269,8 @@ pub(super) fn initialize_indexed_jump_widths(
 /// The first lowering uses block-size estimates so it can materialize the
 /// table shape. This pass then uses the actual label offsets, including
 /// ordinary jumps and labels outside the table, and updates widths until the
-/// label layout reaches a fixed point. A packed table falls back to outlined
-/// entries if a resolved width no longer fits one byte.
+/// label layout reaches a fixed point. A packed table may fall back to outlined
+/// entries if its resolved widths no longer fit in one or two words.
 pub(super) fn refine_indexed_jump_widths(
     module: &mut ir::Module,
     tables: &mut [IndexedJumpTable],
@@ -238,6 +278,7 @@ pub(super) fn refine_indexed_jump_widths(
     labels: &[Option<Label>],
     label_offsets: &solar_data_structures::map::FxHashMap<Label, usize>,
     evm_version: EvmVersion,
+    packing: TablePacking,
 ) -> bool {
     let global_width = label_offsets.values().copied().max().map_or(1, |offset| {
         (1u8..=32)
@@ -257,14 +298,14 @@ pub(super) fn refine_indexed_jump_widths(
     let mut changed = false;
     for table in tables.iter_mut() {
         let current = lowerings[table.source].table.expect("indexed jump table lowering");
-        let next = if !current.packed {
+        let next = if current.packed_chunks == PackedTableChunks::None {
             IndexedJumpEncoding {
                 width: current.width.max(indexed_jump_target_width(
                     &table.entries,
                     &block_offsets,
                     global_width,
                 )),
-                packed: false,
+                packed_chunks: PackedTableChunks::None,
                 base: None,
             }
         } else {
@@ -274,10 +315,13 @@ pub(super) fn refine_indexed_jump_widths(
                 &block_offsets,
                 global_width,
                 evm_version,
+                packing,
             )
         };
 
-        if !next.packed && current.packed {
+        if next.packed_chunks == PackedTableChunks::None
+            && current.packed_chunks != PackedTableChunks::None
+        {
             let original_targets = table.targets.clone();
             let mut entries = Vec::with_capacity(original_targets.len());
             let mut next_label = module
@@ -306,7 +350,7 @@ pub(super) fn refine_indexed_jump_widths(
             lowerings[table.source].table = Some(next);
             changed = true;
         }
-        if !next.packed {
+        if next.packed_chunks == PackedTableChunks::None {
             let entry_width =
                 indexed_jump_target_width(&table.targets, &block_offsets, global_width);
             let source_width =
@@ -333,10 +377,19 @@ fn refine_packed_indexed_jump_encoding(
     offsets: &IndexVec<BlockId, usize>,
     global_width: u8,
     evm_version: EvmVersion,
+    packing: TablePacking,
 ) -> IndexedJumpEncoding {
     let absolute_width =
         current.width.max(indexed_jump_target_width(targets, offsets, global_width));
-    let absolute = make_indexed_jump_encoding(targets.len(), absolute_width, None, evm_version);
+    let outlined_len = outlined_indexed_jump_len(targets.len(), absolute_width);
+    let absolute = make_indexed_jump_encoding(
+        targets.len(),
+        absolute_width,
+        None,
+        evm_version,
+        packing,
+        outlined_len,
+    );
 
     let Some((base, base_width)) = current.base else {
         return absolute;
@@ -350,13 +403,15 @@ fn refine_packed_indexed_jump_encoding(
         relative_width,
         Some((base, relative_base_width)),
         evm_version,
+        packing,
+        outlined_len,
     );
 
     // Keep the representation selected by the planner while it remains
     // encodable. Falling back to absolute packing is safe if a relative base
     // no longer fits; changing representations in both directions would make
     // layout refinement oscillate.
-    if relative.packed { relative } else { absolute }
+    if relative.packed_chunks != PackedTableChunks::None { relative } else { absolute }
 }
 
 fn indexed_jump_target_width(
@@ -396,19 +451,33 @@ fn choose_indexed_jump_encoding(
     offsets: &IndexVec<BlockId, usize>,
     global_width: u8,
     evm_version: EvmVersion,
-    allow_relative: bool,
+    packing: TablePacking,
 ) -> IndexedJumpEncoding {
     let absolute_width = indexed_jump_target_width(targets, offsets, global_width);
-    let absolute = make_indexed_jump_encoding(targets.len(), absolute_width, None, evm_version);
-    if !allow_relative {
+    let outlined_len = outlined_indexed_jump_len(targets.len(), absolute_width);
+    let absolute = make_indexed_jump_encoding(
+        targets.len(),
+        absolute_width,
+        None,
+        evm_version,
+        packing,
+        outlined_len,
+    );
+    if !packing.two_words {
         return absolute;
     }
 
     let base = earliest_indexed_jump_base(targets, offsets);
     let width = indexed_jump_relative_width(targets, base, offsets, global_width);
     let base_width = indexed_jump_target_width(&[base], offsets, global_width);
-    let relative =
-        make_indexed_jump_encoding(targets.len(), width, Some((base, base_width)), evm_version);
+    let relative = make_indexed_jump_encoding(
+        targets.len(),
+        width,
+        Some((base, base_width)),
+        evm_version,
+        TablePacking { two_words: true, ..packing },
+        outlined_len,
+    );
     choose_shorter_relative_encoding(absolute, relative, targets.len(), evm_version)
 }
 
@@ -425,10 +494,18 @@ fn make_indexed_jump_encoding(
     width: u8,
     base: Option<(BlockId, u8)>,
     evm_version: EvmVersion,
+    packing: TablePacking,
+    outlined_len: usize,
 ) -> IndexedJumpEncoding {
     IndexedJumpEncoding {
         width,
-        packed: packs_indexed_jump(table_len, width.into(), evm_version),
+        packed_chunks: indexed_jump_packed_chunks(
+            table_len,
+            width,
+            evm_version,
+            packing,
+            outlined_len,
+        ),
         base,
     }
 }
@@ -439,7 +516,7 @@ fn choose_shorter_relative_encoding(
     table_len: usize,
     evm_version: EvmVersion,
 ) -> IndexedJumpEncoding {
-    if relative.packed
+    if relative.packed_chunks != PackedTableChunks::None
         && indexed_jump_encoding_len(relative, table_len, evm_version)
             < indexed_jump_encoding_len(absolute, table_len, evm_version)
     {
@@ -455,7 +532,7 @@ fn update_indexed_jump_encoding(
     offsets: &IndexVec<BlockId, usize>,
     global_width: u8,
     evm_version: EvmVersion,
-    allow_relative: bool,
+    packing: TablePacking,
 ) -> IndexedJumpEncoding {
     let absolute_width = indexed_jump_target_width(targets, offsets, global_width);
     if let Some((base, previous_base_width)) = encoding.base {
@@ -463,29 +540,59 @@ fn update_indexed_jump_encoding(
             indexed_jump_relative_width(targets, base, offsets, global_width).max(encoding.width);
         let base_width =
             indexed_jump_target_width(&[base], offsets, global_width).max(previous_base_width);
-        let relative =
-            make_indexed_jump_encoding(targets.len(), width, Some((base, base_width)), evm_version);
-        let absolute = make_indexed_jump_encoding(targets.len(), absolute_width, None, evm_version);
+        let outlined_len = outlined_indexed_jump_len(targets.len(), absolute_width);
+        let relative = make_indexed_jump_encoding(
+            targets.len(),
+            width,
+            Some((base, base_width)),
+            evm_version,
+            packing,
+            outlined_len,
+        );
+        let absolute = make_indexed_jump_encoding(
+            targets.len(),
+            absolute_width,
+            None,
+            evm_version,
+            packing,
+            outlined_len,
+        );
         return choose_shorter_relative_encoding(absolute, relative, targets.len(), evm_version);
     }
 
     if absolute_width <= encoding.width {
         return encoding;
     }
-    let absolute = if encoding.packed {
-        IndexedJumpEncoding { packed: false, ..encoding }
+    let outlined_len = outlined_indexed_jump_len(targets.len(), absolute_width);
+    let absolute_chunks = indexed_jump_packed_chunks(
+        targets.len(),
+        absolute_width,
+        evm_version,
+        packing,
+        outlined_len,
+    );
+    let absolute = if encoding.packed_chunks != PackedTableChunks::None
+        && absolute_chunks == PackedTableChunks::None
+    {
+        IndexedJumpEncoding { packed_chunks: absolute_chunks, ..encoding }
     } else {
-        IndexedJumpEncoding { width: absolute_width, packed: false, base: None }
+        IndexedJumpEncoding { width: absolute_width, packed_chunks: absolute_chunks, base: None }
     };
-    if !allow_relative {
+    if !packing.two_words {
         return absolute;
     }
 
     let base = earliest_indexed_jump_base(targets, offsets);
     let width = indexed_jump_relative_width(targets, base, offsets, global_width);
     let base_width = indexed_jump_target_width(&[base], offsets, global_width);
-    let relative =
-        make_indexed_jump_encoding(targets.len(), width, Some((base, base_width)), evm_version);
+    let relative = make_indexed_jump_encoding(
+        targets.len(),
+        width,
+        Some((base, base_width)),
+        evm_version,
+        TablePacking { two_words: true, ..packing },
+        outlined_len,
+    );
     choose_shorter_relative_encoding(absolute, relative, targets.len(), evm_version)
 }
 
@@ -519,24 +626,76 @@ pub(in crate::backend) fn estimated_indexed_jump_code_size(
     target_width: usize,
     base_width: usize,
     evm_version: EvmVersion,
+    packing: TablePacking,
 ) -> usize {
-    if packs_indexed_jump(table_len, target_width, evm_version) {
-        packed_indexed_jump_len(PackedTableEstimate { len: table_len, base_width: 0 }, evm_version)
-    } else {
-        usize::from(u8::try_from(base_width).expect("indexed jump base width must fit u8"))
-            + 6
-            + table_len.saturating_mul(target_width + 3)
+    let target_width = u8::try_from(target_width).expect("indexed jump target width must fit u8");
+    let base_width = u8::try_from(base_width).expect("indexed jump base width must fit u8");
+    let outlined_len =
+        usize::from(base_width) + 6 + table_len.saturating_mul(usize::from(target_width) + 3);
+    let packed_chunks =
+        indexed_jump_packed_chunks(table_len, target_width, evm_version, packing, outlined_len);
+    match packed_chunks {
+        PackedTableChunks::None => outlined_len,
+        chunks => packed_indexed_jump_len(
+            PackedTableEstimate { len: table_len, width: target_width, chunks, base_width: 0 },
+            evm_version,
+        ),
     }
 }
 
-/// Returns whether an indexed jump of `table_len` targets of `target_width` bytes picks its
-/// target out of a packed word with `BYTE`.
+fn indexed_jump_packed_chunks(
+    table_len: usize,
+    target_width: u8,
+    evm_version: EvmVersion,
+    packing: TablePacking,
+    outlined_len: usize,
+) -> PackedTableChunks {
+    if !supports_indexed_jump_packing(table_len, evm_version) {
+        return PackedTableChunks::None;
+    }
+    let bytes = table_len.saturating_mul(usize::from(target_width));
+    if bytes <= WORD_BYTES {
+        if target_width == 1 || packing.wide {
+            PackedTableChunks::One
+        } else {
+            PackedTableChunks::None
+        }
+    } else {
+        let entries_per_chunk = WORD_BYTES / usize::from(target_width);
+        let table = PackedTableEstimate {
+            len: table_len,
+            width: target_width,
+            chunks: PackedTableChunks::Two,
+            base_width: 0,
+        };
+        if packing.wide
+            && packing.two_words
+            && target_width.is_power_of_two()
+            && entries_per_chunk >= 2
+            && bytes <= 64
+            && packed_indexed_jump_len(table, evm_version) < outlined_len
+        {
+            PackedTableChunks::Two
+        } else {
+            PackedTableChunks::None
+        }
+    }
+}
+
+/// Returns whether a table of `table_len` targets of `target_width` bytes fits one packed word.
 pub(in crate::backend) fn packs_indexed_jump(
     table_len: usize,
     target_width: usize,
     evm_version: EvmVersion,
+    pack_wide: bool,
 ) -> bool {
-    evm_version.has_bitwise_shifting() && (2..=WORD_BYTES).contains(&table_len) && target_width == 1
+    supports_indexed_jump_packing(table_len, evm_version)
+        && table_len.saturating_mul(target_width) <= WORD_BYTES
+        && (target_width == 1 || pack_wide)
+}
+
+fn supports_indexed_jump_packing(table_len: usize, evm_version: EvmVersion) -> bool {
+    evm_version.has_bitwise_shifting() && table_len >= 2
 }
 
 /// Returns the largest source-block terminator size for target widths through
@@ -547,20 +706,30 @@ pub(in crate::backend) fn estimated_indexed_jump_terminator_size(
     table_len: usize,
     max_target_width: u8,
     evm_version: EvmVersion,
-    allow_relative: bool,
+    packing: TablePacking,
 ) -> usize {
     (1..=max_target_width)
         .map(|target_width| {
-            if packs_indexed_jump(table_len, target_width.into(), evm_version) {
+            let outlined_len = outlined_indexed_jump_len(table_len, target_width);
+            let packed_chunks = indexed_jump_packed_chunks(
+                table_len,
+                target_width,
+                evm_version,
+                packing,
+                outlined_len,
+            );
+            if packed_chunks == PackedTableChunks::None {
+                usize::from(target_width) + 6
+            } else {
                 packed_indexed_jump_len(
                     PackedTableEstimate {
                         len: table_len,
-                        base_width: if allow_relative { max_target_width } else { 0 },
+                        width: target_width,
+                        chunks: packed_chunks,
+                        base_width: if packing.two_words { max_target_width } else { 0 },
                     },
                     evm_version,
                 )
-            } else {
-                usize::from(target_width) + 6
             }
         })
         .max()
@@ -572,12 +741,14 @@ fn indexed_jump_encoding_len(
     table_len: usize,
     evm_version: EvmVersion,
 ) -> usize {
-    if !encoding.packed {
+    if encoding.packed_chunks == PackedTableChunks::None {
         return outlined_indexed_jump_len(table_len, encoding.width);
     }
     packed_indexed_jump_len(
         PackedTableEstimate {
             len: table_len,
+            width: encoding.width,
+            chunks: encoding.packed_chunks,
             base_width: encoding.base.map_or(0, |(_, width)| width),
         },
         evm_version,
@@ -709,13 +880,37 @@ fn estimated_terminator_size(
 }
 
 fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) -> usize {
-    let byte_offset = WORD_BYTES - table.len;
-    let offset_len = usize::from(byte_offset != 0)
-        * (immediate_materialization_len(evm_version, U256::from(byte_offset)) + 1);
-    4 + table.len
-        + offset_len
-        + usize::from(table.base_width)
-        + usize::from(table.base_width != 0) * 2
+    let table_len = if table.chunks == PackedTableChunks::One {
+        if table.width == 1 {
+            let byte_offset = WORD_BYTES - table.len;
+            4 + table.len
+                + usize::from(byte_offset != 0)
+                    * (immediate_materialization_len(evm_version, U256::from(byte_offset)) + 1)
+        } else {
+            9 + table.len * usize::from(table.width) + usize::from(table.width)
+        }
+    } else {
+        debug_assert_eq!(table.chunks, PackedTableChunks::Two);
+
+        let width = usize::from(table.width);
+        let entries_per_chunk = WORD_BYTES / width;
+        let second_chunk_bytes = (table.len - entries_per_chunk) * width;
+        let chunk_shift = entries_per_chunk.ilog2();
+        let entry_mask = entries_per_chunk - 1;
+        let scale_shift = (u32::from(table.width) * 8).ilog2();
+        let target_mask = (U256::ONE << (u32::from(table.width) * 8)) - U256::ONE;
+        let opcode_bytes = 14;
+        let second_chunk_push = second_chunk_bytes + 1;
+        let first_chunk_push = 33;
+        opcode_bytes
+            + immediate_materialization_len(evm_version, U256::from(chunk_shift))
+            + second_chunk_push
+            + first_chunk_push
+            + immediate_materialization_len(evm_version, U256::from(entry_mask))
+            + immediate_materialization_len(evm_version, U256::from(scale_shift))
+            + immediate_materialization_len(evm_version, target_mask)
+    };
+    table_len + usize::from(table.base_width) + usize::from(table.base_width != 0) * 2
 }
 
 pub(super) fn lower(
@@ -728,25 +923,63 @@ pub(super) fn lower(
 ) {
     let evm_version = assembler.gcx.sess.opts.evm_version;
     let table_encoding = indexed_jump.table.expect("indexed jump table encoding");
-    if table_encoding.packed {
-        debug_assert_eq!(table_encoding.width, 1);
+    if table_encoding.packed_chunks != PackedTableChunks::None {
+        let target_width = table_encoding.width;
+        let scale = u32::from(target_width) * 8;
         let base = table_encoding
             .base
             .map(|(base, _)| lower::label_for_block(assembler, module, base, labels));
-        let mut labels = targets
+        let labels = targets
             .iter()
             .map(|&target| lower::label_for_block(assembler, module, target, labels))
             .collect::<Vec<_>>();
-        // Select the byte of the packed word, counted from its most significant end.
-        let byte_offset = WORD_BYTES - labels.len();
-        if byte_offset != 0 {
-            push_immediate(assembler, program, evm_version, U256::from(byte_offset));
+        if table_encoding.packed_chunks == PackedTableChunks::Two {
+            let entries_per_chunk = WORD_BYTES / usize::from(target_width);
+            let (first, second) = labels.split_at(entries_per_chunk);
+            // Select one of the two words without branching.
+            program.push_op(op::DUP1);
+            push_immediate(assembler, program, evm_version, U256::from(entries_per_chunk.ilog2()));
+            program.push_op(op::SHR);
+            program.push_op(op::DUP1);
+            program.push_packed_labels(second.into(), base, target_width);
+            program.push_op(op::MUL);
+            program.push_op(op::SWAP1);
+            program.push_op(op::ISZERO);
+            program.push_packed_labels(first.into(), base, target_width);
+            program.push_op(op::MUL);
             program.push_op(op::ADD);
+            program.push_op(op::SWAP1);
+            push_immediate(assembler, program, evm_version, U256::from(entries_per_chunk - 1));
+            program.push_op(op::AND);
         }
-        labels.reverse();
-        program.push_packed_labels(labels.into_boxed_slice(), base);
-        program.push_op(op::SWAP1);
-        program.push_op(op::BYTE);
+        if table_encoding.packed_chunks == PackedTableChunks::One && target_width == 1 {
+            let byte_offset = WORD_BYTES - labels.len();
+            if byte_offset != 0 {
+                push_immediate(assembler, program, evm_version, U256::from(byte_offset));
+                program.push_op(op::ADD);
+            }
+            let mut labels = labels.into_boxed_slice();
+            labels.reverse();
+            program.push_packed_labels(labels, base, target_width);
+            program.push_op(op::SWAP1);
+            program.push_op(op::BYTE);
+        } else {
+            if scale.is_power_of_two() {
+                push_immediate(assembler, program, evm_version, U256::from(scale.ilog2()));
+                program.push_op(op::SHL);
+            } else {
+                push_immediate(assembler, program, evm_version, U256::from(scale));
+                program.push_op(op::MUL);
+            }
+            if table_encoding.packed_chunks == PackedTableChunks::One {
+                program.push_packed_labels(labels.into_boxed_slice(), base, target_width);
+                program.push_op(op::SWAP1);
+            }
+            program.push_op(op::SHR);
+            let mask = (U256::ONE << scale) - U256::ONE;
+            push_immediate(assembler, program, evm_version, mask);
+            program.push_op(op::AND);
+        }
         if let Some(base) = base {
             program.push_label(base);
             program.push_op(op::ADD);

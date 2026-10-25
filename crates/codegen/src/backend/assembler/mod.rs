@@ -415,7 +415,7 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::PushPackedLabels(labels) => {
                     let labels = &program.packed_labels[labels];
-                    let width = labels.labels.len();
+                    let width = usize::from(labels.label_width) * labels.labels.len();
                     offset += out.fixed_push_len(width as u8);
                 }
                 AsmInstKind::PushLibrary(_) => offset += 21,
@@ -521,12 +521,12 @@ impl<'gcx> Assembler<'gcx> {
                                 .expect("packed label must not precede its base"),
                         );
                         assert!(
-                            target.byte_len() <= 1,
+                            target.byte_len() <= usize::from(labels.label_width),
                             "label offset does not fit packed labels entry"
                         );
-                        value |= target << (index * 8);
+                        value |= target << (index * usize::from(labels.label_width) * 8);
                     }
-                    let width = labels.labels.len();
+                    let width = labels.labels.len() * usize::from(labels.label_width);
                     out.emit_push_fixed_width(value, width as u8, source_spans);
                 }
                 AsmInstKind::PushData(data) => {

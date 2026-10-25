@@ -1,6 +1,6 @@
 //! Lowering from block EVM IR to its finalized layout-linear form.
 
-use super::{AsmInst, AsmInstKind, Program, indexed_jump};
+use super::{AsmInst, AsmInstKind, Program, TablePacking, indexed_jump};
 use crate::{
     backend::{
         assembler::{ArtifactKind, Assembler, Label, OptimizedProgram, PreparedAssembly},
@@ -148,9 +148,14 @@ pub(in crate::backend) fn lower_evm_ir(
     let (mut indexed_jump_lowerings, mut tables) = indexed_jump::materialize_tables_with_metadata(
         module,
         assembler.gcx.sess.opts.evm_version,
-        assembler.gcx.sess.opts.optimization.is_size(),
+        TablePacking::new(&assembler.gcx.sess.opts),
     );
-    indexed_jump::initialize_indexed_jump_widths(&mut indexed_jump_lowerings, &tables);
+    indexed_jump::initialize_indexed_jump_widths(
+        &mut indexed_jump_lowerings,
+        &tables,
+        assembler.gcx.sess.opts.evm_version,
+        TablePacking::new(&assembler.gcx.sess.opts),
+    );
     let data_layout_is_observable = module.data_layout_is_observable();
     for _ in 0..=32 {
         let program = lower_evm_ir_once(
@@ -173,6 +178,7 @@ pub(in crate::backend) fn lower_evm_ir(
             labels,
             &label_offsets,
             assembler.gcx.sess.opts.evm_version,
+            TablePacking::new(&assembler.gcx.sess.opts),
         ) {
             return program;
         }

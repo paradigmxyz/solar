@@ -697,7 +697,8 @@ It moves the whole fallthrough trace, so moving a shared exit does not insert
 jumps between its predecessor blocks. Multi-block traces must end at an exit
 with at least four references beyond the low-address range; the stricter limit
 avoids moving hot code for weak size gains. Packing reserves space for one-byte
-indexed jump tables, since wider entries fall back to a larger stride table.
+indexed jump tables, since wider entries use a larger stride table, or shifts and masking
+with `-Zpack-wide-jump-tables`.
 
 Packed ABI encoding skips allocation rounding when every component occupies
 whole words, while retaining overflow checks. Storage-byte pushes place the

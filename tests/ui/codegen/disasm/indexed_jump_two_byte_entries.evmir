@@ -1,18 +1,33 @@
+//@ revisions: stride wide
 //@ compile-flags: -Zevm-ir-pipeline=none -O none -Zdump=disasm-runtime
-//@ filecheck:
+//@[wide] compile-flags: -Zpack-wide-jump-tables
+//@[stride] filecheck: --check-prefix=STRIDE
+//@[wide] filecheck: --check-prefix=WIDE
 
-// Every target sits past 255 bytes, so absolute entries need two bytes. Two-byte
-// entries are never packed into a word: the shift and mask that pick one are
-// opaque to jump analysis. The table stays outlined as equal-width entry stubs.
+// Every target sits past 255 bytes, so absolute entries need two bytes. By default
+// two-byte entries are never packed into a word: the shift and mask that pick one are
+// opaque to jump analysis, so the table stays outlined as equal-width entry stubs.
+// `-Zpack-wide-jump-tables` packs all ten entries into one `PUSH20` and picks one with
+// a shift and a mask.
 @module two_byte_entries
 
-// CHECK-LABEL: // === two_byte_entries (runtime) ===
-// CHECK-NEXT: PUSH1 0x01
-// CHECK-NEXT: PUSH1 0x05
-// CHECK-NEXT: MUL
-// CHECK-NEXT: PUSH2
-// CHECK-NEXT: ADD
-// CHECK-NEXT: JUMP ; unknown
+// STRIDE-LABEL: // === two_byte_entries (runtime) ===
+// STRIDE-NEXT: PUSH1 0x01
+// STRIDE-NEXT: PUSH1 0x05
+// STRIDE-NEXT: MUL
+// STRIDE-NEXT: PUSH2
+// STRIDE-NEXT: ADD
+// STRIDE-NEXT: JUMP ; unknown
+// WIDE-LABEL: // === two_byte_entries (runtime) ===
+// WIDE-NEXT: PUSH1 0x01
+// WIDE-NEXT: PUSH1 0x04
+// WIDE-NEXT: SHL
+// WIDE-NEXT: PUSH20
+// WIDE-NEXT: SWAP1
+// WIDE-NEXT: SHR
+// WIDE-NEXT: PUSH2 0xffff
+// WIDE-NEXT: AND
+// WIDE-NEXT: JUMP ; unknown
 bb0:
   push 1
   indexed_jump bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11

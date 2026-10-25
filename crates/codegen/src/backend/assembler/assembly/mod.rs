@@ -17,7 +17,7 @@ mod inst;
 mod lower;
 
 pub(in crate::backend) use indexed_jump::{
-    estimated_indexed_jump_code_size, estimated_indexed_jump_terminator_size,
+    TablePacking, estimated_indexed_jump_code_size, estimated_indexed_jump_terminator_size,
     indexed_jump_target_width_bound, packs_indexed_jump,
 };
 pub(in crate::backend) use inst::{
@@ -26,11 +26,12 @@ pub(in crate::backend) use inst::{
 };
 pub(crate) use inst::{DeferredConst, Label};
 
-/// One-byte labels packed into one immediate.
+/// Labels packed into one fixed-width immediate.
 #[derive(Clone, Debug)]
 pub(in crate::backend) struct PackedLabels {
     pub(in crate::backend) labels: Box<[Label]>,
     pub(in crate::backend) base: Option<Label>,
+    pub(in crate::backend) label_width: u8,
 }
 
 /// A compact label-bearing opcode stream ready for relocation and byte encoding.
@@ -134,10 +135,14 @@ impl Program {
         &mut self,
         labels: Box<[Label]>,
         base: Option<Label>,
+        label_width: u8,
     ) {
         assert!(!labels.is_empty(), "packed labels must not be empty");
-        assert!(labels.len() <= WORD_BYTES, "packed labels must fit one EVM word");
-        let labels = self.packed_labels.push(PackedLabels { labels, base });
+        assert!(
+            labels.len() * usize::from(label_width) <= WORD_BYTES,
+            "packed labels must fit one EVM word"
+        );
+        let labels = self.packed_labels.push(PackedLabels { labels, base, label_width });
         self.push(AsmInst::push_packed_labels(labels));
     }
 
