@@ -431,6 +431,13 @@ impl Target {
         self.optimization
     }
 
+    /// Whether the stack planner may spend compile time searching for cheaper code: operand
+    /// pre-placement, result placement and extra loop header layouts. `-O none` skips the search
+    /// and keeps the first plan, which changes only its gas and size.
+    pub(crate) fn searches_stack_layouts(&self) -> bool {
+        !matches!(self.optimization, OptimizationMode::None)
+    }
+
     pub(crate) fn expected_executions(&self) -> u64 {
         self.expected_executions
     }
