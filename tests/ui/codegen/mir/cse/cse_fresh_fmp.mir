@@ -1,0 +1,217 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck: --enable-var-scope
+
+@module CseFreshFmp
+
+// An `alloc` before a free-memory-pointer read ends at or below the pointer it returns.
+// CHECK-LABEL: @write_at_fresh_fmp
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: -     ret {{v[0-9]+}}
+// CHECK: +     ret arg0
+fn @write_at_fresh_fmp(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    ret v7
+}
+
+// CHECK-LABEL: @write_past_fresh_fmp
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: -     ret {{v[0-9]+}}
+// CHECK: +     ret arg0
+fn @write_past_fresh_fmp(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    mstore v2, arg0
+    v11 = fmp
+    v12 = ptradd v11, arg2
+    v3 = ptrtoint ptr<memory> v12 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    ret v7
+}
+
+// CHECK-LABEL: @allocation_in_dominator
+// CHECK:       [[FIRST:v[0-9]+]] = mload [[ADDR:v[0-9]+]]
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: +     [[SUM:v[0-9]+]] = add [[FIRST]], [[FIRST]]
+// CHECK:       ret [[SUM]]
+fn @allocation_in_dominator(arg0: i256, arg1: i256, arg2: i1) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v5 = mload v2
+    jumpi arg2, bb1, bb2
+  bb1:
+    jump bb2
+  bb2:
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    v8 = add v5, v7
+    ret v8
+}
+
+// CHECK-LABEL: @allocation_before_loop
+// CHECK:       [[FIRST:v[0-9]+]] = mload [[ADDR:v[0-9]+]]
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: +     [[SUM:v[0-9]+]] = add [[FIRST]], [[FIRST]]
+fn @allocation_before_loop(arg0: i256, arg1: i256, arg2: i1) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v5 = mload v2
+    jump bb1
+  bb1:
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    v8 = add v5, v7
+    jumpi arg2, bb1, bb2
+  bb2:
+    ret v8
+}
+
+// An allocation in a loop body is a new object on each iteration, so it keeps no such guarantee.
+// CHECK-LABEL: @allocation_in_loop
+// CHECK:       [[FIRST:v[0-9]+]] = mload [[ADDR:v[0-9]+]]
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @allocation_in_loop(arg0: i256, arg1: i256, arg2: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v5 = mload v2
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    v8 = add v5, v7
+    jumpi arg2, bb1, bb2
+  bb2:
+    ret v8
+}
+
+// CHECK-LABEL: @allocation_after_read
+// CHECK:       {{v[0-9]+}} = fmp
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       {{v[0-9]+}} = mload [[ADDR:v[0-9]+]]
+fn @allocation_after_read(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    mstore v2, arg0
+    mstore v3, arg1
+    v7 = mload v2
+    ret v7
+}
+
+// A reset between the allocation and the read can move the pointer below the allocation, and
+// a reset clobbers every cached load, so the store that follows it is the one at risk.
+// CHECK-LABEL: @reset_before_read
+// CHECK:       set_fmp
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @reset_before_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v12 = inttoptr i256 arg2 to ptr<memory>
+    set_fmp v12
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    ret v7
+}
+
+// A reset on one path to the read counts even when the allocation precedes it on every path.
+// CHECK-LABEL: @reset_on_one_path
+// CHECK:       set_fmp
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @reset_on_one_path(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    jumpi arg3, bb1, bb2
+  bb1:
+    v12 = inttoptr i256 arg2 to ptr<memory>
+    set_fmp v12
+    jump bb2
+  bb2:
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    ret v7
+}
+
+// A reset in an arm that does not reach the read leaves it fresh.
+// CHECK-LABEL: @reset_on_other_path
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: -     ret {{v[0-9]+}}
+// CHECK: +     ret arg0
+fn @reset_on_other_path(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    jumpi arg3, bb1, bb2
+  bb1:
+    v12 = inttoptr i256 arg2 to ptr<memory>
+    set_fmp v12
+    ret 0
+  bb2:
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    ret v7
+}
+
+// A reset after the read leaves the buffer above the allocation.
+// CHECK-LABEL: @reset_after_read
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK:       set_fmp
+// CHECK: -     ret {{v[0-9]+}}
+// CHECK: +     ret arg0
+fn @reset_after_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    v12 = inttoptr i256 arg2 to ptr<memory>
+    set_fmp v12
+    ret v7
+}

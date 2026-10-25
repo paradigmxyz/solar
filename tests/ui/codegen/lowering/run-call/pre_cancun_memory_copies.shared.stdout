@@ -16,14 +16,10 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
     v46 = mload 64
     v23 = add v46, 32
     mstore v46, 32
-    v26 = mload v45
-    mstore v23, v26
-    v27 = shl v26, 5
+    mstore v23, 3
     v28 = add v23, 32
-    v30 = add v28, v27
-    icall @mcopy_words, v28, v36, v27
-    v32 = sub v30, v46
-    v16 = keccak256 v46, v32
+    icall @mcopy_words, v28, v36, 96
+    v16 = keccak256 v46, 160
     v17 = eq v16, 0x62e243217b24f0adeab63b697d9c38d64bd4cbf540c9915772ddc377b45b411c
     v19 = zext i1 v17 to i256
     mstore 0, v19 !metadata(memory=scratch)

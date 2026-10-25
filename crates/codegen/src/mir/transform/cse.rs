@@ -1405,9 +1405,7 @@ impl CommonSubexprEliminator {
     fn invalidate_memory(&self, expr_cache: &mut ExprCache, write: ClobberScope<MemRangeKey>) {
         expr_cache.retain_stateful(|key, _| match key {
             ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write
-                .preserves(*read, |read, write| {
-                    AliasAnalysis::memory_alias_locations(read, write).may_alias()
-                }),
+                .preserves(*read, |read, write| self.alias().memory_alias(read, write).may_alias()),
             ExprKey::MappingSlot(..)
             | ExprKey::StorageArrayDataSlot(..)
             | ExprKey::StorageArrayElementSlot(..) => {
