@@ -353,7 +353,11 @@ impl fmt::Display for AbiType {
             // location's own `Display` yields the `memory`/`calldata` prefix.
             Self::Bytes(location) => write!(f, "{location}_bytes"),
             Self::DynamicArray { element, location } => write!(f, "{location}_array<{element}>"),
-            Self::FixedArray { element, len, .. } => write!(f, "array<{len}, {element}>"),
+            // A word array that solc does not copy as a block carries `wordwise`.
+            Self::FixedArray { element, len, block_copy } => {
+                let wordwise = !block_copy && matches!(element.as_ref(), Self::Word(None));
+                write!(f, "array<{len}, {element}{}>", if wordwise { ", wordwise" } else { "" })
+            }
             Self::Tuple(fields) => {
                 write!(f, "tuple<")?;
                 for (index, ty) in fields.iter().enumerate() {

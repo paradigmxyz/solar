@@ -1278,6 +1278,7 @@ symbols! {
         value,
         void,
         word,
+        wordwise,
         wrap,
         wrapping_div,
         x,

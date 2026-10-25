@@ -424,7 +424,7 @@ fn @encodeWrap(arg0: slice<calldata>) -> i256 [selector=0x60022e6b, pure, abi_pa
 
 fn @encodeSigned(arg0: slice<calldata>) -> i256 [selector=0x5cbe52cc, pure, abi_params=[array<_, tuple<bytes, array<2, int256>>>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = abi_encode [calldata_array<tuple<calldata_bytes, array<2, word>>>], scratch, args arg0
+    v0 = abi_encode [calldata_array<tuple<calldata_bytes, array<2, word, wordwise>>>], scratch, args arg0
     v1 = extract_value slice<memory>, v0, 0
     v2 = extract_value slice<memory>, v0, 1
     v3 = keccak256 v1, v2
@@ -433,7 +433,7 @@ fn @encodeSigned(arg0: slice<calldata>) -> i256 [selector=0x5cbe52cc, pure, abi_
 
 fn @encodeTyped(arg0: slice<calldata>) -> i256 [selector=0x941cee31, pure, abi_params=[array<_, tuple<bytes, array<2, uint256>>>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = abi_encode [calldata_array<tuple<calldata_bytes, array<2, word>>>], scratch, args arg0
+    v0 = abi_encode [calldata_array<tuple<calldata_bytes, array<2, word, wordwise>>>], scratch, args arg0
     v1 = extract_value slice<memory>, v0, 0
     v2 = extract_value slice<memory>, v0, 1
     v3 = keccak256 v1, v2
