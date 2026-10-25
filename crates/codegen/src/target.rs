@@ -431,6 +431,11 @@ impl Target {
         self.optimization
     }
 
+    /// Whether the stack planner searches for cheaper plans; `-O none` takes its first plan.
+    pub(crate) fn optimizes_stack_plans(&self) -> bool {
+        !matches!(self.optimization, OptimizationMode::None)
+    }
+
     pub(crate) fn expected_executions(&self) -> u64 {
         self.expected_executions
     }
