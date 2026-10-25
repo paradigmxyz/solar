@@ -1,0 +1,69 @@
+// === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_runtime.sol:LiteralRuntime ===
+@module LiteralRuntime
+fn @onERC721Received(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) [selector=0x150b7a02, pure, abi_params=[address, address, uint256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = and 0x150b7a0200000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode_packed (bytes4 v0)
+    icall require<error_string>, false, v1
+    invalid
+}
+
+fn @tail4() -> ptr<memory> [selector=0x7c79f4b5, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 4
+    v1 = ptradd v0, 32
+    mstore v1, 0x1122334400000000000000000000000000000000000000000000000000000000
+    icall @dirty
+    v2 = abi_encode [memory_bytes], object, args v0
+    v3 = mload v0
+    v4 = eq v3, 4
+    v5 = eq v4, false
+    icall revert_if<empty>, v5
+    ret v2
+}
+
+fn @tail33() -> ptr<memory> [selector=0xd615f6a1, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 33
+    v1 = ptradd v0, 32
+    mstore v1, 0x1122334455667788990011223344556677889900112233445566778899001122
+    v2 = ptradd v0, 64
+    mstore v2, 0x3300000000000000000000000000000000000000000000000000000000000000
+    icall @dirty
+    v3 = abi_encode [memory_bytes], object, args v0
+    v4 = mload v0
+    v5 = eq v4, 33
+    v6 = eq v5, false
+    icall revert_if<empty>, v6
+    ret v3
+}
+
+fn @dirty() [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 512
+    v2 = mload 64 !metadata(memory=scratch)
+    jump bb1
+  bb1:
+    v3 = phi [bb0: v1], [bb3: v3]
+    v4 = phi [bb0: v2], [bb3: v9]
+    v5 = lt v4, v3
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    v8 = not 0
+    mstore v4, v8
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v9 = add v4, 32
+    jump bb1
+}
