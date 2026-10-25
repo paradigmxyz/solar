@@ -265,6 +265,10 @@ pub(crate) enum AbiType {
         element: Box<Self>,
         /// Number of elements.
         len: u64,
+        /// Whether solc copies the array from calldata as one block, because its elements are
+        /// `uint256` or `bytes32`. It reads every other element type one word at a time, which
+        /// differs when the array lies across 2^256.
+        block_copy: bool,
     },
     /// A struct or tuple represented by a memory pointer.
     Tuple(Box<[Self]>),
@@ -280,9 +284,11 @@ impl AbiType {
             Self::DynamicArray { element, .. } => {
                 Self::DynamicArray { element: Box::new(element.at_location(location)), location }
             }
-            Self::FixedArray { element, len } => {
-                Self::FixedArray { element: Box::new(element.at_location(location)), len }
-            }
+            Self::FixedArray { element, len, block_copy } => Self::FixedArray {
+                element: Box::new(element.at_location(location)),
+                len,
+                block_copy,
+            },
             Self::Tuple(fields) => Self::Tuple(
                 fields.into_vec().into_iter().map(|f| f.at_location(location)).collect(),
             ),
@@ -318,7 +324,7 @@ impl AbiType {
     pub(crate) fn tail_size(&self) -> u64 {
         match self {
             Self::Word(_) | Self::Function | Self::Bytes(_) | Self::DynamicArray { .. } => 32,
-            Self::FixedArray { element, len } => element.head_size() * len,
+            Self::FixedArray { element, len, .. } => element.head_size() * len,
             Self::Tuple(fields) => fields.iter().map(Self::head_size).sum(),
         }
     }
@@ -347,7 +353,7 @@ impl fmt::Display for AbiType {
             // location's own `Display` yields the `memory`/`calldata` prefix.
             Self::Bytes(location) => write!(f, "{location}_bytes"),
             Self::DynamicArray { element, location } => write!(f, "{location}_array<{element}>"),
-            Self::FixedArray { element, len } => write!(f, "array<{len}, {element}>"),
+            Self::FixedArray { element, len, .. } => write!(f, "array<{len}, {element}>"),
             Self::Tuple(fields) => {
                 write!(f, "tuple<")?;
                 for (index, ty) in fields.iter().enumerate() {

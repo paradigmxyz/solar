@@ -3736,7 +3736,7 @@ fn encoder_cleans_return(abi: &AbiType, ty: &AbiParamType) -> bool {
                 && fields.iter().zip(tys).all(|(abi, ty)| encoder_cleans_return(abi, ty))
         }
         (
-            AbiType::FixedArray { element, len },
+            AbiType::FixedArray { element, len, .. },
             AbiParamType::FixedArray { element: ty, len: ty_len },
         ) => len == ty_len && encoder_cleans_return(element, ty),
         (

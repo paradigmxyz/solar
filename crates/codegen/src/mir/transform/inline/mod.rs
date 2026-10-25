@@ -1267,7 +1267,7 @@ fn abi_type_expansion(ty: &AbiType) -> usize {
         AbiType::Word(Some(_)) | AbiType::Function => 3,
         AbiType::Bytes(_) => 14,
         AbiType::DynamicArray { element, .. } => 12 + 2 * abi_type_expansion(element),
-        AbiType::FixedArray { element, len } => {
+        AbiType::FixedArray { element, len, .. } => {
             1 + abi_type_expansion(element) * usize::try_from(*len).unwrap_or(usize::MAX).min(8)
         }
         AbiType::Tuple(fields) => 1 + fields.iter().map(abi_type_expansion).sum::<usize>(),

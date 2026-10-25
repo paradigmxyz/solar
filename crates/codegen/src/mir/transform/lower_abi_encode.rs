@@ -51,7 +51,10 @@
 //! each tail offset must leave room for the member's head, each length must fit in 64 bits, each
 //! array must end inside calldata, and a narrow word that is not canonical reverts, where
 //! the same word read from memory is cleaned. Static elements that need no validation copy as
-//! one block.
+//! one block, as solc copies an array of `uint256` or `bytes32`; solc loads every other static
+//! element one word at a time, so a range that wraps past 2^256 sends such arrays to an
+//! element loop, which reads each word at its own wrapping address. Under the size objective
+//! the loop is the only code, because the guard and the copy cost more bytes than they save.
 //!
 //! In-place returns. Under the gas and size objectives, a terminal external
 //! return of a fresh full-word array or byte string that is not a literal
@@ -204,7 +207,6 @@ impl TupleHelperKey {
 }
 
 /// Shared encoder helpers available to every site in the module.
-#[derive(Default)]
 struct EncodeHelpers {
     arrays: FxHashMap<ArrayHelperKey, FunctionId>,
     /// Keyed by the layout with every location set to calldata.
@@ -214,14 +216,19 @@ struct EncodeHelpers {
     literal_objects: FxHashSet<ValueId>,
     branchless_byte_tails: bool,
     bitwise_shifting: bool,
+    target: Target,
 }
 
 impl EncodeHelpers {
     fn new(target: &Target) -> Self {
         Self {
+            arrays: FxHashMap::default(),
+            calldata: FxHashMap::default(),
+            tuples: FxHashMap::default(),
+            literal_objects: FxHashSet::default(),
             branchless_byte_tails: !target.optimization().is_size(),
             bitwise_shifting: target.evm_version().has_bitwise_shifting(),
-            ..Self::default()
+            target: *target,
         }
     }
 }
@@ -335,7 +342,7 @@ fn synthesize_array_helpers(
                 }
                 count_sites(func, element, None, occurrences, counts);
             }
-            AbiType::FixedArray { element, len } => count_sites(
+            AbiType::FixedArray { element, len, .. } => count_sites(
                 func,
                 element,
                 None,
@@ -1094,7 +1101,7 @@ fn encode_static_impl(
                 field_head = offset_ptr(builder, field_head, field.head_size());
             }
         }
-        AbiType::FixedArray { element, len } => {
+        AbiType::FixedArray { element, len, .. } => {
             encode_static_array(builder, element, *len, value, head_addr, allow_slice_fast_path);
         }
         AbiType::Function => {
@@ -1233,14 +1240,14 @@ fn encode_static_slice(
                 head = offset_ptr(builder, head, field.head_size());
             }
         }
-        AbiType::FixedArray { .. } if location == PtrLocation::Calldata && is_word_block(ty) => {
+        AbiType::FixedArray { block_copy: true, .. } if location == PtrLocation::Calldata => {
             // Like solc, copy the words as one block, which reads zeros from an address that
             // wraps past the end of the address space where per-word loads would wrap around.
             // calldatacopy head_addr, source, head_size
             let size = builder.imm(ty.head_size());
             copy_source_data(builder, location, head_addr, source, size);
         }
-        AbiType::FixedArray { element, len } => {
+        AbiType::FixedArray { element, len, .. } => {
             let length = builder.imm(*len);
             let stride = builder.imm(element.head_size());
             builder.counted_loop(length, |builder, index| {
@@ -1363,7 +1370,7 @@ fn encode_dynamic_body(
         {
             encode_calldata_body(builder, ty, value, dest, helpers)
         }
-        AbiType::FixedArray { element, len } => encode_memory_array_elements(
+        AbiType::FixedArray { element, len, .. } => encode_memory_array_elements(
             builder,
             element,
             value,
@@ -1411,7 +1418,7 @@ fn encode_calldata_body(
             let base = builder.slice_ptr(value);
             encode_calldata_elements(builder, element, base, length, area, helpers)
         }
-        AbiType::FixedArray { element, len } => {
+        AbiType::FixedArray { element, len, .. } => {
             // encode_calldata_elements(element, slice_ptr(value), len, dest)
             let length = builder.imm(*len);
             let base = builder.slice_ptr(value);
@@ -1650,25 +1657,43 @@ fn encode_calldata_elements(
     let head_bytes = builder.mul(length, stride);
     let initial_tail = builder.add(area, head_bytes);
     if !element.is_dynamic() {
-        if needs_calldata_validation(element) {
-            // for index in 0..length: encode_validated(element, base + index * stride)
+        // for index in 0..length: encode_static(element, base + index * stride)
+        let encode_each = |builder: &mut FunctionBuilder<'_>| {
+            let validate = needs_calldata_validation(element).then_some(helpers.bitwise_shifting);
             builder.counted_loop(length, |builder, index| {
                 let offset = builder.mul(index, stride);
                 let source = builder.add(base, offset);
                 let head = builder.add(area, offset);
-                let bitwise_shifting = Some(helpers.bitwise_shifting);
                 encode_static_slice(
                     builder,
                     element,
                     source,
                     head,
                     PtrLocation::Calldata,
-                    bitwise_shifting,
+                    validate,
                 );
             });
-        } else {
-            copy_source_data(builder, PtrLocation::Calldata, area, base, head_bytes);
+        };
+        if needs_calldata_validation(element)
+            || !helpers.target.guards_block_copy(element.head_size() / 32)
+        {
+            encode_each(builder);
+            return initial_tail;
         }
+        // if base + head_bytes < base { encode_each } else { calldatacopy area, base, head_bytes }
+        let end = builder.add(base, head_bytes);
+        let wraps = builder.lt(end, base);
+        let each = builder.create_block();
+        let copy = builder.create_block();
+        let done = builder.create_block();
+        builder.branch(wraps, each, copy);
+        builder.switch_to_block(each);
+        encode_each(builder);
+        builder.jump(done);
+        builder.switch_to_block(copy);
+        copy_source_data(builder, PtrLocation::Calldata, area, base, head_bytes);
+        builder.jump(done);
+        builder.switch_to_block(done);
         return initial_tail;
     }
 
@@ -1710,12 +1735,6 @@ fn encode_calldata_elements(
 
     builder.switch_to_block(done);
     current_tail
-}
-
-/// Whether `ty` is a fixed array of full words. Solc copies each such array as one block, an
-/// array of those arrays one block at a time.
-fn is_word_block(ty: &AbiType) -> bool {
-    matches!(ty, AbiType::FixedArray { element, .. } if matches!(element.as_ref(), AbiType::Word(None)))
 }
 
 /// Whether a static calldata value holds a word that ABI decoding would validate.

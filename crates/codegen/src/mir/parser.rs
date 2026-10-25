@@ -1039,7 +1039,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let element = Box::new(self.parse_abi_type()?);
                 self.expect_gt()?;
-                AbiType::FixedArray { element, len }
+                AbiType::FixedArray {
+                    block_copy: matches!(*element, AbiType::Word(None)),
+                    element,
+                    len,
+                }
             }
             sym::tuple => {
                 self.parser.expect(TokenKind::Lt)?;
