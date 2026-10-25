@@ -19,6 +19,14 @@
       revert v0, 32
   }
   
+  fn @call_output_elsewhere(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      v1 = staticcall 0x3e8, 0xbeef, 0, 0, 0x1000, 32
+      mstore v0, 1
+      revert v0, 32
+  }
+  
   fn @external_call_at_pointer(arg0: i256) {
     bb0:
       v0 = alloc arg0
@@ -56,6 +64,14 @@
       v0 = alloc arg1
       v1 = ptrtoint ptr<memory> v0 to i256
       mstore arg0, v1
+      ret
+  }
+  
+  fn @stored_in_scratch(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore 0, v1
       ret
   }
   
@@ -173,7 +189,27 @@
     bb0:
       v0 = alloc arg0
       v1 = ptrtoint ptr<memory> v0 to i256
-      revert 0, v1
+      revert v1, v1
+  }
+  
+  fn @set_fmp_inside(arg0: i256) {
+    bb0:
+      v0 = alloc arg0
+      mstore v0, 1
+      set_fmp v0
+      revert v0, 32
+  }
+  
+  fn @blocker_around_back_edge(arg0: i256, arg1: i1) {
+    bb0:
+      v0 = alloc arg0
+      jump bb1
+    bb1:
+      v1 = mload v0
+      mstore 0x1000, v1
+      jumpi arg1, bb1, bb2
+    bb2:
+      stop
   }
   
   fn @loop_carried(arg0: i256) -> i256 {

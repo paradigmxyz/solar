@@ -54,7 +54,7 @@
 //! call that allocates, and the test suite pins such deltas. So one read of a constant range that
 //! covers slot 64, in any function of the module, keeps every bump. Allocations marked as
 //! source-visible FMP advances and those that static placement takes are left alone. `msize` and
-//! reads through variable addresses outside the lifetime are not tracked.
+//! reads through variable addresses or sizes outside the lifetime are not tracked.
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, ArgIdx, BlockId, Callee,
@@ -293,7 +293,7 @@ impl ValueUses {
 /// Collects the in-bounds address derivations from `root`, with each one's constant offset, to a
 /// fixpoint so definition order does not matter. `None` means a derivation that cannot be bounded
 /// by a constant: a non-constant `add`, or a derivation past `bound` bytes. Without a `bound`,
-/// `ptradd` takes a runtime offset, which stays inside the object.
+/// `ptradd` takes a runtime offset, and the offsets in the map mean nothing.
 fn derive_pointers(
     func: &Function,
     root: ValueId,
