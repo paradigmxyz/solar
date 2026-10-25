@@ -8,12 +8,13 @@
     jump bb1
   bb1:
     dup 1
-    iszero
-    push bb2
+-   iszero
+-   push bb2
++   push bb7
     jumpi
-    push 0
-    jump bb3
-  bb2:
+-   push 0
+-   jump bb3
+- bb2:
     push 1
     sub
     dup 1
@@ -45,4 +46,7 @@
     push bb6
     jumpi
     stop
++ bb7:
++   push 0
++   jump bb3
   

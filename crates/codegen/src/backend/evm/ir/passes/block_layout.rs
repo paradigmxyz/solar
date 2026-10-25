@@ -371,19 +371,31 @@ fn estimated_terminator_size(
     next: Option<BlockId>,
     code_follows: bool,
 ) -> usize {
+    let label = Target::new(gcx).label_push().bytes as usize;
+    terminator_size(gcx, kind, next, code_follows, |_| label)
+}
+
+/// The size of a terminator whose pushed label for `target` takes `label(target)` bytes.
+fn terminator_size(
+    gcx: Gcx<'_>,
+    kind: &TerminatorKind,
+    next: Option<BlockId>,
+    code_follows: bool,
+    label: impl Fn(BlockId) -> usize,
+) -> usize {
     let model = Target::new(gcx);
-    let jump = (model.label_push() + model.opcode(op::JUMP)).bytes as usize;
-    let branch = (model.label_push() + model.opcode(op::JUMPI)).bytes as usize;
+    let jump = |target| label(target) + model.opcode(op::JUMP).bytes as usize;
+    let branch = |target| label(target) + model.opcode(op::JUMPI).bytes as usize;
     match kind {
-        TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * jump,
+        TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * jump(*target),
         TerminatorKind::Op(op::STOP) => usize::from(next.is_some() || code_follows),
         TerminatorKind::JumpI { then_block, else_block } => {
             if Some(*else_block) == next {
-                branch
+                branch(*then_block)
             } else if Some(*then_block) == next {
-                model.opcode(op::ISZERO).bytes as usize + branch
+                model.opcode(op::ISZERO).bytes as usize + branch(*else_block)
             } else {
-                branch + jump
+                branch(*then_block) + jump(*else_block)
             }
         }
         TerminatorKind::IndexedJump(targets) => {
@@ -398,6 +410,45 @@ fn estimated_terminator_size(
             )
         }
         TerminatorKind::Op(opcode) => model.opcode(*opcode).bytes as usize,
+    }
+}
+
+/// Estimates the bytes of the module in its physical block order. Unlike
+/// [`estimated_block_size`], each label push takes the narrowest push that holds its target's
+/// offset, found as the assembler does: from one-byte pushes, widening until the offsets settle.
+/// The estimate prices indexed-jump tables, data, and immutables as the other estimates do and
+/// does not see the width of table entries.
+pub(super) fn estimated_module_bytes(gcx: Gcx<'_>, module: &Module) -> usize {
+    let model = Target::new(gcx);
+    let order = module.blocks.indices().collect::<Vec<_>>();
+    let next_of = |position: usize| order.get(position + 1).copied();
+    let mut references = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
+    references[BlockId::ENTRY] = 1;
+    block_reference_counts(module, &order, &mut references);
+    // Offsets that fit in the narrowest pushes; widening a push only moves later blocks up.
+    let mut offsets = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
+    loop {
+        let mut next_offsets = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
+        let mut offset = 0;
+        for (position, &id) in order.iter().enumerate() {
+            let block = &module.blocks[id];
+            next_offsets[id] = offset;
+            let label = |target: BlockId| model.label_push_to(offsets[target]).bytes as usize;
+            offset += usize::from(references[id] != 0)
+                + block.terminator.as_ref().map_or(0, |term| {
+                    terminator_size(gcx, &term.kind, next_of(position), module.code_follows, label)
+                });
+            for inst in &block.instructions {
+                offset += match &inst.value {
+                    Some(PushValue::Block(target)) if inst.is_encoded_push() => label(*target),
+                    _ => estimated_instruction_size(gcx, inst),
+                };
+            }
+        }
+        if next_offsets == offsets {
+            return offset;
+        }
+        offsets = next_offsets;
     }
 }
 

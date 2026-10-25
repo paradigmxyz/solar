@@ -10,12 +10,17 @@
 //! turns around, since a turned test that keeps its jump to the header would pay that jump on
 //! every iteration.
 //!
-//! Size mode skips the pass. A move trades the latch's jump for the preheader's, which is
-//! byte-neutral, except that a turned test drops its `iszero`. Moving latches in size mode
-//! measured 113 runtime bytes larger across the benchmark corpus, and moving only turned latches
-//! 54 bytes larger. Running only the layout step shrank runtime code by 4,902 bytes but grew 19
-//! contracts by 1,244 bytes in total, as the second layout moved small traces below the `PUSH1`
-//! limit and pushed other labels past it; that needs a fix in block layout, not a price here.
+//! Size mode runs the same layout and keeps it only where [`estimated_module_bytes`], which prices
+//! each label push at the narrowest push that holds its target, says the module does not grow. A
+//! move trades the latch's jump for the preheader's, which is byte-neutral, and runs faster, so
+//! it is kept at equal bytes. A turned test drops its `iszero` but gives up the fallthrough into
+//! the cold block, which costs a jump: such a move is kept only where the estimate shows it
+//! smaller. The layout step alone usually shrinks the module, since earlier passes leave blocks
+//! out of order, but it can push labels past the `PUSH1` limit and grow it, as the second layout
+//! moved small traces below the limit and other labels beyond it. Size mode therefore tries the
+//! moves on both the re-laid-out and the current order, and keeps the smallest result, a move
+//! over the plain layout at equal bytes. The estimate does not see everything that later passes
+//! change, so a module can still grow by a few bytes.
 //!
 //! When the current fallthrough also comes from the loop, a bounded flow estimate distinguishes
 //! the common iteration from rarer paths. A branch into a cold block, such as an overflow panic,
@@ -35,7 +40,9 @@
 
 use super::{
     EvmPass,
-    block_layout::{BlockLayout, is_physical_terminal_boundary, layout_successor},
+    block_layout::{
+        BlockLayout, estimated_module_bytes, is_physical_terminal_boundary, layout_successor,
+    },
     utils::remap_block_order,
 };
 use crate::{
@@ -57,11 +64,49 @@ impl EvmPass for LoopLayout {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() {
-            return false;
+        let optimization = gcx.sess.opts.optimization;
+        if optimization.is_gas() {
+            BlockLayout.run_pass(gcx, module) | place_loop_latches(module)
+        } else if optimization.is_size() {
+            lay_out_for_size(gcx, module)
+        } else {
+            false
         }
-        BlockLayout.run_pass(gcx, module) | place_loop_latches(module)
     }
+}
+
+/// Takes the gas layout of a size build when it does not grow the module, as estimated by
+/// [`estimated_module_bytes`]. A smaller ordinary layout is kept, and so is an equal one that
+/// lets a latch move, since the move runs faster at the same size. The latch moves of
+/// [`place_loop_latches`] are kept when they do not grow the layout they start from.
+fn lay_out_for_size(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let current = estimated_module_bytes(gcx, module);
+    let mut relaid = module.clone();
+    let relaid_bytes = BlockLayout
+        .run_pass(gcx, &mut relaid)
+        .then(|| estimated_module_bytes(gcx, &relaid))
+        .filter(|&bytes| bytes <= current);
+    // Candidates by bytes, then by rank: a latch move (0), the ordinary layout (1).
+    let mut candidates = Vec::new();
+    for (base, base_bytes) in [(&relaid, relaid_bytes), (&*module, Some(current))] {
+        if let Some(base_bytes) = base_bytes {
+            let mut moved = base.clone();
+            if place_loop_latches(&mut moved) {
+                let bytes = estimated_module_bytes(gcx, &moved);
+                if bytes <= base_bytes {
+                    candidates.push((bytes, 0, moved));
+                }
+            }
+        }
+    }
+    if let Some(bytes) = relaid_bytes.filter(|&bytes| bytes < current) {
+        candidates.push((bytes, 1, relaid));
+    }
+    let Some(best) = candidates.into_iter().min_by_key(|&(bytes, rank, _)| (bytes, rank)) else {
+        return false;
+    };
+    *module = best.2;
+    true
 }
 
 /// The targets of each block's physical `PUSH target; JUMPI` pairs, in instruction order,

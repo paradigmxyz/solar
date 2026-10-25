@@ -66,17 +66,6 @@ bb15:
   calldataload
   push 1
   jump bb17
-bb17 [loop]:
-  dup 2
-  push bb19
-  jumpi
-  jump bb38
-bb38 [loop]:
-  push 0
-  mstore
-  push 32
-  push 0
-  return
 bb19 [loop]:
   push 1
   dup 3
@@ -132,6 +121,17 @@ bb19 [loop]:
   jumpi
   swap 1
   jump bb17
+bb17 [loop]:
+  dup 2
+  push bb19
+  jumpi
+  jump bb38
+bb38 [loop]:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb21 [cold]:
   push 17
   jump bb41

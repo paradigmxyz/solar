@@ -506,6 +506,12 @@ impl Target {
         self.opcode(op::PUSH2)
     }
 
+    /// Cost of pushing a block label that resolves to `offset`: the narrowest push that holds it.
+    pub(crate) fn label_push_to(&self, offset: usize) -> Cost {
+        let width = (usize::BITS - offset.leading_zeros()).div_ceil(8).max(1);
+        self.opcode(op::push(width as u8))
+    }
+
     /// Cost of pushing `value` through its cheapest materialization.
     pub(crate) fn push(&self, value: U256) -> Cost {
         let (bytes, gas) = compact_pushes::immediate_materialization_cost(self.evm_version, value);
@@ -1217,6 +1223,15 @@ mod tests {
         assert!(!target.is_cheap_immediate(U256::from(256)));
         assert!(!target.is_cheap_immediate(U256::MAX));
         assert!(!target.is_cheap_immediate(U256::from(1) << 159));
+    }
+
+    #[test]
+    fn label_pushes_take_the_narrowest_push() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
+        for (offset, bytes) in [(0, 2), (255, 2), (256, 3), (0xffff, 3), (0x1_0000, 4)] {
+            assert_eq!(target.label_push_to(offset).bytes, bytes, "{offset}");
+        }
+        assert_eq!(target.label_push_to(300), target.label_push());
     }
 
     #[test]

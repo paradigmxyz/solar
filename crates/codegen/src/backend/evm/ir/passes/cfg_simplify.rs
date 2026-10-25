@@ -6,11 +6,11 @@
 //! each rewrite can expose another. Degenerate branches include both structural
 //! [`TerminatorKind::JumpI`] terminators and the physical `PUSH target; JUMPI; jump target` form
 //! emitted when edge-specific stack scheduling lowers one branch edge before EVM IR construction.
-//! In gas mode, an inverted branch to a uniquely referenced loop body is rotated: its small exit
-//! tail moves to a separate block and the body can merge into the header. This removes an `ISZERO`
-//! and the body's `JUMPDEST` on each iteration. Only direct backedges and tails of at most eight
-//! instructions are considered; no instructions are duplicated and protected boundaries stay
-//! intact.
+//! An inverted branch to a uniquely referenced loop body is rotated: its small exit tail moves to
+//! a separate block and the body can merge into the header. This removes an `ISZERO` and the
+//! body's `JUMPDEST` on each iteration, and costs the exit its own `JUMPDEST`, a net byte saved.
+//! Only direct backedges and tails of at most eight instructions are considered; no instructions
+//! are duplicated and protected boundaries stay intact.
 //!
 //! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
 //! layout can place their taken arm before the join. It preserves source origins and excludes
@@ -79,8 +79,7 @@ impl EvmPass for CfgSimplify {
 fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) -> bool {
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
-    let mut changed =
-        gcx.sess.opts.optimization.is_gas() && rotate_loop_exits(module, &mut state.references);
+    let mut changed = rotate_loop_exits(module, &mut state.references);
     // Later rounds only add `POP`s or move instructions of already truncated blocks.
     changed |= truncate_after_terminal(module);
     loop {

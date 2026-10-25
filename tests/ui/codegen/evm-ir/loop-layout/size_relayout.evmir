@@ -1,0 +1,12 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=loop-layout
+// Size builds keep the ordinary layout when it is smaller: here it turns two jumps into
+// fallthroughs.
+@module SizeRelayout
+bb0:
+  push 1
+  jump bb2
+bb1:
+  stop
+bb2:
+  push 2
+  jump bb1

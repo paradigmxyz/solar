@@ -1,0 +1,14 @@
+- // === ROOT/tests/ui/codegen/evm-ir/loop-layout/size_relayout.evmir (before loop-layout) ===
++ // === ROOT/tests/ui/codegen/evm-ir/loop-layout/size_relayout.evmir (after loop-layout) ===
+  @module SizeRelayout
+  bb0:
+    push 1
+    jump bb2
+- bb1:
+-   stop
+  bb2:
+    push 2
+    jump bb1
++ bb1:
++   stop
+  

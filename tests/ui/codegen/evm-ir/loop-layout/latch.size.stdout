@@ -5,6 +5,10 @@
     push 3
     push 0
     jump bb1
++ bb3:
++   push 1
++   add
++   jump bb1
   bb1:
     dup 2
     dup 2
@@ -16,8 +20,8 @@
     pop
     pop
     stop
-  bb3:
-    push 1
-    add
-    jump bb1
+- bb3:
+-   push 1
+-   add
+-   jump bb1
   

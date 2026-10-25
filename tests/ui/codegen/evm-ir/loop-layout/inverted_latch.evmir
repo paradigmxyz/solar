@@ -4,7 +4,8 @@
 // A latch whose last test guards a panic jumps back to its header on the test's
 // `iszero` and to the panic otherwise. Gas builds turn the test around, so the
 // latch jumps to the panic, drops the `iszero`, and falls through into its
-// header placed after it.
+// header placed after it. Size builds keep the layout: turning the test around saves an
+// `iszero` but costs the preheader a jump and the latch its fallthrough into the cold block.
 @module InvertedLatch
 bb0:
   push 3
