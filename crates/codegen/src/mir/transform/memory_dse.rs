@@ -1825,16 +1825,23 @@ impl MemoryStoreEliminator {
                 Access::Any(AddressSpace::Memory) => None,
                 // A runtime-indexed access wraps, and so may land in any object.
                 Access::Location(Location::Memory(location))
-                    if location.size == LocationSize::Unknown
-                        && location.address.base != MemoryBase::InternalFrame =>
+                    if location.size == LocationSize::Unknown =>
                 {
                     None
                 }
                 Access::Location(Location::Memory(location)) => match location.address.base {
                     // An access within the bounds of an allocation.
-                    MemoryBase::Allocation(_)
-                    | MemoryBase::DynamicAllocation(_)
-                    | MemoryBase::InternalFrame => continue,
+                    MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_) => continue,
+                    // A slot of the frame below the heap. A longer range may run into the heap.
+                    MemoryBase::InternalFrame
+                        if location
+                            .size
+                            .as_const()
+                            .is_some_and(|size| size <= EvmMemoryLayout::WORD_SIZE) =>
+                    {
+                        continue;
+                    }
+                    MemoryBase::InternalFrame => None,
                     MemoryBase::Absolute => {
                         // The reserved words below the heap.
                         let reserved = match location.size.as_const() {

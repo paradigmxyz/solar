@@ -370,3 +370,14 @@ fn @indexed_other(arg0: i256, arg1: i256) {
     mstore 0, v3
     returndata 0, 32
 }
+
+// A revert range based on the frame may run on into the heap.
+// CHECK-LABEL: {{^[ +].*}}fn @frame_range{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @frame_range(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    v1 = internal_frame_addr 0
+    revert v1, arg1
+}

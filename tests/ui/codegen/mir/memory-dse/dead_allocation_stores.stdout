@@ -279,3 +279,11 @@
       returndata 0, 32
   }
   
+  fn @frame_range(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = alloc 64
+      mstore v0, arg0
+      v1 = internal_frame_addr 0
+      revert v1, arg1
+  }
+  
