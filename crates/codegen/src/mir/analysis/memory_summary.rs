@@ -168,6 +168,9 @@ pub(crate) struct FunctionMemorySummary {
     /// A bounded leaf with deterministic word reads and fully restored writes.
     restores_memory: bool,
     may_reset_fmp: bool,
+    /// Whether the function may write memory through a runtime index, which wraps and so may land
+    /// on the free-memory pointer.
+    may_wrap_write: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
     /// Whether the function may read or write the free-memory pointer directly.
@@ -196,6 +199,7 @@ impl FunctionMemorySummary {
             has_multiple_returns: false,
             restores_memory: false,
             may_reset_fmp: false,
+            may_wrap_write: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
             may_observe_gas: false,
@@ -223,6 +227,7 @@ impl FunctionMemorySummary {
             has_multiple_returns: false,
             restores_memory: false,
             may_reset_fmp: true,
+            may_wrap_write: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
             may_observe_gas: true,
@@ -260,6 +265,12 @@ impl FunctionMemorySummary {
     #[must_use]
     pub(crate) const fn may_reset_fmp(&self) -> bool {
         self.may_reset_fmp
+    }
+
+    /// Returns whether the function may write memory through a runtime index, which wraps.
+    #[must_use]
+    pub(crate) const fn may_wrap_write(&self) -> bool {
+        self.may_wrap_write
     }
 
     /// Returns whether the function may recycle the free-memory pointer.
@@ -368,6 +379,7 @@ impl FunctionMemorySummary {
             self.slot_writes[index].merge(&other.slot_writes[index]);
         }
         self.may_reset_fmp |= other.may_reset_fmp;
+        self.may_wrap_write |= other.may_wrap_write;
         self.may_recycle_fmp |= other.may_recycle_fmp;
         self.may_observe_fmp |= other.may_observe_fmp;
         self.may_observe_gas |= other.may_observe_gas;
@@ -685,6 +697,13 @@ fn local_summary(
                     summary.record_access(func, access, true);
                 }
                 summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
+                summary.may_wrap_write |= effects.writes().iter().any(|access| {
+                    matches!(
+                        access,
+                        Access::Location(Location::Memory(location))
+                            if location.size == LocationSize::Unknown
+                    )
+                });
                 summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
             }
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);

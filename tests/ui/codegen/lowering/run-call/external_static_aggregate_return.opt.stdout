@@ -10,14 +10,15 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     v8 = lt v7, 36
     jumpi v8, bb3, bb4
   bb4:
-    v18 = mload 64 !metadata(memory=scratch)
-    v19 = add v18, 64
-    mstore 64, v19 !metadata(memory=scratch)
+    v19 = mload 64 !metadata(memory=scratch)
+    v20 = add v19, 64
+    mstore 64, v20 !metadata(memory=scratch)
     v2 = alloc 64 !metadata(deferred_alloc)
     v5 = add arg0, 1
     v6 = eq v5, 0
     jumpi v6, bb1, bb2
   bb2:
+    mstore v2, arg0
     v17 = add v2, 32
     mstore v17, v5
     mstore 128, arg0

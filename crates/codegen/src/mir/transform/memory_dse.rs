@@ -45,13 +45,13 @@
 //!   so every other read that may touch heap memory, such as a load through an unrelated pointer,
 //!   `msize`, or a callee with unknown reads, reads the whole object. A `ret` or tail call reads no
 //!   object whose pointer it does not receive. A read that may leave its own allocation reaches the
-//!   objects allocated after it, not the ones before. A deferred object, which static placement
-//!   keeps unrelated to the free-memory pointer, ignores them. A store that may reach past the end
-//!   of its object may write over the next one and stays: the size of an infallible allocation,
-//!   whose arithmetic cannot wrap, is bounded below through sums and word-rounding masks, and other
-//!   runtime sizes have no bound. Functions observing gas keep their stores, since the stores pay
-//!   for memory expansion. Writes the object receives from copies and calls stay: only stores are
-//!   candidates.
+//!   objects allocated after it, not the ones before. A write-only deferred object, which static
+//!   placement keeps unrelated to the free-memory pointer, ignores them. A store that may reach
+//!   past the end of its object may write over the next one and stays: the size of an infallible
+//!   allocation, whose arithmetic cannot wrap, is bounded below through sums and word-rounding
+//!   masks, and other runtime sizes have no bound. Functions observing gas keep their stores, since
+//!   the stores pay for memory expansion. Writes the object receives from copies and calls stay:
+//!   only stores are candidates.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
@@ -1713,8 +1713,9 @@ impl MemoryStoreEliminator {
     /// Assembly can still reach a heap object through a pointer rebuilt from the free-memory
     /// pointer, so every other read that may touch heap memory reads all of it. A `ret` or tail
     /// call reads no object whose pointer it does not receive. A read that may leave its own
-    /// allocation reaches the objects allocated after it, not the ones before. A deferred
-    /// object, which static placement keeps unrelated to the free-memory pointer, ignores them.
+    /// allocation reaches the objects allocated after it, not the ones before. A write-only
+    /// deferred object, which static placement keeps unrelated to the free-memory pointer,
+    /// ignores them.
     /// The allocation stays: later passes size and place it, and the address arithmetic feeding
     /// the store dies with it.
     ///
@@ -1748,14 +1749,16 @@ impl MemoryStoreEliminator {
         let candidates: Vec<_> = allocations
             .into_iter()
             .filter_map(|(alloc, pointer)| {
+                let access = Self::allocation_accesses(func, &users, alloc, pointer)?;
+                // Static placement keeps a write-only deferred object unrelated to the heap. One
+                // that is read is placed by the free-memory pointer, so it stays heap-visible.
+                let exposed =
+                    !func.inst(alloc).metadata.deferred_alloc() || !access.reads.is_empty();
                 // After a free-memory-pointer reset, an object may lie over an earlier one.
-                if !func.inst(alloc).metadata.deferred_alloc()
-                    && self.allocation_site(func, pointer) != Some(alloc)
-                {
+                if exposed && self.allocation_site(func, pointer) != Some(alloc) {
                     return None;
                 }
-                let access = Self::allocation_accesses(func, &users, alloc, pointer)?;
-                (!access.stores.is_empty()).then_some((alloc, access))
+                (!access.stores.is_empty()).then_some((alloc, access, exposed))
             })
             .collect();
         if candidates.is_empty() {
@@ -1774,7 +1777,7 @@ impl MemoryStoreEliminator {
             for (index, &inst) in block.instructions.iter().enumerate() {
                 let effects = self.alias().instruction_mod_ref(func, inst);
                 self.collect_heap_reads(func, &effects, (block_id, index), &mut heap_reads);
-                if Self::may_wrap_write(&effects) {
+                if self.alias().instruction_may_wrap_write(func, inst) {
                     wrapping_writes.push((block_id, index));
                 }
             }
@@ -1785,11 +1788,10 @@ impl MemoryStoreEliminator {
         }
 
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for (alloc, access) in candidates {
+        for (alloc, access, exposed) in candidates {
             let (alloc_block, alloc_index) = positions[&alloc];
-            let deferred = func.inst(alloc).metadata.deferred_alloc();
             // A write that wraps may rewind the free-memory pointer, which freshness ignores.
-            if !deferred
+            if exposed
                 && wrapping_writes
                     .iter()
                     .any(|&write| Self::position_reaches(cfg, write, (alloc_block, alloc_index)))
@@ -1798,7 +1800,7 @@ impl MemoryStoreEliminator {
             }
             // An out-of-bounds read of an object that precedes this one can reach it.
             let heap_reads = heap_reads.iter().filter(|read| {
-                !deferred
+                exposed
                     && read.beyond.is_none_or(|object| {
                         let (block, index) = positions[&object];
                         object != alloc
@@ -1882,18 +1884,6 @@ impl MemoryStoreEliminator {
             };
             heap_reads.push(HeapRead { position, beyond });
         }
-    }
-
-    /// Returns whether `effects` write memory through a runtime index, which wraps and so may land
-    /// on the free-memory pointer.
-    fn may_wrap_write(effects: &ModRef) -> bool {
-        effects.writes().iter().any(|access| {
-            matches!(
-                access,
-                Access::Location(Location::Memory(location))
-                    if location.size == LocationSize::Unknown
-            )
-        })
     }
 
     /// Returns the allocation `pointer` is the result of, if it has a fresh provenance.

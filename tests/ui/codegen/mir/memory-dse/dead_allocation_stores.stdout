@@ -323,3 +323,35 @@
       returndata 0, 32
   }
   
+  fn @indexed_write_in_callee(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = alloc 64
+      icall @indexed_writer, arg1
+      v1 = alloc 64
+      mstore v1, arg0
+      v2 = mload v0
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @indexed_writer(arg0: i256) {
+    bb0:
+      v0 = alloc 64
+      v1 = ptradd v0, arg0
+      mstore v1, 1
+      ret
+  }
+  
+  fn @deferred_read_exposed(arg0: i256, arg1: ptr<memory>) {
+    bb0:
+      v0 = alloc 64 !metadata(deferred_alloc)
+      mstore v0, arg0
+      v1 = ptradd v0, 32
+      mstore v1, arg0
+      v2 = keccak256 v1, 32
+      v3 = mload arg1
+      mstore 0, v3
+      mstore 32, v2
+      returndata 0, 64
+  }
+  

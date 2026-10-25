@@ -22,6 +22,8 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
     v22 = eq v21, 0
     jumpi v22, bb3, bb1
   bb3:
+    v41 = add v16, 32
+    mstore v41, v20
     v25 = add v39, 64
     v26 = mload v25
     v27 = lt v26, 2
@@ -102,6 +104,8 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
   bb9:
     v104 = add v121, 32
     mcopy v104, v47, v52
+    v106 = add v26, 64
+    mstore v106, v121
     v116 = mload v26
     v2 = mload v116
     v117 = mload v102
