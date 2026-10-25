@@ -428,23 +428,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         if let Some(bytes) = self.constant_string_bytes(expr) {
             let bytes = bytes.as_byte_str();
-            if (1..=32).contains(&bytes.len()) {
-                let length = self.builder.imm(bytes.len() as u64);
-                let data = self.lower_string_literal_word(bytes);
-                return Some(RevertPayload::ShortString { length, data });
-            }
-            if bytes.len() > 32 {
-                return Some(RevertPayload::LongString(Bytes::copy_from_slice(bytes)));
-            }
-        }
-
-        let literal = expr.peel_parens();
-        if let ExprKind::Lit(lit) = &literal.kind
-            && let LitKind::Str(StrKind::Str | StrKind::Unicode | StrKind::Hex, bytes, _) =
-                &lit.kind
-            && bytes.as_byte_str().is_empty()
-        {
-            return Some(RevertPayload::EmptyString);
+            return Some(match bytes.len() {
+                0 => RevertPayload::EmptyString,
+                1..=32 => {
+                    let length = self.builder.imm(bytes.len() as u64);
+                    let data = self.lower_string_literal_word(bytes);
+                    RevertPayload::ShortString { length, data }
+                }
+                _ => RevertPayload::LongString(Bytes::copy_from_slice(bytes)),
+            });
         }
 
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -461,26 +453,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.invalid();
     }
 
+    /// Returns the bytes of a message that the constant evaluator folds, such as a literal or a
+    /// `string constant`.
     fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
-        let mut expr = expr.peel_parens();
-        for _ in 0..4 {
-            match &expr.kind {
-                ExprKind::Lit(lit) => {
-                    let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-                    return Some(*bytes);
-                }
-                ExprKind::Ident(_) | ExprKind::Member(..) => {
-                    let variable_id = self.cx.gcx.resolved_variable(expr)?;
-                    let variable = self.cx.gcx.hir.variable(variable_id);
-                    if !variable.is_constant() {
-                        return None;
-                    }
-                    expr = variable.initializer?.peel_parens();
-                }
-                _ => return None,
-            }
+        match self.cx.gcx.const_eval().eval_expr(expr) {
+            Ok(ConstValue::Bytes(bytes, _)) => Some(*bytes),
+            _ => None,
         }
-        None
     }
 
     fn prepare_custom_error_payload(
