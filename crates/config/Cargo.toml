@@ -16,7 +16,7 @@ categories.workspace = true
 workspace = true
 
 [build-dependencies]
-vergen = { workspace = true, optional = true, features = [
+smolgen = { workspace = true, optional = true, features = [
     "build",
     "cargo",
     "emit_and_set",
@@ -39,7 +39,7 @@ serde_json.workspace = true
 nightly = []
 
 clap = ["version", "dep:clap"]
-version = ["dep:vergen"]
+version = ["dep:smolgen"]
 serde = ["dep:serde"]
 
 # solar-cli features, only used by build.rs to include in the version string.
