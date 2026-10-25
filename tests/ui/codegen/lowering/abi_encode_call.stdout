@@ -46,29 +46,29 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     v9 = lt v8, 100
     v10 = calldataload 4
     v11 = shr v10, 160
-    v32 = zext i1 v9 to i256
-    v33 = or v32, v11
+    v31 = zext i1 v9 to i256
+    v32 = or v31, v11
     v13 = calldataload 36
     v14 = shr v13, 160
-    v35 = or v33, v14
-    v36 = ne v35, 0
-    jumpi v36, bb1, bb2
+    v34 = or v32, v14
+    v35 = ne v34, 0
+    jumpi v35, bb1, bb2
   bb2:
     v0 = gas
-    v30 = mload 64 !metadata(memory=scratch)
-    v31 = add v30, 128
-    mstore 64, v31 !metadata(memory=scratch)
-    mstore v30, 68
-    v26 = add v30, 32
-    mstore v26, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v28 = add v30, 36
-    mstore v28, arg1
-    v24 = add v28, 32
-    mstore v24, arg2
-    v7 = call v0, arg0, 0, v26, 68, 0, 0
+    v29 = mload 64 !metadata(memory=scratch)
+    v30 = add v29, 128
+    mstore 64, v30 !metadata(memory=scratch)
+    mstore v29, 68
+    v25 = add v29, 32
+    mstore v25, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v27 = add v29, 36
+    mstore v27, arg1
+    v23 = add v27, 32
+    mstore v23, arg2
+    v7 = call v0, arg0, 0, v25, 68, 0, 0
     v17 = zext i1 v7 to i256
-    mstore 128, v17
-    returndata 128, 32
+    mstore 0, v17 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }

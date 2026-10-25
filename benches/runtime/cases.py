@@ -303,6 +303,11 @@ PROJECTS = {
         "solarray-a547630.json.gz",
         (Source("evmcheb/solarray", "a547630f9bf7837af9e6919d217672afe7abf7f1"),),
     ),
+    "tempo-zones": Project(
+        "tempo-zones",
+        "tempo-zones.json.gz",
+        (Source("tempoxyz/zones", "700069eb8a40fce7e1f7a4bf0fc5703bcc692c43"),),
+    ),
 }
 
 
@@ -343,6 +348,10 @@ class TestCase:
 
 def source(name: str) -> str:
     return (TESTDATA_ROOT / name).read_text()
+
+
+ZONES_TOKEN = "0x20c0000000000000000000000000000000000001"
+ZONES_KEY_X = "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
 
 
 TEST_CASES: Sequence[TestCase] = (
@@ -1648,6 +1657,34 @@ TEST_CASES: Sequence[TestCase] = (
         suite="repository",
     ),
     TestCase(
+        test_id="tempo-zones-portal",
+        description="Tempo Zones portal encrypted deposits through an ERC-1167 proxy",
+        min_solc="0.8.35",
+        project=PROJECTS["tempo-zones"],
+        source="src/runtime/tempo/ZonePortal.sol",
+        contract_name="ZonePortal",
+        gas_calls=tuple(
+            GasCall(
+                label,
+                "deposit(address,uint128,uint256,(bytes32,uint8,bytes,bytes12,bytes16),address)",
+                (
+                    ZONES_TOKEN,
+                    "10000000",
+                    "0",
+                    f"({ZONES_KEY_X},2,0x{'01' * 64},0x{'01' * 12},0x{'01' * 16})",
+                    DEFAULT_SENDER,
+                ),
+            )
+            for label in ("deposit-first", "deposit-existing")
+        ),
+        runtime_checks=(
+            RuntimeCheck("deposit-count", "depositCount()(uint64)"),
+            RuntimeCheck("deposit-queue", "currentDepositQueueHash()(bytes32)"),
+            RuntimeCheck("encryption-key-count", "encryptionKeyCount()(uint256)"),
+        ),
+        suite="repository",
+    ),
+    TestCase(
         test_id="seaport-1.6-project",
         description="Seaport 1.6 full project",
         contract_name="*",
@@ -1716,6 +1753,14 @@ TEST_CASES: Sequence[TestCase] = (
         description="Solarray full project",
         contract_name="*",
         project=PROJECTS["solarray-a547630"],
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="tempo-zones-project",
+        description="Tempo Zones full project (viaIR, including tests)",
+        contract_name="*",
+        project=PROJECTS["tempo-zones"],
         whole_project=True,
         suite="heavy",
     ),

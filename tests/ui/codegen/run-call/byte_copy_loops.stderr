@@ -1,0 +1,8 @@
+warning[0067]: `msize` is not exact when optimizing
+   ╭▸ ROOT/tests/ui/codegen/run-call/byte_copy_loops.sol:LL:CC
+   │
+LL │         assembly { size := msize() }
+   │                            ━━━━━
+   │
+   ╰ note: the optimizer does not preserve the exact value
+

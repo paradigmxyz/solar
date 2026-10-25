@@ -1,0 +1,140 @@
+// === ROOT/tests/ui/codegen/mir/inline/constructor_shared_helper.sol:ConstructorSharedHelper ===
+@module ConstructorSharedHelper
+@types
+  struct0: {i256, i256}
+
+fn @constructor() [constructor] {
+  bb0:
+    store_storage_bytes_literal 0, hex"010203"
+    ret
+}
+
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v0
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = sub 0, v1
+    v4 = or 127, v3
+    v5 = shr v0, 1
+    v6 = and v5, v4
+    v7 = add v6, 31
+    v8 = div v7, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    clear_storage_words 0, 0, v8
+    jump bb2
+  bb2:
+    sstore 0, 0 !metadata(storage=slot(0))
+    store_storage_bytes_literal 0, hex"010203"
+    v9 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v9
+    v10 = and v9, 1
+    v11 = eq v10, 1
+    v12 = sub 0, v10
+    v13 = or 127, v12
+    v14 = shr v9, 1
+    v15 = and v14, v13
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    jumpi v11, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    v18 = storage_array_data_slot 0
+    v19 = shr 0, 5
+    v20 = add v18, v19
+    jump bb5
+  bb5:
+    v21 = phi [bb3: v20], [bb4: 0]
+    v22 = and 0, 31
+    v23 = sub 31, v22
+    v24 = mul v23, 8
+    v25 = shl 255, v24
+    v26 = sload v21 !metadata(storage=symbolic(v21))
+    v27 = not v25
+    v28 = and v26, v27
+    v29 = shr 0xff00000000000000000000000000000000000000000000000000000000000000, 248
+    v30 = and v29, 255
+    v31 = shl v30, v24
+    v32 = or v28, v31
+    sstore v21, v32 !metadata(storage=symbolic(v21))
+    v33 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v33
+    v34 = and v33, 1
+    v35 = eq v34, 1
+    v36 = sub 0, v34
+    v37 = or 127, v36
+    v38 = shr v33, 1
+    v39 = and v38, v37
+    v40 = lt 0, v39
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
+    jumpi v35, bb6, bb7
+  bb7:
+    jump bb8
+  bb6:
+    v42 = storage_array_data_slot 0
+    v43 = shr 0, 5
+    v44 = add v42, v43
+    jump bb8
+  bb8:
+    v45 = phi [bb6: v44], [bb7: 0]
+    v46 = and 0, 31
+    v47 = sub 31, v46
+    v48 = sload v45 !metadata(storage=symbolic(v45))
+    v49 = mul v47, 8
+    v50 = shr v48, v49
+    v51 = shl v50, 248
+    v52 = shr v51, 248
+    v53 = trunc i256 v52 to i8
+    v54 = zext i8 v53 to i256
+    v55 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v55
+    v56 = and v55, 1
+    v57 = eq v56, 1
+    v58 = sub 0, v56
+    v59 = or 127, v58
+    v60 = shr v55, 1
+    v61 = and v60, v59
+    v62 = insert_value struct0, undef struct0, 0, v54
+    v63 = insert_value struct0, v62, 1, v61
+    ret v63
+}
+
+fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v0
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = sub 0, v1
+    v4 = or 127, v3
+    v5 = shr v0, 1
+    v6 = and v5, v4
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v9 = storage_array_data_slot 0
+    v10 = shr 1, 5
+    v11 = add v9, v10
+    jump bb3
+  bb3:
+    v12 = phi [bb1: v11], [bb2: 0]
+    v13 = and 1, 31
+    v14 = sub 31, v13
+    v15 = sload v12 !metadata(storage=symbolic(v12))
+    v16 = mul v14, 8
+    v17 = shr v15, v16
+    v18 = shl v17, 248
+    v19 = shr v18, 248
+    v20 = trunc i256 v19 to i8
+    v21 = zext i8 v20 to i256
+    ret v21
+}

@@ -7,15 +7,16 @@ Requires cloning submodules: `git submodule update --init --checkout`.
 Run with:
 
 ```bash
-# Criterion
-cargo bench -p solar-bench --bench criterion -- --quiet --format terse 'compiler/(empty|Counter|verifier|OptimizorClub|UniswapV3|Solarray|console|Vm|safeconsole|Seaport|Solady|Optimism)/.*/(lex|parse|lower)$' |& tee benches/criterion.out
+# Criterion. The `others` feature adds solang, slang and tree-sitter.
+cargo bench -p solar-bench --features others --bench criterion -- --quiet --format terse 'compiler/(empty|Counter|verifier|OptimizorClub|UniswapV3|Solarray|console|Vm|safeconsole|Seaport|Solady|Optimism)/.*/(lex|parse|lower)$' |& tee benches/criterion.out
 uv --project benches/analyze run benches/analyze/main.py benches/README.md < benches/criterion.out
 ```
 
 This takes around 24 minutes to complete: `sources (12) * benchmark cases (8) * 15s`.
 
-This crate is excluded from the main workspace to avoid compiling it (and its dependencies) when
-invoking other commands such as `cargo test`.
+The solang, slang and tree-sitter parsers are optional dependencies behind the non-default
+`others` feature, so workspace-wide commands such as `cargo test --workspace` do not compile
+them. `--all-features` enables it, and the results below need it.
 
 ## Results
 
@@ -50,7 +51,7 @@ contracts extracted from the pinned OpenZeppelin and Solady project inputs. Its 
 upstream commits are documented in the shared project archive
 [`testdata/projects/`](../testdata/projects/) and in
 [`benches/runtime/`](runtime/README.md).
-A `heavy` suite additionally compiles nine vendored whole-project inputs end to end; they take
+A `heavy` suite additionally compiles ten vendored whole-project inputs end to end; they take
 from seconds to minutes on solc, participate only in the compilation-time table, and skip size,
 gas, and runtime comparisons.
 The runtime harness and its tests are in [`runtime/`](runtime/).

@@ -19,28 +19,22 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = abi_encode []
-    v1 = datasize TryCatchPanicTarget_creation_code_0
-    v2 = datasize TryCatchPanicTarget_creation_code_0, 31, aligned
-    v3 = alloc v2
-    datacopy TryCatchPanicTarget_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = create 0, v3, v1
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize TryCatchPanicTarget_creation_code_0
+    v1 = fmp
+    datacopy TryCatchPanicTarget_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = zext i160 v7 to i256
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = or v11, v13
-    sstore 0, v14 !metadata(storage=slot(0))
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    v7 = zext i160 v2 to i256
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
     ret
 }
 
@@ -49,38 +43,36 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = abi_encode [], selector 0xd909b40300000000000000000000000000000000000000000000000000000000
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
+    mstore 0, 0xd909b403 !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = extcodesize v3
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = zext i160 v1 to i256
-    v7 = extcodesize v6
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = zext i160 v1 to i256
-    v10 = staticcall v2, v9, v4, v5, 0, 0
-    jumpi v10, bb1, bb2
+    v7 = staticcall v2, v6, 28, 4, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
-    v11 = icall returndata_bytes<>
-    v12 = ptradd v11, 32
-    v13 = mload v11
-    v14 = make_memory_slice v12, v13
-    v15 = extract_value slice<memory>, v14, 0
-    v16 = extract_value slice<memory>, v14, 1
-    v17 = extract_value slice<memory>, v14, 0
-    v18 = mload v17
-    v19 = shr v18, 224
-    v20 = eq v19, 0x4e487b71
-    v21 = lt v16, 36
-    v22 = eq v21, false
-    v23 = and v20, v22
-    v24 = zext i1 v23 to i256
-    jumpi v23, bb4, bb5
+    v8 = icall returndata_bytes<>
+    v9 = ptradd v8, 32
+    v10 = mload v8
+    v11 = make_memory_slice v9, v10
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = extract_value slice<memory>, v11, 0
+    v15 = mload v14
+    v16 = shr v15, 224
+    v17 = eq v16, 0x4e487b71
+    v18 = lt v13, 36
+    v19 = eq v18, false
+    v20 = and v17, v19
+    v21 = zext i1 v20 to i256
+    jumpi v20, bb4, bb5
   bb5:
-    revert v15, v16
+    revert v12, v13
   bb4:
-    v25 = ptradd v11, 36
-    v26 = mload v25
-    ret v26
+    v22 = ptradd v8, 36
+    v23 = mload v22
+    ret v23
   bb1:
     jump bb3
   bb3:
@@ -92,38 +84,36 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v4 = extract_value slice<memory>, v3, 0
-    v5 = extract_value slice<memory>, v3, 1
+    mstore 0, 0xa9cc4718 !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = extcodesize v3
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = zext i160 v1 to i256
-    v7 = extcodesize v6
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = zext i160 v1 to i256
-    v10 = staticcall v2, v9, v4, v5, 0, 0
-    jumpi v10, bb1, bb2
+    v7 = staticcall v2, v6, 28, 4, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
-    v11 = icall returndata_bytes<>
-    v12 = ptradd v11, 32
-    v13 = mload v11
-    v14 = make_memory_slice v12, v13
-    v15 = extract_value slice<memory>, v14, 0
-    v16 = extract_value slice<memory>, v14, 1
-    v17 = extract_value slice<memory>, v14, 0
-    v18 = mload v17
-    v19 = shr v18, 224
-    v20 = eq v19, 0x4e487b71
-    v21 = lt v16, 36
-    v22 = eq v21, false
-    v23 = and v20, v22
-    v24 = zext i1 v23 to i256
-    jumpi v23, bb4, bb5
+    v8 = icall returndata_bytes<>
+    v9 = ptradd v8, 32
+    v10 = mload v8
+    v11 = make_memory_slice v9, v10
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = extract_value slice<memory>, v11, 0
+    v15 = mload v14
+    v16 = shr v15, 224
+    v17 = eq v16, 0x4e487b71
+    v18 = lt v13, 36
+    v19 = eq v18, false
+    v20 = and v17, v19
+    v21 = zext i1 v20 to i256
+    jumpi v20, bb4, bb5
   bb5:
-    revert v15, v16
+    revert v12, v13
   bb4:
-    v25 = ptradd v11, 36
-    v26 = mload v25
-    ret v26
+    v22 = ptradd v8, 36
+    v23 = mload v22
+    ret v23
   bb1:
     jump bb3
   bb3:

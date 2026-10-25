@@ -38,6 +38,27 @@
 //! remainder by a divisor above zero.
 //! Opcode result widths also bound environment values, including returndata lengths.
 //!
+//! The same edge facts propagate equalities, as GVN's `propagateEquality` does: where a unique
+//! predecessor proves `x == C` for an immediate `C` (the true edge of `eq x, C`, the false edge of
+//! `ne x, C`, or a passed check of one), instructions the edge dominates read `C` in place of `x`.
+//! `check-elim` and `integer-cleanup` run it. A guarded length then makes the round-up, copy size,
+//! and encoder size arithmetic below it constant for `sccp` and `egraph`, which a range alone
+//! would not rewrite. Only constants the target prices as cheap to read qualify, so a word-wide
+//! mask or an address never replaces a `DUP`. An instruction takes the constant for every operand
+//! proven equal when that makes it evaluate, the way `sccp` will. Otherwise it takes it only for a
+//! value that at least two instructions in the proving block's subtree read, a passed check's block
+//! counting its reads above the check too: the constant replaces a stack slot and a `DUP` at each
+//! read, but at a single read it costs what the value does and only makes sites that were
+//! identical, such as inlined copies of one guard body, differ for the tail merging after this
+//! pass. Raw memory addresses and sizes, arguments of internal calls, returned values, and the pure
+//! expressions that compute them from a value some branch compares with an immediate keep their
+//! values, wherever the walk finds the comparison: frame and heap layout treat constant addresses
+//! as fixed images, so a constant would move spill slots into the heap, and inlining and
+//! specialization later move a call's constant arguments, and a callee's returned values, into
+//! memory operands. An outer edge's constant wins over a contradicting inner one, whose edge is
+//! dead. Phi operands and terminators keep their values. Removing a redundant mask replaces its
+//! result by its input.
+//!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
 //! ranges are evaluated in their incoming edge contexts. All states start at
@@ -53,8 +74,8 @@
 //! negations are discarded. Operand ranges and relations remain available;
 //! predicates referenced by instructions, phis, or other terminators stay live.
 //! Dead blocks are cleared before analysis, so joins use the maintained predecessor lists.
-//! Fact copies insert only occupied entries: copying hash-table capacity would carry the space
-//! left by discarded facts through every later block.
+//! Fact copies clone the tables, which costs less than inserting each entry again but keeps the
+//! source's spare capacity.
 //!
 //! Loop header phis of the form `p = phi [pre: init], [latch: p - c]` with a
 //! constant nonzero step are monotone when the update provably cannot wrap at
@@ -132,8 +153,8 @@ use crate::{
     backend::evm::op,
     mir::{
         ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
-        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
-        TypeSize, Value, ValueId, ValueLayout,
+        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module,
+        RawMemorySize, Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{
             CallGraphInfo, CfgInfo, aborts, cold_functions,
             integers::{integer_bits, integer_mask, integer_max},
@@ -142,7 +163,7 @@ use crate::{
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
         },
-        utils::{fold_terminator_to_jump, invalidate_unreachable_blocks},
+        utils::{IndexLists, eval, fold_terminator_to_jump, invalidate_unreachable_blocks},
     },
     target::Target,
 };
@@ -165,12 +186,14 @@ impl MirPass for CheckElim {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let target = Target::new(gcx);
         run_function_pass(module, analyses, |func, _| {
             let mut eliminator = CheckEliminator::new(None);
+            eliminator.propagate_equalities = Some(target);
             eliminator.run(func) != 0
         })
     }
@@ -191,6 +214,7 @@ impl MirPass for IntegerCleanup {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let target = Target::new(gcx);
         let cleanup = |func: &mut Function, immutable_ranges: Option<&FxHashMap<_, _>>| {
             if (immutable_ranges.is_none()
                 && !func
@@ -201,18 +225,24 @@ impl MirPass for IntegerCleanup {
                     let kind = &func.inst(id).kind;
                     low_mask_input(func, kind).is_some()
                         || widened_nonzero_test(func, kind).is_some()
+                        || compares_with_immediate(func, kind, &target)
                 })
             {
                 return false;
             }
             let cfg = CfgInfo::new(func);
             let removed = invalidate_unreachable_blocks(func, cfg.reachable());
-            let mut eliminator =
-                CheckEliminator { collect_masks: true, immutable_ranges, ..Default::default() };
+            let mut eliminator = CheckEliminator {
+                collect_masks: true,
+                propagate_equalities: Some(target),
+                immutable_ranges,
+                ..Default::default()
+            };
             let facts = index_vec![Facts::default(); func.blocks.len()];
             let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
+            let propagated = eliminator.apply_equalities(func) != 0;
             if eliminator.redundant_masks.is_empty() {
-                return removed != 0;
+                return removed != 0 || propagated;
             }
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -596,6 +626,17 @@ impl MonotonePhi {
 /// one operand, as a dominator walk decides them.
 type Folds = (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>, Vec<(BlockId, ValueId)>);
 
+/// Operands of one instruction and the constants they equal.
+type Replacements = SmallVec<[(ValueId, ValueId); 2]>;
+
+/// A value proven equal to an immediate by the edge into `block`.
+struct Equality {
+    constant: ValueId,
+    block: BlockId,
+    /// Whether at least two instructions below `block` read the value, once asked.
+    repeated: Option<bool>,
+}
+
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
 struct CheckEliminator<'a> {
@@ -605,6 +646,23 @@ struct CheckEliminator<'a> {
     cfg: Option<Rc<CfgInfo>>,
     collect_masks: bool,
     redundant_masks: Vec<(InstId, ValueId)>,
+    /// Records constants that dominating branches prove equal to a value, when the target
+    /// prices the constant as cheap to read.
+    propagate_equalities: Option<Target>,
+    /// Values proven equal to a constant in the current scope.
+    equalities: FxHashMap<ValueId, Equality>,
+    equality_undo: Vec<ValueId>,
+    /// The block whose entry or checks the walk is recording facts for.
+    scope: Option<BlockId>,
+    /// Blocks of the instructions reading each value, built on the first query.
+    readers: Option<IndexLists<ValueId, BlockId>>,
+
+    /// Instructions that compute a raw memory address or size, an internal call argument, or a
+    /// returned value from a value a branch compares with an immediate, built when the first
+    /// equality reaches an instruction.
+    memory_feeds: Option<FxHashSet<InstId>>,
+    /// Instructions that read an equal value, with the operands that become its constant.
+    equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
     unfailing: Vec<(InstId, InstKind)>,
     /// Statistics from the last run.
@@ -655,6 +713,7 @@ impl<'a> CheckEliminator<'a> {
         selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
     ) -> usize {
         self.stats = CheckElimStats::default();
+        self.memory_feeds = None;
         self.strict_lower_bounds = None;
         self.relation_index = None;
         self.reverse_index = None;
@@ -739,13 +798,19 @@ impl<'a> CheckEliminator<'a> {
         self.relation_undo.clear();
 
         let unfailing = std::mem::take(&mut self.unfailing);
-        if folds.is_empty() && checks.is_empty() && reductions.is_empty() && unfailing.is_empty() {
+        if folds.is_empty()
+            && checks.is_empty()
+            && reductions.is_empty()
+            && unfailing.is_empty()
+            && self.equality_uses.is_empty()
+        {
             return removed;
         }
         // checked_op a, b that cannot fail -> op a, b
         for (id, kind) in &unfailing {
             func.inst_mut(*id).replace_kind(kind.clone());
         }
+        let propagated = self.apply_equalities(func);
         // branch proven_condition, keep, discard => jump keep
         for &(block, keep) in &folds {
             // jumpi condition, ..., keep -> jump keep
@@ -771,6 +836,7 @@ impl<'a> CheckEliminator<'a> {
             + self.stats.branches_folded
             + self.stats.checks_removed
             + self.stats.conditions_reduced
+            + propagated
     }
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds, proven
@@ -790,18 +856,24 @@ impl<'a> CheckEliminator<'a> {
     ) -> Folds {
         enum Walk {
             Enter(BlockId),
-            Exit { range_mark: usize, relation_mark: usize },
+            Exit { range_mark: usize, relation_mark: usize, equality_mark: usize },
         }
 
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut reductions = Vec::new();
         self.unfailing.clear();
+        self.equality_uses.clear();
+        self.readers = None;
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
         while let Some(item) = stack.pop() {
             match item {
-                Walk::Exit { range_mark, relation_mark } => {
+                Walk::Exit { range_mark, relation_mark, equality_mark } => {
+                    while self.equality_undo.len() > equality_mark {
+                        let value = self.equality_undo.pop().expect("checked len");
+                        self.equalities.remove(&value);
+                    }
                     while self.range_undo.len() > range_mark {
                         let (value, old) = self.range_undo.pop().expect("checked len");
                         match old {
@@ -821,8 +893,10 @@ impl<'a> CheckEliminator<'a> {
                     stack.push(Walk::Exit {
                         range_mark: self.range_undo.len(),
                         relation_mark: self.relation_undo.len(),
+                        equality_mark: self.equality_undo.len(),
                     });
 
+                    self.scope = Some(block);
                     for (&value, &range) in &facts[block].ranges {
                         self.narrow(value, range);
                     }
@@ -839,6 +913,9 @@ impl<'a> CheckEliminator<'a> {
                     }
 
                     for &id in &func.blocks[block].instructions {
+                        if !self.equalities.is_empty() {
+                            self.propagate_equalities_into(func, cfg, id);
+                        }
                         if self.collect_masks
                             && let Some(value) = self.redundant_mask(func, id)
                         {
@@ -1015,10 +1092,8 @@ impl<'a> CheckEliminator<'a> {
                 let mut merged: Option<Facts> = None;
                 if block != BlockId::ENTRY {
                     for &pred in &func.blocks[block].predecessors {
-                        cx.ranges.clear();
-                        cx.ranges.extend(&exits[pred].ranges);
-                        cx.relations.clear();
-                        cx.relations.extend(&exits[pred].relations);
+                        cx.ranges.clone_from(&exits[pred].ranges);
+                        cx.relations.clone_from(&exits[pred].relations);
                         cx.strict_lower_bounds = None;
                         cx.range_undo.clear();
                         cx.relation_undo.clear();
@@ -1085,13 +1160,12 @@ impl<'a> CheckEliminator<'a> {
                 }
                 let entry = merged.unwrap_or_default();
                 // The exit facts depend only on the entry facts.
-                if !visited.insert(block) && entries[block] == entry {
+                let entry_changed = entries[block] != entry;
+                if !visited.insert(block) && !entry_changed {
                     continue;
                 }
-                cx.ranges.clear();
-                cx.ranges.extend(&entry.ranges);
-                cx.relations.clear();
-                cx.relations.extend(&entry.relations);
+                cx.ranges.clone_from(&entry.ranges);
+                cx.relations.clone_from(&entry.relations);
                 cx.strict_lower_bounds = None;
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
@@ -1109,12 +1183,13 @@ impl<'a> CheckEliminator<'a> {
                     ranges: std::mem::take(&mut cx.ranges),
                     relations: std::mem::take(&mut cx.relations),
                 };
-                if exits[block] != exit {
+                let exit_changed = exits[block] != exit;
+                if exit_changed {
                     for &successor in cfg.successors(block) {
                         pending.insert(successor);
                     }
                 }
-                changed |= entries[block] != entry || exits[block] != exit;
+                changed |= entry_changed || exit_changed;
                 entries[block] = entry;
                 exits[block] = exit;
             }
@@ -1251,6 +1326,8 @@ impl<'a> CheckEliminator<'a> {
         let (x, y) = ordered(a, b);
         if truth {
             self.add_relation(Relation::Eq(x, y));
+            self.record_equality(func, a, b);
+            self.record_equality(func, b, a);
             let range = self.range_of(func, a, depth);
             self.narrow(b, range);
             let range = self.range_of(func, b, depth);
@@ -1260,6 +1337,93 @@ impl<'a> CheckEliminator<'a> {
             self.exclude_boundary(func, a, b, depth);
             self.exclude_boundary(func, b, a, depth);
         }
+    }
+
+    /// Records that `value` equals `constant` in the current scope, when `constant` is an
+    /// immediate. Operands of `eq`, `ne`, `sub`, and `xor` share one type.
+    fn record_equality(&mut self, func: &Function, value: ValueId, constant: ValueId) {
+        // An outer scope's constant stays: a contradicting inner edge is dead.
+        if let Some(target) = &self.propagate_equalities
+            && let Some(constant_value) = func.value_u256(constant)
+            && target.is_cheap_immediate(constant_value)
+            && func.value_u256(value).is_none()
+            && let Some(block) = self.scope
+            && !self.equalities.contains_key(&value)
+        {
+            self.equalities.insert(value, Equality { constant, block, repeated: None });
+            self.equality_undo.push(value);
+        }
+    }
+
+    /// Substitutes proven constants for operands of `id`, as the module docs describe.
+    fn propagate_equalities_into(&mut self, func: &Function, cfg: &CfgInfo, id: InstId) {
+        let kind = &func.inst(id).kind;
+        let mut replaced = Replacements::new();
+        kind.visit_operands(|operand| {
+            if let Some(equality) = self.equalities.get(&operand) {
+                replaced.push((operand, equality.constant));
+            }
+        });
+        if replaced.is_empty() || matches!(kind, InstKind::Phi(_)) {
+            return;
+        }
+        // Inlining and specialization later move a constant argument into the callee's memory
+        // operands, and a returned value into the caller's.
+        if matches!(kind, InstKind::ICall { function: Callee::Function(_), .. })
+            || self.memory_feeds.get_or_insert_with(|| memory_feeds(func)).contains(&id)
+        {
+            return;
+        }
+        // Frame and heap layout treat constant raw memory addresses and sizes as fixed images.
+        let mut raw_memory = kind.clone();
+        raw_memory.visit_raw_memory_operands_mut(|operand| {
+            replaced.retain(|&mut (from, _)| from != *operand);
+        });
+        if replaced.is_empty() {
+            return;
+        }
+        let evaluates = eval::eval_typed_inst(func, kind, |operand| {
+            let constant =
+                replaced.iter().find(|&&(from, _)| from == operand).map_or(operand, |&(_, c)| c);
+            func.value_u256(constant).ok_or(())
+        })
+        .is_ok_and(|value| value.is_some());
+        if !evaluates {
+            replaced.retain(|&mut (operand, _)| self.is_repeated(func, cfg, operand));
+        }
+        if !replaced.is_empty() {
+            self.equality_uses.push((id, replaced));
+        }
+    }
+
+    /// Whether `value` equals a constant that at least two instructions below its edge read.
+    fn is_repeated(&mut self, func: &Function, cfg: &CfgInfo, value: ValueId) -> bool {
+        let Some(equality) = self.equalities.get_mut(&value) else { return false };
+        let (block, readers) = (equality.block, &mut self.readers);
+        *equality.repeated.get_or_insert_with(|| {
+            readers
+                .get_or_insert_with(|| value_readers(func))
+                .get(value)
+                .iter()
+                .filter(|&&reader| cfg.dominators().dominates(block, reader))
+                .nth(1)
+                .is_some()
+        })
+    }
+
+    /// Replaces the recorded operands by their constants. Returns the number of
+    /// instructions changed.
+    fn apply_equalities(&mut self, func: &mut Function) -> usize {
+        let uses = std::mem::take(&mut self.equality_uses);
+        for (id, replaced) in &uses {
+            // operand -> constant it equals
+            func.inst_mut(*id).rewrite_operands(|operand| {
+                if let Some(&(_, constant)) = replaced.iter().find(|&&(from, _)| from == *operand) {
+                    *operand = constant;
+                }
+            });
+        }
+        uses.len()
     }
 
     /// Given `a != b` with `b` a known singleton at a boundary of `a`'s
@@ -2059,6 +2223,93 @@ impl<'a> CheckEliminator<'a> {
     }
 }
 
+/// The instructions that compute a raw memory address or size, an internal call argument, or a
+/// returned value, through pure operations, when a value that a branch compares with an
+/// immediate feeds them. Later passes fold more than constants: a product with a zero, a select
+/// or phi whose arms agree, a callee inlined into its caller. A constant substituted anywhere in
+/// such an expression can make the operand constant, and frame and heap layout treat constant
+/// ones as fixed images. The set does not depend on the walk's scopes or order.
+fn memory_feeds(func: &Function) -> FxHashSet<InstId> {
+    let mut compared = FxHashSet::default();
+    for id in func.instructions() {
+        if let InstKind::Eq(a, b) | InstKind::Ne(a, b) | InstKind::Sub(a, b) | InstKind::Xor(a, b) =
+            func.inst(id).kind
+        {
+            match (func.value_u256(a).is_some(), func.value_u256(b).is_some()) {
+                (true, false) => compared.insert(b),
+                (false, true) => compared.insert(a),
+                _ => false,
+            };
+        }
+    }
+    let mut feeds = FxHashSet::default();
+    if compared.is_empty() {
+        return feeds;
+    }
+    let mut sinks = Vec::new();
+    for id in func.instructions() {
+        let kind = &func.inst(id).kind;
+        kind.visit_raw_memory(|_, address, size| {
+            sinks.push(address);
+            if let RawMemorySize::Value(size) = size {
+                sinks.push(size);
+            }
+        });
+        if let InstKind::ICall { function: Callee::Function(_), args } = kind {
+            sinks.extend(args.iter().copied());
+        }
+    }
+    for block in &func.blocks {
+        if let Some(terminator @ (Terminator::Return { .. } | Terminator::TailCall { .. })) =
+            &block.terminator
+        {
+            terminator.visit_operands(|operand| sinks.push(operand));
+        }
+    }
+    // The sink that last reached each value, one past its index.
+    let mut visited = index_vec![0usize; func.num_values()];
+    let mut expression = Vec::new();
+    let mut pending = Vec::new();
+    for (index, sink) in sinks.into_iter().enumerate() {
+        let mut fed = false;
+        expression.clear();
+        pending.push(sink);
+        while let Some(value) = pending.pop() {
+            if func.value_u256(value).is_some()
+                || std::mem::replace(&mut visited[value], index + 1) > index
+            {
+                continue;
+            }
+            fed |= compared.contains(&value);
+            let Value::Inst(id) = func.value(value) else { continue };
+            let inst = func.inst(*id);
+            if inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure) {
+                continue;
+            }
+            expression.push(*id);
+            inst.kind.visit_operands(|operand| pending.push(operand));
+        }
+        if fed {
+            feeds.extend(expression.iter().copied());
+        }
+    }
+    feeds
+}
+
+/// The blocks of the instructions reading each value, phis aside.
+fn value_readers(func: &Function) -> IndexLists<ValueId, BlockId> {
+    let mut pairs = Vec::new();
+    for (block, body) in func.blocks.iter_enumerated() {
+        for &id in &body.instructions {
+            let kind = &func.inst(id).kind;
+            if !matches!(kind, InstKind::Phi(_)) {
+                kind.visit_operands(|operand| pairs.push((operand, block)));
+            }
+        }
+    }
+    IndexLists::new(func.num_values(), pairs.iter().copied())
+}
+
 /// Values whose ranges can affect a branch, closed over all SSA operands.
 /// Phi inputs keep loop-carried dependencies in the set. Memory and call
 /// operands are included conservatively even when range evaluation stops there.
@@ -2370,6 +2621,13 @@ fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
         .map(|mask| (a, mask))
         .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
     (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
+}
+
+/// An `eq` or `ne` of a value with an immediate that `target` prices as cheap to read, whose
+/// edges prove the value that constant.
+fn compares_with_immediate(func: &Function, kind: &InstKind, target: &Target) -> bool {
+    let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = *kind else { return false };
+    func.value_u256(a).xor(func.value_u256(b)).is_some_and(|value| target.is_cheap_immediate(value))
 }
 
 /// The word `v` of `zext(v != 0)`, which is `v` itself whenever `v` is 0 or 1, as a

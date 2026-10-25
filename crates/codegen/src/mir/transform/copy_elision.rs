@@ -21,15 +21,10 @@
 //! writes and keeps them. Every other read of the pointer's slot still counts. Callers' later
 //! reads of the slot cannot see the removed writes: allocations start at or above the heap floor
 //! (see `heap-floor`), above the slot.
-//! Modules where any function reads `msize` are skipped: internal calls share memory, so a caller
-//! or callee could observe the lower memory expansion.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation,
-        module_may_observe_msize,
-    },
+    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
 };
@@ -49,11 +44,6 @@ impl MirPass for CopyElision {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        // Removing writes can lower memory expansion, which `msize` in any function can
-        // observe: internal calls share memory.
-        if module_may_observe_msize(module) {
-            return false;
-        }
         run_function_pass_with_alias(module, analyses, |func, analyses| {
             CopyElisionCx::default().run(func, analyses.alias())
         })

@@ -25,8 +25,8 @@ fn @expansion() [selector=0x7fce0203, abi_wrapper, pure] {
     calldatacopy 256, v0, 64
     mstore 256, 7
     v1 = msize
-    mstore 128, v1
-    returndata 128, 32
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @returndataBounds() [selector=0xa6a0e5ea, abi_wrapper, pure] {

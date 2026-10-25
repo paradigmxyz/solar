@@ -267,39 +267,32 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v41 = add v40, v39
     v42 = lt v41, v40
     icall panic_if<0x41>, v42
-    v43 = add v41, 31
-    v44 = lt v43, v41
-    icall panic_if<0x41>, v44
-    v45 = not 31
-    v46 = and v43, v45
-    v47 = alloc v46
-    datacopy ConstructorAggregateMain_creation_code_0, v47, v40
-    v48 = extract_value slice<memory>, v38, 0
-    v49 = ptrtoint ptr<memory> v47 to i256
-    v50 = add v49, v40
-    mcopy v50, v48, v39 !metadata(memory=heap)
-    v51 = create 0, v47, v41
-    v52 = ne v51, i160 0
-    jumpi v52, bb5, bb4
+    v43 = fmp
+    datacopy ConstructorAggregateMain_creation_code_0, v43, v40
+    v44 = extract_value slice<memory>, v38, 0
+    v45 = ptrtoint ptr<memory> v43 to i256
+    v46 = add v45, v40
+    mcopy v46, v44, v39 !metadata(memory=heap)
+    v47 = create 0, v43, v41
+    v48 = ne v47, i160 0
+    jumpi v48, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v53 = gas
-    v54 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
-    v55 = extract_value slice<memory>, v54, 0
-    v56 = extract_value slice<memory>, v54, 1
-    v57 = zext i160 v51 to i256
-    v58 = staticcall v53, v57, v55, v56, 0, 32
-    jumpi v58, bb7, bb6
+    v49 = gas
+    mstore 0, 0x57de26a4 !metadata(memory=scratch)
+    v50 = zext i160 v47 to i256
+    v51 = staticcall v49, v50, 28, 4, 0, 32
+    jumpi v51, bb7, bb6
   bb6:
     revert_returndata
   bb7:
-    v59 = returndatasize
-    v60 = lt v59, 32
-    icall revert_if<tuple_data_too_short>, v60
-    v61 = add 0, 0
-    v62 = mload v61
-    ret v62
+    v52 = returndatasize
+    v53 = lt v52, 32
+    icall revert_if<tuple_data_too_short>, v53
+    v54 = add 0, 0
+    v55 = mload v54
+    ret v55
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0

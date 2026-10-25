@@ -12,10 +12,9 @@
 +   bb1:
       v0 = add arg0, 1
 -     ret v0
-+     mstore 128, v0
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
++     mstore 0, v0 !metadata(memory=scratch)
++     v3 = sub 32, 0
++     returndata 0, v3
 +   bb2:
 +     revert 0, 0
   }
@@ -32,10 +31,9 @@
 +     jump bb1
 +   bb1:
 +     v0 = icall @pub.body, arg0
-+     mstore 128, v0
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
++     mstore 0, v0 !metadata(memory=scratch)
++     v3 = sub 32, 0
++     returndata 0, v3
 +   bb2:
 +     revert 0, 0
   }
@@ -49,10 +47,10 @@
 -     v2 = ptradd v0, 32
 -     mstore v2, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v0
-+     mstore 128, 32
-+     mstore 160, 1
-+     mstore 192, 0x3100000000000000000000000000000000000000000000000000000000000000
-+     returndata 128, 96
++     mstore 0, 32 !metadata(memory=scratch)
++     mstore 32, 1 !metadata(memory=scratch)
++     mstore 64, 0x3100000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     returndata 0, 96
   }
   
 - fn @literalCaller() -> ptr<memory> [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
@@ -79,11 +77,11 @@
 -     v4 = add v3, 32
 -     mstore v4, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v0
-+     mstore 128, 32
-+     mstore 160, 33
-+     mstore 192, 5
-+     mstore 224, 0x3100000000000000000000000000000000000000000000000000000000000000
-+     returndata 128, 128
++     mstore 0, 32 !metadata(memory=scratch)
++     mstore 32, 33 !metadata(memory=scratch)
++     mstore 64, 5 !metadata(memory=scratch)
++     mstore 96, 0x3100000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     returndata 0, 128
   }
   
 - fn @overlappingLiteral() -> ptr<memory> [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
@@ -109,11 +107,11 @@
     bb0:
 -     v0 = abi_encode [word, word], object, args 1, 2
 -     ret v0
-+     mstore 128, 32
-+     mstore 160, 64
-+     mstore 192, 1
-+     mstore 224, 2
-+     returndata 128, 128
++     mstore 0, 32 !metadata(memory=scratch)
++     mstore 32, 64 !metadata(memory=scratch)
++     mstore 64, 1 !metadata(memory=scratch)
++     mstore 96, 2 !metadata(memory=scratch)
++     returndata 0, 128
   }
   
 - fn @emptyEncoding() -> ptr<memory> [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
@@ -121,9 +119,9 @@
     bb0:
 -     v0 = abi_encode [], object
 -     ret v0
-+     mstore 128, 32
-+     mstore 160, 0
-+     returndata 128, 64
++     mstore 0, 32 !metadata(memory=scratch)
++     mstore 32, 0 !metadata(memory=scratch)
++     returndata 0, 64
   }
   
 - fn @narrowEncoding() -> ptr<memory> [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
@@ -150,19 +148,17 @@
 + fn @sliceBody() [selector=0x0a0a0a0b, abi_wrapper] {
 +   bb0:
 +     v3 = icall @sliceBody.body
-+     mstore 128, v3
-+     v4 = add 128, 32
-+     v5 = sub v4, 128
-+     returndata 128, v5
++     mstore 0, v3 !metadata(memory=scratch)
++     v4 = sub 32, 0
++     returndata 0, v4
 + }
 + 
 + fn @sliceCaller() [selector=0x0a0a0a0c, abi_wrapper] {
 +   bb0:
 +     v0 = icall @sliceBody.body
-+     mstore 128, v0
-+     v1 = add 128, 32
-+     v2 = sub v1, 128
-+     returndata 128, v2
++     mstore 0, v0 !metadata(memory=scratch)
++     v1 = sub 32, 0
++     returndata 0, v1
 + }
 + 
 + fn @pub.body(arg0: i256) -> i256 {

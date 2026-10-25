@@ -14,10 +14,10 @@ bb0:
   push bb3
   jumpi
   push 1
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -39,10 +39,10 @@ bb0:
   push bb3
   jumpi
   push 2
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -51,7 +51,7 @@ bb3 [cold]:
 // === ROOT/tests/ui/codegen/lowering/program-data/hoisted_creation_size.sol:Factory (runtime) ===
 @module Factory_runtime
 @data
-  RuntimeChild_creation_code_0: hex"34600d5760218060115f395ff35b5f5ffd34601d575f3560e01c8063e2179b8e03601d57600260805260206080f35b5f5ffd"
+  RuntimeChild_creation_code_0: hex"34600d57601f8060115f395ff35b5f5ffd34601b575f3560e01c8063e2179b8e03601b5760025f5260205ff35b5f5ffd"
 
 bb0:
   callvalue
@@ -66,7 +66,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -84,26 +84,11 @@ bb8 [loop]:
   pop
   push 64
   mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
-  push 0
-  swap 1
-  mstore
-  push 64
-  mload
-  push 64
-  dup 2
-  add
-  push 64
-  mstore
-  push 50
+  push 48
   push_data RuntimeChild_creation_code_0
   dup 3
   codecopy
-  push 50
+  push 48
   swap 1
   push 0
   create
@@ -120,10 +105,10 @@ bb6 [loop]:
   dup 2
   push bb8
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0

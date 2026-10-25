@@ -135,7 +135,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
                 range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
             }
             InstKind::Keccak256(addr, len) => range_avoids_fmp(func, *addr, func.value_u64(*len)),
-            // `Fmp` and `MSize` observe the allocation frontier; the object
+            // `Fmp` observes the allocation frontier; the object
             // and mapping forms are gone by this point in the pipeline.
             _ => false,
         },

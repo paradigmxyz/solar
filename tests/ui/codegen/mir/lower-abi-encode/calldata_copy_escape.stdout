@@ -33,11 +33,9 @@
 +     v19 = ptrtoint ptr<memory> v6 to i256
 +     v20 = sub v18, v19
 +     v21 = add v20, 0
-+     v22 = add v21, 31
-+     v23 = not 31
-+     v24 = and v22, v23
-+     v25 = alloc v24 !metadata(preserves_fmp)
-+     v26 = make_memory_slice v25, v21
++     v22 = add v20, 0
++     v23 = alloc v22 !metadata(preserves_fmp)
++     v24 = make_memory_slice v23, v21
       jump bb1
     bb1:
       ret v2

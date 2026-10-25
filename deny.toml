@@ -4,6 +4,8 @@ yanked = "warn"
 ignore = [
     # `paste` is unmaintained - doesn't matter
     "RUSTSEC-2024-0436",
+    # `crypto-bigint` 0.5 has no patched release; only test tooling pulls it in, through `k256` 0.13.
+    "RUSTSEC-2026-0387",
 ]
 
 [bans]

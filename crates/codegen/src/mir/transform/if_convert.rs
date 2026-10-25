@@ -19,7 +19,10 @@
 //!   among constant table words needs no branch;
 //! - a literal chosen over a select the condition implies, `x < a ? A : (x < b ? B : C)` with `a <=
 //!   b`, becomes `C + [x < b] * (B - C) + [x < a] * (A - B)`, so a ladder of literal selections on
-//!   one value collapses one level at a time; and
+//!   one value collapses one level at a time;
+//! - a boolean merged with `true`, `c ? true : e` and `c ? t : true`, becomes `c | e` and `!c | t`,
+//!   the shape a chain of `||` operands leaves at its last join;
+//! - a boolean merged with `false`, `c ? t : false` or `c ? false : e`, becomes an `and`; and
 //! - any other pair becomes `f + c * (t - f)`.
 //!
 //! Conditions are canonical booleans and cast to words before arithmetic.
@@ -69,8 +72,9 @@ impl MirPass for IfConvert {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, _| if_convert_function(func, &target))
+        run_function_pass(module, analyses, |func, analyses| {
+            if_convert_function(func, &analyses.target(gcx))
+        })
     }
 }
 
@@ -116,6 +120,8 @@ enum SelectForm {
     /// `else + c * (then - else)`, with the difference folded when both are
     /// literals.
     General(Option<U256>),
+    /// A boolean merged with `true`: `c | e`, or `!c | t` when `else` is the literal.
+    Or { negated: bool },
 }
 
 fn if_convert_function(func: &mut Function, target: &Target) -> bool {
@@ -231,6 +237,13 @@ fn select_form(
 ) -> SelectForm {
     if then_value == else_value {
         return SelectForm::Same;
+    }
+    // c ? true : e => c | e, c ? t : true => !c | t
+    if func.value_ty(then_value) == Some(MirType::I1) {
+        let is_true = |value| func.value_u256(value).is_some_and(|value| !value.is_zero());
+        if is_true(then_value) || is_true(else_value) {
+            return SelectForm::Or { negated: !is_true(then_value) };
+        }
     }
     if let Some(derived) = derivation(func, then_value, else_value) {
         return SelectForm::Scaled(derived);
@@ -381,6 +394,8 @@ fn select_cost(func: &Function, target: &Target, select: &Select) -> Cost {
         }
         match derived {
             // c * t
+            // NOTE: A boolean product is emitted as `and` but keeps this price, so it converts
+            // exactly the sites it converted as a multiplication.
             Derivation::FromZero => cost.plus(literal(scaled_value)),
             // e op c * k
             Derivation::Add(amount) => cost.plus(literal(amount)).plus(target.opcode(op::ADD)),
@@ -402,6 +417,11 @@ fn select_cost(func: &Function, target: &Target, select: &Select) -> Cost {
             .plus(target.push(delta))
             .plus(target.opcode(op::ADD))
             .plus(literal(select.else_value)),
+        // c | e, or !c | t
+        SelectForm::Or { negated } => {
+            let cost = target.opcode(op::OR);
+            if negated { cost.plus(target.opcode(op::ISZERO)) } else { cost }
+        }
         // f + c * (t - f), with f used twice
         SelectForm::General(None) => {
             let reused = if func.value_u256(select.else_value).is_some() {
@@ -511,6 +531,16 @@ fn select_value(
             let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::I256));
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
+        // c ? true : e => c | e
+        SelectForm::Or { negated: false } => {
+            append(func, block, InstKind::Or(condition, else_value), ty)
+        }
+        // c ? t : true => (c == 0) | t
+        SelectForm::Or { negated: true } => {
+            let zero = literal(func, U256::ZERO);
+            let negated = append(func, block, InstKind::Eq(condition, zero), Some(MirType::I1));
+            append(func, block, InstKind::Or(negated, then_value), ty)
+        }
         // c ? t : f => f + c * (t - f)
         SelectForm::General(delta) => {
             let delta = match delta {
@@ -564,6 +594,10 @@ fn scaled_select(
         append(func, block, InstKind::Mul(condition, amount), Some(MirType::I256))
     };
     match derived {
+        // c ? t : false => c & t
+        Derivation::FromZero if ty == Some(MirType::I1) => {
+            append(func, block, InstKind::And(condition, then_value), ty)
+        }
         // c ? t : 0 => c * t
         Derivation::FromZero => append(func, block, InstKind::Mul(condition, then_value), ty),
         // c ? e + k : e => e + c * k

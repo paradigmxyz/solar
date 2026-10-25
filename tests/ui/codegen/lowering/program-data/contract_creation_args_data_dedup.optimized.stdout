@@ -28,10 +28,10 @@ bb4 [cold]:
   revert
 bb5:
   push_immutable 0, 32
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb6:
   push 128
@@ -73,7 +73,7 @@ bb6:
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 @module FactoryWithArgs_runtime
 @data
-  ChildWithArg_creation_code_0: hex"61014138038061014160e03960e001601f01601f191660405260e0806101413803019060200111341760445760e05160c05260f980604860e03960c0516101035260e0f35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040526020810181607982395f828201528181604084015e6020825281905260c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+  ChildWithArg_creation_code_0: hex"61013f38038061013f60e03960e001601f01601f191660405260e08061013f3803019060200111341760445760e05160c05260f780604860e03960c0516101035260e0f35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f858146049575b5f5ffd5b7f00000000000000000000000000000000000000000000000000000000000000005f5260205ff35b60808060405260a081016040526020810181607782395f828201528181604084015e6020825281905260c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
 bb0:
   callvalue
@@ -112,15 +112,10 @@ bb26 [cold]:
   push 0
   revert
 bb6:
-  push 160
-  dup 1
+  push 192
   push 64
   mstore
-  push 64
-  dup 2
-  add
-  push 64
-  mstore
+  push 128
   push 32
   dup 2
   mstore
@@ -131,22 +126,17 @@ bb6:
   mstore
   push 64
   mload
-  push 384
-  dup 2
-  add
-  push 64
-  mstore
-  push 321
+  push 319
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 321
+  push 319
   dup 4
   add
   mcopy
-  push 353
+  push 351
   swap 1
   push 0
   create
@@ -156,23 +146,14 @@ bb28:
   iszero
   push bb26
   jumpi
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
-  push 224
-  shl
-  dup 2
-  mstore
-  push 4
   push 0
-  swap 2
+  mstore
   push 32
-  swap 4
+  push 0
+  push 4
+  push 28
+  dup 5
   gas
   staticcall
   iszero
@@ -185,21 +166,16 @@ bb28:
   jumpi
   push 0
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb12:
-  push 160
-  dup 1
+  push 192
   push 64
   mstore
-  push 64
-  dup 2
-  add
-  push 64
-  mstore
+  push 128
   push 32
   dup 2
   mstore
@@ -210,29 +186,24 @@ bb12:
   mstore
   push 64
   mload
-  push 384
-  dup 2
-  add
-  push 64
-  mstore
-  push 321
+  push 319
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 321
+  push 319
   dup 4
   add
   mcopy
   push 1
-  push 353
+  push 351
   dup 3
   push 0
   create2
   jump bb28
 bb18:
-  push 160
+  push 128
   dup 1
   push 64
   mstore
@@ -251,22 +222,17 @@ bb18:
   mstore
   push 64
   mload
-  push 384
-  dup 2
-  add
-  push 64
-  mstore
-  push 321
+  push 319
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 321
+  push 319
   dup 4
   add
   mcopy
-  push 353
+  push 351
   swap 1
   push 0
   create
@@ -291,22 +257,17 @@ bb18:
   mstore
   push 64
   mload
-  push 384
-  dup 2
-  add
-  push 64
-  mstore
-  push 321
+  push 319
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 321
+  push 319
   dup 4
   add
   mcopy
-  push 353
+  push 351
   swap 1
   push 0
   create
@@ -314,30 +275,19 @@ bb18:
   iszero
   push bb26
   jumpi
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
-  push 224
-  shl
-  dup 2
-  mstore
-  push 4
   push 0
-  swap 2
+  mstore
   push 32
-  swap 4
-  swap 6
+  push 0
+  push 4
+  push 28
+  dup 7
   gas
   staticcall
   iszero
   push bb26
   jumpi
-  pop
   returndatasize
   push 32
   gt
@@ -345,24 +295,14 @@ bb18:
   jumpi
   push 0
   mload
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f245
-  push 224
-  shl
-  dup 2
-  mstore
-  push 4
   push 0
-  swap 2
+  mstore
   push 32
-  swap 4
-  swap 5
+  push 0
+  push 4
+  push 28
+  dup 6
   gas
   staticcall
   iszero
@@ -382,10 +322,10 @@ bb18:
   lt
   push bb27
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb27 [cold]:
   push 17

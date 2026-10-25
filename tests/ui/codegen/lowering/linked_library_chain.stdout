@@ -42,10 +42,10 @@ bb0:
   dup 1
   swap 2
   sstore
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -78,7 +78,7 @@ bb0:
   eq
   push bb3
   jumpi
-  push 160
+  push 128
   push 64
   mstore
   push 68
@@ -94,11 +94,6 @@ bb0:
   jumpi
   push 64
   mload
-  push 96
-  dup 2
-  add
-  push 64
-  mstore
   push 0xfaf4836c
   push 224
   shl
@@ -134,10 +129,10 @@ bb0:
   jumpi
   push 0
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0
@@ -145,10 +140,10 @@ bb3 [cold]:
   revert
 bb10:
   push 0
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb9 [cold]:
   returndatasize
@@ -173,7 +168,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 160
+  push 128
   push 64
   mstore
   push 36
@@ -183,11 +178,6 @@ bb0:
   jumpi
   push 64
   mload
-  push 96
-  dup 2
-  add
-  push 64
-  mstore
   push 0x5e0b1cef
   push 224
   shl
@@ -222,10 +212,10 @@ bb0:
   jumpi
   push 0
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0

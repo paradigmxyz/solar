@@ -21,19 +21,22 @@
 //! A `bytes` argument that only holds a copy of a calldata slice, as passing
 //! `bytes calldata` to a `bytes memory` parameter makes, encodes from the slice;
 //! the copy's length and bytes go, while its allocation keeps its pointer bump.
-//! This runs only in functions that never return to an internal caller, in
-//! modules that never read `msize`.
+//! This runs only in functions that never return to an internal caller.
 //!
 //! Literal objects. A `bytes memory` argument allocated and initialized with
 //! constant words in the encoding's block, with no intervening opaque memory
 //! access, encodes as immediate stores, and its now unused allocation is
 //! removed. The candidates are proven on the original IR, before encoding
 //! emits its own raw accesses.
-//! Literal bytes with observable allocations can still fold into encoder stores;
-//! their original allocations and initialization remain for later observers.
-//! This is limited to gas-mode encodings before Cancun, excluding scratch results.
-//! NOTE: Duplicating preserved payloads can grow native-MCOPY and scratch encoders;
-//! keep their copies, and size-mode copies, until their full code shape is priced.
+//! Literal bytes with observable allocations can still fold into encoder
+//! stores, in slice and scratch encodings alike; their original allocations
+//! and initialization remain for later observers. A revert or return of a
+//! scratch encoding of words and one literal, with only pure instructions
+//! between them, has no observer, so the literal's allocation goes too rather
+//! than repeating the payload as stores beside the folded copy. This is
+//! limited to gas-mode encodings before Cancun.
+//! NOTE: Duplicating preserved payloads can grow native-MCOPY encoders and
+//! size-mode copies; keep their copies until their full code shape is priced.
 //!
 //! Element loops. Full-word memory arrays and calldata word arrays copy as one
 //! block. Memory words that need cleanup use a guarded do-while over a
@@ -68,7 +71,7 @@ use crate::{
         MemoryObjectLayout, MirType, Module, PtrLocation, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CallGraphInfo, Location, LocationSize,
-            MemoryCallSummaries, MemoryLocation, ModRef, module_may_observe_msize,
+            MemoryCallSummaries, MemoryLocation, ModRef,
         },
         memory::EvmMemoryLayout,
         pass::MirPass,
@@ -138,10 +141,7 @@ impl MirPass for LowerAbiEncode {
             ..EncodeHelpers::default()
         };
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
-        // Internal calls share memory, so `msize` anywhere may observe a removed copy's memory
-        // expansion.
-        let summaries =
-            (!module_may_observe_msize(module)).then(|| analyses.call_summaries(module));
+        let summaries = analyses.call_summaries(module);
         let returning = module.returning_functions();
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
@@ -156,7 +156,7 @@ impl MirPass for LowerAbiEncode {
                 revert_strings,
                 &fresh_object_returns,
                 &destructive_returns[func_id],
-                summaries.as_ref().filter(|_| !returning.contains(func_id)),
+                (!returning.contains(func_id)).then_some(&summaries),
             );
         }
         CallGraphInfo::assert_runtime_helpers(
@@ -445,19 +445,7 @@ fn lower_function(
         fold_preserved
             || !matches!(func.value(object), Value::Inst(inst) if func.inst(*inst).metadata.preserves_fmp())
     });
-    for inst in func.instructions() {
-        if let InstKind::AbiEncode { mode: AbiEncodeMode::Scratch, args, .. } =
-            &func.inst(inst).kind
-        {
-            for &object in args {
-                if let Value::Inst(inst) = func.value(object)
-                    && func.inst(*inst).metadata.preserves_fmp()
-                {
-                    helpers.literal_objects.remove(&object);
-                }
-            }
-        }
-    }
+    let terminal_literals = terminal_scratch_literals(func, &helpers.literal_objects);
     let calldata_copies =
         summaries.map(|summaries| calldata_copy_objects(func, summaries)).unwrap_or_default();
 
@@ -537,6 +525,7 @@ fn lower_function(
             .into_iter()
             .filter(|object| helpers.literal_objects.contains(object))
             .collect::<Vec<_>>(),
+        &terminal_literals,
     );
     !replacements.is_empty()
 }
@@ -1637,6 +1626,55 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
     objects
 }
 
+/// Literal objects whose allocation nothing can observe once their scratch encode has run: the
+/// block returns or reverts with exactly the encoded bytes after only pure instructions, so no
+/// later access reads the allocation or the free-memory pointer it moved. The literal's allocation
+/// is the last one before the encode and no other argument reads memory, so no address shifts and
+/// no argument reaches into the literal. `literal_objects_at_encodes` already proved that no access
+/// sits between the allocation and the encode.
+fn terminal_scratch_literals(
+    func: &Function,
+    literal_objects: &FxHashSet<ValueId>,
+) -> FxHashSet<ValueId> {
+    let mut objects = FxHashSet::default();
+    for block in &func.blocks {
+        let Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) =
+            &block.terminator
+        else {
+            continue;
+        };
+        // The last two allocations or encodes of the block, latest first.
+        let mut reservers = block.instructions.iter().enumerate().rev().filter(|&(_, &inst)| {
+            matches!(func.inst(inst).kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
+        });
+        if let Some((index, &encode)) = reservers.next()
+            && let Some((_, &allocation)) = reservers.next()
+            && let InstKind::AbiEncode { mode: AbiEncodeMode::Scratch, args, layout, .. } =
+                &func.inst(encode).kind
+            && matches!(func.inst(allocation).kind, InstKind::Alloc { .. })
+            && let Some(object) = func.inst_result_value(allocation)
+            && let Some(encoded) = func.inst_result_value(encode)
+            && literal_objects.contains(&object)
+            && args.contains(&object)
+            && layout.types.iter().zip(args).all(|(ty, &arg)| {
+                arg == object || matches!(ty, AbiType::Word(_) | AbiType::Function)
+            })
+            && [(*offset, MirType::SLICE_PTR_FIELD), (*size, MirType::SLICE_LEN_FIELD)].iter().all(
+                |&(operand, field)| {
+                    matches!(func.value(operand), Value::Inst(projection)
+                        if func.inst(*projection).kind.slice_projection() == Some((encoded, field)))
+                },
+            )
+            && block.instructions[index + 1..]
+                .iter()
+                .all(|&later| func.inst(later).kind.effect_kind() == EffectKind::Pure)
+        {
+            objects.insert(object);
+        }
+    }
+    objects
+}
+
 fn literal_opaque_instruction(
     func: &Function,
     kind: &InstKind,
@@ -1647,7 +1685,6 @@ fn literal_opaque_instruction(
         InstKind::Store(address, _, PtrLocation::Memory) => {
             !literal_word_in_bounds(func, *address, available)
         }
-        InstKind::MSize => true,
         _ => matches!(
             kind.effect_kind(),
             EffectKind::MemoryRead
@@ -1754,12 +1791,17 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
 
 /// Removes a literal object's initialization after its encoding has embedded
 /// the bytes directly in the output. The object must have no active use other
-/// than its allocation and literal stores; otherwise the object remains live.
-fn remove_literal_objects(func: &mut Function, values: &[ValueId]) {
+/// than its allocation and literal stores; otherwise the object remains live. An allocation
+/// that preserves the free-memory pointer goes only if it is in `unobserved`.
+fn remove_literal_objects(
+    func: &mut Function,
+    values: &[ValueId],
+    unobserved: &FxHashSet<ValueId>,
+) {
     let mut removed = FxHashSet::default();
     for &object in values {
         let Value::Inst(defining_inst) = func.value(object) else { continue };
-        if func.inst(*defining_inst).metadata.preserves_fmp() {
+        if func.inst(*defining_inst).metadata.preserves_fmp() && !unobserved.contains(&object) {
             continue;
         }
         let Some(block) = func
@@ -1800,7 +1842,7 @@ fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> 
 ///
 /// NOTE: Internal calls share memory, so a caller could read the copy through a saved
 /// free-memory pointer. The caller must pass only functions that never return to an internal
-/// caller, directly or through tail calls, and skip modules that read `msize`.
+/// caller, directly or through tail calls.
 fn calldata_copy_objects(
     func: &Function,
     summaries: &Arc<MemoryCallSummaries>,
