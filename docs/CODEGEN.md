@@ -77,6 +77,23 @@ word-rule checker, its Lean model and proofs, and their tests live in
 commands and coverage limits). The checker must reject unsupported semantics,
 never treat them as proved.
 
+To count how often each rule fires on an input, with no rebuild, enable the
+`solar::isle` log target of any binary built with the default `tracing`
+feature:
+
+```bash
+RUST_LOG=solar::isle=debug solar --standard-json < input.json 2>&1 >/dev/null \
+  | sed -n 's/.*ISLE //p' | sort | uniq -c | sort -rn
+```
+
+Each line is a count, the term the rule belongs to, and the rule's file and
+line, such as `127594 rewrite solar-codegen/isle/mir/egraph/arithmetic.isle line 4`.
+The line is 0-based: the `(rule` form is on line `n + 1`. Rules that never
+appear never fired on that input. For `rewrite`, a firing means the rule
+matched and offered an alternative to the e-graph, not that extraction chose
+it. The `egraph`, `word_sequence`, and `peephole` rule sets log; `select` does
+not, because the cost model and the inliner call it tens of millions of times.
+
 ISLE does local matching and replacement, not whole algorithms. The e-graph
 covers scalar identities and pure expression numbering, overlapping the
 pure-expression part of `cse`; it does not replace alias-sensitive
