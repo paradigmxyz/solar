@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall (creation) ===
 @module ConstructorICall_deployment
 @data
-  ConstructorICall_runtime_code_0: hex"34601d575f3560e01c80633fa4f24503601d575f5460805260206080f35b5f5ffd"
+  ConstructorICall_runtime_code_0: hex"34601b575f3560e01c80633fa4f24503601b575f545f5260205ff35b5f5ffd"
 
 bb0:
-  push_data ConstructorICall_runtime_code_0+33
+  push_data ConstructorICall_runtime_code_0+31
   codesize
   sub
   dup 1
-  push_data ConstructorICall_runtime_code_0+33
+  push_data ConstructorICall_runtime_code_0+31
   push 192
   codecopy
   push 192
@@ -22,7 +22,7 @@ bb0:
   mstore
   push 192
   dup 1
-  push_data ConstructorICall_runtime_code_0+33
+  push_data ConstructorICall_runtime_code_0+31
   codesize
   sub
   add
@@ -86,7 +86,7 @@ bb7:
 bb10 [continuation]:
   push 0
   sstore
-  push 33
+  push 31
   dup 1
   push_data ConstructorICall_runtime_code_0
   push 0
@@ -114,10 +114,10 @@ bb0:
   jumpi
   push 0
   sload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0

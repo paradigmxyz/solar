@@ -11,12 +11,10 @@
 //! code stays semantic and fails the lowered-phase check rather than writing memory there.
 
 use crate::mir::{
-    EffectKind, FunctionBuilder, FunctionId, InstKind, MemoryRegion, Module, PtrLocation,
-    analysis::CallGraphInfo,
+    EffectKind, FunctionBuilder, InstKind, MemoryRegion, Module, PtrLocation,
     immutable::{immutable_staging_addr, immutable_staging_base},
     pass::MirPass,
 };
-use solar_data_structures::bit_set::DenseBitSet;
 
 /// Lowers immutable assignments to memory stores in the deployment staging area.
 pub(crate) struct LowerImmutables;
@@ -42,7 +40,7 @@ impl MirPass for LowerImmutables {
             return false;
         }
         let staging_base = immutable_staging_base(module);
-        let runtime_reachable = runtime_reachable_functions(module);
+        let runtime_reachable = module.runtime_reachable_functions();
         let mut changed = false;
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             if runtime_reachable.contains(func_id) {
@@ -72,24 +70,4 @@ impl MirPass for LowerImmutables {
         }
         changed
     }
-}
-
-fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {
-    let function_count = module.functions.len();
-    let mut reachable = DenseBitSet::new_empty(function_count);
-    let mut worklist = module
-        .dispatch_entry()
-        .into_iter()
-        .chain(module.functions.iter_enumerated().filter_map(|(id, func)| {
-            (func.selector.is_some() || func.attributes.is_fallback || func.attributes.is_receive)
-                .then_some(id)
-        }))
-        .filter(|&id| reachable.insert(id))
-        .collect::<Vec<_>>();
-    while let Some(func_id) = worklist.pop() {
-        let callees =
-            CallGraphInfo::collect_internal_callees(module.function(func_id), function_count);
-        worklist.extend(callees.iter().filter(|&callee| reachable.insert(callee)));
-    }
-    reachable
 }

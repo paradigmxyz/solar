@@ -84,12 +84,12 @@ fn @hoist_mload_dominates_exits() -> i256 {
     ret v0
 }
 
-// The msize after the loop makes any early memory expansion observable;
-// keep the mload in place even though the trip count is known.
-// CHECK-LABEL: {{^[ +].*}}fn @keep_mload_msize_in_function{{[( ]}}
+// The msize after the loop does not keep the mload in the loop when the trip count is known.
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_mload_around_msize{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = mload 64
 // CHECK: {{^[ +].*}}msize
-// CHECK: {{^[ +].*}}mload 64
-fn @keep_mload_msize_in_function() -> i256 {
+// CHECK: - [[LOAD]] = mload 64
+fn @hoist_mload_around_msize() -> i256 {
   bb0:
     jump bb1
   bb1:

@@ -25,6 +25,7 @@ mod reorder_pushes;
 mod share_reverts;
 mod stack_normalize;
 mod stack_reschedule;
+mod tail_duplicate;
 mod tail_merge;
 mod terminal_dedup;
 mod terminal_layout;
@@ -110,6 +111,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
+    &tail_duplicate::TailDuplicate,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
@@ -188,6 +190,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::LateWord,
     // Introduce `EXCHANGE` only after every peephole has seen the plain swaps.
     &stack_normalize::StackNormalize::FINAL,
+    &tail_duplicate::TailDuplicate,
 ];
 
 /// Finds an EVM IR pass by command-line name.

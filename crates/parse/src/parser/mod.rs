@@ -1108,7 +1108,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[track_caller]
     fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
-        if self.in_yul && ident.is_future_yul_builtin(self.sess.opts.evm_version) {
+        if self.in_yul && ident.is_future_yul_reserved_identifier(self.sess.opts.evm_version) {
             self.dcx()
                 .warn(format!(
                     "`{ident}` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier"
@@ -1137,7 +1137,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn is_reserved_yul_ident(&self, ident: Ident) -> bool {
         ident.is_yul_keyword()
             || (ident.is_yul_builtin()
-                && !ident.is_future_yul_builtin(self.sess.opts.evm_version)
+                && !ident.is_future_yul_reserved_identifier(self.sess.opts.evm_version)
                 && (self.pure_yul || ident.is_reserved_yul_builtin_in(self.sess.opts.evm_version)))
     }
 

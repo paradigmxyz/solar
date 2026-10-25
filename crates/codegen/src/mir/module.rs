@@ -5,7 +5,10 @@ use super::{
     Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
     Terminator, ValueId,
 };
-use crate::link::{ContractCode, LibraryTable};
+use crate::{
+    link::{ContractCode, LibraryTable},
+    mir::analysis::{CfgInfo, direct_callees},
+};
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
 use solar_data_structures::{
@@ -338,6 +341,119 @@ impl Module {
     /// Updates the dispatch entry after remapping function IDs.
     pub(crate) fn remap_dispatch_entry(&mut self, entry: Option<FunctionId>) {
         self.dispatch_entry = entry;
+    }
+
+    /// Returns the functions that the runtime entry, a selector, `receive`, or `fallback`
+    /// reaches through calls.
+    #[must_use]
+    pub(crate) fn runtime_reachable_functions(&self) -> DenseBitSet<FunctionId> {
+        let roots = self.dispatch_entry().into_iter().chain(
+            self.functions.iter_enumerated().filter_map(|(id, func)| {
+                (func.selector.is_some()
+                    || func.attributes.is_fallback
+                    || func.attributes.is_receive)
+                    .then_some(id)
+            }),
+        );
+        self.reachable_from(roots)
+    }
+
+    /// Returns the functions that run only during deployment: the constructor and the functions
+    /// it reaches through calls, less those the runtime also reaches. Functions that neither
+    /// artifact roots, which only ad-hoc MIR has, and the functions they reach stay out, because
+    /// no one knows where they run.
+    #[must_use]
+    pub(crate) fn creation_only_functions(&self) -> DenseBitSet<FunctionId> {
+        let constructor = self.reachable_from(
+            self.functions
+                .iter_enumerated()
+                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
+        );
+        let runtime = self.runtime_reachable_functions();
+        let mut creation = constructor.clone();
+        creation.subtract(&runtime);
+        let mut rooted = constructor;
+        rooted.union(&runtime);
+        let mut unrooted = DenseBitSet::new_filled(self.functions.len());
+        unrooted.subtract(&rooted);
+        creation.subtract(&self.reachable_from(unrooted.iter()));
+        creation
+    }
+
+    /// Returns the creation-only functions that no loop or recursion calls, and the subset of
+    /// those without loops of their own. Their instructions run a bounded number of times, not
+    /// scaled by a trip count, which the creation model's single execution approximates for the
+    /// second set, and for the whole of the first when a transform weighs the function's own
+    /// loops.
+    #[must_use]
+    pub(crate) fn creation_pricing_functions(
+        &self,
+    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
+        let creation = self.creation_only_functions();
+        let (looping, repeated) = self.loops_and_repeats(&creation);
+        let mut called_once = creation;
+        called_once.subtract(&repeated);
+        let mut straight = called_once.clone();
+        straight.subtract(&looping);
+        (called_once, straight)
+    }
+
+    /// Returns the functions of `domain` that run more than once per deployment because they
+    /// are recursive, or because a function with a loop, or a recursive one, calls them
+    /// directly or not.
+    #[must_use]
+    pub(crate) fn repeated_functions(
+        &self,
+        domain: &DenseBitSet<FunctionId>,
+    ) -> DenseBitSet<FunctionId> {
+        self.loops_and_repeats(domain).1
+    }
+
+    /// Returns the functions of `domain` with a loop of their own, and those it repeats.
+    fn loops_and_repeats(
+        &self,
+        domain: &DenseBitSet<FunctionId>,
+    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
+        let mut looping = DenseBitSet::new_empty(self.functions.len());
+        let mut repeated = DenseBitSet::new_empty(self.functions.len());
+        let mut worklist = Vec::new();
+        for id in domain.iter() {
+            let func = self.function(id);
+            let has_loop = !CfgInfo::new(func).cyclic_blocks().is_empty();
+            let repeats_callees =
+                has_loop || self.reachable_from(direct_callees(func)).contains(id);
+            if has_loop {
+                looping.insert(id);
+            }
+            if repeats_callees {
+                worklist.extend(
+                    direct_callees(func)
+                        .filter(|&callee| domain.contains(callee) && repeated.insert(callee)),
+                );
+            }
+        }
+        while let Some(id) = worklist.pop() {
+            worklist.extend(
+                direct_callees(self.function(id))
+                    .filter(|&callee| domain.contains(callee) && repeated.insert(callee)),
+            );
+        }
+        (looping, repeated)
+    }
+
+    /// Returns `roots` and every function they reach through calls.
+    fn reachable_from(
+        &self,
+        roots: impl IntoIterator<Item = FunctionId>,
+    ) -> DenseBitSet<FunctionId> {
+        let mut reachable = DenseBitSet::new_empty(self.functions.len());
+        let mut worklist = roots.into_iter().filter(|&id| reachable.insert(id)).collect::<Vec<_>>();
+        while let Some(func_id) = worklist.pop() {
+            worklist.extend(
+                direct_callees(self.function(func_id)).filter(|&callee| reachable.insert(callee)),
+            );
+        }
+        reachable
     }
 
     /// Returns the function for the given ID.

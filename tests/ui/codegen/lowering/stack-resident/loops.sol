@@ -36,7 +36,7 @@ contract Loops {
     // CHECK-NEXT: [[HEADER]] [loop]:
     // CHECK: jumpi
     // CHECK-NEXT: push 1{{$}}
-    // CHECK-NEXT: push 128
+    // CHECK-NEXT: push 0
     function ascii(bytes memory s) external pure returns (bool) {
         for (uint256 i; i < s.length; ++i) {
             if (uint8(s[i]) > 127) return false;

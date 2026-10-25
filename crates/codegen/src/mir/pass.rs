@@ -16,15 +16,19 @@
 //! );
 //! ```
 
-use crate::mir::{
-    Function, FunctionId, InstId, MirPhase, Module,
-    analysis::{AliasAnalysis, CfgInfo, LocalSummaryCache, MemoryCallSummaries},
-    pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
-    transform::*,
+use crate::{
+    mir::{
+        Function, FunctionId, InstId, MirPhase, Module,
+        analysis::{AliasAnalysis, CfgInfo, LocalSummaryCache, MemoryCallSummaries},
+        pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
+        transform::*,
+    },
+    target::Target,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::diagnostics::ErrorGuaranteed;
+use solar_sema::Gcx;
 use std::{any::TypeId, cell::Cell, rc::Rc, sync::Arc};
 
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
@@ -618,6 +622,10 @@ pub(crate) struct FunctionAnalyses {
     cfg: Option<Rc<CfgInfo>>,
     /// Whether the transform edited the body while reporting no change.
     unreported_edit: Cell<bool>,
+    /// Whether the function runs only during deployment, and no loop or recursion calls it.
+    creation_only: bool,
+    /// Whether, besides, the function has no loop of its own.
+    straight_line_creation: bool,
 }
 
 impl FunctionAnalyses {
@@ -629,6 +637,20 @@ impl FunctionAnalyses {
     /// Returns the CFG analysis requested by the running transform.
     pub(crate) fn cfg(&self) -> &Rc<CfgInfo> {
         self.cfg.as_ref().expect("function pass must request CFG analysis")
+    }
+
+    /// The cost model for a transform that weighs loops itself: creation code that no loop or
+    /// recursion calls is priced as such whether or not it loops, because the transform
+    /// multiplies by trip counts.
+    pub(crate) fn loop_aware_target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx).priced_for(self.creation_only)
+    }
+
+    /// The cost model for a transform that ranks code shapes without weighing blocks by how
+    /// often they run: creation code is priced as such only when every instruction runs a
+    /// bounded number of times, so without loops, recursion, or a looping caller.
+    pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx).priced_for(self.straight_line_creation)
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
@@ -673,6 +695,14 @@ pub struct ModuleAnalyses {
     local_summaries: LocalSummaryCache,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
+    local_summaries_preserved: bool,
+    /// Whether the running pass prices creation code differently, which only the gas objective
+    /// does.
+    prices_creation: bool,
+    /// The creation-only functions that no loop or recursion calls, and the subset without loops
+    /// of their own. A pass that adds or removes calls and functions without preserving the
+    /// analyses drops them.
+    creation_functions: Option<(DenseBitSet<FunctionId>, DenseBitSet<FunctionId>)>,
 }
 
 impl ModuleAnalyses {
@@ -681,9 +711,11 @@ impl ModuleAnalyses {
         self.error = Some(error);
     }
 
-    pub(crate) fn begin_pass(&mut self) {
+    pub(crate) fn begin_pass(&mut self, prices_creation: bool) {
         self.preserved_by_pass = false;
         self.call_summaries_preserved = false;
+        self.local_summaries_preserved = false;
+        self.prices_creation = prices_creation;
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {
@@ -692,7 +724,10 @@ impl ModuleAnalyses {
         }
         if !self.preserved_by_pass {
             self.invalidate_all();
-            self.local_summaries.clear();
+            self.creation_functions = None;
+            if !self.local_summaries_preserved {
+                self.local_summaries.clear();
+            }
         }
         if !self.call_summaries_preserved {
             self.call_summaries = None;
@@ -725,6 +760,13 @@ impl ModuleAnalyses {
         module: &Module,
         requirements: FunctionAnalysisRequirements,
     ) -> FunctionAnalyses {
+        let (creation_only, straight_line_creation) = if self.prices_creation {
+            let (creation, straight) =
+                self.creation_functions.get_or_insert_with(|| module.creation_pricing_functions());
+            (creation.contains(func_id), straight.contains(func_id))
+        } else {
+            (false, false)
+        };
         FunctionAnalyses {
             alias: requirements.alias().then(|| {
                 if let Some(alias) = self.alias.get(&func_id) {
@@ -735,6 +777,8 @@ impl ModuleAnalyses {
             }),
             cfg: requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id])),
             unreported_edit: Cell::new(false),
+            creation_only,
+            straight_line_creation,
         }
     }
 
@@ -755,6 +799,29 @@ impl ModuleAnalyses {
     /// Declares that the running pass leaves the module call summaries valid.
     pub(crate) fn preserve_call_summaries(&mut self) {
         self.call_summaries_preserved = true;
+    }
+
+    /// Computes call summaries of the module as it is, from the cached local summaries, without
+    /// replacing the shared ones.
+    pub(crate) fn fresh_call_summaries(&mut self, module: &Module) -> MemoryCallSummaries {
+        MemoryCallSummaries::new_cached(module, &mut self.local_summaries)
+    }
+
+    /// Drops the cached local summary of a function whose body the running pass changed.
+    pub(crate) fn invalidate_local_summary(&mut self, func_id: FunctionId) {
+        self.local_summaries.invalidate(func_id);
+    }
+
+    /// Renumbers the cached local summaries after the running pass kept only the functions in
+    /// `keep`.
+    pub(crate) fn retain_local_summaries(&mut self, keep: &DenseBitSet<FunctionId>) {
+        self.local_summaries.retain_functions(keep);
+    }
+
+    /// Declares that the running pass invalidated the local summary of every function it
+    /// changed, so they survive the pass.
+    pub(crate) fn preserve_local_summaries(&mut self) {
+        self.local_summaries_preserved = true;
     }
 
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {

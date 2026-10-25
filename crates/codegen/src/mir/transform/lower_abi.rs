@@ -498,9 +498,10 @@ impl LowerAbiCx {
                 }
             }
         }
-        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
-            // Static return data occupies the low-memory ABI buffer. Keep the
-            // backend spill area above it so a cross-block value cannot be
+        let in_scratch = returns_in_scratch(&layout);
+        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) && !in_scratch {
+            // Static return data outside scratch memory occupies the low-memory ABI
+            // buffer. Keep the backend spill area above it so a cross-block value cannot be
             // overwritten while the return tuple is encoded.
             func.external_static_return_size = layout.head_size();
         }
@@ -577,7 +578,13 @@ impl LowerAbiCx {
                 let size = builder.slice_len(encoded);
                 builder.ret_data(offset, size);
             } else {
-                let offset = builder.imm(EvmMemoryLayout::HEAP_START);
+                // A result that fits below the heap start never reaches the spill area.
+                let start = if in_scratch {
+                    EvmMemoryLayout::SCRATCH_SLOT
+                } else {
+                    EvmMemoryLayout::HEAP_START
+                };
+                let offset = builder.imm(start);
                 let size = super::lower_abi_encode::encode_static_tuple(
                     &mut builder,
                     &values,
@@ -3917,35 +3924,43 @@ fn encode_static_bytes_return(
     let return_size = word_size * 2 + value.len.next_multiple_of(word_size);
     func.blocks[return_block].instructions.clear();
     func.blocks[return_block].terminator = None;
-    func.external_static_return_size = return_size;
     let mut builder = FunctionBuilder::new(func);
     builder.switch_to_block(return_block);
     builder.inherit_terminator_debug_context(return_block);
-    // mstore(128, 32)
-    // mstore(160, len)
-    // if length != 0 { mstore(192, word) }
-    // if tail { mstore(224, tail) }
-    // returndata(128, 64 + rounded_length)
-    let offset = builder.imm(EvmMemoryLayout::HEAP_START);
+    // mstore(0, 32)
+    // mstore(32, len)
+    // if length != 0 { mstore(64, word) }
+    // if tail { mstore(96, tail) }
+    // returndata(0, 64 + rounded_length)
+    let offset = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
     let data_offset = builder.imm(word_size);
-    let len_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size);
+    let len_offset = builder.imm(EvmMemoryLayout::SCRATCH_SLOT + word_size);
     let len = builder.imm(value.len);
     let size = builder.imm(return_size);
     builder.store(offset, data_offset);
     builder.store(len_offset, len);
     if value.len != 0 {
-        // mstore(192, word)
-        let word_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size * 2);
+        // mstore(64, word)
+        let word_offset = builder.imm(EvmMemoryLayout::SCRATCH_SLOT + word_size * 2);
         let word = builder.imm(value.word);
         builder.store(word_offset, word);
     }
     if let Some(tail) = value.tail {
-        // mstore(224, tail)
-        let tail_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size * 3);
+        // mstore(96, tail)
+        let tail_offset = builder.imm(EvmMemoryLayout::SCRATCH_SLOT + word_size * 3);
         let tail = builder.imm(tail);
         builder.store(tail_offset, tail);
     }
     builder.ret_data(offset, size);
+}
+
+/// Returns whether a static return tuple is encoded in the words below the heap start,
+/// overwriting the free memory pointer and zero slot. `return` ends execution, so nothing reads
+/// them again. Only stack scalars qualify: encoding a memory aggregate loads its fields while
+/// storing earlier ones, and assembly can point such an aggregate into scratch.
+fn returns_in_scratch(layout: &AbiLayout) -> bool {
+    layout.head_size() <= EvmMemoryLayout::HEAP_START
+        && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_) | AbiType::Function))
 }
 
 fn materialize_calldata_return(

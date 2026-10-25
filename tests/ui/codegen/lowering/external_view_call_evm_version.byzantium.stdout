@@ -3,11 +3,30 @@
 fn @read(arg0: i160) -> i256 [selector=0xa087a87e, view, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
-    v2 = extract_value slice<memory>, v1, 0
-    v3 = extract_value slice<memory>, v1, 1
-    v4 = zext i160 arg0 to i256
-    v5 = staticcall v0, v4, v2, v3, 0, 32
+    mstore 0, 0x57de26a4 !metadata(memory=scratch)
+    v1 = zext i160 arg0 to i256
+    v2 = staticcall v0, v1, 28, 4, 0, 32
+    jumpi v2, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v3 = returndatasize
+    v4 = lt v3, 32
+    icall revert_if<tuple_data_too_short>, v4
+    v5 = add 0, 0
+    v6 = mload v5
+    ret v6
+}
+
+fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[function], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffff
+    v1 = shl v0, 224
+    v2 = shr arg0, 32
+    v3 = gas
+    v4 = shr v1, 224
+    mstore 0, v4 !metadata(memory=scratch)
+    v5 = staticcall v3, v2, 28, 4, 0, 32
     jumpi v5, bb2, bb1
   bb1:
     revert_returndata
@@ -18,26 +37,4 @@ fn @read(arg0: i160) -> i256 [selector=0xa087a87e, view, abi_params=[address], a
     v8 = add 0, 0
     v9 = mload v8
     ret v9
-}
-
-fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[function], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = and arg0, 0xffffffff
-    v1 = shl v0, 224
-    v2 = shr arg0, 32
-    v3 = gas
-    v4 = abi_encode [], selector v1
-    v5 = extract_value slice<memory>, v4, 0
-    v6 = extract_value slice<memory>, v4, 1
-    v7 = staticcall v3, v2, v5, v6, 0, 32
-    jumpi v7, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    ret v11
 }

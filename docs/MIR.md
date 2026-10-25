@@ -382,13 +382,13 @@ properties. Internal-call summaries include failure, divergence, and external
 termination. Compute them only for called functions, including tail-call targets;
 uncalled bodies need no interprocedural summary. DCE removes unused calls only
 when these summaries prove normal termination and no observable effects. Recursive calls and possible CFG cycles
-remain conservative. DCE and ADCE preserve memory expansion when `msize` in the
-function or a callee can observe it.
+remain conservative. `msize` is an opaque memory read: it is never commoned or moved, DSE keeps the
+writes it may see, and it promises no exact value.
 As in solc, unused storage/account reads and normally returning calls containing
 only those reads may disappear, including their implicit access-list warming.
 Optimization preserves required effects rather than exact gas consumption.
 
-Track changing observations such as `gasleft`, returndata, balances, `msize`,
+Track changing observations such as `gasleft`, returndata, balances,
 and the free-memory pointer separately from stable inputs such as calldata.
 An EVM memory read can expand memory. A mathematical operation can be too costly
 to hoist onto a path that never executed it. Keep semantic safety and gas/size
@@ -732,7 +732,7 @@ that the original range is already expanded. The proof stops at inline jump
 destinations. This keeps memory-limit halts and reduces pushes after tail sharing
 has settled. Reads do not establish this proof because later dead-code cleanup
 may remove them. A different return range or an intervening instruction keeps
-the original address, including an `MSIZE` that observes the store.
+the original address.
 
 Final store cleanup consumes a stack word directly when a duplicate is stored
 and its original is discarded immediately afterward. It preserves the order of

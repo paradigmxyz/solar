@@ -16,22 +16,10 @@ bb0:
   push_immutable 0, 1
   push 0
   signextend
-  push 255
-  and
   push_immutable 1, 28
   push 27
   signextend
-  push 0
-  not
-  push 32
-  shr
-  and
   push_immutable 2, 32
-  push 0
-  not
-  push 24
-  shr
-  and
   push_immutable 3, 28
   push 32
   shl
