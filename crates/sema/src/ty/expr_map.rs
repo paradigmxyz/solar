@@ -16,12 +16,12 @@ const PAR_MERGE_LEN: usize = 4096;
 /// move every entry through a single thread.
 #[derive(Clone, Debug)]
 pub(crate) struct ExprMap<V> {
-    shards: [FxHashMap<ExprId, V>; SHARDS],
+    shards: Box<[FxHashMap<ExprId, V>; SHARDS]>,
 }
 
 impl<V> Default for ExprMap<V> {
     fn default() -> Self {
-        Self { shards: std::array::from_fn(|_| FxHashMap::default()) }
+        Self { shards: Box::new(std::array::from_fn(|_| FxHashMap::default())) }
     }
 }
 
@@ -61,7 +61,7 @@ impl<V: Copy + Send> ExprMap<V> {
         let len = maps.iter().map(Self::len).sum::<usize>();
         let mut shards = (0..SHARDS).map(|_| Vec::with_capacity(maps.len())).collect::<Vec<_>>();
         for map in maps {
-            for (shard, map) in shards.iter_mut().zip(map.shards) {
+            for (shard, map) in shards.iter_mut().zip(*map.shards) {
                 shard.push(map);
             }
         }
@@ -86,7 +86,7 @@ impl<V: Copy + Send> ExprMap<V> {
         } else {
             shards.into_par_iter().map(merge_shard).collect::<Vec<_>>()
         };
-        Self { shards: merged.try_into().unwrap_or_else(|_| unreachable!()) }
+        Self { shards: merged.into_boxed_slice().try_into().unwrap_or_else(|_| unreachable!()) }
     }
 }
 
