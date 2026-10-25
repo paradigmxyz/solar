@@ -42,9 +42,10 @@
 //! stores keep their order. Allocations of at most one element keep a counted
 //! loop, whose rotation would add an entry guard and an exit phi. Byte tails
 //! zero their last padded word before writing the length header, which needs
-//! no branch even for an empty tail. Size mode keeps the guarded store in a
-//! module with many byte tails, because the backend then shares the repeated
-//! guarded runs between sites (`Target::guards_byte_tails`).
+//! no branch even for an empty tail. In size mode, a module with many byte
+//! tails instead zeroes that word only for a nonempty tail, because the
+//! backend then shares the repeated guarded runs between sites
+//! (`Target::guards_byte_tails`).
 //!
 //! In-place returns. Under the gas and size objectives, a terminal external
 //! return of a fresh full-word array or byte string that is not a literal
@@ -105,7 +106,7 @@ impl MirPass for LowerAbiEncode {
         let target = Target::new(gcx);
         let (fresh_object_returns, mut destructive_returns) =
             plan_destructive_terminal_returns(&target, module);
-        let guarded_byte_tails = target.guards_byte_tails(byte_tail_sites(module));
+        let guarded_byte_tails = target.guards_byte_tails(|| byte_tail_sites(module));
         let mut helpers = synthesize_array_helpers(module, revert_strings, guarded_byte_tails);
         synthesize_tuple_helpers(
             &target,
@@ -1559,8 +1560,8 @@ fn memory_object_len(builder: &mut FunctionBuilder<'_>, value: ValueId) -> Value
     builder.memory_len(value)
 }
 
-/// Counts the byte-string arguments of the module's encodings, each a site whose tail the encoder
-/// writes inline or shares through a helper.
+/// Counts the top-level byte-string arguments of the module's encodings, each a site whose tail
+/// the encoder writes inline or shares through a helper.
 fn byte_tail_sites(module: &Module) -> usize {
     module
         .functions
