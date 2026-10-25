@@ -587,11 +587,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (entry, span)
             })
             .collect();
-        let heap_prefix = Self::heap_prefix_offsets(module);
         let heap_prefix_guards = module
             .functions
             .iter_enumerated()
-            .map(|(func_id, func)| heap_prefix.guard(func_id, func))
+            .map(|(func_id, func)| self.heap_prefix.guard(func_id, func))
             .collect::<IndexVec<FunctionId, _>>();
         let reachable_heap_prefix_guards: FxHashMap<FunctionId, u64> = self
             .runtime_entry_reachability
