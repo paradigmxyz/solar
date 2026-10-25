@@ -1,6 +1,7 @@
 //@ compile-flags: -Osize -Zdump=mir,evm-ir-runtime
 //@ filecheck: --check-prefixes=MIR,RUNTIME
 //@ run-call: lastDataByte => 90
+//@ skip-run-call-onone: reads its own last code byte, which depends on data placement
 
 contract CodeSizeData {
     // MIR-LABEL: fn @outer{{[( ]}}

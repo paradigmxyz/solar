@@ -181,6 +181,9 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         };
     }
     register_custom_flags![FileCheck, run_call::RunCall, run_call::RunCallFail];
+    config
+        .custom_comments
+        .insert(run_call::OnoneRerun::SKIP_NAME, run_call::OnoneRerun::parse_skip);
     config.custom_comments.insert(codegen_matrix::NAME, codegen_matrix::parse);
 
     config.comment_defaults.base().exit_status = None.into();
@@ -362,6 +365,9 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         line.starts_with("//@") && line.contains("-Zdump=mir")
     }) || has_codegen_matrix;
     if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
+        if let Some(rerun) = run_call::OnoneRerun::new(src) {
+            config.comment_defaults.base().add_custom(run_call::OnoneRerun::NAME, rerun);
+        }
         if has_mir_dump {
             configure_run_call_stdout(config, src);
         } else {

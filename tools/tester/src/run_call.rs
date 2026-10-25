@@ -1,3 +1,4 @@
+use crate::codegen_matrix;
 use alloy_consensus::{TxLegacy, transaction::Recovered};
 use alloy_dyn_abi::{DynSolValue, FunctionExt, JsonAbiExt, Specifier};
 use alloy_json_abi::{Error, Function, JsonAbi, Param};
@@ -9,7 +10,7 @@ use evm2::{
     evm::{AccountInfo, InMemoryDB},
 };
 use serde_json::Value;
-use std::path::Path;
+use std::{path::Path, process::Command};
 use ui_test::{
     CommentParser, Errored, Revisioned,
     build_manager::BuildManager,
@@ -96,6 +97,16 @@ pub(crate) fn is_directive(line: &str) -> bool {
     })
 }
 
+impl From<ParsedCall<'_>> for RunCall {
+    fn from(parsed: ParsedCall<'_>) -> Self {
+        Self {
+            call: parsed.call.to_owned(),
+            expected: parsed.expected.to_owned(),
+            settings: parsed.settings,
+        }
+    }
+}
+
 impl RunCall {
     pub(crate) const NAME: &'static str = "run-call";
     pub(crate) const DEFAULT: Option<Self> = None;
@@ -106,15 +117,7 @@ impl RunCall {
         span: Span,
     ) {
         match parse_call(*args) {
-            Ok(parsed) => parser.add_custom_spanned(
-                Self::NAME,
-                Self {
-                    call: parsed.call.to_owned(),
-                    expected: parsed.expected.to_owned(),
-                    settings: parsed.settings,
-                },
-                span,
-            ),
+            Ok(parsed) => parser.add_custom_spanned(Self::NAME, Self::from(parsed), span),
             Err(err) => parser.error(args.span(), err),
         }
     }
@@ -153,6 +156,16 @@ impl RunCall {
     }
 }
 
+impl From<ParsedCall<'_>> for RunCallFail {
+    fn from(parsed: ParsedCall<'_>) -> Self {
+        Self {
+            call: parsed.call.to_owned(),
+            expected: parsed.expected.to_owned(),
+            settings: parsed.settings,
+        }
+    }
+}
+
 impl RunCallFail {
     pub(crate) const NAME: &'static str = "run-call-fail";
     pub(crate) const DEFAULT: Option<Self> = None;
@@ -163,15 +176,7 @@ impl RunCallFail {
         span: Span,
     ) {
         match parse_call(*args) {
-            Ok(parsed) => parser.add_custom_spanned(
-                Self::NAME,
-                Self {
-                    call: parsed.call.to_owned(),
-                    expected: parsed.expected.to_owned(),
-                    settings: parsed.settings,
-                },
-                span,
-            ),
+            Ok(parsed) => parser.add_custom_spanned(Self::NAME, Self::from(parsed), span),
             Err(err) => parser.error(args.span(), err),
         }
     }
@@ -236,6 +241,167 @@ macro_rules! impl_flag {
 
 impl_flag!(RunCall);
 impl_flag!(RunCallFail);
+
+/// Runs a test's calls on `-O none` output when none of its revisions compile at `-O none`, so a
+/// miscompile there fails the normal UI suite.
+///
+/// Each revision gets one extra compile of its own command line with `-O` replaced by `-O none`,
+/// and runs the calls that apply to that revision. A test with a `-O none` revision, such as
+/// `codegen-matrix: standard` whose `mir` revision already runs every unscoped call, is not rerun.
+#[derive(Debug, Clone)]
+pub(crate) struct OnoneRerun {
+    calls: Vec<(Vec<String>, RunCall)>,
+    failures: Vec<(Vec<String>, RunCallFail)>,
+}
+
+impl OnoneRerun {
+    pub(crate) const NAME: &'static str = "run-call-onone";
+    pub(crate) const SKIP_NAME: &'static str = "skip-run-call-onone";
+
+    /// Collects the calls of `src`, or `None` if the test needs no rerun.
+    pub(crate) fn new(src: &str) -> Option<Self> {
+        if codegen_matrix::is_standard(src)
+            || src.lines().any(|line| has_onone_flag(line) || is_skip_directive(line))
+        {
+            return None;
+        }
+        let mut rerun = Self { calls: Vec::new(), failures: Vec::new() };
+        for (directive, revisions) in src.lines().filter_map(parse_directive) {
+            let revisions = revisions
+                .into_iter()
+                .flat_map(|revisions| revisions.split(','))
+                .map(|revision| revision.trim().to_owned())
+                .collect::<Vec<_>>();
+            if let Some(args) = directive.strip_prefix("run-call:")
+                && let Ok(parsed) = parse_call(args)
+            {
+                rerun.calls.push((revisions, parsed.into()));
+            } else if let Some(args) = directive.strip_prefix("run-call-fail:")
+                && let Ok(parsed) = parse_call(args)
+            {
+                rerun.failures.push((revisions, parsed.into()));
+            }
+        }
+        (!rerun.calls.is_empty() || !rerun.failures.is_empty()).then_some(rerun)
+    }
+
+    pub(crate) fn parse_skip(
+        parser: &mut CommentParser<&mut Revisioned>,
+        args: Spanned<&str>,
+        _span: Span,
+    ) {
+        if args.trim().is_empty() {
+            parser.error(args.span(), format!("`{}` requires a reason", Self::SKIP_NAME));
+        }
+    }
+
+    fn has_calls(&self, revision: &str) -> bool {
+        self.calls.iter().any(|(revisions, _)| applies(revisions, revision))
+            || self.failures.iter().any(|(revisions, _)| applies(revisions, revision))
+    }
+
+    fn run(
+        &self,
+        output: &[u8],
+        test_path: &Path,
+        spec_id: SpecId,
+        revision: &str,
+    ) -> Result<(), String> {
+        for (_, call) in self.calls.iter().filter(|(revisions, _)| applies(revisions, revision)) {
+            call.run(output, test_path, spec_id)?;
+        }
+        for (_, call) in self.failures.iter().filter(|(revisions, _)| applies(revisions, revision))
+        {
+            call.run(output, test_path, spec_id)?;
+        }
+        Ok(())
+    }
+}
+
+impl Flag for OnoneRerun {
+    fn clone_inner(&self) -> Box<dyn Flag> {
+        Box::new(self.clone())
+    }
+
+    fn post_test_action(
+        &self,
+        config: &TestConfig,
+        _output: &std::process::Output,
+        build_manager: &BuildManager,
+    ) -> Result<(), Errored> {
+        let revision = config.status.revision();
+        if !self.has_calls(revision) {
+            return Ok(());
+        }
+        let error = |message: String| flag_error(Self::NAME, format!("at `-O none`: {message}"));
+        let spec_id = spec_id(config).map_err(error)?;
+        let mut command = with_onone(&config.build_command(build_manager)?);
+        let output = command.output().map_err(|err| error(format!("failed to spawn: {err}")))?;
+        if !output.status.success() {
+            return Err(error(format!(
+                "compilation failed ({}):\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            )));
+        }
+        self.run(&output.stdout, config.status.path(), spec_id, revision).map_err(error)
+    }
+
+    fn must_be_unique(&self) -> bool {
+        true
+    }
+}
+
+fn applies(scoped: &[String], revision: &str) -> bool {
+    scoped.is_empty() || scoped.iter().any(|scoped| scoped == revision)
+}
+
+fn is_skip_directive(line: &str) -> bool {
+    parse_directive(line).is_some_and(|(directive, _)| {
+        directive.strip_prefix(OnoneRerun::SKIP_NAME).is_some_and(|rest| rest.starts_with(':'))
+    })
+}
+
+fn has_onone_flag(line: &str) -> bool {
+    if !parse_directive(line).is_some_and(|(directive, _)| directive.starts_with("compile-flags")) {
+        return false;
+    }
+    let mut args = line.split_whitespace().peekable();
+    while let Some(arg) = args.next() {
+        let value = match arg {
+            "-O" | "--optimize" => args.peek().copied(),
+            _ => arg.strip_prefix("-O").or_else(|| arg.strip_prefix("--optimize=")),
+        };
+        if value == Some("none") {
+            return true;
+        }
+    }
+    false
+}
+
+/// Copies `command` with every `-O`/`--optimize` flag replaced by `-O none`.
+fn with_onone(command: &Command) -> Command {
+    let mut onone = Command::new(command.get_program());
+    let mut args = command.get_args();
+    while let Some(arg) = args.next() {
+        match arg.to_str() {
+            Some("-O" | "--optimize") => _ = args.next(),
+            Some(arg) if arg.starts_with("-O") || arg.starts_with("--optimize=") => {}
+            _ => _ = onone.arg(arg),
+        }
+    }
+    onone.args(["-O", "none"]);
+    for (key, value) in command.get_envs() {
+        match value {
+            Some(value) => onone.env(key, value),
+            None => onone.env_remove(key),
+        };
+    }
+    if let Some(dir) = command.get_current_dir() {
+        onone.current_dir(dir);
+    }
+    onone
+}
 
 fn parse_call(args: &str) -> Result<ParsedCall<'_>, String> {
     let (call_and_settings, expected) = split_expected(args).unwrap_or((args, ""));
@@ -911,5 +1077,44 @@ mod tests {
         assert!(encode_revert_data("E(uint256)").is_err());
         assert!(encode_revert_data("E(uint256)(1) extra").is_err());
         assert!(encode_revert_data("E(uint256)(1").is_err());
+    }
+
+    #[test]
+    fn replaces_optimization_flags() {
+        let mut command = Command::new("solar");
+        command.args(["-j1", "-Ogas", "t.sol", "--optimize", "size", "--optimize=gas", "-Zfoo"]);
+        command.args(["--optimize-runs", "9", "-O", "size"]);
+        let command = with_onone(&command);
+        let args = command.get_args().map(|arg| arg.to_str().unwrap()).collect::<Vec<_>>();
+        assert_eq!(args, ["-j1", "t.sol", "-Zfoo", "--optimize-runs", "9", "-O", "none"]);
+    }
+
+    #[test]
+    fn detects_onone_compile_flags() {
+        for line in [
+            "//@ compile-flags: -O none",
+            "//@[a] compile-flags: -Onone --emit=abi",
+            "//@ compile-flags: --optimize none",
+            "//@ compile-flags: --optimize=none",
+        ] {
+            assert!(has_onone_flag(line), "{line}");
+        }
+        for line in
+            ["//@ compile-flags: -Ogas", "//@ compile-flags: -O size", "// compile-flags: -O none"]
+        {
+            assert!(!has_onone_flag(line), "{line}");
+        }
+    }
+
+    #[test]
+    fn collects_calls_per_revision() {
+        let src = "//@ run-call: f => 1\n//@[a, b] run-call: g => 2\n//@ run-call-fail: h\n";
+        let rerun = OnoneRerun::new(src).unwrap();
+        assert_eq!((rerun.calls.len(), rerun.failures.len()), (2, 1));
+        assert_eq!(rerun.calls[1].0, ["a", "b"]);
+        assert!(OnoneRerun::new("//@ compile-flags: -Ogas\n").is_none());
+        assert!(OnoneRerun::new("//@ run-call: f\n//@ compile-flags: -O none\n").is_none());
+        assert!(OnoneRerun::new("//@ run-call: f\n//@ skip-run-call-onone: layout\n").is_none());
+        assert!(OnoneRerun::new("//@ codegen-matrix: standard\n//@ run-call: f\n").is_none());
     }
 }
