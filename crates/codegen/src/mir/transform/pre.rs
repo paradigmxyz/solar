@@ -1408,9 +1408,8 @@ impl<'a> Eliminator<'a> {
         };
 
         func.replace_uses(&insts.iter().map(|&(_, result)| (result, replacement)).collect());
-        func.blocks[block]
-            .instructions
-            .retain(|&inst_id| !insts.iter().any(|&(removed, _)| removed == inst_id));
+        let removed = insts.iter().map(|&(inst_id, _)| inst_id).collect::<FxHashSet<_>>();
+        func.blocks[block].instructions.retain(|inst_id| !removed.contains(inst_id));
         self.stats.eliminated += insts.len();
     }
 
