@@ -1,0 +1,36 @@
+//@ revisions: none gas
+//@[none] compile-flags: -Onone --evm-version paris -Zmir-pipeline=lower-mcopy
+//@[none] filecheck: --check-prefix=NONE
+//@[gas] compile-flags: -Ogas --evm-version paris -Zmir-pipeline=lower-mcopy
+//@[gas] filecheck: --check-prefix=GAS
+@module NoneMCopy
+
+// Without optimization the pass skips provenance: allocation copies check their direction at
+// runtime and never call the shared helper. Optimized builds prove the allocations disjoint and
+// copy forward without a check. A constant copy of one word needs no provenance in either mode.
+
+// NONE-LABEL: fn @copy_allocations
+// NONE: + {{v[0-9]+}} = lt v1, v3
+// NONE-NOT: icall @mcopy_words
+// GAS-LABEL: fn @copy_allocations
+// GAS-NOT: lt v1, v3
+// GAS-NOT: icall @mcopy_words
+fn @copy_allocations() {
+  bb0:
+    v0 = alloc 96
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = alloc 96
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mcopy v3, v1, 96
+    ret
+}
+
+// NONE-LABEL: fn @copy_one_word
+// NONE-NOT: lt arg1, arg0
+// NONE: {{v[0-9]+}} = mload
+// NONE: mstore
+fn @copy_one_word(arg0: i256, arg1: i256) {
+  bb0:
+    mcopy arg0, arg1, 32
+    ret
+}
