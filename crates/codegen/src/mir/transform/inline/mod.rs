@@ -9,7 +9,9 @@
 //!
 //! Size mode admits tiny bodies whose estimated bytes do not grow, and consumes
 //! sole-use callees, adding to the body the code the backend would stop sharing
-//! with other functions (see `shared_runs`). Gas mode also considers scalar loop
+//! with other functions (see `shared_runs`). It also inlines every call of an arithmetic leaf
+//! or forwarder with several sites when the copies cost less than the shared body and its call
+//! protocols (see `all_sites`). Gas mode also considers scalar loop
 //! helpers, constant-argument wrappers, and callees sharing a direct
 //! constant-slot read with the call block. The latter
 //! must not write storage or observe gas; later CSE removes redundant reads.
@@ -71,6 +73,7 @@ use solar_ast::StateMutability;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
+mod all_sites;
 mod dispatch;
 mod guards;
 mod shared_runs;
@@ -255,6 +258,8 @@ impl MirInliner {
             || summaries.values().any(|summary| summary.is_small_literal_return))
         .then(|| ArtifactCallCounts::new(module, &call_graph));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
+        let mut consumed_everywhere =
+            all_sites::consumed_everywhere(self, module, &summaries, &call_counts);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         // Inline only into the callers that `call_counts` covers, so the count updates below stay
@@ -312,12 +317,13 @@ impl MirInliner {
                     continue;
                 }
                 let preferred = preferred_large_call_sites.get(&site.callee).copied();
+                let consume_all = consumed_everywhere.contains(&site.callee);
                 let inlineable = self.is_inlineable(
                     module,
                     caller_id,
                     site,
                     summary,
-                    Pricing { target: self.target, call_count },
+                    Pricing { target: self.target, call_count, consume_all },
                     preferred,
                 );
                 // Creation code carries its own copy of every callee, so a callee that only this
@@ -327,8 +333,11 @@ impl MirInliner {
                 let creation_inlineable = !inlineable
                     && self.straight_line.contains(caller_id)
                     && artifact_counts.is_some_and(|counts| {
-                        let creation =
-                            Pricing { target: self.target.priced_for(true), call_count: counts[0] };
+                        let creation = Pricing {
+                            target: self.target.priced_for(true),
+                            call_count: counts[0],
+                            consume_all,
+                        };
                         self.is_inlineable(module, caller_id, site, summary, creation, preferred)
                     });
                 if !inlineable && !creation_inlineable {
@@ -355,6 +364,8 @@ impl MirInliner {
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
                     stats.modified.push(caller_id);
+                    // The price of its sites was for the body it had.
+                    consumed_everywhere.remove(&caller_id);
                     if call_counts.get(&site.callee) == Some(&1) {
                         stats.consumed.push(site.callee);
                     }
@@ -492,10 +503,12 @@ impl MirInliner {
         caller: MirFunctionId,
         site: CallSite,
         summary: MirInlineSummary,
-        Pricing { target, call_count }: Pricing,
+        Pricing { target, call_count, consume_all }: Pricing,
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
         let single_call = call_count == 1;
+        // Inlining every call site removes the callee, as it does for a sole-use helper.
+        let sole = single_call || consume_all;
         let gas = self.target.optimization().is_gas();
         let hot = gas
             && site.loop_depth > 0
@@ -514,7 +527,7 @@ impl MirInliner {
                 && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
-            || (summary.has_phi && !(summary.phi_stack_peak.is_some() && (single_call || hot)))
+            || (summary.has_phi && !(summary.phi_stack_peak.is_some() && (sole || hot)))
             || summary.has_unsupported_terminator
             || summary.return_count == 0
             || (self.physical
@@ -552,7 +565,7 @@ impl MirInliner {
             && (!summary.has_icall || summary.is_transparent_forwarder || (memory_wrapper && gas))
             && (single_call || !summary.void_forwarder_adds_args)
             && (!summary.has_control_flow || summary.is_check_wrapper);
-        let consume = single_call
+        let consume = sole
             && summary.internal_frame_size == 0
             && !summary.has_reference_return
             && summary.instruction_count <= 256;
@@ -572,7 +585,7 @@ impl MirInliner {
         let storage = gas && self.shares_storage_read(module, caller, site);
         let bounded = summary.instruction_count <= 96
             && summary.block_count <= 16
-            && (single_call
+            && (sole
                 || hot
                 || summary.block_count <= 10
                 || preferred_large_call_site == Some((caller, site.inst)));
@@ -589,7 +602,7 @@ impl MirInliner {
         // it replaces. Single-call callees disappear from emitted runtime
         // bytecode after inlining, so they are allowed through the normal
         // code-growth check below.
-        if !single_call
+        if !sole
             && site.loop_depth == 0
             && summary.has_state_effect
             && summary.estimated_code_size
@@ -599,7 +612,9 @@ impl MirInliner {
             return false;
         }
 
-        self.inline_lifetime_cost_improves(module, target, summary, site, single_call)
+        // `all_sites` priced the callee over every call site.
+        consume_all
+            || self.inline_lifetime_cost_improves(module, target, summary, site, single_call)
     }
 
     /// Compares runtime protocol savings over the expected contract lifetime
@@ -696,6 +711,8 @@ fn profitable(
 struct Pricing {
     target: Target,
     call_count: usize,
+    /// Whether inlining every call site and deleting the callee is profitable.
+    consume_all: bool,
 }
 
 #[derive(Clone, Copy)]
