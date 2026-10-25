@@ -12,20 +12,19 @@
 //!
 //! A header whose branch is a bare test, `test; push body; jumpi; exit`, moves its latch a second
 //! way. The latch repeats the test and branch, `...; test; push body; jumpi; jump exit`, and
-//! follows the header, so the preheader still falls into the header, which only it reaches, and
-//! every iteration enters the body's `JUMPDEST` alone instead of the body's and then the
-//! header's. Code after the header's branch moves to a new block placed after the latch, which
-//! the header and the latch both reach. The header's jump to it replaces the preheader's jump, so
-//! a loop that never runs pays what rotating it would. The copy is priced with the target's cost
-//! model: its bytes, over their lifetime, against one saved `JUMPDEST` for each of
-//! `UNCOUNTED_LOOP_ITERATIONS` iterations, so `-Ztune=interpreter` also prices the saved dispatch.
-//! Only the pushes, stack operations, and position-independent computations that tail duplication
-//! may copy qualify as the test. The preheader's saved jump, once per loop, is not counted. When
-//! the copy does not pay, or the latch turns around, the latch moves before the header as above.
-//! On evm2's interpreter (AMD Zen 5), solady's hex loop took 101 gas and 1,282 instructions per
-//! iteration this way, against 102 and 1,302 for the rotated loop. Its JIT ran both in about the
-//! same cycles, 12.9 to 14.5 against 14.1 to 15.2 per iteration, as it merges the gas checks of
-//! the two `JUMPDEST` sections.
+//! follows the header, so the preheader still falls into the header, and every iteration enters the
+//! body's `JUMPDEST` alone instead of the body's and then the header's. Code after the header's
+//! branch moves to a new block placed after the latch, which the header and the latch both reach.
+//! The header's jump to it replaces the preheader's jump, so a loop that never runs pays what
+//! rotating it would. The copy is priced with the target's cost model: its bytes, over their
+//! lifetime, against one saved `JUMPDEST` for each of `UNCOUNTED_LOOP_ITERATIONS` iterations, so
+//! `-Ztune=interpreter` also prices the saved dispatch. Only the pushes, stack operations, and
+//! position-independent computations that tail duplication may copy qualify as the test. The
+//! preheader's saved jump, once per loop, is not counted. When the copy does not pay, or the latch
+//! turns around, the latch moves before the header as above. On evm2's interpreter (AMD Zen 5),
+//! solady's hex loop took 101 gas and 1,282 instructions per iteration this way, against 102 and
+//! 1,302 for the rotated loop. Its JIT ran both in about the same cycles, 12.9 to 14.5 against 14.1
+//! to 15.2 per iteration, as it merges the gas checks of the two `JUMPDEST` sections.
 //!
 //! Size mode skips the pass. A move trades the latch's jump for the preheader's, which is
 //! byte-neutral, except that a turned test drops its `iszero`. Moving latches in size mode
@@ -168,7 +167,8 @@ fn backedge_weights(
     result
 }
 
-/// Gives a loop's latch the fallthrough currently owned by its one-time preheader.
+/// Gives a loop's latch the fallthrough currently owned by its one-time preheader, or, when the
+/// header's test is cheap to repeat, the header's test and branch as well.
 /// An adjacent header/latch pair also qualifies when the header's physical
 /// terminator leaves no fallthrough into the latch.
 fn place_loop_latches(module: &mut Module, target: &Target) -> bool {
@@ -244,9 +244,7 @@ fn place_loop_latches(module: &mut Module, target: &Target) -> bool {
                 true
             };
             if visited <= 256 && reachable.contains(latch) && hotter {
-                let branch =
-                    if inverted { None } else { copyable_branch(module, target, header, latch) };
-                if let Some(branch) = branch {
+                if !inverted && let Some(branch) = copyable_branch(module, target, header, latch) {
                     let exit = copy_header(module, header, latch, branch);
                     branches.0[header] = None;
                     branches.0[latch] = None;
@@ -322,8 +320,8 @@ fn copyable_branch(
     let block = &module.blocks[header];
     let branch =
         block.instructions.iter().position(|inst| inst.as_evm_opcode() == Some(op::JUMPI))?;
-    let test = &block.instructions[..branch.checked_sub(1)?];
-    block.instructions[branch - 1].pushed_block()?;
+    let (push, test) = block.instructions[..branch].split_last()?;
+    push.pushed_block()?;
     if !is_split_point(&latch.instructions, latch.instructions.len())
         || !is_split_point(&block.instructions, branch + 1)
     {

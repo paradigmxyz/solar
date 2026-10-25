@@ -1,0 +1,21 @@
+- // === ROOT/tests/ui/codegen/evm-ir/loop-layout/split_header.evmir (before loop-layout) ===
++ // === ROOT/tests/ui/codegen/evm-ir/loop-layout/split_header.evmir (after loop-layout) ===
+  @module SplitHeader
+  bb0:
+    push 3
+    push 0
+    jump bb1
+  bb1:
+    dup 2
+    dup 2
+    lt
+    push bb2
+    jumpi
+    pop
+    pop
+    stop
+  bb2:
+    push 1
+    add
+    jump bb1
+  
