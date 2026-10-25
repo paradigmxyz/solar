@@ -1062,8 +1062,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .collect::<IndexVec<FunctionId, _>>();
         let mut callers = index_vec![Vec::new(); module.functions.len()];
-        for (func_id, calls) in calls.iter_enumerated() {
-            for &(callee, _) in calls {
+        for (func_id, edges) in calls.iter_enumerated() {
+            for &(callee, _) in edges {
                 callers[callee].push(func_id);
             }
         }
@@ -1071,7 +1071,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // function whose inputs are unchanged since its last visit would store nothing new.
         let mut dirty = DenseBitSet::new_filled(module.functions.len());
         for _ in 0..=module.functions.len() * 2 {
-            let mut changed = false;
+            if dirty.is_empty() {
+                break;
+            }
             for (func_id, func) in module.functions.iter_enumerated() {
                 if !dirty.remove(func_id) {
                     continue;
@@ -1123,13 +1125,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 for (callee, index, offset) in incoming {
                     let stored =
                         arguments.entry(callee).or_default().entry(index).or_insert_with(|| {
-                            changed = true;
                             dirty.insert(callee);
                             offset
                         });
                     if offset > *stored {
                         *stored = offset;
-                        changed = true;
                         dirty.insert(callee);
                     }
                 }
@@ -1145,14 +1145,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                 }
                 if returns_grew {
-                    changed = true;
                     for &caller in &callers[func_id] {
                         dirty.insert(caller);
                     }
                 }
-            }
-            if !changed {
-                break;
             }
         }
         offsets
