@@ -103,6 +103,9 @@ bb7:
   or
   push bb10
   jumpi
+  dup 3
+  dup 5
+  mstore
   push 32
   dup 5
   add

@@ -1807,6 +1807,26 @@ impl AliasAnalysis {
         Self::instruction_may_reset_fmp_with_summaries(func, inst, self.call_summaries.as_deref())
     }
 
+    /// Returns whether an instruction may write memory through a runtime index, which wraps and
+    /// so may land on the free-memory pointer.
+    #[must_use]
+    pub(crate) fn instruction_may_wrap_write(&self, func: &Function, inst: InstId) -> bool {
+        match func.inst(inst).kind {
+            InstKind::ICall { function: Callee::Function(function), .. } => self
+                .call_summaries
+                .as_deref()
+                .and_then(|summaries| summaries.get(function))
+                .is_none_or(|summary| summary.may_wrap_write()),
+            _ => self.instruction_mod_ref(func, inst).writes().iter().any(|access| {
+                matches!(
+                    access,
+                    Access::Location(Location::Memory(location))
+                        if location.size == LocationSize::Unknown
+                )
+            }),
+        }
+    }
+
     /// Returns whether an instruction may terminate the current EVM call successfully.
     #[must_use]
     pub(crate) fn instruction_may_terminate(&self, func: &Function, inst: InstId) -> bool {
