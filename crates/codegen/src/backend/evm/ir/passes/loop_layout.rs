@@ -10,6 +10,13 @@
 //! turns around, since a turned test that keeps its jump to the header would pay that jump on
 //! every iteration.
 //!
+//! Size mode skips the pass. A move trades the latch's jump for the preheader's, which is
+//! byte-neutral, except that a turned test drops its `iszero`. Moving latches in size mode
+//! measured 113 runtime bytes larger across the benchmark corpus, and moving only turned latches
+//! 54 bytes larger. Running only the layout step shrank runtime code by 4,902 bytes but grew 19
+//! contracts by 1,244 bytes in total, as the second layout moved small traces below the `PUSH1`
+//! limit and pushed other labels past it; that needs a fix in block layout, not a price here.
+//!
 //! When the current fallthrough also comes from the loop, a bounded flow estimate distinguishes
 //! the common iteration from rarer paths. A branch into a cold block, such as an overflow panic,
 //! is never taken. When the header dominates the latch, a branch in the natural loop of their
