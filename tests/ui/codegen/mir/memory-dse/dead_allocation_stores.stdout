@@ -268,3 +268,14 @@
       stop
   }
   
+  fn @indexed_other(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = alloc 64
+      mstore v0, arg0
+      v1 = alloc 64
+      v2 = ptradd v1, arg1
+      v3 = mload v2
+      mstore 0, v3
+      returndata 0, 32
+  }
+  

@@ -1823,6 +1823,13 @@ impl MemoryStoreEliminator {
         for access in effects.reads() {
             let beyond = match *access {
                 Access::Any(AddressSpace::Memory) => None,
+                // A runtime-indexed access wraps, and so may land in any object.
+                Access::Location(Location::Memory(location))
+                    if location.size == LocationSize::Unknown
+                        && location.address.base != MemoryBase::InternalFrame =>
+                {
+                    None
+                }
                 Access::Location(Location::Memory(location)) => match location.address.base {
                     // An access within the bounds of an allocation.
                     MemoryBase::Allocation(_)

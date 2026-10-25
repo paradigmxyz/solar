@@ -58,3 +58,29 @@ fn @grown(arg0: i256) -> i256 [selector=0x922be285, pure, abi_params=[uint256], 
     v10 = mload v7
     ret v10
 }
+
+fn @wrapped(arg0: i256, arg1: i256) -> i256 [selector=0x08a7c76d, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = mload v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    mstore v4, arg0
+    v5 = alloc zeroed checked 64
+    mstore v5, 1
+    v6 = not 0
+    v7 = ptrtoint ptr<memory> v5 to i256
+    mstore v5, v6
+    v8 = mload v5
+    v9 = lt arg1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = shl arg1, 5
+    v12 = ptradd v5, v11
+    v13 = ptradd v12, 32
+    v14 = mload v13
+    ret v14
+}
