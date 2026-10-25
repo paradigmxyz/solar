@@ -98,7 +98,8 @@ pub(super) fn inline_dispatch(module: &mut Module, target: &Target) -> bool {
     let argument_count =
         routes.iter().map(|&id| module.function(id).arg_indices().count()).max().unwrap_or(0);
     let saved = target.jump().times(routes.len() as u32);
-    if !super::profitable(target, 0, saved.bytes as usize, u64::from(saved.gas), 1) {
+    if !super::profitable(target, 0, saved.bytes as usize, u64::from(target.runtime_gas(saved)), 1)
+    {
         return false;
     }
     // switch selector, cases

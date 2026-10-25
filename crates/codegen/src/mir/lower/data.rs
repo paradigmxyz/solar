@@ -122,7 +122,7 @@ fn data_copy_is_profitable_for(gcx: Gcx<'_>, data: &[u8], separate_tail: bool) -
     }
 
     target.improves(
-        i64::from(old.gas) - i64::from(new.gas),
+        i64::from(target.runtime_gas(old)) - i64::from(target.runtime_gas(new)),
         i64::from(old.bytes) - i64::from(new.bytes),
     )
 }

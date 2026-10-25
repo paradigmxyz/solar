@@ -16,7 +16,6 @@
 
 use super::{
     EvmPass,
-    compact_pushes::selected_len,
     utils::{is_terminal_boundary, remap_block_order},
 };
 use crate::{
@@ -348,12 +347,12 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
         target.opcode(op::push(size.bytes())).bytes as usize
     } else if inst.is_encoded_push() {
         match &inst.value {
-            Some(PushValue::Immediate(value)) => selected_len(gcx, *value),
+            Some(PushValue::Immediate(value)) => target.push(*value).bytes as usize,
             Some(PushValue::Library(_)) => target.opcode(op::PUSH20).bytes as usize,
             Some(PushValue::Block(_)) => target.label_push().bytes as usize,
             // Data follows the code, so assume its offsets need a third byte.
             Some(PushValue::Data(_)) => target.opcode(op::PUSH3).bytes as usize,
-            Some(PushValue::DataSize(size)) => selected_len(gcx, size.bound()),
+            Some(PushValue::DataSize(size)) => target.push(size.bound()).bytes as usize,
             _ => 1,
         }
     } else if let Some(stack_op) = inst.as_stack_op() {

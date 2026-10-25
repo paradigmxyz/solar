@@ -1540,8 +1540,9 @@ fn estimated_icall_savings(target: &Target, site: CallSite, summary: MirInlineSu
     let frame_words = (summary.internal_frame_size / EvmMemoryLayout::WORD_SIZE)
         + (EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE)
         + (site.args_len + site.returns) as u64;
-    let protocol = target.icall(site.args_len, site.returns, frame_words).gas;
-    let return_protocol = target.internal_return(summary.param_count, site.returns).gas;
+    let protocol = target.runtime_gas(target.icall(site.args_len, site.returns, frame_words));
+    let return_protocol =
+        target.runtime_gas(target.internal_return(summary.param_count, site.returns));
     let loop_multiplier = (site.loop_depth as u64).saturating_add(1);
     u64::from(protocol + return_protocol) * loop_multiplier
 }

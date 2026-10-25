@@ -166,9 +166,9 @@ impl RunState {
             let transfer_bytes = (target.opcode(op::PUSH2).bytes
                 + target.opcode(op::JUMP).bytes
                 + target.opcode(op::JUMPDEST).bytes) as usize;
-            let transfer_gas = target.opcode_gas(op::PUSH2)
-                + target.opcode_gas(op::JUMP)
-                + target.opcode_gas(op::JUMPDEST);
+            let transfer_gas = target.runtime_gas(
+                target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST),
+            );
             if let Some((representative, common)) = matched
                 && common > 0
                 && {
