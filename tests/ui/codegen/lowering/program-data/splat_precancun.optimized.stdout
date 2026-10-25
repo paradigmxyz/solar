@@ -6,8 +6,8 @@
 
 fn @data() -> i256 [may_return_memory, pure] {
   bb0:
-    v8 = mload 64 !metadata(memory=scratch)
-    v9 = add v8, 224 !metadata(fmp_bump)
+    v8 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v9 = add v8, 224 !metadata(alloc_ptr)
     mstore 64, v9
     mstore v8, 161
     v4 = add v8, 192
@@ -43,8 +43,8 @@ fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
 
 fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
   bb0:
-    v12 = mload 64 !metadata(memory=scratch)
-    v13 = add v12, 96 !metadata(fmp_bump)
+    v12 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v13 = add v12, 96 !metadata(alloc_ptr)
     mstore 64, v13
     mstore v12, 33
     v8 = add v12, 32
@@ -58,8 +58,8 @@ fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
 
 fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
   bb0:
-    v23 = mload 64 !metadata(memory=scratch)
-    v24 = add v23, 128 !metadata(fmp_bump)
+    v23 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v24 = add v23, 128 !metadata(alloc_ptr)
     mstore 64, v24
     mstore v23, 96
     v10 = add v23, 32

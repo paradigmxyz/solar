@@ -120,8 +120,8 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v44 = or v4, v6
     jumpi v44, bb1, bb2
   bb2:
-    v42 = mload 64 !metadata(memory=scratch)
-    v43 = add v42, 96 !metadata(fmp_bump)
+    v42 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v43 = add v42, 96 !metadata(alloc_ptr)
     mstore 64, v43 !metadata(memory=scratch)
     v8 = calldataload v2
     mstore v42, v8
@@ -172,8 +172,8 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v22 = or v4, v6
     jumpi v22, bb1, bb2
   bb2:
-    v20 = mload 64 !metadata(memory=scratch)
-    v21 = add v20, 96 !metadata(fmp_bump)
+    v20 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v21 = add v20, 96 !metadata(alloc_ptr)
     mstore 64, v21 !metadata(memory=scratch)
     v8 = icall @decode_calldata_type.2, v2, v2
     mstore v20, v8
@@ -211,8 +211,8 @@ fn @entry() [entry] {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0 !metadata(fmp_bump)
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

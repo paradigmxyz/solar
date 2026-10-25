@@ -7,8 +7,8 @@
 
 fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, 320 !metadata(fmp_bump)
+    v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v25 = add v24, 320 !metadata(alloc_ptr)
     mstore 64, v25
     mstore v24, 257
     v17 = add v24, 288
@@ -26,8 +26,8 @@ fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
 
 fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, 224 !metadata(fmp_bump)
+    v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v25 = add v24, 224 !metadata(alloc_ptr)
     mstore 64, v25
     mstore v24, 161
     v17 = add v24, 192
@@ -133,8 +133,8 @@ fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
 
 fn @zeroData.body() -> i256 [may_return_memory, pure] {
   bb0:
-    v5 = mload 64 !metadata(memory=scratch)
-    v6 = add v5, 192 !metadata(fmp_bump)
+    v5 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v6 = add v5, 192 !metadata(alloc_ptr)
     mstore 64, v6
     mstore v5, 160
     v7 = calldatasize
@@ -145,8 +145,8 @@ fn @zeroData.body() -> i256 [may_return_memory, pure] {
 
 fn @splatData.body() -> i256 [may_return_memory, pure] {
   bb0:
-    v15 = mload 64 !metadata(memory=scratch)
-    v16 = add v15, 192 !metadata(fmp_bump)
+    v15 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v16 = add v15, 192 !metadata(alloc_ptr)
     mstore 64, v16
     mstore v15, 160
     v7 = add v15, 32

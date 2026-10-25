@@ -10,9 +10,7 @@
 //@ run-call: hashBranch true, 1, 2 => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
 
 // The free-memory pointer read in each switch arm stays on the stack, so no
-// level reserves a spill slot for it and the frame floor stays at 128. Both
-// arms end the call after hashing, so the bump they store is never read and
-// optimized builds drop it.
+// level reserves a spill slot for it and the frame floor stays at 128.
 // NONE-LABEL: @module FmpBlockLocalSpills_runtime
 // NONE: push 128
 // NONE-NEXT: push 64
@@ -30,22 +28,20 @@
 // GAS-NEXT: push 64
 // GAS-NEXT: mstore
 // GAS: mload
-// GAS-NEXT: swap 1
-// GAS-NOT: push 64{{[[:space:]]+}}mstore
+// GAS-NEXT: push 32
 // GAS: mload
-// GAS-NEXT: swap 1
-// GAS-NOT: push 64{{[[:space:]]+}}mstore
+// GAS-NEXT: push 64
 //
 // SIZE-LABEL: @module FmpBlockLocalSpills_runtime
 // SIZE: push 128
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mstore
 // SIZE: mload
-// SIZE-NEXT: swap 1
-// SIZE-NOT: push 64{{[[:space:]]+}}mstore
+// SIZE-NOT: mstore
+// SIZE: push 64{{[[:space:]]+}}mstore
 // SIZE: mload
-// SIZE-NEXT: swap 1
-// SIZE-NOT: push 64{{[[:space:]]+}}mstore
+// SIZE-NOT: mstore
+// SIZE: push 64{{[[:space:]]+}}mstore
 contract FmpBlockLocalSpills {
     function hashBranch(
         bool pair,

@@ -34,8 +34,8 @@ fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
     v5 = returndatasize
     v6 = add v5, 63
     v9 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v22 = mload 64 !metadata(memory=scratch)
-    v23 = add v22, v9 !metadata(fmp_bump)
+    v22 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v23 = add v22, v9 !metadata(alloc_ptr)
     mstore 64, v23 !metadata(memory=scratch)
     mstore v22, v5
     v19 = add v22, 32
@@ -61,8 +61,8 @@ fn @paintBool() -> i256 [may_return_memory, pure] {
     v7 = returndatasize
     v8 = add v7, 63
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, v11 !metadata(fmp_bump)
+    v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v25 = add v24, v11 !metadata(alloc_ptr)
     mstore 64, v25 !metadata(memory=scratch)
     mstore v24, v7
     v21 = add v24, 32
@@ -83,8 +83,8 @@ fn @wrap(arg0: i256) -> i256 [may_return_memory, pure] {
     jumpi v8, bb1, bb2
   bb2:
     v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = mload 64 !metadata(memory=scratch)
-    v33 = add v32, v10 !metadata(fmp_bump)
+    v32 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v33 = add v32, v10 !metadata(alloc_ptr)
     mstore 64, v33 !metadata(memory=scratch)
     mstore v32, v6
     v23 = add v32, 32
@@ -128,8 +128,8 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
     jumpi v18, bb4, bb5
   bb5:
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v36 = mload 64 !metadata(memory=scratch)
-    v37 = add v36, v20 !metadata(fmp_bump)
+    v36 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v37 = add v36, v20 !metadata(alloc_ptr)
     v38 = lt v37, v36
     v39 = gt v37, 0xffffffffffffffff
     v40 = or v38, v39
@@ -154,7 +154,7 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
 
 fn @encode_abi_tuple(arg0: i256) -> slice<memory> [may_return_memory, return_abi=[i256, i256]] {
   bb0:
-    v24 = mload 64 !metadata(memory=scratch)
+    v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v24, 32
     mstore v24, 32
     v5 = mload arg0

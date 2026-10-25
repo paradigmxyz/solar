@@ -8,7 +8,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v2 = gas
-    v200 = mload 64 !metadata(memory=scratch)
+    v200 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v201 = add v200, 64
     mstore 64, v201 !metadata(memory=scratch)
     mstore v200, 0xb3de648b00000000000000000000000000000000000000000000000000000000
@@ -20,8 +20,8 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v58 = returndatasize
     v59 = add v58, 63
     v62 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v205 = mload 64 !metadata(memory=scratch)
-    v206 = add v205, v62 !metadata(fmp_bump)
+    v205 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v206 = add v205, v62 !metadata(alloc_ptr)
     mstore 64, v206 !metadata(memory=scratch)
     mstore v205, v58
     v176 = add v205, 32
@@ -39,7 +39,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v37 = and v34, v36
     jumpi v37, bb6, bb7
   bb7:
-    v211 = mload 64 !metadata(memory=scratch)
+    v211 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v149 = add v211, 64
     mstore v211, 3
     v151 = add v211, 32
@@ -58,7 +58,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb6:
     v182 = add v205, 36
     v40 = mload v182
-    v208 = mload 64 !metadata(memory=scratch)
+    v208 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v209 = add v208, 64
     mstore v208, 32
     v184 = add v208, 32
@@ -76,7 +76,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v29 = sub v58, 4
     v178 = add v205, 36
     v69 = icall @decode_aggregate.4, v178, v29
-    v207 = mload 64 !metadata(memory=scratch)
+    v207 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v109 = add v207, 64
     mstore v207, 1
     v111 = add v207, 32
@@ -97,8 +97,8 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v48 = returndatasize
     v49 = add v48, 63
     v52 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v202 = mload 64 !metadata(memory=scratch)
-    v203 = add v202, v52 !metadata(fmp_bump)
+    v202 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v203 = add v202, v52 !metadata(alloc_ptr)
     mstore 64, v203 !metadata(memory=scratch)
     mstore v202, v48
     v172 = add v202, 32
@@ -107,7 +107,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v170 = mload 32 !metadata(memory=scratch)
     v168 = add v170, 32
     v169 = mload v168
-    v204 = mload 64 !metadata(memory=scratch)
+    v204 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v90 = add v204, 64
     mstore v204, v166
     v92 = add v204, 32
@@ -130,7 +130,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v2 = gas
-    v76 = mload 64 !metadata(memory=scratch)
+    v76 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v77 = add v76, 64
     mstore 64, v77 !metadata(memory=scratch)
     mstore v76, 0xb3de648b00000000000000000000000000000000000000000000000000000000
@@ -142,8 +142,8 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     v41 = returndatasize
     v42 = add v41, 63
     v45 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v80 = mload 64 !metadata(memory=scratch)
-    v81 = add v80, v45 !metadata(fmp_bump)
+    v80 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v81 = add v80, v45 !metadata(alloc_ptr)
     mstore 64, v81 !metadata(memory=scratch)
     mstore v80, v41
     v67 = add v80, 32
@@ -166,8 +166,8 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     v31 = returndatasize
     v32 = add v31, 63
     v35 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v78 = mload 64 !metadata(memory=scratch)
-    v79 = add v78, v35 !metadata(fmp_bump)
+    v78 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v79 = add v78, v35 !metadata(alloc_ptr)
     mstore 64, v79 !metadata(memory=scratch)
     mstore v78, v31
     v65 = add v78, 32
@@ -305,8 +305,8 @@ fn @entry() [entry] {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0 !metadata(fmp_bump)
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

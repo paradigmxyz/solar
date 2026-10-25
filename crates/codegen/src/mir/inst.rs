@@ -233,14 +233,14 @@ impl InstructionMetadata {
 
     /// Returns whether this sum is an allocator bump that does not wrap.
     #[must_use]
-    pub(crate) fn fmp_bump(&self) -> bool {
-        self.flags.fmp_bump()
+    pub(crate) fn alloc_ptr(&self) -> bool {
+        self.flags.alloc_ptr()
     }
 
     /// Marks the sum of an allocation's pointer and size, which cannot wrap in a program that
     /// completes, so the sum is not below the pointer.
-    pub(crate) fn set_fmp_bump(&mut self, value: bool) {
-        self.flags.set_fmp_bump(value);
+    pub(crate) fn set_alloc_ptr(&mut self, value: bool) {
+        self.flags.set_alloc_ptr(value);
     }
 
     /// Returns whether this copy's source and destination ranges never overlap.
@@ -269,7 +269,7 @@ impl MetadataFlags {
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
-    const FMP_BUMP: u16 = 0b10_0000_0000_0000;
+    const ALLOC_PTR: u16 = 0b10_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -343,15 +343,15 @@ impl MetadataFlags {
         }
     }
 
-    fn fmp_bump(self) -> bool {
-        self.0 & Self::FMP_BUMP != 0
+    fn alloc_ptr(self) -> bool {
+        self.0 & Self::ALLOC_PTR != 0
     }
 
-    fn set_fmp_bump(&mut self, value: bool) {
+    fn set_alloc_ptr(&mut self, value: bool) {
         if value {
-            self.0 |= Self::FMP_BUMP;
+            self.0 |= Self::ALLOC_PTR;
         } else {
-            self.0 &= !Self::FMP_BUMP;
+            self.0 &= !Self::ALLOC_PTR;
         }
     }
 
@@ -768,7 +768,7 @@ impl Instruction {
         // %result = old(operands) -> %result = equivalent(new_operands)
         self.kind = kind;
         self.invalidate_operand_metadata();
-        self.metadata.set_fmp_bump(false);
+        self.metadata.set_alloc_ptr(false);
         if !matches!(self.kind, InstKind::Alloc { .. }) {
             self.metadata.clear_deferred_alloc();
             self.metadata.set_preserves_fmp(false);

@@ -121,6 +121,7 @@ fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {
         let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
         // ptr = inttoptr (load memory 64) to ptr<memory>
         let free = builder.load(slot, PtrLocation::Memory);
+        mark_alloc_ptr(&mut builder, free);
         let ptr = builder.cast(free, MirType::MEMPTR);
         let next = bump(&mut builder, ptr, size);
         let bump_overflow = builder.lt(next, ptr);
@@ -388,6 +389,7 @@ fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::Inst
             builder.func_mut().blocks[block].instructions.pop();
         }
         let ptr = builder.load(slot, PtrLocation::Memory);
+        mark_alloc_ptr(builder, ptr);
         if attached {
             builder.func_mut().blocks[block].instructions.push(inst);
         }
@@ -395,11 +397,13 @@ fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::Inst
     } else {
         InstKind::Load(slot, PtrLocation::Memory)
     };
+    let is_load = matches!(kind, InstKind::Load(..));
     let instruction = builder.func_mut().inst_mut(inst);
     instruction.kind = kind;
     instruction.metadata.set_effect(None);
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
+    instruction.metadata.set_alloc_ptr(is_load);
 }
 
 fn rewrite_as_fmp_store(
@@ -422,13 +426,19 @@ fn rewrite_as_fmp_store(
 /// a checked allocation tests it, and an unchecked one is followed by the write that fills the
 /// range, which runs out of gas first.
 fn bump(builder: &mut FunctionBuilder<'_>, ptr: ValueId, size: ValueId) -> ValueId {
-    // next = add ptr, size !metadata(fmp_bump)
+    // next = add ptr, size !metadata(alloc_ptr)
     let next = builder.add(ptr, size);
-    if let Value::Inst(inst) = builder.func().value(next) {
-        let inst = *inst;
-        builder.func_mut().inst_mut(inst).metadata.set_fmp_bump(true);
-    }
+    mark_alloc_ptr(builder, next);
     next
+}
+
+/// Marks the instruction that defines `value` as a word the allocator produced, a heap pointer
+/// whatever assembly stored in the free-memory-pointer slot.
+fn mark_alloc_ptr(builder: &mut FunctionBuilder<'_>, value: ValueId) {
+    if let Value::Inst(inst) = builder.func().value(value) {
+        let inst = *inst;
+        builder.func_mut().inst_mut(inst).metadata.set_alloc_ptr(true);
+    }
 }
 
 fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: crate::mir::ValueId) {

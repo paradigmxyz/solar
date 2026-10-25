@@ -3,8 +3,8 @@
 @phase lowered
 fn @f() [selector=0x26121ff0, abi_wrapper, pure] {
   bb0:
-    v21 = mload 64 !metadata(memory=scratch)
-    v22 = add v21, 192 !metadata(fmp_bump)
+    v21 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v22 = add v21, 192 !metadata(alloc_ptr)
     mstore 64, v22
     mstore v21, 160
     v11 = add v21, 32

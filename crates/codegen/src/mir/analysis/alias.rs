@@ -1947,8 +1947,8 @@ impl AliasAnalysis {
         Self::lower_bound(func, value, 0, true)
     }
 
-    /// Returns a lower bound for a pointer that also holds when a runtime `ptradd` offset wraps,
-    /// for deciding which slots a read may observe.
+    /// Returns a lower bound for a pointer that also holds when assembly forges the free-memory
+    /// pointer or a runtime `ptradd` offset wraps, for deciding which slots a read may observe.
     pub(crate) fn read_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
         Self::lower_bound(func, value, 0, false)
     }
@@ -1959,12 +1959,7 @@ impl AliasAnalysis {
     /// subtract from a pointer, and a typed argument may still originate in
     /// opaque code. Only monotonic derivations from compiler-owned bases prove
     /// that a write cannot reach reserved low memory.
-    fn lower_bound(
-        func: &Function,
-        value: ValueId,
-        depth: usize,
-        trust_ptradd: bool,
-    ) -> Option<u64> {
+    fn lower_bound(func: &Function, value: ValueId, depth: usize, trusted: bool) -> Option<u64> {
         if depth > 8 {
             return None;
         }
@@ -1979,23 +1974,26 @@ impl AliasAnalysis {
                 .value_ty(value)
                 .is_some_and(MirType::is_memory_reference)
                 .then_some(EvmMemoryLayout::HEAP_START),
+            // Assembly can store any word in the slot, so only the allocator's own read of it is
+            // a heap pointer when `trusted` is false.
             InstKind::Load(address, PtrLocation::Memory)
-                if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT)
+                    && (trusted || func.inst(*inst).metadata.alloc_ptr()) =>
             {
                 Some(EvmMemoryLayout::HEAP_START)
             }
             InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => {
-                Self::lower_bound(func, *value, depth + 1, trust_ptradd)
+                Self::lower_bound(func, *value, depth + 1, trusted)
             }
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
             InstKind::Add(first, second)
                 if (super::integers::integer_bits(func, value) == 256
                     || super::integers::arithmetic_no_wrap(func, value)) =>
             {
-                Self::lower_bound(func, *first, depth + 1, trust_ptradd)
+                Self::lower_bound(func, *first, depth + 1, trusted)
                     .and_then(|base| base.checked_add(func.value_u64(*second)?))
                     .or_else(|| {
-                        Self::lower_bound(func, *second, depth + 1, trust_ptradd)
+                        Self::lower_bound(func, *second, depth + 1, trusted)
                             .and_then(|base| base.checked_add(func.value_u64(*first)?))
                     })
                     .or_else(|| {
@@ -2004,27 +2002,27 @@ impl AliasAnalysis {
                         // index, may wrap, so it keeps no bound.
                         func.inst(*inst)
                             .metadata
-                            .fmp_bump()
-                            .then(|| Self::lower_bound(func, *first, depth + 1, trust_ptradd))?
+                            .alloc_ptr()
+                            .then(|| Self::lower_bound(func, *first, depth + 1, trusted))?
                     })
             }
             InstKind::Sub(base, offset)
                 if (super::integers::integer_bits(func, value) == 256
                     || super::integers::arithmetic_no_wrap(func, value)) =>
             {
-                Self::lower_bound(func, *base, depth + 1, trust_ptradd)
+                Self::lower_bound(func, *base, depth + 1, trusted)
                     .and_then(|base| base.checked_sub(func.value_u64(*offset)?))
             }
             // `ptradd` does not wrap, so a runtime offset only moves the pointer up. A program
             // that forges the length an index is checked against can still wrap it around, so
-            // `trust_ptradd` is false for reads, which must not miss a slot below the heap.
+            // `trusted` is false for reads, which must not miss a slot below the heap.
             InstKind::PtrAdd(base, offset) => {
                 let offset = match func.value_u64(*offset) {
                     Some(offset) => offset,
-                    None if trust_ptradd => 0,
+                    None if trusted => 0,
                     None => return None,
                 };
-                Self::lower_bound(func, *base, depth + 1, trust_ptradd)?.checked_add(offset)
+                Self::lower_bound(func, *base, depth + 1, trusted)?.checked_add(offset)
             }
             InstKind::ExtractValue {
                 ty: MirType::Slice(_),
@@ -2034,7 +2032,7 @@ impl AliasAnalysis {
                 let Value::Inst(slice) = func.value(*slice) else { return None };
                 match &func.inst(*slice).kind {
                     InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. } => {
-                        Self::lower_bound(func, *ptr, depth + 1, trust_ptradd)
+                        Self::lower_bound(func, *ptr, depth + 1, trusted)
                     }
                     InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
                         Some(EvmMemoryLayout::HEAP_START)
@@ -2044,15 +2042,17 @@ impl AliasAnalysis {
             }
             InstKind::Phi(incoming) => incoming
                 .iter()
-                .map(|(_, value)| Self::lower_bound(func, *value, depth + 1, trust_ptradd))
+                .map(|(_, value)| Self::lower_bound(func, *value, depth + 1, trusted))
                 .collect::<Option<Vec<_>>>()?
                 .into_iter()
                 .min(),
             InstKind::Select(_, first, second) => {
-                Some(
-                    Self::lower_bound(func, *first, depth + 1, trust_ptradd)?
-                        .min(Self::lower_bound(func, *second, depth + 1, trust_ptradd)?),
-                )
+                Some(Self::lower_bound(func, *first, depth + 1, trusted)?.min(Self::lower_bound(
+                    func,
+                    *second,
+                    depth + 1,
+                    trusted,
+                )?))
             }
             _ => None,
         }

@@ -124,8 +124,8 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb4:
     v9 = add v6, 1
     v10 = shl v9, 5
-    v25 = mload 64 !metadata(memory=scratch)
-    v26 = add v25, v10 !metadata(fmp_bump)
+    v25 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v26 = add v25, v10 !metadata(alloc_ptr)
     v27 = lt v26, v25
     v28 = gt v26, 0xffffffffffffffff
     v29 = or v27, v28

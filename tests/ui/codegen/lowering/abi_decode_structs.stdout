@@ -58,7 +58,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     jumpi v125, bb1, bb3
   bb3:
     v26 = alloc 96 !metadata(deferred_alloc)
-    v122 = mload 64 !metadata(memory=scratch)
+    v122 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v123 = add v122, 96
     mstore 64, v123 !metadata(memory=scratch)
     v28 = mload v20
@@ -114,7 +114,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v108 = add v117, 32
     v118 = mload v108
     v9 = mload v121
-    v124 = mload 64 !metadata(memory=scratch)
+    v124 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v76 = add v124, 96
     mstore v124, v2
     v78 = add v124, 32
@@ -158,7 +158,7 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     v53 = or v18, v20
     jumpi v53, bb1, bb3
   bb3:
-    v46 = mload 64 !metadata(memory=scratch)
+    v46 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v47 = add v46, 64
     mstore 64, v47 !metadata(memory=scratch)
     v52 = add v46, 64
@@ -289,7 +289,7 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     v76 = or v3, v5
     jumpi v76, bb1, bb2
   bb2:
-    v74 = mload 64 !metadata(memory=scratch)
+    v74 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v75 = add v74, 96
     mstore 64, v75 !metadata(memory=scratch)
     v7 = mload v1
@@ -382,8 +382,8 @@ fn @entry() [entry] {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0 !metadata(fmp_bump)
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

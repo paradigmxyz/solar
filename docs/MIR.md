@@ -363,7 +363,7 @@ accesses must conservatively alias unless a disjointness proof exists. Allocatio
 provenance uses shared CFG cycle facts to distinguish joins from loops. Data
 pointers retain a proven lower bound from their object, so writes to allocation
 contents do not appear to reset the free-memory pointer. The sum of an allocation's
-pointer and size, marked `fmp_bump`, keeps the bound of the pointer, since a wrapped
+pointer and size, marked `alloc_ptr`, keeps the bound of the pointer, since a wrapped
 sum is checked or unreachable. Raw pointer conversions
 still need a proof that they avoid reserved memory. An access beyond a proven
 fresh allocation can overlap other heap objects while retaining its heap region;
