@@ -1,0 +1,59 @@
+//@ compile-flags: -Zevm-ir-pipeline=none -O none -Zdump=disasm-runtime
+//@ filecheck:
+
+// Every target sits past 255 bytes, so absolute entries need two bytes. Two-byte
+// entries are never packed into a word: the shift and mask that pick one are
+// opaque to jump analysis. The table stays outlined as equal-width entry stubs.
+@module two_byte_entries
+
+// CHECK-LABEL: // === two_byte_entries (runtime) ===
+// CHECK-NEXT: PUSH1 0x01
+// CHECK-NEXT: PUSH1 0x05
+// CHECK-NEXT: MUL
+// CHECK-NEXT: PUSH2
+// CHECK-NEXT: ADD
+// CHECK-NEXT: JUMP ; unknown
+bb0:
+  push 1
+  indexed_jump bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11
+
+bb1:
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  stop
+
+bb2:
+  stop
+
+bb3:
+  stop
+
+bb4:
+  stop
+
+bb5:
+  stop
+
+bb6:
+  stop
+
+bb7:
+  stop
+
+bb8:
+  stop
+
+bb9:
+  stop
+
+bb10:
+  stop
+
+bb11:
+  stop

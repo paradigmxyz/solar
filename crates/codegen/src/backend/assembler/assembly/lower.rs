@@ -150,12 +150,7 @@ pub(in crate::backend) fn lower_evm_ir(
         assembler.gcx.sess.opts.evm_version,
         assembler.gcx.sess.opts.optimization.is_size(),
     );
-    indexed_jump::initialize_indexed_jump_widths(
-        &mut indexed_jump_lowerings,
-        &tables,
-        assembler.gcx.sess.opts.evm_version,
-        assembler.gcx.sess.opts.optimization.is_size(),
-    );
+    indexed_jump::initialize_indexed_jump_widths(&mut indexed_jump_lowerings, &tables);
     let data_layout_is_observable = module.data_layout_is_observable();
     for _ in 0..=32 {
         let program = lower_evm_ir_once(
@@ -178,7 +173,6 @@ pub(in crate::backend) fn lower_evm_ir(
             labels,
             &label_offsets,
             assembler.gcx.sess.opts.evm_version,
-            assembler.gcx.sess.opts.optimization.is_size(),
         ) {
             return program;
         }

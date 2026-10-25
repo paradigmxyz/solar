@@ -921,20 +921,13 @@ fn indexed_jump_dispatch_cost(
     let dispatch_gas = hash_gas + indexed_jump_gas;
     let cost = LoweringCost {
         code_size: hash_len
-            + estimated_indexed_jump_code_size(
-                table_len,
-                table_target_width,
-                1,
-                evm_version,
-                table_target_width == 1,
-            ),
+            + estimated_indexed_jump_code_size(table_len, table_target_width, 1, evm_version),
         max_code_size: hash_len
             + estimated_indexed_jump_code_size(
                 table_len,
                 table_target_width,
                 table_target_width,
                 evm_version,
-                false,
             ),
         hit_gas_sum: dispatch_gas * case_count,
         miss_gas: dispatch_gas,
@@ -973,13 +966,7 @@ fn bounded_indexed_jump_cost(
             + 1
             + MIN_DEFAULT_JUMP_LEN
             + JUMPDEST_LEN
-            + estimated_indexed_jump_code_size(
-                range,
-                table_target_width,
-                1,
-                evm_version,
-                table_target_width == 1,
-            )
+            + estimated_indexed_jump_code_size(range, table_target_width, 1, evm_version)
             + usize::from(shared_case_continuation) * MIN_DEFAULT_JUMP_LEN,
         max_code_size: hash_len
             + max_bounds_len
@@ -991,7 +978,6 @@ fn bounded_indexed_jump_cost(
                 table_target_width,
                 table_target_width,
                 evm_version,
-                false,
             ),
         hit_gas_sum: hit_gas * values.len(),
         miss_gas,
@@ -1267,8 +1253,8 @@ pub(super) fn affine_index(value: U256, low: U256, multiplier: U256, rotate: usi
 
 fn indexed_jump_gas(table_size: usize, target_width: usize, evm_version: EvmVersion) -> usize {
     if packs_indexed_jump(table_size, target_width, evm_version) {
-        let scale = target_width * 8;
-        VERY_LOW_GAS * 6 + if scale.is_power_of_two() { VERY_LOW_GAS } else { MUL_GAS } + JUMP_GAS
+        // Push the offset, ADD, push the packed word, SWAP1, and BYTE, then JUMP.
+        VERY_LOW_GAS * 5 + JUMP_GAS
     } else {
         VERY_LOW_GAS * 4 + MUL_GAS + JUMP_GAS * 2 + JUMPDEST_GAS
     }
