@@ -235,17 +235,17 @@ impl<'a> StorageStoreEliminator<'a> {
                     _,
                     location @ (PtrLocation::Storage | PtrLocation::Transient),
                 ) => {
-                    let space = Space::of(location);
-                    let alias = aa.storage_alias(func, inst_id, slot);
-                    if later_writes.facts(space).contains(&alias) {
+                    let written = Self::slot_location(aa, func, inst_id, slot, location);
+                    let facts = later_writes.facts_mut(written.address_space());
+                    if facts.contains(&written) {
                         if let Some(dead) = &mut dead {
                             dead.insert(inst_id);
                         }
                         continue;
                     }
 
-                    later_writes.facts_mut(space).remove_aliasing(aa, space, alias);
-                    later_writes.facts_mut(space).insert(alias);
+                    facts.remove_aliasing(aa, written);
+                    facts.insert(written);
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref(func, inst_id);
@@ -279,8 +279,7 @@ impl<'a> StorageStoreEliminator<'a> {
                     value,
                     location @ (PtrLocation::Storage | PtrLocation::Transient),
                 ) => {
-                    let location =
-                        Space::of(location).location(aa.storage_alias(func, inst_id, slot));
+                    let location = Self::slot_location(aa, func, inst_id, slot, location);
                     if stored_values.get(&location).is_some_and(|&stored| stored == value) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
@@ -304,6 +303,18 @@ impl<'a> StorageStoreEliminator<'a> {
         func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
     }
 
+    /// The slot a storage or transient store at `slot` writes.
+    fn slot_location(
+        aa: &AliasAnalysis,
+        func: &Function,
+        inst_id: InstId,
+        slot: ValueId,
+        location: PtrLocation,
+    ) -> Location {
+        Location::slot(location, aa.storage_alias(func, inst_id, slot))
+            .expect("a storage or transient store")
+    }
+
     fn remove_aliasing_map(
         aa: &AliasAnalysis,
         values: &mut FxHashMap<Location, ValueId>,
@@ -318,10 +329,8 @@ impl<'a> StorageStoreEliminator<'a> {
             return;
         }
 
-        for space in Space::ALL {
-            if effects.reads_anywhere(space.address_space())
-                || effects.writes_anywhere(space.address_space())
-            {
+        for space in AddressSpace::SLOTS {
+            if effects.reads_anywhere(space) || effects.writes_anywhere(space) {
                 later_writes.facts_mut(space).clear();
                 continue;
             }
@@ -330,9 +339,9 @@ impl<'a> StorageStoreEliminator<'a> {
             // an explicit store can establish a later write on every path.
             for &access in effects.reads() {
                 if let Access::Location(location) = access
-                    && let Some(alias) = space.alias_of(location)
+                    && location.address_space() == space
                 {
-                    later_writes.facts_mut(space).remove_aliasing(aa, space, alias);
+                    later_writes.facts_mut(space).remove_aliasing(aa, location);
                 }
             }
         }
@@ -360,82 +369,27 @@ impl<'a> StorageStoreEliminator<'a> {
     }
 }
 
-/// A space of storage slots whose stores the pass removes.
-#[derive(Clone, Copy, Debug)]
-enum Space {
-    /// Persistent storage, which a revert discards and a return commits.
-    Storage,
-    /// Transient storage, which a revert discards and a return keeps readable to later calls of
-    /// the transaction.
-    Transient,
-}
-
-impl Space {
-    const ALL: [Self; 2] = [Self::Storage, Self::Transient];
-
-    /// The space a storage or transient store writes.
-    fn of(location: PtrLocation) -> Self {
-        match location {
-            PtrLocation::Storage => Self::Storage,
-            PtrLocation::Transient => Self::Transient,
-            _ => unreachable!("not a storage space: {location:?}"),
-        }
-    }
-
-    fn address_space(self) -> AddressSpace {
-        match self {
-            Self::Storage => AddressSpace::Storage,
-            Self::Transient => AddressSpace::Transient,
-        }
-    }
-
-    /// The slot `location` names, if it lies in this space.
-    fn alias_of(self, location: Location) -> Option<StorageAlias> {
-        match (self, location) {
-            (Self::Storage, Location::Storage(alias))
-            | (Self::Transient, Location::Transient(alias)) => Some(alias),
-            _ => None,
-        }
-    }
-
-    fn location(self, alias: StorageAlias) -> Location {
-        match self {
-            Self::Storage => Location::Storage(alias),
-            Self::Transient => Location::Transient(alias),
-        }
-    }
-}
-
 /// Slots that every path from a program point overwrites or discards before anything observes
-/// them, per space.
+/// them, per slot space: persistent storage, which a revert discards and a return commits, and
+/// transient storage, which a revert discards and a return keeps readable to later calls of the
+/// transaction.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Overwritten {
-    storage: Slots,
-    transient: Slots,
+    slots: [Slots; AddressSpace::SLOTS.len()],
 }
 
 impl Overwritten {
     fn none() -> Self {
-        Self { storage: Slots::none(), transient: Slots::none() }
+        Self { slots: AddressSpace::SLOTS.map(|_| Slots::none()) }
     }
 
     /// Every slot of every space: each path reverts.
     fn all() -> Self {
-        Self { storage: Slots::All, transient: Slots::All }
+        Self { slots: AddressSpace::SLOTS.map(|_| Slots::All) }
     }
 
-    fn facts(&self, space: Space) -> &Slots {
-        match space {
-            Space::Storage => &self.storage,
-            Space::Transient => &self.transient,
-        }
-    }
-
-    fn facts_mut(&mut self, space: Space) -> &mut Slots {
-        match space {
-            Space::Storage => &mut self.storage,
-            Space::Transient => &mut self.transient,
-        }
+    fn facts_mut(&mut self, space: AddressSpace) -> &mut Slots {
+        &mut self.slots[space.slot_index().expect("a slot space")]
     }
 
     fn clear(&mut self) {
@@ -443,14 +397,16 @@ impl Overwritten {
     }
 
     fn intersect(&mut self, other: &Self) {
-        self.storage.intersect(&other.storage);
-        self.transient.intersect(&other.transient);
+        for (slots, other) in self.slots.iter_mut().zip(&other.slots) {
+            slots.intersect(other);
+        }
     }
 
     /// Drops the symbolic slots computed from `value`.
     fn remove_based_on(&mut self, value: ValueId) {
-        self.storage.remove_based_on(value);
-        self.transient.remove_based_on(value);
+        for slots in &mut self.slots {
+            slots.remove_based_on(value);
+        }
     }
 }
 
@@ -460,7 +416,7 @@ enum Slots {
     /// Every slot: each path reverts, which discards every write.
     All,
     /// The slots a later store on every path overwrites.
-    Set(FxHashSet<StorageAlias>),
+    Set(FxHashSet<Location>),
 }
 
 impl Slots {
@@ -468,16 +424,16 @@ impl Slots {
         Self::Set(FxHashSet::default())
     }
 
-    fn contains(&self, alias: &StorageAlias) -> bool {
+    fn contains(&self, slot: &Location) -> bool {
         match self {
             Self::All => true,
-            Self::Set(slots) => slots.contains(alias),
+            Self::Set(slots) => slots.contains(slot),
         }
     }
 
-    fn insert(&mut self, alias: StorageAlias) {
+    fn insert(&mut self, slot: Location) {
         if let Self::Set(slots) = self {
-            slots.insert(alias);
+            slots.insert(slot);
         }
     }
 
@@ -489,18 +445,16 @@ impl Slots {
         match (&mut *self, other) {
             (_, Self::All) => {}
             (Self::All, Self::Set(_)) => *self = other.clone(),
-            (Self::Set(slots), Self::Set(other)) => slots.retain(|alias| other.contains(alias)),
+            (Self::Set(slots), Self::Set(other)) => slots.retain(|slot| other.contains(slot)),
         }
     }
 
-    /// Drops every slot that may alias `alias`. Every slot but those cannot be named, so a read
+    /// Drops every slot that may alias `written`. Every slot but those cannot be named, so a read
     /// on a reverting path keeps none.
-    fn remove_aliasing(&mut self, aa: &AliasAnalysis, space: Space, alias: StorageAlias) {
+    fn remove_aliasing(&mut self, aa: &AliasAnalysis, written: Location) {
         match self {
             Self::All => self.clear(),
-            Self::Set(slots) => slots.retain(|&cached| {
-                !aa.alias(space.location(cached), space.location(alias)).may_alias()
-            }),
+            Self::Set(slots) => slots.retain(|&cached| !aa.alias(cached, written).may_alias()),
         }
     }
 
@@ -508,9 +462,11 @@ impl Slots {
     /// loop iteration. A revert discards that slot too, so every slot stays.
     fn remove_based_on(&mut self, value: ValueId) {
         if let Self::Set(slots) = self {
-            slots.retain(|alias| match *alias {
-                StorageAlias::Slot(_) => true,
-                StorageAlias::Symbolic(base) | StorageAlias::Offset { base, .. } => base != value,
+            slots.retain(|slot| match slot.slot_alias() {
+                Some(StorageAlias::Symbolic(base) | StorageAlias::Offset { base, .. }) => {
+                    base != value
+                }
+                _ => true,
             });
         }
     }

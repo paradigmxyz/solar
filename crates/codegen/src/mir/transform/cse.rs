@@ -87,7 +87,7 @@
 
 use crate::mir::{
     BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Value, ValueId,
+    Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -265,8 +265,8 @@ enum ExprKey {
     StorageArrayElementSlot(OperandKey, OperandKey, u64),
     MakeSlice(OperandKey, OperandKey, PtrLocation),
     ExtractValue(OperandKey, u32),
-    SLoad(StorageAlias),
-    TLoad(StorageAlias),
+    /// A storage or transient-storage slot read.
+    SlotLoad(Location),
     CalldataLoad(OperandKey),
     ExtCodeSize(OperandKey),
     ExtCodeHash(OperandKey),
@@ -394,34 +394,10 @@ type SideEffectClobbers = FxHashMap<InstId, (usize, Range<usize>)>;
 enum Clobber {
     /// A direct or interprocedural gas observation.
     GasObservation,
-    /// A memory write.
-    Memory(ClobberScope<MemRangeKey>),
-    /// A persistent-storage write.
-    Storage(ClobberScope<StorageAlias>),
-    /// A transient-storage write.
-    Transient(ClobberScope<StorageAlias>),
-    /// An immutable assignment.
-    Immutable(ClobberScope<ImmutableId>),
+    /// A write to one location or to an entire address space.
+    Write(Access),
     /// An effect that may change account balances or deployed code.
     AccountEnvironment,
-}
-
-/// The scope of a cache-invalidating effect.
-#[derive(Clone, Copy, Debug)]
-enum ClobberScope<T> {
-    /// One possibly-aliasing target.
-    Specific(T),
-    /// Every target in the address space.
-    All,
-}
-
-impl<T: Copy> ClobberScope<T> {
-    fn preserves(self, cached: T, may_alias: impl FnOnce(T, T) -> bool) -> bool {
-        match self {
-            Self::Specific(write) => !may_alias(cached, write),
-            Self::All => false,
-        }
-    }
 }
 
 struct PhiExpressionCandidate {
@@ -998,7 +974,7 @@ impl CommonSubexprEliminator {
     fn is_path_sensitive_expr(key: &ExprKey) -> bool {
         Self::is_memory_expr(key)
             || Self::is_account_environment_expr(key)
-            || matches!(key, ExprKey::SLoad(_) | ExprKey::TLoad(_) | ExprKey::LoadImmutable(..))
+            || matches!(key, ExprKey::SlotLoad(_) | ExprKey::LoadImmutable(..))
     }
 
     fn is_path_sensitive_kind(kind: &InstKind) -> bool {
@@ -1115,11 +1091,7 @@ impl CommonSubexprEliminator {
                     slot,
                     replacements,
                 );
-                let key = match location {
-                    PtrLocation::Storage => ExprKey::SLoad(alias),
-                    _ => ExprKey::TLoad(alias),
-                };
-                Some((key, value(stored)))
+                Some((ExprKey::SlotLoad(Location::slot(location, alias)?), value(stored)))
             }
             _ => None,
         }
@@ -1144,9 +1116,9 @@ impl CommonSubexprEliminator {
         }
         let Value::Inst(def) = *func.value(cached) else { return false };
         let loaded = match (key, &func.inst(def).kind) {
-            (ExprKey::SLoad(alias), InstKind::Load(slot, PtrLocation::Storage))
-            | (ExprKey::TLoad(alias), InstKind::Load(slot, PtrLocation::Transient)) => {
-                self.alias().storage_alias(func, def, *slot) == *alias
+            (ExprKey::SlotLoad(read), InstKind::Load(slot, location)) => {
+                Location::slot(*location, self.alias().storage_alias(func, def, *slot))
+                    == Some(*read)
             }
             _ => false,
         };
@@ -1319,12 +1291,15 @@ impl CommonSubexprEliminator {
                 Some(ExprKey::ExtractValue(operand(*aggregate), *index))
             }
 
-            InstKind::Load(slot, PtrLocation::Storage) => Some(ExprKey::SLoad(
-                self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
-            )),
-            InstKind::Load(slot, PtrLocation::Transient) => Some(ExprKey::TLoad(
-                self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
-            )),
+            InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
+                let alias = self.alias().storage_alias_after_replacements(
+                    func,
+                    inst_id,
+                    *slot,
+                    replacements,
+                );
+                Location::slot(*location, alias).map(ExprKey::SlotLoad)
+            }
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
 
@@ -1389,26 +1364,7 @@ impl CommonSubexprEliminator {
     ) {
         let effects =
             self.alias().instruction_mod_ref_with_replacements(func, inst_id, replacements);
-        for &write in effects.writes() {
-            clobbers.push(match write {
-                Access::Location(Location::Memory(location)) => {
-                    Clobber::Memory(ClobberScope::Specific(location))
-                }
-                Access::Location(Location::Storage(alias)) => {
-                    Clobber::Storage(ClobberScope::Specific(alias))
-                }
-                Access::Location(Location::Transient(alias)) => {
-                    Clobber::Transient(ClobberScope::Specific(alias))
-                }
-                Access::Location(Location::Immutable(id)) => {
-                    Clobber::Immutable(ClobberScope::Specific(id))
-                }
-                Access::Any(AddressSpace::Memory) => Clobber::Memory(ClobberScope::All),
-                Access::Any(AddressSpace::Storage) => Clobber::Storage(ClobberScope::All),
-                Access::Any(AddressSpace::Transient) => Clobber::Transient(ClobberScope::All),
-                Access::Any(AddressSpace::Immutable) => Clobber::Immutable(ClobberScope::All),
-            });
-        }
+        clobbers.extend(effects.writes().iter().map(|&write| Clobber::Write(write)));
         if kind.may_change_account_state() {
             clobbers.push(Clobber::AccountEnvironment);
         }
@@ -1418,38 +1374,8 @@ impl CommonSubexprEliminator {
     fn apply_clobber(&self, expr_cache: &mut ExprCache, clobber: &Clobber) {
         match *clobber {
             Clobber::GasObservation => expr_cache.clear_stateful(),
-            Clobber::Memory(write) => self.invalidate_memory(expr_cache, write),
-            Clobber::Storage(write) => {
-                expr_cache.retain_stateful(|key, _| match key {
-                    ExprKey::SLoad(cached) => write.preserves(*cached, |cached, assigned| {
-                        AliasAnalysis::alias_locations(
-                            Location::Storage(cached),
-                            Location::Storage(assigned),
-                        )
-                        .may_alias()
-                    }),
-                    _ => true,
-                });
-            }
-            Clobber::Transient(write) => {
-                expr_cache.retain_stateful(|key, _| match key {
-                    ExprKey::TLoad(cached) => write.preserves(*cached, |cached, assigned| {
-                        AliasAnalysis::alias_locations(
-                            Location::Transient(cached),
-                            Location::Transient(assigned),
-                        )
-                        .may_alias()
-                    }),
-                    _ => true,
-                });
-            }
-            Clobber::Immutable(write) => {
-                expr_cache.retain_stateful(|key, _| match key {
-                    ExprKey::LoadImmutable(cached) => {
-                        write.preserves(*cached, |cached, assigned| cached == assigned)
-                    }
-                    _ => true,
-                });
+            Clobber::Write(write) => {
+                expr_cache.retain_stateful(|key, _| Self::survives(key, write))
             }
             Clobber::AccountEnvironment => {
                 expr_cache.retain_stateful(|key, _| !Self::is_account_environment_expr(key));
@@ -1457,27 +1383,41 @@ impl CommonSubexprEliminator {
         }
     }
 
-    fn invalidate_memory(&self, expr_cache: &mut ExprCache, write: ClobberScope<MemRangeKey>) {
-        expr_cache.retain_stateful(|key, _| match key {
-            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write
-                .preserves(*read, |read, write| {
-                    AliasAnalysis::memory_alias_locations(read, write).may_alias()
-                }),
-            ExprKey::MappingSlot(..)
-            | ExprKey::StorageArrayDataSlot(..)
-            | ExprKey::StorageArrayElementSlot(..) => {
-                let words = if matches!(key, ExprKey::MappingSlot(..)) { 2 } else { 1 };
-                let scratch = MemoryLocation::new(
-                    MemoryAddress::absolute(0),
-                    LocationSize::Const(words * EvmMemoryLayout::WORD_SIZE),
-                );
-                write.preserves(scratch, |scratch, write| {
-                    AliasAnalysis::memory_alias_locations(scratch, write).may_alias()
-                })
+    /// Whether the cached read `key` survives `write`.
+    fn survives(key: &ExprKey, write: Access) -> bool {
+        let Some(read) = Self::read_location(key) else {
+            // A restoring call's reads are not tracked, so any memory write ends its reuse.
+            return !matches!(key, ExprKey::RestoringCall(..))
+                || write.address_space() != AddressSpace::Memory;
+        };
+        if read.address_space() != write.address_space() {
+            return true;
+        }
+        match write {
+            Access::Location(write) => !AliasAnalysis::alias_locations(read, write).may_alias(),
+            Access::Any(_) => false,
+        }
+    }
+
+    /// The location a cached state-dependent read observes. A slot expression reads the scratch
+    /// words that hash its operands.
+    fn read_location(key: &ExprKey) -> Option<Location> {
+        let scratch = |words| {
+            Location::Memory(MemoryLocation::new(
+                MemoryAddress::absolute(0),
+                LocationSize::Const(words * EvmMemoryLayout::WORD_SIZE),
+            ))
+        };
+        match key {
+            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => Some(Location::Memory(*read)),
+            ExprKey::MappingSlot(..) => Some(scratch(2)),
+            ExprKey::StorageArrayDataSlot(..) | ExprKey::StorageArrayElementSlot(..) => {
+                Some(scratch(1))
             }
-            ExprKey::RestoringCall(..) => false,
-            _ => true,
-        });
+            ExprKey::SlotLoad(read) => Some(*read),
+            ExprKey::LoadImmutable(id) => Some(Location::Immutable(*id)),
+            _ => None,
+        }
     }
 
     fn is_memory_expr(key: &ExprKey) -> bool {
@@ -1526,8 +1466,7 @@ impl CommonSubexprEliminator {
                 | ExprKey::MappingSlot(..)
                 | ExprKey::StorageArrayDataSlot(..)
                 | ExprKey::StorageArrayElementSlot(..)
-                | ExprKey::SLoad(_)
-                | ExprKey::TLoad(_)
+                | ExprKey::SlotLoad(_)
                 | ExprKey::CalldataLoad(..)
                 | ExprKey::ExtCodeSize(_)
                 | ExprKey::ExtCodeHash(_)

@@ -34,6 +34,35 @@ pub(crate) enum AddressSpace {
     Immutable,
 }
 
+impl AddressSpace {
+    /// Every address space.
+    pub(crate) const ALL: [Self; 4] =
+        [Self::Memory, Self::Storage, Self::Transient, Self::Immutable];
+
+    /// The spaces of storage slots.
+    pub(crate) const SLOTS: [Self; 2] = [Self::Storage, Self::Transient];
+
+    /// Returns the position of a slot space in [`Self::SLOTS`], or `None` for another space.
+    #[must_use]
+    pub(crate) const fn slot_index(self) -> Option<usize> {
+        match self {
+            Self::Storage => Some(0),
+            Self::Transient => Some(1),
+            Self::Memory | Self::Immutable => None,
+        }
+    }
+
+    /// Returns the slot `alias` names in this space, or `None` for a space without slots.
+    #[must_use]
+    pub(crate) const fn slot(self, alias: StorageAlias) -> Option<Location> {
+        match self {
+            Self::Storage => Some(Location::Storage(alias)),
+            Self::Transient => Some(Location::Transient(alias)),
+            Self::Memory | Self::Immutable => None,
+        }
+    }
+}
+
 /// The canonical base of a memory address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MemoryBase {
@@ -184,12 +213,21 @@ impl Location {
         }
     }
 
+    /// Returns the slot a storage or transient-storage location names.
+    #[must_use]
+    pub(crate) const fn slot_alias(self) -> Option<StorageAlias> {
+        match self {
+            Self::Storage(alias) | Self::Transient(alias) => Some(alias),
+            Self::Memory(_) | Self::Immutable(_) => None,
+        }
+    }
+
     /// Returns the slot `alias` names in storage or transient storage `location`.
     #[must_use]
     pub(crate) const fn slot(location: PtrLocation, alias: StorageAlias) -> Option<Self> {
         match location {
-            PtrLocation::Storage => Some(Self::Storage(alias)),
-            PtrLocation::Transient => Some(Self::Transient(alias)),
+            PtrLocation::Storage => AddressSpace::Storage.slot(alias),
+            PtrLocation::Transient => AddressSpace::Transient.slot(alias),
             PtrLocation::Memory | PtrLocation::Calldata | PtrLocation::Returndata => None,
         }
     }
@@ -311,12 +349,7 @@ impl ModRef {
         aa: &AliasAnalysis,
         args: &[ValueId],
     ) {
-        for space in [
-            AddressSpace::Memory,
-            AddressSpace::Storage,
-            AddressSpace::Transient,
-            AddressSpace::Immutable,
-        ] {
+        for space in AddressSpace::ALL {
             for write in [false, true] {
                 if !(if write { summary.writes(space) } else { summary.reads(space) }) {
                     continue;
@@ -334,14 +367,9 @@ impl ModRef {
                     }
                 } else if let Some(slots) = summary.storage_slots(space, write) {
                     for &slot in slots {
-                        let location = match space {
-                            AddressSpace::Storage => Location::Storage(StorageAlias::Slot(slot)),
-                            AddressSpace::Transient => {
-                                Location::Transient(StorageAlias::Slot(slot))
-                            }
-                            _ => unreachable!(),
-                        };
-                        record(Access::Location(location));
+                        if let Some(location) = space.slot(StorageAlias::Slot(slot)) {
+                            record(Access::Location(location));
+                        }
                     }
                 } else {
                     record(Access::Any(space));
@@ -364,6 +392,13 @@ impl ModRef {
 
     fn write_any(&mut self, space: AddressSpace) {
         self.write(Access::Any(space));
+    }
+
+    fn read_write_any(&mut self, spaces: impl IntoIterator<Item = AddressSpace>) {
+        for space in spaces {
+            self.read_any(space);
+            self.write_any(space);
+        }
     }
 }
 
@@ -1115,8 +1150,7 @@ impl AliasAnalysis {
             }
             InstKind::StorageBytesLoad(..) | InstKind::StorageArrayLoad { .. } => {
                 effects.read_any(AddressSpace::Storage);
-                effects.read_any(AddressSpace::Memory);
-                effects.write_any(AddressSpace::Memory);
+                effects.read_write_any([AddressSpace::Memory]);
             }
             InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), .. }
             | InstKind::AbiEncodePacked { .. }
@@ -1130,8 +1164,7 @@ impl AliasAnalysis {
                     ),
                 ..
             } => {
-                effects.read_any(AddressSpace::Memory);
-                effects.write_any(AddressSpace::Memory);
+                effects.read_write_any([AddressSpace::Memory]);
             }
             InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
                 let InstKind::ICall { function: Callee::Builtin(Builtin::Require(kind)), args } =
@@ -1170,13 +1203,11 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::StorageBytesStore(_, object) => {
-                effects.read_any(AddressSpace::Storage);
-                effects.write_any(AddressSpace::Storage);
+                effects.read_write_any([AddressSpace::Storage]);
                 read_memory(&mut effects, object, SizeOperand::Unknown);
             }
             InstKind::StorageBytesStoreLiteral { .. } => {
-                effects.read_any(AddressSpace::Storage);
-                effects.write_any(AddressSpace::Storage);
+                effects.read_write_any([AddressSpace::Storage]);
             }
             InstKind::StorageClearWords(..) => effects.write_any(AddressSpace::Storage),
             InstKind::Copy(dest, source, size, PtrLocation::Memory) => {
@@ -1202,25 +1233,19 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::MSize => effects.read_any(AddressSpace::Memory),
-            InstKind::Load(slot, PtrLocation::Storage) => {
-                effects.read(Access::Location(Location::Storage(
-                    self.storage_alias_after_replacements(func, inst_id, slot, replacements),
-                )))
+            InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
+                let alias =
+                    self.storage_alias_after_replacements(func, inst_id, slot, replacements);
+                effects.reads.extend(Location::slot(location, alias).map(Access::Location));
             }
-            InstKind::Store(slot, _, PtrLocation::Storage) => {
-                effects.write(Access::Location(Location::Storage(
-                    self.storage_alias_after_replacements(func, inst_id, slot, replacements),
-                )))
-            }
-            InstKind::Load(slot, PtrLocation::Transient) => {
-                effects.read(Access::Location(Location::Transient(
-                    self.storage_alias_after_replacements(func, inst_id, slot, replacements),
-                )))
-            }
-            InstKind::Store(slot, _, PtrLocation::Transient) => {
-                effects.write(Access::Location(Location::Transient(
-                    self.storage_alias_after_replacements(func, inst_id, slot, replacements),
-                )))
+            InstKind::Store(
+                slot,
+                _,
+                location @ (PtrLocation::Storage | PtrLocation::Transient),
+            ) => {
+                let alias =
+                    self.storage_alias_after_replacements(func, inst_id, slot, replacements);
+                effects.writes.extend(Location::slot(location, alias).map(Access::Location));
             }
             InstKind::LoadImmutable(id) => {
                 effects.read(Access::Location(Location::Immutable(id)));
@@ -1241,10 +1266,7 @@ impl AliasAnalysis {
                 function: Callee::Builtin(Builtin::Send | Builtin::Transfer),
                 ..
             } => {
-                effects.read_any(AddressSpace::Storage);
-                effects.write_any(AddressSpace::Storage);
-                effects.read_any(AddressSpace::Transient);
-                effects.write_any(AddressSpace::Transient);
+                effects.read_write_any(AddressSpace::SLOTS);
             }
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
@@ -1271,8 +1293,7 @@ impl AliasAnalysis {
                 // callee must count as a memory writer or later loads of the
                 // buffer could be reused across a second call.
                 if has_multiple_returns {
-                    effects.read_any(AddressSpace::Memory);
-                    effects.write_any(AddressSpace::Memory);
+                    effects.read_write_any([AddressSpace::Memory]);
                 }
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
@@ -1283,14 +1304,7 @@ impl AliasAnalysis {
                     effects.merge_call_summary(summary, func, self, &args);
                 } else {
                     effects.observes_gas = true;
-                    effects.read_any(AddressSpace::Memory);
-                    effects.write_any(AddressSpace::Memory);
-                    effects.read_any(AddressSpace::Storage);
-                    effects.write_any(AddressSpace::Storage);
-                    effects.read_any(AddressSpace::Transient);
-                    effects.write_any(AddressSpace::Transient);
-                    effects.read_any(AddressSpace::Immutable);
-                    effects.write_any(AddressSpace::Immutable);
+                    effects.read_write_any(AddressSpace::ALL);
                 }
 
                 // Additional returns are copied into a fresh buffer and its
@@ -1306,10 +1320,7 @@ impl AliasAnalysis {
             }
             InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
                 read_memory(&mut effects, offset, SizeOperand::Value(size));
-                effects.read_any(AddressSpace::Storage);
-                effects.write_any(AddressSpace::Storage);
-                effects.read_any(AddressSpace::Transient);
-                effects.write_any(AddressSpace::Transient);
+                effects.read_write_any(AddressSpace::SLOTS);
             }
             _ => {}
         }
@@ -1339,14 +1350,7 @@ impl AliasAnalysis {
                     effects.merge_call_summary(summary, func, self, &terminator.operands());
                 } else {
                     effects.observes_gas = true;
-                    effects.read_any(AddressSpace::Memory);
-                    effects.write_any(AddressSpace::Memory);
-                    effects.read_any(AddressSpace::Storage);
-                    effects.write_any(AddressSpace::Storage);
-                    effects.read_any(AddressSpace::Transient);
-                    effects.write_any(AddressSpace::Transient);
-                    effects.read_any(AddressSpace::Immutable);
-                    effects.write_any(AddressSpace::Immutable);
+                    effects.read_write_any(AddressSpace::ALL);
                 }
             }
             Terminator::Jump(_)
