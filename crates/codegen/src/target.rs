@@ -840,20 +840,26 @@ impl Target {
             + self.push(U256::from(op::WORD_BYTES))
     }
 
-    /// Whether an ABI encoding writes the literal byte string `bytes` as stores of its own
-    /// words, beside the preserved object that already holds it, instead of copying that object.
-    /// `removes_original` says nothing reads the object afterwards, so folding also drops its
-    /// allocation and stores. Gas ranks the stores above the copy loop that runs before MCOPY
-    /// and below the copy instruction that follows it. Size compares the stores with the length
-    /// computation, padding store, and copy they replace, and folds whenever the object goes
-    /// away, since the stores then only move.
-    pub(crate) fn folds_preserved_literal(&self, bytes: &[u8], removes_original: bool) -> bool {
+    /// Whether an ABI encoding writes a literal byte string as stores of its own words, beside
+    /// the preserved object that already holds it, instead of copying that object. `bytes`
+    /// reads the literal, which only the size objective needs. `removes_original` says nothing
+    /// reads the object afterwards, so folding also drops its allocation and stores. Gas ranks
+    /// the stores above the copy loop that runs before MCOPY and below the copy instruction
+    /// that follows it. Size compares the stores with the length computation, padding store,
+    /// and copy they replace, and folds whenever the object goes away, since the stores then
+    /// only move.
+    pub(crate) fn folds_preserved_literal(
+        &self,
+        removes_original: bool,
+        bytes: impl FnOnce() -> Option<Vec<u8>>,
+    ) -> bool {
         match self.optimization {
             OptimizationMode::Gas => !self.evm_version.has_mcopy(),
             OptimizationMode::Size => {
                 if removes_original {
                     return true;
                 }
+                let Some(bytes) = bytes() else { return false };
                 let word_size = op::WORD_BYTES;
                 let size = U256::from(bytes.len().next_multiple_of(word_size));
                 // mstore dest, len; mstore dest + 32 + 32 * i, word; tail = dest + 32 + size
@@ -1284,20 +1290,23 @@ mod tests {
 
     #[test]
     fn preserved_literals_fold_by_objective() {
+        let folds = |target: Target, removes_original, len| {
+            target.folds_preserved_literal(removes_original, || Some(vec![0x41; len]))
+        };
         let gas = |evm_version| Target::with(evm_version, OptimizationMode::Gas, 200);
         let size = |evm_version| Target::with(evm_version, OptimizationMode::Size, 1);
-        // Gas folds only where the copy would be a loop.
-        assert!(gas(EvmVersion::Paris).folds_preserved_literal(&[1; 100], false));
-        assert!(!gas(EvmVersion::Cancun).folds_preserved_literal(&[1; 4], true));
+        // Gas folds only where the copy would be a loop, and never reads the literal.
+        assert!(gas(EvmVersion::Paris).folds_preserved_literal(false, || None));
+        assert!(!gas(EvmVersion::Cancun).folds_preserved_literal(true, || None));
         // The stores of a short string cost fewer bytes than the length math and a copy.
-        assert!(size(EvmVersion::Cancun).folds_preserved_literal(b"abcd", false));
-        assert!(size(EvmVersion::Cancun).folds_preserved_literal(&[0; 10], false));
-        assert!(!size(EvmVersion::Cancun).folds_preserved_literal(&[0x41; 32], false));
+        assert!(folds(size(EvmVersion::Cancun), false, 4));
+        assert!(!folds(size(EvmVersion::Cancun), false, 32));
         // The copy loop is longer than MCOPY, so longer strings still fold before Cancun.
-        assert!(size(EvmVersion::Paris).folds_preserved_literal(&[0x41; 32], false));
-        assert!(!size(EvmVersion::Paris).folds_preserved_literal(&[0x41; 64], false));
+        assert!(folds(size(EvmVersion::Paris), false, 32));
+        assert!(!folds(size(EvmVersion::Paris), false, 64));
         // Folding that drops the original object only moves the stores.
-        assert!(size(EvmVersion::Cancun).folds_preserved_literal(&[0x41; 64], true));
+        assert!(folds(size(EvmVersion::Cancun), true, 64));
+        assert!(!size(EvmVersion::Cancun).folds_preserved_literal(false, || None));
     }
 
     #[test]

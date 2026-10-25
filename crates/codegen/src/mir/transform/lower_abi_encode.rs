@@ -417,16 +417,12 @@ fn lower_function(
     helpers.literal_objects.retain(|&object| {
         let Value::Inst(inst) = func.value(object) else { return true };
         !func.inst(*inst).metadata.preserves_fmp()
-            || defining_block(func, *inst)
-                .and_then(|block| literal_bytes(func, object, block))
-                .is_some_and(|bytes| {
-                    target.folds_preserved_literal(&bytes, unobserved.contains(&object))
-                })
+            || target.folds_preserved_literal(unobserved.contains(&object), || {
+                literal_bytes(func, object, defining_block(func, *inst)?)
+            })
     });
-    let terminal_literals = unobserved
-        .into_iter()
-        .filter(|object| helpers.literal_objects.contains(object))
-        .collect::<FxHashSet<_>>();
+    let mut terminal_literals = unobserved;
+    terminal_literals.retain(|object| helpers.literal_objects.contains(object));
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
