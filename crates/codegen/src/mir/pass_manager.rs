@@ -175,7 +175,9 @@ pub(crate) fn run_passes_inner(
             let pass_changed = if cached {
                 false
             } else {
-                analyses.begin_pass(gcx.sess.opts.optimization.is_gas());
+                // A queued contract job needs the workers more than this pass does.
+                let parallel = gcx.sess.is_parallel_codegen() && !gcx.sess.has_queued_jobs();
+                analyses.begin_pass(gcx.sess.opts.optimization.is_gas(), parallel);
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
                 analyses.finish_pass(pass_changed);

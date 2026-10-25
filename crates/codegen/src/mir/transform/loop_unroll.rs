@@ -320,6 +320,11 @@ struct Full {
     trips: u32,
 }
 
+/// Whether the build trades code size for runtime gas by copying loop bodies.
+fn copies_loops(target: &Target) -> bool {
+    target.optimization().is_gas() && target.copies_loops()
+}
+
 /// The most iterations a loop may run to be unrolled completely, whatever its pricing.
 const MAX_COMPLETE_TRIPS: u64 = 16;
 
@@ -621,7 +626,7 @@ fn plan(
     returns: &FxHashMap<FunctionId, U256>,
     target: &Target,
 ) -> Option<Unroll> {
-    if !target.copies_loops() {
+    if !copies_loops(target) {
         return None;
     }
     let shape = shape(func, loops, l, cold)?;
@@ -986,7 +991,7 @@ fn plan_peel(
     cold: &DenseBitSet<FunctionId>,
     target: &Target,
 ) -> Option<Peel> {
-    if !target.copies_loops() {
+    if !copies_loops(target) {
         return None;
     }
     let shape = shape(func, loops, l, cold)?;
@@ -1045,7 +1050,7 @@ fn plan_full(
     cold: &DenseBitSet<FunctionId>,
     target: &Target,
 ) -> Option<Full> {
-    if !target.copies_loops() {
+    if !copies_loops(target) {
         return None;
     }
     let shape = shape(func, loops, l, cold)?;
