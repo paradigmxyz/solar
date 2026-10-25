@@ -18,7 +18,7 @@
 //! an address that may lie below the heap or covers the slot, or calls a function whose memory
 //! summary may do any of these. Stores and copies through a pointer derived from the free memory
 //! pointer or an allocation lie at or above the heap floor and cannot reach the slot. Everything
-//! else is judged by its [`ModRef`] effects.
+//! else is judged by its `ModRef` effects.
 //!
 //! The analysis does not see raw loads of the slot: the compiler reads the pointer only through
 //! `fmp` and `alloc`, and memory-safe assembly that loads the slot keeps its read.

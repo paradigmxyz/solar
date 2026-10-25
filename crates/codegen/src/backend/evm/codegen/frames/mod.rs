@@ -805,7 +805,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         // Every entry has a floor, whether or not it initializes the pointer: a fresh read in a
         // function it reaches takes the floor in place of the slot.
-        let free_memory_floors: FxHashMap<FunctionId, u64> = self
+        let mut free_memory_floors: FxHashMap<FunctionId, u64> = self
             .runtime_entry_reachability
             .keys()
             .copied()
@@ -837,6 +837,29 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             })
             .collect();
+        // The entries that run a function with a heap floor share one initial pointer, the highest
+        // of their floors, so that a read of the slot and a read of the floor in that function
+        // return the same word. Entries linked through several such functions merge.
+        let mut merged = true;
+        while merged {
+            merged = false;
+            for &(func_id, _) in &self.fmp_floor_consts {
+                let entries = free_memory_floors
+                    .keys()
+                    .copied()
+                    .filter(|entry| {
+                        own_reach.get(entry).is_some_and(|reach| reach.contains(func_id))
+                    })
+                    .collect::<Vec<_>>();
+                let Some(floor) = entries.iter().map(|entry| free_memory_floors[entry]).max()
+                else {
+                    continue;
+                };
+                for entry in entries {
+                    merged |= free_memory_floors.insert(entry, floor) != Some(floor);
+                }
+            }
+        }
         for (entry, id) in self.runtime_free_memory_consts.drain() {
             let floor = free_memory_floors[&entry];
             self.asm.set_deferred_const(id, U256::from(floor));
