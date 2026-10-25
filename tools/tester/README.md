@@ -36,19 +36,20 @@ and complex setup.
   value.
 - `//@ run-call-fail: fail()` requires the call to fail. Add `=> 0x...` to check
   exact revert data.
+- `//@ skip-run-call-onone: reason` skips the extra `-O none` run described
+  below for a test whose calls observe code layout rather than behavior, such
+  as reading its own code. The reason is required. Scope it to revisions with
+  `//@[rev]`. It does not affect the `mir` revision of a matrix test.
 
-Both use the EVM version from `--evm-version`. Calls to `test*` functions first
+`run-call` and `run-call-fail` use the EVM version from `--evm-version`. Calls to `test*` functions first
 run a zero-argument `setUp()` if the contract defines one.
 
 Calls also run on `-O none` output, which must behave exactly like `-Ogas` and
 `-Osize`; only gas and size may differ. A test with `codegen-matrix: standard`
-already does this in its `mir` revision. For every other test the runner
-compiles each revision that does not already use `-O none` once more with
-`-O none` and runs the calls that apply to that revision on that output.
-
-- `//@ skip-run-call-onone: reason` skips that extra run for a test whose calls
-  observe code layout rather than behavior, such as reading its own code. The
-  reason is required. It does not affect the `mir` revision of a matrix test.
+already does this for its unscoped calls and those scoped to `mir`. For every
+other test the runner compiles each revision that does not already use
+`-O none` once more with `-O none` and runs the calls that apply to that
+revision on that output.
 
 ## Compiler artifact comparisons
 

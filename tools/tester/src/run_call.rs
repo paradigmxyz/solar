@@ -260,7 +260,7 @@ impl OnoneRerun {
 
     /// Collects the calls of `src`, or `None` if the test needs no rerun.
     pub(crate) fn new(src: &str) -> Option<Self> {
-        if codegen_matrix::is_standard(src) || src.lines().any(is_skip_directive) {
+        if codegen_matrix::is_standard(src) {
             return None;
         }
         let mut rerun = Self { calls: Vec::new(), failures: Vec::new() };
@@ -286,10 +286,12 @@ impl OnoneRerun {
     pub(crate) fn parse_skip(
         parser: &mut CommentParser<&mut Revisioned>,
         args: Spanned<&str>,
-        _span: Span,
+        span: Span,
     ) {
         if args.trim().is_empty() {
             parser.error(args.span(), format!("`{}` requires a reason", Self::SKIP_NAME));
+        } else {
+            parser.add_custom_spanned(Self::SKIP_NAME, (), span);
         }
     }
 
@@ -328,7 +330,9 @@ impl Flag for OnoneRerun {
         build_manager: &BuildManager,
     ) -> Result<(), Errored> {
         let revision = config.status.revision();
-        if !self.has_calls(revision) {
+        if !self.has_calls(revision)
+            || config.comments().any(|comments| comments.custom.contains_key(Self::SKIP_NAME))
+        {
             return Ok(());
         }
         let error = |message: String| flag_error(Self::NAME, format!("at `-O none`: {message}"));
@@ -356,12 +360,6 @@ impl Flag for OnoneRerun {
 
 fn applies(scoped: &[String], revision: &str) -> bool {
     scoped.is_empty() || scoped.iter().any(|scoped| scoped == revision)
-}
-
-fn is_skip_directive(line: &str) -> bool {
-    parse_directive(line).is_some_and(|(directive, _)| {
-        directive.strip_prefix(OnoneRerun::SKIP_NAME).is_some_and(|rest| rest.starts_with(':'))
-    })
 }
 
 fn compiles_onone(command: &Command) -> bool {
@@ -1103,7 +1101,6 @@ mod tests {
         assert_eq!((rerun.calls.len(), rerun.failures.len()), (2, 1));
         assert_eq!(rerun.calls[1].0, ["a", "b"]);
         assert!(OnoneRerun::new("//@ compile-flags: -Ogas\n").is_none());
-        assert!(OnoneRerun::new("//@ run-call: f\n//@ skip-run-call-onone: layout\n").is_none());
         assert!(OnoneRerun::new("//@ codegen-matrix: standard\n//@ run-call: f\n").is_none());
     }
 }
