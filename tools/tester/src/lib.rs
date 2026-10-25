@@ -16,8 +16,8 @@ use std::{
 use ui_test::{
     CommentParser, Errored, Revisioned,
     build_manager::BuildManager,
-    color_eyre::eyre,
     custom_flags::Flag,
+    eyre,
     per_test_config::TestConfig,
     spanned::{Span, Spanned},
 };
@@ -38,8 +38,6 @@ mod utils;
 ///
 /// `cmd` is the path to the `solar` binary used by all modes.
 pub fn run_tests(cmd: &'static Path) -> Result<()> {
-    ui_test::color_eyre::install()?;
-
     let mut args = ui_test::Args::test()?;
 
     // Fast path for `--list`, invoked by `cargo-nextest`.

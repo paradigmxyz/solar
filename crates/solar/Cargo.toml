@@ -36,7 +36,6 @@ harness = false
 [dependencies]
 solar-ast.workspace = true
 solar-config.workspace = true
-solar-codegen.workspace = true
 solar-data-structures.workspace = true
 solar-evmir.workspace = true
 solar-interface.workspace = true
@@ -46,6 +45,7 @@ solar-parse.workspace = true
 solar-sema.workspace = true
 
 solar-cli = { workspace = true, optional = true }
+solar-codegen = { workspace = true, optional = true }
 
 alloy-primitives.workspace = true
 
@@ -60,9 +60,11 @@ tempfile.workspace = true
 idna_adapter.workspace = true
 
 [features]
-default = ["cli", "solar-cli?/default"]
+default = ["cli", "codegen", "solar-cli?/default"]
 # Enable the CLI and binary.
-cli = ["dep:solar-cli", "solar-cli/lsp", "clap"]
+cli = ["codegen", "dep:solar-cli", "solar-cli/lsp", "clap"]
+# Enable code generation.
+codegen = ["dep:solar-codegen"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
     "solar-cli?/nightly",

@@ -102,6 +102,9 @@
 //! not, the callers on that chain plan again with every value live across a call spilled, and
 //! then with their return addresses in memory too, until it fits.
 //!
+//! A function whose body, module facts, and cost model equal those of a function planned before in
+//! the compilation takes that plan instead of planning again; see `cache`.
+//!
 //! The plan of a function is complete before any code is emitted, so a failure leaves no partial
 //! output. Emission follows the block order of `function`. Blocks that only jump on are
 //! skipped, and a branch whose successors both need a jump falls through into a trampoline.
@@ -112,12 +115,17 @@ use super::{
     StackOp, Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
 };
 use crate::{
+    backend::evm::CodegenState,
     mir::{ArgIdx, Callee, analysis::LoopInfo},
     target::{Cost, Target},
 };
+use cache::PlanKey;
 use plan::{Planned, Planner};
 use smallvec::SmallVec;
+use solar_data_structures::sync;
 
+mod cache;
+pub(in crate::backend::evm) use cache::PlanCache;
 mod emit;
 mod plan;
 mod shuffle;
@@ -317,7 +325,7 @@ struct Analysis {
 
 /// What a function moves to memory to shorten the stack it keeps below its calls, raised for
 /// the callers on a call chain deeper than the EVM stack.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum CallSpill {
     None,
     /// Every value live across an internal call.
@@ -336,6 +344,11 @@ enum Decline {
 
 /// Planning restarts that spill one value each before spills come in batches.
 const SINGLE_SPILL_RESTARTS: u32 = 64;
+
+/// Fewest instructions in a contract's bodies for which planning uses idle workers. Planning
+/// costs about three microseconds per instruction in a release build, so smaller contracts finish
+/// before helpers start.
+const PARALLEL_PLAN_INSTS: usize = 4096;
 
 /// Maximum number of planning rounds that refine loop header layouts.
 const LAYOUT_ROUNDS: usize = 4;
@@ -562,25 +575,33 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
+        // Planning one body reads only the shared facts above, so the bodies plan in parallel.
+        // Results come back in body order, so the first decline is the serial loop's.
+        let parallel = self.gcx.sess.is_parallel_codegen()
+            && bodies.iter().map(|&func_id| module.functions[func_id].num_insts()).sum::<usize>()
+                >= PARALLEL_PLAN_INSTS;
         let mut analyses =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<Analysis>>>();
         let mut plans =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<FunctionPlan>>>();
-        for &func_id in &bodies {
-            let analysis = analyses[func_id].insert(self.analyze(
+        let cache = &self.gcx.codegen_state::<CodegenState>().plans;
+        let planned = sync::par_try_map(parallel, bodies, |func_id| {
+            let mut analysis = None;
+            let plan = self.plan_cached(
+                cache,
                 module,
                 &info,
                 func_id,
                 &hazards[func_id],
                 &writers,
-            ));
-            plans[func_id] = Some(self.plan_function_stackified(
-                module,
-                &info,
-                func_id,
-                analysis,
+                &mut analysis,
                 CallSpill::None,
-            )?);
+            )?;
+            Ok((func_id, analysis, plan))
+        })?;
+        for (func_id, analysis, plan) in planned {
+            analyses[func_id] = analysis;
+            plans[func_id] = Some(plan);
         }
 
         // A call chain deeper than the EVM stack: its callers move words to memory, values
@@ -601,14 +622,30 @@ impl<'gcx> EvmCodegen<'gcx> {
                 ?next,
                 "call chain deeper than the EVM stack"
             );
+            // Each replan owns its analysis, so analyses need not be shared between threads.
+            let mut respilled = Vec::new();
             for &func_id in &chain {
                 if call_spills[func_id] == level {
                     call_spills[func_id] = next;
-                    let analysis = analyses[func_id].as_ref().expect("planned body");
-                    plans[func_id] = Some(
-                        self.plan_function_stackified(module, &info, func_id, analysis, next)?,
-                    );
+                    respilled.push((func_id, analyses[func_id].take()));
                 }
+            }
+            let replanned = sync::par_try_map(parallel, respilled, |(func_id, mut analysis)| {
+                let plan = self.plan_cached(
+                    cache,
+                    module,
+                    &info,
+                    func_id,
+                    &hazards[func_id],
+                    &writers,
+                    &mut analysis,
+                    next,
+                )?;
+                Ok((func_id, analysis, plan))
+            })?;
+            for (func_id, analysis, plan) in replanned {
+                analyses[func_id] = analysis;
+                plans[func_id] = Some(plan);
             }
         }
         Ok((info, plans))
@@ -659,6 +696,32 @@ impl<'gcx> EvmCodegen<'gcx> {
             )
         };
         Analysis { liveness, cfg, loops, saved, pinned, recomputable }
+    }
+
+    /// Plans a function, or takes the plan of an identical function planned before from `cache`.
+    /// The function's analysis is computed only when planning needs it, and left in `analysis`.
+    #[allow(clippy::too_many_arguments)]
+    fn plan_cached(
+        &self,
+        cache: &PlanCache,
+        module: &Module,
+        info: &ModuleInfo,
+        func_id: FunctionId,
+        hazards: &FxHashSet<InstId>,
+        writers: &DenseBitSet<FunctionId>,
+        analysis: &mut Option<Analysis>,
+        call_spill: CallSpill,
+    ) -> Result<FunctionPlan, Decline> {
+        let target = self.target(info, func_id);
+        let key = PlanKey::new(module, info, func_id, hazards, writers, &target, call_spill);
+        if let Some(plan) = cache.get(&key) {
+            return Ok(plan);
+        }
+        let analysis =
+            analysis.get_or_insert_with(|| self.analyze(module, info, func_id, hazards, writers));
+        let plan = self.plan_function_stackified(module, info, func_id, analysis, call_spill)?;
+        cache.insert(key, &plan);
+        Ok(plan)
     }
 
     fn plan_function_stackified(

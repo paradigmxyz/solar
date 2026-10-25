@@ -10,8 +10,6 @@
 #[doc(inline)]
 pub use solar_ast as ast;
 #[doc(inline)]
-pub use solar_codegen as codegen;
-#[doc(inline)]
 pub use solar_config as config;
 #[doc(inline)]
 pub use solar_data_structures as data_structures;
@@ -31,3 +29,7 @@ pub use solar_sema as sema;
 #[cfg(feature = "cli")]
 #[doc(inline)]
 pub use solar_cli as cli;
+
+#[cfg(feature = "codegen")]
+#[doc(inline)]
+pub use solar_codegen as codegen;

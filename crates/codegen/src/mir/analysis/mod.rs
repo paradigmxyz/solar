@@ -13,10 +13,7 @@ pub(crate) use alias::{
 };
 
 mod memory_summary;
-pub(crate) use memory_summary::{
-    LocalSummaryCache, MemoryCallSummaries, may_observe_msize, module_may_observe_msize,
-    returning_blocks,
-};
+pub(crate) use memory_summary::{LocalSummaryCache, MemoryCallSummaries, returning_blocks};
 
 mod memory_restoration;
 

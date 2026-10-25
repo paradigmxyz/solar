@@ -191,14 +191,14 @@ impl DataPool {
         }
     }
 
-    fn placement(&self, data: &[u8]) -> Placement {
+    fn placement(&self, data: &Bytes) -> Placement {
         if let Some(&data) = self.exact.get(data) {
             return Placement::Existing(data);
         }
         if self.entries.len() >= MAX_DATA_SUBSTRING_ENTRIES {
             return Placement::New;
         }
-        let mut finder = NeedleFinder::new(data);
+        let mut finder = NeedleFinder::new(data.clone());
         for entry in &self.entries {
             if let Some(offset) = finder.find(&entry.bytes) {
                 return Placement::Existing(DataRef::new(entry.id, data_offset(offset)));
@@ -234,7 +234,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     };
     let mut pool = DataPool::new(&module.data);
     let mut prepared = Vec::new();
-    let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
+    let mut rejected = Vec::<(NeedleFinder, Vec<Rewrite>)>::new();
     for (data, rewrites) in groups {
         if data.iter().all(|&byte| byte == 0) {
             // Zero fills need no data, so each site stands alone.
@@ -254,9 +254,9 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
         let mut repeats = rewrites.iter().any(|rewrite| rewrite.repeats);
         let mut absorbed = Vec::new();
         for (index, (contained, contained_rewrites)) in
-            rejected.iter().take(MAX_DATA_SUBSTRING_ENTRIES).enumerate()
+            rejected.iter_mut().take(MAX_DATA_SUBSTRING_ENTRIES).enumerate()
         {
-            let Some(offset) = memmem::find(&data, contained) else {
+            let Some(offset) = contained.find(&data) else {
                 continue;
             };
             let contained_improvement = rewrite_improvement(contained_rewrites, 0);
@@ -267,7 +267,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
             }
         }
         if !is_profitable(&if repeats { runtime } else { creation }, improvement) {
-            rejected.push((data, rewrites));
+            rejected.push((NeedleFinder::new(data), rewrites));
             continue;
         }
 
@@ -709,7 +709,7 @@ fn find_data(
     needle_id: DataId,
 ) -> Option<DataRef> {
     let needle_bytes = needle.bytes.known()?;
-    let mut finder = NeedleFinder::new(needle_bytes);
+    let mut finder = NeedleFinder::new(needle_bytes.clone());
     data.iter_enumerated().find_map(|(id, known)| {
         if sources[id] >= needle_id {
             return None;
@@ -771,18 +771,23 @@ pub(crate) fn data_layout_is_observable(module: &Module) -> bool {
 fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
     let mut groups = RewriteGroups::default();
     let mut next_run_start = 0;
+    let mut last_store = None;
     let references = scan_data_references(module, |block_id, index, instructions| {
         if index == 0 {
             next_run_start = 0;
+            // A run ends at a store, so no run starts after the last one.
+            last_store = instructions
+                .iter()
+                .rposition(|inst| matches!(inst.opcode, op::MSTORE | op::MSTORE8));
         }
-        let block = &module.blocks[block_id];
-        let target = block.target(gcx, module.code_follows);
-        if index >= next_run_start
-            && let Some((data, mut rewrite)) = find_run(&target, block_id, instructions, index)
-        {
-            rewrite.repeats = !block.runs_once();
-            next_run_start = rewrite.end;
-            groups.entry(data).or_default().push(rewrite);
+        if index >= next_run_start && last_store.is_some_and(|last| index <= last) {
+            let block = &module.blocks[block_id];
+            let target = block.target(gcx, module.code_follows);
+            if let Some((data, mut rewrite)) = find_run(&target, block_id, instructions, index) {
+                rewrite.repeats = !block.runs_once();
+                next_run_start = rewrite.end;
+                groups.entry(data).or_default().push(rewrite);
+            }
         }
     });
     (references, groups)
@@ -943,22 +948,27 @@ fn data_copy_is_bounded(module: &Module, data: DataRef, size: usize) -> bool {
 
 /// Finds one needle in several haystacks, building the long-haystack searcher that
 /// [`memmem::find`] would build for each at most once.
-struct NeedleFinder<'n> {
-    needle: &'n [u8],
-    finder: Option<memmem::Finder<'n>>,
+struct NeedleFinder {
+    needle: Bytes,
+    finder: Option<memmem::Finder<'static>>,
 }
 
-impl<'n> NeedleFinder<'n> {
-    fn new(needle: &'n [u8]) -> Self {
+impl NeedleFinder {
+    fn new(needle: Bytes) -> Self {
         Self { needle, finder: None }
     }
 
     fn find(&mut self, haystack: &[u8]) -> Option<usize> {
+        if haystack.len() < self.needle.len() {
+            return None;
+        }
         // `memmem::find` uses Rabin-Karp below this haystack length.
         if haystack.len() < 64 {
-            return memmem::find(haystack, self.needle);
+            return memmem::find(haystack, &self.needle);
         }
-        self.finder.get_or_insert_with(|| memmem::Finder::new(self.needle)).find(haystack)
+        self.finder
+            .get_or_insert_with(|| memmem::Finder::new(&self.needle).into_owned())
+            .find(haystack)
     }
 }
 

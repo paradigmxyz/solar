@@ -57,6 +57,8 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "address_payable_type_expression"
         // Compiler version mismatches are warnings.
         | "broken_version_1"
+        | "version_component_above_signed_int_greater"
+        | "version_component_signed_int_min_greater"
         // Checked during AST validation rather than parsing.
         | "unchecked_while_body"
         // Arbitrary `pragma experimental` values are allowed by Solc apparently.

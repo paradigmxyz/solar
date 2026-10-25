@@ -72,13 +72,12 @@
 //! A join load is never removed or moved after a gas observation on any incoming
 //! CFG path, including loop backedges and observations in transitive callees.
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
-//! For that scan, gas observations and calls block all spaces and `msize` is a
-//! kill for memory and keccak keys: a partial-redundancy insertion moves the read to the
-//! end of a predecessor, so everything in the join block above the original load executes
-//! after the moved read, and a `gas`/`msize` read there would observe the moved load's gas
-//! and memory-expansion effects early. A call can also observe storage-access warming even
-//! when it cannot change stored values. Removal-only (fully redundant) rewrites do not move
-//! reads, but we keep the single conservative scan for these cases for simplicity.
+//! For that scan, gas observations and calls block all spaces: a partial-redundancy
+//! insertion moves the read to the end of a predecessor, so everything in the join block
+//! above the original load executes after the moved read, and a `gas` read there would
+//! observe the moved load's gas early. A call can also observe storage-access warming even when
+//! it cannot change stored values. Removal-only (fully redundant) rewrites do not move reads, but
+//! we keep the single conservative scan for these cases for simplicity.
 //!
 //! Before inserting a read, also reject a join prefix that may revert, terminate, or diverge:
 //! the new read could trap or consume gas on a path that did not execute it. Full redundancy
@@ -764,10 +763,9 @@ impl<'a> LoadRedundancyEliminator<'a> {
     /// Returns, in program order, the first load of each key in `target` that
     /// no kill of that key precedes.
     ///
-    /// Gas observations, calls, and `msize` end or restrict the scan: a
+    /// Gas observations and calls end or restrict the scan: a
     /// partial-redundancy insertion moves the read to a predecessor's end, so
-    /// it must not cross a gas observation or call (any space), or `msize` (memory
-    /// and keccak) in the join prefix.
+    /// it must not cross a gas observation or call (any space) in the join prefix.
     fn first_loads(
         &self,
         func: &Function,
@@ -788,9 +786,8 @@ impl<'a> LoadRedundancyEliminator<'a> {
     ///
     /// Such a load reads the value the key has at `target`'s entry, so it is fully redundant
     /// when that value is available on every predecessor. The walk applies the scan of
-    /// [`Self::first_loads`] to every block: it crosses no gas observation or call, `msize`
-    /// blocks the memory keys after it, and it visits at most [`Self::MAX_DESCENDANT_BLOCKS`]
-    /// blocks.
+    /// [`Self::first_loads`] to every block: it crosses no gas observation or call, and it visits
+    /// at most [`Self::MAX_DESCENDANT_BLOCKS`] blocks.
     fn descendant_loads(
         &self,
         func: &Function,
@@ -884,11 +881,6 @@ impl<'a> LoadRedundancyEliminator<'a> {
             match kind {
                 // Gas observations and calls block motion in every space.
                 _ if Self::blocks_motion(kind) => return false,
-                InstKind::MSize => {
-                    for &idx in &analysis.kill_index.memory {
-                        blocked.insert(idx);
-                    }
-                }
                 _ if kind.has_side_effects() => {
                     // Kills block their keys; a store's own-key gen is also a
                     // kill here (the value differs from the predecessor-end
@@ -938,11 +930,6 @@ impl<'a> LoadRedundancyEliminator<'a> {
             if inst_id != first_inst {
                 let kind = &func.inst(inst_id).kind;
                 if Self::blocks_motion(kind) {
-                    break;
-                }
-                if matches!(kind, InstKind::MSize)
-                    && matches!(key, LoadKey::Memory(_) | LoadKey::Keccak(_, _))
-                {
                     break;
                 }
                 if kind.has_side_effects() && self.inst_kills_key(func, inst_id, key) {

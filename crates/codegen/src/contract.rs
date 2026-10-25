@@ -189,11 +189,7 @@ pub fn generate_contract_bytecodes(
     let graph = ContractGraph::discover(gcx, &requested)?;
     let contract_count = gcx.hir.contract_ids().len();
 
-    // Pass debugging writes directly to stdout and stderr, so keep its output ordered.
-    let parallel = gcx.sess.is_parallel()
-        && !gcx.sess.opts.unstable.print_after_each
-        && !gcx.sess.opts.unstable.pass_diff
-        && !gcx.sess.opts.unstable.time_passes;
+    let parallel = gcx.sess.is_parallel_codegen();
     let priorities = if parallel {
         graph.scheduling_priorities(gcx)
     } else {
@@ -336,14 +332,19 @@ impl ContractGraph {
         Ok(())
     }
 
-    /// Starts the estimated longest dependency chains first. Completing a
-    /// contract waits for the contracts it embeds, so their work is on the path
-    /// to every embedding contract. Source-body sizes are a cheap scheduling
-    /// estimate; they do not affect what gets compiled.
+    /// Starts the jobs on the estimated longest remaining path first.
+    ///
+    /// Scheduling a contract runs concurrently with scheduling the contracts it embeds; only
+    /// its short completion waits for them. A contract is therefore done at
+    /// `max(schedule end, embedded contracts done) + finish`, and the path from the start of a
+    /// contract's scheduling is its own cost plus the finish of itself and of the chain of
+    /// contracts that embed it. Source-body sizes are a cheap cost estimate; they do not affect
+    /// what gets compiled.
     fn scheduling_priorities(&self, gcx: Gcx<'_>) -> IndexVec<ContractId, u64> {
-        let mut costs = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
+        // Holds each contract's own cost until the traversal adds its finish chain.
+        let mut priorities = IndexVec::from_vec(vec![0u64; self.dependencies.len()]);
         for id in self.reachable.iter() {
-            costs[id] = gcx
+            priorities[id] = gcx
                 .contract_reachable_functions(id)
                 .iter()
                 .map(|function| {
@@ -353,13 +354,15 @@ impl ContractGraph {
                 .sum::<u64>()
                 .max(1);
         }
-        let mut priorities = costs.clone();
+        // The longest finish chain of the contracts that embed each contract.
+        let mut after = IndexVec::from_vec(vec![0; self.dependencies.len()]);
         let mut remaining = IndexVec::from_vec(self.dependents.iter().map(Vec::len).collect());
         let mut ready = self.reachable.iter().filter(|&id| remaining[id] == 0).collect::<Vec<_>>();
         while let Some(id) = ready.pop() {
+            let tail = (priorities[id] / FINISH_COST_DIVISOR).saturating_add(after[id]);
+            priorities[id] = priorities[id].saturating_add(tail);
             for child in self.dependencies[id].iter() {
-                priorities[child] =
-                    priorities[child].max(costs[child].saturating_add(priorities[id]));
+                after[child] = after[child].max(tail);
                 remaining[child] -= 1;
                 if remaining[child] == 0 {
                     ready.push(child);
@@ -369,6 +372,10 @@ impl ContractGraph {
         priorities
     }
 }
+
+/// A contract's completion costs about this fraction of its scheduling, from traces of the heavy
+/// projects (2 to 6 percent).
+const FINISH_COST_DIVISOR: u64 = 32;
 
 /// One unit of contract code generation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

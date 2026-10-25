@@ -19,6 +19,7 @@ pub use solar_evmir::ir::*;
 
 pub(in crate::backend) mod builder;
 mod passes;
+pub(in crate::backend::evm) use passes::SharedSchedules;
 pub(crate) use passes::compact_pushes;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;

@@ -236,73 +236,51 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     let transfer_size = transfer_size(&target);
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
-    let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[Site; 2]>>::default();
-    let mut metrics = Vec::new();
+    let is_size = gcx.sess.opts.optimization.is_size();
+    let mut metrics = vec![None; hashes.ids.len()];
     for (block_id, block) in module.blocks.iter_enumerated() {
         if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
             continue;
         }
         // Overlapping candidate windows revisit each instruction. Decode its stack
-        // effect and select its push size once, without changing window order or limits.
-        metrics.clear();
-        metrics.extend(block.instructions.iter().enumerate().map(|(index, inst)| {
-            hashes
-                .repeats(block_id, index)
-                .then(|| {
-                    shared_body_effect(inst)
-                        .map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
-                })
-                .flatten()
-        }));
-        for start in 0..block.instructions.len() {
-            if !hashes.repeats(block_id, start) || !is_split_point(&block.instructions, start) {
-                continue;
-            }
-            let mut delta = 0i32;
-            let mut inputs = 0i32;
-            let mut run_size = 0usize;
-            let limit = block.instructions.len().min(start + max_run_length);
-            for (end, &metric) in metrics.iter().enumerate().take(limit).skip(start) {
-                let Some(((reads, pops, pushes), size)) = metric else { break };
-                run_size += size;
-                inputs = inputs.max(i32::from(reads) - delta);
-                delta = delta - i32::from(pops) + i32::from(pushes);
-                let outputs = inputs + delta;
-                if inputs != 0 && !gcx.sess.opts.optimization.is_size() {
-                    break;
-                }
-                let len = end + 1 - start;
-                let closed = inputs == 0 && (0..=16).contains(&outputs);
-                let open_size_run = gcx.sess.opts.optimization.is_size()
-                    && (0..=16).contains(&inputs)
-                    && (0..=16).contains(&outputs);
-                // Price both address pushes at PUSH2, plus the jump, continuation label, and
-                // input shuffles. Runs no larger than this site cannot pass the shared stub's
-                // profitability check regardless of occurrence count, so do not intern them.
-                let can_amortize = run_size > transfer_size + inputs as usize * shuffle_size;
-                if len >= MIN_MACHINE_RUN
-                    && can_amortize
-                    && (closed || open_size_run)
-                    && is_split_point(&block.instructions, end + 1)
-                {
-                    let key = RunSlice {
-                        hash: hashes.range(block_id, start, end),
-                        ids: &hashes.ids
-                            [hashes.starts[block_id] + start..=hashes.starts[block_id] + end],
-                    };
-                    candidates.entry(key).or_default().push(Site {
-                        block: block_id,
-                        start,
-                        len,
-                        inputs: inputs as u16,
-                        outputs: outputs as u16,
-                    });
-                }
+        // effect and select its push size once.
+        let first = hashes.starts[block_id];
+        for (index, inst) in block.instructions.iter().enumerate() {
+            if hashes.repeats(block_id, index)
+                && let Some(effect) = shared_body_effect(inst)
+            {
+                metrics[first + index] = Some((effect, instruction_size_lower_bound(gcx, inst)));
             }
         }
     }
+    let mut groups = repeated_runs(
+        module,
+        &hashes,
+        &metrics,
+        max_run_length,
+        MIN_MACHINE_RUN,
+        |(stack, run_size): &mut (StackDelta, usize), (effect, size)| {
+            stack.apply(effect);
+            *run_size += size;
+            // Inputs never shrink, so no longer run can have fewer. Open runs need size mode.
+            stack.inputs <= if is_size { 16 } else { 0 }
+        },
+        |&(stack, run_size), block, start, len| {
+            let (inputs, outputs) = (stack.inputs, stack.outputs());
+            let closed = inputs == 0 && (0..=16).contains(&outputs);
+            let open_size_run =
+                is_size && (0..=16).contains(&inputs) && (0..=16).contains(&outputs);
+            // Price both address pushes at PUSH2, plus the jump, continuation label, and
+            // input shuffles. Runs no larger than this site cannot pass the shared stub's
+            // profitability check regardless of occurrence count, so do not intern them.
+            let can_amortize = run_size > transfer_size + inputs as usize * shuffle_size;
+            (can_amortize
+                && (closed || open_size_run)
+                && is_split_point(&module.blocks[block].instructions, start + len))
+            .then_some(Site { block, start, len, inputs: inputs as u16, outputs: outputs as u16 })
+        },
+    );
 
-    let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
     if groups.is_empty() {
         return false;
     }
@@ -462,61 +440,38 @@ fn outline_parametric_machine_runs(
     const MAX_PARAMETERS: usize = 8;
 
     let hashes = RunHashes::new(module, ParamInstKey::new);
-    let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
-    let mut metrics = Vec::new();
+    let mut metrics = vec![None; hashes.ids.len()];
     for (block_id, block) in module.blocks.iter_enumerated() {
         // Overlapping candidate windows revisit each instruction, so classify it once.
-        metrics.clear();
-        metrics.extend(block.instructions.iter().enumerate().map(|(index, inst)| {
-            hashes
-                .repeats(block_id, index)
-                .then(|| {
-                    shared_body_effect(inst).map(|effect| (effect, parameterizable_push(inst)))
-                })
-                .flatten()
-        }));
-        for start in 0..block.instructions.len() {
-            if !is_split_point(&block.instructions, start) {
-                continue;
-            }
-            let mut delta = 0i32;
-            let mut inputs = 0i32;
-            let mut immediate_pushes = 0usize;
-            let limit = block.instructions.len().min(start + MAX_RUN_LENGTH);
-            for (end, &metric) in metrics.iter().enumerate().take(limit).skip(start) {
-                let Some(((reads, pops, pushes), parameter)) = metric else { break };
-                if parameter {
-                    immediate_pushes += 1;
-                }
-                inputs = inputs.max(i32::from(reads) - delta);
-                delta = delta - i32::from(pops) + i32::from(pushes);
-                let len = end + 1 - start;
-                let outputs = inputs + delta;
-                if len < MIN_RUN_LENGTH
-                    || inputs != 0
-                    || !(0..=16).contains(&outputs)
-                    || immediate_pushes == 0
-                    || immediate_pushes > MAX_PARAMETERS * 2
-                    || !is_split_point(&block.instructions, end + 1)
-                {
-                    continue;
-                }
-                let key = RunSlice {
-                    hash: hashes.range(block_id, start, end),
-                    ids: &hashes.ids
-                        [hashes.starts[block_id] + start..=hashes.starts[block_id] + end],
-                };
-                candidates.entry(key).or_default().push(ParamSite {
-                    block: block_id,
-                    start,
-                    len,
-                    outputs: outputs as u16,
-                });
+        let first = hashes.starts[block_id];
+        for (index, inst) in block.instructions.iter().enumerate() {
+            if hashes.repeats(block_id, index)
+                && let Some(effect) = shared_body_effect(inst)
+            {
+                metrics[first + index] = Some((effect, parameterizable_push(inst)));
             }
         }
     }
-
-    let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
+    let mut groups = repeated_runs(
+        module,
+        &hashes,
+        &metrics,
+        MAX_RUN_LENGTH,
+        MIN_RUN_LENGTH,
+        |(stack, immediate_pushes): &mut (StackDelta, usize), (effect, parameter)| {
+            stack.apply(effect);
+            *immediate_pushes += usize::from(parameter);
+            // Neither count shrinks, so no longer run can pass these limits.
+            stack.inputs == 0 && *immediate_pushes <= MAX_PARAMETERS * 2
+        },
+        |&(stack, immediate_pushes), block, start, len| {
+            let outputs = stack.outputs();
+            ((0..=16).contains(&outputs)
+                && immediate_pushes != 0
+                && is_split_point(&module.blocks[block].instructions, start + len))
+            .then_some(Site { block, start, len, inputs: 0, outputs: outputs as u16 })
+        },
+    );
     if groups.is_empty() {
         return false;
     }
@@ -528,7 +483,7 @@ fn outline_parametric_machine_runs(
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
     for (_, sites) in groups {
-        let mut free = SmallVec::<[ParamSite; 2]>::new();
+        let mut free = SmallVec::<[Site; 2]>::new();
         for site in sites {
             let end = site.start + site.len;
             let instruction_count = module.blocks[site.block].instructions.len();
@@ -577,7 +532,7 @@ fn outline_parametric_machine_runs(
             continue;
         }
         let mut merged_body = first_body.to_vec();
-        merge_param_site_source_spans(module, &mut merged_body, &free);
+        merge_site_source_spans(module, &mut merged_body, &free);
         clear_function_invokes(&mut merged_body);
         let Some(stub_body) = parameterize_body(&merged_body, &parameters) else { continue };
         let inline_size = free
@@ -834,16 +789,6 @@ fn merge_site_source_spans(module: &Module, body: &mut [Instruction], sites: &[S
     }
 }
 
-fn merge_param_site_source_spans(module: &Module, body: &mut [Instruction], sites: &[ParamSite]) {
-    for site in sites {
-        let instructions =
-            &module.blocks[site.block].instructions[site.start..site.start + site.len];
-        for (body_instruction, site_instruction) in body.iter_mut().zip(instructions) {
-            body_instruction.metadata.merge_source_spans(&site_instruction.metadata);
-        }
-    }
-}
-
 fn clear_function_invokes(instructions: &mut [Instruction]) {
     for instruction in instructions {
         instruction.metadata.take_function_invoke();
@@ -955,17 +900,9 @@ struct ChosenGroup {
     outputs: u16,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct ParamSite {
-    block: BlockId,
-    start: usize,
-    len: usize,
-    outputs: u16,
-}
-
 struct ParamChosenGroup {
     body: Vec<Instruction>,
-    sites: SmallVec<[ParamSite; 2]>,
+    sites: SmallVec<[Site; 2]>,
     parameters: Vec<usize>,
     outputs: u16,
 }
@@ -1059,10 +996,124 @@ impl RunHashes {
         self.repeats.count()
     }
 
-    fn range(&self, block: BlockId, start: usize, end: usize) -> u64 {
-        let prefix = &self.prefixes[self.starts[block] + block.index()..];
-        prefix[end + 1].wrapping_sub(prefix[start].wrapping_mul(self.powers[end + 1 - start]))
+    /// Hashes the `len` instructions from flat index `first` of `block`.
+    fn range(&self, block: BlockId, first: usize, len: usize) -> u64 {
+        let prefix = &self.prefixes[first + block.index()..];
+        prefix[len].wrapping_sub(prefix[0].wrapping_mul(self.powers[len]))
     }
+}
+
+/// The stack effect of a run so far.
+#[derive(Clone, Copy, Default)]
+struct StackDelta {
+    delta: i32,
+    inputs: i32,
+}
+
+impl StackDelta {
+    fn apply(&mut self, (reads, pops, pushes): (u16, u16, u16)) {
+        self.inputs = self.inputs.max(i32::from(reads) - self.delta);
+        self.delta = self.delta - i32::from(pops) + i32::from(pushes);
+    }
+
+    fn outputs(self) -> i32 {
+        self.inputs + self.delta
+    }
+}
+
+/// A run start growing one instruction at a time, with the caller's state for the run so far.
+struct Walk<S> {
+    block: BlockId,
+    /// The flat index of the first instruction, as in [`RunHashes::ids`].
+    first: usize,
+    len: usize,
+    max_len: usize,
+    hash: u64,
+    state: S,
+}
+
+/// Returns the runs of at least `min_len` instructions that occur at least twice, each with its
+/// sites ordered by block and start.
+///
+/// All walks grow together, one instruction per round, so each round can count equal runs. A run
+/// that occurs once cannot have a longer extension that occurs twice, so its walk stops. Most
+/// runs are unique, which keeps the work well below that of visiting every window of every start.
+/// A hash collision only keeps a walk longer, and the exact map below separates the runs, so the
+/// result matches grouping every window.
+///
+/// `metrics` holds each instruction's per-run data by flat index, with `None` for an instruction
+/// no run may contain. Runs start at a split point and have at most `max_len` instructions.
+/// `step` adds one instruction to a walk's state and returns whether longer runs may still
+/// qualify, and `accept` turns a counted run into a candidate site.
+fn repeated_runs<'h, M: Copy, S: Copy + Default>(
+    module: &Module,
+    hashes: &'h RunHashes,
+    metrics: &[Option<M>],
+    max_len: usize,
+    min_len: usize,
+    step: impl Fn(&mut S, M) -> bool,
+    accept: impl Fn(&S, BlockId, usize, usize) -> Option<Site>,
+) -> Vec<(RunSlice<'h>, SmallVec<[Site; 2]>)> {
+    // Starts that cannot take their first instruction never become walks.
+    let mut walks = Vec::new();
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        let first = hashes.starts[block_id];
+        for index in 0..block.instructions.len() {
+            let mut state = S::default();
+            if let Some(metric) = metrics[first + index]
+                && is_split_point(&block.instructions, index)
+                && step(&mut state, metric)
+            {
+                let max_len = (block.instructions.len() - index).min(max_len);
+                walks.push(Walk {
+                    block: block_id,
+                    first: first + index,
+                    len: 1,
+                    max_len,
+                    hash: 0,
+                    state,
+                });
+            }
+        }
+    }
+    let mut groups = FxHashMap::<RunSlice<'_>, SmallVec<[Site; 2]>>::default();
+    let mut counts = Vec::new();
+    while let Some(len) = walks.first().map(|walk| walk.len) {
+        if len >= min_len {
+            // Count each run's hash in a table with eight slots per walk, saturating at two.
+            let slots = (walks.len() * 8).next_power_of_two();
+            let shift = 64 - slots.trailing_zeros();
+            let slot = |hash: u64| (hash.wrapping_mul(0x9e37_79b9_7f4a_7c15) >> shift) as usize;
+            counts.clear();
+            counts.resize(slots, 0u8);
+            for walk in &mut walks {
+                walk.hash = hashes.range(walk.block, walk.first, walk.len);
+                let count = &mut counts[slot(walk.hash)];
+                *count += u8::from(*count < 2);
+            }
+            walks.retain(|walk| counts[slot(walk.hash)] >= 2);
+            for walk in &walks {
+                let start = walk.first - hashes.starts[walk.block];
+                if let Some(site) = accept(&walk.state, walk.block, start, walk.len) {
+                    let key = RunSlice {
+                        hash: walk.hash,
+                        ids: &hashes.ids[walk.first..walk.first + walk.len],
+                    };
+                    groups.entry(key).or_default().push(site);
+                }
+            }
+        }
+        walks.retain_mut(|walk| {
+            let Some(metric) =
+                (walk.len < walk.max_len).then(|| metrics[walk.first + walk.len]).flatten()
+            else {
+                return false;
+            };
+            walk.len += 1;
+            step(&mut walk.state, metric)
+        });
+    }
+    groups.into_iter().filter(|(_, sites)| sites.len() >= 2).collect()
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

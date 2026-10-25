@@ -1,0 +1,41 @@
+- // === ROOT/tests/ui/codegen/mir/word-sequence/compared_mask.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/compared_mask.mir (after word-sequence) ===
+  @module ComparedMask
+  fn @selectors(arg0: i256) -> i1 {
+    bb0:
+-     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
++     v4 = shr arg0, 224
++     v0 = shl v4, 224
+      v1 = eq v0, 0x1ffc9a700000000000000000000000000000000000000000000000000000000
+      v2 = eq v0, 0x80ac58cd00000000000000000000000000000000000000000000000000000000
+      v3 = or v1, v2
+      ret v3
+  }
+  
+  fn @remasked(arg0: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+-     v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
++     v3 = shr v0, 224
++     v1 = shl v3, 224
+      v2 = eq v1, 0x1ffc9a700000000000000000000000000000000000000000000000000000000
+      ret v2
+  }
+  
+  fn @shared_mask(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+      v1 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+      v2 = eq v0, 0x1ffc9a700000000000000000000000000000000000000000000000000000000
+      v3 = eq v1, 0x80ac58cd00000000000000000000000000000000000000000000000000000000
+      v4 = or v2, v3
+      ret v4
+  }
+  
+  fn @packed(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+      v1 = or v0, arg1
+      ret v1
+  }
+  

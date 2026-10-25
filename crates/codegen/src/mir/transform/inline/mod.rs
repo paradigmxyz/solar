@@ -54,8 +54,8 @@ use crate::{
         ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, PtrLocation,
         StorageAlias, Terminator, Value, ValueId,
         analysis::{
-            AddressSpace, CallGraphInfo, Liveness, LocalSummaryCache, LoopAnalyzer,
-            MemoryCallSummaries, direct_callees,
+            AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
+            direct_callees,
         },
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
@@ -97,29 +97,39 @@ impl MirPass for Inline {
         let physical = matches!(self, Self::Physical) || module.phase >= MirPhase::Lowered;
         let mut changed = false;
         for _ in 0..4 {
-            let calls = MemoryCallSummaries::new_cached(module, &mut LocalSummaryCache::default());
+            let calls = analyses.fresh_call_summaries(module);
             let straight_line = if target.optimization().is_gas() {
                 module.creation_pricing_functions().1
             } else {
                 DenseBitSet::new_empty(module.functions.len())
             };
             let stats = MirInliner { target, physical, calls, straight_line }.run(module);
-            if !stats.consumed.is_empty() {
-                super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
+            for &caller in &stats.modified {
+                analyses.invalidate_local_summary(caller);
+            }
+            if !stats.consumed.is_empty()
+                && let Some(keep) =
+                    super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed)
+            {
+                analyses.retain_local_summaries(&keep);
             }
             if stats.inlined == 0 {
                 break;
             }
             changed = true;
         }
+        let mut edited_later = false;
         if physical {
-            changed |= guards::inline_guards(module, &target);
+            edited_later = guards::inline_guards(module, &target);
             if dispatch::inline_dispatch(module, &target) {
                 let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
-                changed = true;
+                edited_later = true;
             }
         }
-        changed
+        if !edited_later {
+            analyses.preserve_local_summaries();
+        }
+        changed | edited_later
     }
 }
 
@@ -175,6 +185,8 @@ struct MirInlineStats {
     inlined: usize,
     /// Callees whose only call site was inlined; nothing calls them afterwards.
     consumed: Vec<MirFunctionId>,
+    /// Callers that received a clone.
+    modified: Vec<MirFunctionId>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -337,6 +349,7 @@ impl MirInliner {
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
+                    stats.modified.push(caller_id);
                     if call_counts.get(&site.callee) == Some(&1) {
                         stats.consumed.push(site.callee);
                     }
