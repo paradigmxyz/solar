@@ -1,0 +1,118 @@
+- // === ROOT/tests/ui/codegen/mir/inline/all_sites_limits.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/all_sites_limits.mir (after inline) ===
+  @module AllSitesLimits
+  fn @phi_caller(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = icall @pick, arg0, arg1
+      v1 = icall @pick, v0, arg1
+      ret v1
+  }
+  
+  fn @pick(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, arg1
+      jumpi v0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      v1 = phi [bb1: arg0], [bb2: arg1]
+      ret v1
+  }
+  
+  fn @nine_caller(arg0: i256) -> i256 {
+    bb0:
+-     v0 = icall @step, arg0
+-     v1 = icall @step, v0
+-     v2 = icall @step, v1
+-     v3 = icall @step, v2
+-     v4 = icall @step, v3
+-     v5 = icall @step, v4
+-     v6 = icall @step, v5
+-     v7 = icall @step, v6
+-     v8 = icall @step, v7
+-     ret v8
+- }
+- 
+- fn @step(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = mul arg0, 3
+-     v1 = add v0, 7
+-     v2 = xor v1, arg0
+-     ret v2
++     jump bb2
++   bb2:
++     v9 = mul arg0, 3
++     v10 = add v9, 7
++     v11 = xor v10, arg0
++     jump bb1
++   bb1:
++     v12 = phi [bb2: v11]
++     jump bb4
++   bb4:
++     v13 = mul v12, 3
++     v14 = add v13, 7
++     v15 = xor v14, v12
++     jump bb3
++   bb3:
++     v16 = phi [bb4: v15]
++     jump bb6
++   bb6:
++     v17 = mul v16, 3
++     v18 = add v17, 7
++     v19 = xor v18, v16
++     jump bb5
++   bb5:
++     v20 = phi [bb6: v19]
++     jump bb8
++   bb8:
++     v21 = mul v20, 3
++     v22 = add v21, 7
++     v23 = xor v22, v20
++     jump bb7
++   bb7:
++     v24 = phi [bb8: v23]
++     jump bb10
++   bb10:
++     v25 = mul v24, 3
++     v26 = add v25, 7
++     v27 = xor v26, v24
++     jump bb9
++   bb9:
++     v28 = phi [bb10: v27]
++     jump bb12
++   bb12:
++     v29 = mul v28, 3
++     v30 = add v29, 7
++     v31 = xor v30, v28
++     jump bb11
++   bb11:
++     v32 = phi [bb12: v31]
++     jump bb14
++   bb14:
++     v33 = mul v32, 3
++     v34 = add v33, 7
++     v35 = xor v34, v32
++     jump bb13
++   bb13:
++     v36 = phi [bb14: v35]
++     jump bb16
++   bb16:
++     v37 = mul v36, 3
++     v38 = add v37, 7
++     v39 = xor v38, v36
++     jump bb15
++   bb15:
++     v40 = phi [bb16: v39]
++     jump bb18
++   bb18:
++     v41 = mul v40, 3
++     v42 = add v41, 7
++     v43 = xor v42, v40
++     jump bb17
++   bb17:
++     v44 = phi [bb18: v43]
++     ret v44
+  }
+  

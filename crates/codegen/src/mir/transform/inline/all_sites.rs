@@ -4,14 +4,15 @@
 //! sharing. A callee with several sites needs the judgment for the whole set, because each
 //! inline lowers the count that the next site sees: three calls of a small helper look like
 //! two, then one, and no single site pays for the copies. The set is priced once, before a
-//! round, as [`Target::helper_sharing`] prices a shared helper: the call protocol of every
+//! round, as `Target::helper_sharing` prices a shared helper: the call protocol of every
 //! site and one body, against one body per site plus the code the backend stops sharing with
 //! other functions. A callee with a tail call or an unreachable caller keeps its body and is
 //! left out.
 //!
 //! The model prices a body from its operations alone, so only arithmetic leaves and forwarders
-//! qualify: bodies of operations that each lower to one opcode, with a branch to a revert helper
-//! at most, and bodies that only call another function. For bodies that move memory or storage,
+//! qualify: bodies of operations that each lower to one opcode, with branches but no phis,
+//! selects, or switches, whose joins cost stack moves the model omits, and bodies that only call
+//! another function. For bodies that move memory or storage,
 //! or return a memory object, the estimate omits the stack moves and the expansion of later
 //! lowerings, and the copies grew the corpus's bytecode. Copies of a leaf also fold against the
 //! constants and ranges of their sites, which the model does not credit. Callees with more than
@@ -45,12 +46,10 @@ pub(super) fn consumed_everywhere(
             let Some(summary) = summaries.get(&callee) else { return false };
             if !(2..=MAX_SITES).contains(&sites)
                 || internal_calls.get(&callee) != Some(&sites)
-                || func.attributes.no_inline
                 || func
                     .return_components()
                     .iter()
                     .any(|&ty| matches!(ty, MirType::MEMPTR | MirType::Slice(_)))
-                || summary.is_function_pointer_dispatcher
                 || !(is_arithmetic_leaf(module, func) || summary.is_transparent_forwarder)
             {
                 return false;
@@ -59,7 +58,7 @@ pub(super) fn consumed_everywhere(
                 body_bytes(inliner, module, func),
                 func.params.len(),
                 func.return_components().len(),
-                u32::try_from(sites).unwrap_or(u32::MAX),
+                sites as u32,
             );
             let lost = shared_runs.shared_bytes(&inliner.target, module, callee) as u32;
             inliner.target.cmp(expanded + Cost::new(0, lost), shared).is_le()
@@ -83,13 +82,18 @@ fn internal_call_counts(module: &Module) -> FxHashMap<FunctionId, usize> {
     counts
 }
 
-/// Whether every operation of `func` is pure or a call that never returns.
+/// Whether every operation of `func` is pure or a call that never returns, and no block joins
+/// values or switches.
 fn is_arithmetic_leaf(module: &Module, func: &Function) -> bool {
     func.instructions().all(|inst| {
         let kind = &func.inst(inst).kind;
         is_terminal_call(module, kind)
-            || (!matches!(kind, InstKind::ICall { .. }) && kind.effect_kind() == EffectKind::Pure)
-    })
+            || (!matches!(kind, InstKind::ICall { .. } | InstKind::Phi(_) | InstKind::Select(..))
+                && kind.effect_kind() == EffectKind::Pure)
+    }) && func
+        .blocks
+        .iter()
+        .all(|block| !matches!(block.terminator, Some(Terminator::Switch { .. })))
 }
 
 /// The bytes of one copy of `func`: its operations with their immediates, the jump of a call

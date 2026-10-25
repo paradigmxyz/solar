@@ -9,11 +9,11 @@
 //!
 //! Size mode admits tiny bodies whose estimated bytes do not grow, and consumes
 //! sole-use callees, adding to the body the code the backend would stop sharing
-//! with other functions (see `shared_runs`). It also inlines every call of an arithmetic leaf
-//! or forwarder with several sites when the copies cost less than the shared body and its call
-//! protocols (see `all_sites`). Gas mode also considers scalar loop
-//! helpers, constant-argument wrappers, and callees sharing a direct
-//! constant-slot read with the call block. The latter
+//! with other functions (see `shared_runs`). It also inlines every call of an
+//! arithmetic leaf or forwarder with several sites when the copies cost less than
+//! the shared body and its call protocols (see `all_sites`). Gas mode also
+//! considers scalar loop helpers, constant-argument wrappers, and callees sharing
+//! a direct constant-slot read with the call block. The latter
 //! must not write storage or observe gas; later CSE removes redundant reads.
 //! Reference-returning helpers stay shared except for transparent forwarders
 //! and one-word literals used once per emitted artifact. Shared void forwarders
@@ -336,7 +336,7 @@ impl MirInliner {
                         let creation = Pricing {
                             target: self.target.priced_for(true),
                             call_count: counts[0],
-                            consume_all,
+                            consume_all: false,
                         };
                         self.is_inlineable(module, caller_id, site, summary, creation, preferred)
                     });

@@ -1,0 +1,53 @@
+//@ compile-flags: -Osize -Zmir-pipeline=inline
+//@ filecheck:
+@module AllSitesLimits
+
+// A leaf that joins values with a phi costs stack moves at every copy that the size estimate
+// omits, so both calls stay.
+// CHECK-LABEL: fn @phi_caller
+// CHECK: icall @pick
+// CHECK: icall @pick
+fn @phi_caller(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = icall @pick, arg0, arg1
+    v1 = icall @pick, v0, arg1
+    ret v1
+}
+
+fn @pick(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    jumpi v0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: arg0], [bb2: arg1]
+    ret v1
+}
+
+// A leaf called from nine sites stays shared: the estimate errs once per copy.
+// CHECK-LABEL: fn @nine_caller
+// CHECK-COUNT-9: icall @step
+fn @nine_caller(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @step, arg0
+    v1 = icall @step, v0
+    v2 = icall @step, v1
+    v3 = icall @step, v2
+    v4 = icall @step, v3
+    v5 = icall @step, v4
+    v6 = icall @step, v5
+    v7 = icall @step, v6
+    v8 = icall @step, v7
+    ret v8
+}
+
+fn @step(arg0: i256) -> i256 {
+  bb0:
+    v0 = mul arg0, 3
+    v1 = add v0, 7
+    v2 = xor v1, arg0
+    ret v2
+}
