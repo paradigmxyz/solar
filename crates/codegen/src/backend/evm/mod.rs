@@ -28,6 +28,14 @@ mod layout;
 
 pub use solar_evmir::op;
 
+/// What code generation keeps for a whole compilation, on its [`Gcx`](solar_sema::Gcx): the
+/// results of its searches and its plans, which every contract may read and fill.
+#[derive(Default)]
+pub(crate) struct CodegenState {
+    schedules: ir::SharedSchedules,
+    plans: PlanCache,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -39,12 +47,4 @@ mod tests {
             snapbox::file!["../../../isle/evm-ir/prelude.isle"]
         );
     }
-}
-
-/// What code generation keeps for a whole compilation, on its [`Gcx`](solar_sema::Gcx): the
-/// results of its searches and its plans, which every contract may read and fill.
-#[derive(Default)]
-pub(crate) struct CodegenState {
-    schedules: ir::SharedSchedules,
-    plans: PlanCache,
 }
