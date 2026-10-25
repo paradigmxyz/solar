@@ -23,7 +23,7 @@ use super::{MirInlineSummary, MirInliner, is_terminal_call, surviving_call_words
 use crate::{
     mir::{
         Callee, EffectKind, Function, FunctionId, InstKind, MirType, Module, Terminator,
-        analysis::Liveness,
+        analysis::{Liveness, direct_callees},
     },
     target::Cost,
 };
@@ -41,7 +41,7 @@ pub(super) fn consumed_everywhere(
     call_counts: &FxHashMap<FunctionId, usize>,
 ) -> FxHashSet<FunctionId> {
     let Some(shared_runs) = &inliner.shared_runs else { return FxHashSet::default() };
-    let internal_calls = internal_call_counts(module);
+    let (internal_calls, references) = reference_counts(module);
     let mut consumed = call_counts
         .iter()
         .filter(|&(&callee, &sites)| {
@@ -49,6 +49,7 @@ pub(super) fn consumed_everywhere(
             let Some(summary) = summaries.get(&callee) else { return false };
             if !(2..=MAX_SITES).contains(&sites)
                 || internal_calls.get(&callee) != Some(&sites)
+                || references.get(&callee) != Some(&sites)
                 || func
                     .return_components()
                     .iter()
@@ -104,19 +105,27 @@ fn drop_stack_bound(
     }
 }
 
-/// The number of `icall` sites of each function in the module. It differs from the call count
-/// of a function that is also tail-called, or called from an unreachable function.
-fn internal_call_counts(module: &Module) -> FxHashMap<FunctionId, usize> {
-    let mut counts = FxHashMap::<FunctionId, usize>::default();
+/// The number of `icall` sites and of all references, calls and tail calls, to each function
+/// from every function in the module. Both equal the call count of a callee exactly when no
+/// tail call and no unreachable function references it, which a single total could hide, as an
+/// unreachable call cancels a reachable tail call.
+fn reference_counts(
+    module: &Module,
+) -> (FxHashMap<FunctionId, usize>, FxHashMap<FunctionId, usize>) {
+    let mut internal_calls = FxHashMap::<FunctionId, usize>::default();
+    let mut references = FxHashMap::<FunctionId, usize>::default();
     for func in &module.functions {
         for inst in func.instructions() {
             if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
             {
-                *counts.entry(callee).or_default() += 1;
+                *internal_calls.entry(callee).or_default() += 1;
             }
         }
+        for callee in direct_callees(func) {
+            *references.entry(callee).or_default() += 1;
+        }
     }
-    counts
+    (internal_calls, references)
 }
 
 /// Whether every operation of `func` is pure or a call that never returns, and no block joins
