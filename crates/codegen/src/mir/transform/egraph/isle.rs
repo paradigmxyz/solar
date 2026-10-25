@@ -327,7 +327,7 @@ impl generated::Context for RuleContext<'_> {
         self.target.is_some_and(|target| {
             let after = target.push(replacement);
             let before = target.push(original);
-            after.gas <= before.gas && after.bytes <= before.bytes
+            target.runtime_gas(after) <= target.runtime_gas(before) && after.bytes <= before.bytes
         })
     }
 

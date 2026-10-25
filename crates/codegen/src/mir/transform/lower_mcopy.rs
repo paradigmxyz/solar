@@ -239,10 +239,10 @@ fn choose_copy_helpers(
             let own = bodies[index(site)];
             let helper = (0..CopyShape::ALL.len())
                 .filter(|&helper| in_set(helper) && CopyShape::ALL[helper].covers(site))
-                .min_by_key(|&helper| bodies[helper].gas);
+                .min_by_key(|&helper| target.runtime_gas(bodies[helper]));
             if let Some(helper) = helper {
                 users[helper] += count;
-                cost += Cost::new(bodies[helper].gas.saturating_sub(own.gas), 0).times(count);
+                cost += Cost { bytes: 0, ..bodies[helper].saturating_sub(own) }.times(count);
                 choice.insert(site, CopyShape::ALL[helper]);
             } else {
                 cost += Cost::new(0, own.bytes).times(count);

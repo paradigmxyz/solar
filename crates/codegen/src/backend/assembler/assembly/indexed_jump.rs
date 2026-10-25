@@ -1,15 +1,15 @@
 //! Indexed jump table planning and assembly lowering.
 
 use super::{Program, lower};
-use crate::backend::{
-    assembler::{Assembler, Label},
-    evm::{
-        ir::{
-            self, BlockId, ImmediateMaterialization, ImmediateMaterializationOp,
-            immediate_materialization_len,
+use crate::{
+    backend::{
+        assembler::{Assembler, Label},
+        evm::{
+            ir::{self, BlockId, ImmediateMaterialization, ImmediateMaterializationOp},
+            op::{self, WORD_BYTES, push_len},
         },
-        op::{self, WORD_BYTES, push_len},
     },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -18,10 +18,10 @@ use solar_data_structures::index::{IndexVec, index_vec};
 fn push_immediate(
     assembler: &mut Assembler<'_>,
     program: &mut Program,
-    evm_version: EvmVersion,
+    target: &Target,
     value: U256,
 ) {
-    ImmediateMaterialization::new(evm_version, value).for_each(|op| match op {
+    ImmediateMaterialization::new(target, value).for_each(|op| match op {
         ImmediateMaterializationOp::Push(value) => program.push(assembler.push_inst(value)),
         ImmediateMaterializationOp::Opcode(opcode) => program.push_op(opcode),
     });
@@ -837,13 +837,15 @@ fn estimated_terminator_size(
     }
 }
 
+/// The immediates of a packed table are narrower than five bytes, which the push selector emits
+/// as literals under every tune.
 fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) -> usize {
     let table_len = if table.chunks == PackedTableChunks::One {
         if table.width == 1 {
             let byte_offset = WORD_BYTES - table.len;
             4 + table.len
                 + usize::from(byte_offset != 0)
-                    * (immediate_materialization_len(evm_version, U256::from(byte_offset)) + 1)
+                    * (push_len(evm_version, U256::from(byte_offset)) + 1)
         } else {
             9 + table.len * usize::from(table.width) + usize::from(table.width)
         }
@@ -861,12 +863,12 @@ fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) 
         let second_chunk_push = second_chunk_bytes + 1;
         let first_chunk_push = 33;
         opcode_bytes
-            + immediate_materialization_len(evm_version, U256::from(chunk_shift))
+            + push_len(evm_version, U256::from(chunk_shift))
             + second_chunk_push
             + first_chunk_push
-            + immediate_materialization_len(evm_version, U256::from(entry_mask))
-            + immediate_materialization_len(evm_version, U256::from(scale_shift))
-            + immediate_materialization_len(evm_version, target_mask)
+            + push_len(evm_version, U256::from(entry_mask))
+            + push_len(evm_version, U256::from(scale_shift))
+            + push_len(evm_version, target_mask)
     };
     table_len + usize::from(table.base_width) + usize::from(table.base_width != 0) * 2
 }
@@ -879,7 +881,7 @@ pub(super) fn lower(
     labels: &mut Vec<Option<Label>>,
     indexed_jump: IndexedJumpLowering,
 ) {
-    let evm_version = assembler.gcx.sess.opts.evm_version;
+    let target = Target::new(assembler.gcx);
     let table_encoding = indexed_jump.table.expect("indexed jump table encoding");
     if table_encoding.packed_chunks != PackedTableChunks::None {
         let target_width = table_encoding.width;
@@ -896,7 +898,7 @@ pub(super) fn lower(
             let (first, second) = labels.split_at(entries_per_chunk);
             // Select one of the two words without branching.
             program.push_op(op::DUP1);
-            push_immediate(assembler, program, evm_version, U256::from(entries_per_chunk.ilog2()));
+            push_immediate(assembler, program, &target, U256::from(entries_per_chunk.ilog2()));
             program.push_op(op::SHR);
             program.push_op(op::DUP1);
             program.push_packed_labels(second.into(), base, target_width);
@@ -907,13 +909,13 @@ pub(super) fn lower(
             program.push_op(op::MUL);
             program.push_op(op::ADD);
             program.push_op(op::SWAP1);
-            push_immediate(assembler, program, evm_version, U256::from(entries_per_chunk - 1));
+            push_immediate(assembler, program, &target, U256::from(entries_per_chunk - 1));
             program.push_op(op::AND);
         }
         if table_encoding.packed_chunks == PackedTableChunks::One && target_width == 1 {
             let byte_offset = WORD_BYTES - labels.len();
             if byte_offset != 0 {
-                push_immediate(assembler, program, evm_version, U256::from(byte_offset));
+                push_immediate(assembler, program, &target, U256::from(byte_offset));
                 program.push_op(op::ADD);
             }
             let mut labels = labels.into_boxed_slice();
@@ -923,10 +925,10 @@ pub(super) fn lower(
             program.push_op(op::BYTE);
         } else {
             if scale.is_power_of_two() {
-                push_immediate(assembler, program, evm_version, U256::from(scale.ilog2()));
+                push_immediate(assembler, program, &target, U256::from(scale.ilog2()));
                 program.push_op(op::SHL);
             } else {
-                push_immediate(assembler, program, evm_version, U256::from(scale));
+                push_immediate(assembler, program, &target, U256::from(scale));
                 program.push_op(op::MUL);
             }
             if table_encoding.packed_chunks == PackedTableChunks::One {
@@ -935,7 +937,7 @@ pub(super) fn lower(
             }
             program.push_op(op::SHR);
             let mask = (U256::ONE << scale) - U256::ONE;
-            push_immediate(assembler, program, evm_version, mask);
+            push_immediate(assembler, program, &target, mask);
             program.push_op(op::AND);
         }
         if let Some(base) = base {
@@ -954,7 +956,7 @@ pub(super) fn lower(
     );
     let entry_width = indexed_jump.outlined_entry_width.expect("outlined indexed jump entry width");
     let stub_len = u32::from(entry_width) + 3;
-    push_immediate(assembler, program, evm_version, U256::from(stub_len));
+    push_immediate(assembler, program, &target, U256::from(stub_len));
     program.push_op(op::MUL);
     program.push_label(lower::label_for_block(assembler, module, table, labels));
     program.push_op(op::ADD);

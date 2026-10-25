@@ -272,6 +272,22 @@ str_enum! {
     }
 }
 
+str_enum! {
+    /// Execution engine that generated code is tuned for.
+    #[derive(Default)]
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum Tune {
+        /// Tune for gas and bytecode size alone.
+        #[default]
+        None,
+        /// Tune for an interpreter, which spends time on every executed instruction.
+        Interpreter,
+        /// Tune for a JIT compiler, which cannot resolve computed jumps.
+        Jit,
+    }
+}
+
 impl OptimizationMode {
     /// Returns whether codegen should favor bytecode size over runtime gas (`-O size`).
     #[inline]

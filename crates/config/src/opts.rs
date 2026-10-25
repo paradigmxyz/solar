@@ -3,7 +3,7 @@
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
     ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings, SwitchLowering,
-    Threads,
+    Threads, Tune,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -433,6 +433,20 @@ pub struct UnstableOpts {
         )
     )]
     pub switch_lowering: SwitchLowering,
+
+    /// Tune generated code for an execution engine (default: `none`; values: `none`,
+    /// `interpreter`, `jit`).
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            long,
+            value_enum,
+            default_value_t,
+            hide_default_value = true,
+            hide_possible_values = true
+        )
+    )]
+    pub tune: Tune,
 
     /// Override the artifact-wide bytecode growth budget for gas-optimized switches.
     #[cfg_attr(feature = "clap", arg(long))]

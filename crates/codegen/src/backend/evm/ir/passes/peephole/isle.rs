@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{ImmediateMaterialization, Instruction, immediate_materialization_cost},
+        ir::{ImmediateMaterialization, Instruction},
         op,
         op::*,
     },
@@ -20,7 +20,6 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_config::{EvmVersion, OptimizationMode};
 
 /// How far back a rule may simulate the block's stack.
 const MAX_STACK_WINDOW: usize = 24;
@@ -28,7 +27,7 @@ const MAX_STACK_WINDOW: usize = 24;
 /// Inverts a comparison against a protected constant without increasing stack usage.
 pub(crate) fn invert_comparison(
     instructions: &[Instruction],
-    evm_version: EvmVersion,
+    target: &Target,
 ) -> Option<(usize, U256, u8)> {
     let end = instructions.len().checked_sub(1)?;
     let comparison = &instructions[end];
@@ -55,10 +54,10 @@ pub(crate) fn invert_comparison(
             };
             // A shorter encoding may need an extra temporary stack word.
             if let Some(bound) = bound.map(|bound| bound ^ bias)
-                && ImmediateMaterialization::new(evm_version, bound).stack_peak()
-                    <= ImmediateMaterialization::new(evm_version, value).stack_peak()
-                && op::push_len(evm_version, bound)
-                    <= immediate_materialization_cost(evm_version, value).0 + 1
+                && ImmediateMaterialization::new(target, bound).stack_peak()
+                    <= ImmediateMaterialization::new(target, value).stack_peak()
+                && op::push_len(target.evm_version(), bound)
+                    <= target.push(value).bytes as usize + 1
             {
                 return Some((start, bound, opposite));
             }
@@ -216,13 +215,13 @@ impl TailClass {
 /// Context the rules run against: the instructions of one block so far.
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
-    evm_version: EvmVersion,
+    target: Target,
     final_cleanup: bool,
 }
 
 impl<'a> PeepContext<'a> {
-    pub(super) fn new(instructions: &'a [Instruction], evm_version: EvmVersion) -> Self {
-        Self { instructions, evm_version, final_cleanup: false }
+    pub(super) fn new(instructions: &'a [Instruction], target: Target) -> Self {
+        Self { instructions, target, final_cleanup: false }
     }
 
     pub(super) fn with_final_cleanup(mut self, final_cleanup: bool) -> Self {
@@ -342,14 +341,10 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn low_mask_profitable(&mut self) -> bool {
-        let target = Target::with(
-            self.evm_version,
-            OptimizationMode::Gas,
-            Target::DEFAULT_EXPECTED_EXECUTIONS,
-        );
+        let target = self.target;
         let before = target.push(U256::ONE) + target.dup() + target.opcode(SUB);
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
-        after.dominates(before)
+        target.dominates(after, before)
     }
 
     fn closed_count(&mut self, start: LateWindow) -> bool {
@@ -396,17 +391,13 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn protected_mask_profitable(&mut self) -> bool {
-        let target = Target::with(
-            self.evm_version,
-            OptimizationMode::Gas,
-            Target::DEFAULT_EXPECTED_EXECUTIONS,
-        );
+        let target = self.target;
         let before = target.push(U256::ONE)
             + target.push(U256::ONE)
             + target.opcode(SWAP1)
             + target.opcode(SUB);
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
-        after.dominates(before)
+        target.dominates(after, before)
     }
 
     fn protected_count(&mut self, start: LateWindow) -> bool {
@@ -459,7 +450,7 @@ impl generated::Context for PeepContext<'_> {
         let middle_pops = instructions[..end - 2]
             .iter()
             .rev()
-            .take(self.evm_version.reachable_stack_depth() - 1)
+            .take(self.target.evm_version().reachable_stack_depth() - 1)
             .take_while(|inst| inst.as_stack_op() == Some(StackOp::Pop))
             .count();
         let StackOp::Swap(depth) = (end - 2 - middle_pops)
@@ -473,7 +464,7 @@ impl generated::Context for PeepContext<'_> {
         }
         // The merged swap must still be expressible on this target.
         let merged = depth.checked_add(1)?;
-        StackOp::Swap(merged).metrics(self.evm_version)?;
+        StackOp::Swap(merged).metrics(self.target.evm_version())?;
         u8::try_from(middle_pops).ok()
     }
 
@@ -485,7 +476,7 @@ impl generated::Context for PeepContext<'_> {
         let pops = instructions
             .iter()
             .rev()
-            .take(self.evm_version.reachable_stack_depth() + 1)
+            .take(self.target.evm_version().reachable_stack_depth() + 1)
             .take_while(|inst| inst.as_stack_op() == Some(StackOp::Pop))
             .count();
         let StackOp::Swap(depth) = (instructions.len() - pops)
@@ -503,7 +494,7 @@ impl generated::Context for PeepContext<'_> {
     /// The simulation follows only pushes and stack operations, starting after the last other
     /// operation, and keeps only "is this word a known zero".
     fn duplicates_known_zero(&mut self, _: Window) -> Option<()> {
-        if !self.evm_version.has_push0() {
+        if !self.target.evm_version().has_push0() {
             return None;
         }
         let instructions = self.instructions;
@@ -559,26 +550,14 @@ impl generated::Context for PeepContext<'_> {
         let rhs_value = rhs.concrete_immediate()?;
         let opcode = instruction.as_evm_opcode()?;
         let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
-        let (lhs_size, lhs_gas) = immediate_materialization_cost(self.evm_version, lhs_value);
-        let (rhs_size, rhs_gas) = immediate_materialization_cost(self.evm_version, rhs_value);
-        let (result_size, result_gas) = immediate_materialization_cost(self.evm_version, result);
-        let input_size = lhs_size + rhs_size + 1;
-        let target = Target::with(
-            self.evm_version,
-            OptimizationMode::Gas,
-            Target::DEFAULT_EXPECTED_EXECUTIONS,
-        );
+        let target = self.target;
         // PUSH lhs; PUSH rhs; opcode => materialize evaluated word
         // Price the operation too: compact wide constants may need several
         // instructions yet cost less than the operation they replace.
-        let input_gas = lhs_gas
-            + rhs_gas
-            + target.opcode_with_immediates(opcode, &[Some(rhs_value), Some(lhs_value)]).gas
-                as usize;
-        (result_size <= input_size
-            && result_gas <= input_gas
-            && (result_size < input_size || result_gas < input_gas))
-            .then_some(result)
+        let input = target.push(lhs_value)
+            + target.push(rhs_value)
+            + target.opcode_with_immediates(opcode, &[Some(rhs_value), Some(lhs_value)]);
+        target.dominates(target.push(result), input).then_some(result)
     }
 
     /// Folds a literal unary expression only when its materialization is Pareto better.
@@ -587,21 +566,10 @@ impl generated::Context for PeepContext<'_> {
         let value = self.instructions[value].concrete_immediate()?;
         let opcode = self.instructions[instruction].as_evm_opcode()?;
         let result = eval::eval_opcode(opcode, &[value])?;
-        let target = Target::with(
-            self.evm_version,
-            OptimizationMode::Gas,
-            Target::DEFAULT_EXPECTED_EXECUTIONS,
-        );
-        let (input_size, input_gas) = immediate_materialization_cost(self.evm_version, value);
-        let (result_size, result_gas) = immediate_materialization_cost(self.evm_version, result);
-        let input_size = input_size + 1;
-        let input_gas =
-            input_gas + target.opcode_with_immediates(opcode, &[Some(value)]).gas as usize;
+        let target = self.target;
         // PUSH value; unary_opcode => materialize evaluated word
-        (result_size <= input_size
-            && result_gas <= input_gas
-            && (result_size < input_size || result_gas < input_gas))
-            .then_some(result)
+        let input = target.push(value) + target.opcode_with_immediates(opcode, &[Some(value)]);
+        target.dominates(target.push(result), input).then_some(result)
     }
 
     /// Removes a closed conditional jump whose literal condition is false.
@@ -722,7 +690,7 @@ impl generated::Context for PeepContext<'_> {
         if iszero.as_evm_opcode() != Some(ISZERO) || iszero.keeps_with_next() {
             return None;
         }
-        let (start, bound, opposite) = invert_comparison(comparison, self.evm_version)?;
+        let (start, bound, opposite) = invert_comparison(comparison, &self.target)?;
         Some(((self.instructions.len() - start) as u8, bound, opposite))
     }
 

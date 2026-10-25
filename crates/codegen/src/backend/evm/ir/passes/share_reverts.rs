@@ -16,10 +16,7 @@
 //! the condition and the jump. That boundary must be one `keep_with_next` allows to be disturbed,
 //! so a sequence whose intervening gas is observable is left alone.
 
-use super::{
-    EvmPass, compact_pushes::immediate_materialization_cost, peephole::invert_comparison,
-    utils::is_split_point,
-};
+use super::{EvmPass, peephole::invert_comparison, utils::is_split_point};
 use crate::{
     backend::evm::{
         ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
@@ -44,7 +41,7 @@ impl EvmPass for ShareReverts {
 }
 
 fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let evm_version = gcx.sess.opts.evm_version;
+    let model = Target::new(gcx);
     let mut empty_reverts = DenseBitSet::new_empty(module.blocks.len());
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);
@@ -52,7 +49,7 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let shared = empty_reverts
         .iter()
         .next()
-        .filter(|&shared| !preserves_shared_revert_low_address(Target::new(gcx), module, shared));
+        .filter(|&shared| !preserves_shared_revert_low_address(model, module, shared));
     let mut cold_reverts = DenseBitSet::new_empty(module.blocks.len());
     for (id, block) in module.blocks.iter_enumerated() {
         if block.metadata.hotness.is_cold()
@@ -113,14 +110,14 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
             && inverse.is_none()
         {
             let Some((start, bound, opposite)) =
-                invert_comparison(&block.instructions[..condition_end], evm_version)
+                invert_comparison(&block.instructions[..condition_end], &model)
             else {
                 continue;
             };
             let previous = block.instructions[start].concrete_immediate().unwrap();
-            let before = immediate_materialization_cost(evm_version, previous);
-            let after = immediate_materialization_cost(evm_version, bound);
-            if after.0 > before.0 || after.1 > before.1 {
+            let before = model.push(previous);
+            let after = model.push(bound);
+            if after.bytes > before.bytes || model.runtime_gas(after) > model.runtime_gas(before) {
                 continue;
             }
             Some((start, bound, opposite))
