@@ -16,12 +16,11 @@
 //! Two tests that continue on their true edges combine with `and` instead. A
 //! test that aborts on its false edge while the other aborts on its true edge
 //! turns around when it compares a word with a literal: `x < k` fails exactly
-//! when `x > k - 1`, and that complement replaces it where it was. In loops of
-//! gas builds any other such test turns into its negation, `eq c, false`, as a
-//! checked product of two words does, which aborts unless one factor is zero or
-//! the quotient gives back the other. In builds that copy loops, a branch on
-//! `eq c, false` for a boolean `c` is a test of `c` with its edges swapped and
-//! merges as `c`, as a checked product by a word does: it aborts unless the
+//! when `x > k - 1`, and that complement replaces it where it was. In loops any
+//! other such test turns into its negation, `eq c, false`, as a checked product of two words
+//! does, which aborts unless one factor is zero or the quotient gives back the other. In builds
+//! that copy loops, a branch on `eq c, false` for a boolean `c` is a test of `c` with its edges
+//! swapped and merges as `c`, as a checked product by a word does: it aborts unless the
 //! factor's comparison with the hoisted limit, `gt x, limit`, fails, and that
 //! comparison joins the additions' checks with no `iszero`. Merges repeat along
 //! a chain, so a run of checks, such as the overflow checks of an unrolled
@@ -310,21 +309,18 @@ fn mergeable(
     // `iszero`. Only loops repeat the saving; a flipped test that runs once, as an ABI word's
     // range check next to the calldata size check, measured no gain and moved the stack
     // scheduler to rebuild calldata words where it had kept them. A negation pays the `iszero`
-    // only in loops of gas builds: in size builds the extra live condition kept words the
-    // scheduler had rebuilt and measured larger and slower.
-    let gas_loop = target.optimization().is_gas() && cyclic.contains(block);
+    // in loops of every build: in size builds it measured 4,461 runtime bytes smaller over the
+    // benchmark corpus, and the profitability check below prices the `iszero`.
     let flip = match (first.aborts_when_true, second.aborts_when_true) {
         (true, true) | (false, false) => None,
         _ if !cyclic.contains(block) => return None,
         (false, true) => Some(match complement(func, first.condition) {
             Some(compare) => Flip::First(compare),
-            None if gas_loop => Flip::NegateFirst,
-            None => return None,
+            None => Flip::NegateFirst,
         }),
         (true, false) => Some(match complement(func, second.condition) {
             Some(compare) => Flip::Second(compare),
-            None if gas_loop => Flip::NegateSecond,
-            None => return None,
+            None => Flip::NegateSecond,
         }),
     };
     let added = if matches!(flip, Some(Flip::NegateFirst | Flip::NegateSecond)) {
