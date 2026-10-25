@@ -342,9 +342,6 @@ bb37 [loop]:
   push 0
   return
 bb41:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt

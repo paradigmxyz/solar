@@ -597,9 +597,6 @@ bb58:
   sstore
   stop
 bb61:
-  push 128
-  push 64
-  mstore
   caller
   push 0
   mstore

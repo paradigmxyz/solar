@@ -144,9 +144,6 @@ bb6 [cold]:
   dup 1
   revert
 bb7:
-  push 128
-  push 64
-  mstore
   push bb8
   jump bb16
 bb16:
@@ -190,9 +187,6 @@ bb17 [loop]:
   push 0
   return
 bb9:
-  push 128
-  push 64
-  mstore
   push bb10
   jump bb16
 bb10 [continuation]:
@@ -227,14 +221,10 @@ bb19:
   swap 3
   jump
 bb12:
-  push 64
-  dup 1
   push 128
   dup 1
-  dup 1
   add
-  swap 3
-  mstore
+  push 64
   mstore
   push bb21
   push 128

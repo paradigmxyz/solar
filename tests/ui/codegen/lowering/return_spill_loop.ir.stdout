@@ -49,9 +49,6 @@ bb42 [cold]:
   push 28
   revert
 bb7:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -194,9 +191,6 @@ bb10 [continuation]:
 bb17:
   push 128
   push 64
-  mstore
-  push 128
-  push 64
   dup 2
   add
   push 64
@@ -238,9 +232,6 @@ bb19 [continuation]:
   push 0
   return
 bb22:
-  push 128
-  push 64
-  mstore
   push 68
   calldatasize
   lt
@@ -365,9 +356,6 @@ bb25 [continuation]:
   swap 1
   return
 bb27:
-  push 128
-  push 64
-  mstore
   push 68
   calldatasize
   lt

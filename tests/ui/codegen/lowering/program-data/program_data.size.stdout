@@ -357,9 +357,6 @@ bb16:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
   jump bb29
 bb17:
-  push 128
-  push 64
-  mstore
   push bb18
   jump bb27
 bb27:
@@ -427,9 +424,6 @@ bb19:
   push 0
   return
 bb20:
-  push 128
-  push 64
-  mstore
   push bb18
   jump bb28
 bb28:
@@ -469,9 +463,6 @@ bb28:
   swap 1
   jump
 bb22:
-  push 128
-  push 64
-  mstore
   push bb23
   jump bb27
 bb23 [continuation]:
@@ -503,8 +494,5 @@ bb24:
   keccak256
   jump bb29
 bb25:
-  push 128
-  push 64
-  mstore
   push bb23
   jump bb28

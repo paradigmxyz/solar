@@ -1493,7 +1493,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         self.record_runtime_entry_reachability(call_graph, entry);
         let reachable = &self.runtime_entry_reachability[&entry];
-        if !Self::functions_need_free_memory(module, call_graph, reachable.iter()) {
+        if !Self::entry_needs_free_memory(module, call_graph, entry, reachable.iter()) {
             return;
         }
 
@@ -1512,16 +1512,77 @@ impl<'gcx> EvmCodegen<'gcx> {
         mut functions: impl Iterator<Item = FunctionId>,
     ) -> bool {
         functions.any(|func_id| {
-            call_graph.is_recursive(func_id)
+            Self::function_uses_free_memory_conventions(module, call_graph, func_id)
                 || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
-                || module.functions[func_id].instructions().any(|inst_id| {
-                    matches!(
-                        module.functions[func_id].inst(inst_id).kind,
-                        InstKind::ICall { function: Callee::Function(function), .. }
-                            if module.function(function).return_components().len() > 1
-                    )
-                })
         })
+    }
+
+    /// Whether the entry's run can read the slot's initial value, or `functions`, the functions
+    /// it reaches, use it through the frame and multi-word return conventions. An observation
+    /// that a full-word store to the slot precedes on every path, in its function or before the
+    /// call that reaches it, sees the stored word.
+    fn entry_needs_free_memory(
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        entry: FunctionId,
+        mut functions: impl Iterator<Item = FunctionId>,
+    ) -> bool {
+        if functions
+            .any(|func_id| Self::function_uses_free_memory_conventions(module, call_graph, func_id))
+        {
+            return true;
+        }
+        let mut seen = DenseBitSet::new_empty(module.functions.len());
+        let mut stores = FxHashMap::default();
+        let mut stores_slot =
+            |callee| Self::always_stores_free_memory_slot(module, callee, &mut stores);
+        let mut pending = vec![entry];
+        while let Some(func_id) = pending.pop() {
+            if !seen.insert(func_id) {
+                continue;
+            }
+            let used = Self::initial_free_memory_use(&module.functions[func_id], &mut stores_slot);
+            if used.observes {
+                return true;
+            }
+            pending.extend(used.calls);
+        }
+        false
+    }
+
+    /// Whether every path through `func_id` to its return stores the slot, memoized in `memo`. A
+    /// function that calls itself, directly or not, stores nothing for this purpose.
+    fn always_stores_free_memory_slot(
+        module: &Module,
+        func_id: FunctionId,
+        memo: &mut FxHashMap<FunctionId, Option<bool>>,
+    ) -> bool {
+        if let Some(stores) = memo.get(&func_id) {
+            return stores.unwrap_or(false);
+        }
+        memo.insert(func_id, None);
+        let stores =
+            Self::stores_free_memory_slot_on_return(&module.functions[func_id], &mut |callee| {
+                Self::always_stores_free_memory_slot(module, callee, memo)
+            });
+        memo.insert(func_id, Some(stores));
+        stores
+    }
+
+    /// Whether the frame or multi-word return convention of a function allocates above the slot.
+    fn function_uses_free_memory_conventions(
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        func_id: FunctionId,
+    ) -> bool {
+        call_graph.is_recursive(func_id)
+            || module.functions[func_id].instructions().any(|inst_id| {
+                matches!(
+                    module.functions[func_id].inst(inst_id).kind,
+                    InstKind::ICall { function: Callee::Function(function), .. }
+                        if module.function(function).return_components().len() > 1
+                )
+            })
     }
 
     /// Records every function whose memory bounds contribute to one runtime entry.

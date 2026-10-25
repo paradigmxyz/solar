@@ -130,9 +130,6 @@ bb13:
 bb16:
   push 4
   dup 1
-  push 128
-  push 64
-  mstore
   calldataload
   calldatasize
   push 36
@@ -637,9 +634,6 @@ bb51 [continuation]:
   push 0
   return
 bb53:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -719,9 +713,6 @@ bb53:
   swap 1
   return
 bb57:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -801,9 +792,6 @@ bb77:
   swap 1
   return
 bb60:
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt

@@ -167,9 +167,6 @@ bb16 [cold]:
   push 15
   jump bb23
 bb17:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push 128

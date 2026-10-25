@@ -380,9 +380,6 @@ bb5:
   push 0
   return
 bb8:
-  push 128
-  push 64
-  mstore
   push 100
   calldataload
   push 160

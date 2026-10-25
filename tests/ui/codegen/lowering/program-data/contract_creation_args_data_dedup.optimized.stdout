@@ -202,9 +202,6 @@ bb12:
 bb18:
   push 128
   push 64
-  mstore
-  push 128
-  push 64
   dup 2
   add
   push 64

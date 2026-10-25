@@ -118,9 +118,6 @@ bb5 [cold]:
   push 0
   revert
 bb6:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   push bb19
@@ -185,9 +182,6 @@ bb8 [cold]:
   swap 1
   revert
 bb9:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   dup 1
@@ -212,9 +206,6 @@ bb11 [cold]:
   swap 1
   jump bb15
 bb12:
-  push 128
-  push 64
-  mstore
   push 4
   calldataload
   dup 1

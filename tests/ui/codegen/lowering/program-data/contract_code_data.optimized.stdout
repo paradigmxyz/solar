@@ -91,9 +91,6 @@ bb0:
   push bb4
   jumpi
   push 128
-  push 64
-  mstore
-  push 128
   push 288
   dup 2
   add
