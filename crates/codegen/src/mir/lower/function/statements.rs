@@ -584,10 +584,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let calldata_dynamic = self.builder.func().value_slice_location(value)
                             == Some(PtrLocation::Calldata)
                             && abi_type.is_dynamic();
-                        if (calldata_dynamic
-                            || self.needs_calldata_materialization(value, &abi_type))
-                            && !validated_static
-                        {
+                        if calldata_dynamic && !validated_static {
                             value = self.materialize_calldata_argument(
                                 parameter_ty,
                                 value,
@@ -621,7 +618,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
                 abi_type = self.abi_type_for_value(value, abi_type);
                 self.check_calldata_array_size(value, parameter_ty, &abi_type);
-                let validated_static = self.validate_calldata_static_argument(value, parameter_ty);
+                self.validate_calldata_static_argument(value, parameter_ty);
                 // The dispatcher validates the elements of an argument that only ABI decoding
                 // passes when an encoding takes it.
                 if Self::is_calldata_word_array(&abi_type)
@@ -629,11 +626,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && !self.is_decoded_external_argument(value)
                 {
                     self.validate_calldata_word_array(value, parameter_ty);
-                }
-                if self.needs_calldata_materialization(value, &abi_type) && !validated_static {
-                    value =
-                        self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
-                    abi_type = Self::memory_abi_type(abi_type);
                 }
                 if matches!(abi_type, AbiType::Word(_)) {
                     value = self.lower_word_value(parameter_ty, argument, value);

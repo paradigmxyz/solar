@@ -7,20 +7,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty.encodes_as_slot()
     }
 
-    pub(super) fn needs_calldata_materialization(&self, value: ValueId, ty: &AbiType) -> bool {
-        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
-            return false;
-        }
-        match ty {
-            AbiType::FixedArray { .. } | AbiType::Tuple(_) => ty.is_dynamic(),
-            AbiType::DynamicArray { element, .. } => !matches!(
-                element.as_ref(),
-                AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_)
-            ),
-            _ => false,
-        }
-    }
-
     /// Whether `abi_type` is a calldata array of words, which an encoding copies from where it
     /// lies once [`Self::validate_calldata_word_array`] validated its elements.
     pub(super) fn is_calldata_word_array(abi_type: &AbiType) -> bool {
@@ -341,8 +327,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if word_array && !self.is_decoded_external_argument(value) {
             self.validate_calldata_word_array(value, ty);
         }
-        let needs_materialization = self.needs_calldata_materialization(value, &abi_type)
-            || (needs_validation && !word_array);
+        // The encoder validates a dynamic calldata aggregate while it encodes it from where it
+        // lies.
+        let needs_materialization = needs_validation && !word_array && !abi_type.is_dynamic();
         if needs_materialization && !validated_static {
             value = self.materialize_calldata_argument(ty, value, argument.span)?;
             abi_type = Self::memory_abi_type(abi_type);
@@ -403,9 +390,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn abi_type_for_value(&self, value: ValueId, ty: AbiType) -> AbiType {
         if let Some(location) = self.builder.func().value_slice_location(value) {
             match ty {
-                AbiType::Bytes(_) => AbiType::Bytes(location),
-                AbiType::DynamicArray { element, .. } => {
-                    AbiType::DynamicArray { element, location }
+                AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
+                    Self::abi_type_at_location(ty, location)
                 }
                 ty => ty,
             }

@@ -535,8 +535,10 @@ impl LowerAbiCx {
                     if return_types.get(index) == Some(&MirType::Slice(PtrLocation::Calldata))
                         && match &ty {
                             AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. } => true,
-                            AbiParamType::DynamicArray(_) => !layout.types[index]
-                                .accepts_input_type(MirType::Slice(PtrLocation::Calldata)),
+                            AbiParamType::DynamicArray(element) => {
+                                !element.is_scalar_word()
+                                    && !matches!(element.as_ref(), AbiParamType::Bytes)
+                            }
                             _ => false,
                         }
                     {
