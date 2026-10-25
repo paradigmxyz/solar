@@ -18,19 +18,17 @@ use crate::{
     eval::ConstValue,
     hir::{self, Visit},
     ty::Gcx,
+    typeck::{Unit, par_visit_items},
 };
 use solar_data_structures::Never;
 use solar_interface::error_code;
 use std::ops::ControlFlow;
 
-pub(super) fn check(gcx: Gcx<'_>) {
+pub(super) fn check(gcx: Gcx<'_>, units: &[(hir::SourceId, Unit)]) {
     if gcx.dcx().has_errors().is_err() {
         return;
     }
-    let mut checker = Checker { gcx };
-    for id in gcx.hir.source_ids() {
-        let _ = checker.visit_nested_source(id);
-    }
+    par_visit_items(units, || Checker { gcx });
 }
 
 struct Checker<'gcx> {

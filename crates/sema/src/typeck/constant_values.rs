@@ -21,13 +21,14 @@ use crate::{
     eval::{ConstContext, EvalErrorKind, IntScalar},
     hir::{self, Visit},
     ty::Gcx,
+    typeck::{Unit, par_visit_items},
 };
 use solar_ast::DataLocation;
 use solar_data_structures::Never;
 use solar_interface::error_code;
 use std::ops::ControlFlow;
 
-pub(super) fn check(gcx: Gcx<'_>) {
+pub(super) fn check(gcx: Gcx<'_>, units: &[(hir::SourceId, Unit)]) {
     let full_base_slots = gcx
         .typeck_base_slots()
         .iter()
@@ -44,10 +45,7 @@ pub(super) fn check(gcx: Gcx<'_>) {
             }
         }
     }
-    let mut checker = AssemblyConstants { gcx, in_assembly: false };
-    for id in gcx.hir.source_ids() {
-        let _ = checker.visit_nested_source(id);
-    }
+    par_visit_items(units, || AssemblyConstants { gcx, in_assembly: false });
 }
 
 /// Checks the value of the base slot `slot` of `contract` if solc's evaluator computes it, or
