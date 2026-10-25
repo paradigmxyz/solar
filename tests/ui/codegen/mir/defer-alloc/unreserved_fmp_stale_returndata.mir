@@ -5,17 +5,13 @@
 // The bubbled revert exemption needs both sizes from the same returndata. Here the revert reads
 // the size of an earlier call, which can reach past what the copy wrote and cover the
 // free-memory pointer's slot, so the bump stays.
-// CHECK:   fn @helper{{.*}}
+// CHECK:   fn @stale_size{{.*}}
 // CHECK-NOT: + {{.*}}fmp
-fn @helper(arg0: i256) {
+fn @stale_size(arg0: i256) {
   bb0:
-    v0 = alloc arg0
-    mstore v0, 1
-    revert v0, 32
-}
-
-fn @stale_size() {
-  bb0:
+    v5 = alloc arg0
+    mstore v5, 1
+    v6 = keccak256 v5, 32
     v0 = staticcall 1000, 0xbeef, 0, 0, 0, 0
     v1 = returndatasize
     v2 = staticcall 1000, 0xcafe, 0, 0, 0, 0
@@ -25,8 +21,13 @@ fn @stale_size() {
     revert 0, v1
 }
 
-fn @stale_copy_size() {
+// CHECK:   fn @stale_copy_size{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @stale_copy_size(arg0: i256) {
   bb0:
+    v5 = alloc arg0
+    mstore v5, 1
+    v6 = keccak256 v5, 32
     v0 = staticcall 1000, 0xbeef, 0, 0, 0, 0
     v1 = returndatasize
     v2 = staticcall 1000, 0xcafe, 0, 0, 0, 0
