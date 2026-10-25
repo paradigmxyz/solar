@@ -222,9 +222,9 @@ fn @heap_address_read(arg0: i256) {
     returndata 0, 32
 }
 
-// The caller may read the allocation after the function returns.
+// A `ret` reads no object whose pointer it does not return.
 // CHECK-LABEL: {{^[ +].*}}fn @returns_to_caller{{[( ]}}
-// CHECK: {{^ +}}mstore v0, arg0
+// CHECK: {{^-}} mstore v0, arg0
 fn @returns_to_caller(arg0: i256) -> i256 {
   bb0:
     v0 = alloc 64
@@ -380,4 +380,34 @@ fn @frame_range(arg0: i256, arg1: i256) {
     mstore v0, arg0
     v1 = internal_frame_addr 0
     revert v1, arg1
+}
+
+// A tail call reads no object whose pointer it does not pass.
+// CHECK-LABEL: {{^[ +].*}}fn @tail_calls{{[( ]}}
+// CHECK: {{^-}} mstore v0, arg0
+fn @tail_calls(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    tail_call @tail_target
+}
+
+fn @tail_target() {
+  bb0:
+    stop
+}
+
+// A pointer passed in a tail call escapes.
+// CHECK-LABEL: {{^[ +].*}}fn @tail_calls_pointer{{[( ]}}
+// CHECK: {{^ +}}mstore v0, arg0
+fn @tail_calls_pointer(arg0: i256) {
+  bb0:
+    v0 = alloc 64
+    mstore v0, arg0
+    tail_call @tail_pointer, v0
+}
+
+fn @tail_pointer(arg0: ptr<memory>) {
+  bb0:
+    stop
 }
