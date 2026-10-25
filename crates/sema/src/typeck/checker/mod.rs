@@ -6,6 +6,7 @@ use crate::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
         TypeckResults,
     },
+    typeck::Unit,
 };
 use alloy_primitives::U256;
 use solar_ast::{
@@ -52,9 +53,25 @@ impl AbiDecodeArg {
     }
 }
 
-pub(super) fn check<'gcx>(gcx: Gcx<'gcx>, source: hir::SourceId) -> TypeckResults<'gcx> {
-    let mut checker = TypeChecker::new(gcx, source);
-    let _ = checker.visit_nested_source(source);
+/// Type checks `unit`, adding its results to `results`.
+pub(super) fn check<'gcx>(
+    gcx: Gcx<'gcx>,
+    source: hir::SourceId,
+    unit: Unit,
+    results: TypeckResults<'gcx>,
+) -> TypeckResults<'gcx> {
+    let mut checker = TypeChecker::new(gcx, source, results);
+    match unit {
+        Unit::Source => super::check_source(gcx, source),
+        Unit::ContractHeader(id) => {
+            checker.contract = Some(id);
+            checker.check_contract_header(gcx.hir.contract(id));
+        }
+        Unit::Item(contract, item) => {
+            checker.contract = contract;
+            let _ = checker.visit_nested_item(item);
+        }
+    }
     checker.results
 }
 
@@ -151,14 +168,14 @@ enum NotLvalueReason {
 }
 
 impl<'gcx> TypeChecker<'gcx> {
-    fn new(gcx: Gcx<'gcx>, source: hir::SourceId) -> Self {
+    fn new(gcx: Gcx<'gcx>, source: hir::SourceId, results: TypeckResults<'gcx>) -> Self {
         Self {
             gcx,
             source,
             contract: None,
             function: None,
             construction_context: 0,
-            results: Default::default(),
+            results,
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
@@ -252,6 +269,71 @@ impl<'gcx> TypeChecker<'gcx> {
         }
         let contract = self.contract.expect("storage layout specifier outside a contract");
         self.results.base_slots.push((contract, slot));
+    }
+
+    /// Checks the storage layout and base constructor arguments of a contract.
+    fn check_contract_header(&mut self, contract: &'gcx hir::Contract<'gcx>) {
+        if let Some(slot) = contract.layout {
+            self.check_storage_layout_base_slot(slot);
+        }
+
+        self.check_base_constructor_arguments(contract);
+
+        // Check base constructor arguments. `is Base` without parentheses
+        // provides no arguments here (deferred to a derived contract, or the
+        // contract is abstract), so only validate when arguments are given.
+        for (&base_id, modifier) in
+            contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
+        {
+            if let Some(modifier) = modifier
+                && !modifier.args.is_dummy()
+            {
+                // A base without a constructor takes no arguments.
+                let ctor_id = self.gcx.hir.contract(base_id).ctor;
+                let ctor_param_types =
+                    ctor_id.map_or(&[][..], |ctor_id| self.gcx.item_parameter_types(ctor_id));
+                let arg_count = modifier.args.len();
+                if arg_count != ctor_param_types.len() {
+                    self.dcx().emit_err(
+                        modifier.span,
+                        format!(
+                            "wrong number of arguments for base constructor: expected {}, found {}",
+                            ctor_param_types.len(),
+                            arg_count
+                        ),
+                    );
+                } else if let hir::CallArgsKind::Named(named_args) = modifier.args.kind
+                    && let Some(ctor_id) = ctor_id
+                {
+                    // Named arguments bind by parameter name, the way codegen
+                    // binds them; pairing them positionally checks them against
+                    // the wrong parameter type.
+                    self.with_construction_context(|this| {
+                        let _ = this.check_named_call_args(
+                            modifier.span,
+                            modifier.args.span,
+                            named_args,
+                            ctor_param_types,
+                            Some(CallableParamSource::Function {
+                                id: ctor_id,
+                                skips_receiver: false,
+                            }),
+                        );
+                    });
+                } else {
+                    for (arg_expr, &expected_arg_ty) in modifier.args.exprs().zip(ctor_param_types)
+                    {
+                        // Register the argument's own type, not just the types
+                        // of its subexpressions: codegen reads it to select
+                        // checked arithmetic and other type-directed lowering.
+                        let actual_arg_ty = self.with_construction_context(|this| {
+                            this.check_expr_with_noexpect(arg_expr, Some(expected_arg_ty))
+                        });
+                        let _ = self.check_expected(arg_expr, actual_arg_ty, expected_arg_ty);
+                    }
+                }
+            }
+        }
     }
 
     fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
@@ -3789,67 +3871,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         &mut self,
         contract: &'gcx hir::Contract<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        if let Some(slot) = contract.layout {
-            self.check_storage_layout_base_slot(slot);
-        }
-
-        self.check_base_constructor_arguments(contract);
-
-        // Check base constructor arguments. `is Base` without parentheses
-        // provides no arguments here (deferred to a derived contract, or the
-        // contract is abstract), so only validate when arguments are given.
-        for (&base_id, modifier) in
-            contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
-        {
-            if let Some(modifier) = modifier
-                && !modifier.args.is_dummy()
-            {
-                // A base without a constructor takes no arguments.
-                let ctor_id = self.gcx.hir.contract(base_id).ctor;
-                let ctor_param_types =
-                    ctor_id.map_or(&[][..], |ctor_id| self.gcx.item_parameter_types(ctor_id));
-                let arg_count = modifier.args.len();
-                if arg_count != ctor_param_types.len() {
-                    self.dcx().emit_err(
-                        modifier.span,
-                        format!(
-                            "wrong number of arguments for base constructor: expected {}, found {}",
-                            ctor_param_types.len(),
-                            arg_count
-                        ),
-                    );
-                } else if let hir::CallArgsKind::Named(named_args) = modifier.args.kind
-                    && let Some(ctor_id) = ctor_id
-                {
-                    // Named arguments bind by parameter name, the way codegen
-                    // binds them; pairing them positionally checks them against
-                    // the wrong parameter type.
-                    self.with_construction_context(|this| {
-                        let _ = this.check_named_call_args(
-                            modifier.span,
-                            modifier.args.span,
-                            named_args,
-                            ctor_param_types,
-                            Some(CallableParamSource::Function {
-                                id: ctor_id,
-                                skips_receiver: false,
-                            }),
-                        );
-                    });
-                } else {
-                    for (arg_expr, &expected_arg_ty) in modifier.args.exprs().zip(ctor_param_types)
-                    {
-                        // Register the argument's own type, not just the types
-                        // of its subexpressions: codegen reads it to select
-                        // checked arithmetic and other type-directed lowering.
-                        let actual_arg_ty = self.with_construction_context(|this| {
-                            this.check_expr_with_noexpect(arg_expr, Some(expected_arg_ty))
-                        });
-                        let _ = self.check_expected(arg_expr, actual_arg_ty, expected_arg_ty);
-                    }
-                }
-            }
-        }
+        self.check_contract_header(contract);
         for &item in contract.items {
             self.visit_nested_item(item)?;
         }
