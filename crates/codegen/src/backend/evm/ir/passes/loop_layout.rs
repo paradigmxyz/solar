@@ -306,10 +306,10 @@ fn latch_header(module: &Module, block: BlockId) -> Option<(BlockId, bool)> {
     Some((target, false))
 }
 
-/// The index of the `jumpi` of a header `test; push body; jumpi; exit ...` whose test and branch
-/// the latch can repeat, when the header's `JUMPDEST` that this saves on each iteration pays for
-/// the copy's bytes. The loop runs `UNCOUNTED_LOOP_ITERATIONS` times, as in [`taken_share`]; the
-/// preheader's saved jump is not counted.
+/// The index of the `jumpi` of a header `test; push body; jumpi; exit ...`, with a hot `body`,
+/// whose test and branch the latch can repeat, when the header's `JUMPDEST` that this saves on each
+/// iteration pays for the copy's bytes. The loop runs `UNCOUNTED_LOOP_ITERATIONS` times, as in
+/// [`taken_share`]; the preheader's saved jump is not counted.
 fn copyable_branch(
     module: &Module,
     target: &Target,
@@ -321,7 +321,10 @@ fn copyable_branch(
     let branch =
         block.instructions.iter().position(|inst| inst.as_evm_opcode() == Some(op::JUMPI))?;
     let (push, test) = block.instructions[..branch].split_last()?;
-    push.pushed_block()?;
+    // A branch to a cold block is a guard, not the loop's test.
+    if module.blocks[push.pushed_block()?].metadata.hotness.is_cold() {
+        return None;
+    }
     if !is_split_point(&latch.instructions, latch.instructions.len())
         || !is_split_point(&block.instructions, branch + 1)
     {
