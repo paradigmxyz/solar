@@ -47,12 +47,11 @@
 //! In gas mode the check keeps its branch, which panics when the comparison fails: flipping the
 //! branch so the check could merge with the add overflow check after it made the loop carry more
 //! words, and it measured slower. In size mode the comparison is the branch condition itself,
-//! with the edges swapped, so `merge-aborts` joins it with the next check's test and no
-//! `iszero` remains. The bound is one more word the loop carries, and its saving depends on the
-//! stack schedule, not on the opcodes: the bound and comparison cost fewer bytes than the check
-//! in every EVM version, yet a loop carrying seven words grew by two bytes, while loops carrying
-//! two and four shrank by one and four. Size mode therefore rewrites only while the loop's carried
-//! words stay within [`LOOP_CARRY_BUDGET`].
+//! with the edges swapped, so no `iszero` follows it and `merge-aborts` can join it with a
+//! following abort test. The bound is one more word the loop carries, and its saving depends on
+//! the stack schedule, not on the opcodes: a loop carrying seven words grew by two bytes, while
+//! loops carrying two and four shrank by one and four. Size mode therefore rewrites a factor's
+//! checks only while every loop around them stays within [`LOOP_CARRY_BUDGET`] with the bound.
 
 use crate::mir::{
     BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
@@ -70,12 +69,11 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMa
 use std::rc::Rc;
 
 /// Most words a loop may carry after a below-threshold hoist or, in size mode, a product check's
-/// hoisted bound. The count is the header's phis
-/// plus the values defined outside the loop that its body reads, which the backend keeps on
-/// the stack through the loop when they fit. Past this many, its layouts spill loop values to
-/// frame slots, and a hoisted base then costs more in reloads of the words it displaced than
-/// its in-loop recomputation saved: the hash-probe loop of `hasDuplicate` lost 2.4% carrying
-/// eight, while `reverse` with four gained 8%.
+/// hoisted bound. The count is the header's phis plus the values defined outside the loop that
+/// its body reads, which the backend keeps on the stack through the loop when they fit. Past this
+/// many, its layouts spill loop values to frame slots, and a hoisted base then costs more in
+/// reloads of the words it displaced than its in-loop recomputation saved: the hash-probe loop of
+/// `hasDuplicate` lost 2.4% carrying eight, while `reverse` with four gained 8%.
 const LOOP_CARRY_BUDGET: usize = 5;
 
 /// Function pass for loop-invariant code motion.
@@ -1109,12 +1107,9 @@ fn reduce_product_checks(
         }
     }
     if !gas && !checks.is_empty() {
-        // The bound is carried through every loop from this one down to the check's own.
-        let mut bounds = Vec::new();
-        checks.retain(|&(block, _, _, y, _)| {
-            if bounds.contains(&y) {
-                return true;
-            }
+        // The bound is carried through every loop from this one down to each of its checks.
+        let mut worst = FxHashMap::<ValueId, usize>::default();
+        for &(block, _, _, y, _) in &checks {
             let carried = loops
                 .iter()
                 .filter(|inner| {
@@ -1123,11 +1118,17 @@ fn reduce_product_checks(
                 .map(|inner| LoopOptimizer::carried_words(func, inner, &inst_blocks))
                 .max()
                 .unwrap_or_default();
-            let fits = carried + bounds.len() < LOOP_CARRY_BUDGET;
-            if fits {
-                bounds.push(y);
-            }
-            fits
+            let worst = worst.entry(y).or_default();
+            *worst = (*worst).max(carried);
+        }
+        let mut bounds = 0;
+        let mut admitted = FxHashMap::default();
+        checks.retain(|&(.., y, _)| {
+            *admitted.entry(y).or_insert_with(|| {
+                let fits = worst[&y] + bounds < LOOP_CARRY_BUDGET;
+                bounds += usize::from(fits);
+                fits
+            })
         });
     }
     if checks.is_empty() {

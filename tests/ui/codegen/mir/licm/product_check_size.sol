@@ -17,10 +17,14 @@ contract ProductCheckSize {
     // but no `div`. A zero factor never overflows, and the compare is the branch condition
     // itself, with no `iszero`.
     // CHECK-LABEL: @module ProductCheckSize_runtime
-    // CHECK: div
+    // CHECK: not
+    // CHECK-NEXT: div
+    // CHECK-NEXT: sub
     // CHECK: [loop]:
     // CHECK-NOT: {{div|iszero}}
     // CHECK: gt
+    // CHECK-NEXT: push bb{{[0-9]+}}
+    // CHECK-NEXT: jumpi
     function accumulate(uint256 x, uint256 y, uint256 n) external pure returns (uint256) {
         for (uint256 i = 0; i < n; ++i) {
             x = x * y + 1;

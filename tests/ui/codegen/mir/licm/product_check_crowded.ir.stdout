@@ -1,0 +1,150 @@
+// === ROOT/tests/ui/codegen/mir/licm/product_check_crowded.sol:ProductCheckCrowded (runtime) ===
+@module ProductCheckCrowded_runtime
+bb0:
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xf6f9e3a3
+  eq
+  push bb4
+  jumpi
+  jump bb3
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb15 [cold]:
+  push 17
+  push 32
+  mstore
+  push 0x4e487b71
+  push 0
+  mstore
+  push 36
+  push 28
+  revert
+bb4:
+  push 196
+  calldatasize
+  lt
+  push bb3
+  jumpi
+  push 36
+  calldataload
+  push 4
+  calldataload
+  push 68
+  calldataload
+  push 100
+  calldataload
+  push 132
+  calldataload
+  push 0
+  push 0
+  jump bb6
+bb6 [loop]:
+  push 164
+  calldataload
+  dup 2
+  lt
+  push bb9
+  jumpi
+  pop
+  dup 5
+  add
+  swap 3
+  dup 4
+  add
+  dup 1
+  dup 5
+  dup 2
+  lt
+  swap 4
+  add
+  swap 2
+  dup 3
+  add
+  swap 5
+  dup 6
+  dup 4
+  gt
+  swap 5
+  lt
+  swap 2
+  lt
+  swap 2
+  or
+  or
+  or
+  push bb15
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb9 [loop]:
+  dup 7
+  dup 7
+  mul
+  dup 8
+  iszero
+  swap 7
+  dup 9
+  dup 3
+  div
+  eq
+  swap 1
+  swap 7
+  or
+  iszero
+  push bb15
+  jumpi
+  swap 5
+  push 1
+  add
+  dup 1
+  iszero
+  push bb15
+  jumpi
+  swap 4
+  dup 6
+  xor
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  dup 6
+  dup 5
+  add
+  swap 4
+  dup 5
+  lt
+  or
+  swap 2
+  dup 4
+  xor
+  dup 1
+  dup 3
+  add
+  swap 3
+  dup 3
+  dup 5
+  lt
+  or
+  push bb15
+  jumpi
+  swap 5
+  push 1
+  add
+  swap 5
+  swap 3
+  swap 4
+  swap 5
+  jump bb6
