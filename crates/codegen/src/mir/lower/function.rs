@@ -12,7 +12,7 @@ use crate::mir::{
     MemoryObjectKind, MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart,
     PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId, memory::EvmMemoryLayout,
 };
-use alloy_primitives::{Bytes, U256, keccak256};
+use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
 use solar_data_structures::{
     bit_set::DenseBitSet,

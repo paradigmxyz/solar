@@ -1104,7 +1104,9 @@ impl<'a> Validator<'a> {
                                 .get(1)
                                 .and_then(|&value| func.value_u64(value))
                                 .is_some_and(|length| (1..=32).contains(&length)),
-                            Builtin::Require(RequireKind::LongString(bytes)) => bytes.len() > 32,
+                            Builtin::Require(RequireKind::LongString(bytes)) => {
+                                bytes.as_byte_str().len() > 32
+                            }
                             _ => true,
                         };
                         metadata_valid

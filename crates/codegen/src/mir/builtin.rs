@@ -1,7 +1,7 @@
 //! Opaque builtin call targets. Arguments use the ordinary internal-call operand list.
 
 use super::{AbiLayoutRef, FunctionId, InstKind, RevertPayload, ValueId};
-use alloy_primitives::Bytes;
+use solar_interface::ByteSymbol;
 
 /// An internal call targets either a MIR definition or a builtin specialization.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -43,7 +43,7 @@ pub(crate) enum Builtin {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum RequireKind {
     ShortString,
-    LongString(Bytes),
+    LongString(ByteSymbol),
     EmptyString,
     ErrorString,
     CustomError(AbiLayoutRef),
@@ -87,7 +87,7 @@ impl RequireKind {
     pub(crate) fn payload(&self, args: &[ValueId]) -> Option<RevertPayload> {
         Some(match (self, args) {
             (Self::ShortString, &[length, data]) => RevertPayload::ShortString { length, data },
-            (Self::LongString(bytes), []) => RevertPayload::LongString(bytes.clone()),
+            (Self::LongString(bytes), []) => RevertPayload::LongString(*bytes),
             (Self::EmptyString, []) => RevertPayload::EmptyString,
             (Self::ErrorString, &[value]) => RevertPayload::ErrorString(value),
             (Self::CustomError(layout), [selector, values @ ..])

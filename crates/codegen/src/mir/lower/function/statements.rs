@@ -426,8 +426,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.prepare_custom_error_payload(error_id, *args);
         }
 
-        if let Some(bytes) = self.constant_string_bytes(expr) {
-            let bytes = bytes.as_byte_str();
+        if let Some(symbol) = self.constant_string_bytes(expr) {
+            let bytes = symbol.as_byte_str();
             return Some(match bytes.len() {
                 0 => RevertPayload::EmptyString,
                 1..=32 => {
@@ -435,7 +435,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let data = self.lower_string_literal_word(bytes);
                     RevertPayload::ShortString { length, data }
                 }
-                _ => RevertPayload::LongString(Bytes::copy_from_slice(bytes)),
+                _ => RevertPayload::LongString(symbol),
             });
         }
 

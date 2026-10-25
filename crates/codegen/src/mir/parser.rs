@@ -53,7 +53,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet, StdEntry},
 };
 use solar_interface::{
-    BytePos, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
+    BytePos, ByteSymbol, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
 use solar_parse::{PErr, PResult};
 use solar_sema::hir;
@@ -1991,9 +1991,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Lt)?;
                     let kind = match self.parser.parse_ident()? {
                         sym::short_string => super::RequireKind::ShortString,
-                        sym::long_string => {
-                            super::RequireKind::LongString(self.parser.parse_data_bytes()?)
-                        }
+                        sym::long_string => super::RequireKind::LongString(ByteSymbol::intern(
+                            &self.parser.parse_data_bytes()?,
+                        )),
                         sym::empty_string => super::RequireKind::EmptyString,
                         sym::error_string => super::RequireKind::ErrorString,
                         sym::custom_error => {

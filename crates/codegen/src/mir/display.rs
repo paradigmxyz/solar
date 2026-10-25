@@ -577,7 +577,7 @@ fn display_inst_kind<'a>(
                         RequireKind::LongString(bytes) => write!(
                             f,
                             "long_string hex\"{}\"",
-                            alloy_primitives::hex::display(bytes)
+                            alloy_primitives::hex::display(bytes.as_byte_str())
                         )?,
                         RequireKind::EmptyString => write!(f, "empty_string")?,
                         RequireKind::ErrorString => write!(f, "error_string")?,
