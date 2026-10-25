@@ -1,5 +1,6 @@
-//@ revisions: gas size
-//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=tail-dup
+//@ revisions: gas budget size
+//@[gas] compile-flags: -Ogas --optimize-runs 10000 -Zevm-ir-pipeline=tail-dup
+//@[budget] compile-flags: -Ogas -Zevm-ir-pipeline=tail-dup
 //@[size] compile-flags: -Osize -Zevm-ir-pipeline=tail-dup
 // Gas builds copy a branching loop's latch into the path that jumps to it, and
 // the header into each block that then jumps to it, so the iterations through
@@ -7,6 +8,8 @@
 // latch already takes none. In the second loop, the body too large to repay
 // its copy and the block that ends the call stay shared, while the small
 // header is copied into the body. Size builds copy nothing.
+// At the default runs, the copies may add a twentieth of this small module's code: only the
+// first loop's latch goes, whose copy adds the fewest bytes for the jump it saves.
 @module TailDup
 bb0:
   push 3

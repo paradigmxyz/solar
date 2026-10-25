@@ -374,6 +374,12 @@ impl Target {
     /// Solady benchmarks the gas saved stops growing past this size, while the runtime corpus
     /// keeps growing.
     pub(crate) const MAX_LOOP_JOIN_COPY_BYTES: u32 = 40;
+    /// Below [`Self::LOOP_COPY_MIN_RUNS`], the copies of loop blocks into the paths that jump to
+    /// them may add one part in this many of a small module's code.
+    pub(crate) const LOOP_JOIN_COPY_SHARE: u64 = 20;
+    /// The code size below which a module counts as small when its copies are weighed against
+    /// it: a contract built around a loop or two, a sixth of EIP-170's limit.
+    pub(crate) const SMALL_CODE_BYTES: u64 = 4_096;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
@@ -472,10 +478,31 @@ impl Target {
         {
             return false;
         }
-        let removed = self.label_push() + self.opcode(op::JUMP);
-        let saved = u64::from(self.jump().gas) * Self::UNCOUNTED_LOOP_ITERATIONS / u64::from(paths);
-        let added = u64::from(copy.bytes.saturating_sub(removed.bytes));
+        let (added, saved) = self.loop_block_copy(copy, paths);
         !self.deposit_repays_gas(added, saved)
+    }
+
+    /// The bytes a copy of a loop block whose code costs `copy`, entered on `paths` paths, adds
+    /// beyond the label push and `JUMP` it replaces, and the gas it saves on each execution: the
+    /// jump on [`Self::UNCOUNTED_LOOP_ITERATIONS`] iterations, shared equally by the paths.
+    pub(crate) fn loop_block_copy(&self, copy: Cost, paths: u32) -> (u64, u64) {
+        let removed = self.label_push() + self.opcode(op::JUMP);
+        let saved =
+            u64::from(self.jump().gas) * Self::UNCOUNTED_LOOP_ITERATIONS / u64::from(paths.max(1));
+        (u64::from(copy.bytes.saturating_sub(removed.bytes)), saved)
+    }
+
+    /// The most bytes the copies of loop blocks may add to a module of `code_bytes` bytes. From
+    /// [`Self::LOOP_COPY_MIN_RUNS`] on, and in a module of at least [`Self::SMALL_CODE_BYTES`],
+    /// every copy that pays goes. Below those runs, as at the default 200, a build still values
+    /// its code size, and in a small module a couple of copies of its one loop grow it by a tenth
+    /// or more: they may add one part in [`Self::LOOP_JOIN_COPY_SHARE`] of its code.
+    pub(crate) fn loop_join_copy_budget(&self, code_bytes: u64) -> u64 {
+        if self.copies_loops() || code_bytes >= Self::SMALL_CODE_BYTES {
+            u64::MAX
+        } else {
+            code_bytes / Self::LOOP_JOIN_COPY_SHARE
+        }
     }
 
     /// Static gas of one opcode; unknown opcodes are free.
@@ -1403,5 +1430,25 @@ mod tests {
         assert!(!once.duplicates_loop_block(Cost::new(0, 5), 1));
         let size = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
         assert!(!size.duplicates_loop_block(Cost::new(30, 12), 1));
+    }
+
+    #[test]
+    fn loop_join_copies_keep_to_a_share_of_the_code() {
+        let gas = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
+        // A 12-byte latch adds 8 bytes beyond the label push and jump it replaces, and saves the
+        // jump on a third of ten iterations.
+        assert_eq!(
+            gas.loop_block_copy(Cost::new(30, 12), 3),
+            (8, u64::from(gas.jump().gas) * 10 / 3)
+        );
+        // At 200 runs, a 194-byte contract built around one loop may grow by 9 bytes, the
+        // largest small one by 204, and a large one by every copy that pays.
+        assert_eq!(gas.loop_join_copy_budget(194), 9);
+        assert_eq!(gas.loop_join_copy_budget(Target::SMALL_CODE_BYTES - 1), 204);
+        assert_eq!(gas.loop_join_copy_budget(Target::SMALL_CODE_BYTES), u64::MAX);
+        // From the runs that copy loop bodies on, every copy that pays goes.
+        let hot =
+            Target::with(EvmVersion::Cancun, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
+        assert_eq!(hot.loop_join_copy_budget(194), u64::MAX);
     }
 }

@@ -38,6 +38,12 @@
 //! more slowly. The original block stays for its other predecessors; CFG cleanup removes it once
 //! no jump reaches it.
 //!
+//! Below the runs that copy loop bodies, the copies into a small module together may add only a
+//! share of its code, [`crate::target::Target::loop_join_copy_budget`], and those that save the
+//! most gas per added byte go first. A contract built around one small loop, where a couple of
+//! copies would grow it by a tenth or more, then keeps its size at the default runs, while the
+//! copies of a larger contract's loops, a small share of it, all go.
+//!
 //! # Place in the pipeline
 //!
 //! The pass runs after the last structural sharing, so tail merging does not fold the copies
@@ -72,19 +78,40 @@ impl EvmPass for TailDup {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let target = module.target(gcx);
+        let mut budget = target.loop_join_copy_budget(code_bytes(target, module));
         let mut changed = false;
         // A latch's copy ends with the latch's jump to the header, which the next round copies.
         for _ in 0..MAX_ROUNDS {
             let paths = incoming_paths(module);
-            // Every copy of a round takes its block as the round found it, so a block grown by
-            // one copy still qualifies for the others.
-            let copies = module
+            let mut candidates = module
                 .blocks
                 .indices()
                 .filter_map(|caller| {
-                    let callee = candidate(module, target, &paths, caller)?;
+                    let (callee, copy) = candidate(module, target, &paths, caller)?;
+                    let (added, saved) = target.loop_block_copy(copy, paths[callee]);
+                    Some((caller, callee, added, saved))
+                })
+                .collect::<Vec<_>>();
+            // The budget takes the copies that save the most gas per added byte first.
+            candidates.sort_by(|a, b| {
+                (u128::from(b.3) * u128::from(a.2))
+                    .cmp(&(u128::from(a.3) * u128::from(b.2)))
+                    .then(a.0.cmp(&b.0))
+            });
+            // Every copy of a round takes its block as the round found it, so a block grown by
+            // one copy still qualifies for the others.
+            let copies = candidates
+                .into_iter()
+                .filter(|&(_, _, added, _)| {
+                    let fits = added <= budget;
+                    if fits {
+                        budget -= added;
+                    }
+                    fits
+                })
+                .map(|(caller, callee, ..)| {
                     let tail = &module.blocks[callee];
-                    Some((caller, tail.instructions.clone(), tail.terminator.clone()))
+                    (caller, tail.instructions.clone(), tail.terminator.clone())
                 })
                 .collect::<Vec<_>>();
             if copies.is_empty() {
@@ -124,13 +151,13 @@ fn incoming_paths(module: &Module) -> IndexVec<BlockId, u32> {
     paths
 }
 
-/// The block `caller` jumps to, when copying it into `caller` pays.
+/// The block `caller` jumps to and the cost of its copy, when copying it into `caller` pays.
 fn candidate(
     module: &Module,
     target: Target,
     paths: &IndexVec<BlockId, u32>,
     caller: BlockId,
-) -> Option<BlockId> {
+) -> Option<(BlockId, Cost)> {
     let block = &module.blocks[caller];
     let Some(TerminatorKind::Jump(callee)) = block.terminator.as_ref().map(|term| &term.kind)
     else {
@@ -166,7 +193,7 @@ fn candidate(
         TerminatorKind::JumpI { .. } | TerminatorKind::IndexedJump(_) => return None,
     };
     let copy = copy_cost(target, tail)? + ending;
-    target.duplicates_loop_block(copy, paths[callee]).then_some(callee)
+    target.duplicates_loop_block(copy, paths[callee]).then_some((callee, copy))
 }
 
 /// Whether `block` holds hot code of a loop.
@@ -221,4 +248,38 @@ fn instruction_cost(target: Target, before: &[Instruction], inst: &Instruction) 
         return None;
     }
     Some(target.opcode(inst.opcode))
+}
+
+/// The module's code bytes, of which its copies may add a share.
+fn code_bytes(target: Target, module: &Module) -> u64 {
+    let landing = u64::from(target.opcode(op::JUMPDEST).bytes);
+    module
+        .blocks
+        .iter()
+        .map(|block| {
+            let body =
+                block.instructions.iter().map(|inst| u64::from(instruction_bytes(target, inst)));
+            let end = block.terminator.as_ref().map_or(0, |term| match &term.kind {
+                TerminatorKind::Jump(_) => (target.label_push() + target.opcode(op::JUMP)).bytes,
+                TerminatorKind::JumpI { .. } => {
+                    (target.label_push() + target.opcode(op::JUMPI)).bytes
+                }
+                TerminatorKind::IndexedJump(_) => target.opcode(op::JUMP).bytes,
+                TerminatorKind::Op(opcode) => target.opcode(*opcode).bytes,
+            });
+            landing + body.sum::<u64>() + u64::from(end)
+        })
+        .sum()
+}
+
+/// The encoded bytes of one instruction, a pushed label or placeholder as a label push.
+fn instruction_bytes(target: Target, inst: &Instruction) -> u32 {
+    if inst.is_encoded_push() {
+        return inst
+            .concrete_immediate()
+            .map_or(target.label_push().bytes, |value| target.push(value).bytes);
+    }
+    inst.as_stack_op()
+        .and_then(|stack_op| target.stack_op(stack_op))
+        .map_or_else(|| target.opcode(inst.opcode).bytes, |cost| cost.bytes)
 }
