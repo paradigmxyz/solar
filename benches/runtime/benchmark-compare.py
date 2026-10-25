@@ -655,6 +655,13 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
     return details
 
 
+def same_optimizer(result: dict[str, Any], base: dict[str, Any]) -> bool:
+    """Whether our compiler ran with the same optimizer setting in both results."""
+    return bool(compiler_data(result, "solar").get("optimizer_disabled")) == bool(
+        compiler_data(base, "solar").get("optimizer_disabled")
+    )
+
+
 def baseline_regression_details(
     results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
 ) -> list[str]:
@@ -663,7 +670,7 @@ def baseline_regression_details(
     for result in results:
         test_id = "/".join(suite_key(result))
         base = baseline.get(suite_key(result))
-        if base is None:
+        if base is None or not same_optimizer(result, base):
             continue
 
         current_data, base_data = (
@@ -785,7 +792,7 @@ def has_codegen_changes(
     baseline = by_test_id(baseline_results)
     for result in results:
         base = baseline.get(suite_key(result))
-        if base is None:
+        if base is None or not same_optimizer(result, base):
             continue
 
         current_status = compiler_status(result, "solar")

@@ -99,7 +99,8 @@ a matching reference result exists.
   them; it conflicts with `--solc` and `--solx`. It copies compile, gas, and runtime data only for
   matching input fingerprints, then runs the usual cross-compiler checks. Live `--oksolc` results
   override saved ones. `--reference-compilers solc ...` limits the reused compilers (default: all
-  three). A case without a matching reference result only prints a warning and is not compared.
+  three). A case without a matching reference result prints a warning and is not compared; with
+  `--require-references` it also fails the run unless `--allow-failures` is set.
 
 Without `--allow-failures`, the exit status is 1 if any compiler fails to compile, a deployment or
 gas transaction fails, or a runtime check fails or differs between compilers.
@@ -109,10 +110,12 @@ failures of our compiler, and mismatches involving it, do.
 
 CI also runs the runtime corpus a second time with `--solar-no-optimizer` (the "Check -O none
 runtime results" step of the codegen runtime job): one compile repeat, `--gas --gas-profile hot`, no
-report or comment. PRs reuse the exact-base solc results (`--reference-results ...
---reference-compilers solc`); pushes to main and PRs without a base result run solc live. The job
-fails on any compile, deployment, gas, or runtime failure and on any runtime mismatch with solc.
-`-O none` must give the same runtime results as `-Ogas` and `-Osize`; only gas and size may differ.
+report or comment. PRs first reuse the exact-base solc results (`--reference-results ...
+--reference-compilers solc --require-references`); if that run fails for any reason, including a case
+whose input differs from the base's, the step reruns with live solc, so only a failure that live solc
+reproduces fails the job. Pushes to main and PRs without a base result run solc live. The job fails
+on any compile, deployment, gas, or runtime failure and on any runtime mismatch with solc. `-O none`
+must give the same runtime results as `-Ogas` and `-Osize`; only gas and size may differ.
 
 In CI, PRs pass the exact-base result as `--reference-results`, so solc runs only on the base
 revision. Solx 0.1.8 is pinned and runs only on pushes to main, never in PR jobs, even ones that

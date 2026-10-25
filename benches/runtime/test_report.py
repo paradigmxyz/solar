@@ -1121,6 +1121,15 @@ class RunComparisonTests(unittest.TestCase):
         self.assertEqual(comparison["rows"][0]["issues"], ["optimizer settings differ"])
         self.assertEqual(comparison["totals"]["runtime_size"]["tests"], [])
 
+    def test_disabled_optimizer_results_raise_no_baseline_changes_or_regressions(self):
+        before = self.fixture()
+        after = self.fixture(optimizer_disabled=True, runtime_size=200, total_gas=60)
+        self.assertEqual(benchmark.baseline_regression_details([after], [before]), [])
+        self.assertFalse(benchmark.has_codegen_changes([after], [before]))
+        optimized = self.fixture(runtime_size=200, total_gas=60)
+        self.assertTrue(benchmark.baseline_regression_details([optimized], [before]))
+        self.assertTrue(benchmark.has_codegen_changes([optimized], [before]))
+
     def test_summary_weights_contract_ratios_equally(self):
         before = [
             self.fixture("small", runtime_size=100),

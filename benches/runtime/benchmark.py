@@ -2249,6 +2249,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=("solc", "solx", "oksolc"),
         help="Compilers to reuse from --reference-results (default: all)",
     )
+    parser.add_argument(
+        "--require-references",
+        action="store_true",
+        help="Fail when --reference-results has no matching result for a case; such a case is not compared",
+    )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument(
         "--projects", nargs="*", help="Subset of repository project names to run"
@@ -2550,6 +2555,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return result
 
     results = []
+    missing_references = []
     timings = {}
     anvil_proc = None
     executor = ThreadPoolExecutor(args.jobs) if args.jobs > 1 else None
@@ -2605,6 +2611,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                                 dirs_exist_ok=True,
                             )
                 else:
+                    missing_references.append((test.test_id, compiler_id))
                     print(
                         _color(
                             f"[{test.test_id}] matching {compiler_id} reference result not found",
@@ -2698,9 +2705,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         for compiler_id, data in result["compilers"].items()
         if data.get("deploy_status") == "failed"
     ]
+    unmatched = missing_references if args.require_references else []
     if (
-        failed or runtime_failed or gas_failed or deploy_failed
+        failed or runtime_failed or gas_failed or deploy_failed or unmatched
     ) and not args.allow_failures:
+        if unmatched:
+            print(
+                _color(
+                    f"{len(unmatched)} reference results not found, so those cases were not compared; use --allow-failures to keep exit code 0",
+                    RED,
+                ),
+                file=sys.stderr,
+            )
         if failed:
             print(
                 _color(

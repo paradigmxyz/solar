@@ -371,16 +371,21 @@ jobs:
             --start-anvil
             --output "$RUNNER_TEMP/onone-results.json"
           )
+          live_solc=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}")
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" && \
             -f target/codegen-bench/baseline/results.json ]]; then
-            args+=(
-              --reference-results target/codegen-bench/baseline/results.json
-              --reference-compilers solc
-            )
+            # Cases whose input differs from the base have no saved solc result, so rerun with live solc.
+            python3 benches/runtime/benchmark.py "${args[@]}" \
+              --reference-results target/codegen-bench/baseline/results.json \
+              --reference-compilers solc \
+              --require-references ||
+              {
+                echo "::warning::Rerunning the -O none check with live solc"
+                python3 benches/runtime/benchmark.py "${args[@]}" "${live_solc[@]}"
+              }
           else
-            args+=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}")
+            python3 benches/runtime/benchmark.py "${args[@]}" "${live_solc[@]}"
           fi
-          python3 benches/runtime/benchmark.py "${args[@]}"
 
   codspeed:
     if: >-

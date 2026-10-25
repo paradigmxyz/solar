@@ -539,6 +539,57 @@ class FailureHandlingTests(unittest.TestCase):
             self.assertTrue(document["solar_optimizer_disabled"])
             self.assertEqual(message in stderr.getvalue(), expected == 1)
 
+    def test_unmatched_reference_results_fail_only_when_required(self) -> None:
+        case = benchmark.TEST_CASES[0]
+        entry = {
+            "test_id": case.test_id,
+            "suite": case.suite,
+            "gas_profile": "smoke",
+            "compilers": {"solar": {"status": "ok", "input_fingerprint": "new"}},
+        }
+        reference = {
+            **entry,
+            "compilers": {
+                name: {"status": "ok", "input_fingerprint": "old"}
+                for name in ("solc", "solx")
+            },
+        }
+        for flags, expected in (
+            ([], 0),
+            (["--require-references"], 1),
+            (["--require-references", "--allow-failures"], 0),
+        ):
+            with (
+                self.subTest(flags=flags),
+                tempfile.TemporaryDirectory() as directory,
+                mock.patch.object(benchmark, "find_binary", return_value=Path("solar")),
+                mock.patch.object(
+                    benchmark, "binary_version", return_value=("0.2.0", "")
+                ),
+                mock.patch.object(benchmark, "run_test_case", return_value=entry),
+                mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+            ):
+                reference_path = Path(directory) / "reference.json"
+                reference_path.write_text(json.dumps({"results": [reference]}))
+                return_code = benchmark.main(
+                    [
+                        "--solar",
+                        "solar",
+                        "--reference-results",
+                        str(reference_path),
+                        "--reference-compilers",
+                        "solc",
+                        "--tests",
+                        case.test_id,
+                        "--output",
+                        str(Path(directory) / "results.json"),
+                        *flags,
+                    ]
+                )
+            self.assertEqual(return_code, expected)
+            self.assertIn("matching solc reference result not found", stderr.getvalue())
+            self.assertNotIn("matching solx", stderr.getvalue())
+
     def test_live_oksolc_with_saved_references(self) -> None:
         case = benchmark.TEST_CASES[0]
         for jobs in (1, 8):
