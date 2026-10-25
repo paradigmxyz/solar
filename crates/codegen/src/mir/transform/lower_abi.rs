@@ -2074,6 +2074,7 @@ impl LowerAbiCx {
         value
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn decode_calldata_bytes_slice_values(
         builder: &mut FunctionBuilder<'_>,
         head: ValueId,
