@@ -19,9 +19,12 @@
 //! [`MAX_SITES`] sites stay shared: the estimate's error grows with every copy. Inlining a body
 //! drops its price, as the callee it became no longer matches the body that was priced.
 
-use super::{MirInlineSummary, MirInliner, is_terminal_call};
+use super::{MirInlineSummary, MirInliner, is_terminal_call, surviving_call_words};
 use crate::{
-    mir::{Callee, EffectKind, Function, FunctionId, InstKind, MirType, Module, Terminator},
+    mir::{
+        Callee, EffectKind, Function, FunctionId, InstKind, MirType, Module, Terminator,
+        analysis::Liveness,
+    },
     target::Cost,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -39,7 +42,7 @@ pub(super) fn consumed_everywhere(
 ) -> FxHashSet<FunctionId> {
     let Some(shared_runs) = &inliner.shared_runs else { return FxHashSet::default() };
     let internal_calls = internal_call_counts(module);
-    call_counts
+    let mut consumed = call_counts
         .iter()
         .filter(|&(&callee, &sites)| {
             let func = module.function(callee);
@@ -64,7 +67,41 @@ pub(super) fn consumed_everywhere(
             inliner.target.cmp(expanded + Cost::new(0, lost), shared).is_le()
         })
         .map(|(&callee, _)| callee)
-        .collect()
+        .collect::<FxHashSet<_>>();
+    drop_stack_bound(module, summaries, &mut consumed);
+    consumed
+}
+
+/// Removes the callees that overflow the stack budget at any of their sites. The inline loop
+/// skips such a site alone, which would leave copies beside the callee the price assumed gone.
+fn drop_stack_bound(
+    module: &Module,
+    summaries: &FxHashMap<FunctionId, MirInlineSummary>,
+    consumed: &mut FxHashSet<FunctionId>,
+) {
+    if consumed.is_empty() {
+        return;
+    }
+    for func in &module.functions {
+        let mut liveness = None;
+        for block in func.blocks.indices() {
+            for (index, &inst) in func.blocks[block].instructions.iter().enumerate() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
+                    && consumed.contains(&callee)
+                    && let Some(peak) = summaries[&callee].phi_stack_peak
+                {
+                    let liveness =
+                        liveness.get_or_insert_with(|| Liveness::compute_live_sets(func));
+                    if surviving_call_words(func, liveness, block, index) + peak
+                        > MirInliner::STACK_BUDGET
+                    {
+                        consumed.remove(&callee);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// The number of `icall` sites of each function in the module. It differs from the call count
@@ -83,17 +120,28 @@ fn internal_call_counts(module: &Module) -> FxHashMap<FunctionId, usize> {
 }
 
 /// Whether every operation of `func` is pure or a call that never returns, and no block joins
-/// values or switches.
+/// values, switches, or returns more than one word along more than one path.
 fn is_arithmetic_leaf(module: &Module, func: &Function) -> bool {
-    func.instructions().all(|inst| {
-        let kind = &func.inst(inst).kind;
-        is_terminal_call(module, kind)
-            || (!matches!(kind, InstKind::ICall { .. } | InstKind::Phi(_) | InstKind::Select(..))
-                && kind.effect_kind() == EffectKind::Pure)
-    }) && func
-        .blocks
-        .iter()
-        .all(|block| !matches!(block.terminator, Some(Terminator::Switch { .. })))
+    func.return_components().iter().all(|ty| ty.is_word())
+        && func.return_components().len() <= 1
+        && func
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+            .count()
+            == 1
+        && func.instructions().all(|inst| {
+            let kind = &func.inst(inst).kind;
+            is_terminal_call(module, kind)
+                || (!matches!(
+                    kind,
+                    InstKind::ICall { .. } | InstKind::Phi(_) | InstKind::Select(..)
+                ) && kind.effect_kind() == EffectKind::Pure)
+        })
+        && func
+            .blocks
+            .iter()
+            .all(|block| !matches!(block.terminator, Some(Terminator::Switch { .. })))
 }
 
 /// The bytes of one copy of `func`: its operations with their immediates, the jump of a call

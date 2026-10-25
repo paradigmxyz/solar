@@ -352,7 +352,8 @@ impl MirInliner {
                     let caller = module.function(caller_id);
                     let liveness =
                         caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
-                    if surviving_call_words(caller, liveness, site).saturating_add(peak)
+                    if surviving_call_words(caller, liveness, site.block, site.inst_index)
+                        .saturating_add(peak)
                         > Self::STACK_BUDGET
                     {
                         continue;
@@ -1113,15 +1114,20 @@ fn scalar_stack_peak(func: &Function) -> usize {
 }
 
 /// Caller words that survive the internal call and overlap an inline expansion.
-fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) -> usize {
-    let body = &func.blocks[site.block];
-    let mut live = DenseBitSet::from(liveness.live_out(site.block));
+fn surviving_call_words(
+    func: &Function,
+    liveness: &Liveness,
+    block: BlockId,
+    inst_index: usize,
+) -> usize {
+    let body = &func.blocks[block];
+    let mut live = DenseBitSet::from(liveness.live_out(block));
     if let Some(term) = &body.terminator {
         term.visit_operands(|value| {
             live.insert(value);
         });
     }
-    for &inst in body.instructions[site.inst_index + 1..].iter().rev() {
+    for &inst in body.instructions[inst_index + 1..].iter().rev() {
         if let Some(result) = func.inst_result_value(inst) {
             live.remove(result);
         }
@@ -1129,7 +1135,7 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
             live.insert(value);
         });
     }
-    if let Some(result) = func.inst_result_value(site.inst) {
+    if let Some(result) = func.inst_result_value(body.instructions[inst_index]) {
         live.remove(result);
     }
     live_word_count(func, &live)
