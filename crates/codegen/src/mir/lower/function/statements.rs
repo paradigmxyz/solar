@@ -579,12 +579,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     | TyKind::Tuple(_) => {
                         let mut abi_type = self.types.abi_type(parameter_ty)?;
                         abi_type = self.abi_type_for_value(value, abi_type);
-                        let validated_static =
-                            self.validate_calldata_static_argument(value, parameter_ty);
+                        self.validate_calldata_static_argument(value, parameter_ty);
                         let calldata_dynamic = self.builder.func().value_slice_location(value)
                             == Some(PtrLocation::Calldata)
                             && abi_type.is_dynamic();
-                        if calldata_dynamic && !validated_static {
+                        if calldata_dynamic {
                             value = self.materialize_calldata_argument(
                                 parameter_ty,
                                 value,

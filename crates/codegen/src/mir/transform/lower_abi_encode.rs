@@ -137,11 +137,7 @@ impl MirPass for LowerAbiEncode {
                 constructors.insert(id);
             }
         }
-        let mut inline_helpers = EncodeHelpers {
-            branchless_byte_tails: !target.optimization().is_size(),
-            bitwise_shifting: target.evm_version().has_bitwise_shifting(),
-            ..EncodeHelpers::default()
-        };
+        let mut inline_helpers = EncodeHelpers::new(&target);
         let mut changed = !helpers.arrays.is_empty()
             || !helpers.calldata.is_empty()
             || !helpers.tuples.is_empty();
@@ -218,6 +214,16 @@ struct EncodeHelpers {
     literal_objects: FxHashSet<ValueId>,
     branchless_byte_tails: bool,
     bitwise_shifting: bool,
+}
+
+impl EncodeHelpers {
+    fn new(target: &Target) -> Self {
+        Self {
+            branchless_byte_tails: !target.optimization().is_size(),
+            bitwise_shifting: target.evm_version().has_bitwise_shifting(),
+            ..Self::default()
+        }
+    }
 }
 
 /// Builds `encode_abi_tuple(args.., [selector]) -> encoded` for every encoding shape at least
@@ -361,11 +367,7 @@ fn synthesize_array_helpers(
         .collect::<Vec<_>>();
     keys.sort_by_key(|(first, key)| (array_depth(&key.element), *first));
 
-    let mut helpers = EncodeHelpers {
-        branchless_byte_tails: !target.optimization().is_size(),
-        bitwise_shifting: target.evm_version().has_bitwise_shifting(),
-        ..EncodeHelpers::default()
-    };
+    let mut helpers = EncodeHelpers::new(target);
     for (_, key) in keys {
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_array));
         {
@@ -404,73 +406,55 @@ fn synthesize_calldata_helpers(
     revert_strings: RevertStrings,
 ) {
     fn collect(ty: &AbiType, layouts: &mut Vec<AbiType>) {
-        if !is_calldata_helper_layout(ty) {
-            return;
-        }
-        if !layouts.contains(ty) {
+        if is_calldata_helper_layout(ty) && !layouts.contains(ty) {
             layouts.push(ty.clone());
-            for child in calldata_children(ty) {
-                collect(child, layouts);
-            }
+            calldata_children(ty).for_each(|child| collect(child, layouts));
         }
     }
 
-    // Occurrences of `layout` in the expansion of `ty`, which does not enter shared layouts.
-    fn occurrences(ty: &AbiType, layout: &AbiType, shared: &[AbiType], body: bool) -> usize {
-        if ty == layout {
-            return 1;
-        }
-        if !body && shared.contains(ty) {
-            return 0;
-        }
-        calldata_children(ty).map(|child| occurrences(child, layout, shared, false)).sum()
-    }
-
-    // Roots are the layouts of the calldata values encoded, in order of first appearance, with
-    // the number of sites encoding each.
-    let mut roots = Vec::<(AbiType, usize)>::new();
+    // Layouts of the calldata values encoded, in order of first appearance, and the number of
+    // sites encoding each.
+    let mut layouts = Vec::new();
+    let mut sites = FxHashMap::<AbiType, usize>::default();
     for func in module.functions.iter() {
         for inst in func.instructions() {
             let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else { continue };
             for (&arg, ty) in args.iter().zip(&layout.types) {
-                if !is_calldata_slice(func, arg) {
-                    continue;
-                }
-                let ty = calldata_layout(ty);
-                match roots.iter_mut().find(|(root, _)| *root == ty) {
-                    Some((_, sites)) => *sites += 1,
-                    None => roots.push((ty, 1)),
+                if is_calldata_slice(func, arg) && is_calldata_helper_layout(ty) {
+                    let ty = ty.clone().at_location(PtrLocation::Calldata);
+                    collect(&ty, &mut layouts);
+                    *sites.entry(ty).or_default() += 1;
                 }
             }
         }
     }
-    let mut layouts = Vec::new();
-    for (ty, _) in &roots {
-        collect(ty, &mut layouts);
-    }
     layouts.sort_by_key(|ty| std::cmp::Reverse(calldata_depth(ty)));
 
-    let mut shared = Vec::<AbiType>::new();
-    for layout in &layouts {
-        let sites = roots
-            .iter()
-            .filter(|(root, _)| !shared.contains(root))
-            .map(|(root, count)| count * occurrences(root, layout, &shared, false))
-            .chain(shared.iter().map(|body| occurrences(body, layout, &shared, true)))
-            .sum::<usize>();
-        if sites < 2 {
-            continue;
+    // Every layout that contains this one has been decided, so its expansions are known.
+    let mut shared = Vec::new();
+    for layout in layouts {
+        let expansions = sites.get(&layout).copied().unwrap_or(0);
+        if expansions >= 2 {
+            let function = calldata_helper(&layout, revert_strings, helpers);
+            let body_bytes = target.code_estimate(&function).bytes;
+            let expansions = u32::try_from(expansions).unwrap_or(u32::MAX);
+            let params = function.params.len();
+            let (with_helper, expanded) = target.helper_sharing(body_bytes, params, 1, expansions);
+            if target.cmp(with_helper, expanded).is_lt() {
+                // A shared layout expands once, in its helper.
+                for child in calldata_children(&layout) {
+                    *sites.entry(child.clone()).or_default() += 1;
+                }
+                shared.push(layout);
+                continue;
+            }
         }
-        let function = calldata_helper(layout, revert_strings, helpers);
-        let body_bytes = target.code_estimate(&function).bytes;
-        let sites = u32::try_from(sites).unwrap_or(u32::MAX);
-        let (with_helper, expanded) = target.helper_sharing(body_bytes, 2, 1, sites);
-        if target.cmp(with_helper, expanded).is_lt() {
-            shared.push(layout.clone());
+        for child in calldata_children(&layout) {
+            *sites.entry(child.clone()).or_default() += expansions;
         }
     }
-    shared.sort_by_key(calldata_depth);
-    for layout in shared {
+    // Inner layouts first, so outer bodies call inner helpers.
+    for layout in shared.into_iter().rev() {
         let function = calldata_helper(&layout, revert_strings, helpers);
         let helper = module.add_function(function);
         helpers.calldata.insert(layout, helper);
@@ -523,22 +507,6 @@ fn calldata_children(ty: &AbiType) -> impl Iterator<Item = &AbiType> {
 /// Number of calldata layouts nested inside `ty`, counting itself.
 fn calldata_depth(ty: &AbiType) -> usize {
     1 + calldata_children(ty).map(calldata_depth).max().unwrap_or(0)
-}
-
-/// `ty` with every location set to calldata.
-fn calldata_layout(ty: &AbiType) -> AbiType {
-    match ty {
-        AbiType::Bytes(_) => AbiType::Bytes(PtrLocation::Calldata),
-        AbiType::DynamicArray { element, .. } => AbiType::DynamicArray {
-            element: Box::new(calldata_layout(element)),
-            location: PtrLocation::Calldata,
-        },
-        AbiType::FixedArray { element, len } => {
-            AbiType::FixedArray { element: Box::new(calldata_layout(element)), len: *len }
-        }
-        AbiType::Tuple(fields) => AbiType::Tuple(fields.iter().map(calldata_layout).collect()),
-        AbiType::Word(_) | AbiType::Function => ty.clone(),
-    }
 }
 
 /// Returns the shared helper encoding a memory array of `element`s passed as `value`.
@@ -1320,8 +1288,7 @@ fn validate_calldata_word(
 ) {
     // if !valid(word) { revert(0, 0) }
     let valid = validator.condition(builder, word, bitwise_shifting);
-    let invalid = builder.eq_zero(valid);
-    builder.revert_if(invalid, RevertReason::Empty);
+    builder.revert_if_zero(valid, RevertReason::Empty);
 }
 
 /// Canonicalizes a word read from memory before it is encoded: narrow values are masked or
@@ -1419,7 +1386,7 @@ fn encode_calldata_body(
     helpers: &EncodeHelpers,
 ) -> ValueId {
     if !helpers.calldata.is_empty()
-        && let Some(&helper) = helpers.calldata.get(&calldata_layout(ty))
+        && let Some(&helper) = helpers.calldata.get(&ty.clone().at_location(PtrLocation::Calldata))
     {
         // length = icall @encode_abi_calldata, value, dest
         let pointer = builder.cast(dest, MirType::MEMPTR);
@@ -1604,6 +1571,22 @@ fn encode_calldata_element(
         return dest.tail;
     }
     let value = calldata_dynamic_value(builder, ty, source_head, base);
+    if let AbiType::DynamicArray { element, .. } = ty
+        && let AbiType::Word(Some(validator)) = element.as_ref()
+    {
+        // Neither lowering nor the dispatcher validates the words of a nested array, which
+        // then copy as one block.
+        // for index in 0..slice_len(value): validate(calldataload(slice_ptr(value) + index * 32))
+        let length = builder.slice_len(value);
+        let words = builder.slice_ptr(value);
+        let word = builder.imm(32);
+        builder.counted_loop(length, |builder, index| {
+            let offset = builder.mul(index, word);
+            let position = builder.add(words, offset);
+            let value = builder.load(position, PtrLocation::Calldata);
+            validate_calldata_word(builder, *validator, value, helpers.bitwise_shifting);
+        });
+    }
     encode_value(builder, ty, value, dest, AbiValueSource::Scalar, helpers)
 }
 

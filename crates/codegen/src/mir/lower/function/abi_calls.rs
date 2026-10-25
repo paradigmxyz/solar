@@ -44,13 +44,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Validates a static calldata aggregate in place so ABI encoding can read
     /// its words directly without copying the aggregate to memory.
-    pub(super) fn validate_calldata_static_argument(
-        &mut self,
-        value: ValueId,
-        ty: Ty<'gcx>,
-    ) -> bool {
+    pub(super) fn validate_calldata_static_argument(&mut self, value: ValueId, ty: Ty<'gcx>) {
         let needs_validation = self.needs_calldata_aggregate_validation(value, ty);
-        self.validate_calldata_static_argument_inner(value, ty, needs_validation)
+        self.validate_calldata_static_argument_inner(value, ty, needs_validation);
     }
 
     fn validate_calldata_static_argument_inner(
@@ -361,38 +357,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn memory_abi_type(ty: AbiType) -> AbiType {
-        Self::abi_type_at_location(ty, PtrLocation::Memory)
-    }
-
-    fn abi_type_at_location(ty: AbiType, location: PtrLocation) -> AbiType {
-        match ty {
-            AbiType::Word(cleanup) => AbiType::Word(cleanup),
-            AbiType::Function => AbiType::Function,
-            AbiType::Bytes(_) => AbiType::Bytes(location),
-            AbiType::DynamicArray { element, .. } => AbiType::DynamicArray {
-                element: Box::new(Self::abi_type_at_location(*element, location)),
-                location,
-            },
-            AbiType::FixedArray { element, len } => AbiType::FixedArray {
-                element: Box::new(Self::abi_type_at_location(*element, location)),
-                len,
-            },
-            AbiType::Tuple(fields) => AbiType::Tuple(
-                fields
-                    .into_vec()
-                    .into_iter()
-                    .map(|field| Self::abi_type_at_location(field, location))
-                    .collect(),
-            ),
-        }
+        ty.at_location(PtrLocation::Memory)
     }
 
     pub(super) fn abi_type_for_value(&self, value: ValueId, ty: AbiType) -> AbiType {
         if let Some(location) = self.builder.func().value_slice_location(value) {
             match ty {
-                AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
-                    Self::abi_type_at_location(ty, location)
-                }
+                AbiType::Bytes(_) | AbiType::DynamicArray { .. } => ty.at_location(location),
                 ty => ty,
             }
         } else if matches!(

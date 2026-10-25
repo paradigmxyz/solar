@@ -271,6 +271,24 @@ pub(crate) enum AbiType {
 }
 
 impl AbiType {
+    /// Returns the layout with every byte string and dynamic array placed in `location`.
+    #[must_use]
+    pub(crate) fn at_location(self, location: PtrLocation) -> Self {
+        match self {
+            Self::Word(_) | Self::Function => self,
+            Self::Bytes(_) => Self::Bytes(location),
+            Self::DynamicArray { element, .. } => {
+                Self::DynamicArray { element: Box::new(element.at_location(location)), location }
+            }
+            Self::FixedArray { element, len } => {
+                Self::FixedArray { element: Box::new(element.at_location(location)), len }
+            }
+            Self::Tuple(fields) => Self::Tuple(
+                fields.into_vec().into_iter().map(|f| f.at_location(location)).collect(),
+            ),
+        }
+    }
+
     /// Returns whether the ABI value occupies an offset in its containing head.
     #[must_use]
     pub(crate) fn is_dynamic(&self) -> bool {
