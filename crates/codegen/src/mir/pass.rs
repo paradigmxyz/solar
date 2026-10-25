@@ -346,8 +346,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // plus an index term inside the loop that reads it. Hoist the invariant
     // base once the physical form is final, so a hot loop carries one word
     // instead of reloading its argument and re-adding the header every
-    // iteration.
-    &GasOnly::new(loop_opt::Licm),
+    // iteration. Checked products are lowered by now, so this run also
+    // replaces their in-loop divisions by one hoisted bound.
+    &loop_opt::Licm,
     // With the base hoisted, each element address is `base + scale * index`
     // plus invariants; carry it as a pointer stepped on the latch instead of
     // rebuilding it from the index every iteration. Gas-only: under `-Osize` it grows
