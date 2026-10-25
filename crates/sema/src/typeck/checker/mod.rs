@@ -3821,13 +3821,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         &self.gcx.hir
     }
 
-    fn visit_nested_contract(&mut self, id: hir::ContractId) -> ControlFlow<Self::BreakValue> {
-        let prev = self.contract.replace(id);
-        let r = self.walk_nested_contract(id);
-        self.contract = prev;
-        r
-    }
-
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
         let contract = self.gcx.hir.function(id).contract;
         let prev = self.contract;
@@ -3844,7 +3837,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
         // A base constructor call in a constructor header is checked with the
-        // contract's other base argument lists, in `visit_contract`.
+        // contract's other base argument lists, in `check_contract_header`.
         if matches!(modifier.id, hir::ItemId::Contract(_)) {
             return ControlFlow::Continue(());
         }
@@ -3864,17 +3857,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             return self.walk_modifier(modifier);
         };
         self.check_modifier_invocation_args(modifier, param_tys);
-        ControlFlow::Continue(())
-    }
-
-    fn visit_contract(
-        &mut self,
-        contract: &'gcx hir::Contract<'gcx>,
-    ) -> ControlFlow<Self::BreakValue> {
-        self.check_contract_header(contract);
-        for &item in contract.items {
-            self.visit_nested_item(item)?;
-        }
         ControlFlow::Continue(())
     }
 

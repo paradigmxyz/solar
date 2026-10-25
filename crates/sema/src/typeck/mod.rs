@@ -144,6 +144,9 @@ fn merge_typeck_results<'gcx>(
     merged
 }
 
+/// The fewest units for which visiting them in parallel pays.
+const PAR_VISIT_UNITS: usize = 256;
+
 /// A part of a source that is checked on its own.
 #[derive(Clone, Copy)]
 enum Unit {
@@ -155,14 +158,14 @@ enum Unit {
     Item(Option<hir::ContractId>, ItemId),
 }
 
-/// Visits every item of every source in parallel, each with its own visitor.
+/// Visits every item of every source, in parallel if there are many, each with its own visitor.
 ///
 /// A contract's base arguments are visited as their own item. `units` come from [`units`].
 fn par_visit_items<'gcx, V: Visit<'gcx>>(
     units: &[(hir::SourceId, Unit)],
     new_visitor: impl Fn() -> V + Sync,
 ) {
-    units.par_iter().for_each(|&(_, unit)| {
+    let visit = |&(_, unit): &(hir::SourceId, Unit)| {
         let mut visitor = new_visitor();
         let _ = match unit {
             Unit::Source => return,
@@ -174,7 +177,13 @@ fn par_visit_items<'gcx, V: Visit<'gcx>>(
                 .try_for_each(|base| visitor.visit_modifier(base)),
             Unit::Item(_, item) => visitor.visit_nested_item(item),
         };
-    });
+    };
+    // Few units finish faster than the pool wakes up.
+    if units.len() < PAR_VISIT_UNITS {
+        units.iter().for_each(visit);
+    } else {
+        units.par_iter().for_each(visit);
+    }
 }
 
 /// Returns the units of every source, in source order.

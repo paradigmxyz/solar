@@ -23,7 +23,6 @@ use crate::{
     hir::{self, ExprKind, Visit},
     ty::Gcx,
 };
-use rayon::prelude::*;
 use solar_data_structures::{
     Never, graph,
     index::IndexVec,
@@ -39,20 +38,20 @@ pub(super) const MAX_DEPTH: usize = 256;
 type Graph = FxIndexMap<hir::VariableId, Vec<hir::VariableId>>;
 
 pub(super) fn check(gcx: Gcx<'_>) {
-    let graph = gcx
-        .hir
-        .par_variables_enumerated()
-        .filter_map(|(id, var)| {
-            let init = var.initializer.filter(|_| var.is_constant())?;
+    let mut graph = Graph::default();
+    for (id, var) in gcx.hir.variables_enumerated() {
+        if var.is_constant()
+            && let Some(init) = var.initializer
+        {
             let mut collector = ConstantReferences { gcx, references: Vec::new() };
             let _ = collector.visit_expr(init);
-            collector.references.sort_unstable();
-            collector.references.dedup();
-            (!collector.references.is_empty()).then_some((id, collector.references))
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
-        .collect::<Graph>();
+            if !collector.references.is_empty() {
+                collector.references.sort_unstable();
+                collector.references.dedup();
+                graph.insert(id, collector.references);
+            }
+        }
+    }
 
     let heights = heights(gcx, &graph);
     let referenced = LazyCell::new(|| graph.values().flatten().copied().collect::<FxHashSet<_>>());
