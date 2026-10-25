@@ -325,6 +325,7 @@ fn foundry_solc() -> FoundrySolc {
 
         let dir = tempfile::Builder::new()
             .prefix("solar-foundry-solc-")
+            .permissions(fs::Permissions::from_mode(0o700))
             .tempdir()
             .expect("failed to create Foundry compiler directory");
         let path = dir.path().join("solc");
