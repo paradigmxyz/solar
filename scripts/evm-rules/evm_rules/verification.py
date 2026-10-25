@@ -44,7 +44,7 @@ NATIVE_PREFIXES = {
     ISLE / "mir/word/shifts.isle": ";; (x << s) >>",
 }
 INTEGER_WIDTHS = (1, *range(8, 257, 8))
-FAILURES = (Unsupported, ValueError, TypeError, IndexError)
+FAILURES = (Unsupported, ValueError, TypeError, IndexError, KeyError)
 # A hand-written proof is named after its rule's file and digest, which edits elsewhere
 # in the file leave unchanged; variants add the theorem index and integer width.
 PROOF_NAME = re.compile(
