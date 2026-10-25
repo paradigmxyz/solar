@@ -1,0 +1,53 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedProxy
+
+@immutables
+  implementation: address
+
+// The delegatecall input and the returndata copy are dead as soon as their last use is done, and
+// nothing reads or advances the free-memory pointer between an allocation and its last use, so
+// both become unreserved regions at the pointer and no bump remains.
+// CHECK:   fn @proxy{{.*}}
+// CHECK: - {{.*}}[[INPUT:v[0-9]+]] = alloc {{v[0-9]+}}
+// CHECK-NEXT: + {{.*}}[[INPUT]] = fmp
+// CHECK: delegatecall
+// CHECK: - {{.*}}[[OUTPUT:v[0-9]+]] = alloc {{v[0-9]+}}
+// CHECK-NEXT: + {{.*}}[[OUTPUT]] = fmp
+// CHECK: returndatacopy
+fn @proxy(arg0: slice<calldata>) [payable] {
+  bb0:
+    v0 = loadimmutable implementation
+    v1 = gas
+    v2 = extract_value slice<calldata>, arg0, 1
+    v3 = add v2, 63
+    v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v6 = alloc v5
+    mstore v6, v2
+    v7 = ptradd v6, 32
+    v8 = extract_value slice<calldata>, arg0, 0
+    calldatacopy v7, v8, v2
+    v18 = mload v6
+    v19 = zext i160 v0 to i256
+    v20 = delegatecall v1, v19, v7, v18, 0, 0
+    v21 = returndatasize
+    v22 = add v21, 63
+    v25 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = alloc v25
+    mstore v26, v21
+    v27 = make_returndata_slice ptr<returndata> 0, v21
+    v28 = ptradd v26, 32
+    v29 = extract_value slice<returndata>, v27, 0
+    v30 = extract_value slice<returndata>, v27, 1
+    returndatacopy v28, v29, v30
+    jumpi v20, bb2, bb1
+  bb1:
+    v13 = ptrtoint ptr<memory> v26 to i256
+    v14 = mload v26
+    v16 = add v13, 32
+    revert v16, v14
+  bb2:
+    v31 = ptradd v26, 32
+    v32 = mload v26
+    returndata v31, v32
+}

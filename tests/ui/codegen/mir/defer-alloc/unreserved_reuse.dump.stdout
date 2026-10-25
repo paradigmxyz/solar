@@ -1,0 +1,189 @@
+// === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_reuse.sol:UnreservedReuse ===
+@module UnreservedReuse
+@phase lowered
+@data
+  Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_reuse.sol:Impl"
+
+@immutables
+  impl: address
+
+fn @stage() [selector=0xfa8c96ef, abi_wrapper] {
+  bb0:
+    v29 = icall @decode_calldata_slice
+    v30 = calldataload v29
+    v31 = add v29, 32
+    v0: i256 = loadimmutable impl
+    v1 = gas
+    v56 = mload 64 !metadata(memory=scratch)
+    mstore v56, v30
+    v48 = add v56, 32
+    calldatacopy v48, v31, v30
+    v16 = delegatecall v1, v0, v48, v30, 0, 0
+    v17 = returndatasize
+    v18 = add v17, 63
+    v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v57 = mload 64 !metadata(memory=scratch)
+    v58 = add v57, v21
+    mstore 64, v58 !metadata(memory=scratch)
+    mstore v57, v17
+    v50 = add v57, 32
+    returndatacopy v50, 0, v17
+    jumpi v16, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v39 = add v17, 31
+    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v50, v41
+    mstore v43, 0
+    v52 = add v57, 64
+    mcopy v52, v50, v17
+    mstore v57, 32
+    mstore v50, v17
+    v45 = add v41, 64
+    returndata v57, v45
+}
+
+fn @zeroed() [selector=0x84322464, abi_wrapper, view] {
+  bb0:
+    v45 = icall @decode_calldata_slice
+    v46 = calldataload v45
+    v47 = add v45, 32
+    v0 = gas
+    v66 = mload 64 !metadata(memory=scratch)
+    mstore v66, v46
+    v52 = add v66, 32
+    calldatacopy v52, v47, v46
+    v32 = staticcall v0, 4, v52, v46, 0, 0
+    v33 = returndatasize
+    v67 = mload 64 !metadata(memory=scratch)
+    mstore v67, v33
+    v54 = add v67, 32
+    returndatacopy v54, 0, v33
+    v13 = eq v33, v46
+    v69 = and v32, v13
+    jumpi v69, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v60 = mload 64 !metadata(memory=scratch)
+    v61 = add v60, 128
+    v62 = lt v61, v60
+    v63 = gt v61, 0xffffffffffffffff
+    v64 = or v62, v63
+    jumpi v64, bb4, bb3
+  bb3:
+    mstore 64, v61 !metadata(memory=scratch)
+    v68 = calldatasize
+    calldatacopy v60, v68, 128
+    mstore v60, 96
+    v20 = add v60, 96
+    v21 = mload v20
+    v23 = add v60, 64
+    v24 = mload v23
+    v26 = add v60, 32
+    v27 = mload v26
+    v28 = or v27, v24
+    v29 = or v28, v21
+    mstore 0, v29 !metadata(memory=scratch)
+    returndata 0, 32
+  bb4:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @constructor() [abi_wrapper, constructor] {
+  bb0:
+    v6 = callvalue
+    v7 = ne v6, 0
+    jumpi v7, bb4, bb1
+  bb1:
+    v0 = datasize Impl_creation_code_0
+    v10 = mload 64 !metadata(memory=scratch)
+    datacopy Impl_creation_code_0, v10, v0
+    v2: i256 = create 0, v10, v0
+    v3 = ne v2, 0
+    jumpi v3, bb3, bb2
+  bb2:
+    v4 = returndatasize
+    returndatacopy 0, 0, v4 !metadata(memory=abi_return)
+    v5 = returndatasize
+    revert 0, v5
+  bb3:
+    mstore 192, v2
+    ret
+  bb4:
+    revert 0, 0
+}
+
+fn @decode_calldata_slice() -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload 4
+    v2 = add v1, 4
+    v4 = sub v0, 36
+    v5 = gt v1, v4
+    v6 = calldataload v2
+    v7 = add v2, 32
+    v8 = sub v0, v7
+    v9 = gt v6, v8
+    v10 = or v5, v9
+    jumpi v10, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x84322464 => bb3, 0xfa8c96ef => bb4]
+  bb4:
+    tail_call @stage
+  bb3:
+    tail_call @zeroed
+  bb1:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/mir/defer-alloc/unreserved_reuse.sol:Impl ===
+@module Impl
+@phase lowered
+fn @fallback() [abi_wrapper, fallback] {
+  bb0:
+    v0 = calldatasize
+    tail_call @fallback.body, 0, v0
+}
+
+fn @fallback.body(arg0: i256, arg1: i256) {
+  bb0:
+    v7 = mload 64 !metadata(memory=scratch)
+    v8 = add v7, 64
+    mstore 64, v8 !metadata(memory=scratch)
+    mstore v7, 5
+    v5 = add v7, 32
+    mstore v5, 0x102030405000000000000000000000000000000000000000000000000000000
+    returndata v5, 5
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb2, bb1
+  bb1:
+    tail_call @fallback
+  bb2:
+    revert 0, 0
+}

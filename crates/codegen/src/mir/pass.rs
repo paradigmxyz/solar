@@ -80,7 +80,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &function_compaction::MergeEquivalentFunctions,
     &memory_dse::MemoryDse,
     &coalesce_allocs::CoalesceAllocs,
-    &static_alloc::DeferAlloc,
+    &static_alloc::DeferAlloc::Late,
     &sroa::Sroa,
     &copy_elision::CopyElision,
     &dce::Dce,
@@ -266,7 +266,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &dce::Dce,
     &function_compaction::MergeEquivalentFunctions,
     &cfg_simplify::FunctionDce,
-    &static_alloc::DeferAlloc,
+    &static_alloc::DeferAlloc::Early,
     &lower_abi_encode::LowerAbiEncode,
     // Packed storage writes leave read-modify-write sequences. Forward whole
     // words before deleting the overwritten stores, then simplify masks.
@@ -306,7 +306,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Revisit allocations after semantic memory accesses become bounded raw
     // operations, so fixed-size hash buffers can use backend-known static
     // regions.
-    &static_alloc::DeferAlloc,
+    &static_alloc::DeferAlloc::Late,
     &lower_slices::LowerSlices,
     // Fuse straight-line constant-size allocations before their free-memory
     // pointer traffic is materialized; pointer values are preserved exactly.

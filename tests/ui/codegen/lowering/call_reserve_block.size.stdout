@@ -59,11 +59,6 @@ bb0:
 bb11:
   push 64
   mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore

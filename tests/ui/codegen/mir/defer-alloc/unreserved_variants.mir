@@ -1,0 +1,106 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedVariants
+
+// A zeroed allocation keeps an explicit zero fill, since memory past the pointer can hold old
+// scratch data.
+// CHECK:   fn @zeroed{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc zeroed arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+// CHECK-NEXT: + {{.*}}memory_zero [[PTR]], arg0
+fn @zeroed(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc zeroed arg0
+    v1 = mload v0
+    ret v1
+}
+
+// A checked allocation keeps its bump and its overflow check.
+// CHECK:   fn @checked{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @checked(arg0: i256) {
+  bb0:
+    v0 = alloc checked arg0
+    mstore v0, 1
+    revert v0, 32
+}
+
+// A read of the free-memory pointer before the allocation is not a use of the region.
+// CHECK:   fn @fmp_read_before{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @fmp_read_before(arg0: i256) {
+  bb0:
+    v1 = mload 64
+    v0 = alloc arg0
+    mstore v0, v1
+    revert v0, 32
+}
+
+// Uses in different branches share one lifetime that ends on every path.
+// CHECK:   fn @branches{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @branches(arg0: i256, arg1: i1) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    jumpi arg1, bb1, bb2
+  bb1:
+    v1 = mload v0
+    revert v0, 32
+  bb2:
+    returndata v0, 32
+}
+
+// An allocation that executes in each loop iteration and dies in it reuses one region.
+// CHECK:   fn @loop_body{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @loop_body(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    sstore 0, v1
+    jumpi true, bb1, bb2
+  bb2:
+    stop
+}
+
+// An allocation after the last use of the first one does not extend the first one's lifetime,
+// so both stay unreserved and share a region.
+// CHECK:   fn @alloc_after_use{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @alloc_after_use(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = alloc arg0
+    mstore v2, v1
+    revert v2, 32
+}
+
+// A callee that touches no free-memory pointer or memory beyond its argument is not a blocker,
+// and a pointer passed to it does not escape. Any function qualifies, not only entries.
+// CHECK:   fn @pure_callee{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc 64
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @pure_callee() -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, 7
+    v2 = icall @reads, v1
+    ret v2
+}
+
+fn @reads(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}

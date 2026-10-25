@@ -668,6 +668,12 @@ results retain their allocation point because source code can observe the FMP bu
 Dynamic encoding also uses this requirement when it writes the output before
 reserving its final size. The flag round-trips through MIR text.
 
+An `fmp` result is an unreserved region: the next allocation reuses it, so its pointer must
+die before anything else reads or advances the free-memory pointer. After physical inlining,
+`defer-alloc` rewrites a non-escaping infallible `alloc` to `fmp` when that holds. Zeroed
+allocations keep an explicit `memory_zero`. Checked allocations, `preserves_fmp` allocations,
+and those followed by a raw load of slot 64 in the same function keep their bump.
+
 Load PRE inserts reads only when the join prefix cannot revert, terminate, or
 diverge. Availability on one predecessor does not make it safe to execute a load
 before the check guarding its original path. A value already available on every

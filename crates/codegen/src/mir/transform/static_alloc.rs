@@ -1,10 +1,17 @@
-//! Static placement of provably local heap allocations.
+//! Placement of provably local heap allocations without a free-memory-pointer bump.
 //!
-//! When a constant-size `alloc` executes at most once per call and its pointer
-//! never escapes the function, the allocation does not need a runtime
-//! free-memory-pointer bump. The `defer-alloc` pass proves those properties
-//! and marks each such allocation `deferred_alloc`, so the backend places it
-//! once the exact frame layout is known.
+//! An `alloc` normally reserves its bytes by advancing the free-memory pointer (FMP). Two
+//! placements avoid that bump when the object is local to one function. `defer-alloc` proves the
+//! properties and rewrites or marks the allocation. Static placement runs before ABI encoding is
+//! expanded and again once memory objects are physical. Unreserved placement runs only in the
+//! second run, after physical inlining has moved helpers' allocations into the entries where static
+//! placement can take them, and before `coalesce-allocs` and `lower-alloc` expand the rest.
+//!
+//! # Static placement
+//!
+//! A constant-size `alloc` that executes at most once per call and whose pointer never escapes
+//! the function is marked `deferred_alloc`, and the backend places it once the exact frame layout
+//! is known.
 //!
 //! Safety contract:
 //! - external entries only: their locals are absolute low-memory addresses;
@@ -17,12 +24,47 @@
 //!   the free-memory pointer, since memory-safe assembly could otherwise derive aliases from where
 //!   the object lies relative to the heap;
 //! - allocations marked as source-visible FMP advances are never placed statically.
+//!
+//! # Unreserved placement
+//!
+//! An allocation of any size, in any function and any loop, becomes an unreserved region at the
+//! FMP when nothing else can observe the missing bump. The pass rewrites it to `fmp`, the way
+//! `abi_encode, scratch` stages call data at the pointer without reserving it, so the next
+//! allocation reuses the memory and the `mstore 64` disappears. A zeroed allocation keeps an
+//! explicit `memory_zero`, since memory past the pointer can hold old scratch data. A checked
+//! allocation keeps its bump: dropping it would leave an inline overflow check at every site, which
+//! costs more code than the checked-allocation helper that `lower-alloc` shares between them.
+//!
+//! The pointer must not escape. Every use is an address derivation (`ptrtoint`, `inttoptr`,
+//! constant `add`, `ptradd`, slice fields) into a raw memory access, an external call range, a
+//! `revert` or `returndata`, or a call whose summary proves it neither captures the pointer nor
+//! touches the FMP. Derived accesses need no bounds proof: memory past the object is the same
+//! memory with or without the reservation.
+//!
+//! The lifetime ends before the FMP is used again. Take every instruction on a path from the
+//! allocation to a use of the pointer, without re-entering the allocation, which defines a new
+//! pointer. None of them may read or advance the FMP (`fmp`, `set_fmp`, another `alloc`, a load or
+//! store of slot 64, an operation that stages at the pointer such as `abi_encode`, or an internal
+//! call that does any of those), and none may write memory that is not addressed from the
+//! allocation, since that could alias the region: only constant ranges in the scratch words below
+//! slot 64 qualify. Memory-safe assembly may write past the FMP only after reading it, so the
+//! first rule covers it, and the second covers assembly writing absolute addresses.
+//!
+//! Assembly can see the missing bump after the lifetime, so a raw load of slot 64 that follows the
+//! allocation on any path in the same function keeps it, as do allocations marked as
+//! source-visible FMP advances. The scan does not follow calls or callers. Allocations that static
+//! placement takes are left alone.
 
 use crate::mir::{
-    ArgIdx, BlockId, Callee, Function, FunctionId, InstId, InstKind, MirType, Module, PtrLocation,
+    AllocationFailure, AllocationInitialization, AllocationSemantics, ArgIdx, BlockId, Callee,
+    Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module, PtrLocation,
     Terminator, ValueId,
-    analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, Location, MemoryBase,
+        MemoryCallSummaries,
+    },
     memory::EvmMemoryLayout,
+    op_schema::{RawMemoryAccess, RawMemorySize},
     pass::{MirPass, ModuleAnalyses},
 };
 use solar_data_structures::{
@@ -30,9 +72,16 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
+use std::sync::Arc;
 
 /// Pass that defers eligible allocations until exact backend layout is known.
-pub(crate) struct DeferAlloc;
+pub(crate) enum DeferAlloc {
+    /// Static placement only, before ABI encoding is expanded.
+    Early,
+    /// Static placement, then unreserved placement of what remains, once memory objects are
+    /// physical and inlining has finished.
+    Late,
+}
 
 impl MirPass for DeferAlloc {
     fn name(&self) -> &'static str {
@@ -48,16 +97,17 @@ impl MirPass for DeferAlloc {
         let calls = CallGraphInfo::new(module);
         let summaries = analyses.call_summaries(module);
         let mut candidates = Vec::new();
+        let mut unreserved = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
-            if !func.instructions().any(|inst_id| {
-                matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::Alloc { semantics: crate::mir::AllocationSemantics::INTERNAL, .. }
-                )
-            }) {
-                continue;
-            }
             let eligible = eligible_static_allocations(func_id, func, &calls, &summaries);
+            if matches!(self, Self::Late) {
+                let placed = eligible.iter().map(|candidate| candidate.alloc).collect::<Vec<_>>();
+                unreserved.extend(
+                    eligible_unreserved_allocations(func, &calls, &summaries, &placed)
+                        .into_iter()
+                        .map(|placement| (func_id, placement)),
+                );
+            }
             candidates.extend(eligible.into_iter().map(|candidate| (func_id, candidate.alloc)));
         }
 
@@ -69,7 +119,10 @@ impl MirPass for DeferAlloc {
                 changed = true;
             }
         }
-        changed
+        for &(func_id, placement) in &unreserved {
+            place_at_fmp(&mut module.functions[func_id], placement);
+        }
+        changed | !unreserved.is_empty()
     }
 }
 
@@ -232,20 +285,20 @@ impl ValueUses {
     }
 }
 
-/// Verifies every use of the pointer stays in bounds and never escapes.
-fn candidate_uses_are_safe(
+/// Collects the in-bounds address derivations from `root`, with each one's constant offset, to a
+/// fixpoint so definition order does not matter. `None` means a derivation that cannot be bounded
+/// by a constant: a non-constant `add`, or a derivation past `bound` bytes. Without a `bound`,
+/// `ptradd` takes a runtime offset, which stays inside the object.
+fn derive_pointers(
     func: &Function,
-    cand: &StaticAllocCandidate,
+    root: ValueId,
     uses: &ValueUses,
-    calls: &CallGraphInfo,
-    summaries: &MemoryCallSummaries,
-) -> bool {
-    // In-bounds address derivations from the pointer, to a fixpoint so
-    // definition order does not matter.
+    bound: Option<u64>,
+) -> Option<FxHashMap<ValueId, u64>> {
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
-    derived.insert(cand.ptr, 0);
+    derived.insert(root, 0);
     let mut pending = Vec::new();
-    pending.push(cand.ptr);
+    pending.push(root);
     while let Some(value) = pending.pop() {
         for &inst_id in &uses.instructions[value] {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
@@ -262,17 +315,17 @@ fn candidate_uses_are_safe(
                     let (Some(base_offset), Some(offset)) =
                         (derived.get(&base).copied(), func.value_u64(offset))
                     else {
-                        return false;
+                        return None;
                     };
                     base_offset.checked_add(offset)
                 }
                 InstKind::PtrAdd(base, offset) => {
-                    let (Some(base_offset), Some(offset)) =
-                        (derived.get(&base).copied(), func.value_u64(offset))
-                    else {
-                        return false;
-                    };
-                    base_offset.checked_add(offset)
+                    let base_offset = derived.get(&base).copied();
+                    match (base_offset, func.value_u64(offset)) {
+                        (Some(base_offset), Some(offset)) => base_offset.checked_add(offset),
+                        (Some(base_offset), None) if bound.is_none() => Some(base_offset),
+                        _ => return None,
+                    }
                 }
                 InstKind::ExtractValue {
                     ty: MirType::Slice(_),
@@ -289,14 +342,54 @@ fn candidate_uses_are_safe(
                 }
                 _ => continue,
             };
-            let Some(total) = offset else { return false };
-            if total >= cand.size {
-                return false;
+            let total = offset?;
+            if bound.is_some_and(|bound| total >= bound) {
+                return None;
             }
             derived.insert(result, total);
             pending.push(result);
         }
     }
+    Some(derived)
+}
+
+/// For an address derivation or a slice length read, whether the use stays tracked: its pointer
+/// result is among the `derived` addresses. `None` for any other instruction.
+fn derivation_is_tracked(
+    func: &Function,
+    inst_id: InstId,
+    kind: &InstKind,
+    derived: &FxHashMap<ValueId, u64>,
+) -> Option<bool> {
+    match kind {
+        InstKind::Add(..)
+        | InstKind::PtrAdd(..)
+        | InstKind::PtrToInt(_, 256)
+        | InstKind::IntToPtr(_)
+        | InstKind::ExtractValue {
+            ty: MirType::Slice(_), index: MirType::SLICE_PTR_FIELD, ..
+        }
+        | InstKind::MakeSlice { .. } => {
+            Some(func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r)))
+        }
+        InstKind::ExtractValue {
+            ty: MirType::Slice(_), index: MirType::SLICE_LEN_FIELD, ..
+        } => Some(true),
+        _ => None,
+    }
+}
+
+/// Verifies every use of the pointer stays in bounds and never escapes.
+fn candidate_uses_are_safe(
+    func: &Function,
+    cand: &StaticAllocCandidate,
+    uses: &ValueUses,
+    calls: &CallGraphInfo,
+    summaries: &MemoryCallSummaries,
+) -> bool {
+    let Some(derived) = derive_pointers(func, cand.ptr, uses, Some(cand.size)) else {
+        return false;
+    };
 
     // Every use of every derived address must be a bounded memory access.
     let in_range = |off: u64, len: u64| off.checked_add(len).is_some_and(|end| end <= cand.size);
@@ -328,23 +421,9 @@ fn candidate_uses_are_safe(
                 }
                 // In-bounds derivations were collected above; anything
                 // else consuming an address is an escape.
-                InstKind::Add(_, _)
-                | InstKind::PtrAdd(_, _)
-                | InstKind::PtrToInt(_, 256)
-                | InstKind::IntToPtr(_)
-                | InstKind::ExtractValue {
-                    ty: MirType::Slice(_),
-                    index: MirType::SLICE_PTR_FIELD,
-                    ..
+                _ if let Some(tracked) = derivation_is_tracked(func, inst_id, &kind, &derived) => {
+                    tracked
                 }
-                | InstKind::MakeSlice { .. } => {
-                    func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
-                }
-                InstKind::ExtractValue {
-                    ty: MirType::Slice(_),
-                    index: MirType::SLICE_LEN_FIELD,
-                    ..
-                } => true,
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     call_use_is_safe(function, &args, operand, calls, summaries)
                 }
@@ -396,4 +475,346 @@ fn call_use_is_safe(
                 && !(summary.may_observe_fmp() && summary.observes_param(index))
         })
         && args.contains(&operand)
+}
+
+/// An allocation whose region can stay unreserved, with its place in the function.
+#[derive(Clone, Copy)]
+struct Placement {
+    alloc: InstId,
+    block: BlockId,
+    position: usize,
+}
+
+/// Returns allocations whose region can stay unreserved at the free-memory pointer: nothing
+/// reads or advances the pointer, or writes memory the allocation does not address, between the
+/// allocation and the last use of its pointer. `placed` holds those that placement takes first.
+fn eligible_unreserved_allocations(
+    func: &Function,
+    calls: &CallGraphInfo,
+    summaries: &Arc<MemoryCallSummaries>,
+    placed: &[InstId],
+) -> Vec<Placement> {
+    let mut allocs = Vec::new();
+    for (block, data) in func.blocks.iter_enumerated() {
+        for (position, &alloc) in data.instructions.iter().enumerate() {
+            let inst = func.inst(alloc);
+            if matches!(
+                inst.kind,
+                InstKind::Alloc {
+                    semantics: AllocationSemantics { failure: AllocationFailure::Infallible, .. },
+                    ..
+                }
+            ) && !inst.metadata.preserves_fmp()
+                && !inst.metadata.deferred_alloc()
+                && !placed.contains(&alloc)
+            {
+                allocs.push(Placement { alloc, block, position });
+            }
+        }
+    }
+    if allocs.is_empty() {
+        return allocs;
+    }
+
+    let cfg = CfgInfo::new(func);
+    allocs.retain(|placement| cfg.is_reachable(placement.block));
+
+    let mut positions = index_vec![(BlockId::ENTRY, 0); func.num_insts()];
+    let mut last_fmp_load = FxHashMap::default();
+    for (block, data) in func.blocks.iter_enumerated() {
+        for (position, &inst) in data.instructions.iter().enumerate() {
+            positions[inst] = (block, position);
+            if let InstKind::Load(address, PtrLocation::Memory) = func.inst(inst).kind
+                && func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+            {
+                last_fmp_load.insert(block, position);
+            }
+        }
+    }
+    // Blocks that reach a block with such a load through at least one edge.
+    let mut reaches_fmp_load = DenseBitSet::new_empty(cfg.num_blocks());
+    let mut pending = last_fmp_load.keys().copied().collect::<Vec<_>>();
+    while let Some(block) = pending.pop() {
+        for &pred in cfg.predecessors(block) {
+            if reaches_fmp_load.insert(pred) {
+                pending.push(pred);
+            }
+        }
+    }
+
+    let analysis = UnreservedAnalysis {
+        func,
+        cfg,
+        aa: AliasAnalysis::with_call_summaries(func, Arc::clone(summaries)),
+        uses: ValueUses::new(func),
+        calls,
+        summaries,
+        positions,
+        last_fmp_load,
+        reaches_fmp_load,
+    };
+    allocs.retain(|&placement| analysis.is_unreserved(placement));
+    allocs
+}
+
+struct UnreservedAnalysis<'a> {
+    func: &'a Function,
+    cfg: CfgInfo,
+    aa: AliasAnalysis,
+    uses: ValueUses,
+    calls: &'a CallGraphInfo,
+    summaries: &'a MemoryCallSummaries,
+    /// The block and position of every placed instruction.
+    positions: IndexVec<InstId, (BlockId, usize)>,
+    /// The last raw load of the free-memory pointer's slot, which assembly uses to read it, in
+    /// each block that has one.
+    last_fmp_load: FxHashMap<BlockId, usize>,
+    /// The blocks that reach a block with such a load through at least one edge.
+    reaches_fmp_load: DenseBitSet<BlockId>,
+}
+
+impl UnreservedAnalysis<'_> {
+    fn is_unreserved(&self, Placement { alloc, block: alloc_block, position }: Placement) -> bool {
+        let func = self.func;
+        let ptr = func.inst_result_value(alloc).expect("allocation must produce a value");
+        // Assembly can read the free-memory pointer after the allocation and see its bump, as
+        // `mload(0x40)` before and after a call that allocates, so the allocation keeps it. The
+        // check covers this function only.
+        if self.reaches_fmp_load.contains(alloc_block)
+            || self.last_fmp_load.get(&alloc_block).is_some_and(|&load| load > position)
+        {
+            return false;
+        }
+        let Some(derived) = derive_pointers(func, ptr, &self.uses, None) else { return false };
+        let Some(use_ends) = self.pointer_uses(alloc, &derived) else { return false };
+
+        // Blocks that still reach a use. A path back into the allocation's block runs the
+        // allocation again, which defines a new pointer, so those edges do not count.
+        let mut reaches_use = DenseBitSet::new_empty(self.cfg.num_blocks());
+        let mut pending = use_ends.keys().copied().collect::<Vec<_>>();
+        for &block in &pending {
+            reaches_use.insert(block);
+        }
+        while let Some(block) = pending.pop() {
+            if block == alloc_block {
+                continue;
+            }
+            for &pred in self.cfg.predecessors(block) {
+                if reaches_use.insert(pred) {
+                    pending.push(pred);
+                }
+            }
+        }
+
+        let mut visited = DenseBitSet::new_empty(self.cfg.num_blocks());
+        visited.insert(alloc_block);
+        let mut stack = vec![alloc_block];
+        while let Some(block) = stack.pop() {
+            let start = if block == alloc_block { position + 1 } else { 0 };
+            let reaches_later_use = self
+                .cfg
+                .successors(block)
+                .iter()
+                .any(|&succ| succ != alloc_block && reaches_use.contains(succ));
+            let instructions = &func.blocks[block].instructions;
+            let end = if reaches_later_use {
+                instructions.len()
+            } else {
+                use_ends.get(&block).copied().unwrap_or(start)
+            };
+            if instructions
+                .get(start..end)
+                .unwrap_or_default()
+                .iter()
+                .any(|&inst| self.touches_region(inst, alloc, &derived))
+            {
+                return false;
+            }
+            for &succ in self.cfg.successors(block) {
+                if succ != alloc_block && reaches_use.contains(succ) && visited.insert(succ) {
+                    stack.push(succ);
+                }
+            }
+        }
+        true
+    }
+
+    /// Verifies the pointer never escapes and returns, for each block that uses it, the end of
+    /// its last use as a bound on instruction positions. Address derivations are not uses: only
+    /// memory accesses, calls, and terminators end the lifetime.
+    fn pointer_uses(
+        &self,
+        alloc: InstId,
+        derived: &FxHashMap<ValueId, u64>,
+    ) -> Option<FxHashMap<BlockId, usize>> {
+        let func = self.func;
+        let mut use_ends = FxHashMap::<BlockId, usize>::default();
+        for &operand in derived.keys() {
+            for &inst_id in &self.uses.instructions[operand] {
+                if inst_id == alloc {
+                    continue;
+                }
+                let kind = &func.inst(inst_id).kind;
+                if let Some(tracked) = derivation_is_tracked(func, inst_id, kind, derived) {
+                    if !tracked {
+                        return None;
+                    }
+                    continue;
+                }
+                let is_use = match kind {
+                    InstKind::ICall { function: Callee::Function(function), args, .. } => {
+                        if !call_use_is_safe(*function, args, operand, self.calls, self.summaries) {
+                            return None;
+                        }
+                        true
+                    }
+                    _ => {
+                        if !is_address_only_use(kind, operand) {
+                            return None;
+                        }
+                        true
+                    }
+                };
+                if is_use {
+                    let (block, position) = self.positions[inst_id];
+                    let end = use_ends.entry(block).or_default();
+                    *end = (*end).max(position + 1);
+                }
+            }
+            for &block in &self.uses.terminators[operand] {
+                let term = func.blocks[block].terminator.as_ref().expect("indexed terminator use");
+                match term {
+                    Terminator::Revert { offset, size }
+                    | Terminator::ReturnData { offset, size }
+                        if operand == *offset && operand != *size => {}
+                    _ => return None,
+                }
+                use_ends.insert(block, func.blocks[block].instructions.len());
+            }
+        }
+        Some(use_ends)
+    }
+
+    /// Whether the instruction may read or advance the free-memory pointer, or write memory the
+    /// allocation does not address.
+    fn touches_region(
+        &self,
+        inst_id: InstId,
+        alloc: InstId,
+        derived: &FxHashMap<ValueId, u64>,
+    ) -> bool {
+        let func = self.func;
+        if inst_id == alloc {
+            return false;
+        }
+        let kind = &func.inst(inst_id).kind;
+        let mut raw = false;
+        let mut blocked = false;
+        kind.visit_raw_memory(|access, address, size| {
+            raw = true;
+            let len = match size {
+                RawMemorySize::Bytes(len) => Some(len),
+                RawMemorySize::Value(size) => func.value_u64(size),
+            };
+            blocked |= !derived.contains_key(&address)
+                && match access {
+                    RawMemoryAccess::Read => {
+                        AliasAnalysis::range_may_overlap_fmp(func, address, len)
+                    }
+                    RawMemoryAccess::Write | RawMemoryAccess::PartialWrite => {
+                        !writes_scratch_only(func.value_u64(address), len)
+                    }
+                };
+        });
+        if raw {
+            return blocked;
+        }
+        let effects = self.aa.instruction_mod_ref(func, inst_id);
+        effects.reads().iter().any(|&access| !self.access_is_clear(access, false, alloc, derived))
+            || effects
+                .writes()
+                .iter()
+                .any(|&access| !self.access_is_clear(access, true, alloc, derived))
+    }
+
+    /// Whether an access neither touches the free-memory pointer nor, for a write, memory the
+    /// allocation does not address.
+    fn access_is_clear(
+        &self,
+        access: Access,
+        write: bool,
+        alloc: InstId,
+        derived: &FxHashMap<ValueId, u64>,
+    ) -> bool {
+        let location = match access {
+            Access::Any(AddressSpace::Memory) => return false,
+            Access::Any(_) => return true,
+            Access::Location(Location::Memory(location)) => location,
+            Access::Location(_) => return true,
+        };
+        let address = location.address;
+        match address.base {
+            MemoryBase::Absolute if write => {
+                writes_scratch_only(Some(address.offset), location.size.as_const())
+            }
+            MemoryBase::Absolute => {
+                !AliasAnalysis::memory_alias_locations(location, AliasAnalysis::fmp_location())
+                    .may_alias()
+            }
+            MemoryBase::InternalFrame => true,
+            MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => {
+                !write || site == alloc
+            }
+            MemoryBase::Value(value) => {
+                derived.contains_key(&value)
+                    || (!write && !AliasAnalysis::range_may_overlap_fmp(self.func, value, None))
+            }
+        }
+    }
+}
+
+/// Whether a write of `len` bytes at `address` stays inside the scratch words below the
+/// free-memory pointer's slot, the only memory outside the allocation that it may write.
+fn writes_scratch_only(address: Option<u64>, len: Option<u64>) -> bool {
+    len == Some(0)
+        || address
+            .zip(len)
+            .and_then(|(address, len)| address.checked_add(len))
+            .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT)
+}
+
+/// Whether every operand slot holding `operand` is the address of a raw memory range the
+/// instruction accesses, so the pointer never leaves as data or as a size.
+fn is_address_only_use(kind: &InstKind, operand: ValueId) -> bool {
+    let mut addresses = 0;
+    kind.visit_raw_memory(|_, address, _| addresses += usize::from(address == operand));
+    let mut operands = 0;
+    kind.visit_operands(|value| operands += usize::from(value == operand));
+    addresses != 0 && addresses == operands
+}
+
+/// Rewrites an allocation to read the free-memory pointer without advancing it.
+fn place_at_fmp(func: &mut Function, Placement { alloc, block, .. }: Placement) {
+    let InstKind::Alloc { size, semantics } = func.inst(alloc).kind else { unreachable!() };
+    let ptr = func.inst_result_value(alloc).expect("allocation must produce a value");
+    // ptr = fmp
+    func.inst_mut(alloc).replace_kind(InstKind::Fmp);
+    if semantics.initialization != AllocationInitialization::Zeroed {
+        return;
+    }
+
+    // memory_zero ptr, size
+    let metadata = func.inst(alloc).metadata.clone();
+    // Earlier placements in the block may have shifted the position.
+    let position = func.blocks[block]
+        .instructions
+        .iter()
+        .position(|&inst| inst == alloc)
+        .expect("allocation belongs to its block");
+    let tail = func.blocks[block].instructions.split_off(position + 1);
+    let mut builder = FunctionBuilder::new(func);
+    builder.switch_to_block(block);
+    builder.set_debug_context(&metadata);
+    builder.memory_zero(ptr, size);
+    func.blocks[block].instructions.extend(tail);
 }

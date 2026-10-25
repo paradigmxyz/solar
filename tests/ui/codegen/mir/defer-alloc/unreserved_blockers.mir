@@ -1,0 +1,166 @@
+//@compile-flags: -Zmir-pipeline=defer-alloc
+//@filecheck:
+@module DeferAllocUnreservedBlockers
+
+// Each function below has an allocation that could stay unreserved, except for one instruction
+// inside its lifetime or one use of its pointer. The allocation must keep its bump.
+
+// A second allocation inside the lifetime would hand out the same memory.
+// CHECK:   fn @second_allocation{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @second_allocation(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    v1 = alloc arg0
+    mstore v0, 1
+    mstore v1, 2
+    revert v0, 32
+}
+
+// ABI encoding stages at the free-memory pointer.
+// CHECK:   fn @abi_encode_inside{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @abi_encode_inside(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = abi_encode [word], scratch, args arg0
+    mstore v0, 2
+    revert v0, 32
+}
+
+// A call that stages its input and output at the pointer overwrites the region.
+// CHECK:   fn @external_call_at_pointer{{.*}}
+// CHECK-NOT: + {{.*}}v{{[0-9]+}} = fmp
+fn @external_call_at_pointer(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    v1 = fmp
+    v2 = staticcall 1000, 0xbeef, v1, 4, v1, 32
+    mstore v0, 1
+    revert v0, 32
+}
+
+// Assembly that reads the free-memory pointer can derive a region from it.
+// CHECK:   fn @assembly_reads_fmp{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @assembly_reads_fmp(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    v1 = mload 64
+    mstore v0, v1
+    revert v0, 32
+}
+
+// Assembly that reads the free-memory pointer after the allocation sees its bump, so the
+// allocation keeps it even though the region is dead by then.
+// CHECK:   fn @assembly_reads_fmp_after{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @assembly_reads_fmp_after(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    v1 = keccak256 v0, 32
+    v2 = mload 64
+    ret v2
+}
+
+// The read can also come around a loop back edge.
+// CHECK:   fn @assembly_reads_fmp_in_loop{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @assembly_reads_fmp_in_loop(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = mload 64
+    v0 = alloc arg0
+    mstore v0, v1
+    v2 = keccak256 v0, 32
+    jumpi true, bb1, bb2
+  bb2:
+    stop
+}
+
+// Assembly that writes an absolute address can overwrite the region.
+// CHECK:   fn @assembly_writes_absolute{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @assembly_writes_absolute(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    mstore 4096, 2
+    revert v0, 32
+}
+
+// An allocation returned to an internal caller outlives the function.
+// CHECK:   fn @returned_to_caller{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @returned_to_caller(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    ret v0
+}
+
+// A pointer stored into another object outlives the function too.
+// CHECK:   fn @stored_in_object{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @stored_in_object(arg0: ptr<memory>, arg1: i256) {
+  bb0:
+    v0 = alloc arg1
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore arg0, v1
+    ret
+}
+
+// A pointer merged by a phi can reach a use after another allocation runs.
+// CHECK:   fn @phi_escape{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @phi_escape(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = alloc arg0
+    jumpi arg1, bb1, bb2
+  bb1:
+    v1 = alloc arg0
+    jump bb2
+  bb2:
+    v2 = phi [bb0: v0], [bb1: v1]
+    v3 = mload v2
+    ret v3
+}
+
+// A callee that allocates moves the free-memory pointer under the region.
+// CHECK:   fn @callee_allocates{{.*}}
+// CHECK: alloc arg0
+fn @callee_allocates(arg0: i256) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    icall @allocates
+    v1 = mload v0
+    mstore v0, v1
+    revert v0, 32
+}
+
+fn @allocates() {
+  bb0:
+    v0 = alloc 32
+    mstore v0, 1
+    ret
+}
+
+// A pointer returned to the caller from a loop iteration stays a phi use.
+// CHECK:   fn @loop_carried{{.*}}
+// CHECK-NOT: + {{.*}}fmp
+fn @loop_carried(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb1: v2]
+    v0 = alloc arg0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    jumpi true, bb1, bb2
+  bb2:
+    v4 = mload v3
+    ret v4
+}
