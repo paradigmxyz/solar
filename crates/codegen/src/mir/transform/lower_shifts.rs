@@ -9,10 +9,10 @@
 //! This pass runs before scheduling and rewrites `shl(c, x)` to `mul(x, 2**c)` and `shr(c, x)` to
 //! `div(x, 2**c)`, with a zero factor when `c` is 256 or more, as the wrapped `EXP` result is.
 //! The scheduler then orders the operands. A shift is rewritten only when
-//! [`Target::legacy_shift_factor`] prefers pushing the factor, which is the same query the EVM IR
-//! pass makes; otherwise `legalize-shifts` computes the factor with `EXP`. Shifts by a variable
-//! amount and `SAR` stay for that pass, which remains the backstop for every shift left in the
-//! code.
+//! [`Target::legacy_shift_factor`](crate::target::Target::legacy_shift_factor) prefers pushing the
+//! factor, which is the same query the EVM IR pass makes; otherwise `legalize-shifts` computes the
+//! factor with `EXP`. Shifts by a variable amount and `SAR` stay for that pass, which remains the
+//! backstop for every shift left in the code.
 //!
 //! The pass is disabled on targets with shifts, so it never changes their output. It runs last in
 //! the lowered pipeline, after every pass that matches shifts, because nothing downstream
