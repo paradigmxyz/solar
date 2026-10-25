@@ -423,8 +423,20 @@ pub(super) fn estimated_module_bytes(gcx: Gcx<'_>, module: &Module) -> usize {
     let order = module.blocks.indices().collect::<Vec<_>>();
     let next_of = |position: usize| order.get(position + 1).copied();
     let mut references = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
-    references[BlockId::ENTRY] = 1;
     block_reference_counts(module, &order, &mut references);
+    // The bytes of each block's instructions other than label pushes.
+    let fixed = module
+        .blocks
+        .iter()
+        .map(|block| {
+            block
+                .instructions
+                .iter()
+                .filter(|inst| !is_label_push(inst))
+                .map(|inst| estimated_instruction_size(gcx, inst))
+                .sum::<usize>()
+        })
+        .collect::<IndexVec<BlockId, _>>();
     // Offsets that fit in the narrowest pushes; widening a push only moves later blocks up.
     let mut offsets = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
     loop {
@@ -434,15 +446,16 @@ pub(super) fn estimated_module_bytes(gcx: Gcx<'_>, module: &Module) -> usize {
             let block = &module.blocks[id];
             next_offsets[id] = offset;
             let label = |target: BlockId| model.label_push_to(offsets[target]).bytes as usize;
-            offset += usize::from(references[id] != 0)
-                + block.terminator.as_ref().map_or(0, |term| {
-                    terminator_size(gcx, &term.kind, next_of(position), module.code_follows, label)
-                });
+            offset += usize::from(references[id] != 0) + fixed[id];
+            offset += block.terminator.as_ref().map_or(0, |term| {
+                terminator_size(gcx, &term.kind, next_of(position), module.code_follows, label)
+            });
             for inst in &block.instructions {
-                offset += match &inst.value {
-                    Some(PushValue::Block(target)) if inst.is_encoded_push() => label(*target),
-                    _ => estimated_instruction_size(gcx, inst),
-                };
+                if let Some(PushValue::Block(target)) = &inst.value
+                    && is_label_push(inst)
+                {
+                    offset += label(*target);
+                }
             }
         }
         if next_offsets == offsets {
@@ -450,6 +463,10 @@ pub(super) fn estimated_module_bytes(gcx: Gcx<'_>, module: &Module) -> usize {
         }
         offsets = next_offsets;
     }
+}
+
+fn is_label_push(inst: &Instruction) -> bool {
+    inst.is_encoded_push() && matches!(inst.value, Some(PushValue::Block(_)))
 }
 
 fn is_terminal_block(block: &Block) -> bool {

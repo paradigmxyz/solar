@@ -14,13 +14,14 @@
 //! each label push at the narrowest push that holds its target, says the module does not grow. A
 //! move trades the latch's jump for the preheader's, which is byte-neutral, and runs faster, so
 //! it is kept at equal bytes. A turned test drops its `iszero` but gives up the fallthrough into
-//! the cold block, which costs a jump: such a move is kept only where the estimate shows it
-//! smaller. The layout step alone usually shrinks the module, since earlier passes leave blocks
-//! out of order, but it can push labels past the `PUSH1` limit and grow it, as the second layout
-//! moved small traces below the limit and other labels beyond it. Size mode therefore tries the
-//! moves on both the re-laid-out and the current order, and keeps the smallest result, a move
-//! over the plain layout at equal bytes. The estimate does not see everything that later passes
-//! change, so a module can still grow by a few bytes.
+//! the cold block, which costs a jump, so a turned latch grows a module unless other moves offset
+//! it. All moves are applied together and kept as a set, when the estimate does not grow. The
+//! layout step alone usually shrinks the module, since earlier passes leave blocks out of order,
+//! but it can push labels past the `PUSH1` limit and grow it, as the second layout moved small
+//! traces below the limit and other labels beyond it. Size mode therefore tries the moves on both
+//! the re-laid-out and the current order, and keeps the smallest result, a move over the plain
+//! layout at equal bytes. The estimate does not see everything that later passes change, so a
+//! module can still grow by a few bytes.
 //!
 //! When the current fallthrough also comes from the loop, a bounded flow estimate distinguishes
 //! the common iteration from rarer paths. A branch into a cold block, such as an overflow panic,
