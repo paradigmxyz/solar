@@ -353,6 +353,7 @@ enum Edit {
         value: U256,
         opcode: u8,
     },
+    ZeroLessIszero,
     ReloadStoredValue,
     ConsumeStoredValue {
         depth: u8,
@@ -446,6 +447,14 @@ impl Edit {
                 let iszero = instructions.pop().expect("matched ISZERO");
                 let comparison = instructions.last_mut().expect("matched comparison");
                 overwrite_raw(comparison, opcode);
+                comparison.metadata.absorb_debug_info(&iszero.metadata);
+            }
+            Self::ZeroLessIszero => {
+                // PUSH 0; LT; ISZERO => ISZERO
+                instructions.remove(start);
+                let iszero = instructions.pop().expect("matched ISZERO");
+                let comparison = instructions.last_mut().expect("matched comparison");
+                overwrite_raw(comparison, op::ISZERO);
                 comparison.metadata.absorb_debug_info(&iszero.metadata);
             }
             Self::ReloadStoredValue => {

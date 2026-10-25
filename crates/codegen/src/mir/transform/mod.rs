@@ -57,7 +57,6 @@ pub(crate) mod specialize;
 pub(crate) mod sroa;
 pub(crate) mod static_alloc;
 pub(crate) mod storage_dse;
-pub(crate) mod storage_load_cse;
 pub(crate) mod storage_promotion;
 mod utils;
 

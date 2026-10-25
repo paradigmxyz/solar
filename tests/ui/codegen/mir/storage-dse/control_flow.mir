@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=storage-load-cse,storage-dse,egraph,dce
+//@compile-flags: -Zmir-pipeline=storage-cse,storage-dse,egraph,dce
 @module StorageDseControlFlow
 
 fn @both_paths(arg0: i1) {

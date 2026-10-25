@@ -139,7 +139,7 @@ fn @zero_test(arg0: i256, arg1: i256) -> i256 {
     revert 0, 0
 }
 
-// In a loop of a gas build, a test that aborts on its false edge and compares
+// In a loop, a test that aborts on its false edge and compares
 // two words turns into its negation, `eq c, false`, and merges.
 // CHECK-LABEL: {{^[ +].*}}fn @mixed_loop{{[( ]}}
 // CHECK: - jumpi [[BELOW:v[0-9]+]], bb3, bb5
