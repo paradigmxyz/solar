@@ -125,7 +125,7 @@ bb8:
   return
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReloadableBranch (runtime) ===
 @module ReloadableBranch_runtime
-bb0 [loop]:
+bb0:
   callvalue
   push bb3
   jumpi
@@ -161,24 +161,7 @@ bb0 [loop]:
   add
   push 0
   push 0
-  dup 5
-  dup 2
-  lt
-  push bb9
-  jumpi
-  pop
-  push 0
-  mstore
-  pop
-  push 32
-  mstore
-  push 64
-  push 0
-  return
-bb3 [cold]:
-  push 0
-  push 0
-  revert
+  jump bb7
 bb9 [loop]:
   dup 1
   dup 4
@@ -197,6 +180,8 @@ bb9 [loop]:
   jumpi
   push 1
   add
+  jump bb7
+bb7 [loop]:
   dup 5
   dup 2
   lt
@@ -211,6 +196,10 @@ bb9 [loop]:
   push 64
   push 0
   return
+bb3 [cold]:
+  push 0
+  push 0
+  revert
 bb11 [cold]:
   push 17
   push 32
