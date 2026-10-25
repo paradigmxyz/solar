@@ -1382,6 +1382,16 @@ impl<'a> Validator<'a> {
         }
     }
 
+    /// Checks only what the phase promises, without the SSA, CFG, and type invariants.
+    fn validate_phase_contract(&mut self, module: &Module, phase: MirPhase) {
+        self.validate_module_phase(module, phase);
+        for (id, func) in module.iter_functions() {
+            self.function = Some(id);
+            self.validate_function_phase(phase, func);
+        }
+        self.function = None;
+    }
+
     fn validate_function_phase(&mut self, phase: MirPhase, func: &Function) {
         if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
         {
@@ -1468,11 +1478,7 @@ pub(crate) fn validate_phase(
     if full {
         validator.validate_module_at_phase(module, phase, parallel);
     } else {
-        validator.validate_module_phase(module, phase);
-        for (id, func) in module.iter_functions() {
-            validator.function = Some(id);
-            validator.validate_function_phase(phase, func);
-        }
+        validator.validate_phase_contract(module, phase);
     }
     validator.error.map_or(Ok(()), Err)
 }

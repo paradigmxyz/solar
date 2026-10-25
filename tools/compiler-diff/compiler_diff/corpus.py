@@ -91,6 +91,10 @@ from .display import show_attempt
 
 EXPORT = "https://export.sourcify.dev"
 DEFAULT_VERSION = "0.8.37"
+DEFAULT_COMPILERS = [
+    "solc=solc --standard-json",
+    "solar=solar --standard-json -Zvalidate-ir=true",
+]
 # Bump when stricter output checks invalidate cached results.
 VALIDATION_VERSION = 1
 OUTPUTS = {
@@ -435,14 +439,7 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
         raise RuntimeError("no complete corpus; run sync first")
     if compilers is None:
         compilers = [
-            compiler_info(spec, root)
-            for spec in (
-                args.compiler
-                or [
-                    "solc=solc --standard-json",
-                    "solar=solar --standard-json -Zvalidate-ir=true",
-                ]
-            )
+            compiler_info(spec, root) for spec in args.compiler or DEFAULT_COMPILERS
         ]
     if len({compiler["name"] for compiler in compilers}) != len(compilers):
         raise ValueError("compiler names must be unique")
