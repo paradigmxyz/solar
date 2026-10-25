@@ -287,7 +287,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some(false);
         }
-        if self.constant_string_bytes(expr).is_none() {
+        if self.constant_bytes(expr).is_none() {
             self.lower_discarded_expr(expr)?;
         }
         Some(true)
@@ -426,7 +426,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.prepare_custom_error_payload(error_id, *args);
         }
 
-        if let Some(symbol) = self.constant_string_bytes(expr) {
+        if let Some(symbol) = self.constant_bytes(expr) {
             let bytes = symbol.as_byte_str();
             return Some(match bytes.len() {
                 0 => RevertPayload::EmptyString,
@@ -451,15 +451,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let condition = self.builder.imm_bool(false);
         self.builder.require(condition, payload);
         self.builder.invalid();
-    }
-
-    /// Returns the bytes of a message that the constant evaluator folds, such as a literal or a
-    /// `string constant`.
-    fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
-        match self.cx.gcx.const_eval().eval_expr(expr) {
-            Ok(ConstValue::Bytes(bytes, _)) => Some(*bytes),
-            _ => None,
-        }
     }
 
     fn prepare_custom_error_payload(
