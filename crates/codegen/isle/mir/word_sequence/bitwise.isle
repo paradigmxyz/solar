@@ -475,3 +475,14 @@
       (if-let true (u256_same (u256_xor a b) (u256_max)))
       (if-let changed (make (Op.Xor x y))) (if-let mask (imm b))
       (if-let masked (make (Op.And changed mask))) (sequence (Op.Xor x masked)))
+
+;; x & m => (x >> s) << s, when x & m is compared with constants. A later e-graph
+;; compares x >> s with narrow constants instead, and the mask may not be shared.
+;; Requires: m is a constant that keeps every bit from s up, m == MAX << s.
+(rule (sequence_rewrite (Op.And x (iconst m)))
+      (if-let true (late_word_sequence))
+      (if-let s (power_of_two_shift (u256_add (u256_xor m (u256_max)) (u256 1))))
+      (if-let true (unshared_mask m))
+      (if-let true (compared_mask x m))
+      (if-let count (imm s))
+      (if-let low (make (Op.Shr count x))) (sequence (Op.Shl count low)))

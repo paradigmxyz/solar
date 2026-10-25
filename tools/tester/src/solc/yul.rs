@@ -4,24 +4,37 @@ use std::path::Path;
 use strum::IntoEnumIterator;
 
 pub(crate) fn evm_version(src: &str) -> Option<EvmVersion> {
-    let version = src.lines().find_map(|line| line.trim().strip_prefix("// EVMVersion:"))?.trim();
-    let (op, version) = match version.as_bytes() {
-        [b'>', b'=', ..] => (">=", &version[2..]),
-        [b'<', b'=', ..] => ("<=", &version[2..]),
-        [b'>', ..] => (">", &version[1..]),
-        [b'<', ..] => ("<", &version[1..]),
-        [b'=', ..] => ("=", &version[1..]),
-        _ => return None,
-    };
-    let version =
-        if version == "current" { EvmVersion::default() } else { version.parse().ok()? };
-    Some(match op {
-        ">=" | "=" => version,
-        ">" => EvmVersion::iter().find(|&candidate| candidate > version)?,
-        "<=" => EvmVersion::iter().rev().find(|&candidate| candidate <= version)?,
-        "<" => EvmVersion::iter().rev().find(|&candidate| candidate < version)?,
-        _ => unreachable!(),
-    })
+    let setting = src.lines().find_map(|line| line.trim().strip_prefix("// EVMVersion:"))?.trim();
+    let mut constraints = Vec::new();
+    for constraint in setting.split(',') {
+        let constraint = constraint.trim();
+        let (op, version) = match constraint.as_bytes() {
+            [b'>', b'=', ..] => (">=", &constraint[2..]),
+            [b'<', b'=', ..] => ("<=", &constraint[2..]),
+            [b'>', ..] => (">", &constraint[1..]),
+            [b'<', ..] => ("<", &constraint[1..]),
+            [b'=', ..] => ("=", &constraint[1..]),
+            _ => return None,
+        };
+        let version =
+            if version == "current" { EvmVersion::default() } else { version.parse().ok()? };
+        constraints.push((op, version));
+    }
+    let mut candidates = EvmVersion::iter().filter(|&candidate| {
+        constraints.iter().all(|&(op, version)| match op {
+            ">=" => candidate >= version,
+            ">" => candidate > version,
+            "<=" => candidate <= version,
+            "<" => candidate < version,
+            _ => candidate == version,
+        })
+    });
+    // Pick the oldest version unless the setting only has upper bounds.
+    if constraints.iter().any(|&(op, _)| matches!(op, ">=" | ">" | "=")) {
+        candidates.next()
+    } else {
+        candidates.next_back()
+    }
 }
 
 pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {

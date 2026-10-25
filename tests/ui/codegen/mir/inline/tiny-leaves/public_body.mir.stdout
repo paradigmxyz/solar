@@ -24,16 +24,16 @@ fn @constructor(arg0: i256) [abi_wrapper, constructor] {
 
 fn @start() [selector=0xbe9a6555, abi_wrapper, view] {
   bb0:
-    v4 = loadimmutable _start
-    mstore 128, v4
-    returndata 128, 32
+    v3 = loadimmutable _start
+    mstore 0, v3
+    returndata 0, 32
 }
 
 fn @vested() [selector=0xfea5657c, abi_wrapper, view] {
   bb0:
-    v3 = loadimmutable _start
-    mstore 128, v3
-    returndata 128, 32
+    v2 = loadimmutable _start
+    mstore 0, v2
+    returndata 0, 32
 }
 
 fn @entry() [entry] {

@@ -105,10 +105,10 @@ bb30 [loop]:
   pop
   jump
 bb7 [continuation]:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8:
   push 4
@@ -142,10 +142,10 @@ bb23 [loop]:
   jump bb29
 bb9 [continuation]:
   add
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb10:
   push 4
@@ -172,8 +172,8 @@ bb12 [continuation]:
   or
   push bb14
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

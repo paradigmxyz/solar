@@ -30,9 +30,10 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
+use std::cell::RefCell;
 
 /// The modeled stack of a block being planned and the steps that produced it.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct Sim {
     stack: Layout,
     steps: Vec<Step>,
@@ -89,13 +90,53 @@ impl Sim {
         self.below = other.below;
     }
 
-    /// Continues with a fork's state, appending its steps.
-    fn join(&mut self, fork: Self) {
-        self.stack = fork.stack;
-        self.steps.extend(fork.steps);
+    /// Continues with a fork's state, appending its steps. The fork is left empty to reuse.
+    fn join(&mut self, fork: &mut Self) {
+        std::mem::swap(&mut self.stack, &mut fork.stack);
+        self.steps.append(&mut fork.steps);
         self.cost = fork.cost;
         self.peak = fork.peak;
     }
+}
+
+/// An instruction of the block being planned with its operands.
+struct PlannedInst {
+    inst: InstId,
+    operands: Operands,
+}
+
+/// The cost of `POP` and of each `DUP` and `SWAP` up to depth 16.
+struct StackOpCosts {
+    dup: [Option<Cost>; 17],
+    swap: [Option<Cost>; 17],
+    pop: Option<Cost>,
+}
+
+impl StackOpCosts {
+    fn new(target: &Target) -> Self {
+        Self {
+            dup: std::array::from_fn(|n| target.stack_op(StackOp::Dup(n as u8))),
+            swap: std::array::from_fn(|n| target.stack_op(StackOp::Swap(n as u8))),
+            pop: target.stack_op(StackOp::Pop),
+        }
+    }
+
+    fn get(&self, op: StackOp) -> Option<Cost> {
+        match op {
+            StackOp::Dup(n) => self.dup.get(usize::from(n)).copied().flatten(),
+            StackOp::Swap(n) => self.swap.get(usize::from(n)).copied().flatten(),
+            StackOp::Pop => self.pop,
+            StackOp::Exchange(..) => None,
+        }
+    }
+}
+
+/// A consumer whose deeper operands are copied before the chain computing its top operand.
+struct Preplacement {
+    consumer: usize,
+    pre: Operands,
+    /// A plan that copies other words at this offset into the window; it wins ties.
+    rival: Option<(usize, Operands)>,
 }
 
 /// Longest instruction chain before a consumer considered for copying its deeper operands first.
@@ -188,6 +229,14 @@ pub(super) struct Planner<'a> {
     pending: FxHashMap<BlockId, Vec<Pending>>,
     /// The latest plain plan of a placement decision.
     plain_trial: Option<PlainTrial>,
+    /// The cost of each stack operation the planner emits most.
+    stack_costs: StackOpCosts,
+    /// The fork `place_result` tries each swap on.
+    place_sim: Sim,
+    /// The candidate and the cheapest arrangement `prepare_any` keeps, reused across calls.
+    scratch: RefCell<[Sim; 2]>,
+    /// The fork a `trial` plans on.
+    trial_sim: RefCell<Sim>,
     peak: usize,
     calls: Vec<(FunctionId, usize)>,
     cost: Cost,
@@ -528,6 +577,10 @@ impl<'a> Planner<'a> {
             forward_preds,
             pending: FxHashMap::default(),
             plain_trial: None,
+            stack_costs: StackOpCosts::new(target),
+            place_sim: Sim::default(),
+            scratch: RefCell::default(),
+            trial_sim: RefCell::default(),
             peak: 0,
             calls: Vec::new(),
             cost: Cost::ZERO,
@@ -663,7 +716,7 @@ impl<'a> Planner<'a> {
         let mut constant =
             self.constant_def.filter(|&(def, _)| def == block).map(|(_, value)| value);
         let mut uses = self.block_uses(block);
-        let planned: Vec<InstId> = func.blocks[block]
+        let planned: Vec<PlannedInst> = func.blocks[block]
             .instructions
             .iter()
             .copied()
@@ -672,11 +725,14 @@ impl<'a> Planner<'a> {
                     && !matches!(func.inst(inst).kind, InstKind::Phi(_))
                     && Some(inst) != tail_call
             })
+            .map(|inst| PlannedInst { inst, operands: func.inst(inst).kind.operands() })
             .collect();
         let windows = self.preplacement_windows(&planned);
-        for (position, &inst) in planned.iter().enumerate() {
+        let mut placed = FxHashSet::default();
+        for (position, step) in planned.iter().enumerate() {
+            let inst = step.inst;
             if let Some(value) = constant
-                && func.inst(inst).kind.operands().contains(&value)
+                && step.operands.contains(&value)
             {
                 sim.steps.push(Step::Begin(None));
                 // push constant
@@ -688,26 +744,41 @@ impl<'a> Planner<'a> {
             {
                 self.branch_phi_prep(sim, block, then_block, else_block)?;
             }
-            for (consumer, pre) in windows.get(&position).into_iter().flatten() {
+            for Preplacement { consumer, pre, rival } in
+                windows.get(&position).into_iter().flatten()
+            {
                 // Copy a consumer's deeper operands before the expression computing its top
                 // operand starts, when planning that expression and the consumer gets cheaper.
+                if placed.contains(consumer) {
+                    continue;
+                }
                 let window = &planned[position..=*consumer];
                 let plain = self
                     .plain_prefix(sim, block, &planned, position, window.len(), &uses)
                     .get(window.len() - 1)
                     .map(|step| step.price);
                 // A copy cannot pay for itself once its plan costs as much as the plain one.
-                let placed = self.trial(sim, block, window, &mut uses, pre, plain);
-                if let Some(placed) = placed
-                    && plain.is_none_or(|plain| self.target.cmp(placed, plain).is_lt())
-                {
-                    for &value in pre {
-                        self.copy(sim, value)?;
-                    }
+                let Some(price) = self.trial(sim, block, window, &mut uses, 0, pre, plain) else {
+                    continue;
+                };
+                if plain.is_some_and(|plain| !self.target.cmp(price, plain).is_lt()) {
+                    continue;
                 }
+                // The rival copies the words later, and wins ties.
+                if let Some((offset, rival_pre)) = rival
+                    && let Some(rival_price) =
+                        self.trial(sim, block, window, &mut uses, *offset, rival_pre, plain)
+                    && self.target.cmp(rival_price, price).is_le()
+                {
+                    continue;
+                }
+                for &value in pre {
+                    self.copy(sim, value)?;
+                }
+                placed.insert(*consumer);
             }
-            self.plan_inst_inner(sim, block, inst, &uses)?;
-            uses.consume(&func.inst(inst).kind.operands());
+            self.plan_inst_inner(sim, block, step, &uses)?;
+            uses.consume(&step.operands);
             if let Some(result) = func.inst_result_value(inst)
                 && sim.stack.last() == Some(&Slot::Value(result))
             {
@@ -729,7 +800,7 @@ impl<'a> Planner<'a> {
         &mut self,
         sim: &mut Sim,
         block: BlockId,
-        planned: &[InstId],
+        planned: &[PlannedInst],
         next: usize,
         uses: &mut Uses,
     ) -> Result<(), Fail> {
@@ -737,7 +808,7 @@ impl<'a> Planner<'a> {
         let live_out = self.liveness.live_out(block);
         let rest = &planned[next..planned.len().min(next + MAX_PLACEMENT_WINDOW)];
         // A placement looks ahead no further than the next call.
-        let calls = rest.iter().position(|&inst| icall(&func.inst(inst).kind).is_some());
+        let calls = rest.iter().position(|step| icall(&func.inst(step.inst).kind).is_some());
         let rest = &rest[..calls.unwrap_or(rest.len())];
         let mut candidates = SmallVec::<[(usize, usize); MAX_PLACEMENT_CANDIDATES]>::new();
         for depth in 1..sim.stack.len().min(self.reach + 1) {
@@ -749,9 +820,9 @@ impl<'a> Planner<'a> {
             if remaining == 0 || live_out.contains(value) || self.is_fresh(value) {
                 continue;
             }
-            if let Some(end) = rest.iter().position(|&inst| {
-                let operands = func.inst(inst).kind.operands();
-                remaining -= operands.iter().filter(|&&operand| operand == value).count() as u32;
+            if let Some(end) = rest.iter().position(|step| {
+                remaining -=
+                    step.operands.iter().filter(|&&operand| operand == value).count() as u32;
                 remaining == 0
             }) {
                 candidates.push((depth, end));
@@ -770,20 +841,23 @@ impl<'a> Planner<'a> {
             })
             .collect::<SmallVec<[_; MAX_PLACEMENT_WINDOW]>>();
         let mut best: Option<(Cost, usize)> = None;
+        let mut swapped = std::mem::take(&mut self.place_sim);
         for (depth, end) in candidates {
             // Without a swap in the plain plan, an early one cannot pay for itself.
             let Some(&(plain, true)) = plain.get(end) else { continue };
-            let mut swapped = sim.fork();
+            swapped.refork(sim);
             if self.stack_op(&mut swapped, StackOp::Swap(depth as u8)).is_err() {
                 continue;
             }
-            if let Some(cost) = self.trial(&swapped, block, &rest[..=end], uses, &[], Some(plain))
+            if let Some(cost) =
+                self.trial(&swapped, block, &rest[..=end], uses, 0, &[], Some(plain))
                 && self.target.cmp(cost, plain).is_lt()
                 && best.is_none_or(|(best, _)| self.target.cmp(cost, best).is_lt())
             {
                 best = Some((cost, depth));
             }
         }
+        self.place_sim = swapped;
         if let Some((_, depth)) = best {
             self.stack_op(sim, StackOp::Swap(depth as u8))?;
         }
@@ -795,34 +869,38 @@ impl<'a> Planner<'a> {
         StackCosts::POP.plus(self.target.opcode(op::SWAP1))
     }
 
-    /// Prices planning `window` after copying `pre`, or `None` when it cannot be planned or
-    /// its cost reaches `bound`.
+    /// Prices planning `window` after copying `pre` before its instruction at `offset`, or
+    /// `None` when it cannot be planned or its cost reaches `bound`.
+    #[allow(clippy::too_many_arguments)]
     fn trial(
         &self,
-        sim: &Sim,
+        base: &Sim,
         block: BlockId,
-        window: &[InstId],
+        window: &[PlannedInst],
         uses: &mut Uses,
+        offset: usize,
         pre: &[ValueId],
         bound: Option<Cost>,
     ) -> Option<Cost> {
-        let mut sim = sim.fork();
-        for &value in pre {
-            self.copy(&mut sim, value).ok()?;
-        }
+        let mut fork = self.trial_sim.borrow_mut();
+        let sim = &mut *fork;
+        sim.refork(base);
         // Plan on the caller's counts and give back what the window consumed.
         let mut planned = 0;
-        for &inst in window {
-            if self.plan_inst_inner(&mut sim, block, inst, uses).is_err()
+        for (index, step) in window.iter().enumerate() {
+            if index == offset && pre.iter().any(|&value| self.copy(sim, value).is_err()) {
+                break;
+            }
+            if self.plan_inst_inner(sim, block, step, uses).is_err()
                 || bound.is_some_and(|bound| !self.target.cmp(sim.cost, bound).is_lt())
             {
                 break;
             }
-            uses.consume(&self.func.inst(inst).kind.operands());
+            uses.consume(&step.operands);
             planned += 1;
         }
-        for &inst in &window[..planned] {
-            uses.restore(&self.func.inst(inst).kind.operands());
+        for step in &window[..planned] {
+            uses.restore(&step.operands);
         }
         if planned < window.len() {
             return None;
@@ -842,7 +920,7 @@ impl<'a> Planner<'a> {
         &mut self,
         sim: &Sim,
         block: BlockId,
-        planned: &[InstId],
+        planned: &[PlannedInst],
         next: usize,
         len: usize,
         uses: &Uses,
@@ -873,13 +951,13 @@ impl<'a> Planner<'a> {
             },
         };
         while trial.steps.len() < len && !trial.stopped {
-            let inst = planned[trial.start + trial.steps.len()];
+            let step = &planned[trial.start + trial.steps.len()];
             trial.sim.steps.clear();
-            if self.plan_inst_inner(&mut trial.sim, block, inst, &trial.uses).is_err() {
+            if self.plan_inst_inner(&mut trial.sim, block, step, &trial.uses).is_err() {
                 trial.stopped = true;
                 break;
             }
-            trial.uses.consume(&self.func.inst(inst).kind.operands());
+            trial.uses.consume(&step.operands);
             trial.states.push((trial.sim.stack.clone(), trial.sim.cost));
             trial.steps.push(PlainStep {
                 price: trial.sim.cost.plus(self.dead_word_removal().times(trial.sim.junk())),
@@ -893,17 +971,21 @@ impl<'a> Planner<'a> {
     /// Finds, for instructions whose topmost computed operand comes from a chain of single-use
     /// instructions in this block, the start of that chain and the deeper operands that are
     /// pushed or copied anyway. Keyed by the chain's first position.
-    fn preplacement_windows(&self, planned: &[InstId]) -> FxHashMap<usize, Vec<(usize, Operands)>> {
+    fn preplacement_windows(&self, planned: &[PlannedInst]) -> FxHashMap<usize, Vec<Preplacement>> {
         let func = self.func;
         let mut def_position = FxHashMap::default();
-        for (position, &inst) in planned.iter().enumerate() {
-            if let Some(result) = func.inst_result_value(inst) {
+        for (position, step) in planned.iter().enumerate() {
+            if let Some(result) = func.inst_result_value(step.inst) {
                 def_position.insert(result, position);
             }
+            // A call also defines its extra results.
+            for &extra in self.projections.get(&step.inst).into_iter().flatten().flatten() {
+                def_position.insert(extra, position);
+            }
         }
-        let mut windows = FxHashMap::<usize, Vec<(usize, Operands)>>::default();
-        for (consumer, &inst) in planned.iter().enumerate() {
-            let kind = &func.inst(inst).kind;
+        let mut windows = FxHashMap::<usize, Vec<Preplacement>>::default();
+        for (consumer, step) in planned.iter().enumerate() {
+            let kind = &func.inst(step.inst).kind;
             if matches!(
                 kind,
                 InstKind::Select(..)
@@ -915,7 +997,7 @@ impl<'a> Planner<'a> {
             ) {
                 continue;
             }
-            let push_order: Operands = kind.operands().iter().rev().copied().collect();
+            let push_order: Operands = step.operands.iter().rev().copied().collect();
             let Some(top) = push_order.iter().rposition(|&value| !self.is_fresh(value)) else {
                 continue;
             };
@@ -925,27 +1007,68 @@ impl<'a> Planner<'a> {
                 continue;
             }
             let Some(&def) = def_position.get(&value) else { continue };
-            // The chain: single-use producers feeding the value within this block.
-            let mut start = def;
-            let mut work = vec![def];
-            while let Some(position) = work.pop() {
-                start = start.min(position);
-                for operand in func.inst(planned[position]).kind.operands() {
-                    if self.use_counts[operand] == 1
-                        && let Some(&producer) = def_position.get(&operand)
-                        && producer < position
-                    {
-                        work.push(producer);
+            // The chain: single-use producers feeding the roots within this block, as the
+            // position of its first instruction.
+            let first = |roots: &[usize]| {
+                let mut work = roots.to_vec();
+                let mut start = work[0];
+                while let Some(position) = work.pop() {
+                    start = start.min(position);
+                    for &operand in &planned[position].operands {
+                        if self.use_counts[operand] == 1
+                            && let Some(&producer) = def_position.get(&operand)
+                            && producer < position
+                        {
+                            work.push(producer);
+                        }
                     }
                 }
-            }
-            // Copied values must exist before the chain starts.
-            let available = |value: &ValueId| {
-                self.is_fresh(*value)
-                    || def_position.get(value).is_none_or(|&position| position < start)
+                start
             };
-            if consumer - start <= MAX_PREPLACEMENT_WINDOW && pre.iter().all(available) {
-                windows.entry(start).or_default().push((consumer, pre));
+            // Copied values must exist before the chain starts. A spilled value is stored where
+            // its instruction runs, so its reload cannot come earlier.
+            let available = |operand: &ValueId, start: usize| {
+                self.remat.contains(*operand)
+                    || def_position.get(operand).is_none_or(|&position| position < start)
+            };
+            let start = first(&[def]);
+            let copied = (consumer - start <= MAX_PREPLACEMENT_WINDOW
+                && pre.iter().all(|operand| available(operand, start)))
+            .then_some((start, pre.clone()));
+            // A deeper operand that single-use instructions compute right before the chain
+            // can run with it, after the pushes below it, instead of being copied. The plan
+            // that copies it stays the rival.
+            let computed: SmallVec<[usize; 2]> = pre
+                .iter()
+                .filter(|&&operand| !self.is_fresh(operand) && self.use_counts[operand] == 1)
+                .filter_map(|operand| def_position.get(operand).copied())
+                .collect();
+            if !computed.is_empty() {
+                let roots = [&[def][..], &computed].concat();
+                let start = first(&roots);
+                let rest: Operands = pre
+                    .iter()
+                    .copied()
+                    .filter(|operand| {
+                        def_position.get(operand).is_none_or(|at| !computed.contains(at))
+                    })
+                    .collect();
+                // The computed words must sit above the copied ones, as they are pushed last.
+                if !rest.is_empty()
+                    && pre.starts_with(&rest)
+                    && consumer - start <= MAX_PREPLACEMENT_WINDOW
+                    && rest.iter().all(|operand| available(operand, start))
+                {
+                    let rival = copied.clone().map(|(at, pre)| (at - start, pre));
+                    windows.entry(start).or_default().push(Preplacement {
+                        consumer,
+                        pre: rest,
+                        rival,
+                    });
+                }
+            }
+            if let Some((start, pre)) = copied {
+                windows.entry(start).or_default().push(Preplacement { consumer, pre, rival: None });
             }
         }
         windows
@@ -1100,7 +1223,11 @@ impl<'a> Planner<'a> {
                 sim.stack.swap(height - 1 - n, height - 1 - m);
             }
         }
-        sim.cost += self.target.stack_op(op).expect("stack operation within reach");
+        sim.cost += self
+            .stack_costs
+            .get(op)
+            .or_else(|| self.target.stack_op(op))
+            .expect("stack operation within reach");
         sim.steps.push(Step::Stack(op));
         sim.observe(0);
         Ok(())
@@ -1315,9 +1442,13 @@ impl<'a> Planner<'a> {
             return Ok(0);
         }
         // Every order holds the same operands.
-        let dying_ops: SmallVec<[ValueId; 8]> =
-            orders[0].iter().copied().filter(|&value| dying(value)).collect();
-        let dying = &|value: ValueId| dying_ops.contains(&value);
+        let mut dying_ops = SmallVec::<[ValueId; 8]>::new();
+        for &value in orders[0] {
+            if dying(value) {
+                dying_ops.push(value);
+            }
+        }
+        let dying = &*dying_ops;
         // Operands already in place need nothing unless a dying one leaves a copy below. Every
         // strategy that prepares them at no cost does exactly this.
         for (index, ops) in orders.iter().enumerate() {
@@ -1333,29 +1464,40 @@ impl<'a> Planner<'a> {
             Build,
             Cycles,
         }
-        let consumable = dying_ops.iter().any(|&value| !self.is_fresh(value));
+        let consumable = dying.iter().any(|&value| !self.is_fresh(value));
         let mut best: Option<(Cost, usize)> = None;
-        let mut best_sim = Sim::new(Layout::new());
-        let mut candidate = sim.fork();
+        // Whether the cheapest arrangement so far swaps at least twice.
+        let mut best_swaps = false;
+        let mut scratch = self.scratch.borrow_mut();
+        let [mut candidate, mut best_sim] = scratch.each_mut();
         let mut failure = None;
         for (index, ops) in orders.iter().enumerate() {
             let in_place = self.consumed_in_place(&sim.stack, ops, dying);
+            // Longest run of operands already in place.
+            let placed = (1..=ops.len())
+                .rev()
+                .find(|&t| self.in_place(&sim.stack, &ops[..t], dying))
+                .unwrap_or(0);
+            // With nothing in place, building and reordering both copy every operand in order: the
+            // swap that building tries first needs a dying operand on the stack, which reordering
+            // would have consumed in place.
+            let build_is_reorder = placed == 0 && in_place.iter().all(Option::is_none);
             for strategy in [Strategy::Reorder, Strategy::Build, Strategy::Cycles] {
+                if strategy == Strategy::Build && build_is_reorder {
+                    continue;
+                }
                 // Following cycles only saves swaps when an operand is consumed in place and the
                 // cheapest arrangement so far needs at least two.
-                if strategy == Strategy::Cycles
-                    && !(consumable
-                        && best_sim.steps.iter().filter(|step| step.is_swap()).nth(1).is_some())
-                {
+                if strategy == Strategy::Cycles && !(consumable && best_swaps) {
                     continue;
                 }
                 candidate.refork(sim);
                 let result = match strategy {
-                    Strategy::Reorder => self.prepare_reorder(&mut candidate, ops, &in_place),
-                    Strategy::Build => self.prepare_build(&mut candidate, ops, dying),
+                    Strategy::Reorder => self.prepare_reorder(candidate, ops, &in_place),
+                    Strategy::Build => self.prepare_build(candidate, ops, placed, dying),
                     Strategy::Cycles => {
                         let budget = best.map(|(price, _)| price);
-                        self.prepare_cycles(&mut candidate, ops, &in_place, budget)
+                        self.prepare_cycles(candidate, ops, &in_place, budget)
                     }
                 };
                 if let Err(fail) = result {
@@ -1366,16 +1508,15 @@ impl<'a> Planner<'a> {
                 if best.is_some_and(|(best, _)| !self.target.cmp(candidate.cost, best).is_lt()) {
                     continue;
                 }
-                let leftovers = if dying_ops.is_empty() {
-                    0
-                } else {
-                    leftovers(&candidate.stack[..candidate.stack.len() - ops.len()], dying)
-                };
+                let leftovers =
+                    leftovers(&candidate.stack[..candidate.stack.len() - ops.len()], dying);
                 let price = candidate.cost.plus(
                     StackCosts::POP.plus(self.target.opcode(op::SWAP1).times(2)).times(leftovers),
                 );
                 if best.is_none_or(|(best, _)| self.target.cmp(price, best).is_lt()) {
                     best = Some((price, index));
+                    best_swaps =
+                        candidate.steps.iter().filter(|step| step.is_swap()).nth(1).is_some();
                     std::mem::swap(&mut best_sim, &mut candidate);
                 }
             }
@@ -1385,22 +1526,19 @@ impl<'a> Planner<'a> {
         Ok(index)
     }
 
-    /// Builds the operands bottom up: keeps values already in place at the top of the stack,
-    /// swaps the deepest operand up when it dies here, and copies every other operand on top.
+    /// Builds the operands bottom up: keeps the `placed` values already in place at the top of
+    /// the stack, swaps the deepest operand up when it dies here, and copies every other operand
+    /// on top.
     fn prepare_build(
         &self,
         sim: &mut Sim,
         ops: &[ValueId],
-        dying: &dyn Fn(ValueId) -> bool,
+        mut placed: usize,
+        dying: &[ValueId],
     ) -> Result<(), Fail> {
-        // Longest run of operands already in place.
-        let mut placed = (1..=ops.len())
-            .rev()
-            .find(|&t| self.in_place(&sim.stack, &ops[..t], dying))
-            .unwrap_or(0);
         if placed == 0
             && !self.is_fresh(ops[0])
-            && dying(ops[0])
+            && dying.contains(&ops[0])
             && let Some(depth) = sim.depth_of(Slot::Value(ops[0]))
             && depth > 0
             && depth <= self.reach
@@ -1416,13 +1554,15 @@ impl<'a> Planner<'a> {
 
     /// Whether the top of `stack` holds `ops` in push order, each once and consumable: a last
     /// use, a materializable value or a surplus copy.
-    fn in_place(&self, stack: &[Slot], ops: &[ValueId], dying: &dyn Fn(ValueId) -> bool) -> bool {
+    fn in_place(&self, stack: &[Slot], ops: &[ValueId], dying: &[ValueId]) -> bool {
         let Some(split) = stack.len().checked_sub(ops.len()) else { return false };
         let (below, top) = stack.split_at(split);
         ops.iter().enumerate().all(|(i, &value)| {
             top[i] == Slot::Value(value)
                 && !ops[..i].contains(&value)
-                && (self.is_fresh(value) || dying(value) || below.contains(&Slot::Value(value)))
+                && (self.is_fresh(value)
+                    || dying.contains(&value)
+                    || below.contains(&Slot::Value(value)))
         })
     }
 
@@ -1433,16 +1573,17 @@ impl<'a> Planner<'a> {
         &self,
         stack: &[Slot],
         ops: &[ValueId],
-        dying: &dyn Fn(ValueId) -> bool,
+        dying: &[ValueId],
     ) -> SmallVec<[Option<usize>; 8]> {
-        ops.iter()
-            .enumerate()
-            .map(|(i, &value)| {
-                (!self.is_fresh(value) && !ops[..i].contains(&value) && dying(value))
+        let mut positions = SmallVec::new();
+        for (i, &value) in ops.iter().enumerate() {
+            positions.push(
+                (!self.is_fresh(value) && !ops[..i].contains(&value) && dying.contains(&value))
                     .then(|| stack.iter().rposition(|&slot| slot == Slot::Value(value)))
-                    .flatten()
-            })
-            .collect()
+                    .flatten(),
+            );
+        }
+        positions
     }
 
     /// Consumes the operands `in_place` names in place, copies every other operand, and then
@@ -1711,15 +1852,24 @@ impl<'a> Planner<'a> {
         &self,
         sim: &mut Sim,
         block: BlockId,
-        inst: InstId,
+        planned: &PlannedInst,
         uses: &Uses,
     ) -> Result<(), Fail> {
         let func = self.func;
+        let inst = planned.inst;
+        let operands = &planned.operands;
         let kind = &func.inst(inst).kind;
         sim.steps.push(Step::Begin(Some(inst)));
         let result = func.inst_result_value(inst);
-        let operands = kind.operands();
-        let dying = |value: ValueId| self.dies(block, uses, &operands, value);
+        // Whether each operand has no use after this instruction.
+        let mut dies = SmallVec::<[bool; 8]>::new();
+        for &operand in operands {
+            dies.push(self.dies(block, uses, operands, operand));
+        }
+        let dying = |value: ValueId| match operands.iter().position(|&operand| operand == value) {
+            Some(index) => dies[index],
+            None => self.dies(block, uses, operands, value),
+        };
         let push_order: Operands = operands.iter().rev().copied().collect();
         let pushes = |result: Option<ValueId>| result.map_or(0, |_| 1);
 
@@ -1774,7 +1924,7 @@ impl<'a> Planner<'a> {
             }
             // [saved, results] -> [results]; each saved word goes back to its slot
             self.restore_saved(sim, &saved)?;
-            self.finish_inst(sim, &operands, block, uses, None)?;
+            self.finish_inst(sim, operands, &dies, block, uses, None)?;
             return Ok(());
         }
 
@@ -1805,8 +1955,7 @@ impl<'a> Planner<'a> {
                     self.op(sim, op::ISZERO, 1, 1);
                 } else {
                     // ne a, b -> iszero (eq a, b)
-                    let mirrored: Operands = operands.iter().copied().collect();
-                    self.prepare_any(sim, &[&push_order, &mirrored], &dying)?;
+                    self.prepare_any(sim, &[&push_order, operands], &dying)?;
                     self.op(sim, op::EQ, 2, 1);
                 }
                 if ne {
@@ -1899,9 +2048,7 @@ impl<'a> Planner<'a> {
                     OpcodeLowering::Binary { opcode }
                         if let Some(mirror) = op::swapped_binary_opcode(opcode) =>
                     {
-                        let mirrored_ops: Operands = operands.iter().copied().collect();
-                        let flipped =
-                            self.prepare_any(sim, &[&push_order, &mirrored_ops], &dying)? == 1;
+                        let flipped = self.prepare_any(sim, &[&push_order, operands], &dying)? == 1;
                         self.op(sim, if flipped { mirror } else { opcode }, 2, pushes(result));
                     }
                     _ => {
@@ -1912,7 +2059,7 @@ impl<'a> Planner<'a> {
                 self.set_top_result(sim, result);
             }
         }
-        self.finish_inst(sim, &operands, block, uses, result)?;
+        self.finish_inst(sim, operands, &dies, block, uses, result)?;
         // [saved, result] -> [result]
         self.restore_saved(sim, &saved)
     }
@@ -1937,12 +2084,13 @@ impl<'a> Planner<'a> {
         &self,
         sim: &mut Sim,
         operands: &[ValueId],
+        dies: &[bool],
         block: BlockId,
         uses: &Uses,
         result: Option<ValueId>,
     ) -> Result<(), Fail> {
-        for &operand in operands {
-            if self.dies(block, uses, operands, operand) {
+        for (&operand, &dies) in operands.iter().zip(dies) {
+            if dies {
                 Self::kill(sim, operand);
             }
         }
@@ -2576,7 +2724,7 @@ impl<'a> Planner<'a> {
                 target.push(Want::Value(condition));
                 let mut candidate = sim.fork();
                 if self.shuffle(&mut candidate, &target).is_ok() {
-                    sim.join(candidate);
+                    sim.join(&mut candidate);
                     shuffled = true;
                 }
             }
@@ -2963,6 +3111,10 @@ fn common_dominator(cfg: &CfgInfo, a: BlockId, b: BlockId) -> BlockId {
 }
 
 /// Counts the copies of dying operands left in `below`, each removed eventually.
-fn leftovers(below: &[Slot], dying: &dyn Fn(ValueId) -> bool) -> u32 {
-    below.iter().filter(|slot| matches!(slot, Slot::Value(value) if dying(*value))).count() as u32
+fn leftovers(below: &[Slot], dying: &[ValueId]) -> u32 {
+    if dying.is_empty() {
+        return 0;
+    }
+    below.iter().filter(|slot| matches!(slot, Slot::Value(value) if dying.contains(value))).count()
+        as u32
 }

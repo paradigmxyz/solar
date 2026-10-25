@@ -83,7 +83,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap, newtype_index};
 use std::rc::Rc;
 
 mod isle;
@@ -153,18 +153,18 @@ impl MirPass for Egraph {
                 }
             }
         }
-        let target = Target::new(gcx);
         let mut changed = run_selected_function_pass_without_analyses_cached::<FlatEgraph>(
             module,
             analyses,
             &flat,
-            |func, _| Builder::new(func, &target, None).run() != 0,
+            |func, analyses| Builder::new(func, &analyses.target(gcx), None).run() != 0,
         );
         changed |= run_selected_function_pass_cached::<CfgEgraph>(
             module,
             analyses,
             &with_cfg,
             |func, analyses| {
+                let target = analyses.target(gcx);
                 Builder::new(func, &target, Some(Rc::clone(analyses.cfg()))).run() != 0
             },
         );
@@ -174,6 +174,7 @@ impl MirPass for Egraph {
             analyses,
             &fresh_mapping_entries,
             |func, analyses| {
+                let target = analyses.target(gcx);
                 let mut builder = Builder::new(func, &target, Some(Rc::clone(analyses.cfg())));
                 builder.fresh_mapping_arguments = true;
                 builder.run() != 0
@@ -316,6 +317,36 @@ enum Nodes {
     Many(Vec<Op>),
 }
 
+newtype_index! {
+    /// A class of one function, in order of creation.
+    struct ClassId;
+}
+
+/// The classes of one function, found through their representative values.
+/// Most values never root a class, so the table stores only the classes.
+struct Classes {
+    of: IndexVec<ValueId, Option<ClassId>>,
+    all: IndexVec<ClassId, Class>,
+}
+
+impl Classes {
+    fn new(values: usize, classes: usize) -> Self {
+        Self { of: IndexVec::from_vec(vec![None; values]), all: IndexVec::with_capacity(classes) }
+    }
+
+    fn id(&self, value: ValueId) -> Option<ClassId> {
+        self.of.get(value).copied().flatten()
+    }
+
+    fn get(&self, value: ValueId) -> Option<&Class> {
+        self.id(value).map(|id| &self.all[id])
+    }
+
+    fn insert(&mut self, value: ValueId, class: Class) {
+        self.of[value] = Some(self.all.push(class));
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Simplified {
     Pending,
@@ -366,7 +397,7 @@ struct Builder<'a> {
     /// Representative for every value merged into another class.
     merged: IndexVec<ValueId, Option<ValueId>>,
     /// Classes keyed by representative value.
-    classes: IndexVec<ValueId, Option<Class>>,
+    classes: Classes,
     /// Hash-consing table scoped by the dominator tree.
     memo: FxHashMap<NodeKey, ValueId>,
     /// Undo log restoring `memo` when a dominator scope closes.
@@ -408,7 +439,7 @@ impl<'a> Builder<'a> {
             leaves,
             optimistic,
             merged: IndexVec::from_vec(vec![None; values]),
-            classes: IndexVec::from_vec(std::iter::repeat_with(|| None).take(values).collect()),
+            classes: Classes::new(values, num_insts / 2),
             // The scoped memo peaks near 40% of the instruction count.
             memo: FxHashMap::with_capacity_and_hasher(num_insts / 2, Default::default()),
             undo: Vec::with_capacity(num_insts / 2),
@@ -423,7 +454,7 @@ impl<'a> Builder<'a> {
     }
 
     fn run(mut self) -> usize {
-        self.visit(BlockId::ENTRY);
+        self.visit(BlockId::ENTRY, true);
         self.materialize();
         self.rewrite_terminators();
         self.changed
@@ -458,20 +489,21 @@ impl<'a> Builder<'a> {
     }
 
     /// Numbers a block, then its dominator-tree children, within one scope.
-    fn visit(&mut self, block: BlockId) {
+    /// No block follows the last one visited, so `tail` scopes keep their memo entries.
+    fn visit(&mut self, block: BlockId, tail: bool) {
         let mark = self.undo.len();
         self.phis.clear();
         for index in 0..self.func.blocks[block].instructions.len() {
             let inst_id = self.func.blocks[block].instructions[index];
-            self.visit_inst(inst_id, block, index);
+            self.visit_inst(inst_id, block, index, tail);
         }
-        if let Some(cfg) = &self.cfg {
-            let children = cfg.dominators().children(block).to_vec();
-            for child in children {
-                self.visit(child);
+        if let Some(cfg) = self.cfg.clone() {
+            let children = cfg.dominators().children(block);
+            for (index, &child) in children.iter().enumerate() {
+                self.visit(child, tail && index + 1 == children.len());
             }
         }
-        while self.undo.len() > mark {
+        while !tail && self.undo.len() > mark {
             let (key, previous) = self.undo.pop().expect("undo log entry");
             match previous {
                 Some(value) => self.memo.insert(key, value),
@@ -480,7 +512,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    fn visit_inst(&mut self, inst_id: InstId, block: BlockId, index: usize) {
+    fn visit_inst(&mut self, inst_id: InstId, block: BlockId, index: usize, tail: bool) {
         if is_dead_noop(self.func, &self.func.inst(inst_id).kind, |value| {
             resolve_replacement(value, &self.merged)
         }) {
@@ -650,16 +682,19 @@ impl<'a> Builder<'a> {
             }
         }
 
-        for &node in nodes.as_slice() {
-            let key = (canonical(node), ty);
+        for (node_index, &node) in nodes.as_slice().iter().enumerate() {
+            // The original node was keyed above.
+            let key = if node_index == 0 { key } else { (canonical(node), ty) };
             let previous = self.memo.insert(key, leader.unwrap_or(result));
-            self.undo.push((key, previous));
+            if !tail {
+                self.undo.push((key, previous));
+            }
         }
         if let Some(leader) = leader {
             // %result => %leader
             self.merge(result, leader, inst_id);
         } else {
-            self.classes[result] = Some(Class { nodes, home: inst_id });
+            self.classes.insert(result, Class { nodes, home: inst_id });
         }
     }
 
@@ -672,7 +707,7 @@ impl<'a> Builder<'a> {
     ) -> (SmallVec<[(ValueId, Op); MAX_OPERAND_VIEWS]>, bool) {
         let mut views = SmallVec::new();
         for operand in operands_of(node) {
-            if let Some(class) = self.classes.get(operand).and_then(Option::as_ref) {
+            if let Some(class) = self.classes.get(operand) {
                 for &alternative in class.nodes.as_slice().iter().skip(1) {
                     let view = (operand, alternative);
                     if !views.contains(&view) {
@@ -698,7 +733,7 @@ impl<'a> Builder<'a> {
         index: usize,
     ) -> Option<ValueId> {
         let leader = self.resolve(*self.memo.get(&key)?);
-        if let Some(class) = self.classes.get(leader).and_then(Option::as_ref)
+        if let Some(class) = self.classes.get(leader)
             && (key != original || canonical(class.nodes.as_slice()[0]) != key.0)
             && !self
                 .liveness
@@ -716,11 +751,12 @@ impl<'a> Builder<'a> {
         &mut self,
         inst_id: InstId,
         result: ValueId,
-        incoming: Vec<(BlockId, ValueId)>,
+        mut incoming: Vec<(BlockId, ValueId)>,
         ty: Option<MirType>,
     ) {
-        let incoming: Vec<(BlockId, ValueId)> =
-            incoming.into_iter().map(|(block, value)| (block, self.resolve(value))).collect();
+        for (_, value) in &mut incoming {
+            *value = self.resolve(*value);
+        }
         if let Some(&(_, first)) = incoming.first()
             && incoming.iter().all(|&(_, value)| same_value(self.func, value, first))
         {
@@ -749,9 +785,12 @@ impl<'a> Builder<'a> {
 
     /// Applies the rewrite rules to an instruction outside the e-graph.
     fn rewrite_in_place(&mut self, inst_id: InstId, block: BlockId) {
-        let op = self.func.inst(inst_id).kind.op();
-        let Some(kind) = op.into_kind() else { return };
+        let kind = &self.func.inst(inst_id).kind;
         if !kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
+            return;
+        }
+        let op = kind.op();
+        if op.into_kind().is_none() {
             return;
         }
         let result_ty = self.func.inst(inst_id).result_ty;
@@ -875,10 +914,10 @@ impl<'a> Builder<'a> {
             target: self.target,
             classes: &self.classes,
             uses: &self.uses,
-            cache: IndexVec::from_vec(vec![None; self.func.num_values()]),
+            cache: IndexVec::from_vec(vec![None; self.classes.all.len()]),
         };
-        let mut cheapest = Vec::with_capacity(self.classes.len());
-        for class in self.classes.iter().flatten() {
+        let mut cheapest = Vec::with_capacity(self.classes.all.len());
+        for class in &self.classes.all {
             // Rules only produce canonical forms, so the latest node wins ties.
             let target = self.target;
             let best = if class.nodes.len() == 1 {
@@ -1020,8 +1059,6 @@ enum OptimisticKey {
     Phi(BlockId, SmallVec<[(BlockId, u32); 4]>, Option<MirType>),
     /// A pure node over class numbers.
     Node(Op, Option<MirType>),
-    /// A value equal only to itself.
-    Unique(ValueId),
 }
 
 /// One round of optimistic numbering.
@@ -1049,7 +1086,14 @@ impl OptimisticNumbering<'_> {
         if matches!(self.func.value(value), Value::Inst(_)) {
             return self.numbers[value];
         }
-        self.assign(value, OptimisticKey::Unique(value))
+        self.assign_unique(value)
+    }
+
+    /// Numbers a value equal only to itself; no table entry can match it.
+    fn assign_unique(&mut self, value: ValueId) -> u32 {
+        self.next += 1;
+        self.fresh[value] = self.next;
+        self.next
     }
 
     fn assign(&mut self, value: ValueId, key: OptimisticKey) -> u32 {
@@ -1125,7 +1169,10 @@ fn optimistic_phi_leaders(
                         });
                         OptimisticKey::Node(canonical(op), inst.result_ty)
                     }
-                    _ => OptimisticKey::Unique(result),
+                    _ => {
+                        numbering.assign_unique(result);
+                        continue;
+                    }
                 };
                 numbering.assign(result, key);
             }
@@ -1179,10 +1226,9 @@ fn value_info(func: &Function) -> ValueInfo {
         IndexVec::<ArgIdx, Option<ValueId>>::from_vec(vec![None; func.arg_indices().count()]);
     let mut leaves = IndexVec::from_vec(vec![None; func.num_values()]);
     let mut uses = IndexVec::from_vec(vec![0; func.num_values()]);
-    let mut seen = DenseBitSet::new_empty(func.num_values());
-    let mut record = |value| {
+    let mut record = |value: ValueId| {
         uses[value] += 1;
-        if !seen.insert(value) {
+        if leaves[value].is_some() {
             return;
         }
         let canonical = match func.value(value) {
@@ -1255,7 +1301,7 @@ fn is_node(kind: &InstKind) -> bool {
 
 /// Keeps constants on the right without reassociating or adding nodes.
 fn canonical_operands(func: &Function, op: Op) -> Op {
-    let is_const = |value| func.value_u256(value).is_some();
+    let is_const = |value| func.value(value).as_immediate().is_some();
     // op(constant, value, rest) => op(value, constant, rest)
     let op = op.canonicalize_commutative_by_key(is_const);
     let swap = |a, b| is_const(a) && !is_const(b);
@@ -1417,10 +1463,10 @@ fn zero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
 struct Costs<'a> {
     func: &'a Function,
     target: &'a Target,
-    classes: &'a IndexVec<ValueId, Option<Class>>,
+    classes: &'a Classes,
     uses: &'a IndexVec<ValueId, u32>,
     /// Cheapest cost per class, memoized.
-    cache: IndexVec<ValueId, Option<Cost>>,
+    cache: IndexVec<ClassId, Option<Cost>>,
 }
 
 impl Costs<'_> {
@@ -1431,10 +1477,7 @@ impl Costs<'_> {
     /// Cost of the cheapest node of a class; values outside the e-graph are
     /// free, except immediates, which are pushed at every use.
     fn class(&mut self, value: ValueId) -> Cost {
-        if let Some(cost) = self.cache.get(value).copied().flatten() {
-            return cost;
-        }
-        let Some(class) = self.classes.get(value).and_then(Option::as_ref) else {
+        let Some(id) = self.classes.id(value) else {
             return match self.func.value(value) {
                 Value::Immediate(immediate) => {
                     immediate.as_u256().map_or(Cost::ZERO, |value| self.target.push(value))
@@ -1442,6 +1485,10 @@ impl Costs<'_> {
                 _ => Cost::ZERO,
             };
         };
+        if let Some(cost) = self.cache[id] {
+            return cost;
+        }
+        let class = &self.classes.all[id];
         let target = self.target;
         let cost = class
             .nodes
@@ -1450,7 +1497,7 @@ impl Costs<'_> {
             .map(|node| self.node(class, node))
             .min_by(|a, b| target.cmp(*a, *b))
             .expect("a class holds its own node");
-        self.cache[value] = Some(cost);
+        self.cache[id] = Some(cost);
         cost
     }
 
@@ -1509,7 +1556,7 @@ impl Costs<'_> {
     fn retained_input(&self, input: ValueId, original: &[ValueId], operands: &[ValueId]) -> bool {
         original.iter().any(|&value| {
             self.shared_displaced(value, operands)
-                && self.classes.get(value).and_then(Option::as_ref).is_some_and(|class| {
+                && self.classes.get(value).is_some_and(|class| {
                     class.nodes.as_slice().iter().all(|node| operands_of(node).contains(&input))
                 })
         })

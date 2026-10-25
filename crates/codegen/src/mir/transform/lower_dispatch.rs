@@ -31,7 +31,7 @@
 //! through `DELEGATECALL`. Each guarded case computes the comparison itself: a
 //! value shared across the selector switch would be spilled to memory before
 //! dispatch, which unguarded view and pure routes could observe through
-//! `msize()` or a raw `mload`. In `--revert-strings debug` mode the revert
+//! a raw `mload`. In `--revert-strings debug` mode the revert
 //! carries solc's "Non-view function of library called without DELEGATECALL"
 //! message.
 //!

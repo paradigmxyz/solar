@@ -39,7 +39,7 @@ bb4:
   calldataload
   add
   dup 1
-  push 160
+  push 128
   mstore
   iszero
   push bb8
@@ -48,22 +48,22 @@ bb4:
   push 4
   calldataload
   add
-  push 192
+  push 160
   mstore
   push 4
   calldataload
-  push 192
+  push 160
   mload
   lt
   push 3
   push 4
   calldataload
   add
-  push 224
+  push 192
   mstore
   push 4
   calldataload
-  push 224
+  push 192
   mload
   lt
   or
@@ -71,11 +71,11 @@ bb4:
   dup 1
   calldataload
   add
-  push 256
+  push 224
   mstore
   push 4
   calldataload
-  push 256
+  push 224
   mload
   lt
   or
@@ -83,11 +83,11 @@ bb4:
   push 4
   calldataload
   add
-  push 288
+  push 256
   mstore
   push 4
   calldataload
-  push 288
+  push 256
   mload
   lt
   or
@@ -95,11 +95,11 @@ bb4:
   push 4
   calldataload
   add
-  push 320
+  push 288
   mstore
   push 4
   calldataload
-  push 320
+  push 288
   mload
   lt
   or
@@ -253,7 +253,7 @@ bb4:
   dup 3
   lt
   or
-  push 160
+  push 128
   mload
   push 4
   calldataload
@@ -261,6 +261,14 @@ bb4:
   swap 1
   push 4
   calldataload
+  dup 3
+  lt
+  or
+  push 160
+  mload
+  dup 3
+  add
+  swap 2
   dup 3
   lt
   or
@@ -289,14 +297,6 @@ bb4:
   lt
   or
   push 288
-  mload
-  dup 3
-  add
-  swap 2
-  dup 3
-  lt
-  or
-  push 320
   mload
   dup 3
   add

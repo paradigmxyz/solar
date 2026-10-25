@@ -403,6 +403,7 @@ impl<'gcx> Assembler<'gcx> {
         if self.loop_labels.contains(label) {
             block.metadata.in_loop = true;
         }
+        block.metadata.repeats = self.repeating_code;
         let block = self.program.add_block(block);
         self.current_block = Some(block);
         self.block_labels.push(Some(label));
@@ -439,7 +440,9 @@ impl<'gcx> Assembler<'gcx> {
         if let Some(block) = self.current_block {
             return block;
         }
-        let block = self.program.add_block(ir::Block::new(self.program.blocks.len() as u32));
+        let mut block = ir::Block::new(self.program.blocks.len() as u32);
+        block.metadata.repeats = self.repeating_code;
+        let block = self.program.add_block(block);
         self.current_block = Some(block);
         self.block_labels.push(None);
         block

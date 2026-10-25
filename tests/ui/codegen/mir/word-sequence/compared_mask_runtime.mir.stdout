@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/mir/word-sequence/compared_mask_runtime.sol:ComparedMask ===
+@module ComparedMask
+fn @supportsInterface(arg0: i256) -> i1 [selector=0x01ffc9a7, pure, abi_params=[bytes4], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = eq v0, 0x1ffc9a700000000000000000000000000000000000000000000000000000000
+    jumpi v1, bb2, bb1
+  bb1:
+    v2 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v3 = eq v2, 0x80ac58cd00000000000000000000000000000000000000000000000000000000
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: true]
+    jumpi v4, bb5, bb4
+  bb4:
+    v5 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v6 = eq v5, 0x5b5e139f00000000000000000000000000000000000000000000000000000000
+    jump bb6
+  bb5:
+    jump bb6
+  bb6:
+    v7 = phi [bb4: v6], [bb5: true]
+    ret v7
+}
+
+fn @route(arg0: i256) -> i256 [selector=0x95bc81be, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = eq v0, 0x80ac58cd00000000000000000000000000000000000000000000000000000000
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = trunc i256 arg0 to i224
+    v3 = eq v2, i224 0
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: false]
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v5 = eq v0, 0x5b5e139f00000000000000000000000000000000000000000000000000000000
+    jumpi v5, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v6 = trunc i256 arg0 to i224
+    v7 = eq v6, i224 0
+    jump bb9
+  bb9:
+    v8 = phi [bb7: v7], [bb8: false]
+    jumpi v8, bb10, bb11
+  bb11:
+    jump bb12
+  bb12:
+    ret 0
+  bb10:
+    ret 2
+  bb4:
+    ret 1
+}

@@ -8,14 +8,14 @@ fn @three() [selector=0x1158e167, abi_wrapper, pure] {
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
   bb2:
-    v44 = add v38, 32
-    v6 = mload v44
+    v42 = add v38, 32
+    v6 = mload v42
     v35 = shr v6, 232
-    mstore 128, v35
-    returndata 128, 32
+    mstore 0, v35 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
-    mstore 128, 0
-    returndata 128, 32
+    mstore 0, 0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @two() [selector=0x65313149, abi_wrapper, pure] {
@@ -25,14 +25,14 @@ fn @two() [selector=0x65313149, abi_wrapper, pure] {
     v1 = lt v0, 2
     jumpi v1, bb1, bb2
   bb2:
-    v32 = add v26, 32
-    v6 = mload v32
+    v30 = add v26, 32
+    v6 = mload v30
     v23 = shr v6, 240
-    mstore 128, v23
-    returndata 128, 32
+    mstore 0, v23 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
-    mstore 128, 0
-    returndata 128, 32
+    mstore 0, 0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
@@ -42,17 +42,17 @@ fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
   bb2:
-    v32 = add v26, 32
-    v6 = mload v32
+    v30 = add v26, 32
+    v6 = mload v30
     v7 = byte 0, v6
     v12 = shl v7, 8
     v18 = byte 2, v6
     v23 = or v12, v18
-    mstore 128, v23
-    returndata 128, 32
+    mstore 0, v23 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
-    mstore 128, 0
-    returndata 128, 32
+    mstore 0, 0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
@@ -62,23 +62,23 @@ fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
   bb2:
-    v49 = add v43, 32
-    v6 = mload v49
+    v47 = add v43, 32
+    v6 = mload v47
     v7 = byte 0, v6
     v12 = shl v7, 16
-    v51 = add v43, 33
-    mstore8 v51, 74
-    v22 = mload v51
+    v49 = add v43, 33
+    mstore8 v49, 74
+    v22 = mload v49
     v23 = byte 0, v22
     v28 = shl v23, 8
     v29 = or v12, v28
     v35 = byte 1, v22
     v40 = or v29, v35
-    mstore 128, v40
-    returndata 128, 32
+    mstore 0, v40 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
-    mstore 128, 0
-    returndata 128, 32
+    mstore 0, 0 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {
