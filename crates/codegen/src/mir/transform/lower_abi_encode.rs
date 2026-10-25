@@ -65,8 +65,11 @@ use crate::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
         Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
         MemoryObjectLayout, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-        analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
-        transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
+        analysis::CallGraphInfo,
+        memory::EvmMemoryLayout,
+        pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
+        transform::utils::redirect_successor_predecessors,
+        utils::resolve_replacement,
     },
     target::Target,
 };
@@ -80,6 +83,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
+use std::sync::Arc;
 
 /// Lowers `abi_encode` after the main optimization pipeline.
 pub(crate) struct LowerAbiEncode;
@@ -93,12 +97,7 @@ impl MirPass for LowerAbiEncode {
         true
     }
 
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = Target::new(gcx);
         let (fresh_object_returns, mut destructive_returns) =
@@ -124,23 +123,23 @@ impl MirPass for LowerAbiEncode {
                 constructors.insert(id);
             }
         }
-        let mut inline_helpers = EncodeHelpers::default();
+        let inline_helpers = EncodeHelpers::default();
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
-        for (func_id, func) in module.functions.iter_mut_enumerated() {
+        changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
+            let func_id = function_analyses.function();
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
             // writes there before reserving its output, so an outlined call would overwrite it.
             // abi_encode(args) => inline head stores and tail copies
-            let helpers =
-                if constructors.contains(func_id) { &mut inline_helpers } else { &mut helpers };
-            changed |= lower_function(
+            let helpers = if constructors.contains(func_id) { &inline_helpers } else { &helpers };
+            lower_function(
                 &target,
                 func,
                 helpers,
                 revert_strings,
                 &fresh_object_returns,
                 &destructive_returns[func_id],
-            );
-        }
+            )
+        });
         CallGraphInfo::assert_runtime_helpers(
             module,
             helpers.arrays.values().chain(helpers.tuples.values()).copied(),
@@ -188,11 +187,12 @@ impl TupleHelperKey {
     }
 }
 
-/// Shared encoder helpers available to every site in the module.
-#[derive(Default)]
+/// Shared encoder helpers available to every site in the module. Each function lowers with its
+/// own copy, which adds the literal objects it proves.
+#[derive(Clone, Default)]
 struct EncodeHelpers {
-    arrays: FxHashMap<ArrayHelperKey, FunctionId>,
-    tuples: FxHashMap<TupleHelperKey, FunctionId>,
+    arrays: Arc<FxHashMap<ArrayHelperKey, FunctionId>>,
+    tuples: Arc<FxHashMap<TupleHelperKey, FunctionId>>,
     /// Proven on the original function, before encoding emits raw memory operations.
     literal_objects: FxHashSet<ValueId>,
 }
@@ -262,7 +262,7 @@ fn synthesize_tuple_helpers(
     }
     for (key, function) in shared {
         let helper = module.add_function(function);
-        helpers.tuples.insert(key, helper);
+        Arc::make_mut(&mut helpers.tuples).insert(key, helper);
     }
 }
 
@@ -348,7 +348,7 @@ fn synthesize_array_helpers(module: &mut Module, revert_strings: RevertStrings) 
             builder.ret([length]);
         }
         let helper = module.add_function(function);
-        helpers.arrays.insert(key, helper);
+        Arc::make_mut(&mut helpers.arrays).insert(key, helper);
     }
     helpers
 }
@@ -402,7 +402,7 @@ enum AbiValueSource {
 fn lower_function(
     target: &Target,
     func: &mut Function,
-    helpers: &mut EncodeHelpers,
+    helpers: &EncodeHelpers,
     revert_strings: RevertStrings,
     fresh_object_returns: &DenseBitSet<FunctionId>,
     destructive_returns: &FxHashSet<InstId>,
@@ -412,6 +412,7 @@ fn lower_function(
     if !has_encodes {
         return false;
     }
+    let mut helpers = helpers.clone();
     helpers.literal_objects = literal_objects_at_encodes(func);
     let unobserved = terminal_scratch_literals(func, &helpers.literal_objects);
     helpers.literal_objects.retain(|&object| {
@@ -445,7 +446,7 @@ fn lower_function(
                 .iter()
                 .map(|&value| resolve_replacement(value, &replacements))
                 .collect::<Vec<_>>();
-            let layout = std::sync::Arc::clone(layout);
+            let layout = Arc::clone(layout);
             let mode = *mode;
             // abi_encode(args) !metadata(span) => icall or stores/copies !metadata(span)
             let metadata = builder.func().inst(inst).metadata.clone();
@@ -472,7 +473,7 @@ fn lower_function(
                         let call_args = args.iter().copied().chain(selector).collect();
                         builder.icall(helper, call_args, result_ty)
                     }
-                    None => lower_encode(&mut builder, &layout, selector, &args, mode, helpers),
+                    None => lower_encode(&mut builder, &layout, selector, &args, mode, &helpers),
                 }
             };
             literal_objects.extend(args.iter().copied());
