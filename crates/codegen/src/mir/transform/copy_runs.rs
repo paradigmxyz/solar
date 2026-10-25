@@ -62,12 +62,13 @@ use super::{
     byte_run::{address_key, sweep_dead},
     check_elim::conditions_false,
     egraph::use_counts,
+    lower_mcopy::{CopyDirection, copy_direction_of},
 };
 use crate::{
     mir::{
         BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module,
         PtrLocation, Value, ValueId,
-        analysis::{AliasAnalysis, AliasResult, LocationSize},
+        analysis::{AliasAnalysis, LocationSize},
         pass::{MirPass, ModuleAnalyses, run_function_pass_with_alias},
     },
     target::Target,
@@ -109,8 +110,10 @@ struct Pair {
     store: InstId,
     /// Index of the store in its block.
     position: usize,
-    load: ValueId,
-    /// Index of the load in the store's block, if it lies there.
+    /// The load and its result.
+    load: InstId,
+    value: ValueId,
+    /// Index of the load in the store's block, if it lies there. Only memory runs need it.
     load_position: Option<usize>,
     source: PtrLocation,
     dest: Address,
@@ -123,13 +126,18 @@ struct Candidate {
     store: InstId,
     dest: ValueId,
     src: ValueId,
-    words: usize,
     source: PtrLocation,
     dropped: Vec<InstId>,
 }
 
+impl Candidate {
+    fn words(&self) -> u64 {
+        self.dropped.len() as u64 + 1
+    }
+}
+
 fn run_function(func: &mut Function, alias: &AliasAnalysis, target: &Target) -> bool {
-    let uses = use_counts(func);
+    let mut uses = None;
     let mut candidates = Vec::new();
     for block in func.blocks.indices().collect::<Vec<_>>() {
         let pairs = collect_pairs(func, block);
@@ -137,38 +145,39 @@ fn run_function(func: &mut Function, alias: &AliasAnalysis, target: &Target) -> 
             continue;
         }
         for run in chain_runs(&pairs) {
-            if let Some(candidate) = price_run(func, alias, block, &pairs, &run, &uses, target) {
+            let uses = uses.get_or_insert_with(|| use_counts(func));
+            if let Some(candidate) = price_run(func, alias, block, &pairs, &run, uses, target) {
                 candidates.push(candidate);
             }
         }
     }
-    let bounded = non_wrapping_calldata_runs(func, &candidates);
+    if candidates.is_empty() {
+        return false;
+    }
+    let exact = non_wrapping_calldata_runs(func, &candidates);
     let mut removed = FxHashMap::<BlockId, FxHashSet<InstId>>::default();
-    let mut changed = false;
     for candidate in candidates {
         // Memory addresses cannot wrap: a word at 2^256 - 32 or above runs out of gas.
-        if candidate.source == PtrLocation::Calldata
-            && !func.value_u256(candidate.src).is_some_and(|start| {
-                start.checked_add(U256::from(WORD * candidate.words as u64)).is_some()
-            })
-            && !bounded.contains(&candidate.store)
-        {
+        if candidate.source == PtrLocation::Calldata && !exact.contains(&candidate.store) {
             continue;
         }
+        let len = U256::from(WORD * candidate.words());
+        let len = func.alloc_value(Value::Immediate(Immediate::I256(len)));
         // calldatacopy d, s, 32 * n
         // mcopy d, s, 32 * n
-        let len = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(
-            WORD * candidate.words as u64,
-        ))));
         func.inst_mut(candidate.store).replace_kind(InstKind::Copy(
             candidate.dest,
             candidate.src,
             len,
             candidate.source,
         ));
+        for &dropped in &candidate.dropped {
+            let metadata = func.inst(dropped).metadata.clone();
+            func.inst_mut(candidate.store).metadata.merge_debug_context(&metadata);
+        }
         removed.entry(candidate.block).or_default().extend(candidate.dropped);
-        changed = true;
     }
+    let changed = !removed.is_empty();
     for (block, removed) in removed {
         func.blocks[block].instructions.retain(|inst| !removed.contains(inst));
     }
@@ -181,70 +190,85 @@ fn run_function(func: &mut Function, alias: &AliasAnalysis, target: &Target) -> 
 /// The first stores of the calldata runs whose last word's address cannot wrap.
 ///
 /// A source that can reach the top of the address space wraps in the loads and not in the copy.
-/// The copy is exact where `start + reach < start` is false at the first store, which a
-/// dominating guard shows directly, or as the run ending inside calldata. With
-/// `start = x + c`, that is `x <= calldatasize` and `calldatasize - x >= c + reach`, through the
-/// difference some check of the function already computes.
+/// The copy is exact for a constant source below it, or where `start + reach < start` is false
+/// at the first store, which a dominating guard shows directly or as the run ending inside
+/// calldata. With `start = x + c`, that is `x <= calldatasize` and
+/// `calldatasize - x >= c + reach`, through the difference some check of the function already
+/// computes.
 fn non_wrapping_calldata_runs(func: &mut Function, candidates: &[Candidate]) -> FxHashSet<InstId> {
-    let mark = func.allocation_mark();
+    let mut exact = FxHashSet::default();
+    let mut unproven = Vec::new();
+    for candidate in candidates.iter().filter(|c| c.source == PtrLocation::Calldata) {
+        match func.value_u256(candidate.src) {
+            Some(start) => {
+                if start.checked_add(U256::from(WORD * candidate.words())).is_some() {
+                    exact.insert(candidate.store);
+                }
+            }
+            None => unproven.push(candidate),
+        }
+    }
+    if unproven.is_empty() {
+        return exact;
+    }
     let size = func.instructions().find_map(|inst| {
         matches!(func.inst(inst).kind, InstKind::CalldataSize)
             .then(|| func.inst_result_value(inst))
             .flatten()
     });
+    // The difference `calldatasize - x` that a check of the function computes, for each `x`.
+    let mut rooms = FxHashMap::<ValueId, ValueId>::default();
+    if let Some(size) = size {
+        for inst in func.instructions() {
+            if let InstKind::Sub(minuend, x) = func.inst(inst).kind
+                && minuend == size
+                && let Some(room) = func.inst_result_value(inst)
+            {
+                rooms.entry(x).or_insert(room);
+            }
+        }
+    }
+    // The conditions belong to no block, so nothing refers to them past the query.
+    let mark = func.allocation_mark();
     let mut queries = Vec::new();
     let mut conditions = Vec::new();
-    for candidate in candidates {
-        if candidate.source != PtrLocation::Calldata || func.value_u256(candidate.src).is_some() {
-            continue;
-        }
-        let reach = WORD * (candidate.words as u64 - 1);
-        let reach_value = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(reach))));
-        let (_, end) = func.alloc_value_inst(Instruction::new(
-            InstKind::Add(candidate.src, reach_value),
-            Some(MirType::I256),
-        ));
-        let (_, wraps) = func.alloc_value_inst(Instruction::new(
-            InstKind::Lt(end, candidate.src),
-            Some(MirType::I1),
-        ));
+    for candidate in unproven {
+        let reach = U256::from(WORD * (candidate.words() - 1));
+        let reach_value = func.alloc_value(Value::Immediate(Immediate::I256(reach)));
+        // wraps = lt (add start, reach), start
+        let end = alloc_inst(func, InstKind::Add(candidate.src, reach_value), MirType::I256);
+        let wraps = alloc_inst(func, InstKind::Lt(end, candidate.src), MirType::I1);
         queries.push((candidate.store, wraps));
         let mut proofs = vec![wraps];
-        if let Some(size) = size {
-            let (x, constant) = split_constant(func, candidate.src);
-            let room = func.instructions().find_map(|inst| {
-                matches!(func.inst(inst).kind, InstKind::Sub(a, b) if a == size && b == x)
-                    .then(|| func.inst_result_value(inst))
-                    .flatten()
-            });
-            if let Some(room) = room {
-                let needed = func
-                    .alloc_value(Value::Immediate(Immediate::I256(U256::from(constant + reach))));
-                let (_, past) = func
-                    .alloc_value_inst(Instruction::new(InstKind::Gt(x, size), Some(MirType::I1)));
-                let (_, short) = func.alloc_value_inst(Instruction::new(
-                    InstKind::Lt(room, needed),
-                    Some(MirType::I1),
-                ));
-                let (_, outside) = func.alloc_value_inst(Instruction::new(
-                    InstKind::Or(past, short),
-                    Some(MirType::I1),
-                ));
-                queries.push((candidate.store, outside));
-                proofs.push(outside);
-            }
+        let (x, constant) = split_constant(func, candidate.src);
+        if let Some(size) = size
+            && let Some(&room) = rooms.get(&x)
+        {
+            let needed = U256::from(constant) + reach;
+            let needed = func.alloc_value(Value::Immediate(Immediate::I256(needed)));
+            // outside = or (gt x, calldatasize), (lt (sub calldatasize, x), c + reach)
+            let past = alloc_inst(func, InstKind::Gt(x, size), MirType::I1);
+            let short = alloc_inst(func, InstKind::Lt(room, needed), MirType::I1);
+            let outside = alloc_inst(func, InstKind::Or(past, short), MirType::I1);
+            queries.push((candidate.store, outside));
+            proofs.push(outside);
         }
         conditions.push((candidate.store, proofs));
     }
-    let refuted =
-        if queries.is_empty() { FxHashSet::default() } else { conditions_false(func, &queries) };
-    // The conditions belong to no block, so nothing refers to them past the query.
+    let refuted = conditions_false(func, &queries);
     func.truncate_to(mark);
-    conditions
-        .into_iter()
-        .filter(|(_, proofs)| proofs.iter().any(|proof| refuted.contains(proof)))
-        .map(|(store, _)| store)
-        .collect()
+    exact.extend(
+        conditions
+            .into_iter()
+            .filter(|(_, proofs)| proofs.iter().any(|proof| refuted.contains(proof)))
+            .map(|(store, _)| store),
+    );
+    exact
+}
+
+/// Allocates an instruction that no block holds, for a query to evaluate.
+fn alloc_inst(func: &mut Function, kind: InstKind, ty: MirType) -> ValueId {
+    func.alloc_value_inst(Instruction::new(kind, Some(ty))).1
 }
 
 /// Splits `value` into `x + c` for the largest run of constant addends `c`, or `value + 0`.
@@ -267,8 +291,6 @@ fn split_constant(func: &Function, mut value: ValueId) -> (ValueId, u64) {
 
 fn collect_pairs(func: &Function, block: BlockId) -> Vec<Pair> {
     let instructions = &func.blocks[block].instructions;
-    let positions: FxHashMap<InstId, usize> =
-        instructions.iter().enumerate().map(|(position, &inst)| (inst, position)).collect();
     let mut pairs = Vec::new();
     for (position, &inst) in instructions.iter().enumerate() {
         let InstKind::Store(dest, value, PtrLocation::Memory) = func.inst(inst).kind else {
@@ -288,12 +310,20 @@ fn collect_pairs(func: &Function, block: BlockId) -> Vec<Pair> {
         pairs.push(Pair {
             store: inst,
             position,
-            load: value,
-            load_position: positions.get(&load).copied(),
+            load,
+            value,
+            load_position: None,
             source,
             dest: Address { base: dest_base, offset: dest_offset, value: dest },
             src: Address { base: src_base, offset: src_offset, value: src },
         });
+    }
+    if pairs.len() >= 2 && pairs.iter().any(|pair| pair.source == PtrLocation::Memory) {
+        let positions: FxHashMap<InstId, usize> =
+            instructions.iter().enumerate().map(|(position, &inst)| (inst, position)).collect();
+        for pair in &mut pairs {
+            pair.load_position = positions.get(&pair.load).copied();
+        }
     }
     pairs
 }
@@ -335,23 +365,16 @@ fn price_run(
     if from_memory && !target.evm_version().has_mcopy() {
         return None;
     }
-    // Memory loads must sit in the block, so nothing writes the source between a load and the
-    // copy. Calldata loads may sit anywhere.
-    let first_load = if from_memory {
-        let positions = run.iter().map(|&index| pairs[index].load_position);
-        positions.collect::<Option<Vec<_>>>()?.into_iter().min()?
-    } else {
-        first.position
-    };
-    let start = first.position.min(first_load);
     // Only the run's own stores and loads and pure computations may sit between its first access
-    // and its last store.
+    // and its last store. Memory loads must sit in the block, so nothing writes the source
+    // between a load and the copy; calldata loads may sit anywhere.
     let mut own: FxHashSet<InstId> = run.iter().map(|&index| pairs[index].store).collect();
+    let mut start = first.position;
     if from_memory {
-        own.extend(run.iter().filter_map(|&index| {
-            let Value::Inst(load) = *func.value(pairs[index].load) else { return None };
-            Some(load)
-        }));
+        for &index in run {
+            start = start.min(pairs[index].load_position?);
+            own.insert(pairs[index].load);
+        }
     }
     let instructions = &func.blocks[block].instructions;
     if !instructions[start..=last.position].iter().all(|&inst| {
@@ -364,7 +387,7 @@ fn price_run(
     }) {
         return None;
     }
-    let shared = |index: &usize| uses.get(pairs[*index].load).copied().unwrap_or(0) > 1;
+    let shared = |index: &usize| uses.get(pairs[*index].value).copied().unwrap_or(0) > 1;
     let kept_loads = run.iter().filter(|&index| shared(index)).count();
     if from_memory {
         // A load that stays must not read after the copy has written.
@@ -373,18 +396,22 @@ fn price_run(
         }) {
             return None;
         }
-        let bytes = WORD * run.len() as u64;
+        // Word-by-word copying is `mcopy` when every load comes first, or when it goes forward.
         let loads_first = run
             .iter()
             .all(|&index| pairs[index].load_position.is_some_and(|at| at < first.position));
-        if !loads_first && !forward_copy_is_move(func, alias, first, bytes) {
+        let size = LocationSize::Const(WORD * run.len() as u64);
+        if !loads_first
+            && copy_direction_of(func, alias, first.dest.value, first.src.value, size)
+                != CopyDirection::Forward
+        {
             return None;
         }
     }
     if !target.bulk_word_copy_improves(
         run.len() as u32,
         kept_loads as u32,
-        !from_memory,
+        source,
         func.value_u64(first.dest.value),
         func.value_u64(first.src.value),
     ) {
@@ -395,25 +422,7 @@ fn price_run(
         store: first.store,
         dest: first.dest.value,
         src: first.src.value,
-        words: run.len(),
         source,
         dropped: run[1..].iter().map(|&index| pairs[index].store).collect(),
     })
-}
-
-/// Whether copying word by word, upward, gives the result of `mcopy`: the ranges are disjoint,
-/// or the destination starts at or below the source, so no store reaches a word still to load.
-fn forward_copy_is_move(func: &Function, alias: &AliasAnalysis, first: &Pair, bytes: u64) -> bool {
-    if first.dest.base == first.src.base {
-        let (dest, src) = (first.dest.offset, first.src.offset);
-        return dest <= src || dest >= src.saturating_add(bytes);
-    }
-    let size = LocationSize::Const(bytes);
-    let (Some(dest), Some(src)) = (
-        alias.bare_memory_location(func, first.dest.value, size),
-        alias.bare_memory_location(func, first.src.value, size),
-    ) else {
-        return false;
-    };
-    alias.memory_alias(dest, src) == AliasResult::NoAlias
 }

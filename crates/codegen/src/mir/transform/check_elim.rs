@@ -943,7 +943,9 @@ impl<'a> CheckEliminator<'a> {
                     }
 
                     for &id in &func.blocks[block].instructions {
-                        if let Some(conditions) = self.queries.get(&id).cloned() {
+                        if !self.queries.is_empty()
+                            && let Some(conditions) = self.queries.get(&id).cloned()
+                        {
                             for condition in conditions {
                                 if self.eval_truth(func, condition, MAX_DEPTH) == Some(false) {
                                     self.refuted.insert(condition);
@@ -1742,10 +1744,11 @@ impl<'a> CheckEliminator<'a> {
         match relation {
             Relation::Lt(sum, limit) => self.sum_stays_below(func, sum, Some(limit), true),
             // `a <= a + b` needs only that the sum cannot wrap.
-            Relation::Le(base, sum) if matches!(inst_kind(func, sum), Some(&InstKind::Add(x, y)) if x == base || y == base) => {
-                self.sum_stays_below(func, sum, None, true)
+            Relation::Le(base, sum) => {
+                matches!(inst_kind(func, sum), Some(&InstKind::Add(x, y)) if x == base || y == base)
+                    && self.sum_stays_below(func, sum, None, true)
             }
-            Relation::Le(..) | Relation::Eq(..) | Relation::Ne(..) => false,
+            Relation::Eq(..) | Relation::Ne(..) => false,
         }
     }
 

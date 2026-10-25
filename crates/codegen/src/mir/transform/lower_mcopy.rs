@@ -47,7 +47,10 @@ use crate::{
     mir::{
         BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction, MirType,
         Module, PtrLocation, Value, ValueId,
-        analysis::{AliasAnalysis, AliasResult, CallGraphInfo, MemoryBase, MemoryCallSummaries},
+        analysis::{
+            AliasAnalysis, AliasResult, CallGraphInfo, LocationSize, MemoryBase,
+            MemoryCallSummaries,
+        },
         memory::EvmMemoryLayout,
         pass::MirPass,
         transform::utils::redirect_successor_predecessors,
@@ -331,7 +334,7 @@ fn helper_owned_base(base: MemoryBase) -> bool {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum CopyDirection {
+pub(super) enum CopyDirection {
     Forward,
     Reverse,
     Dynamic,
@@ -349,7 +352,17 @@ fn copy_direction(
         return CopyDirection::Forward;
     }
     let Some(alias) = alias else { return CopyDirection::Dynamic };
-    let size = alias.location_size(func, len);
+    copy_direction_of(func, alias, dest, src, alias.location_size(func, len))
+}
+
+/// Selects the direction of a copy of `size` bytes from pointer provenance when possible.
+pub(super) fn copy_direction_of(
+    func: &Function,
+    alias: &AliasAnalysis,
+    dest: ValueId,
+    src: ValueId,
+    size: LocationSize,
+) -> CopyDirection {
     let Some(dest_location) = alias.bare_memory_location(func, dest, size) else {
         return CopyDirection::Dynamic;
     };

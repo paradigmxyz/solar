@@ -18,7 +18,9 @@
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
-    mir::{BlockId, Function, Op, Terminator, Value, ValueId, memory::EvmMemoryLayout},
+    mir::{
+        BlockId, Function, Op, PtrLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -899,6 +901,7 @@ impl Target {
         let guarded = Cost::new(guard.gas + copy.gas, guard.bytes + copy.bytes + looped.bytes);
         self.cmp(guarded, looped).is_lt()
     }
+
     /// Whether one bulk copy of `words` adjacent words, `CALLDATACOPY` from calldata or `MCOPY`
     /// from memory, improves on a load and a store for each word. `kept_loads` of the loads have
     /// other users and stay, so only their stores go, and the value and address each store reads
@@ -909,14 +912,13 @@ impl Target {
         &self,
         words: u32,
         kept_loads: u32,
-        from_calldata: bool,
+        source: PtrLocation,
         dest: Option<u64>,
         src: Option<u64>,
     ) -> bool {
-        let (load, copy) = if from_calldata {
-            (op::CALLDATALOAD, op::CALLDATACOPY)
-        } else {
-            (op::MLOAD, op::MCOPY)
+        let (load, copy) = match source {
+            PtrLocation::Calldata => (op::CALLDATALOAD, op::CALLDATACOPY),
+            _ => (op::MLOAD, op::MCOPY),
         };
         let address = |first: Option<u64>, word: u32| match first {
             Some(first) => self.push(U256::from(first + u64::from(word) * 32)),
@@ -1101,7 +1103,7 @@ impl Target {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, Immediate, InstKind, Instruction, MirType, PtrLocation, Value};
+    use crate::mir::{Function, Immediate, InstKind, Instruction, MirType, Value};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -1495,17 +1497,17 @@ mod tests {
         let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         // Two words at computed addresses take a load, a store and an offset for each; the
         // copy needs its length, one source and one destination.
-        assert!(size.bulk_word_copy_improves(2, 0, true, None, None));
-        assert!(size.bulk_word_copy_improves(2, 0, false, None, None));
-        assert!(gas.bulk_word_copy_improves(2, 0, true, None, None));
+        assert!(size.bulk_word_copy_improves(2, 0, PtrLocation::Calldata, None, None));
+        assert!(size.bulk_word_copy_improves(2, 0, PtrLocation::Memory, None, None));
+        assert!(gas.bulk_word_copy_improves(2, 0, PtrLocation::Calldata, None, None));
         // At constant addresses a load and a store cost a push each, the same bytes as the copy.
-        assert!(!size.bulk_word_copy_improves(2, 2, true, Some(32), Some(4)));
+        assert!(!size.bulk_word_copy_improves(2, 2, PtrLocation::Calldata, Some(32), Some(4)));
         // Words already loaded and left on the stack leave only their stores to remove, and the
         // copy pays a stack move for them.
-        assert!(!size.bulk_word_copy_improves(2, 2, true, None, None));
-        assert!(size.bulk_word_copy_improves(3, 3, true, None, None));
+        assert!(!size.bulk_word_copy_improves(2, 2, PtrLocation::Calldata, None, None));
+        assert!(size.bulk_word_copy_improves(3, 3, PtrLocation::Calldata, None, None));
         // The copy's word gas never outweighs a load and a store of each word.
-        assert!(gas.bulk_word_copy_improves(16, 0, true, Some(0x80), Some(4)));
+        assert!(gas.bulk_word_copy_improves(16, 0, PtrLocation::Calldata, Some(0x80), Some(4)));
     }
 
     #[test]
