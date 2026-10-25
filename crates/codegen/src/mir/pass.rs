@@ -281,7 +281,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Late CSE reduces runtime gas after ABI encoding lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly::new(cse::Cse),
-    // Fold checks exposed by forwarding the stored values.
+    // Fold checks exposed by forwarding in late CSE.
     &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
     &lower_dispatch::LowerDispatch,
