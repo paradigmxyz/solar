@@ -152,101 +152,55 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
 
 fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
   bb0:
-    v80 = icall @alloc, 96
-    v84 = calldatasize
-    calldatacopy v80, v84, 96
-    mstore v80, 64
-    v4 = add v80, 32
+    v53 = icall @alloc, 96
+    v57 = calldatasize
+    calldatacopy v53, v57, 96
+    mstore v53, 64
+    v4 = add v53, 32
     mstore v4, 0x1111111111111111111111111111111111111111111111111111111111111111
-    v6 = add v80, 64
+    v6 = add v53, 64
     mstore v6, 0x2222222222222222222222222222222222222222222222222222222222222222
     mstore 64, v4
-    v15 = mload v80
-    v20 = add v15, 63
-    v21 = lt v20, v15
-    jumpi v21, bb1, bb2
+    v54 = mload 64
+    v55 = add v54, 96
+    mstore 64, v55
+    mstore v54, 64
+    v35 = add v54, 32
+    v40 = lt v4, v35
+    jumpi v40, bb3, bb2
   bb2:
-    v23 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v81 = mload 64
-    v82 = add v81, v23
-    mstore 64, v82
-    mstore v81, v15
-    v35 = add v81, 32
-    v40 = eq v15, 0
-    jumpi v40, bb3, bb4
+    jump bb4
   bb4:
-    v42 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v43 = lt v4, v35
-    jumpi v43, bb6, bb5
+    v41 = phi [bb2: 0], [bb5: v46]
+    v42 = lt v41, 64
+    jumpi v42, bb5, bb1
   bb5:
-    jump bb7
-  bb7:
-    v44 = phi [bb5: 0], [bb8: v49]
-    v45 = lt v44, v42
-    jumpi v45, bb8, bb9
-  bb9:
-    v50 = lt v42, v15
-    jumpi v50, bb10, bb3
-  bb10:
-    v51 = and v15, 31
-    v52 = sub 32, v51
-    v53 = shl v52, 3
-    v54 = add v4, v42
-    v55 = mload v54
-    v56 = add v35, v42
-    v57 = mload v56
-    v58 = xor v55, v57
-    v59 = shr v58, v53
-    v60 = shl v59, v53
-    v61 = xor v57, v60
-    mstore v56, v61
-    jump bb3
-  bb8:
-    v46 = add v4, v44
-    v47 = mload v46
-    v48 = add v35, v44
-    mstore v48, v47
-    v49 = add v44, 32
-    jump bb7
-  bb6:
-    v62 = lt v42, v15
-    jumpi v62, bb14, bb13
-  bb13:
-    jump bb11
-  bb14:
-    v63 = and v15, 31
-    v64 = sub 32, v63
-    v65 = shl v64, 3
-    v66 = add v4, v42
-    v67 = mload v66
-    v68 = add v35, v42
-    v69 = mload v68
-    v70 = xor v67, v69
-    v71 = shr v70, v65
-    v72 = shl v71, v65
-    v73 = xor v69, v72
-    mstore v68, v73
-    jump bb11
-  bb11:
-    v74 = phi [bb13: v42], [bb14: v42], [bb12: v76]
-    v75 = eq v74, 0
-    jumpi v75, bb3, bb12
-  bb12:
-    v76 = sub v74, 32
-    v77 = add v4, v76
-    v78 = mload v77
-    v79 = add v35, v76
-    mstore v79, v78
-    jump bb11
+    v43 = add v4, v41
+    v44 = mload v43
+    v45 = add v35, v41
+    mstore v45, v44
+    v46 = add v41, 32
+    jump bb4
   bb3:
-    v11 = add v81, 64
+    jump bb6
+  bb6:
+    v47 = phi [bb3: 64], [bb7: v49]
+    v48 = eq v47, 0
+    jumpi v48, bb1, bb7
+  bb7:
+    v49 = sub v47, 32
+    v50 = add v4, v49
+    v51 = mload v50
+    v52 = add v35, v49
+    mstore v52, v51
+    jump bb6
+  bb1:
+    v11 = add v54, 64
     v12 = mload v11
     v13 = eq v12, 0x2222222222222222222222222222222222222222222222222222222222222222
     v30 = zext i1 v13 to i256
-    mstore 0, v30
+    mstore 0, v30 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
-    tail_call @revert_stub
 }
 
 fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {

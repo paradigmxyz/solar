@@ -64,76 +64,46 @@ bb7:
   push 64
   mload
   push 128
-  dup 2
   add
   push 64
   mstore
-  calldatasize
-  push 128
-  swap 2
-  calldatacopy
-  push 256
   push 1
-  dup 3
+  dup 2
   add
   dup 1
   iszero
   push bb10
   jumpi
   push 2
-  dup 4
+  dup 3
   add
-  dup 4
+  dup 3
   dup 2
   lt
   push 3
-  dup 6
+  dup 5
   add
   swap 1
-  dup 6
+  dup 5
   dup 3
   lt
   or
   push 4
-  dup 7
+  dup 6
   add
-  swap 6
-  dup 7
+  swap 5
+  dup 6
   lt
   or
   push bb10
   jumpi
-  dup 3
-  dup 5
-  mstore
-  push 32
-  dup 5
-  add
   swap 2
-  dup 3
-  mstore
-  push 64
-  dup 5
-  add
-  swap 1
-  dup 2
-  mstore
-  swap 3
-  push 96
-  add
-  swap 4
-  dup 5
-  mstore
-  swap 1
   push 128
   mstore
-  mload
   push 160
   mstore
-  mload
   push 192
   mstore
-  mload
   push 224
   mstore
   push 128
