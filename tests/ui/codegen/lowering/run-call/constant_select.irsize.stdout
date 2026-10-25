@@ -356,37 +356,34 @@ bb24:
   push 32
   push 0
   keccak256
+  swap 2
   swap 3
   swap 4
   pop
-  swap 1
   jump bb25
 bb25 [loop]:
   dup 4
-  dup 3
+  dup 2
   lt
   push bb27
   jumpi
+  swap 2
   jump bb26
 bb27 [loop]:
+  dup 1
   dup 3
+  add
   sload
-  dup 3
+  dup 2
   push 5
   shl
-  dup 3
+  dup 5
   add
   push 32
   add
   mstore
-  swap 1
   push 1
   add
-  swap 2
-  push 1
-  add
-  swap 2
-  swap 1
   jump bb25
 bb31:
   push 36
