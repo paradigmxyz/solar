@@ -5,8 +5,7 @@
 //! non-fallthrough jumps with the target's complete terminal body when its encoded size fits the
 //! transfer budget. Gas mode budgets a `PUSH1` and `JUMP`; size mode budgets the target's label
 //! push and `JUMP`. A destination address is a label, never the `PUSH0` that a zero immediate
-//! would use. Pricing it as `PUSH0` undercounted the transfer and skipped tails of three or four
-//! bytes; across the benchmark corpus the label price shrank runtime code by 1,126 bytes, with 244
+//! would use. Across the benchmark corpus this price shrank runtime code by 1,126 bytes, with 244
 //! contracts smaller and 3 larger by 21. The target remains available to other callers; ordinary
 //! CFG cleanup removes it only when no references remain.
 //!
