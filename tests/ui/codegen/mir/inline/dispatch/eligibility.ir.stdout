@@ -171,6 +171,10 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v50 = add v2, 64
     returndata v58, v50
   bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
     revert 0, 0
 }
 

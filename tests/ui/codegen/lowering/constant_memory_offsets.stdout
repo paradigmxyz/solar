@@ -48,7 +48,10 @@ bb6:
   dup 2
   lt
   swap 1
-  push 0xffffffffffffffff
+  push 0
+  not
+  push 192
+  shr
   lt
   or
   push bb8

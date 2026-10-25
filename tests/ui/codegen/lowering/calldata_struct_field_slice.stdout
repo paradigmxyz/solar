@@ -19,59 +19,43 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     v6 = gt v3, v5
     v7 = sub v1, v4
     v8 = lt v7, 256
-    v61 = or v6, v8
+    v51 = or v6, v8
     v18 = add v4, 64
     v19 = calldatasize
     v20 = sub v19, v18
     v21 = slt v20, 32
-    v62 = or v61, v21
-    jumpi v62, bb1, bb4
+    v52 = or v51, v21
+    jumpi v52, bb1, bb4
   bb4:
-    v26 = calldataload v18
-    v28 = calldatasize
-    v29 = sub v28, v4
-    v30 = sub v29, 31
-    v31 = slt v26, v30
-    jumpi v31, bb5, bb1
+    v35 = calldataload v18
+    v36 = add v4, v35
+    v37 = calldatasize
+    v38 = sub v37, v4
+    v39 = sub v38, 31
+    v40 = slt v35, v39
+    jumpi v40, bb5, bb1
   bb5:
-    v27 = add v4, v26
-    v32 = calldataload v27
-    v33 = calldatasize
-    v34 = shr v32, 64
-    v36 = add v27, 32
-    v37 = sub v33, v32
-    v38 = sgt v36, v37
-    v63 = zext i1 v38 to i256
-    v64 = or v34, v63
-    v65 = ne v64, 0
-    jumpi v65, bb1, bb6
+    v41 = calldataload v36
+    v42 = calldatasize
+    v43 = shr v41, 64
+    v45 = add v36, 32
+    v46 = sub v42, v41
+    v47 = sgt v45, v46
+    v53 = zext i1 v47 to i256
+    v54 = or v43, v53
+    v55 = ne v54, 0
+    jumpi v55, bb1, bb6
   bb6:
-    v40 = lt v32, 20
-    jumpi v40, bb3, bb2
+    v49 = lt v41, 20
+    jumpi v49, bb3, bb2
   bb2:
-    v22 = calldatasize
-    v23 = sub v22, v18
-    v24 = slt v23, 32
-    jumpi v24, bb1, bb7
-  bb7:
-    v41 = calldatasize
-    v42 = sub v41, v4
-    v43 = sub v42, 31
-    v44 = slt v26, v43
-    jumpi v44, bb8, bb1
-  bb8:
-    v45 = calldatasize
-    v46 = sub v45, v32
-    v47 = sgt v36, v46
-    jumpi v47, bb1, bb9
-  bb9:
-    v52 = calldataload v36
-    v58 = and v52, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v59 = shr v58, 96
+    v26 = calldataload v45
+    v32 = and v26, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    v33 = shr v32, 96
     jump bb3
   bb3:
-    v25 = phi [bb6: 0], [bb9: v59]
-    mstore 0, v25
+    v34 = phi [bb6: 0], [bb2: v33]
+    mstore 0, v34
     returndata 0, 32
   bb1:
     revert 0, 0
@@ -86,40 +70,42 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v6 = gt v3, v5
     v7 = sub v1, v4
     v8 = lt v7, 256
-    v66 = or v6, v8
+    v56 = or v6, v8
     v17 = add v4, 64
     v18 = calldatasize
     v19 = sub v18, v17
     v20 = slt v19, 32
-    v67 = or v66, v20
-    jumpi v67, bb1, bb4
+    v57 = or v56, v20
+    jumpi v57, bb1, bb4
   bb4:
-    v25 = calldataload v17
-    v27 = calldatasize
-    v28 = sub v27, v4
-    v29 = sub v28, 31
-    v30 = slt v25, v29
-    jumpi v30, bb5, bb1
+    v29 = calldataload v17
+    v30 = add v4, v29
+    v31 = calldatasize
+    v32 = sub v31, v4
+    v33 = sub v32, 31
+    v34 = slt v29, v33
+    jumpi v34, bb5, bb1
   bb5:
-    v26 = add v4, v25
-    v31 = calldataload v26
-    v32 = calldatasize
-    v33 = shr v31, 64
-    v35 = add v26, 32
-    v36 = sub v32, v31
-    v37 = sgt v35, v36
-    v68 = zext i1 v37 to i256
-    v69 = or v33, v68
-    v70 = ne v69, 0
-    jumpi v70, bb1, bb6
+    v35 = calldataload v30
+    v36 = calldatasize
+    v37 = shr v35, 64
+    v39 = add v30, 32
+    v40 = sub v36, v35
+    v41 = sgt v39, v40
+    v58 = zext i1 v41 to i256
+    v59 = or v37, v58
+    v60 = ne v59, 0
+    jumpi v60, bb1, bb6
   bb6:
-    v39 = lt v31, 20
-    jumpi v39, bb3, bb2
+    v43 = lt v35, 20
+    jumpi v43, bb3, bb2
   bb2:
-    v21 = calldatasize
-    v22 = sub v21, v17
-    v23 = slt v22, 32
-    jumpi v23, bb1, bb7
+    v21 = sub v35, 20
+    v23 = add v39, 20
+    v25 = calldatasize
+    v44 = sub v25, v21
+    v46 = sgt v23, v44
+    jumpi v46, bb1, bb7
   bb7:
     v47 = add v21, 63
     v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -132,8 +118,8 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v54 = keccak256 v53, v21
     jump bb3
   bb3:
-    v24 = phi [bb6: 0], [bb9: v64]
-    mstore 0, v24
+    v28 = phi [bb6: 0], [bb7: v54]
+    mstore 0, v28
     returndata 0, 32
   bb1:
     revert 0, 0

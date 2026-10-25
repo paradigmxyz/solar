@@ -61,50 +61,37 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
 fn @loadThenAllocate() [selector=0xf84b9425, abi_wrapper, view] {
   bb0:
     v0 = icall @_copy, 1
-    v51 = mload 64 !metadata(memory=scratch)
-    v52 = add v51, 64
-    v53 = lt v52, v51
-    v54 = gt v52, 0xffffffffffffffff
-    v55 = or v53, v54
-    jumpi v55, bb2, bb1
-  bb1:
-    mstore 64, v52 !metadata(memory=scratch)
-    v58 = calldatasize
-    calldatacopy v51, v58, 64
-    mstore v51, 3
-    v44 = add v51, 32
-    mstore8 v44, 1
-    v57 = mload 64 !metadata(memory=scratch)
-    v16 = add v57, 64
-    mstore v57, 64
-    v19 = mload v0
-    v21 = add v19, 31
-    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v23 = add v16, 32
-    v24 = add v16, v22
-    mstore v24, 0
-    mstore v16, v19
-    v46 = add v0, 32
-    v26 = add v23, v22
-    mcopy v23, v46, v19 !metadata(memory=heap, disjoint)
-    v30 = sub v26, v57
-    v28 = add v57, 32
-    mstore v28, v30
-    v31 = mload v51
-    v33 = add v31, 31
-    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v35 = add v26, 32
-    v36 = add v26, v34
-    mstore v36, 0
-    mstore v26, v31
-    v38 = add v35, v34
-    mcopy v35, v44, v31 !metadata(disjoint)
-    v40 = sub v38, v57
-    returndata v57, v40
-  bb2:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
+    v1 = mload 64 !metadata(memory=scratch)
+    mstore v1, 3
+    v3 = add v1, 32
+    mstore v3, 0x100000000000000000000000000000000000000000000000000000000000000
+    v4 = add v1, 64
+    v13 = add v1, 128
+    mstore v4, 64
+    v16 = mload v0
+    v18 = add v16, 31
+    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = add v13, 32
+    v21 = add v13, v19
+    mstore v21, 0
+    mstore v13, v16
+    v41 = add v0, 32
+    v23 = add v20, v19
+    mcopy v20, v41, v16 !metadata(memory=heap, disjoint)
+    v27 = sub v23, v4
+    v25 = add v1, 96
+    mstore v25, v27
+    v28 = mload v1
+    v30 = add v28, 31
+    v31 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v32 = add v23, 32
+    v33 = add v23, v31
+    mstore v33, 0
+    mstore v23, v28
+    v35 = add v32, v31
+    mcopy v32, v3, v28 !metadata(disjoint)
+    v37 = sub v35, v4
+    returndata v4, v37
 }
 
 fn @loadScaled() [selector=0x69d1875c, abi_wrapper, view] {

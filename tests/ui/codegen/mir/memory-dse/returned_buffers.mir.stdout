@@ -18,20 +18,17 @@ fn @load() -> ptr<memory> [selector=0x86d5c4be, view, abi_params=[], abi_returns
 fn @loadThenAllocate() -> struct0 [selector=0xf84b9425, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = icall @_copy, 1
-    v1 = not 31
-    v2 = and 66, v1
-    v3 = alloc zeroed checked v2
-    mstore v3, 3
-    v4 = mload v3
-    v5 = lt 0, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v8 = ptradd v3, 32
-    mstore8 v8, v7
-    v9 = insert_value struct0, undef struct0, 0, v0
-    v10 = insert_value struct0, v9, 1, v3
-    ret v10
+    v1 = mload 64 !metadata(memory=scratch)
+    mstore v1, 3
+    v2 = shl 1, 248
+    v3 = add v1, 32
+    mstore v3, v2
+    v4 = add v1, 64
+    mstore 64, v4 !metadata(memory=scratch)
+    v5 = inttoptr i256 v1 to ptr<memory>
+    v6 = insert_value struct0, undef struct0, 0, v0
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }
 
 fn @loadScaled(arg0: i256) -> ptr<memory> [selector=0x69d1875c, view, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
