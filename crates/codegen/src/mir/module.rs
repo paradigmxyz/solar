@@ -115,6 +115,9 @@ pub struct Module {
     pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
+    /// Whether the last full `lowered` check still describes this module: no change since
+    /// `advance_phase` passed it.
+    pub(super) lowered_checked: bool,
 }
 
 impl Module {
@@ -176,6 +179,7 @@ impl Module {
             is_library: false,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
+            lowered_checked: false,
         }
     }
 
@@ -205,13 +209,23 @@ impl Module {
         assert!(phase >= self.phase, "MIR phase cannot regress");
         crate::mir::analysis::validate_phase(dcx, self, phase)?;
         self.phase = phase;
+        self.lowered_checked = phase == MirPhase::Lowered;
         Ok(())
     }
 
+    /// Records that the module changed since its last full `lowered` check.
+    pub(crate) fn invalidate_lowered_check(&mut self) {
+        self.lowered_checked = false;
+    }
+
     /// Checks backend legality and borrows the module without permitting further rewrites.
+    ///
+    /// Skips the check when `advance_phase` passed it and nothing changed the module since,
+    /// unless `recheck` is set.
     pub(crate) fn as_lowered(
         &self,
         dcx: &solar_interface::diagnostics::DiagCtxt,
+        recheck: bool,
     ) -> solar_interface::Result<LoweredModule<'_>> {
         if self.phase != MirPhase::Lowered {
             return Err(dcx
@@ -222,7 +236,9 @@ impl Module {
                 .span(self.name.span)
                 .emit());
         }
-        crate::mir::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
+        if recheck || !self.lowered_checked {
+            crate::mir::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
+        }
         Ok(LoweredModule(self))
     }
 

@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     link::{CodeKind, LibraryTable},
-    mir::{MirPhase, analysis::cold_functions},
+    mir::{MirPhase, analysis::cold_functions, pass_manager::should_validate_ir},
 };
 use alloy_primitives::Bytes;
 use solar_interface::Symbol;
@@ -47,18 +47,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Late CFG passes can leave critical edges whose phi inputs would
         // replace values still live on a sibling edge, so give each such edge
         // its own block.
+        let mut changed = false;
         for func in &mut module.functions {
-            Self::split_phi_critical_edges(func);
+            changed |= Self::split_phi_critical_edges(func);
         }
         if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             for func in &mut module.functions {
-                func.canonicalize_argument_uses();
+                changed |= func.canonicalize_argument_uses() != 0;
                 if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
-                    func.canonicalize_immediate_uses();
+                    changed |= func.canonicalize_immediate_uses() != 0;
                 }
             }
         }
-        let Ok(lowered) = module.as_lowered(self.gcx.dcx()) else {
+        if changed {
+            module.invalidate_lowered_check();
+        }
+        let Ok(lowered) = module.as_lowered(self.gcx.dcx(), should_validate_ir(self.gcx)) else {
             return false;
         };
         let module = &*lowered;

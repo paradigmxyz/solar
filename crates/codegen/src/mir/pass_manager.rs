@@ -176,8 +176,12 @@ pub(crate) fn run_passes_inner(
                 false
             } else {
                 analyses.begin_pass(gcx.sess.opts.optimization.is_gas());
+                // A pass that changes the module outdates the check, unless the pass itself
+                // advanced the phase after its last change.
+                let lowered_checked = std::mem::take(&mut module.lowered_checked);
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
+                module.lowered_checked |= lowered_checked && !pass_changed;
                 analyses.finish_pass(pass_changed);
                 pass_changed
             };
