@@ -53,17 +53,6 @@ fn @external_call_at_pointer(arg0: i256) {
     revert v0, 32
 }
 
-// Assembly that reads through a variable address may read the free-memory pointer's slot.
-// CHECK:   fn @variable_address_read{{.*}}
-// CHECK-NOT: + {{.*}}fmp
-fn @variable_address_read(arg0: i256, arg1: i256) {
-  bb0:
-    v0 = alloc arg0
-    v1 = mload arg1
-    mstore v0, v1
-    revert v0, 32
-}
-
 // Assembly that writes an absolute address can overwrite the region.
 // CHECK:   fn @assembly_writes_absolute{{.*}}
 // CHECK-NOT: + {{.*}}fmp
@@ -297,6 +286,5 @@ fn @loop_carried(arg0: i256) -> i256 {
     v2 = ptrtoint ptr<memory> v0 to i256
     jumpi true, bb1, bb2
   bb2:
-    v4 = mload v3
-    ret v4
+    ret v3
 }

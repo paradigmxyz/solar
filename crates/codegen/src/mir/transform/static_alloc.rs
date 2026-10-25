@@ -51,15 +51,18 @@
 //! first rule covers it, and the second covers assembly writing absolute addresses.
 //!
 //! Assembly can see a missing bump anywhere in the contract, as `mload(0x40)` before and after a
-//! call that allocates, and the test suite pins such deltas. So one read of a constant range that
-//! covers slot 64, in any function of the module, keeps every bump. Allocations marked as
-//! source-visible FMP advances and those that static placement takes are left alone. `msize` and
-//! reads through variable addresses or sizes outside the lifetime are not tracked.
+//! call that allocates, and the test suite pins such deltas. So one read that may cover slot 64,
+//! in any function of the module, keeps every bump. A read counts unless its address is at or above
+//! the heap start by `AliasAnalysis`'s heap-pointer assumption, so a variable address or size
+//! counts too. The exception is the bubbled revert data of a failed call, which a copy has just
+//! overwritten. A partial constant write of the slot counts as well. Allocations marked as
+//! source-visible FMP advances and those that static placement takes are left alone. `msize` is
+//! not tracked.
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, ArgIdx, BlockId, Callee,
-    Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module, PtrLocation,
-    Terminator, ValueId,
+    EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module,
+    PtrLocation, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, Location, MemoryBase,
         MemoryCallSummaries,
@@ -746,15 +749,12 @@ impl UnreservedAnalysis<'_> {
     }
 }
 
-/// Whether the function reads a constant, sized range that overlaps the free-memory pointer's slot,
-/// the way assembly reads the pointer, or patches part of it. A write of the whole word does not
-/// count: the entry's initialization writes it, and it ignores the old pointer.
+/// Whether the function may read the free-memory pointer's slot the way assembly does, or patch
+/// part of it. A read counts unless its address is at or above the heap start by the established
+/// heap-pointer assumption; a constant range that misses the slot, or an unsized one, does not
+/// escape that rule. A write of the whole word does not count: the entry's initialization writes
+/// it, and it ignores the old pointer.
 fn accesses_fmp_slot(func: &Function) -> bool {
-    let overlaps = |address, size: Option<u64>| {
-        func.value_u64(address).is_some()
-            && size.is_some()
-            && AliasAnalysis::range_may_overlap_fmp(func, address, size)
-    };
     func.instructions().any(|inst| {
         let mut hit = false;
         func.inst(inst).kind.visit_raw_memory(|access, address, size| {
@@ -762,18 +762,56 @@ fn accesses_fmp_slot(func: &Function) -> bool {
                 RawMemorySize::Bytes(len) => Some(len),
                 RawMemorySize::Value(size) => func.value_u64(size),
             };
-            let whole_word = func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                && len == Some(EvmMemoryLayout::WORD_SIZE);
-            hit |= overlaps(address, len) && (access == RawMemoryAccess::Read || !whole_word);
+            hit |= match access {
+                RawMemoryAccess::Read => AliasAnalysis::range_may_overlap_fmp(func, address, len),
+                // A patch has constant bounds; a whole-word write ignores the old pointer.
+                RawMemoryAccess::Write | RawMemoryAccess::PartialWrite => {
+                    func.value_u64(address).is_some()
+                        && len.is_some()
+                        && AliasAnalysis::range_may_overlap_fmp(func, address, len)
+                        && !(func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                            && len == Some(EvmMemoryLayout::WORD_SIZE))
+                }
+            };
         });
         hit
     }) || func.blocks.iter().any(|block| {
         matches!(
             block.terminator,
             Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size })
-                if overlaps(offset, func.value_u64(size))
+                if AliasAnalysis::range_may_overlap_fmp(func, offset, func.value_u64(size))
+                    && !reads_copied_returndata(func, &block.instructions, offset, size)
         )
     })
+}
+
+/// Whether a terminator reads exactly the returndata that a copy at the same constant address
+/// wrote, as a failed call does when it bubbles up its revert data: `returndatacopy 0, 0, n;
+/// revert 0, n` with both sizes `returndatasize`. Nothing between the copy and the terminator may
+/// write memory or call out.
+fn reads_copied_returndata(
+    func: &Function,
+    instructions: &[InstId],
+    offset: ValueId,
+    size: ValueId,
+) -> bool {
+    let is_returndata_size = |value| matches!(func.value(value), Value::Inst(inst) if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize));
+    if func.value_u64(offset).is_none() || !is_returndata_size(size) {
+        return false;
+    }
+    for &inst in instructions.iter().rev() {
+        match func.inst(inst).kind {
+            InstKind::Copy(dest, _, copy_size, PtrLocation::Returndata) => {
+                return func.value_u64(dest) == func.value_u64(offset)
+                    && is_returndata_size(copy_size);
+            }
+            ref kind
+                if matches!(kind.effect_kind(), EffectKind::Pure | EffectKind::EnvironmentRead) => {
+            }
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// Whether a write of `len` bytes at `address` stays inside the scratch words below the

@@ -78,17 +78,35 @@ fn @alloc_after_use(arg0: i256) {
 // CHECK:   fn @pure_callee{{.*}}
 // CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc 64
 // CHECK-NEXT: + {{.*}}[[PTR]] = fmp
-fn @pure_callee() -> i256 {
+fn @pure_callee() {
   bb0:
     v0 = alloc 64
     v1 = ptrtoint ptr<memory> v0 to i256
     mstore v1, 7
-    v2 = icall @reads, v1
-    ret v2
+    icall @writes, v1
+    ret
 }
 
-fn @reads(arg0: i256) -> i256 {
+fn @writes(arg0: i256) {
   bb0:
-    v0 = mload arg0
-    ret v0
+    mstore arg0, 7
+    ret
+}
+
+// The bubbled revert data of a failed call reads what the copy just wrote, not the pointer.
+// CHECK:   fn @bubbled_revert{{.*}}
+// CHECK: - {{.*}}[[PTR:v[0-9]+]] = alloc arg0
+// CHECK-NEXT: + {{.*}}[[PTR]] = fmp
+fn @bubbled_revert(arg0: i256, arg1: i1) {
+  bb0:
+    v0 = alloc arg0
+    mstore v0, 1
+    jumpi arg1, bb1, bb2
+  bb1:
+    v1 = returndatasize
+    returndatacopy 0, 0, v1
+    v2 = returndatasize
+    revert 0, v2
+  bb2:
+    revert v0, 32
 }

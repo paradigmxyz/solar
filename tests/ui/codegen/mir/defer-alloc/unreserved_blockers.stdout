@@ -36,14 +36,6 @@
       revert v0, 32
   }
   
-  fn @variable_address_read(arg0: i256, arg1: i256) {
-    bb0:
-      v0 = alloc arg0
-      v1 = mload arg1
-      mstore v0, v1
-      revert v0, 32
-  }
-  
   fn @assembly_writes_absolute(arg0: i256) {
     bb0:
       v0 = alloc arg0
@@ -221,7 +213,6 @@
       v2 = ptrtoint ptr<memory> v1 to i256
       jumpi true, bb1, bb2
     bb2:
-      v3 = mload v0
-      ret v3
+      ret v0
   }
   
