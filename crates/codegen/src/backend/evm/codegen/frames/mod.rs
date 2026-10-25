@@ -1036,9 +1036,46 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         let HeapPrefixOffsets { arguments, returns, projections } = &mut offsets;
+        let calls = module
+            .functions
+            .iter()
+            .map(|func| {
+                let tail_calls = func.blocks.iter().filter_map(|block| {
+                    if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                        Some((*function, &args[..]))
+                    } else {
+                        None
+                    }
+                });
+                func.instructions()
+                    .filter_map(|inst_id| {
+                        if let InstKind::ICall { function: Callee::Function(function), args } =
+                            &func.inst(inst_id).kind
+                        {
+                            Some((*function, &args[..]))
+                        } else {
+                            None
+                        }
+                    })
+                    .chain(tail_calls)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<IndexVec<FunctionId, _>>();
+        let mut callers = index_vec![Vec::new(); module.functions.len()];
+        for (func_id, calls) in calls.iter_enumerated() {
+            for &(callee, _) in calls {
+                callers[callee].push(func_id);
+            }
+        }
+        // A function reads only its own argument facts and its callees' return facts, so a
+        // function whose inputs are unchanged since its last visit would store nothing new.
+        let mut dirty = DenseBitSet::new_filled(module.functions.len());
         for _ in 0..=module.functions.len() * 2 {
             let mut changed = false;
             for (func_id, func) in module.functions.iter_enumerated() {
+                if !dirty.remove(func_id) {
+                    continue;
+                }
                 let mut visiting = DenseBitSet::new_empty(func.num_values());
                 let mut memo = HeapPrefixCache::default();
                 let mut derive = |value| {
@@ -1056,25 +1093,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     )
                 };
                 let mut incoming = Vec::new();
-                let calls = func
-                    .instructions()
-                    .filter_map(|inst_id| {
-                        if let InstKind::ICall { function: Callee::Function(function), args } =
-                            &func.inst(inst_id).kind
-                        {
-                            Some((*function, &args[..]))
-                        } else {
-                            None
-                        }
-                    })
-                    .chain(func.blocks.iter().filter_map(|block| {
-                        if let Some(Terminator::TailCall { function, args }) = &block.terminator {
-                            Some((*function, &args[..]))
-                        } else {
-                            None
-                        }
-                    }));
-                for (callee, args) in calls {
+                for &(callee, args) in &calls[func_id] {
                     for (index, &value) in args.iter().enumerate() {
                         if let Some(offset) = derive(value) {
                             incoming.push((callee, ArgIdx::new(index), offset));
@@ -1105,21 +1124,30 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let stored =
                         arguments.entry(callee).or_default().entry(index).or_insert_with(|| {
                             changed = true;
+                            dirty.insert(callee);
                             offset
                         });
                     if offset > *stored {
                         *stored = offset;
                         changed = true;
+                        dirty.insert(callee);
                     }
                 }
+                let mut returns_grew = false;
                 for (component, offset) in returned {
                     let stored = returns.entry((func_id, component)).or_insert_with(|| {
-                        changed = true;
+                        returns_grew = true;
                         offset
                     });
                     if offset > *stored {
                         *stored = offset;
-                        changed = true;
+                        returns_grew = true;
+                    }
+                }
+                if returns_grew {
+                    changed = true;
+                    for &caller in &callers[func_id] {
+                        dirty.insert(caller);
                     }
                 }
             }
