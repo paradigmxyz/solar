@@ -21,4 +21,12 @@
     push bb1
     jumpi
     stop
+  bb3:
+    push 0
+    calldatasize
+    lt
+    iszero
+    push bb1
+    jumpi
+    stop
   

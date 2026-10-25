@@ -284,14 +284,15 @@
 (decl pure protected_mask_profitable () bool)
 (extern constructor protected_mask_profitable protected_mask_profitable)
 
-;; `PUSH 0 LT ISZERO -> ISZERO`: unsigned `0 < x` tests nonzero, so its negation is `x == 0`.
-(rule 230 (peep_op (last3 (push zero) (opcode $LT) (opcode $ISZERO)))
-        (if-let true (u256_is_zero zero))
-        (rewrite 3 (Edit.ZeroLessIszero)))
-
 ;; PUSH c; independent operands; compare; ISZERO => PUSH c±1; operands; opposite compare.
 ;; Reject wrapping bounds, protected windows, and larger materializations.
 (decl invert_comparison (u8 U256 u8) Window)
 (extern extractor invert_comparison invert_comparison)
 (rule 225 (peep_op (invert_comparison count value opcode))
   (rewrite count (Edit.InvertComparison value opcode)))
+
+;; `PUSH 0 LT ISZERO -> ISZERO`: unsigned `0 < x` tests nonzero, so its negation is `x == 0`.
+;; This outranks `invert_comparison`, which would give `PUSH 1 GT`.
+(rule 230 (peep_op (last3 (push zero) (opcode $LT) (opcode $ISZERO)))
+        (if-let true (u256_is_zero zero))
+        (rewrite 3 (Edit.ZeroLessIszero)))

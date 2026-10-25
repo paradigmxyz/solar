@@ -32,3 +32,16 @@ bb2:
   push bb1
   jumpi
   stop
+
+// The zero below the value computes `x < 0`, which is not a zero test.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-NOT: - push 0
+// CHECK: {{^[ +].*}}jumpi
+bb3:
+  push 0
+  calldatasize
+  lt
+  iszero
+  push bb1
+  jumpi
+  stop
