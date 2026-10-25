@@ -1,0 +1,26 @@
+- // === ROOT/tests/ui/codegen/evm-ir/inline-returns/inline_returns_size.evmir (before inline-returns) ===
++ // === ROOT/tests/ui/codegen/evm-ir/inline-returns/inline_returns_size.evmir (after inline-returns) ===
+  @module InlineReturnsSize
+  bb0:
+    push 1
+    jumpi bb1, bb2
+  bb1:
+-   jump bb3
++   push 0
++   push 0
++   revert
+  bb2:
+    jump bb3
+  bb3:
+    push 0
+    push 0
+    revert
+  bb4:
+    jump bb6
+  bb5:
+    stop
+  bb6:
+    push 32
+    push 64
+    return
+  

@@ -1,0 +1,37 @@
+// === ROOT/tests/ui/codegen/mir/lower-shifts/legacy_shifts.sol:LegacyShifts ===
+@module LegacyShifts
+fn @shr8() -> i256 [selector=0x97471385, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 1
+    v3 = shr v2, 8
+    ret v3
+}
+
+fn @shl8() -> i256 [selector=0x6626c818, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 1
+    v3 = shl v2, 8
+    ret v3
+}
+
+fn @shl3() -> i256 [selector=0xcda3144d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 1
+    v3 = shl v2, 3
+    ret v3
+}
+
+fn @selectorShift() -> i256 [selector=0xd56d625c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice ptr<calldata> 0, v0
+    v2 = extract_value slice<calldata>, v1, 1
+    v3 = shr v2, 224
+    ret v3
+}

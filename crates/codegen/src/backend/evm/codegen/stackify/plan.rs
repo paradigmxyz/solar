@@ -660,13 +660,10 @@ impl<'a> Planner<'a> {
                 let copies = self.target.dup().times(count - 1);
                 let before = push.times(count);
                 let after = push + copies + self.dead_word_removal();
-                self.target.cmp_lifetime(after, before).is_lt().then_some((
-                    value,
-                    Cost::new(
-                        before.gas.saturating_sub(after.gas),
-                        before.bytes.saturating_sub(after.bytes),
-                    ),
-                ))
+                self.target
+                    .cmp_lifetime(after, before)
+                    .is_lt()
+                    .then_some((value, before.saturating_sub(after)))
             })
             .max_by(|(_, a), (_, b)| self.target.cmp_lifetime(*a, *b))?
             .0;
@@ -727,7 +724,9 @@ impl<'a> Planner<'a> {
             })
             .map(|inst| PlannedInst { inst, operands: func.inst(inst).kind.operands() })
             .collect();
-        let windows = self.preplacement_windows(&planned);
+        let optimize = self.target.optimizes_stack_plans();
+        let windows =
+            if optimize { self.preplacement_windows(&planned) } else { Default::default() };
         let mut placed = FxHashSet::default();
         for (position, step) in planned.iter().enumerate() {
             let inst = step.inst;
@@ -779,7 +778,8 @@ impl<'a> Planner<'a> {
             }
             self.plan_inst_inner(sim, block, step, &uses)?;
             uses.consume(&step.operands);
-            if let Some(result) = func.inst_result_value(inst)
+            if optimize
+                && let Some(result) = func.inst_result_value(inst)
                 && sim.stack.last() == Some(&Slot::Value(result))
             {
                 self.place_result(sim, block, &planned, position + 1, &mut uses)?;
@@ -1082,13 +1082,14 @@ impl<'a> Planner<'a> {
     /// Scales the gas of code in `block` by how often the block runs; its bytes count once.
     fn weigh(&self, cost: Cost, block: BlockId) -> Cost {
         Cost::new(cost.gas.saturating_mul(self.executions[block]), cost.bytes)
+            .with_steps(cost.steps.saturating_mul(self.executions[block]))
     }
 
     /// Adds the cost of code planned in `block` and raises the peak to its stack.
     fn charge(&mut self, sim: &Sim, block: BlockId) {
         self.cost += self.weigh(sim.cost, block);
         if !self.cfg.cyclic_blocks().contains(block) {
-            self.non_loop_gas = self.non_loop_gas.saturating_add(sim.cost.gas);
+            self.non_loop_gas = self.non_loop_gas.saturating_add(self.target.runtime_gas(sim.cost));
         }
         self.peak = self.peak.max(sim.peak);
     }
@@ -1801,7 +1802,7 @@ impl<'a> Planner<'a> {
             |ops: &[StackOp]| ops.iter().map(|&op| self.target.stack_op(op)).sum::<Option<Cost>>();
         cost(exchanges)
             .zip(cost(swaps))
-            .is_some_and(|(exchanges, swaps)| exchanges.dominates(swaps))
+            .is_some_and(|(exchanges, swaps)| self.target.dominates(exchanges, swaps))
     }
 
     // ----------------------------------------------------------------------------------------

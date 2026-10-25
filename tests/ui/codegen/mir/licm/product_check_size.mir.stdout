@@ -1,0 +1,27 @@
+// === ROOT/tests/ui/codegen/mir/licm/product_check_size.sol:ProductCheckSize ===
+@module ProductCheckSize
+fn @accumulate(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf39fb277, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v7]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v8]
+    v5 = lt v4, v2
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    v6 = checked_mul uint256, v0, v1
+    v7 = checked_add uint256, v6, v1
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v8 = checked_add uint256, v4, 1
+    jump bb1
+}

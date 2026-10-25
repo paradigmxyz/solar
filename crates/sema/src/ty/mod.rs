@@ -56,6 +56,9 @@ use interner::Interner;
 
 mod caches;
 
+mod expr_map;
+pub(crate) use expr_map::ExprMap;
+
 #[allow(clippy::module_inception)]
 mod ty;
 pub(crate) use ty::SameSourceFileLevelUserTypeError;
@@ -90,9 +93,9 @@ pub struct InterfaceFunctions<'gcx> {
 /// Sparse results produced by semantic type checking for later compiler stages.
 #[derive(Clone, Debug, Default)]
 pub struct TypeckResults<'gcx> {
-    pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
-    pub(crate) resolved_exprs: FxHashMap<hir::ExprId, hir::Res>,
-    pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
+    pub(crate) expr_types: ExprMap<Ty<'gcx>>,
+    pub(crate) resolved_exprs: ExprMap<hir::Res>,
+    pub(crate) resolved_callees: ExprMap<ResolvedCallee>,
     pub(crate) unsupported_udvt_operators: GrowableBitSet<hir::ExprId>,
     /// The user-defined operator function a binary/unary operator expression
     /// resolves to, keyed by the operator expression's id.

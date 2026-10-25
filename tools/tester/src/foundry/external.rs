@@ -16,8 +16,8 @@
 //! tests. Manifest projects keep their sources unchanged.
 
 use super::{
-    AssertionPolicy, SOLAR_BINARY, SkipEntry, TestConfig, forge_available, select_solar_binary,
-    workspace_root,
+    AssertionPolicy, OptLevel, SOLAR_BINARY, SkipEntry, TestConfig, forge_available,
+    select_solar_binary, workspace_root,
 };
 use std::{
     collections::HashSet,
@@ -390,6 +390,7 @@ impl ResolvedProject {
             test_filter: None,
             contract_filter: None,
             solar_only: false,
+            solar_levels: vec![OptLevel::pinned()],
             skip_tests: self.skip_tests.clone(),
             skip_contracts: self.skip_contracts.clone(),
             policy: AssertionPolicy::ExternalDifferential,

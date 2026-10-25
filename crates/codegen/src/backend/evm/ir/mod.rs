@@ -48,7 +48,7 @@ pub(in crate::backend) use passes::{
         ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
     },
     data::pack_linked_data,
-    legalize_shifts,
+    legalize_revert,
 };
 
 /// Validates the target-independent invariants of an EVM IR module.

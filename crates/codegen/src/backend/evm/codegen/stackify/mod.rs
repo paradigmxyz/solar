@@ -80,6 +80,11 @@
 //! disrupt later outlining. Within the defining block, materialization waits until the first use,
 //! or the terminator if only successors need it. Call-chain overflow retries omit this word.
 //!
+//! `-O none` takes the first plan: it plans each function once, with preheader loop layouts and
+//! without the operand copy trials, the result swap or constant retention, so the code may use
+//! more gas and bytes. Spilling and restarts still run, because they keep every value within
+//! reach.
+//!
 //! When a needed word lies beyond the target's reach, the value is spilled: it is stored once
 //! when defined, reloaded at every use, and planning restarts. After many restarts, every other
 //! value beyond reach at the failure spills with it, in growing batches. When no value can make
@@ -789,7 +794,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if round == 1
                     && restarts == 0
                     && call_spill == CallSpill::None
-                    && (target.optimization().is_gas() || target.optimization().is_size())
+                    && target.optimizes_stack_plans()
                 {
                     constant = planner.constant_to_retain();
                 }
@@ -819,7 +824,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             };
             if round == 1 {
-                if natural.is_empty() {
+                if natural.is_empty() || !target.optimizes_stack_plans() {
                     best = Some(plan);
                     break;
                 }
@@ -854,7 +859,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Creation code pays for every byte it leaves out, so a constant kept on the stack
             // may cost gas, as long as the deployment gets cheaper.
             && (target.is_creation()
-                || (candidate.plan.cost.dominates(best.cost)
+                || (target.dominates(candidate.plan.cost, best.cost)
                     && candidate.plan.non_loop_gas <= best.non_loop_gas))
             && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
             && (!target.optimization().is_size()

@@ -114,9 +114,9 @@ bb19 [loop]:
   sub
   mul
   add
-  swap 2
   push 2
   swap 1
+  swap 3
   div
   swap 1
   dup 4
@@ -182,72 +182,69 @@ bb26:
   push 0
   return
 bb29:
+  push 4
+  dup 1
   push 128
   push 64
   mstore
-  push 68
-  calldatasize
-  lt
-  push 4
   calldataload
-  push 4
-  dup 2
-  add
-  push 32
-  dup 2
-  add
-  swap 2
-  push 0xffffffffffffffff
-  lt
   calldatasize
-  dup 4
+  push 36
+  calldatasize
+  swap 2
+  sub
+  dup 3
   gt
-  or
   swap 1
-  swap 3
+  push 68
+  gt
   or
   push bb8
   jumpi
-  swap 1
-  calldataload
+  add
   dup 1
+  calldataload
+  swap 1
+  push 32
+  add
   push 0x7fffffffffffffe
-  lt
+  dup 3
+  gt
   push bb36
   jumpi
-  push 64
-  mload
-  dup 2
   push 1
+  dup 3
   add
   push 32
   mul
+  push 64
+  mload
+  swap 1
   dup 2
   add
   dup 2
   dup 2
   lt
-  dup 2
   push 0xffffffffffffffff
-  lt
+  dup 3
+  gt
   or
   push bb36
   jumpi
   push 64
   mstore
-  dup 2
+  dup 3
   dup 2
   mstore
   push 32
-  dup 3
+  dup 4
   mul
+  push 32
   dup 4
   calldatasize
   sub
-  push 32
-  swap 1
   div
-  dup 4
+  dup 5
   gt
   push bb8
   jumpi
@@ -256,16 +253,15 @@ bb29:
   add
   push 36
   calldataload
-  swap 5
+  swap 4
   swap 1
   calldatacopy
-  swap 1
-  dup 3
+  swap 2
+  dup 2
   lt
   iszero
   push bb35
   jumpi
-  swap 1
   push 32
   mul
   add
