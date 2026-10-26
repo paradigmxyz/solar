@@ -7,8 +7,8 @@
 //! - It is an internal function reachable from an entry, and not the dispatch entry, an external
 //!   entry, an ABI wrapper, or a function-pointer dispatcher, whose bodies implement protocols the
 //!   interpreter does not model.
-//! - It is not recursive, takes explicit word parameters (`iN` or `memptr`), and returns at most
-//!   one word: the backend passes further results through a memory buffer of its own.
+//! - It is not recursive, takes explicit word parameters (`iN` or `ptr<memory>`), and returns at
+//!   most one word: the backend passes further results through a memory buffer of its own.
 //! - It has at most [`MAX_INSTRUCTIONS`] instructions.
 //! - It and every function it can reach use only operations the tests run ([`equivalence::runs`])
 //!   and terminators [`interp::supports_terminator`] accepts, no `undef` or error values, and

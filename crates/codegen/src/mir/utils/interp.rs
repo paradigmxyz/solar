@@ -1229,7 +1229,7 @@ fn limit<T>(result: Result<T, Limit>) -> ControlFlow<Outcome, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{LogTopics, PtrLocation, parser::parse_module};
+    use crate::mir::parser::parse_module;
     use solar_interface::{ColorChoice, Session};
 
     const LIMITS: Limits = Limits { fuel: 10_000, depth: 16 };
@@ -1471,39 +1471,15 @@ fn @storage(arg0: i256) -> i256 {
         });
     }
 
-    /// Returns each operation by name, with operands numbered from zero: the operations built
-    /// from operands alone, and the ones that also take a location or a topic count.
+    /// Returns each form of an operation by name: the logs by topic count, as `log0` to `log4`.
     fn operations() -> Vec<(String, InstKind)> {
-        let operand = ValueId::from_usize;
-        let mut operations = Vec::new();
-        for &name in InstKind::MNEMONICS {
-            if let Some((arity, build)) = InstKind::operand_only(name) {
-                let operands = (0..arity).map(operand).collect::<Vec<_>>();
-                operations.push((name.to_string(), build(&operands)));
-            }
-        }
-        for location in [
-            PtrLocation::Memory,
-            PtrLocation::Calldata,
-            PtrLocation::Returndata,
-            PtrLocation::Storage,
-            PtrLocation::Transient,
-        ] {
-            for kind in [
-                InstKind::Load(operand(0), location),
-                InstKind::Store(operand(0), operand(1), location),
-                InstKind::Copy(operand(0), operand(1), operand(2), location),
-            ] {
-                operations.push((kind.mnemonic().to_string(), kind));
-            }
-        }
-        for count in 0..=LogTopics::MAX {
-            let topics = (2..2 + count).map(operand).collect::<Vec<_>>();
-            let topics = LogTopics::new(&topics).unwrap();
-            let kind = InstKind::Log { offset: operand(0), size: operand(1), topics };
-            operations.push((format!("log{count}"), kind));
-        }
-        operations
+        InstKind::forms()
+            .into_iter()
+            .map(|kind| match &kind {
+                InstKind::Log { topics, .. } => (format!("log{}", topics.len()), kind),
+                _ => (kind.mnemonic().to_string(), kind),
+            })
+            .collect()
     }
 
     #[test]

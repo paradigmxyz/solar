@@ -1554,6 +1554,7 @@ pub(crate) fn validate_function_at_phase(
     validator.validate_function(module, function, phase);
     validator.error.map_or(Ok(()), Err)
 }
+
 /// Rejects shifts in a module that targets an EVM version without shift opcodes.
 ///
 /// `lower-shifts` removes them, so one left after lowering means that pass did not run.

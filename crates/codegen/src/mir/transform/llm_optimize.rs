@@ -64,7 +64,7 @@ use crate::{
     llm::{self, CostReport, LlmRewriter, Proposal, RewriteRequest, Stage, Verdict},
     mir::{
         Callee, Function, FunctionId, InstKind, InstructionMetadata, MirPhase, Module, Terminator,
-        Value, ValueId,
+        Value,
         analysis::{CallGraphInfo, validate_function_at_phase},
         pass::{MirPass, ModuleAnalyses},
         transform::{cfg_simplify::is_tail_callable, dce::DeadCodeEliminator},
@@ -603,24 +603,20 @@ fn drop_metadata(function: &mut Function) {
     }
 }
 
-/// Returns the operations a candidate may use on `target`: each operand-only operation the
-/// interpreter runs and the EVM version has, and the forms that carry attributes.
+/// Returns the operations a candidate may use on `target`: each form of an operation the
+/// interpreter runs and the EVM version has, and the forms that carry other attributes.
 fn vocabulary(target: Target) -> String {
-    let mut words = InstKind::MNEMONICS
-        .iter()
-        .copied()
-        .filter(|&name| {
-            InstKind::operand_only(name).is_some_and(|(arity, build)| {
-                let kind = build(&(0..arity).map(ValueId::from_usize).collect::<Vec<_>>());
-                equivalence::runs(&kind)
-                    && kind
-                        .evm_opcode()
-                        .is_none_or(|opcode| op::is_available(opcode, target.evm_version()))
-            })
-        })
-        .collect::<Vec<_>>();
-    // These carry attributes, so they have no operand-only form to test.
-    words.extend(["trunc", "sext", "ptrtoint", "phi", "icall"]);
+    let mut words = Vec::new();
+    for kind in InstKind::forms() {
+        let name = kind.mnemonic();
+        let available =
+            kind.evm_opcode().is_none_or(|opcode| op::is_available(opcode, target.evm_version()));
+        if equivalence::runs(&kind) && available && !words.contains(&name) {
+            words.push(name);
+        }
+    }
+    // These carry attributes, so they have no form to test.
+    words.extend(["ptrtoint", "phi", "icall"]);
     words.join(" ")
 }
 

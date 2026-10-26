@@ -54,16 +54,17 @@ fn @sum(arg0: i256) -> i256 [pure] {
 
 - The first block is the entry. Blocks are `bbN:` labels; values are `argN` or `vN`, each `vN`
   defined once, and a definition must come before its uses on every path.
-- Types: `i1` is exactly 0 or 1; `i160` holds addresses, with its upper 96 bits zero; `i256` is a
-  full word; `ptr<memory>` is a memory address. Integer literals are decimal or `0x` hex and are `i256`
-  unless typed, as in `i1 1` or `i160 0x10`.
+- Types: `i1` is exactly 0 or 1; `i256` is a full word, and holds addresses too; `ptr<memory>` is
+  a memory address. Integer literals are decimal or `0x` hex and are `i256` unless typed, as in
+  `i1 1`.
 - Operands follow the EVM's order: `sub a, b` is `a - b`, `div a, b` is `a / b`, `lt a, b` is
-  `a < b`, `shl value, shift`, `shr value, shift`, `sar value, shift`, `byte index, value`,
-  `signextend byte, value`, `exp base, exponent`, `addmod a, b, n`, `mulmod a, b, n`.
+  `a < b`, `byte index, value`, `signextend byte, value`, `exp base, exponent`,
+  `addmod a, b, n`, `mulmod a, b, n`. Shifts take the value first: `shl value, shift`,
+  `shr value, shift`, `sar value, shift`.
 - `lt`, `gt`, `slt`, `sgt`, `eq`, and `ne` return `i1`. Test a word against zero with `eq v, 0`
   or `ne v, 0`; there is no `iszero`.
-- Casts name both types: `zext i1 v to i256`, `trunc i256 v to i160`, `sext i160 v to i256`,
-  `ptrtoint ptr<memory> v to i256`, `inttoptr i256 v to ptr<memory>`. Conditions must be `i1`.
+- Casts name both types: `zext i1 v to i256`, `ptrtoint ptr<memory> v to i256`,
+  `inttoptr i256 v to ptr<memory>`. Conditions must be `i1`.
 - `select c, a, b` is `c ? a : b`. A `phi` starts its block and names one input per predecessor.
 - Memory: `mload offset`, `mstore offset, value`, `mstore8 offset, value`,
   `mcopy dest, src, length`, and `keccak256 offset, length`, which hashes memory.
@@ -71,7 +72,7 @@ fn @sum(arg0: i256) -> i256 [pure] {
   `tstore slot, value` for transient storage. Events: `log offset, size` with up to
   four topics, `log offset, size, topic1, topic2, topic3, topic4`, logging the memory at `offset`.
 - Context: `caller`, `callvalue`, `address`, `origin`, `timestamp`, `number`, `chainid`, and the
-  other reads of the call and block; addresses are `i160`.
+  other reads of the call and block.
 - Calls: `v = icall @f, a, b`, or `icall @f, a` when `@f` returns nothing.
 - Terminators: `jump bbN`, `jumpi c, bbThen, bbElse`, `switch v, default bbN, [1 => bbA, 2 => bbB]`
   with distinct constant cases, `ret v` or `ret`, `revert offset, size`,
@@ -81,8 +82,7 @@ fn @sum(arg0: i256) -> i256 [pure] {
 # Semantics
 
 Arithmetic wraps modulo 2^256. Division and modulo by zero give zero, and `sdiv` of -2^255 by -1
-gives -2^255. Shifts by 256 or more give zero, except that `sar` then gives the sign. Results of
-narrow types must stay in range, so keep the masks and truncations that establish it. The word at
+gives -2^255. Shifts by 256 or more give zero, except that `sar` then gives the sign. The word at
 `0x40` is the free memory pointer and the word at `0x60` is always zero.
 
 # Costs

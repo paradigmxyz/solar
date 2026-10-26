@@ -45,10 +45,10 @@
 //! `bytesN`-style comparisons, their left-aligned forms. Arguments mix zero; powers of two, their
 //! neighbors, and their negations; constants; small numbers; words near the free memory pointer;
 //! repeats of earlier arguments for aliasing; and random words, each masked to its type so that it
-//! holds the clean bits the type promises. `memptr` arguments point near the free memory pointer.
-//! Probes then place each constant in each word argument of an earlier input and, for functions
-//! that read storage or their context, make each constant every answer of the world, or half of
-//! them.
+//! holds the clean bits the type promises. `ptr<memory>` arguments point near the free memory
+//! pointer. Probes then place each constant in each word argument of an earlier input and, for
+//! functions that read storage or their context, make each constant every answer of the world, or
+//! half of them.
 //!
 //! Memory holds seeded garbage except for the zero word at `0x60`, the free memory pointer at
 //! `0x40`, which varies from `0x80` up and is sometimes unaligned, and the objects at pointer

@@ -197,15 +197,23 @@ mod tests {
 
     #[test]
     fn opcodes_match_stack_effects() {
-        for &name in InstKind::MNEMONICS {
-            let Some((arity, build)) = InstKind::operand_only(name) else { continue };
-            let operands = (0..arity).map(ValueId::from_usize).collect::<Vec<_>>();
-            let kind = build(&operands);
+        for kind in InstKind::forms() {
             if let Some(Semantics::Opcode(opcode, operands)) = kind.semantics() {
                 let pushes = u8::from(kind.op_def().result.produces_value());
                 let stack_io =
                     op::stack_io(opcode).map(|(pops, pushes)| (usize::from(pops), pushes));
-                assert_eq!(stack_io, Some((operands.len(), pushes)), "{name}");
+                assert_eq!(stack_io, Some((operands.len(), pushes)), "{kind:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn selection_picks_the_declared_opcodes() {
+        for kind in InstKind::forms() {
+            if let Some(Semantics::Opcode(opcode, _)) = kind.semantics()
+                && let Some(selected) = kind.evm_opcode()
+            {
+                assert_eq!(selected, opcode, "{kind:?}");
             }
         }
     }

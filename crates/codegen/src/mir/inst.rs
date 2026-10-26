@@ -1,6 +1,8 @@
 //! MIR instructions.
 
-use super::{Function, InstKind, MirPhase, MirType, PhaseCategory, PtrLocation, Value, ValueId};
+use super::{
+    Function, InstKind, LogTopics, MirPhase, MirType, PhaseCategory, PtrLocation, Value, ValueId,
+};
 use crate::mir::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -833,6 +835,36 @@ pub(crate) enum AddressCallKind {
 }
 
 impl InstKind {
+    /// Returns one instruction of each textual form that value operands, a location, or a topic
+    /// count alone decide, with operands numbered from zero: every operation built from operands
+    /// alone, a load, a store, and a copy at each location, and a log with each topic count.
+    pub(crate) fn forms() -> Vec<Self> {
+        let operand = ValueId::from_usize;
+        let mut forms = Vec::new();
+        for &name in Self::MNEMONICS {
+            if let Some((arity, build)) = Self::operand_only(name) {
+                forms.push(build(&(0..arity).map(operand).collect::<Vec<_>>()));
+            }
+        }
+        for location in [
+            PtrLocation::Memory,
+            PtrLocation::Calldata,
+            PtrLocation::Returndata,
+            PtrLocation::Storage,
+            PtrLocation::Transient,
+        ] {
+            forms.push(Self::Load(operand(0), location));
+            forms.push(Self::Store(operand(0), operand(1), location));
+            forms.push(Self::Copy(operand(0), operand(1), operand(2), location));
+        }
+        for count in 0..=LogTopics::MAX {
+            let topics = (2..2 + count).map(operand).collect::<Vec<_>>();
+            let topics = LogTopics::new(&topics).expect("a log has at most four topics");
+            forms.push(Self::Log { offset: operand(0), size: operand(1), topics });
+        }
+        forms
+    }
+
     /// Infers integer results from the operation's declared operand signature.
     pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
         if let Self::CheckedBinary { arithmetic, .. } = self {
