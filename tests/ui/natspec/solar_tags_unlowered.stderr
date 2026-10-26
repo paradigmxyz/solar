@@ -4,7 +4,7 @@ error: `@custom:solar-safe` must document a contract or a library
 LL │ /// @custom:solar-safe
    │      ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
+   ╰ help: put it on the contract whose code must be free of inline assembly
 
 error: unknown tag `@custom:solar-saef`
    ╭▸ ROOT/tests/ui/natspec/solar_tags_unlowered.sol:LL:CC
@@ -29,7 +29,7 @@ error: `@custom:solar-safe` must document a contract or a library
 LL │     /// @custom:solar-safe
    │          ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
+   ╰ help: put it on the contract whose code must be free of inline assembly
 
 error: unknown tag `@custom:solar-saef`
    ╭▸ ROOT/tests/ui/natspec/solar_tags_unlowered.sol:LL:CC
@@ -54,7 +54,7 @@ error: `@custom:solar-safe` must document a contract or a library
 LL │             /// @custom:solar-safe
    │                  ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
+   ╰ help: put it on the contract whose code must be free of inline assembly
 
 error: aborting due to 7 previous errors
 

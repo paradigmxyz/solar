@@ -10,7 +10,7 @@ divergence entry is [TYPECK-022](SOLC_DIVERGENCE.md#typeck-022-customsolar--tags
 
 | Tag | Documents | Meaning |
 |---|---|---|
-| `solar-safe [memory] [arithmetic]` | a contract or a library | The code it runs has no inline assembly, or only checked arithmetic. |
+| `solar-safe [memory] [arithmetic]` | a contract or a library | No inline assembly by default; checked arithmetic is an optional requirement. |
 | `solar-trusted` | a function, a modifier, a contract, or a library | Reviewed code that `solar-safe` takes on trust. |
 | `solar-inline` | a function that internal calls reach | Inline every internal call of it where inlining is legal. |
 | `solar-noinline` | a function that internal calls reach | Never inline it. |
@@ -36,7 +36,8 @@ library Parser {
 `memory` requires that the code has no inline assembly, the only way Solidity code reaches memory
 outside the objects it allocates. `arithmetic` requires that all of its arithmetic is checked: no
 `unchecked` block, and no inline assembly, whose arithmetic wraps. A tag that names neither
-requires both.
+requires only `memory`, so ordinary `solar-safe` code can use `unchecked`. The `arithmetic`
+property remains an explicit requirement for code that must use checked arithmetic.
 
 The code a contract runs is everything its creation and its entry points reach through internal
 calls in its own call frame: functions of its bases, libraries and free functions, modifiers, base
@@ -47,7 +48,8 @@ run in frames of their own and are not part of it. A library's code is all of it
 `solar-trusted` marks reviewed code: the check does not look inside it, or into what only it
 reaches. A call in trusted code that dispatches to an override or a `super` target is still
 checked, since the contract chose that code, not the review. Standard JSON reports the properties
-of every contract and the trusted functions its code runs in the `solarSafety` output.
+of every contract and the trusted functions its code runs in the `solarSafety` output. Code with
+`unchecked` still reports `arithmetic: false`, even when its default `solar-safe` check passes.
 
 ## `solar-inline` and `solar-noinline`
 

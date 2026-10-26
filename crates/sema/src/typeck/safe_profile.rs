@@ -4,7 +4,8 @@
 //! requirements. `memory` requires that none of it is inline assembly, the only way Solidity code
 //! reaches memory outside the objects it allocates. `arithmetic` requires that all of its
 //! arithmetic is checked: no `unchecked` block, and no inline assembly either, whose arithmetic
-//! wraps. A tag that names neither requires both. Other compilers read the tag as documentation.
+//! wraps. A tag that names neither requires only `memory`, so `unchecked` arithmetic is allowed
+//! unless `arithmetic` is explicitly requested. Other compilers read the tag as documentation.
 //!
 //! The code a contract runs is what its creation and its entry points reach through internal
 //! calls, as the call graph resolves them for the contract: across its bases, libraries and free
@@ -83,14 +84,14 @@ fn profile(gcx: Gcx<'_>, id: hir::ContractId) -> Option<Profile> {
                         .span(natspec.span)
                         .help(
                             "the properties are `memory` and `arithmetic`; naming none requires \
-                             both",
+                             only `memory`",
                         )
                         .emit();
                 }
             }
         }
         if !tag_memory && !tag_arithmetic {
-            (tag_memory, tag_arithmetic) = (true, true);
+            tag_memory = true;
         }
         memory |= tag_memory;
         arithmetic |= tag_arithmetic;

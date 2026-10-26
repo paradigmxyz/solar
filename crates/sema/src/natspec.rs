@@ -918,8 +918,8 @@ pub(crate) enum SolarTag {
     Inline,
     /// `@custom:solar-noinline`: no internal call of the function is inlined.
     NoInline,
-    /// `@custom:solar-safe`: the code the contract runs has no inline assembly, or no unchecked
-    /// arithmetic.
+    /// `@custom:solar-safe`: the code the contract runs has no inline assembly, with checked
+    /// arithmetic available as an explicit property.
     Safe,
     /// `@custom:solar-trusted`: reviewed code a `@custom:solar-safe` contract may run.
     Trusted,
@@ -971,7 +971,7 @@ pub(crate) fn report_misplaced_solar_tag(
         SolarTag::Safe => dcx
             .err("`@custom:solar-safe` must document a contract or a library")
             .span(span)
-            .help("put it on the contract whose code must be free of assembly and unchecked arithmetic")
+            .help("put it on the contract whose code must be free of inline assembly")
             .emit(),
         SolarTag::Trusted => dcx
             .err(

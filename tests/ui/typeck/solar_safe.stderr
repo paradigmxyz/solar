@@ -12,7 +12,7 @@ error: `@custom:solar-safe` must document a contract or a library
 LL │ /// @custom:solar-safe
    │      ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
+   ╰ help: put it on the contract whose code must be free of inline assembly
 
 error: `@custom:solar-safe` must document a contract or a library
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
@@ -20,7 +20,7 @@ error: `@custom:solar-safe` must document a contract or a library
 LL │     /// @custom:solar-safe
    │          ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
+   ╰ help: put it on the contract whose code must be free of inline assembly
 
 error: `@custom:solar-trusted` must document a function, a modifier, a contract, or a library
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
@@ -42,19 +42,19 @@ error[8349]: initial value for constant variable has to be compile-time constant
 LL │     uint256 internal constant VALUE = _value();
    ╰╴                                      ━━━━━━━━
 
-error: `Safe` is tagged `@custom:solar-safe` but runs an `unchecked` block
+error: `Safe` is tagged `@custom:solar-safe` but runs inline assembly
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
    │
-LL │         unchecked { x = 1 - uint256(2); }
-   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │             assembly { v := 9 }
+   │             ━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: the tag is here
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
    │
 LL │ /// @custom:solar-safe
    │      ━━━━━━━━━━━━━━━━━
-   ├ note: it runs this through `Safe.seed`
-   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+   ├ note: it runs this through `Safe.uncheckedAssembly`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
 
 error: `Safe` is tagged `@custom:solar-safe` but runs inline assembly
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
@@ -97,20 +97,6 @@ LL │ /// @custom:solar-safe
    │      ━━━━━━━━━━━━━━━━━
    ├ note: it runs this through `Base.run` → `Safe.hook`
    ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
-
-error: `SafeCreation` is tagged `@custom:solar-safe` but runs an `unchecked` block
-   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
-   │
-LL │     unchecked { r = a - 1; }
-   │     ━━━━━━━━━━━━━━━━━━━━━━━━
-   ╰╴
-note: the tag is here
-   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
-   │
-LL │ /// @custom:solar-safe
-   │      ━━━━━━━━━━━━━━━━━
-   ├ note: it runs this through `decrement`
-   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
 
 error: `SafeCreation` is tagged `@custom:solar-safe` but runs inline assembly
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
@@ -174,21 +160,7 @@ error: `@custom:solar-safe` has no property `everything`
 LL │ /// @custom:solar-safe everything
    │      ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: the properties are `memory` and `arithmetic`; naming none requires both
-
-error: `SafeOverride` is tagged `@custom:solar-safe` but runs an `unchecked` block
-   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
-   │
-LL │         unchecked { r = a - 1; }
-   │         ━━━━━━━━━━━━━━━━━━━━━━━━
-   ╰╴
-note: the tag is here
-   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
-   │
-LL │ /// @custom:solar-safe
-   │      ━━━━━━━━━━━━━━━━━
-   ├ note: it runs this through `ReviewedBase.run` → `SafeOverride._hook`
-   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+   ╰ help: the properties are `memory` and `arithmetic`; naming none requires only `memory`
 
 error: `SafeOverride` is tagged `@custom:solar-safe` but runs inline assembly
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
@@ -227,7 +199,7 @@ LL │         unchecked { x = x - 1; }
 note: the tag is here
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
    │
-LL │ /// @custom:solar-safe
+LL │ /// @custom:solar-safe arithmetic
    │      ━━━━━━━━━━━━━━━━━
    ├ note: it runs this through `ReviewedInit.constructor` → `SafeInit._init`
    ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
@@ -255,7 +227,7 @@ LL │     unchecked { r = a - 1; }
 note: the tag is here
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
    │
-LL │ /// @custom:solar-safe
+LL │ /// @custom:solar-safe arithmetic
    │      ━━━━━━━━━━━━━━━━━
    ├ note: it runs this through `SafeConstant.open` → `wrapped`
    ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
@@ -269,10 +241,10 @@ LL │         unchecked { r = r - 1; }
 note: the tag is here
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
    │
-LL │ /// @custom:solar-safe
+LL │ /// @custom:solar-safe arithmetic
    │      ━━━━━━━━━━━━━━━━━
    ├ note: it runs this through `ReviewedConstant.run` → `SafeConstantOverride._value`
    ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
 
-error: aborting due to 23 previous errors
+error: aborting due to 21 previous errors
 

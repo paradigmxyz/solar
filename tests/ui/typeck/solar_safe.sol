@@ -1,6 +1,6 @@
 // `@custom:solar-safe` requires that the code a contract runs, through every
 // internal call, uses no inline assembly (`memory`) and only checked
-// arithmetic (`arithmetic`); naming neither requires both. Code tagged
+// arithmetic (`arithmetic`); naming neither requires only `memory`. Code tagged
 // `@custom:solar-trusted` is reviewed instead. External calls run in call
 // frames of their own.
 
@@ -36,7 +36,7 @@ contract Safe is Base {
     uint256 private seeded = seed();
 
     function seed() private pure returns (uint256 x) {
-        unchecked { x = 1 - uint256(2); } //~ ERROR: `Safe` is tagged `@custom:solar-safe` but runs an `unchecked` block
+        unchecked { x = 1 - uint256(2); }
     }
 
     // A virtual call runs the override.
@@ -62,6 +62,12 @@ contract Safe is Base {
         assembly { v := 7 } //~ ERROR: `Safe` is tagged `@custom:solar-safe` but runs inline assembly
     }
 
+    function uncheckedAssembly() external pure returns (uint256 v) {
+        unchecked {
+            assembly { v := 9 } //~ ERROR: `Safe` is tagged `@custom:solar-safe` but runs inline assembly
+        }
+    }
+
     /// @custom:solar-trusted
     function reviewedHere() external pure returns (uint256 v) {
         assembly { v := 8 }
@@ -69,7 +75,7 @@ contract Safe is Base {
 }
 
 function decrement(uint256 a) pure returns (uint256 r) {
-    unchecked { r = a - 1; } //~ ERROR: `SafeCreation` is tagged `@custom:solar-safe` but runs an `unchecked` block
+    unchecked { r = a - 1; }
 }
 
 function halve(uint256 a) pure returns (uint256 r) {
@@ -168,7 +174,7 @@ abstract contract ReviewedBase {
 /// @custom:solar-safe
 contract SafeOverride is ReviewedBase {
     function _hook(uint256 a) internal pure override returns (uint256 r) {
-        unchecked { r = a - 1; } //~ ERROR: `SafeOverride` is tagged `@custom:solar-safe` but runs an `unchecked` block
+        unchecked { r = a - 1; }
         assembly { mstore(0x40, 0) } //~ ERROR: `SafeOverride` is tagged `@custom:solar-safe` but runs inline assembly
     }
 }
@@ -203,7 +209,7 @@ abstract contract ReviewedInit {
     function _init() internal virtual {}
 }
 
-/// @custom:solar-safe
+/// @custom:solar-safe arithmetic
 contract SafeInit is ReviewedInit {
     function _init() internal override {
         unchecked { x = x - 1; } //~ ERROR: `SafeInit` is tagged `@custom:solar-safe` but runs an `unchecked` block
@@ -225,7 +231,7 @@ function wrapped(uint256 a) pure returns (uint256 r) {
     unchecked { r = a - 1; } //~ ERROR: `SafeConstant` is tagged `@custom:solar-safe` but runs an `unchecked` block
 }
 
-/// @custom:solar-safe
+/// @custom:solar-safe arithmetic
 contract SafeConstant {
     uint256 internal constant K = wrapped(0); //~ ERROR: initial value for constant variable has to be compile-time constant
 
@@ -254,7 +260,7 @@ abstract contract ReviewedConstant {
     }
 }
 
-/// @custom:solar-safe
+/// @custom:solar-safe arithmetic
 contract SafeConstantOverride is ReviewedConstant {
     function _value() internal pure override returns (uint256 r) {
         unchecked { r = r - 1; } //~ ERROR: `SafeConstantOverride` is tagged `@custom:solar-safe` but runs an `unchecked` block

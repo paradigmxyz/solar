@@ -21,6 +21,7 @@ contract Assembly {
     }
 }
 
+/// @custom:solar-safe
 contract Unchecked {
     function f(uint256 a) external pure returns (uint256) {
         unchecked { return a + 1; }

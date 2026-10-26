@@ -671,7 +671,8 @@ reserves the `solar-` names: an unknown `@custom:solar-` tag, or one
 documenting something it cannot apply to, such as a statement other than a
 block, is an error. `@custom:solar-safe` on a contract or a library is an error
 when the code it runs, outside functions tagged `@custom:solar-trusted` or in
-contracts tagged so, uses inline assembly or an `unchecked` block.
+contracts tagged so, uses inline assembly. `unchecked` blocks are allowed
+unless the tag explicitly requests the `arithmetic` property.
 `@custom:solar-optimize` documents a non-abstract contract or a library and
 names exactly one objective, `gas` or `size`, which optimized builds use for
 its code instead of the build's. `@custom:solar-terminates` documents an

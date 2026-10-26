@@ -84,7 +84,7 @@ error: `@custom:solar-safe` must document a contract or a library
 LL │     /// @custom:solar-safe
    │          ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
+   ╰ help: put it on the contract whose code must be free of inline assembly
 
 error: `@custom:solar-trusted` must document a function, a modifier, a contract, or a library
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC

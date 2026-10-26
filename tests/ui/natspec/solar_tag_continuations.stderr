@@ -18,7 +18,7 @@ error: `@custom:solar-safe` has no property `imaginary`
 LL │ /// @custom:solar-safe memory
    │      ━━━━━━━━━━━━━━━━━
    │
-   ╰ help: the properties are `memory` and `arithmetic`; naming none requires both
+   ╰ help: the properties are `memory` and `arithmetic`; naming none requires only `memory`
 
 error: aborting due to 2 previous errors
 
