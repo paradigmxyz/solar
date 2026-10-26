@@ -441,6 +441,10 @@ impl Effects {
         let is_other = |owner: Option<InstId>, own: &GrowableBitSet<InstId>| {
             owner.is_none_or(|inst| !own.contains(inst))
         };
+        // NOTE: Overlap is the static `AliasAnalysis::memory_alias_locations`, as
+        // `ModRef::may_read` and `may_write` use. The provenance-aware `memory_alias` also
+        // separates a unique allocation from a later free-memory-pointer read, which sroa
+        // has not relied on.
         let (mut blockers, mut elsewhere, mut touched) = (0, 0, 0);
         loop {
             while blockers < self.blockers.len() {
@@ -452,7 +456,9 @@ impl Effects {
             while elsewhere < self.elsewhere.len() {
                 elsewhere += 1;
                 let (owner, other) = self.elsewhere[elsewhere - 1];
-                if is_other(owner, &self.own) && alias.memory_alias(other, location).may_alias() {
+                if is_other(owner, &self.own)
+                    && AliasAnalysis::memory_alias_locations(other, location).may_alias()
+                {
                     return true;
                 }
             }
@@ -460,7 +466,9 @@ impl Effects {
             while touched < accesses.len() {
                 touched += 1;
                 let (owner, other) = accesses[touched - 1];
-                if is_other(owner, &self.own) && alias.memory_alias(other, location).may_alias() {
+                if is_other(owner, &self.own)
+                    && AliasAnalysis::memory_alias_locations(other, location).may_alias()
+                {
                     return true;
                 }
             }
@@ -503,7 +511,10 @@ impl Effects {
                     MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => {
                         self.touched.entry(site).or_default().push((owner, location));
                     }
-                    MemoryBase::Absolute | MemoryBase::InternalFrame | MemoryBase::Value(_) => {
+                    MemoryBase::Absolute
+                    | MemoryBase::InternalFrame
+                    | MemoryBase::Value(_)
+                    | MemoryBase::FreeMemory(_) => {
                         self.elsewhere.push((owner, location));
                     }
                 },
