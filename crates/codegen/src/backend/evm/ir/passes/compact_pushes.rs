@@ -31,7 +31,7 @@ use super::EvmPass;
 use crate::{
     backend::evm::{
         codegen::MAX_STACK_DEPTH,
-        ir::{Instruction, Metadata, Module, verify::Verifier},
+        ir::{Instruction, Metadata, Module, ModuleTarget, verify::Verifier},
         op::{self, WORD_BYTES},
     },
     target::{Cost, Target},
