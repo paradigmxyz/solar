@@ -200,18 +200,16 @@ contract BitSlice7 {
 }
 
 contract Coalesced16 {
-    // A 16-slot bit-slice stride table loses to modulo buckets with one shared
-    // miss, which Byzantium also uses because it cannot shift.
+    // Eight masked buckets with one shared miss beat a 16-slot bit-slice table
+    // in gas mode, and are all Byzantium can use because it cannot shift.
     // CHECK-LABEL: @module Coalesced16_runtime
-    // GAS: push 17{{$}}
-    // GAS-NEXT: dup 2
-    // GAS-NEXT: mod
-    // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){16}bb[0-9]+$}}
+    // GAS: push 7{{$}}
+    // GAS-NEXT: and
+    // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
     // SIZE-NOT: indexed_jump
-    // BYZ: push 17{{$}}
-    // BYZ-NEXT: dup 2
-    // BYZ-NEXT: mod
-    // BYZ-NEXT: indexed_jump {{(bb[0-9]+, ){16}bb[0-9]+$}}
+    // BYZ: push 7{{$}}
+    // BYZ-NEXT: and
+    // BYZ-NEXT: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -238,14 +236,15 @@ contract Coalesced16 {
 }
 
 contract Binary32 {
-    // Bucket tables would exceed the growth limit, so gas mode splits the
-    // sorted keys into eight leaves of four.
+    // Eight short buckets fit the growth limit in gas and Byzantium builds.
     // CHECK-LABEL: @module Binary32_runtime
-    // GAS-COUNT-7: {{^  gt$}}
-    // GAS-NOT: {{^  (gt|indexed_jump)$}}
+    // GAS: push 7{{$}}
+    // GAS-NEXT: and
+    // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
     // SIZE-NOT: indexed_jump
-    // BYZ-COUNT-7: {{^  gt$}}
-    // BYZ-NOT: {{^  (gt|indexed_jump)$}}
+    // BYZ: push 7{{$}}
+    // BYZ-NEXT: and
+    // BYZ-NEXT: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
     fallback() external {
         assembly {
             switch calldataload(0)

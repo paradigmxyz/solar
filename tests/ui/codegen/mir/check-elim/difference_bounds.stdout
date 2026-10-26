@@ -1,0 +1,87 @@
+- // === ROOT/tests/ui/codegen/mir/check-elim/difference_bounds.mir (before check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/check-elim/difference_bounds.mir (after check-elim) ===
+  @module DifferenceBounds
+  fn @parent(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = lt arg0, arg1
+      jumpi v0, bb1, bb3
+    bb1:
+      v1 = ne arg0, 0
+      jumpi v1, bb2, bb3
+    bb3:
+      stop
+    bb2:
+      v2 = sub arg0, 1
+      v3 = shr v2, 1
+      v4 = lt v3, arg1
+-     icall panic_if_zero<0x32>, v4
+      stop
+  }
+  
+  fn @sift(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = lt arg0, arg1
+      jumpi v0, bb1, bb5
+    bb5:
+      stop
+    bb1:
+      jump bb2
+    bb2:
+      v1 = phi [bb1: arg0], [bb3: v4]
+      v2 = gt v1, 0
+      jumpi v2, bb3, bb4
+    bb4:
+      stop
+    bb3:
+      v3 = sub v1, 1
+      v4 = shr v3, 1
+      v5 = lt v4, arg1
+-     icall panic_if_zero<0x32>, v5
+      jump bb2
+  }
+  
+  fn @by_two(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = lt arg0, arg1
+      jumpi v0, bb1, bb3
+    bb1:
+      v1 = lt 1, arg0
+      jumpi v1, bb2, bb3
+    bb3:
+      stop
+    bb2:
+      v2 = sub arg0, 2
+      v3 = lt v2, arg1
+-     icall panic_if_zero<0x32>, v3
+      stop
+  }
+  
+  fn @unguarded(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = lt arg0, arg1
+      jumpi v0, bb1, bb2
+    bb2:
+      stop
+    bb1:
+      v1 = sub arg0, 1
+      v2 = lt v1, arg1
+      icall panic_if_zero<0x32>, v2
+      stop
+  }
+  
+  fn @short_minuend(arg0: i256, arg1: i256) {
+    bb0:
+      v0 = lt arg0, arg1
+      jumpi v0, bb1, bb3
+    bb1:
+      v1 = ne arg0, 0
+      jumpi v1, bb2, bb3
+    bb3:
+      stop
+    bb2:
+      v2 = sub arg0, 2
+      v3 = lt v2, arg1
+      icall panic_if_zero<0x32>, v3
+      stop
+  }
+  

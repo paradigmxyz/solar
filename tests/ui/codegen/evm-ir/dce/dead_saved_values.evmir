@@ -4,7 +4,8 @@
 //@ filecheck: --check-prefix=COMMON
 @module module
 
-// A trailing `gas` keeps terminal-tail cleanup out of copy-elimination cases with no live result.
+// A trailing memory load keeps terminal-tail cleanup out of copy-elimination cases.
+// It may expand memory even though its result is unused.
 
 // Eliminate a dead saved value across an arbitrary straight-line region.
 // COMMON-LABEL: {{^[ +].*}}bb0:
@@ -72,7 +73,9 @@ bb3:
   swap 1
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Elide a permutation that only moves the omitted original.
@@ -99,7 +102,9 @@ bb5:
   push bb6
   jumpi
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 bb6:
@@ -132,7 +137,9 @@ bb8:
   pop
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Prefer removing an immediately discarded copy over rotating three results.
@@ -152,7 +159,9 @@ bb9:
   pop
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Remove an unused non-top stack copy and its cleanup permutation.
@@ -166,7 +175,9 @@ bb10:
   swap 1
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Adjust a deeper read across the omitted original.
@@ -183,7 +194,9 @@ bb11:
   pop
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Keep a copy when an ordinary operation consumes both occurrences.
@@ -195,7 +208,9 @@ bb12:
   dup 1
   add
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Reject a rotation that saves no size and increases gas.
@@ -214,7 +229,9 @@ bb13:
   pop
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Keep a deeper copy when it is consumed as an operand.
@@ -228,7 +245,9 @@ bb14:
   add
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // Track an omitted copy through logical extended stack operations.
@@ -240,7 +259,9 @@ bb15:
   dup 2
   pop
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // COMMON-LABEL: {{^[ +].*}}bb16:
@@ -252,7 +273,9 @@ bb16:
   dup 1
   swap 1
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
 
 // COMMON-LABEL: {{^[ +].*}}bb17:
@@ -266,5 +289,7 @@ bb17:
   dup 1
   exchange 1, 2
   pop
-  gas
+  push 0
+  mload
+  pop
   stop
