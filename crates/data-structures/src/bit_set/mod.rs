@@ -1442,6 +1442,20 @@ impl<R: BitSetIndex, C: BitSetIndex> BitMatrix<R, C> {
         word != new_word
     }
 
+    /// Sets the cell at `(row, column)` to false.
+    ///
+    /// Returns `true` if this changed the matrix.
+    pub fn remove(&mut self, row: R, column: C) -> bool {
+        assert!(row.index() < self.num_rows && column.index() < self.num_columns);
+        let (start, _) = self.range(row);
+        let (word_index, mask) = word_index_and_mask(column);
+        let words = &mut self.words[..];
+        let word = words[start + word_index];
+        let new_word = word & !mask;
+        words[start + word_index] = new_word;
+        word != new_word
+    }
+
     /// Do the bits from `row` contain `column`? Put another way, is
     /// the matrix cell at `(row, column)` true?  Put yet another way,
     /// if the matrix represents (transitive) reachability, can
