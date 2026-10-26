@@ -30,7 +30,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::BTreeMap};
 
 /// The modeled stack of a block being planned and the steps that produced it.
 #[derive(Clone, Default)]
@@ -671,7 +671,7 @@ impl<'a> Planner<'a> {
             let Some(whole) = self.definition_block(blocks) else { continue };
             candidates.extend(self.retention_saving(value, whole, blocks));
             let dominators = self.cfg.dominators();
-            let mut branches = FxHashMap::<BlockId, SmallVec<[BlockId; 4]>>::default();
+            let mut branches = BTreeMap::<BlockId, SmallVec<[BlockId; 4]>>::default();
             for &block in blocks {
                 // The child of the dominator of all uses that dominates this use.
                 if let Some(&branch) = dominators
@@ -3397,9 +3397,10 @@ fn held_blocks(
     let mut held = FxHashMap::<_, DenseBitSet<BlockId>>::default();
     for &(def, value) in definitions {
         let blocks = held.entry(value).or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()));
-        for block in func.blocks.indices() {
-            if cfg.dominators().dominates(def, block) {
-                blocks.insert(block);
+        let mut pending = vec![def];
+        while let Some(block) = pending.pop() {
+            if blocks.insert(block) {
+                pending.extend_from_slice(cfg.dominators().children(block));
             }
         }
     }
