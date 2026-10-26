@@ -15,9 +15,7 @@ fn @overflow(arg0: slice<calldata>) {
     v2 = alloc zeroed checked 32
     v9 = alloc zeroed checked 32
     mstore v2, v0
-    v11 = ptrtoint ptr<memory> v2 to i256
-    v12 = add v11, 32
-    v3 = inttoptr i256 v12 to ptr<memory>
+    v3 = ptradd v2, 32
     v4 = extract_value slice<calldata>, arg0, 0
     calldatacopy v3, v4, v0
     v6 = abi_encode [memory_bytes], scratch, args v2

@@ -7,40 +7,38 @@
       v1 = alloc zeroed checked 32
       v2 = alloc zeroed checked 32
       mstore v1, v0
-      v3 = ptrtoint ptr<memory> v1 to i256
-      v4 = add v3, 32
-      v5 = inttoptr i256 v4 to ptr<memory>
-      v6 = extract_value slice<calldata>, arg0, 0
-      calldatacopy v5, v6, v0
--     v7 = abi_encode [memory_bytes], scratch, args v1
--     v8 = extract_value slice<memory>, v7, 0
--     v9 = extract_value slice<memory>, v7, 1
-+     v11 = fmp
-+     v12 = ptrtoint ptr<memory> v11 to i256
-+     v13 = add v12, 32
-+     v14 = ptrtoint ptr<memory> v11 to i256
-+     v15 = sub v13, v14
-+     mstore v11, v15
-+     v16 = mload v1
-+     v17 = not 31
-+     v18 = add v16, 31
-+     v19 = and v18, v17
-+     v20 = add v13, 32
-+     v21 = add v13, v19
-+     mstore v21, 0
-+     mstore v13, v16
-+     v22 = ptradd v1, 32
-+     v23 = add v20, v19
-+     mcopy v20, v22, v16 !metadata(memory=heap, disjoint)
-+     v24 = ptrtoint ptr<memory> v11 to i256
-+     v25 = sub v23, v24
-+     v26 = add v25, 0
-+     v27 = make_memory_slice v11, v26
-+     v8 = extract_value slice<memory>, v27, 0
-+     v9 = extract_value slice<memory>, v27, 1
-      v10 = mload v2
-      sstore 0, v10
--     returndata v8, v9
-+     returndata v11, v26
+      v3 = ptradd v1, 32
+      v4 = extract_value slice<calldata>, arg0, 0
+      calldatacopy v3, v4, v0
+-     v5 = abi_encode [memory_bytes], scratch, args v1
+-     v6 = extract_value slice<memory>, v5, 0
+-     v7 = extract_value slice<memory>, v5, 1
++     v9 = fmp
++     v10 = ptrtoint ptr<memory> v9 to i256
++     v11 = add v10, 32
++     v12 = ptrtoint ptr<memory> v9 to i256
++     v13 = sub v11, v12
++     mstore v9, v13
++     v14 = mload v1
++     v15 = not 31
++     v16 = add v14, 31
++     v17 = and v16, v15
++     v18 = add v11, 32
++     v19 = add v11, v17
++     mstore v19, 0
++     mstore v11, v14
++     v20 = ptradd v1, 32
++     v21 = add v18, v17
++     mcopy v18, v20, v14 !metadata(memory=heap, disjoint)
++     v22 = ptrtoint ptr<memory> v9 to i256
++     v23 = sub v21, v22
++     v24 = add v23, 0
++     v25 = make_memory_slice v9, v24
++     v6 = extract_value slice<memory>, v25, 0
++     v7 = extract_value slice<memory>, v25, 1
+      v8 = mload v2
+      sstore 0, v8
+-     returndata v6, v7
++     returndata v9, v24
   }
   

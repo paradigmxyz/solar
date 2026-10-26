@@ -21,7 +21,9 @@
 //! A `bytes` argument that only holds a copy of a calldata slice, as passing
 //! `bytes calldata` to a `bytes memory` parameter makes, encodes from the slice;
 //! the copy's length and bytes go, while its allocation keeps its pointer bump.
-//! This runs only in functions that never return to an internal caller.
+//! This runs first, before encodings are counted for helper sharing, so sites that encode from a
+//! slice share a helper keyed by the slice. It applies only in functions that never return to an
+//! internal caller.
 //!
 //! Literal objects. A `bytes memory` argument allocated and initialized with
 //! constant words in the encoding's block, with no intervening opaque memory
@@ -106,7 +108,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
-use std::sync::Arc;
+use std::{cell::OnceCell, sync::Arc};
 
 /// Lowers `abi_encode` after the main optimization pipeline.
 pub(crate) struct LowerAbiEncode;
@@ -123,6 +125,7 @@ impl MirPass for LowerAbiEncode {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = Target::new(gcx);
+        let mut changed = substitute_calldata_copies(module, analyses);
         let (fresh_object_returns, mut destructive_returns) =
             plan_destructive_terminal_returns(&target, module);
         let mut helpers = synthesize_array_helpers(&target, module, revert_strings);
@@ -148,9 +151,7 @@ impl MirPass for LowerAbiEncode {
             }
         }
         let inline_helpers = EncodeHelpers::new(&target);
-        let summaries = analyses.call_summaries(module);
-        let returning = module.returning_functions();
-        let mut changed = !helpers.arrays.is_empty()
+        changed |= !helpers.arrays.is_empty()
             || !helpers.calldata.is_empty()
             || !helpers.tuples.is_empty();
         changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
@@ -166,7 +167,6 @@ impl MirPass for LowerAbiEncode {
                 revert_strings,
                 &fresh_object_returns,
                 &destructive_returns[func_id],
-                (!returning.contains(func_id)).then_some(&summaries),
             )
         });
         CallGraphInfo::assert_runtime_helpers(
@@ -582,7 +582,6 @@ fn lower_function(
     revert_strings: RevertStrings,
     fresh_object_returns: &DenseBitSet<FunctionId>,
     destructive_returns: &FxHashSet<InstId>,
-    summaries: Option<&Arc<MemoryCallSummaries>>,
 ) -> bool {
     let has_encodes =
         func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }));
@@ -601,8 +600,6 @@ fn lower_function(
     });
     let mut terminal_literals = unobserved;
     terminal_literals.retain(|object| helpers.literal_objects.contains(object));
-    let calldata_copies =
-        summaries.map(|summaries| calldata_copy_objects(func, summaries)).unwrap_or_default();
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
@@ -621,12 +618,9 @@ fn lower_function(
                 continue;
             };
             let selector = selector.map(|value| resolve_replacement(value, &replacements));
-            // A `bytes` argument that only holds a copy of a calldata slice encodes from the
-            // slice itself, so its bytes are copied once.
             let args = args
                 .iter()
                 .map(|&value| resolve_replacement(value, &replacements))
-                .map(|value| calldata_copies.get(&value).map_or(value, |&(slice, _)| slice))
                 .collect::<Vec<_>>();
             let layout = Arc::clone(layout);
             let mode = *mode;
@@ -662,15 +656,6 @@ fn lower_function(
             replacements.insert(result, replacement);
         }
         move_terminator(&mut builder, block, original_terminator, terminator_metadata);
-    }
-    // Every reader of such a copy now reads the slice, so its length and bytes are dead; the
-    // allocation keeps its free-memory-pointer bump.
-    let dead_copies =
-        calldata_copies.values().flat_map(|&(_, writes)| writes).collect::<FxHashSet<_>>();
-    if !dead_copies.is_empty() {
-        for block in func.blocks.iter_mut() {
-            block.instructions.retain(|inst| !dead_copies.contains(inst));
-        }
     }
     fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
@@ -2170,6 +2155,56 @@ fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> 
     }
 }
 
+/// Rewrites every encoding of a calldata slice copy to encode the slice, in each function that
+/// never returns to an internal caller, and drops the copy's length store and fill. Every reader
+/// of such a copy now reads the slice, so its bytes are dead; the allocation keeps its
+/// free-memory-pointer bump.
+fn substitute_calldata_copies(module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    let returning = module.returning_functions();
+    let summaries = OnceCell::new();
+    let copies = module
+        .functions
+        .iter_enumerated()
+        .filter(|&(id, func)| {
+            !returning.contains(id)
+                && func
+                    .instructions()
+                    .any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }))
+        })
+        .map(|(id, func)| {
+            let copies = calldata_copy_objects(func, || {
+                Arc::clone(
+                    summaries.get_or_init(|| Arc::new(analyses.fresh_call_summaries(module))),
+                )
+            });
+            (id, copies)
+        })
+        .filter(|(_, copies)| !copies.is_empty())
+        .collect::<Vec<_>>();
+    let changed = !copies.is_empty();
+    for (func_id, copies) in copies {
+        let func = &mut module.functions[func_id];
+        for inst in func.instructions().collect::<Vec<_>>() {
+            // abi_encode [memory_bytes], args copy => abi_encode [memory_bytes], args slice
+            if let InstKind::AbiEncode { args, .. } = &mut func.inst_mut(inst).kind {
+                for arg in args {
+                    if let Some(&(slice, _)) = copies.get(arg) {
+                        *arg = slice;
+                    }
+                }
+            }
+        }
+        let dead_copies = copies.values().flat_map(|&(_, writes)| writes).collect::<FxHashSet<_>>();
+        // mstore copy, len
+        // calldatacopy ptradd(copy, 32), slice.ptr, len
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|inst| !dead_copies.contains(inst));
+        }
+        analyses.invalidate_local_summary(func_id);
+    }
+    changed
+}
+
 /// Memory objects that hold nothing but an unmodified copy of a calldata slice and are read only
 /// as top-level `bytes` arguments of encodings, mapped to that slice. No other memory access,
 /// encoding argument, or call in the function may touch them. Materializing such an argument for
@@ -2185,7 +2220,7 @@ fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> 
 /// caller, directly or through tail calls.
 fn calldata_copy_objects(
     func: &Function,
-    summaries: &Arc<MemoryCallSummaries>,
+    summaries: impl FnOnce() -> Arc<MemoryCallSummaries>,
 ) -> FxHashMap<ValueId, (ValueId, [InstId; 2])> {
     #[derive(Default)]
     struct Uses {
@@ -2286,7 +2321,7 @@ fn calldata_copy_objects(
     }
     // Accesses through addresses that do not derive from the object, such as inline assembly
     // offsets, other encoding arguments, or callees, can still observe or change its bytes.
-    let alias = AliasAnalysis::with_call_summaries(func, Arc::clone(summaries));
+    let alias = AliasAnalysis::with_call_summaries(func, summaries());
     copies.retain(|&(object, (_, writes))| {
         let Value::Inst(alloc) = *func.value(object) else { return false };
         let InstKind::Alloc { size, .. } = func.inst(alloc).kind else { return false };
