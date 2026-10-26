@@ -1,0 +1,65 @@
+//@ compile-flags: -Zmir-pipeline=copy-runs
+//@ filecheck:
+@module NestedFloor
+
+// Another function tail-calls the wrapper without the check, so no bound of the size of calldata holds at its start, and the callee keeps its loads.
+// CHECK-LABEL: fn @copy3
+// CHECK-NOT: calldatacopy
+fn @copy3(arg0: i256) {
+  bb0:
+    v3 = calldatasize
+    v4 = sub v3, arg0
+    v5 = lt v4, 96
+    jumpi v5, bb1, bb2
+  bb2:
+    v10 = calldataload arg0
+    mstore 128, v10
+    v11 = add arg0, 32
+    v12 = calldataload v11
+    mstore 160, v12
+    v14 = add arg0, 64
+    v15 = calldataload v14
+    mstore 192, v15
+    stop
+  bb1:
+    revert 0, 0
+}
+
+// The offset is checked against `calldatasize - 100`, which wraps for calldata shorter than 100
+// bytes; the caller's own check is what keeps it from doing so.
+fn @w() [selector=0x11111111] {
+  bb0:
+    v4 = calldataload 4
+    v5 = calldatasize
+    v6 = sub v5, 100
+    v7 = gt v4, v6
+    jumpi v7, bb1, bb2
+  bb2:
+    v10 = add v4, 4
+    icall @copy3, v10
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v9 = calldataload 0
+    v8 = eq v9, 1
+    jumpi v8, bb3, bb4
+  bb3:
+    v0 = calldatasize
+    v1 = lt v0, 100
+    jumpi v1, bb1, bb2
+  bb2:
+    tail_call @w
+  bb1:
+    revert 0, 0
+  bb4:
+    tail_call @w2
+}
+
+fn @w2() {
+  bb0:
+    tail_call @w
+}
