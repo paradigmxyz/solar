@@ -15,6 +15,23 @@
 +     ret arg0
   }
   
+  fn @earlier_alloc_in_dominator(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc 32
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = mload v1
+      jump bb1
+    bb1:
+      v3 = alloc 64
+      v4 = ptrtoint ptr<memory> v3 to i256
+      v5 = add v4, 32
+      calldatacopy v5, 0, arg1
+-     v6 = mload v1
+-     v7 = add v2, v6
++     v7 = add v2, v2
+      ret v7
+  }
+  
   fn @words_below_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = alloc 64
