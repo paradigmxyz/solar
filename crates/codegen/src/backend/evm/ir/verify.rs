@@ -987,6 +987,10 @@ fn label_flow(module: &Module, block: &Block, may_return: &DenseBitSet<BlockId>)
     let mut height = 0isize;
     for (at, inst) in block.instructions.iter().enumerate() {
         if let Some(label) = inst.pushed_block() {
+            // More addresses than the stack holds is rejected by the walk; do not scan them.
+            if words.len() >= MAX_STACK_DEPTH {
+                return LabelFlow::default();
+            }
             words.push(Word { slot: height, block: label, push: at });
             height += 1;
             continue;
