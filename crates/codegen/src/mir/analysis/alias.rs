@@ -1788,11 +1788,16 @@ impl AliasAnalysis {
     fn constant_word(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
         match func.value(value) {
             Value::Immediate(immediate) => immediate.as_u256(),
-            Value::Inst(inst) if depth < 8 => {
-                crate::mir::utils::eval::eval_typed_inst(func, &func.inst(*inst).kind, |operand| {
-                    Self::constant_word(func, operand, depth + 1).ok_or(())
-                })
-                .ok()?
+            Value::Inst(inst) if depth < 4 && super::integers::integer_bits(func, value) == 256 => {
+                let word = |operand| Self::constant_word(func, operand, depth + 1);
+                match func.inst(*inst).kind {
+                    InstKind::Add(first, second) => Some(word(first)?.wrapping_add(word(second)?)),
+                    InstKind::Sub(first, second) => Some(word(first)?.wrapping_sub(word(second)?)),
+                    InstKind::Mul(first, second) => Some(word(first)?.wrapping_mul(word(second)?)),
+                    InstKind::And(first, second) => Some(word(first)? & word(second)?),
+                    InstKind::Or(first, second) => Some(word(first)? | word(second)?),
+                    _ => None,
+                }
             }
             _ => None,
         }

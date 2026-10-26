@@ -49,6 +49,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
+use std::cell::OnceCell;
 
 /// Copy-elision pass over write-only memory allocations.
 pub(crate) struct CopyElision;
@@ -82,6 +83,18 @@ struct CopyElisionCx {
     terminator_uses: FxHashSet<ValueId>,
     /// The block of each instruction.
     inst_positions: FxHashMap<InstId, (BlockId, usize)>,
+    /// The instructions and terminators that read memory.
+    readers: OnceCell<Vec<MemoryReader>>,
+}
+
+/// An instruction or terminator that may read memory.
+#[derive(Debug)]
+struct MemoryReader {
+    /// The reading instruction, or `None` for a terminator.
+    inst: Option<InstId>,
+    /// The block and index of the instruction; a terminator's index is the block's length.
+    position: (BlockId, usize),
+    accesses: Vec<Access>,
 }
 
 /// How a function uses one allocation, when no use may read it.
@@ -139,6 +152,7 @@ impl CopyElisionCx {
             self.indexed_stores.clear();
             self.terminator_uses.clear();
             self.inst_positions.clear();
+            self.readers = OnceCell::new();
             self.index_uses(func);
 
             let dead = self.dead_writes(func, alias, cfg, &allocs);
@@ -298,30 +312,53 @@ impl CopyElisionCx {
         };
         // Every write to a unique allocation follows it, so a read that no path runs after the
         // allocation cannot observe a write.
-        let runs_after = |inst: InstId| {
-            !own_fmp_read
-                || self.runs_after(cfg, alloc_inst, self.inst_positions.get(&inst).copied())
-        };
-        func.instructions().any(|inst| {
-            !(own_fmp_read && inst == alloc_inst)
-                && runs_after(inst)
-                && alias
-                    .instruction_mod_ref(func, inst)
-                    .reads()
+        self.readers(func, alias).iter().any(|reader| {
+            !(own_fmp_read && reader.inst == Some(alloc_inst))
+                && (!own_fmp_read || self.runs_after(cfg, alloc_inst, Some(reader.position)))
+                && reader.accesses.iter().copied().any(reads_allocation)
+        })
+    }
+
+    /// Returns the instructions and terminators that may read memory, computed on first use.
+    fn readers(&self, func: &Function, alias: &AliasAnalysis) -> &[MemoryReader] {
+        self.readers.get_or_init(|| {
+            let memory = |accesses: &[Access]| {
+                accesses
                     .iter()
                     .copied()
-                    .any(reads_allocation)
-        }) || func.blocks.iter_enumerated().any(|(block, data)| {
-            data.terminator.as_ref().is_some_and(|terminator| {
-                (!own_fmp_read
-                    || self.runs_after(cfg, alloc_inst, Some((block, data.instructions.len()))))
-                    && alias
-                        .terminator_mod_ref(func, terminator)
-                        .reads()
-                        .iter()
-                        .copied()
-                        .any(reads_allocation)
-            })
+                    .filter(|access| {
+                        matches!(
+                            access,
+                            Access::Any(AddressSpace::Memory)
+                                | Access::Location(Location::Memory(_))
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let mut readers = Vec::new();
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                for (index, &inst) in block.instructions.iter().enumerate() {
+                    let accesses = memory(alias.instruction_mod_ref(func, inst).reads());
+                    if !accesses.is_empty() {
+                        readers.push(MemoryReader {
+                            inst: Some(inst),
+                            position: (block_id, index),
+                            accesses,
+                        });
+                    }
+                }
+                if let Some(terminator) = &block.terminator {
+                    let accesses = memory(alias.terminator_mod_ref(func, terminator).reads());
+                    if !accesses.is_empty() {
+                        readers.push(MemoryReader {
+                            inst: None,
+                            position: (block_id, block.instructions.len()),
+                            accesses,
+                        });
+                    }
+                }
+            }
+            readers
         })
     }
 
