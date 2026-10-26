@@ -18,13 +18,13 @@ contract CoalesceAllocsFixture {
     }
 
     // The deferred outer allocation must not coalesce with its dynamic child
-    // allocations.
+    // allocations. Every field read is forwarded, so no store into any of them
+    // remains, and the three allocations stay separate.
     // CHECK-LABEL: fn @combine
-    // CHECK: [[OUTER_PTR:v[0-9]+]] = alloc 96
-    // CHECK: [[FIRST:v[0-9]+]] = mload 64
-    // CHECK: mstore [[FIRST]], arg0
-    // CHECK: [[SECOND:v[0-9]+]] = add [[FIRST]], 64
-    // CHECK: mstore [[SECOND]], 2
+    // CHECK: [[OUTER_PTR:v[0-9]+]] = alloc 96 !metadata(deferred_alloc)
+    // CHECK-NEXT: alloc 64 !metadata(deferred_alloc)
+    // CHECK-NEXT: alloc 64 !metadata(deferred_alloc)
+    // CHECK-NOT: mstore v
     // CHECK: returndata
     function combine(uint256 x) public pure returns (uint256) {
         Outer memory outer = Outer(Inner(x, 1), Inner(2, x), 3);

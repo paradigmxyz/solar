@@ -47,14 +47,6 @@ use crate::mir::{
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias_and_cfg},
 };
-use crate::mir::{
-    BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, Location, LocationSize, MemoryBase, MemoryLocation,
-    },
-    memory::EvmMemoryLayout,
-    pass::{MirPass, run_function_pass_with_alias_and_cfg},
-};
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
