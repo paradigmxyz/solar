@@ -17,6 +17,7 @@
 //@ run-call: siftValues 7, 9 => [3, 7, 2, 10, 6, 105, 9]
 //@ run-call: siftValues 16, 17 => [3, 7, 2, 10, 6, 0, 9, 5, 1, 8, 4, 111, 7, 3, 10, 6]
 //@ run-call-fail: siftValues 3, 6 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: literalInLoop 1, [7, 0, 0, 0] => 3
 pragma solidity ^0.8.0;
 
 // A counted loop whose bound is not the length of the arrays it checks its accesses against
@@ -90,5 +91,22 @@ contract Bounds {
         }
         values[p] = 100 + p;
         keys[p] = k0;
+    }
+
+    /// A literal's allocation in the copied loop stays where inline assembly reads it.
+    function literalInLoop(uint256 n, uint256[4] memory a) external pure returns (uint256 result) {
+        for (uint256 i; i < n; ++i) {
+            uint256 x = a[i];
+            uint256 before;
+            assembly {
+                before := mload(0x40)
+            }
+            bytes memory s = "abc";
+            bytes memory r = abi.encode(x, s);
+            assembly {
+                result := mload(before)
+            }
+            require(r.length == 128);
+        }
     }
 }
