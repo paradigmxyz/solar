@@ -381,6 +381,9 @@ const HEADER_REPLAN_WORK: usize = 2048;
 /// The most constants of a function tried for retention on the stack, each trial replanning it.
 const MAX_CONSTANT_TRIALS: usize = 4;
 
+/// The most constants of a function tried for retention when optimizing for size.
+const SIZE_CONSTANT_TRIALS: usize = 1;
+
 impl<'gcx> EvmCodegen<'gcx> {
     /// Emits the runtime: the dispatch entry, the external entries, and the internal functions
     /// they call.
@@ -890,20 +893,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let hints = FxHashMap::default();
         let mut retained = Vec::new();
-        let dominators = &analysis.cfg.dominators();
+        let dominators = analysis.cfg.dominators();
         // Size builds keep to one constant: the later outlining and block merging that rebuilt
         // pushes feed make a second one grow some contracts.
-        let max_trials = if target.optimization().is_size() { 1 } else { MAX_CONSTANT_TRIALS };
+        let max_trials = if target.optimization().is_size() {
+            SIZE_CONSTANT_TRIALS
+        } else {
+            MAX_CONSTANT_TRIALS
+        };
         let mut trials = 0;
         for constant in constants {
             if trials == max_trials {
                 break;
             }
+            let (def, value) = constant;
             // A constant is kept from one block through all it dominates.
-            if retained.iter().any(|&(block, value)| {
-                value == constant.1
-                    && (dominators.dominates(block, constant.0)
-                        || dominators.dominates(constant.0, block))
+            if retained.iter().any(|&(block, other)| {
+                other == value
+                    && (dominators.dominates(block, def) || dominators.dominates(def, block))
             }) {
                 continue;
             }

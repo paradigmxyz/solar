@@ -232,15 +232,12 @@ impl Liveness {
         live_out: &DenseBitSet<BlockId>,
     ) {
         for block in (0..live_in.domain_size()).map(BlockId::from_usize) {
-            if live_in.contains(block) {
-                self.live_in.insert(block, value);
-            } else {
-                self.live_in.remove(block, value);
-            }
-            if live_out.contains(block) {
-                self.live_out.insert(block, value);
-            } else {
-                self.live_out.remove(block, value);
+            for (matrix, blocks) in [(&mut self.live_in, live_in), (&mut self.live_out, live_out)] {
+                if blocks.contains(block) {
+                    matrix.insert(block, value);
+                } else {
+                    matrix.remove(block, value);
+                }
             }
         }
     }

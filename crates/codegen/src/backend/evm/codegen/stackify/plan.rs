@@ -670,29 +670,26 @@ impl<'a> Planner<'a> {
             let Some(blocks) = use_blocks.get(&value) else { continue };
             let Some(whole) = self.definition_block(blocks) else { continue };
             candidates.extend(self.retention_saving(value, whole, blocks));
-            let mut branches = SmallVec::<[(BlockId, SmallVec<[BlockId; 4]>); 2]>::new();
+            let dominators = self.cfg.dominators();
+            let mut branches = FxHashMap::<BlockId, SmallVec<[BlockId; 4]>>::default();
             for &block in blocks {
-                // The child of the dominator of all uses on the way to this use.
-                let mut branch = block;
-                while branch != whole
-                    && let Some(idom) = self.cfg.dominators().idom(branch)
-                    && idom != whole
+                // The child of the dominator of all uses that dominates this use.
+                if let Some(&branch) = dominators
+                    .children(whole)
+                    .iter()
+                    .find(|&&child| dominators.dominates(child, block))
                 {
-                    branch = idom;
-                }
-                if branch == whole {
-                    continue;
-                }
-                match branches.iter_mut().find(|(root, _)| *root == branch) {
-                    Some((_, uses)) => uses.push(block),
-                    None => branches.push((branch, smallvec![block])),
+                    branches.entry(branch).or_default().push(block);
                 }
             }
             if branches.len() < 2 && !blocks.contains(&whole) {
                 continue;
             }
-            for (_, uses) in branches {
-                if let Some(definition) = self.definition_block(&uses) {
+            for uses in branches.into_values() {
+                // A branch under a loop header climbs back to the dominator of all uses.
+                if let Some(definition) = self.definition_block(&uses)
+                    && definition != whole
+                {
                     candidates.extend(self.retention_saving(value, definition, &uses));
                 }
             }
