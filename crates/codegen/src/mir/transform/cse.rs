@@ -1434,9 +1434,7 @@ impl CommonSubexprEliminator {
     fn apply_clobber(&self, expr_cache: &mut ExprCache, clobber: &Clobber) {
         match *clobber {
             Clobber::GasObservation => expr_cache.clear_stateful(),
-            Clobber::Write(write) => {
-                expr_cache.retain_stateful(|key, _| Self::survives(key, write))
-            }
+            Clobber::Write(write) => expr_cache.retain_stateful(|key, _| self.survives(key, write)),
             Clobber::AccountEnvironment => {
                 expr_cache.retain_stateful(|key, _| !Self::is_account_environment_expr(key));
             }
@@ -1444,7 +1442,7 @@ impl CommonSubexprEliminator {
     }
 
     /// Whether the cached read `key` survives `write`.
-    fn survives(key: &ExprKey, write: Access) -> bool {
+    fn survives(&self, key: &ExprKey, write: Access) -> bool {
         let Some(read) = Self::read_location(key) else {
             // A restoring call's reads are not tracked, so any memory write ends its reuse.
             return !matches!(key, ExprKey::RestoringCall(..))
@@ -1453,9 +1451,14 @@ impl CommonSubexprEliminator {
         if read.address_space() != write.address_space() {
             return true;
         }
-        match write {
-            Access::Location(write) => !AliasAnalysis::alias_locations(read, write).may_alias(),
-            Access::Any(_) => false,
+        match (read, write) {
+            (Location::Memory(read), Access::Location(Location::Memory(write))) => {
+                !self.alias().memory_alias(read, write).may_alias()
+            }
+            (_, Access::Location(write)) => {
+                !AliasAnalysis::alias_locations(read, write).may_alias()
+            }
+            (_, Access::Any(_)) => false,
         }
     }
 

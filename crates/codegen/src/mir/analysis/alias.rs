@@ -7,7 +7,7 @@
 //! and FMP recycling can cross those regions. The analysis exposes the memory,
 //! storage, and transient-storage effects of each instruction.
 
-use super::{CfgInfo, MemoryCallSummaries};
+use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
     AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
     ImmutableId, InstId, InstKind, MemoryRegion, MirType, PtrLocation, RequireKind, StorageAlias,
@@ -76,6 +76,8 @@ pub(crate) enum MemoryBase {
     DynamicAllocation(InstId),
     /// A symbolic MIR value.
     Value(ValueId),
+    /// The result of one free-memory-pointer read that no reset of the pointer can precede.
+    FreeMemory(InstId),
 }
 
 /// A canonical memory address represented as a base plus byte offset.
@@ -121,7 +123,8 @@ impl MemoryAddress {
             MemoryBase::InternalFrame
             | MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::Value(_) => None,
+            | MemoryBase::Value(_)
+            | MemoryBase::FreeMemory(_) => None,
         }
     }
 
@@ -133,7 +136,8 @@ impl MemoryAddress {
             MemoryBase::Absolute
             | MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::Value(_) => None,
+            | MemoryBase::Value(_)
+            | MemoryBase::FreeMemory(_) => None,
         }
     }
 
@@ -418,9 +422,50 @@ enum AddressState {
     Resolved(Option<MemoryAddress>),
 }
 
+/// The order of unique allocations relative to the free-memory-pointer reads no reset precedes.
+///
+/// No path from the entry to such a read `P` resets the pointer, so every unique `alloc` that
+/// executes before `P` ends at or below the pointer `P` returns, and an access at a nonnegative
+/// offset from `P` cannot reach it.
+#[derive(Clone, Debug)]
+struct FreshFmps {
+    dominators: DominatorTree,
+    /// The block and index of each unique `alloc` and each fresh free-memory-pointer read.
+    positions: FxHashMap<InstId, (BlockId, usize)>,
+}
+
+impl FreshFmps {
+    /// Returns whether one base is a unique allocation that precedes the read the other names.
+    fn separates(&self, first: MemoryBase, second: MemoryBase) -> bool {
+        match (first, second) {
+            (MemoryBase::Allocation(alloc), MemoryBase::FreeMemory(read))
+            | (MemoryBase::FreeMemory(read), MemoryBase::Allocation(alloc)) => {
+                self.precedes(alloc, read)
+            }
+            _ => false,
+        }
+    }
+
+    /// Returns whether `alloc` executes before `read` on every path.
+    fn precedes(&self, alloc: InstId, read: InstId) -> bool {
+        let (Some(&(alloc_block, alloc_index)), Some(&(read_block, read_index))) =
+            (self.positions.get(&alloc), self.positions.get(&read))
+        else {
+            return false;
+        };
+        if alloc_block == read_block {
+            alloc_index < read_index
+        } else {
+            self.dominators.dominates(alloc_block, read_block)
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct PointerProvenance {
     allocations: FxHashMap<InstId, AllocationProvenance>,
+    /// Present when some unique `alloc` and some fresh read exist.
+    fresh_fmps: Option<FreshFmps>,
     /// Grows on demand, since transforms may add values after construction.
     addresses: RefCell<IndexVec<ValueId, AddressState>>,
 }
@@ -483,24 +528,37 @@ impl PointerProvenance {
         }
 
         let mut allocations = FxHashMap::default();
+        // The unique `alloc`s and the free-memory-pointer reads that no reset precedes.
+        let mut positions = FxHashMap::default();
+        let (mut has_alloc, mut has_read) = (false, false);
         for (block_id, block) in func.blocks.iter_enumerated() {
             let entry_fresh = reachable.contains(block_id) && !poisoned.contains(block_id);
             for (index, &inst_id) in block.instructions.iter().enumerate() {
                 if is_allocation(inst_id) {
                     let fresh =
                         entry_fresh && first_resets[block_id].is_none_or(|first| index <= first);
+                    let unique = fresh && !cyclic.contains(block_id);
                     allocations.insert(
                         inst_id,
-                        AllocationProvenance {
-                            dynamic: fresh && cyclic.contains(block_id),
-                            unique: fresh && !cyclic.contains(block_id),
-                        },
+                        AllocationProvenance { dynamic: fresh && !unique, unique },
                     );
+                    if unique && matches!(func.inst(inst_id).kind, InstKind::Alloc { .. }) {
+                        positions.insert(inst_id, (block_id, index));
+                        has_alloc = true;
+                    }
+                } else if matches!(func.inst(inst_id).kind, InstKind::Fmp)
+                    && entry_fresh
+                    && first_resets[block_id].is_none_or(|first| index < first)
+                {
+                    positions.insert(inst_id, (block_id, index));
+                    has_read = true;
                 }
             }
         }
+        let fresh_fmps = (has_alloc && has_read)
+            .then(|| FreshFmps { dominators: cfg.dominators().clone(), positions });
 
-        Self { allocations, addresses: RefCell::default() }
+        Self { allocations, fresh_fmps, addresses: RefCell::default() }
     }
 }
 
@@ -561,6 +619,8 @@ impl AliasAnalysis {
                     (cached.addresses.borrow(), fresh.addresses.borrow());
                 let common = cached_addresses.len().min(fresh_addresses.len());
                 cached.allocations == fresh.allocations
+                    && cached.fresh_fmps.as_ref().map(|f| &f.positions)
+                        == fresh.fresh_fmps.as_ref().map(|f| &f.positions)
                     && cached_addresses.raw[..common] == fresh_addresses.raw[..common]
                     && cached_addresses.raw[common..]
                         .iter()
@@ -1429,6 +1489,15 @@ impl AliasAnalysis {
         first: MemoryLocation,
         second: MemoryLocation,
     ) -> AliasResult {
+        // `FreeMemory` bases come only from the provenance snapshot, so without it the static
+        // rules are complete.
+        // NOTE: Like the disjointness of two allocations, this assumes that an access based on an
+        // allocation stays inside it.
+        if let Some(fresh) = self.provenance.get().and_then(|p| p.fresh_fmps.as_ref())
+            && fresh.separates(first.address.base, second.address.base)
+        {
+            return AliasResult::NoAlias;
+        }
         Self::memory_alias_locations(first, second)
     }
 
@@ -1585,6 +1654,18 @@ impl AliasAnalysis {
             Value::Undef(_) | Value::Error(_) => None,
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::InternalFrameAddr(offset) => Some(MemoryAddress::internal_frame(offset)),
+                InstKind::Fmp
+                    if provenance
+                        .fresh_fmps
+                        .as_ref()
+                        .is_some_and(|fresh| fresh.positions.contains_key(inst_id)) =>
+                {
+                    Some(MemoryAddress {
+                        region: MemoryRegion::Heap,
+                        base: MemoryBase::FreeMemory(*inst_id),
+                        offset: 0,
+                    })
+                }
                 InstKind::Alloc { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
                     MemoryAddress {
                         region: MemoryRegion::Heap,
