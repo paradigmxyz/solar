@@ -44,8 +44,10 @@
 //! it, that may run after the block ends normally, unless the path there reads the pointer again.
 //! On the way into the block, it rejects a store of one, other than into the free memory pointer,
 //! and a call or other operation that takes one as data rather than as an address it accesses:
-//! code after the block could load the pointer back. It does not follow whether assembly reserved
-//! memory at the pointer first.
+//! code after the block could load the pointer back. The same check runs across internal calls
+//! which may execute a scratch block, including recursive calls and function-pointer dispatchers.
+//! Callee summaries also record free pointers captured by stores or calls, even when the callee
+//! returns no value. It does not follow whether assembly reserved memory at the pointer first.
 //!
 //! The check runs on the contract's MIR right after lowering, before any pass, once the internal
 //! function pointer dispatchers exist, so every body a call in the block may run is summarized.
@@ -146,17 +148,43 @@ pub(in crate::mir::lower) fn check_scratch_regions(
     }
     let calls =
         Arc::new(MemoryCallSummaries::new_cached(module, &mut LocalSummaryCache::default()));
+    let scratch = scratch_callers(module, regions);
     let summaries = PointerWrites::compute(
         module,
         &calls,
         assembly,
-        regions.iter().map(|&(function, _)| function),
+        scratch.keys().copied().chain(regions.iter().map(|&(function, _)| function)),
     );
-    for group in regions.chunk_by(|a, b| a.0 == b.0) {
-        let function = Analyzed::new(module.function(group[0].0), &calls);
-        let saved = group.iter().map(|(_, region)| region.saved).collect::<FxHashSet<_>>();
-        for (_, region) in group {
+    for (id, func) in module.iter_functions() {
+        let local = regions.iter().filter(|&&(function, _)| function == id);
+        if !scratch.contains_key(&id) && local.clone().next().is_none() {
+            continue;
+        }
+        let function = Analyzed::new(func, &calls);
+        let saved = local.clone().map(|(_, region)| region.saved).collect::<FxHashSet<_>>();
+        for (_, region) in local {
             check_region(gcx, module, &function, &summaries, assembly, &saved, region);
+        }
+        let uses = UseSites::new(&function);
+        for (block, data) in function.func.blocks.iter_enumerated() {
+            for (index, &inst) in data.instructions.iter().enumerate() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    function.func.inst(inst).kind
+                    && let Some(&tag) = scratch.get(&callee)
+                {
+                    let mut escapes = Vec::new();
+                    check_free_pointers(
+                        &function.func,
+                        &uses,
+                        &summaries,
+                        &saved,
+                        (block, index),
+                        |_| false,
+                        &mut escapes,
+                    );
+                    report_escapes(gcx, module, assembly, tag, escapes);
+                }
+            }
         }
     }
 }
@@ -171,6 +199,8 @@ enum Escape {
     Stored,
     /// A call whose callee may store a reference where code after the block can reach it.
     Call(FunctionId),
+    /// Passing a free pointer to a function which may restore scratch memory.
+    Passed,
 }
 
 fn check_region(
@@ -184,25 +214,7 @@ fn check_region(
 ) {
     let func = &function.func;
     let inside = |inst: InstId| region.start <= inst && inst < region.end;
-    // Trivial phis stand for the value they merge and are not uses of their own.
-    let mut users = FxHashMap::<ValueId, Vec<InstId>>::default();
-    let mut terminators = FxHashMap::<ValueId, Vec<BlockId>>::default();
-    for (block, data) in func.blocks.iter_enumerated() {
-        for &inst in &data.instructions {
-            if func.inst_result_value(inst).is_some_and(|result| function.resolve(result) != result)
-            {
-                continue;
-            }
-            for operand in func.inst(inst).operands() {
-                users.entry(operand).or_default().push(inst);
-            }
-        }
-        if let Some(terminator) = &data.terminator {
-            terminator.visit_operands(|operand| {
-                terminators.entry(operand).or_default().push(block);
-            });
-        }
-    }
+    let uses = UseSites::new(function);
 
     // The references to the block's memory, seeded by what the block allocates. A reference that
     // flowed through code after the block, such as a loop header, refers to memory already
@@ -234,7 +246,7 @@ fn check_region(
     };
     let mut escapes = Vec::new();
     while let Some((value, was_late)) = stack.pop() {
-        for &block in terminators.get(&value).into_iter().flatten() {
+        for &block in uses.terminators.get(&value).into_iter().flatten() {
             let span = func.blocks[block].terminator_metadata.source_span();
             if was_late || !region.terminated.contains(&block) {
                 escapes.push((span, Escape::Outlives));
@@ -242,7 +254,7 @@ fn check_region(
                 escapes.push((span, Escape::Returned));
             }
         }
-        for &inst in users.get(&value).into_iter().flatten() {
+        for &inst in uses.instructions.get(&value).into_iter().flatten() {
             let instruction = func.inst(inst);
             let kind = &instruction.kind;
             let is_late = was_late || !inside(inst);
@@ -277,60 +289,8 @@ fn check_region(
     // memory the block allocates, which code after the block's normal exit reuses. So a use of
     // one that may run after that exit is late, unless the path there reads the pointer again, and
     // so is a store or a call before it that keeps the pointer for code after it to load again.
-    let restore = func.blocks.iter_enumerated().find_map(|(block, data)| {
-        let restores = |&inst: &InstId| {
-            matches!(func.inst(inst).kind, InstKind::SetFmp(value) if value == region.saved)
-        };
-        Some((block, data.instructions.iter().position(restores)?))
-    });
-    if let Some(restore) = restore {
-        for (block, data) in func.blocks.iter_enumerated() {
-            for (index, &read) in data.instructions.iter().enumerate() {
-                let Some(pointer) = func.inst_result_value(read) else { continue };
-                let returns_free = matches!(&func.inst(read).kind,
-                    InstKind::ICall { function: Callee::Function(callee), .. }
-                        if summaries.get(callee).is_some_and(|summary| summary.returns_free));
-                if inside(read)
-                    || saved.contains(&pointer)
-                    || !(reads_free_pointer(func, read) || returns_free)
-                {
-                    continue;
-                }
-                let (later, later_terminators) = runs_after(func, restore, (block, index));
-                let earlier = runs_before(func, restore, (block, index));
-                let mut derived = FxHashSet::from_iter([pointer]);
-                let mut stack = vec![pointer];
-                while let Some(value) = stack.pop() {
-                    for &block in terminators.get(&value).into_iter().flatten() {
-                        if later_terminators.contains(block) {
-                            let span = func.blocks[block].terminator_metadata.source_span();
-                            escapes.push((span, Escape::Outlives));
-                        }
-                    }
-                    for &inst in users.get(&value).into_iter().flatten() {
-                        if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
-                            if let Some(result) = func.inst_result_value(inst)
-                                && may_hold_pointer(func.value_ty(result))
-                                && derived.insert(result)
-                            {
-                                stack.push(result);
-                            }
-                        } else if later.contains(inst) {
-                            escapes
-                                .push((func.inst(inst).metadata.source_span(), Escape::Outlives));
-                        } else if earlier.contains(inst) && captures(func, inst, value) {
-                            let escape = match func.inst(inst).kind {
-                                InstKind::ICall { function: Callee::Function(callee), .. } => {
-                                    Escape::Call(callee)
-                                }
-                                _ => Escape::Stored,
-                            };
-                            escapes.push((func.inst(inst).metadata.source_span(), escape));
-                        }
-                    }
-                }
-            }
-        }
+    if let Some(restore) = restore_position(func, region) {
+        check_free_pointers(func, &uses, summaries, saved, restore, inside, &mut escapes);
     }
 
     // A call in the block may store a reference to memory it or the block allocated where code
@@ -357,43 +317,7 @@ fn check_region(
         }
     }
 
-    let mut reported = FxHashSet::default();
-    for (span, escape) in escapes {
-        let span = span.unwrap_or(region.tag);
-        if !reported.insert(span) {
-            continue;
-        }
-        let message = match escape {
-            Escape::Outlives => "memory of a `@custom:solar-scratch` block is used after the block",
-            Escape::Returned => "this returns memory of a `@custom:solar-scratch` block",
-            Escape::Stored => {
-                "this stores a reference to memory of a `@custom:solar-scratch` block where code \
-                 after the block can reach it"
-            }
-            Escape::Call(_) => {
-                "this call may store a reference to memory of a `@custom:solar-scratch` block \
-                 where code after the block can reach it"
-            }
-        };
-        let mut err = gcx
-            .dcx()
-            .err(message)
-            .span(span)
-            .span_note(region.tag, "the memory this block allocates is reused after it");
-        if let Escape::Call(callee) = escape
-            && assembly.contains(&callee)
-        {
-            let callee = module.function(callee);
-            err = err.note(if callee.attributes.is_function_pointer_dispatcher {
-                "inline assembly may have retyped this function pointer, so its callee may take \
-                 or return a reference as a plain word"
-                    .to_string()
-            } else {
-                format!("`{}` contains inline assembly, which may store any word", callee.name)
-            });
-        }
-        err.help("keep only values past the block, or remove the tag").emit();
-    }
+    report_escapes(gcx, module, assembly, region.tag, escapes);
 }
 
 /// Whether `inst` allocates the memory its result refers to.
@@ -524,7 +448,7 @@ fn runs_after(
 fn runs_before(
     func: &Function,
     (to_block, to): (BlockId, usize),
-    (barrier_block, barrier): (BlockId, usize),
+    barrier: Option<(BlockId, usize)>,
 ) -> DenseBitSet<InstId> {
     let mut predecessors: IndexVec<BlockId, Vec<BlockId>> =
         index_vec![Vec::new(); func.blocks.len()];
@@ -537,7 +461,9 @@ fn runs_before(
     let mut left = DenseBitSet::new_empty(func.blocks.len());
     let mut stack = vec![(to_block, to)];
     while let Some((block, end)) = stack.pop() {
-        let start = if block == barrier_block && barrier < end { barrier + 1 } else { 0 };
+        let start = barrier
+            .filter(|&(barrier_block, barrier)| block == barrier_block && barrier < end)
+            .map_or(0, |(_, barrier)| barrier + 1);
         for &inst in &func.blocks[block].instructions[start..end] {
             instructions.insert(inst);
         }
@@ -558,6 +484,9 @@ fn runs_before(
 /// into the free memory pointer, or as an operand of a call or an encoding.
 fn captures(func: &Function, inst: InstId, value: ValueId) -> bool {
     let kind = &func.inst(inst).kind;
+    if matches!(kind, InstKind::SetFmp(_)) {
+        return false;
+    }
     if let InstKind::Store(address, _, PtrLocation::Memory) = *kind
         && constant_word(func, address, &mut FxHashSet::default())
             == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
@@ -593,13 +522,15 @@ impl Stored {
 }
 
 /// The pointers a function may store into the objects of its parameters, and into any other
-/// memory that exists when it is entered, plus free-pointer provenance in its return values.
+/// memory that exists when it is entered, plus free-pointer provenance in returns and captures.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct PointerWrites {
     params: SmallVec<[(ArgIdx, Stored); 2]>,
     other: Stored,
     /// Whether a return may carry a read of the free memory pointer.
     returns_free: bool,
+    /// Whether the function may capture a free pointer in memory, storage or a call.
+    captures_free: bool,
 }
 
 impl PointerWrites {
@@ -678,6 +609,16 @@ impl PointerWrites {
         writes.returns_free = func.blocks.iter().any(|block| {
             matches!(&block.terminator, Some(Terminator::Return { values })
                 if values.iter().any(|value| free.contains(value)))
+        });
+        writes.captures_free = func.instructions().any(|inst| {
+            let kind = &func.inst(inst).kind;
+            (kind.effect_kind() != EffectKind::Pure
+                && kind
+                    .operands()
+                    .iter()
+                    .any(|value| free.contains(value) && captures(func, inst, *value)))
+                || matches!(kind, InstKind::ICall { function: Callee::Function(callee), .. }
+                    if summaries.get(callee).is_some_and(|summary| summary.captures_free))
         });
         // Where a store of `stored` through `address` lands: this call's own memory, a
         // parameter's object, or memory older than the call.
@@ -829,4 +770,202 @@ fn constant_word(
     };
     visiting.remove(&value);
     result
+}
+
+/// Instruction and terminator uses, with trivial lowering phis resolved.
+struct UseSites {
+    instructions: FxHashMap<ValueId, Vec<InstId>>,
+    terminators: FxHashMap<ValueId, Vec<BlockId>>,
+}
+
+impl UseSites {
+    fn new(function: &Analyzed) -> Self {
+        let func = &function.func;
+        let mut uses =
+            Self { instructions: FxHashMap::default(), terminators: FxHashMap::default() };
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &inst in &data.instructions {
+                if func
+                    .inst_result_value(inst)
+                    .is_some_and(|result| function.resolve(result) != result)
+                {
+                    continue;
+                }
+                for operand in func.inst(inst).operands() {
+                    uses.instructions.entry(operand).or_default().push(inst);
+                }
+            }
+            if let Some(terminator) = &data.terminator {
+                terminator.visit_operands(|operand| {
+                    uses.terminators.entry(operand).or_default().push(block);
+                });
+            }
+        }
+        uses
+    }
+}
+
+/// The normal exit that restores a region's FMP. Early exits retain its allocations.
+fn restore_position(func: &Function, region: &ScratchRegion) -> Option<(BlockId, usize)> {
+    func.blocks.iter_enumerated().find_map(|(block, data)| {
+        let restores = |&inst: &InstId| {
+            matches!(func.inst(inst).kind, InstKind::SetFmp(value) if value == region.saved)
+        };
+        Some((block, data.instructions.iter().position(restores)?))
+    })
+}
+
+/// Functions whose internal calls may restore scratch memory, with one originating tag. The
+/// fixed point includes recursive callers and the generated function-pointer dispatchers.
+fn scratch_callers(
+    module: &Module,
+    regions: &[(FunctionId, ScratchRegion)],
+) -> FxHashMap<FunctionId, Span> {
+    let mut scratch = FxHashMap::default();
+    for (function, region) in regions {
+        if restore_position(module.function(*function), region).is_some() {
+            scratch.entry(*function).or_insert(region.tag);
+        }
+    }
+    loop {
+        let before = scratch.len();
+        for (id, func) in module.iter_functions() {
+            if scratch.contains_key(&id) {
+                continue;
+            }
+            if let Some(tag) = func.instructions().find_map(|inst| match func.inst(inst).kind {
+                InstKind::ICall { function: Callee::Function(callee), .. } => {
+                    scratch.get(&callee).copied()
+                }
+                _ => None,
+            }) {
+                scratch.entry(id).or_insert(tag);
+            }
+        }
+        if scratch.len() == before {
+            return scratch;
+        }
+    }
+}
+
+/// Checks free-pointer lifetimes across a normal region exit or a call that may execute one.
+/// Captures are conservative: they may be reloaded in this function, in a caller, or after a
+/// later invocation of the scratch function. A read after an acyclic boundary is fresh.
+fn check_free_pointers(
+    func: &Function,
+    uses: &UseSites,
+    summaries: &FxHashMap<FunctionId, PointerWrites>,
+    saved: &FxHashSet<ValueId>,
+    boundary: (BlockId, usize),
+    inside: impl Fn(InstId) -> bool,
+    escapes: &mut Vec<(Option<Span>, Escape)>,
+) {
+    let prior = runs_before(func, boundary, None);
+    let boundary_inst = func.blocks[boundary.0].instructions[boundary.1];
+    for inst in prior.iter() {
+        if !inside(inst)
+            && let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
+            && summaries.get(&callee).is_some_and(|summary| summary.captures_free)
+        {
+            escapes.push((func.inst(inst).metadata.source_span(), Escape::Call(callee)));
+        }
+    }
+    for (block, data) in func.blocks.iter_enumerated() {
+        for (index, &read) in data.instructions.iter().enumerate() {
+            let Some(pointer) = func.inst_result_value(read) else { continue };
+            let returns_free = matches!(&func.inst(read).kind,
+                InstKind::ICall { function: Callee::Function(callee), .. }
+                    if summaries.get(callee).is_some_and(|summary| summary.returns_free));
+            if inside(read)
+                || !prior.contains(read)
+                || saved.contains(&pointer)
+                || !(reads_free_pointer(func, read) || returns_free)
+            {
+                continue;
+            }
+            let (later, later_terminators) = runs_after(func, boundary, (block, index));
+            let earlier = runs_before(func, boundary, Some((block, index)));
+            let mut derived = FxHashSet::from_iter([pointer]);
+            let mut stack = vec![pointer];
+            while let Some(value) = stack.pop() {
+                for &block in uses.terminators.get(&value).into_iter().flatten() {
+                    if later_terminators.contains(block) {
+                        let span = func.blocks[block].terminator_metadata.source_span();
+                        escapes.push((span, Escape::Outlives));
+                    }
+                }
+                for &inst in uses.instructions.get(&value).into_iter().flatten() {
+                    if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
+                        if let Some(result) = func.inst_result_value(inst)
+                            && may_hold_pointer(func.value_ty(result))
+                            && derived.insert(result)
+                        {
+                            stack.push(result);
+                        }
+                    } else if inst == boundary_inst && captures(func, inst, value) {
+                        escapes.push((func.inst(inst).metadata.source_span(), Escape::Passed));
+                    } else if later.contains(inst) {
+                        escapes.push((func.inst(inst).metadata.source_span(), Escape::Outlives));
+                    } else if earlier.contains(inst) && captures(func, inst, value) {
+                        let escape = match func.inst(inst).kind {
+                            InstKind::ICall { function: Callee::Function(callee), .. } => {
+                                Escape::Call(callee)
+                            }
+                            _ => Escape::Stored,
+                        };
+                        escapes.push((func.inst(inst).metadata.source_span(), escape));
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn report_escapes(
+    gcx: Gcx<'_>,
+    module: &Module,
+    assembly: &FxHashSet<FunctionId>,
+    tag: Span,
+    escapes: Vec<(Option<Span>, Escape)>,
+) {
+    let mut reported = FxHashSet::default();
+    for (span, escape) in escapes {
+        let span = span.unwrap_or(tag);
+        if !reported.insert(span) {
+            continue;
+        }
+        let message = match escape {
+            Escape::Outlives => "memory of a `@custom:solar-scratch` block is used after the block",
+            Escape::Returned => "this returns memory of a `@custom:solar-scratch` block",
+            Escape::Stored => {
+                "this stores a reference to memory of a `@custom:solar-scratch` block where code \
+                 after the block can reach it"
+            }
+            Escape::Call(_) => {
+                "this call may store a reference to memory of a `@custom:solar-scratch` block \
+                 where code after the block can reach it"
+            }
+            Escape::Passed => {
+                "this passes a free memory pointer to a function that reuses scratch memory"
+            }
+        };
+        let mut err = gcx
+            .dcx()
+            .err(message)
+            .span(span)
+            .span_note(tag, "the memory this block allocates is reused after it");
+        if let Escape::Call(callee) = escape
+            && assembly.contains(&callee)
+        {
+            let callee = module.function(callee);
+            err = err.note(if callee.attributes.is_function_pointer_dispatcher {
+                "inline assembly may have retyped this function pointer, so its callee may take \
+                 or return a reference as a plain word"
+                    .to_string()
+            } else {
+                format!("`{}` contains inline assembly, which may store any word", callee.name)
+            });
+        }
+        err.help("keep only values past the block, or remove the tag").emit();
+    }
 }
