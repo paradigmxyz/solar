@@ -27,13 +27,11 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
   bb3:
     v17 = add v6, 63
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v20
-    mstore 64, v58 !metadata(memory=scratch)
+    v57 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v58 = add v57, v20 !metadata(alloc_ptr)
     mstore v57, v6
-    v59 = mload 64 !metadata(memory=scratch)
-    v39 = add v59, 32
-    mstore v59, 32
+    v39 = add v58, 32
+    mstore v58, 32
     v44 = add v6, 31
     v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v46 = add v39, 32
@@ -42,8 +40,8 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     mstore v39, v6
     v49 = add v46, v45
     calldatacopy v46, v54, v6
-    v51 = sub v49, v59
-    returndata v59, v51
+    v51 = sub v49, v58
+    returndata v58, v51
   bb1:
     revert 0, 0
 }
@@ -75,13 +73,11 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
   bb3:
     v17 = add v6, 63
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v20
-    mstore 64, v58 !metadata(memory=scratch)
+    v57 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v58 = add v57, v20 !metadata(alloc_ptr)
     mstore v57, v6
-    v59 = mload 64 !metadata(memory=scratch)
-    v39 = add v59, 32
-    mstore v59, 32
+    v39 = add v58, 32
+    mstore v58, 32
     v44 = add v6, 31
     v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v46 = add v39, 32
@@ -90,8 +86,8 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     mstore v39, v6
     v49 = add v46, v45
     calldatacopy v46, v54, v6
-    v51 = sub v49, v59
-    returndata v59, v51
+    v51 = sub v49, v58
+    returndata v58, v51
   bb1:
     revert 0, 0
 }
