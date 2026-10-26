@@ -54,8 +54,8 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v94 = add v92, 63
     v95 = lt v94, v92
     v97 = and v94, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v158 = heap_floor
-    v159 = add v158, v97
+    v158 = heap_floor !metadata(alloc_ptr)
+    v159 = add v158, v97 !metadata(alloc_ptr)
     v160 = lt v159, v158
     v161 = gt v159, 0xffffffffffffffff
     v162 = or v160, v161
@@ -81,8 +81,8 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     jumpi v4, bb5, bb6
   bb6:
     v6 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v152 = mload 64 !metadata(memory=scratch)
-    v153 = add v152, v6
+    v152 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v153 = add v152, v6 !metadata(alloc_ptr)
     v154 = lt v153, v152
     v155 = gt v153, 0xffffffffffffffff
     v156 = or v154, v155

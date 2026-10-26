@@ -599,8 +599,8 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v8 = add v6, 63
     v9 = lt v8, v6
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = heap_floor
-    v25 = add v24, v11
+    v24 = heap_floor !metadata(alloc_ptr)
+    v25 = add v24, v11 !metadata(alloc_ptr)
     v26 = lt v25, v24
     v27 = gt v25, 0xffffffffffffffff
     v28 = or v26, v27
@@ -651,8 +651,8 @@ fn @entry() [entry] {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

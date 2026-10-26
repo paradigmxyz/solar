@@ -10,18 +10,18 @@
 // CHECK: extcodesize
 // CHECK: jumpi
 // CHECK-NEXT: push 0
-// CHECK-NEXT: swap 3
-// CHECK-NEXT: swap 6
 // CHECK-NEXT: push 0
-// CHECK-NEXT: push 0
-// CHECK-NEXT: swap 4
 // CHECK-NEXT: push 68
-// CHECK-NEXT: swap 4
+// CHECK-NEXT: dup 7
+// CHECK-NEXT: push 0
+// CHECK-NEXT: dup 6
+// CHECK-NEXT: dup 12
 // CHECK-NEXT: call
 // CHECK: extcodesize
 // CHECK: jumpi
 // CHECK-NEXT: push 0
 // CHECK-NEXT: swap 3
+// CHECK-NEXT: swap 4
 // CHECK-NEXT: push 0
 // CHECK-NEXT: push 0
 // CHECK-NEXT: swap 4

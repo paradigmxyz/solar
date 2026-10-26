@@ -8,16 +8,16 @@
 
 contract FreshFmpEntry {
     // The copy is the entry's first allocation, so its pointer is the heap floor and the entry
-    // never loads the slot. It stores the bumped pointer, but it does not initialize the slot.
+    // never loads the slot. Nothing reads the bumped pointer, so the entry neither stores it nor
+    // initializes the slot.
     // CHECK-LABEL: @module FreshFmpEntry_runtime
     // CHECK: push 0xc3b2556d
     // CHECK-NEXT: sub
     // CHECK-NEXT: push bb{{[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 36
-    // CHECK: push 128
-    // CHECK: push 64
-    // CHECK-NEXT: mstore
+    // CHECK-NOT: push 64
+    // CHECK: calldatacopy
     function lookup(bytes calldata name) external pure returns (bytes32) {
         bytes memory copy = name;
         return keccak256(copy);

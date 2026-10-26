@@ -11,9 +11,7 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
     v17 = lt v16, 2
     jumpi v17, bb5, bb3
   bb5:
-    v21 = heap_floor
-    v22 = add v21, 64
-    mstore 64, v22 !metadata(memory=scratch)
+    v21 = heap_floor !metadata(alloc_ptr)
     v20 = add v21, 32
     mstore v20, 0x4142000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb1, bb2

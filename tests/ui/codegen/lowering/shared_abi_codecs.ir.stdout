@@ -9,7 +9,7 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type
     v4 = icall @encodeFirst.body, v3
-    v29 = mload 64 !metadata(memory=scratch)
+    v29 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v10 = add v29, 32
     mstore v29, 32
     v13 = mload v4
@@ -36,7 +36,7 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type
     v7 = icall @encode_abi_tuple, v3
-    v29 = mload 64 !metadata(memory=scratch)
+    v29 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v10 = add v29, 32
     mstore v29, 32
     v13 = mload v7
@@ -72,7 +72,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v236 = or v235, v186
     jumpi v236, bb5, bb30
   bb30:
-    v233 = heap_floor
+    v233 = heap_floor !metadata(alloc_ptr)
     v234 = add v233, 64
     mstore 64, v234
     v3 = shl v182, 5
@@ -85,8 +85,8 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v22 = lt v21, 32
     jumpi v22, bb4, bb7
   bb7:
-    v229 = mload 64 !metadata(memory=scratch)
-    v230 = add v229, v21
+    v229 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v230 = add v229, v21 !metadata(alloc_ptr)
     mstore 64, v230
     mstore v229, v182
     jump bb1
@@ -248,8 +248,8 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v47, bb5, bb10
   bb10:
     v55 = add v44, 32
-    v231 = mload 64
-    v232 = add v231, v55
+    v231 = mload 64 !metadata(alloc_ptr)
+    v232 = add v231, v55 !metadata(alloc_ptr)
     mstore 64, v232
     mstore v231, v41
     v195 = add v231, 32
@@ -286,8 +286,8 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v76 = or v4, v6
     jumpi v76, bb1, bb2
   bb2:
-    v74 = heap_floor
-    v75 = add v74, 96
+    v74 = heap_floor !metadata(alloc_ptr)
+    v75 = add v74, 96 !metadata(alloc_ptr)
     mstore 64, v75
     v8 = calldataload v2
     mstore v74, v8
@@ -409,7 +409,7 @@ fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
 
 fn @encode_abi_tuple(arg0: i256) -> i256 [may_return_memory] {
   bb0:
-    v27 = mload 64 !metadata(memory=scratch)
+    v27 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v27, 32
     v3 = add v2, 32
     mstore v2, 32
@@ -428,8 +428,8 @@ fn @encode_abi_tuple(arg0: i256) -> i256 [may_return_memory] {
     jumpi v19, bb1, bb2
   bb2:
     v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v28 = mload 64
-    v29 = add v28, v21
+    v28 = mload 64 !metadata(alloc_ptr)
+    v29 = add v28, v21 !metadata(alloc_ptr)
     mstore 64, v29
     mstore v28, v16
     ret v28
@@ -460,8 +460,8 @@ fn @entry() [entry] {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

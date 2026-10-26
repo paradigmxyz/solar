@@ -15,8 +15,8 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v100 = ne v99, 0
     jumpi v100, bb10, bb11
   bb11:
-    v87 = heap_floor
-    v88 = add v87, 64
+    v87 = heap_floor !metadata(alloc_ptr)
+    v88 = add v87, 64 !metadata(alloc_ptr)
     v89 = lt v88, v87
     v90 = gt v88, 0xffffffffffffffff
     v91 = or v89, v90
@@ -121,8 +121,8 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v117 = ne v116, 0
     jumpi v117, bb12, bb13
   bb13:
-    v104 = heap_floor
-    v105 = add v104, 64
+    v104 = heap_floor !metadata(alloc_ptr)
+    v105 = add v104, 64 !metadata(alloc_ptr)
     v106 = lt v105, v104
     v107 = gt v105, 0xffffffffffffffff
     v108 = or v106, v107
@@ -289,8 +289,8 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v104 = ne v103, 0
     jumpi v104, bb10, bb11
   bb11:
-    v91 = heap_floor
-    v92 = add v91, 64
+    v91 = heap_floor !metadata(alloc_ptr)
+    v92 = add v91, 64 !metadata(alloc_ptr)
     v93 = lt v92, v91
     v94 = gt v92, 0xffffffffffffffff
     v95 = or v93, v94

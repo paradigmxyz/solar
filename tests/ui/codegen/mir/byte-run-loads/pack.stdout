@@ -95,8 +95,8 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v8 = add v6, 63
     v9 = lt v8, v6
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = heap_floor
-    v25 = add v24, v11
+    v24 = heap_floor !metadata(alloc_ptr)
+    v25 = add v24, v11 !metadata(alloc_ptr)
     v26 = lt v25, v24
     v27 = gt v25, 0xffffffffffffffff
     v28 = or v26, v27

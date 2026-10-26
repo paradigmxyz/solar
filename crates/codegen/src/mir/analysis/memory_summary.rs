@@ -323,7 +323,7 @@ impl FunctionMemorySummary {
         space: AddressSpace,
         write: bool,
     ) -> Option<&BTreeSet<U256>> {
-        let index = slot_space_index(space)?;
+        let index = space.slot_index()?;
         let footprint = if write { &self.slot_writes[index] } else { &self.slot_reads[index] };
         (!footprint.unknown).then_some(&footprint.slots)
     }
@@ -358,7 +358,7 @@ impl FunctionMemorySummary {
             let footprint = if write { &mut self.memory_writes } else { &mut self.memory_reads };
             footprint.insert(MemoryRange::export(func, access));
         }
-        if let Some(index) = slot_space_index(space) {
+        if let Some(index) = space.slot_index() {
             let slot = match access {
                 Access::Location(Location::Storage(StorageAlias::Slot(slot)))
                 | Access::Location(Location::Transient(StorageAlias::Slot(slot))) => Some(slot),
@@ -622,14 +622,6 @@ fn merge_call(
         if callee.observes_param(ArgIdx::new(index)) {
             observe_sources(summary, func, sources, arg);
         }
-    }
-}
-
-const fn slot_space_index(space: AddressSpace) -> Option<usize> {
-    match space {
-        AddressSpace::Storage => Some(0),
-        AddressSpace::Transient => Some(1),
-        _ => None,
     }
 }
 

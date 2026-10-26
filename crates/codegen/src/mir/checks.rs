@@ -3,6 +3,11 @@
 use super::{AbiLayoutRef, ValueId};
 use solar_interface::{ByteSymbol, Symbol, sym};
 
+/// Word arguments of a custom error staged in scratch memory. The payload spans
+/// `[28, 32 * (words + 1))`; a longer one would end above the heap start at `0x80`, and a
+/// constant memory range there moves the spill area of every entry reaching it.
+pub(crate) const MAX_SCRATCH_ERROR_WORDS: usize = 3;
+
 /// Solidity's built-in `Panic(uint256)` error codes.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

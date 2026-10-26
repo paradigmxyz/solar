@@ -35,8 +35,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v44 = gt v42, 0x7fffffffffffffe
     v45 = add v42, 1
     v46 = shl v45, 5
-    v81 = heap_floor
-    v82 = add v81, v46
+    v81 = heap_floor !metadata(alloc_ptr)
+    v82 = add v81, v46 !metadata(alloc_ptr)
     v83 = lt v82, v81
     v84 = gt v82, 0xffffffffffffffff
     v85 = or v83, v84
@@ -126,8 +126,8 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v49 = or v4, v6
     jumpi v49, bb1, bb2
   bb2:
-    v47 = mload 64 !metadata(memory=scratch)
-    v48 = add v47, 96
+    v47 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v48 = add v47, 96 !metadata(alloc_ptr)
     mstore 64, v48 !metadata(memory=scratch)
     v8 = calldataload v2
     mstore v47, v8
@@ -145,8 +145,8 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     jumpi v18, bb4, bb5
   bb5:
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v41 = mload 64 !metadata(memory=scratch)
-    v42 = add v41, v20
+    v41 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v42 = add v41, v20 !metadata(alloc_ptr)
     v43 = lt v42, v41
     v44 = gt v42, 0xffffffffffffffff
     v45 = or v43, v44
@@ -185,8 +185,8 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v22 = or v4, v6
     jumpi v22, bb1, bb2
   bb2:
-    v20 = mload 64 !metadata(memory=scratch)
-    v21 = add v20, 96
+    v20 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v21 = add v20, 96 !metadata(alloc_ptr)
     mstore 64, v21 !metadata(memory=scratch)
     v8 = icall @decode_calldata_type.2, v2, v2
     mstore v20, v8
