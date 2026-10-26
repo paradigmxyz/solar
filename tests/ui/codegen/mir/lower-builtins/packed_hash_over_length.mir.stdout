@@ -53,3 +53,16 @@ fn @tooLong(arg0: ptr<memory>) -> i256 [selector=0x3db8dd3c, pure, abi_params=[b
     v0 = keccak256_packed (bytes32 1, uint8 i8 2, bytes arg0)
     ret v0
 }
+
+fn @forged() -> i256 [selector=0xd1caa6e6, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = not 31
+    v1 = and 64, v0
+    v2 = alloc zeroed checked v1
+    mstore v2, 1
+    v3 = not 0
+    v4 = ptrtoint ptr<memory> v2 to i256
+    mstore v2, v3
+    v5 = keccak256_packed (uint8 i8 1, bytes v2)
+    ret v5
+}

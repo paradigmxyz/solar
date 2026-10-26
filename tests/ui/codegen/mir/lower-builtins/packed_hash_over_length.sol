@@ -8,10 +8,13 @@
 //@ run-call: empty => 0xa6885b3731702da62e8e4a8f584ac46a7f6822f4e2ba50fba902f67b1588d23b, 0
 //@ run-call: whole 0x0102 => 0x22ae6da6b482f9b1b19b0b897c3fd43884180a1c5ee361e1107a1bc635649dda
 //@ run-call: tooLong 0x01 => 0xedbba8fe38166fa9b4934b1eab78a621aa4bc33268a304ee404c2268447c3a4c
+//@ run-call-fail: forged()
 
 // The hash of literals and scalars of at most a word followed by bytes in memory reads the
 // bytes where they are: the prefix goes over the last bytes of their length word, which is
-// written back after the hash, so the bytes are not copied.
+// written back after the hash, so the bytes are not copied. A length past `2^255`, which only
+// inline assembly can forge, makes the hash read every byte and run out of gas, as copying the
+// bytes does, instead of a size that wrapped.
 contract PackedHashOverLength {
     // CHECK-LABEL: fn @signed(
     // CHECK-NOT: mcopy
@@ -19,7 +22,10 @@ contract PackedHashOverLength {
     // CHECK-NEXT: mstore [[BYTES:v[0-9]+]], [[HEADER]]
     // CHECK-NOT: mcopy
     // CHECK: [[START:v[0-9]+]] = add [[BYTES]], 5
-    // CHECK-NEXT: keccak256 [[START]],
+    // CHECK-NEXT: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, 27
+    // CHECK-NEXT: [[HUGE:v[0-9]+]] = sar {{v[0-9]+}}, 255
+    // CHECK-NEXT: [[TOTAL:v[0-9]+]] = or [[SUM]], [[HUGE]]
+    // CHECK-NEXT: keccak256 [[START]], [[TOTAL]]
     // CHECK-NEXT: mstore [[BYTES]],
     function signed(bytes memory s) external pure returns (bytes32) {
         require(s.length < 10);
@@ -61,5 +67,15 @@ contract PackedHashOverLength {
     // CHECK: keccak256
     function tooLong(bytes memory s) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(bytes32(uint256(1)), uint8(2), s));
+    }
+
+    /// A length forged past `2^256` minus the prefix would wrap the hashed size: the hash reads
+    /// the length's bytes instead and runs out of gas, as copying them does.
+    function forged() external pure returns (bytes32) {
+        bytes memory b = new bytes(1);
+        assembly {
+            mstore(b, not(0))
+        }
+        return keccak256(abi.encodePacked(uint8(1), b));
     }
 }

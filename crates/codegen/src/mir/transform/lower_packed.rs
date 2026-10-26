@@ -530,7 +530,9 @@ impl PackedEncoder<'_, '_> {
 
     /// The hash of `parts` read in place, when they are literals and scalars of at most one word
     /// in all followed by bytes in memory: the prefix borrows the last bytes of the length word of
-    /// the bytes, which is written back after the hash.
+    /// the bytes, which is written back after the hash. Only a length that inline assembly forged
+    /// past `2^255` can wrap the hashed size, and the encoder's copy of that many bytes runs out of
+    /// gas: so does the hash, of every byte, for such a length.
     fn hash_over_length(&mut self, parts: &[PackedPart]) -> Option<ValueId> {
         let (&PackedPart::Bytes(object), prefix) = parts.split_last()? else { return None };
         if self.builder.func().value_ty(object) != Some(MirType::MEMPTR) {
@@ -557,7 +559,8 @@ impl PackedEncoder<'_, '_> {
         // length = mload object
         // mstore object, prefix in the word's last `size` bytes
         // start = ptradd object, 32 - size
-        // hash = keccak256 start, (add size, length)
+        // total = or (add size, length), (sar length, 255)
+        // hash = keccak256 start, total
         // mstore object, length
         let length = self.builder.memory_len(object);
         let word = self.pack_word(&pieces, 32 - size);
@@ -565,6 +568,9 @@ impl PackedEncoder<'_, '_> {
         let start = self.builder.address_value(object, 32 - size);
         let size = self.builder.imm(size);
         let total = self.builder.add(size, length);
+        let top = self.builder.imm(255);
+        let huge = self.builder.sar(length, top);
+        let total = self.builder.or(total, huge);
         let hash = self.builder.keccak256(start, total);
         self.builder.store(object, length);
         Some(hash)
