@@ -152,12 +152,15 @@ HIR -> semantic MIR
 These are responsibilities and dependency constraints, not a benchmarked new
 pass ordering. The conversion may contain several named passes and local
 cleanup steps without introducing another stable phase. The gas pipeline runs
-CSE, storage PRE, and range-check elimination after aggregate expansion.
-First eliminate repeated dominated loads, then replace join loads with phis and
-fold checks that forwarding exposes. Storage PRE leaves memory reads alone to
-avoid extending pointer lifetimes. After allocation expansion, gas mode forwards
-free-memory-pointer loads within each block, discarding the cached word at other
-side effects. ABI expansion can create object operations
+CSE and range-check elimination after aggregate expansion. Repeated dominated
+loads go first; the check elimination folds checks that forwarding exposes.
+Before storage DSE, a storage-only CSE mode
+forwards each exact `sstore` and `tstore` word to later reads of that slot in
+both optimization modes, so packed read-modify-write stores reach DSE as word
+expressions. A read stays when the earlier read of its slot has no later use,
+so forwarding never extends a loaded word's lifetime. Storage DSE also removes
+overwritten `tstore`s: a revert discards transient writes, while a return, stop,
+or call leaves them readable by a re-entrant `tload`. ABI expansion can create object operations
 and aggregate results; flatten structs before lowering memory objects, and keep
 allocation identity until placement has finished. Any newly introduced helper must pass through the remaining required
 lowerings too. Expansion must not leave a high-level operation behind merely
@@ -321,16 +324,15 @@ unsupported cases before editing where practical. Otherwise discard the failed
 compilation's module; do not publish a partially lowered module as successful
 or clone every module just to provide rollback.
 
-Run a cheap representation check at each stable boundary in all builds. Check
-terminator targets, predecessor back-links, and call targets and arities there,
-including return contracts through tail calls, even when `-Zvalidate-ir=false`,
-so the backend can trust the maintained CFG and function signatures. Keep
-full SSA, dominance, and type verification after each changed pass in debug
-builds and with `-Zvalidate-ir`; validate untrusted textual MIR fully at ingress.
-The backend should receive a verified immutable view after the last MIR pass,
-so a phase label cannot bypass checking and later mutation cannot silently
-invalidate the checked view. Keep full validation costs out of every release
-pass invocation.
+Check the phase contract at each stable boundary in all builds: the routing
+entry, ABI wrappers, word types, and instructions that must be lowered by then.
+A skipped lowering stops the pipeline in every build. Keep full SSA, dominance,
+CFG, call, and type verification after each changed pass and at phase
+transitions in debug builds and with `-Zvalidate-ir`; validate untrusted
+textual MIR fully at ingress. The backend should receive a verified immutable
+view after the last MIR pass, so a phase label cannot bypass checking and later
+mutation cannot silently invalidate the checked view. Keep full validation
+costs out of every release pass invocation.
 
 Optimization passes preserve the current representation. Required lowering
 passes declare their input requirements and fail clearly when a custom pipeline
@@ -360,7 +362,9 @@ object identity and field/element accesses where proven; raw pointer or assembly
 accesses must conservatively alias unless a disjointness proof exists. Allocation
 provenance uses shared CFG cycle facts to distinguish joins from loops. Data
 pointers retain a proven lower bound from their object, so writes to allocation
-contents do not appear to reset the free-memory pointer. Raw pointer conversions
+contents do not appear to reset the free-memory pointer. The sum of an allocation's
+pointer and size, marked `alloc_ptr`, keeps the bound of the pointer, since a wrapped
+sum is checked or unreachable. Raw pointer conversions
 still need a proof that they avoid reserved memory. An access beyond a proven
 fresh allocation can overlap other heap objects while retaining its heap region;
 loop allocations lose their distinct site identities after a possible pointer
@@ -497,7 +501,7 @@ Use operations with narrow, explicit contracts:
 - A redirect that introduces a predecessor must explicitly supply or construct
   each new phi value. Neither a generic setter nor a repair scan can infer it.
 
-SCCP, check elimination, DCE, ADCE, CFG simplification, and jump threading use
+SCCP, check elimination, DCE, CFG simplification, and jump threading use
 these operations. Loop preheader creation prepares its phis before redirecting
 edges. PRE uses `split_edge`; ABI continuation splitting transfers successor
 links and phi inputs with the terminator. Replacing a body with a helper call
@@ -562,7 +566,10 @@ returnability analysis follows tail-call chains, including cycles, so forwarding
 cannot hide an incompatible return signature. Proven nonreturning chains stay
 exempt. Call-to-tail-call conversion uses the same returnability facts, so it
 cannot discard a continuation after a returning tail-call chain. Calls to proven
-nonreturning bodies lose their dead continuation even when they produce a result.
+nonreturning bodies lose their dead continuation even when they produce a result:
+`noreturn-calls` cuts it at the start of the semantic pipeline, so the passes after
+it see a failing branch through a revert helper leave, and `lower-evm-shaped` cuts
+again on the final call graph.
 When frame rules prevent a tail jump, the call remains an ordinary `icall` followed
 by `invalid`. The function keeps its declared result type: it describes a normal return, not a promise to
 return. Slices as well as structs must be gone at the EVM-shaped boundary.
@@ -695,7 +702,8 @@ It moves the whole fallthrough trace, so moving a shared exit does not insert
 jumps between its predecessor blocks. Multi-block traces must end at an exit
 with at least four references beyond the low-address range; the stricter limit
 avoids moving hot code for weak size gains. Packing reserves space for one-byte
-indexed jump tables, since wider entries add shifts and masking to each lookup.
+indexed jump tables, since wider entries use a larger stride table, or shifts and masking
+with `-Zpack-wide-jump-tables`.
 
 Packed ABI encoding skips allocation rounding when every component occupies
 whole words, while retaining overflow checks. Storage-byte pushes place the

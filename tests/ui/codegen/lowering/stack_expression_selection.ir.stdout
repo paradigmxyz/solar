@@ -38,6 +38,19 @@ bb10 [cold]:
   push 0
   push 0
   revert
+bb33 [loop]:
+  push 1
+  add
+  dup 2
+  dup 2
+  lt
+  push bb33
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb2:
   dup 1
   push 0xb7d796e
@@ -176,7 +189,7 @@ bb26:
   push 64
   push 0
   return
-bb29:
+bb29 [loop]:
   push 36
   calldatasize
   lt
@@ -185,12 +198,6 @@ bb29:
   push 4
   calldataload
   push 0
-  jump bb31
-bb33 [loop]:
-  push 1
-  add
-  jump bb31
-bb31 [loop]:
   dup 2
   dup 2
   lt

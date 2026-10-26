@@ -1,0 +1,18 @@
+//@ compile-flags: --evm-version byzantium -Zmir-pipeline=lower-shifts
+//@ filecheck:
+@module LowerShiftDebugSpans
+
+// The helpers of a variable and an arithmetic shift keep the shift's source span.
+// CHECK-LABEL: {{^[ +].*}}fn @spans{{[( ]}}
+// CHECK: + {{v[0-9]+}} = exp 2, arg1 !metadata(span=30..40)
+// CHECK-NEXT: + {{v[0-9]+}} = mul arg0, {{v[0-9]+}} !metadata(span=30..40)
+// CHECK: + {{v[0-9]+}} = slt arg0, 0 !metadata(span=50..60)
+// CHECK: + {{v[0-9]+}} = div {{v[0-9]+}}, 256 !metadata(span=50..60)
+// CHECK: + {{v[0-9]+}} = xor {{v[0-9]+}}, {{v[0-9]+}} !metadata(span=50..60)
+fn @spans(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = shl arg0, arg1 !metadata(span=30..40)
+    v1 = sar arg0, 8 !metadata(span=50..60)
+    v2 = add v0, v1
+    ret v2
+}

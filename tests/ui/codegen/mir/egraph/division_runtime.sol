@@ -42,9 +42,24 @@
 //@ run-call: narrowProduct 25 => true, true
 //@ run-call: narrowProduct 26 => false, false
 //@ run-call: narrowProduct 255 => false, false
+//@ run-call: guarded 7, 2 => 3, 1, 3, 1
+//@ run-call: guarded 7, 0 => 0, 0, 0, 0
+//@ run-call: guarded 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2 => 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 1, -3, -1
 
 // Boundaries of the division rules proved in Lean, through checked Solidity arithmetic.
 contract DivisionRuntime {
+    // Guarded divisions are the plain ones, whose divisor zero gives zero.
+    function guarded(uint256 x, uint256 y)
+        external
+        pure
+        returns (uint256 q, uint256 r, int256 sq, int256 sr)
+    {
+        if (y != 0) q = x / y;
+        if (y != 0) r = x % y;
+        if (y != 0) sq = int256(x) / int256(y);
+        if (y != 0) sr = int256(x) % int256(y);
+    }
+
     function scale(uint256 x) external pure returns (uint256) {
         return x * 1e18;
     }

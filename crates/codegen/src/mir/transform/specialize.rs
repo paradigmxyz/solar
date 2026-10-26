@@ -236,7 +236,10 @@ fn specialize_round(
         } else {
             old
         });
-        if after.bytes >= before.bytes || new.gas > old.gas || after.gas > before.gas {
+        if after.bytes >= before.bytes
+            || target.runtime_gas(new) > target.runtime_gas(old)
+            || target.runtime_gas(after) > target.runtime_gas(before)
+        {
             continue;
         }
 

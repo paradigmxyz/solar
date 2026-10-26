@@ -8,8 +8,8 @@ fn @forward() [selector=0x79188d16, abi_wrapper, pure] {
     v13 = add v11, 32
     v1 = add v12, 63
     v3 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v62 = mload 64 !metadata(memory=scratch)
-    v63 = add v62, v3
+    v62 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v63 = add v62, v3 !metadata(alloc_ptr)
     mstore 64, v63 !metadata(memory=scratch)
     v21 = add v63, 32
     v22 = add v21, 64
@@ -30,13 +30,11 @@ fn @forward() [selector=0x79188d16, abi_wrapper, pure] {
     jumpi v36, bb1, bb2
   bb2:
     v38 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v65 = mload 64 !metadata(memory=scratch)
-    v66 = add v65, v38
-    mstore 64, v66 !metadata(memory=scratch)
+    v65 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v66 = add v65, v38 !metadata(alloc_ptr)
     mstore v65, v33
-    v67 = mload 64 !metadata(memory=scratch)
-    v42 = add v67, 32
-    mstore v67, 32
+    v42 = add v66, 32
+    mstore v66, 32
     v45 = mload v65
     v47 = add v45, 31
     v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -47,8 +45,8 @@ fn @forward() [selector=0x79188d16, abi_wrapper, pure] {
     v52 = add v49, v48
     v58 = add v65, 32
     mcopy v49, v58, v45 !metadata(memory=heap, disjoint)
-    v54 = sub v52, v67
-    returndata v67, v54
+    v54 = sub v52, v66
+    returndata v66, v54
   bb1:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -62,8 +60,8 @@ fn @modified() [selector=0x24cfb917, abi_wrapper, pure] {
     v18 = add v16, 32
     v1 = add v17, 63
     v3 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v71 = mload 64 !metadata(memory=scratch)
-    v72 = add v71, v3
+    v71 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v72 = add v71, v3 !metadata(alloc_ptr)
     mstore 64, v72 !metadata(memory=scratch)
     mstore v71, v17
     v63 = add v71, 32
@@ -76,7 +74,7 @@ fn @modified() [selector=0x24cfb917, abi_wrapper, pure] {
     revert 28, 36
   bb2:
     mstore8 v63, 3
-    v73 = mload 64 !metadata(memory=scratch)
+    v73 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v26 = add v73, 32
     v27 = add v26, 64
     mstore v26, arg0
@@ -97,13 +95,11 @@ fn @modified() [selector=0x24cfb917, abi_wrapper, pure] {
     jumpi v41, bb3, bb4
   bb4:
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v74 = mload 64 !metadata(memory=scratch)
-    v75 = add v74, v43
-    mstore 64, v75 !metadata(memory=scratch)
+    v74 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v75 = add v74, v43 !metadata(alloc_ptr)
     mstore v74, v38
-    v76 = mload 64 !metadata(memory=scratch)
-    v47 = add v76, 32
-    mstore v76, 32
+    v47 = add v75, 32
+    mstore v75, 32
     v50 = mload v74
     v52 = add v50, 31
     v53 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -114,8 +110,8 @@ fn @modified() [selector=0x24cfb917, abi_wrapper, pure] {
     v57 = add v54, v53
     v65 = add v74, 32
     mcopy v54, v65, v50 !metadata(memory=heap, disjoint)
-    v59 = sub v57, v76
-    returndata v76, v59
+    v59 = sub v57, v75
+    returndata v75, v59
   bb3:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -127,15 +123,14 @@ fn @decode_calldata_slice() -> i256 {
     v0 = calldatasize
     v1 = calldataload 36
     v2 = add v1, 4
-    v3 = add v2, 32
-    v4 = gt v1, 0xffffffffffffffff
-    v5 = gt v3, v0
-    v6 = or v4, v5
-    v8 = calldataload v2
-    v10 = sub v0, v3
-    v11 = gt v8, v10
-    v14 = or v6, v11
-    jumpi v14, bb1, bb2
+    v4 = sub v0, 36
+    v5 = gt v1, v4
+    v6 = calldataload v2
+    v7 = add v2, 32
+    v8 = sub v0, v7
+    v9 = gt v6, v8
+    v10 = or v5, v9
+    jumpi v10, bb1, bb2
   bb2:
     ret v2
   bb1:
