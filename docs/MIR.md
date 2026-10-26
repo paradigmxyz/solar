@@ -712,8 +712,8 @@ short-header path first so packed writes can fall through during growth.
 Semantic checks fold a negated condition into their failure polarity. This lets
 ordinary dead-code cleanup remove the predicate before conversion and exposes
 phi-only short-circuit joins to jump threading. Builtin expansion also runs
-memory DSE, which removes the writes into buffers nothing reads once the
-expansion exposes them; their allocation and failure behavior remain intact.
+memory DSE with unread-allocation removal for buffers whose writes become
+visible at that boundary; their allocation and failure behavior remain intact.
 
 Revert outlining runs once per optimization mode. Gas mode shares source and
 builtin payloads before arithmetic expansion, preserving local overflow edges

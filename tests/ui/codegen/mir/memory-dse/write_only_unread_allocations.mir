@@ -1,12 +1,12 @@
-//@compile-flags: -Zmir-pipeline=memory-dse,dce
+//@compile-flags: -Zmir-pipeline=memory-dse-unread,dce
 //@filecheck:
-@module WriteOnlyHeapAllocations
+@module WriteOnlyUnreadAllocations
 
 // An object filled by a copy but never read loses the copy. The allocation's
 // own free-memory-pointer read happens before the object exists, so it does
 // not read it. The checked allocation remains because its failure and FMP
 // bump are observable.
-// CHECK-LABEL: after memory-dse
+// CHECK-LABEL: after memory-dse-unread
 // CHECK: {{^[ +].*}}fn @unread{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc zeroed checked 64
 // CHECK: - calldatacopy {{v[0-9]+}}, 4, 32
@@ -198,4 +198,31 @@ fn @returndata_trap() -> i256 {
     v1 = ptrtoint ptr<memory> v9001 to i256
     returndatacopy v1, 0, 32
     ret 7
+}
+
+// Copies and fills into a deferred allocation are writes too, but a failing `returndatacopy`
+// stays.
+// CHECK-LABEL: {{^[ +].*}}fn @deferred_copies{{[( ]}}
+// CHECK: alloc 64 !metadata(deferred_alloc)
+// CHECK-NEXT: {{^ .*}}v1 = ptradd v0, 32
+// CHECK-NEXT: {{^ .*}}returndatacopy
+fn @deferred_copies() {
+  bb0:
+    v0 = alloc 64 !metadata(deferred_alloc)
+    v1 = ptradd v0, 32
+    calldatacopy v1, 4, 32
+    memory_zero v0, 32
+    returndatacopy v1, 0, 32
+    stop
+}
+
+// A read that may alias a deferred object keeps the copies into it, since placement can put
+// the object below the free-memory pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @deferred_copy_with_aliasing_read{{[( ]}}
+// CHECK: {{^ .*}}calldatacopy
+fn @deferred_copy_with_aliasing_read() {
+  bb0:
+    v0 = alloc 64 !metadata(deferred_alloc)
+    calldatacopy v0, 4, 32
+    returndata 128, 32
 }

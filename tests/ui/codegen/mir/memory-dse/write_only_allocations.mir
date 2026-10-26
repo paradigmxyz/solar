@@ -61,39 +61,12 @@ fn @observes_msize(arg0: i256) {
     returndata 128, 32
 }
 
-// A read that may alias the allocation, such as `returndata 128, 32`, keeps its stores.
+// A heap allocation may be reached from the free-memory pointer.
 // CHECK-NOT: {{^-}} mstore
 fn @heap_allocation(arg0: i256) {
   bb0:
     v0 = alloc 32
     mstore v0, arg0
     mstore 128, arg0
-    returndata 128, 32
-}
-
-// Copies and fills into the object are writes too, but a failing `returndatacopy` stays.
-// CHECK-LABEL: {{^[ +].*}}fn @copies{{[( ]}}
-// CHECK: alloc 64 !metadata(deferred_alloc)
-// CHECK-NEXT: {{^ .*}}v1 = ptradd v0, 32
-// CHECK-NEXT: - calldatacopy
-// CHECK-NEXT: - memory_zero
-// CHECK-NEXT: {{^ .*}}returndatacopy
-fn @copies() {
-  bb0:
-    v0 = alloc 64 !metadata(deferred_alloc)
-    v1 = ptradd v0, 32
-    calldatacopy v1, 4, 32
-    memory_zero v0, 32
-    returndatacopy v1, 0, 32
-    stop
-}
-
-// Placement does not prove copies unread: a read that may alias the object keeps them.
-// CHECK-LABEL: {{^[ +].*}}fn @copy_with_aliasing_read{{[( ]}}
-// CHECK: {{^ .*}}calldatacopy
-fn @copy_with_aliasing_read() {
-  bb0:
-    v0 = alloc 64 !metadata(deferred_alloc)
-    calldatacopy v0, 4, 32
     returndata 128, 32
 }

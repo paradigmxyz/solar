@@ -25,40 +25,35 @@
 //! constant-offset stores by reachability, this one removes every write of an allocation that is
 //! never read, including copies, fills, and bounded indexed stores.
 //!
-//! The rewrite runs inside the `memory-dse` fixpoint, so removing a copy that read one allocation
-//! lets the next round remove the writes into that allocation.
+//! Only `memory-dse-unread` runs this rule; the other `memory-dse` runs skip its whole-function
+//! scans. It runs when the cheaper rewrites settle, and the fixpoint then continues, so removing a
+//! copy that read one allocation lets the next round remove the writes into that allocation.
 
 use super::MemoryStoreEliminator;
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, MirType, PtrLocation, RawMemoryAccess, Terminator, Value,
-    ValueId,
+    Function, InstId, InstKind, MirType, PtrLocation, RawMemoryAccess, Terminator, Value, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation},
     memory::EvmMemoryLayout,
 };
-use smallvec::SmallVec;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::{IndexVec, index_vec},
-    map::{FxHashMap, FxHashSet},
-};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashSet};
 
 impl MemoryStoreEliminator {
-    /// Removes the writes into allocations that nothing reads.
-    pub(super) fn remove_write_only_allocation_writes(&mut self, func: &mut Function) {
+    /// Removes the writes into allocations that nothing reads and returns how many.
+    pub(super) fn remove_write_only_allocation_writes(&mut self, func: &mut Function) -> usize {
         let allocations: Vec<_> = func
             .instructions()
             .filter(|&inst| matches!(func.inst(inst).kind, InstKind::Alloc { .. }))
             .filter_map(|inst| func.inst_result_value(inst))
             .collect();
         if allocations.is_empty() {
-            return;
+            return 0;
         }
 
         let uses = WriteOnlyUses::new(func);
         let mut dead = DenseBitSet::new_empty(func.num_insts());
         for object in allocations {
             if let Some(writes) = uses.write_only_writes(func, object)
-                && uses.writes_fit_allocation(func, self.alias(), object, &writes)
+                && WriteOnlyUses::writes_fit_allocation(func, self.alias(), object, &writes)
                 && !self.alias().value_escapes(func, object)
                 && !self.allocation_may_be_read(func, object)
             {
@@ -68,13 +63,13 @@ impl MemoryStoreEliminator {
             }
         }
 
-        if dead.is_empty() {
-            return;
+        let removed = dead.count();
+        if removed != 0 {
+            for block in func.blocks.iter_mut() {
+                block.instructions.retain(|&inst| !dead.contains(inst));
+            }
         }
-        self.eliminated_count += dead.count();
-        for block in func.blocks.iter_mut() {
-            block.instructions.retain(|&inst| !dead.contains(inst));
-        }
+        removed
     }
 
     fn allocation_may_be_read(&self, func: &Function, object: ValueId) -> bool {
@@ -114,28 +109,22 @@ impl MemoryStoreEliminator {
 
 /// Operand users of one function, shared by the proofs of all its allocations.
 struct WriteOnlyUses {
-    /// Instruction uses indexed by operand value.
-    uses: IndexVec<ValueId, SmallVec<[InstId; 4]>>,
-    /// Blocks containing indexed element stores that may need an edge bounds proof.
-    indexed_stores: FxHashMap<InstId, BlockId>,
+    /// Where each value's users start in `users`: the users of value `v` are
+    /// `users[starts[v]..starts[v + 1]]`.
+    starts: Vec<u32>,
+    /// Instruction users grouped by operand value.
+    users: Vec<InstId>,
     /// Values used by terminators.
     terminator_uses: DenseBitSet<ValueId>,
 }
 
 impl WriteOnlyUses {
     fn new(func: &Function) -> Self {
-        let mut uses = index_vec![SmallVec::new(); func.num_values()];
-        let mut indexed_stores = FxHashMap::default();
+        let mut starts = vec![0u32; func.num_values() + 1];
         let mut terminator_uses = DenseBitSet::new_empty(func.num_values());
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                let inst = func.inst(inst_id);
-                if let InstKind::Store(address, _, PtrLocation::Memory) = inst.kind
-                    && func.element_address(address).is_some()
-                {
-                    indexed_stores.insert(inst_id, block_id);
-                }
-                inst.visit_operands(|operand| uses[operand].push(inst_id));
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                func.inst(inst).visit_operands(|operand| starts[operand.index() + 1] += 1);
             }
             if let Some(terminator) = &block.terminator {
                 for operand in terminator.operands() {
@@ -143,7 +132,24 @@ impl WriteOnlyUses {
                 }
             }
         }
-        Self { uses, indexed_stores, terminator_uses }
+        for value in 0..func.num_values() {
+            starts[value + 1] += starts[value];
+        }
+        let mut next = starts.clone();
+        let mut users = vec![InstId::from_usize(0); starts[func.num_values()] as usize];
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                func.inst(inst).visit_operands(|operand| {
+                    users[next[operand.index()] as usize] = inst;
+                    next[operand.index()] += 1;
+                });
+            }
+        }
+        Self { starts, users, terminator_uses }
+    }
+
+    fn users_of(&self, value: ValueId) -> &[InstId] {
+        &self.users[self.starts[value.index()] as usize..self.starts[value.index() + 1] as usize]
     }
 
     /// If every access to the allocation writes it, returns the write
@@ -156,7 +162,7 @@ impl WriteOnlyUses {
         let mut worklist = vec![object];
         let mut seen = FxHashSet::default();
         while let Some(value) = worklist.pop() {
-            for &inst_id in self.uses[value].iter() {
+            for &inst_id in self.users_of(value).iter() {
                 if !seen.insert(inst_id) {
                     continue;
                 }
@@ -189,7 +195,7 @@ impl WriteOnlyUses {
         let mut writes = Vec::new();
         let mut seen = FxHashSet::default();
         for value in &derived {
-            for &inst_id in self.uses[*value].iter() {
+            for &inst_id in self.users_of(*value).iter() {
                 if !seen.insert(inst_id) {
                     continue;
                 }
@@ -264,7 +270,6 @@ impl WriteOnlyUses {
     }
 
     fn writes_fit_allocation(
-        &self,
         func: &Function,
         alias: &AliasAnalysis,
         object: ValueId,
@@ -277,7 +282,7 @@ impl WriteOnlyUses {
             && let Some(end) = address.offset.checked_add(size)
         {
             writes.iter().all(|&inst| {
-                if self.guarded_element_end(func, object, inst).is_some_and(|end| end <= size) {
+                if Self::guarded_element_end(func, object, inst).is_some_and(|end| end <= size) {
                     return true;
                 }
                 alias.instruction_mod_ref(func, inst).writes().iter().all(|access| {
@@ -298,13 +303,14 @@ impl WriteOnlyUses {
         }
     }
 
-    fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
-        let block = *self.indexed_stores.get(&inst)?;
+    fn guarded_element_end(func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
         let InstKind::Store(address, _, PtrLocation::Memory) = func.inst(inst).kind else {
             return None;
         };
         // A dynamic object's elements follow its length word; a fixed one's start at it.
         let (target, data_offset, index) = func.element_address(address)?;
+        let block =
+            func.blocks.iter_enumerated().find(|(_, block)| block.instructions.contains(&inst))?.0;
         if target == object
             && let [pred] = func.blocks[block].predecessors.as_slice()
             && let Some(Terminator::Branch { condition, then_block, else_block }) =
