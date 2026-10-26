@@ -111,14 +111,24 @@ impl MirPass for DeferAlloc {
         let summaries = analyses.call_summaries(module);
         let mut candidates = Vec::new();
         let mut unreserved = Vec::new();
-        let observers = matches!(self, Self::Late).then(|| FmpObservers::new(module, &calls));
+        let late = matches!(self, Self::Late);
+        // Only a module that has an allocation to place and a reader of the pointer needs the
+        // reach analysis.
+        let observers = (late && module.functions.iter().any(has_unreserved_candidate))
+            .then(|| FmpObservers::new(module, &calls))
+            .flatten();
         for (func_id, func) in module.functions.iter_enumerated() {
             let eligible = eligible_static_allocations(func_id, func, &calls, &summaries);
-            if let Some(observers) = &observers {
+            if late {
                 let placed = eligible.iter().map(|candidate| candidate.alloc).collect::<Vec<_>>();
                 unreserved.extend(
                     eligible_unreserved_allocations(
-                        func_id, func, &calls, &summaries, observers, &placed,
+                        func_id,
+                        func,
+                        &calls,
+                        &summaries,
+                        observers.as_ref(),
+                        &placed,
                     )
                     .into_iter()
                     .map(|placement| (func_id, placement)),
@@ -493,6 +503,25 @@ fn call_use_is_safe(
         && args.contains(&operand)
 }
 
+/// Whether the function has an allocation that unreserved placement may take.
+fn has_unreserved_candidate(func: &Function) -> bool {
+    func.instructions().any(|inst| is_unreserved_candidate(func, inst))
+}
+
+/// Whether the instruction is an infallible allocation that the bump of neither source code nor
+/// static placement claims.
+fn is_unreserved_candidate(func: &Function, inst_id: InstId) -> bool {
+    let inst = func.inst(inst_id);
+    matches!(
+        inst.kind,
+        InstKind::Alloc {
+            semantics: AllocationSemantics { failure: AllocationFailure::Infallible, .. },
+            ..
+        }
+    ) && !inst.metadata.preserves_fmp()
+        && !inst.metadata.deferred_alloc()
+}
+
 /// An allocation whose region can stay unreserved, with its place in the function.
 #[derive(Clone, Copy)]
 struct Placement {
@@ -509,23 +538,13 @@ fn eligible_unreserved_allocations(
     func: &Function,
     calls: &CallGraphInfo,
     summaries: &Arc<MemoryCallSummaries>,
-    observers: &FmpObservers,
+    observers: Option<&FmpObservers>,
     placed: &[InstId],
 ) -> Vec<Placement> {
     let mut allocs = Vec::new();
     for (block, data) in func.blocks.iter_enumerated() {
         for (position, &alloc) in data.instructions.iter().enumerate() {
-            let inst = func.inst(alloc);
-            if matches!(
-                inst.kind,
-                InstKind::Alloc {
-                    semantics: AllocationSemantics { failure: AllocationFailure::Infallible, .. },
-                    ..
-                }
-            ) && !inst.metadata.preserves_fmp()
-                && !inst.metadata.deferred_alloc()
-                && !placed.contains(&alloc)
-            {
+            if is_unreserved_candidate(func, alloc) && !placed.contains(&alloc) {
                 allocs.push(Placement { alloc, block, position });
             }
         }
@@ -543,20 +562,22 @@ fn eligible_unreserved_allocations(
             positions[inst] = (block, position);
         }
     }
-    let observer_events = observers.events(func_id, func);
-    let mut observed_after = DenseBitSet::new_empty(cfg.num_blocks());
-    let mut pending = observer_events.keys().copied().collect::<Vec<_>>();
-    while let Some(block) = pending.pop() {
-        for &pred in cfg.predecessors(block) {
-            if observed_after.insert(pred) {
-                pending.push(pred);
+    if let Some(observers) = observers {
+        let observer_events = observers.events(func_id, func);
+        let mut observed_after = DenseBitSet::new_empty(cfg.num_blocks());
+        let mut pending = observer_events.keys().copied().collect::<Vec<_>>();
+        while let Some(block) = pending.pop() {
+            for &pred in cfg.predecessors(block) {
+                if observed_after.insert(pred) {
+                    pending.push(pred);
+                }
             }
         }
+        allocs.retain(|placement| {
+            !observed_after.contains(placement.block)
+                && observer_events.get(&placement.block).is_none_or(|&at| at <= placement.position)
+        });
     }
-    allocs.retain(|placement| {
-        !observed_after.contains(placement.block)
-            && observer_events.get(&placement.block).is_none_or(|&at| at <= placement.position)
-    });
     let analysis = UnreservedAnalysis {
         func,
         cfg,
@@ -866,7 +887,10 @@ impl FmpObservers {
             let terminator_observes = match data.terminator {
                 Some(Terminator::TailCall { function, .. }) => self.reads_reach.contains(function),
                 Some(Terminator::Return { .. }) => self.returns_to_reader.contains(func_id),
-                _ => self.readers.contains(func_id) && terminator_reads_fmp_slot(func, heap, block),
+                _ => {
+                    self.readers.contains(func_id)
+                        && terminator_reads_fmp_slot(func, Some(heap), block)
+                }
             };
             if terminator_observes {
                 last = Some(data.instructions.len());
@@ -911,7 +935,11 @@ fn reads_fmp_slot(func: &Function, heap: Option<&DenseBitSet<ValueId>>, inst: In
 
 /// Whether the block's `revert` or `returndata` may read the slot, apart from the bubbled revert
 /// data of a failed call.
-fn terminator_reads_fmp_slot(func: &Function, heap: &DenseBitSet<ValueId>, block: BlockId) -> bool {
+fn terminator_reads_fmp_slot(
+    func: &Function,
+    heap: Option<&DenseBitSet<ValueId>>,
+    block: BlockId,
+) -> bool {
     let data = &func.blocks[block];
     matches!(
         data.terminator,
