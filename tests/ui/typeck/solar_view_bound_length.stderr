@@ -1,0 +1,15 @@
+error: the view `text` can only be read in place
+   ╭▸ ROOT/tests/ui/typeck/solar_view_bound_length.sol:LL:CC
+   │
+LL │         text.length();
+   │         ━━━━
+   ╰╴
+note: the view is declared here
+   ╭▸ ROOT/tests/ui/typeck/solar_view_bound_length.sol:LL:CC
+   │
+LL │         string memory text = abi.decode(data, (string));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: read it with `.length`, an index, `keccak256`, `abi.decode`, or an ABI encoding, or declare it without `@custom:solar-view` to hold a copy
+
+error: aborting due to 1 previous error
+

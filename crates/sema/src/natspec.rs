@@ -616,7 +616,7 @@ impl<'gcx> Resolver<'gcx> {
                 .emit();
             return;
         }
-        if optimize_objective(natspec).is_none() {
+        if optimize_objective(docs, natspec).is_none() {
             self.gcx
                 .dcx()
                 .err("`@custom:solar-optimize` must name one objective, `gas` or `size`")
@@ -1042,7 +1042,7 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
                 Some(SolarTag::Inline) => tags.inline = true,
                 Some(SolarTag::NoInline) => tags.noinline = true,
                 Some(SolarTag::Optimize) if tags.optimize.is_none() => {
-                    tags.optimize = optimize_objective(natspec);
+                    tags.optimize = optimize_objective(&gcx.hir.doc(doc).ast_comments, natspec);
                 }
                 _ => {}
             }
@@ -1053,13 +1053,49 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
 
 /// Returns the objective a `@custom:solar-optimize` tag names, when it names exactly `gas` or
 /// `size`.
-fn optimize_objective(natspec: &ast::NatSpecItem) -> Option<OptimizationMode> {
-    let mut words = natspec.content().split_whitespace();
+fn optimize_objective(
+    docs: &[ast::DocComment<'_>],
+    natspec: &ast::NatSpecItem,
+) -> Option<OptimizationMode> {
+    let content = solar_tag_content(docs, natspec.span);
+    let mut words = content.split_whitespace();
     match (words.next(), words.next()) {
         (Some("gas"), None) => Some(OptimizationMode::Gas),
         (Some("size"), None) => Some(OptimizationMode::Size),
         _ => None,
     }
+}
+
+/// Reads a tag's arguments without block-comment decoration, including adjacent line-comment
+/// continuations. An explicit next tag ends the arguments, even when it is `@notice`.
+pub(crate) fn solar_tag_content(docs: &[ast::DocComment<'_>], span: Span) -> String {
+    let mut content = String::new();
+    let mut found = false;
+    for doc in docs {
+        for item in doc.natspec.iter() {
+            if item.span == span {
+                found = true;
+            } else if !found {
+                continue;
+            } else if !(doc.kind == ast::CommentKind::Line
+                && item.kind == ast::NatSpecKind::Notice
+                && item.span == doc.span)
+            {
+                return content;
+            }
+            for (index, line) in item.content().lines().enumerate() {
+                let line = line.trim();
+                let line = if doc.kind == ast::CommentKind::Block && index > 0 {
+                    line.strip_prefix('*').unwrap_or(line).trim_start()
+                } else {
+                    line
+                };
+                content.push_str(line);
+                content.push(' ');
+            }
+        }
+    }
+    content
 }
 
 /// Whether `@custom:solar-terminates` can document `item`: an internal or private function with a
@@ -1070,4 +1106,15 @@ pub(crate) fn terminates_applies(gcx: Gcx<'_>, item: hir::ItemId) -> bool {
     function.kind == hir::FunctionKind::Function
         && matches!(function.visibility, hir::Visibility::Internal | hir::Visibility::Private)
         && function.body.is_some()
+}
+
+/// Rejects reserved tags on syntax which has no documented HIR item or Solidity statement.
+pub(crate) fn report_misplaced_solar_tags(dcx: &DiagCtxt, docs: &[ast::DocComment<'_>]) {
+    for item in docs.iter().flat_map(|doc| doc.natspec.iter()) {
+        if let ast::NatSpecKind::Custom { name } = item.kind
+            && let Some(tag) = SolarTag::from_custom(name.name)
+        {
+            report_misplaced_solar_tag(dcx, tag, name.name, item.span);
+        }
+    }
 }

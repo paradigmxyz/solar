@@ -44,6 +44,44 @@
             "Reviewed.word(bytes)"
           ]
         }
+      },
+      "Unnamed": {
+        "solarSafety": {
+          "memory": true,
+          "arithmetic": true,
+          "trusted": [
+            "Unnamed.constructor()",
+            "Unnamed.fallback()",
+            "Unnamed.receive()"
+          ]
+        }
+      },
+      "Recursive": {
+        "solarSafety": {
+          "memory": true,
+          "arithmetic": true,
+          "trusted": [
+            "Recursive.reviewed(Recursive.Node)"
+          ]
+        }
+      },
+      "PointerFactory": {
+        "solarSafety": {
+          "memory": false,
+          "arithmetic": false,
+          "trusted": [
+            "PointerFactory.pointer()"
+          ]
+        }
+      },
+      "PointerConsumer": {
+        "solarSafety": {
+          "memory": false,
+          "arithmetic": false,
+          "trusted": [
+            "PointerFactory.pointer()"
+          ]
+        }
       }
     }
   }

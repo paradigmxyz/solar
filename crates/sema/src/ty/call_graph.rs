@@ -125,7 +125,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             self.enqueue(receive);
         }
         for function in &creation.internal_dispatch_targets {
-            self.add_internal_dispatch_target(function, function);
+            self.add_internal_dispatch_target(function);
         }
     }
 
@@ -167,17 +167,6 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
     fn drain(&mut self) {
         while let Some(function) = self.worklist.pop_front() {
             self.stopped = (self.stop)(function);
-            // A free or library function dispatches nowhere the contract chooses.
-            if self.stopped
-                && self
-                    .gcx
-                    .hir
-                    .function(function)
-                    .contract
-                    .is_none_or(|contract| self.gcx.hir.contract(contract).kind.is_library())
-            {
-                continue;
-            }
             self.current = Some(function);
             let _ = self.visit_nested_function(function);
             self.current = None;
@@ -203,10 +192,11 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         reached
     }
 
-    fn add_internal_dispatch_target(&mut self, named: hir::FunctionId, function: hir::FunctionId) {
-        if self.enqueue_dispatched(named, function) {
-            self.graph.internal_dispatch_targets.insert(function);
-        }
+    fn add_internal_dispatch_target(&mut self, function: hir::FunctionId) {
+        // A function value can escape reviewed code and be invoked by an untrusted caller.
+        // Direct calls stay behind the trusted boundary; escaped targets do not.
+        self.enqueue(function);
+        self.graph.internal_dispatch_targets.insert(function);
     }
 
     fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>) -> bool {
@@ -226,8 +216,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             return;
         }
         if let Some(function) = self.gcx.internal_call_target(Some(self.contract), expr) {
-            let named = self.gcx.internal_call_target(None, expr).expect("the reference names it");
-            self.add_internal_dispatch_target(named, function);
+            self.add_internal_dispatch_target(function);
         }
     }
 

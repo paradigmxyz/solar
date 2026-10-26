@@ -207,6 +207,7 @@ fn specialize_round(
         // helper(argK, ...) => shared_helper(constantK, ...)
         candidate.replace_uses_canonicalized(&replacements);
         let mut trial = Module::new(module.name);
+        trial.optimize = module.optimize;
         let trial_id = trial.add_function(candidate);
         for pass in [
             &sccp::Sccp as &dyn MirPass,

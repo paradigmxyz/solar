@@ -32,3 +32,43 @@ contract Trusting {
         return Reviewed.word(b);
     }
 }
+
+contract Unnamed {
+    /// @custom:solar-trusted
+    constructor() {}
+
+    /// @custom:solar-trusted
+    fallback() external payable {}
+
+    /// @custom:solar-trusted
+    receive() external payable {}
+}
+
+contract Recursive {
+    struct Node { Node[] children; }
+
+    /// @custom:solar-trusted
+    function reviewed(Node memory node) internal pure returns (uint256) {
+        return node.children.length;
+    }
+
+    function run() external pure returns (uint256) {
+        Node memory node;
+        return reviewed(node);
+    }
+}
+
+library PointerFactory {
+    /// @custom:solar-trusted
+    function pointer() internal pure returns (function() internal pure returns (uint256)) {
+        return target;
+    }
+
+    function target() internal pure returns (uint256 result) {
+        assembly { result := 42 }
+    }
+}
+
+contract PointerConsumer {
+    function run() external pure returns (uint256) { return PointerFactory.pointer()(); }
+}

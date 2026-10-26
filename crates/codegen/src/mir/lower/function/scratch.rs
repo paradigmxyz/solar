@@ -52,9 +52,9 @@
 //! It only reads the MIR: code without the tag lowers as before.
 //!
 //! NOTE: reading `msize` after the block sees the memory the block used, as it would without
-//! reuse. Only the function's own reads of the free memory pointer are followed: a pointer to free
-//! memory that a callee reads and returns or stores, or that assembly derives from other
-//! addresses, such as past an object's end, may point at the block's memory as well.
+//! reuse. Callee returns are followed to a fixed point, including computed free-pointer reads
+//! and integer casts. Assembly can also derive pointers from unrelated objects past their ends;
+//! such arithmetic does not establish allocation provenance.
 
 use super::{memory_facts::Analyzed, *};
 use crate::mir::{
@@ -287,7 +287,13 @@ fn check_region(
         for (block, data) in func.blocks.iter_enumerated() {
             for (index, &read) in data.instructions.iter().enumerate() {
                 let Some(pointer) = func.inst_result_value(read) else { continue };
-                if inside(read) || saved.contains(&pointer) || !reads_free_pointer(func, read) {
+                let returns_free = matches!(&func.inst(read).kind,
+                    InstKind::ICall { function: Callee::Function(callee), .. }
+                        if summaries.get(callee).is_some_and(|summary| summary.returns_free));
+                if inside(read)
+                    || saved.contains(&pointer)
+                    || !(reads_free_pointer(func, read) || returns_free)
+                {
                     continue;
                 }
                 let (later, later_terminators) = runs_after(func, restore, (block, index));
@@ -303,7 +309,8 @@ fn check_region(
                     }
                     for &inst in users.get(&value).into_iter().flatten() {
                         if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
-                            if let Some(result) = pure_derivation(func, inst)
+                            if let Some(result) = func.inst_result_value(inst)
+                                && may_hold_pointer(func.value_ty(result))
                                 && derived.insert(result)
                             {
                                 stack.push(result);
@@ -425,7 +432,7 @@ fn may_hold_pointer(ty: Option<MirType>) -> bool {
     matches!(
         ty,
         Some(
-            MirType::I256
+            MirType::Int(_)
                 | MirType::MEMPTR
                 | MirType::Struct(_)
                 | MirType::Slice(PtrLocation::Memory)
@@ -471,7 +478,8 @@ fn reads_free_pointer(func: &Function, inst: InstId) -> bool {
     match func.inst(inst).kind {
         InstKind::Fmp => true,
         InstKind::Load(address, PtrLocation::Memory) => {
-            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+            constant_word(func, address, &mut FxHashSet::default())
+                == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
         }
         _ => false,
     }
@@ -550,8 +558,9 @@ fn runs_before(
 /// into the free memory pointer, or as an operand of a call or an encoding.
 fn captures(func: &Function, inst: InstId, value: ValueId) -> bool {
     let kind = &func.inst(inst).kind;
-    if let InstKind::Store(address, _, PtrLocation::Memory) | InstKind::Store8(address, _) = *kind
-        && func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+    if let InstKind::Store(address, _, PtrLocation::Memory) = *kind
+        && constant_word(func, address, &mut FxHashSet::default())
+            == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
     {
         return false;
     }
@@ -584,11 +593,13 @@ impl Stored {
 }
 
 /// The pointers a function may store into the objects of its parameters, and into any other
-/// memory that exists when it is entered.
+/// memory that exists when it is entered, plus free-pointer provenance in its return values.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct PointerWrites {
     params: SmallVec<[(ArgIdx, Stored); 2]>,
     other: Stored,
+    /// Whether a return may carry a read of the free memory pointer.
+    returns_free: bool,
 }
 
 impl PointerWrites {
@@ -644,6 +655,30 @@ impl PointerWrites {
         let func = &function.func;
         let mut writes = Self::default();
         writes.other.any = assembly;
+        let mut free = FxHashSet::default();
+        loop {
+            let before = free.len();
+            for inst in func.instructions() {
+                let kind = &func.inst(inst).kind;
+                if let Some(result) = func.inst_result_value(inst)
+                    && may_hold_pointer(func.value_ty(result))
+                    && (reads_free_pointer(func, inst)
+                        || matches!(kind, InstKind::ICall { function: Callee::Function(callee), .. }
+                            if summaries.get(callee).is_some_and(|summary| summary.returns_free))
+                        || (kind.effect_kind() == EffectKind::Pure
+                            && kind.operands().iter().any(|value| free.contains(value))))
+                {
+                    free.insert(result);
+                }
+            }
+            if free.len() == before {
+                break;
+            }
+        }
+        writes.returns_free = func.blocks.iter().any(|block| {
+            matches!(&block.terminator, Some(Terminator::Return { values })
+                if values.iter().any(|value| free.contains(value)))
+        });
         // Where a store of `stored` through `address` lands: this call's own memory, a
         // parameter's object, or memory older than the call.
         let record = |writes: &mut Self, address: ValueId, stored: &Stored| {
@@ -769,4 +804,29 @@ impl PointerWrites {
             }
         }
     }
+}
+
+/// Folds an address without changing executable MIR. Cyclic phis and nonconstant operands are
+/// unknown; evaluation uses the same widths and wrapping semantics as the optimizer.
+fn constant_word(
+    func: &Function,
+    value: ValueId,
+    visiting: &mut FxHashSet<ValueId>,
+) -> Option<U256> {
+    if !visiting.insert(value) {
+        return None;
+    }
+    let result = if let Some(value) = func.value_u256(value) {
+        Some(value)
+    } else if let Value::Inst(inst) = *func.value(value) {
+        crate::mir::utils::eval::eval_typed_inst(func, &func.inst(inst).kind, |operand| {
+            constant_word(func, operand, visiting).ok_or(())
+        })
+        .ok()
+        .flatten()
+    } else {
+        None
+    };
+    visiting.remove(&value);
+    result
 }

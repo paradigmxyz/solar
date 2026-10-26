@@ -379,15 +379,22 @@ impl BuiltinArgCount {
 pub(super) struct InternalFunctionPointerShape {
     params: Vec<crate::mir::ValueLayout>,
     returns: Vec<crate::mir::ValueLayout>,
+    references: Vec<ReferenceShape>,
 }
 
 impl InternalFunctionPointerShape {
-    fn from_ty(function: &TyFn<'_>) -> Self {
+    fn from_ty(gcx: Gcx<'_>, function: &TyFn<'_>) -> Self {
         Self {
             params: function
                 .parameters
                 .iter()
                 .map(|&ty| types::TypeLowerer::value_layout(ty))
+                .collect(),
+            references: function
+                .parameters
+                .iter()
+                .chain(function.returns)
+                .map(|&ty| ReferenceShape::of(gcx, ty, &mut FxHashSet::default()))
                 .collect(),
             returns: function
                 .returns
@@ -413,6 +420,7 @@ impl InternalFunctionPointerShape {
             .copied()
             .map(canonicalize))
             && self.returns == target.returns
+            && self.references == target.references
     }
 
     /// Returns whether a pointer of this shape can hold a `target` function retyped by inline
@@ -435,12 +443,23 @@ impl InternalFunctionPointerShape {
     fn helper_name(&self, from_assembly: bool) -> Symbol {
         let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
-        let suffix = format!(
+        let mut suffix = format!(
             "{}p_{}_r_{}",
             if from_assembly { "asm_" } else { "" },
             if params.is_empty() { "none" } else { &params },
             if returns.is_empty() { "none" } else { &returns },
         );
+        // The word layout alone does not distinguish arrays of pointers from arrays of words.
+        if self
+            .references
+            .iter()
+            .any(|shape| matches!(shape, ReferenceShape::Memory(fields) if !fields.is_empty()))
+        {
+            suffix.push_str("_refs_");
+            for shape in &self.references {
+                shape.append_key(&mut suffix);
+            }
+        }
         // `slice<calldata>` -> `slice_calldata`, keeping the name an identifier.
         helper_name(sym::internal_dispatcher, suffix.replace('<', "_").replace('>', ""))
     }
@@ -448,12 +467,7 @@ impl InternalFunctionPointerShape {
     /// Returns whether a call of `target` through a pointer of this shape reinterprets a memory
     /// reference as a word of another type, or such a word as a reference.
     fn reinterprets_reference(&self, target: &Self) -> bool {
-        let reference = |ty: &crate::mir::ValueLayout| ty.mir_type().is_memory_reference();
-        self.params
-            .iter()
-            .zip(&target.params)
-            .chain(self.returns.iter().zip(&target.returns))
-            .any(|(lhs, rhs)| reference(lhs) != reference(rhs))
+        self.references != target.references
     }
 }
 
@@ -479,7 +493,7 @@ impl InternalFunctionPointerRegistry {
             let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
                 return false;
             };
-            let candidate = InternalFunctionPointerShape::from_ty(function);
+            let candidate = InternalFunctionPointerShape::from_ty(gcx, function);
             !shape.is_assembly_cast_compatible_with(&candidate)
                 && shape.is_word_compatible_with(&candidate)
         })
@@ -1086,7 +1100,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
                     return None;
                 };
-                let candidate_shape = InternalFunctionPointerShape::from_ty(function);
+                let candidate_shape = InternalFunctionPointerShape::from_ty(gcx, function);
                 (shape.is_assembly_cast_compatible_with(&candidate_shape)
                     || (from_assembly
                         && state.pointer_registry.assembly_exposed.contains(&function_id)
@@ -1271,5 +1285,56 @@ fn is_literal_operation(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
     match &expr.kind {
         ExprKind::Binary(lhs, op, rhs) if op.kind.is_cmp() => is_literal(lhs) && is_literal(rhs),
         _ => is_literal(expr),
+    }
+}
+
+/// The memory references a function parameter or return contains, recursively. Scalar widths
+/// do not affect pointer escape; nested reference-versus-word distinctions do.
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum ReferenceShape {
+    Word,
+    Memory(Vec<Self>),
+    Recursive(hir::StructId),
+}
+
+impl ReferenceShape {
+    fn of(gcx: Gcx<'_>, ty: Ty<'_>, visiting: &mut FxHashSet<hir::StructId>) -> Self {
+        match ty.kind {
+            TyKind::Ref(inner, DataLocation::Memory) => Self::of(gcx, inner, visiting),
+            TyKind::Ref(..) => Self::Word,
+            TyKind::DynArray(element) | TyKind::Array(element, _) => {
+                Self::Memory(vec![Self::of(gcx, element, visiting)])
+            }
+            TyKind::Struct(id) => {
+                if !visiting.insert(id) {
+                    return Self::Recursive(id);
+                }
+                let fields = gcx
+                    .struct_field_types(id)
+                    .iter()
+                    .map(|&ty| Self::of(gcx, ty, visiting))
+                    .collect();
+                visiting.remove(&id);
+                Self::Memory(fields)
+            }
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Self::Memory(Vec::new())
+            }
+            _ => Self::Word,
+        }
+    }
+
+    fn append_key(&self, key: &mut String) {
+        match self {
+            Self::Word => key.push('w'),
+            Self::Memory(fields) => {
+                key.push('m');
+                for field in fields {
+                    field.append_key(key);
+                }
+                key.push('e');
+            }
+            Self::Recursive(id) => key.push_str(&format!("r{}_", id.index())),
+        }
     }
 }

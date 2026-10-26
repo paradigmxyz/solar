@@ -1,6 +1,6 @@
 use crate::{
     hir,
-    ty::Gcx,
+    ty::{Gcx, TyAbiPrinter, TyAbiPrinterMode},
     typeck::safe_profile::{self, Violation},
 };
 use serde::Serialize;
@@ -31,10 +31,22 @@ impl Gcx<'_> {
             .trusted
             .iter()
             .map(|&function| {
-                let signature = self.item_signature(function.into());
-                match self.hir.function(function).contract {
+                let declaration = self.hir.function(function);
+                let mut signature = declaration.name_or_kind().to_string();
+                // Internal signatures need not have an ABI representation. Naming structs also
+                // handles recursive parameters without trying to expand their fields forever.
+                TyAbiPrinter::new(self, &mut signature, TyAbiPrinterMode::Signature)
+                    .with_in_library(
+                        !self.has_abi_signature(function)
+                            || declaration.contract.is_some_and(|contract| {
+                                self.hir.contract(contract).kind.is_library()
+                            }),
+                    )
+                    .print_tuple(self.item_parameter_types(function).iter().copied())
+                    .unwrap();
+                match declaration.contract {
                     Some(contract) => format!("{}.{signature}", self.hir.contract(contract).name),
-                    None => signature.to_string(),
+                    None => signature,
                 }
             })
             .collect();

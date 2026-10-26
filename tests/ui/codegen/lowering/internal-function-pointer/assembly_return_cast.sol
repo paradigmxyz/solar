@@ -32,7 +32,7 @@ struct PairDecoder {
 contract InternalFunctionPointerAssemblyReturnCast {
     // CHECK-LABEL: fn @decodePair(
     // CHECK: icall @_toPairReturnType, [[DECODE_PAIR:[0-9]+]]
-    // CHECK: icall @internal_dispatcher_asm_p_uint256_r_memorystruct,
+    // CHECK: icall @internal_dispatcher_asm_p_uint256_r_memorystruct_refs_wmwwe,
     function decodePair(uint256, uint256) external pure returns (uint256, uint256) {
         Pair memory pair = _toPairReturnType(_decodePair)(CalldataPointer.wrap(4));
         return (pair.a, pair.b);
@@ -155,7 +155,7 @@ contract InternalFunctionPointerAssemblyReturnCast {
 
     // A pointer that comes from assembly can hold any exposed function with a one-word shape;
     // the dispatcher reinterprets the `MemoryPointer` word as the `memory` struct reference.
-    // CHECK-LABEL: fn @internal_dispatcher_asm_p_uint256_r_memorystruct(
+    // CHECK-LABEL: fn @internal_dispatcher_asm_p_uint256_r_memorystruct_refs_wmwwe(
     // CHECK: eq arg0, [[DECODE_PAIR]]
     // CHECK: [[WORD:v[0-9]+]] = icall @_decodePair, arg1
     // CHECK-NEXT: inttoptr i256 [[WORD]] to ptr<memory>

@@ -212,7 +212,15 @@ impl<'gcx> Visit<'gcx> for Checker<'gcx> {
             // A write through an index, or one that reads and writes.
             ExprKind::Assign(lhs, ..) | ExprKind::Delete(lhs) => self.write(lhs),
             ExprKind::Unary(op, operand) if op.kind.has_side_effects() => self.write(operand),
-            ExprKind::Member(receiver, name) if name.name == sym::length => self.read(receiver),
+            ExprKind::Member(receiver, name)
+                if name.name == sym::length
+                    && matches!(
+                        self.gcx.resolved_builtin(expr),
+                        Some(Builtin::ArrayLength | Builtin::FixedBytesLength)
+                    ) =>
+            {
+                self.read(receiver);
+            }
             ExprKind::Index(receiver, Some(_)) if !self.writes.contains(&expr.id) => {
                 self.read(receiver);
             }

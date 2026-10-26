@@ -77,7 +77,7 @@ impl<'gcx> Exposure<'gcx> {
         self.indirect_callees
             .entry(ty)
             .or_insert_with(|| {
-                let shape = InternalFunctionPointerShape::from_ty(function);
+                let shape = InternalFunctionPointerShape::from_ty(self.gcx, function);
                 self.functions
                     .iter()
                     .copied()
@@ -86,7 +86,7 @@ impl<'gcx> Exposure<'gcx> {
                             return false;
                         };
                         shape.is_assembly_cast_compatible_with(
-                            &InternalFunctionPointerShape::from_ty(function),
+                            &InternalFunctionPointerShape::from_ty(self.gcx, function),
                         )
                     })
                     .collect()

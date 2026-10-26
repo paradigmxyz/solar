@@ -39,6 +39,22 @@ contract Test {
             retyped(abi.encode(x)); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
         }
     }
+
+    function first(uint256[] memory words) internal pure returns (uint256) {
+        return words[0];
+    }
+
+    function nestedReferences(uint256 x) external pure returns (uint256 word) {
+        function(uint256[] memory) internal pure returns (uint256) typed = first;
+        function(bytes[] memory) internal pure returns (uint256) retyped;
+        assembly { retyped := typed }
+        /// @custom:solar-scratch
+        {
+            bytes[] memory nested = new bytes[](1);
+            nested[0] = abi.encode(x);
+            word = retyped(nested); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+        }
+    }
 }
 
 // A retyped pointer whose functions take and return only words other than
