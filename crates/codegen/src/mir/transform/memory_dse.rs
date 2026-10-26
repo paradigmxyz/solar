@@ -1875,6 +1875,8 @@ impl MemoryStoreEliminator {
                     // An access that may leave its allocation names it by its pointer, and
                     // reaches only the objects above it.
                     MemoryBase::Value(pointer) => self.allocation_site(func, pointer),
+                    // A read at the free-memory pointer may reach any object allocated after it.
+                    MemoryBase::FreeMemory(_) => None,
                 },
                 Access::Any(_) | Access::Location(_) => continue,
             };
