@@ -1,0 +1,68 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=tail-merge
+//@ filecheck: --check-prefix=SIZE
+@module LoopHeaderBranch
+
+bb0:
+  push 9
+  push 7
+  push 0
+  calldataload
+  dup 1
+  jumpi bb1, bb2
+
+// Each loop header keeps its `jumpi` local, so the continuing path jumps straight to its body.
+// The exit tail after the branch is still shared.
+// SIZE-LABEL: {{^[ +].*}}bb1 [loop]:
+// SIZE: {{^[ +].*}}push bb3
+// SIZE-NEXT: {{^  .*}}jumpi
+// SIZE: + jump [[EXIT:bb[0-9]+]]
+bb1 [loop]:
+  dup 1
+  push bb3
+  jumpi
+  push 1
+  push 2
+  add
+  push 32
+  mstore
+  stop
+
+// SIZE-LABEL: {{^[ +].*}}bb2 [loop]:
+// SIZE: {{^[ +].*}}push bb4
+// SIZE-NEXT: {{^  .*}}jumpi
+// SIZE: + jump [[EXIT]]
+bb2 [loop]:
+  dup 1
+  push bb4
+  jumpi
+  push 1
+  push 2
+  add
+  push 32
+  mstore
+  stop
+
+bb3 [loop]:
+  swap 2
+  dup 2
+  add
+  swap 2
+  push 1
+  swap 1
+  sub
+  jump bb1
+
+bb4 [loop]:
+  swap 2
+  dup 2
+  add
+  swap 2
+  push 2
+  swap 1
+  sub
+  jump bb2
+
+// SIZE: {{^[ +].*}}[[EXIT]] [loop]:
+// SIZE-NEXT: {{^[ +].*}}push 1
+// SIZE-NEXT: {{^[ +].*}}push 2
+// SIZE-NEXT: {{^[ +].*}}add

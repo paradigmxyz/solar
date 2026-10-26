@@ -9,10 +9,12 @@
 // CHECK: calldatacopy
 // CHECK-NOT: exchange
 // CHECK: add
-// CHECK-NEXT: dup 4
-// CHECK-NEXT: swap 2
+// CHECK-NEXT: dup 2
 // CHECK-NEXT: swap 3
 // CHECK-NEXT: swap 4
+// CHECK-NEXT: swap 5
+// CHECK-NEXT: pop
+// CHECK-NEXT: swap 1
 // CHECK-NEXT: jump bb{{[0-9]+}}
 // CHECK-NOT: exchange
 contract Test {

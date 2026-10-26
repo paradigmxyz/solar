@@ -3,21 +3,37 @@
   @module CastForwarder
   fn @caller(arg0: i160) -> i1 {
     bb0:
-      v0 = icall @contains, arg0
-      ret v0
+-     v0 = icall @contains, arg0
+-     ret v0
++     jump bb2
++   bb2:
++     v1 = zext i160 arg0 to i256
++     v2 = icall @inner_contains, v1
++     jump bb1
++   bb1:
++     v3 = phi [bb2: v2]
++     ret v3
   }
   
   fn @other(arg0: i160) -> i1 {
     bb0:
-      v0 = icall @contains, arg0
-      ret v0
-  }
-  
-  fn @contains(arg0: i160) -> i1 {
-    bb0:
-      v0 = zext i160 arg0 to i256
-      v1 = icall @inner_contains, v0
-      ret v1
+-     v0 = icall @contains, arg0
+-     ret v0
+- }
+- 
+- fn @contains(arg0: i160) -> i1 {
+-   bb0:
+-     v0 = zext i160 arg0 to i256
+-     v1 = icall @inner_contains, v0
+-     ret v1
++     jump bb2
++   bb2:
++     v1 = zext i160 arg0 to i256
++     v2 = icall @inner_contains, v1
++     jump bb1
++   bb1:
++     v3 = phi [bb2: v2]
++     ret v3
   }
   
   fn @inner_contains(arg0: i256) -> i1 {
@@ -52,21 +68,28 @@
   @module CastForwarder
   fn @caller(arg0: i160) -> i1 {
     bb0:
-      v0 = icall @contains, arg0
-      ret v0
+-     jump bb2
+-   bb2:
+      v1 = zext i160 arg0 to i256
+      v2 = icall @inner_contains, v1
+-     jump bb1
+-   bb1:
+-     v3 = phi [bb2: v2]
+-     ret v3
++     ret v2
   }
   
   fn @other(arg0: i160) -> i1 {
     bb0:
-      v0 = icall @contains, arg0
-      ret v0
-  }
-  
-  fn @contains(arg0: i160) -> i1 {
-    bb0:
-      v0 = zext i160 arg0 to i256
-      v1 = icall @inner_contains, v0
-      ret v1
+-     jump bb2
+-   bb2:
+      v1 = zext i160 arg0 to i256
+      v2 = icall @inner_contains, v1
+-     jump bb1
+-   bb1:
+-     v3 = phi [bb2: v2]
+-     ret v3
++     ret v2
   }
   
   fn @inner_contains(arg0: i256) -> i1 {

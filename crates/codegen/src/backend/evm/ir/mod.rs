@@ -34,6 +34,7 @@ pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
+pub(in crate::backend::evm) use passes::SharedSchedules;
 pub(crate) use passes::compact_pushes;
 pub(in crate::backend) mod verify;
 
@@ -47,7 +48,7 @@ pub(in crate::backend) use passes::{
         ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
     },
     data::pack_linked_data,
-    legalize_shifts,
+    legalize_revert,
 };
 
 /// Validates the target-independent invariants of an EVM IR module.

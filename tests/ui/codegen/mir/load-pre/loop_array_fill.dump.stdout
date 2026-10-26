@@ -114,40 +114,40 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v38 = shr arg0, 64
     v39 = and v38, 0xffffffff
     v40 = eq v39, 0
-    v49 = zext i1 v40 to i256
-    v51 = sub 3, v49
+    v42 = zext i1 v40 to i256
+    v44 = sub 3, v42
     jump bb4
   bb4:
-    v41 = phi [bb0: 0], [bb5: 1], [bb6: v51]
+    v41 = phi [bb0: 0], [bb5: 1], [bb6: v44]
     v8 = add v41, 1
     v10 = shl v8, 5
-    v72 = icall @alloc, v10
-    v74 = calldatasize
-    calldatacopy v72, v74, v10
-    mstore v72, v41
-    v75 = add v72, 32
+    v65 = icall @alloc, v10
+    v67 = calldatasize
+    calldatacopy v65, v67, v10
+    mstore v65, v41
+    v68 = add v65, 32
     jump bb1
   bb1:
     v21 = phi [bb4: 0], [bb3: v32]
-    v76 = phi [bb4: v75], [bb3: v77]
+    v69 = phi [bb4: v68], [bb3: v70]
     v22 = lt v21, v41
     jumpi v22, bb3, bb2
   bb2:
-    v64 = add v72, 32
-    v59 = shl v41, 5
-    v66 = add v72, 64
-    mcopy v66, v64, v59
-    mstore v72, 32
-    mstore v64, v41
-    v61 = add v59, 64
-    returndata v72, v61
+    v57 = add v65, 32
+    v52 = shl v41, 5
+    v59 = add v65, 64
+    mcopy v59, v57, v52
+    mstore v65, 32
+    mstore v57, v41
+    v54 = add v52, 64
+    returndata v65, v54
   bb3:
-    v42 = shl v21, 5
-    v24 = shr arg0, v42
+    v23 = shl v21, 5
+    v24 = shr arg0, v23
     v25 = and v24, 0xffffffff
-    mstore v76, v25
+    mstore v69, v25
     v32 = add v21, 1
-    v77 = add v76, 32
+    v70 = add v69, 32
     jump bb1
 }
 
@@ -181,8 +181,8 @@ fn @entry() [entry] {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v4 = gt v2, 0xffffffffffffffff
     v5 = or v3, v4

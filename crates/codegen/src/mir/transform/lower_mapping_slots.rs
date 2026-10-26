@@ -128,12 +128,7 @@ fn lower_fixed_slot_hash(
             + target.opcode_with_immediates(op::KECCAK256, &[Some(U256::ZERO), Some(size)])
             + target.dup().times(uses - 1);
         let pushed = target.push(hash).times(uses);
-        let cheaper = if target.optimization().is_gas() {
-            target.lifetime_gas(pushed) < target.lifetime_gas(hashed)
-        } else {
-            target.cmp(pushed, hashed).is_lt()
-        };
-        if cheaper {
+        if target.cmp_lifetime(pushed, hashed).is_lt() {
             // result = constant_hash(words)
             return builder.imm(hash);
         }

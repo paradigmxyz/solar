@@ -12,7 +12,7 @@
 //! remain with loop layout. Block order and existing label identities stay intact. A tail left
 //! without references is removed, and assembly omits labels whose last reference disappears.
 //! Debug origins remain on the copied operations and never affect eligibility.
-//! Opcodes awaiting fork legalization stay shared because their expansion is not priced here.
+//! Opcodes the target lacks stay shared.
 //! Copies start beyond the one-byte address range, using an instruction-only lower bound on the
 //! prefix size, so they cannot widen the labels and indexed tables packed by block layout.
 
@@ -46,7 +46,7 @@ impl EvmPass for TailDuplicate {
         // Bound the removed transfer by its smallest encoding: even a non-entry label can
         // resolve to zero when the entry block falls through without emitting instructions.
         let transfer = target.push(U256::ZERO) + target.opcode(op::JUMP);
-        let saved_gas = transfer.gas + target.opcode_gas(op::JUMPDEST);
+        let saved = Cost { bytes: 0, ..transfer + target.opcode(op::JUMPDEST) };
         let copied_transfer = target.label_push() + target.opcode(op::JUMP);
         let mut references = IndexVec::new();
         count_block_references(module, &mut references);
@@ -85,10 +85,8 @@ impl EvmPass for TailDuplicate {
             {
                 continue;
             }
-            let profitable = |bytes| {
-                target.lifetime_gas(Cost::new(0, bytes))
-                    < target.lifetime_gas(Cost::new(saved_gas, 0))
-            };
+            let profitable =
+                |bytes| target.lifetime_gas(Cost::new(0, bytes)) < target.lifetime_gas(saved);
             let growth = tail.instructions.iter().try_fold(
                 copied_transfer.bytes - transfer.bytes,
                 |n, inst| {

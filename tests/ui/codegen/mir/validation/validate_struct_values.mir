@@ -173,41 +173,34 @@ fn @implicit_return_pointer(arg0: ptr<calldata>) {
 }
 
 //~? ERROR: [fn24] [bb0, inst0] ABI input location does not support its layout
-fn @dynamic_calldata_tuple(arg0: slice<calldata>) -> slice<memory> {
+fn @nested_returndata_array(arg0: slice<returndata>) -> slice<memory> {
   bb0:
-    v0 = abi_encode [tuple<calldata_bytes>], args arg0
+    v0 = abi_encode [returndata_array<returndata_array<word>>], args arg0
     ret v0
 }
 
-//~? ERROR: [fn25] [bb0, inst0] ABI input location does not support its layout
-fn @nested_calldata_array(arg0: slice<calldata>) -> slice<memory> {
-  bb0:
-    v0 = abi_encode [calldata_array<calldata_array<word>>], args arg0
-    ret v0
-}
-
-//~? ERROR: [fn26] [bb0, inst0] `mload` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn25] [bb0, inst0] `mload` has incompatible scalar types; use an explicit cast
 fn @calldata_as_memory(arg0: slice<calldata>) -> i256 {
   bb0:
     v0 = mload arg0
     ret v0
 }
 
-//~? ERROR: [fn27] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn26] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 fn @mixed_width_add(arg0: i8, arg1: i16) -> i8 {
   bb0:
     v0 = add arg0, arg1
     ret v0
 }
 
-//~? ERROR: [fn28] [bb0, inst0] `eq` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn27] [bb0, inst0] `eq` has incompatible scalar types; use an explicit cast
 fn @mixed_width_compare(arg0: i16, arg1: i24) -> i1 {
   bb0:
     v0 = eq arg0, arg1
     ret v0
 }
 
-//~? ERROR: [fn29] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn28] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 fn @wrong_result_annotation(arg0: i8, arg1: i8) -> i16 {
   bb0:
     v0: i16 = add arg0, arg1
