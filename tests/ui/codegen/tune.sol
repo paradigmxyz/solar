@@ -23,9 +23,16 @@ contract DynamicSink {
 // INTERPRETER-NOT: jump{{$}}
 // CHECK-LABEL: @module ConstructorSharedAbiEncode_deployment
 contract DynamicCaller {
+    uint256 public pointer;
+
     constructor(DynamicSink sink) {
         recordFirst(sink);
         recordSecond(sink);
+        // Reading the free-memory pointer keeps the bump of each call's encoding, which the
+        // thresholds below are calibrated on.
+        assembly ("memory-safe") {
+            sstore(pointer.slot, mload(0x40))
+        }
     }
 
     function recordFirst(DynamicSink sink) internal {
