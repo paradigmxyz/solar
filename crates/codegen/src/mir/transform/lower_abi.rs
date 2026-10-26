@@ -38,6 +38,8 @@
 //! place as well, with the calldata decoders the entries use: offsets resolve against the slice's
 //! base and every read stays below its end, as solc decodes it, so no copy of the encoding into
 //! memory precedes the decode.
+//! Fresh bytes objects clear only their allocated tail padding after copying the payload;
+//! neither dirty input padding nor previously used free memory becomes output padding.
 //!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
@@ -1814,6 +1816,17 @@ impl LowerAbiCx {
                 Self::guard_bytes_data(builder, data, len, input_end, current, true);
                 let source = builder.make_slice(data, len, location);
                 builder.memory_copy_from_slice(ptr, source);
+                // payload = ptradd ptr, 32
+                // tail = ptradd payload, len
+                // padding = and (sub 0, len), 31
+                // memory_zero tail, padding
+                let payload = builder.memory_data(ptr);
+                let tail = builder.ptradd(payload, len);
+                let zero = builder.imm(0);
+                let negative_len = builder.sub(zero, len);
+                let mask = builder.imm(EvmMemoryLayout::WORD_SIZE - 1);
+                let padding = builder.and(negative_len, mask);
+                builder.memory_zero(tail, padding);
                 ptr
             }
             crate::mir::AbiParamType::Tuple(fields) => {

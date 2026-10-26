@@ -236,7 +236,9 @@ fn check_region(
     let allocated = |pointer: ValueId| {
         let object = function.object(pointer);
         function.aa.memory_address(func, object).is_some_and(|address| match address.base {
-            MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => inside(site),
+            MemoryBase::Allocation(site)
+            | MemoryBase::DynamicAllocation(site)
+            | MemoryBase::FreeMemory(site) => inside(site),
             MemoryBase::Value(value) => match *func.value(value) {
                 Value::Inst(inst) => inside(inst) && allocates_new(func, inst),
                 _ => false,
@@ -631,6 +633,15 @@ impl PointerWrites {
                 MemoryBase::InternalFrame
                 | MemoryBase::Allocation(_)
                 | MemoryBase::DynamicAllocation(_) => {}
+                MemoryBase::FreeMemory(read) => {
+                    if func
+                        .inst_result_value(read)
+                        .and_then(|value| function.fresh_start(value))
+                        .is_none()
+                    {
+                        writes.other.add(stored);
+                    }
+                }
                 MemoryBase::Absolute => {
                     if address.offset >= EvmMemoryLayout::HEAP_START {
                         writes.other.add(stored);
