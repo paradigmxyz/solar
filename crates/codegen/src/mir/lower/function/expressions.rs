@@ -11,6 +11,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.imm(U256::from_be_bytes(padded))
     }
 
+    /// Returns the bytes of a `string` or `bytes` value that the constant evaluator folds, such as
+    /// a literal, a conversion of one, or a constant.
+    pub(super) fn constant_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
+        match self.cx.gcx.const_eval().eval_expr(expr) {
+            Ok(ConstValue::Bytes(bytes, _)) => Some(*bytes),
+            _ => None,
+        }
+    }
+
     pub(super) fn lower_fixed_bytes_literal(
         &mut self,
         ty: Ty<'gcx>,

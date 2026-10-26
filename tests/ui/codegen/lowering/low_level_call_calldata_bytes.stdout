@@ -70,11 +70,6 @@ bb7 [continuation]:
   push 64
   mload
   dup 3
-  dup 2
-  mstore
-  push 32
-  add
-  dup 3
   dup 3
   dup 3
   calldatacopy
@@ -112,11 +107,6 @@ bb11 [continuation]:
   add
   push 64
   mload
-  dup 3
-  dup 2
-  mstore
-  push 32
-  add
   dup 3
   dup 3
   dup 3

@@ -2,9 +2,7 @@
 @module LiteralRuntime
 fn @onERC721Received(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) [selector=0x150b7a02, pure, abi_params=[address, address, uint256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    v0 = and 0x150b7a0200000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes4 v0)
-    icall require<error_string>, false, v1
+    icall require<short_string>, false, 4, 0x150b7a0200000000000000000000000000000000000000000000000000000000
     invalid
 }
 

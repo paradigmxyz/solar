@@ -175,13 +175,10 @@ fn plan(func: &Function, l: &Loop, target: Target) -> Option<ClosedForm> {
     let header_cost = target.block_code_estimate(func, header);
     let body_cost = body.iter().map(|&block| target.block_code_estimate(func, block)).sum::<Cost>();
     let trips = func.value_u64(count).unwrap_or(Target::UNCOUNTED_LOOP_ITERATIONS);
-    let before = Cost::new(
-        (header_cost + body_cost)
-            .times(u32::try_from(trips).unwrap_or(u32::MAX))
-            .gas
-            .saturating_add(header_cost.gas),
-        header_cost.bytes + body_cost.bytes,
-    );
+    let looped = (header_cost + body_cost).times(u32::try_from(trips).unwrap_or(u32::MAX));
+    let before =
+        Cost::new(looped.gas.saturating_add(header_cost.gas), header_cost.bytes + body_cost.bytes)
+            .with_steps(looped.steps.saturating_add(header_cost.steps));
     if !target.cmp_lifetime(after, before).is_lt() {
         return None;
     }

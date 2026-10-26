@@ -46,15 +46,13 @@ error: [fn23] [bb0] raw return and revert operands must be a memory address and 
 
 error: [fn24] [bb0, inst0] ABI input location does not support its layout
 
-error: [fn25] [bb0, inst0] ABI input location does not support its layout
+error: [fn25] [bb0, inst0] `mload` has incompatible scalar types; use an explicit cast
 
-error: [fn26] [bb0, inst0] `mload` has incompatible scalar types; use an explicit cast
+error: [fn26] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 
-error: [fn27] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+error: [fn27] [bb0, inst0] `eq` has incompatible scalar types; use an explicit cast
 
-error: [fn28] [bb0, inst0] `eq` has incompatible scalar types; use an explicit cast
+error: [fn28] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 
-error: [fn29] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
-
-error: aborting due to 29 previous errors
+error: aborting due to 28 previous errors
 
