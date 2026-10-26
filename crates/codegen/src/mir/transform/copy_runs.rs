@@ -108,7 +108,10 @@ impl MirPass for CopyRuns {
         let target = Target::new(gcx);
         // What every call establishes about the parameters, once a block holds a calldata run.
         let has_runs = |func: &Function| {
-            func.blocks.indices().any(|block| collect_pairs(func, block).len() >= 2)
+            func.blocks.indices().any(|block| {
+                let pairs = collect_pairs(func, block);
+                pairs.iter().filter(|pair| pair.source == PtrLocation::Calldata).count() >= 2
+            })
         };
         let arguments = if module.functions.iter().any(has_runs) {
             argument_facts(module)
