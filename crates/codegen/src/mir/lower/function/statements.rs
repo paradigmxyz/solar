@@ -287,7 +287,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some(false);
         }
-        if self.constant_string_bytes(expr).is_none() {
+        if self.constant_bytes(expr).is_none() {
             self.lower_discarded_expr(expr)?;
         }
         Some(true)
@@ -426,21 +426,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.prepare_custom_error_payload(error_id, *args);
         }
 
-        if let Some(bytes) = self.constant_string_bytes(expr)
-            && (1..=32).contains(&bytes.as_byte_str().len())
-        {
-            let length = self.builder.imm(bytes.as_byte_str().len() as u64);
-            let data = self.lower_string_literal_word(bytes.as_byte_str());
-            return Some(RevertPayload::ShortString { length, data });
-        }
-
-        let literal = expr.peel_parens();
-        if let ExprKind::Lit(lit) = &literal.kind
-            && let LitKind::Str(StrKind::Str | StrKind::Unicode | StrKind::Hex, bytes, _) =
-                &lit.kind
-            && bytes.as_byte_str().is_empty()
-        {
-            return Some(RevertPayload::EmptyString);
+        if let Some(symbol) = self.constant_bytes(expr) {
+            let bytes = symbol.as_byte_str();
+            return Some(match bytes.len() {
+                0 => RevertPayload::EmptyString,
+                1..=32 => {
+                    let length = self.builder.imm(bytes.len() as u64);
+                    let data = self.lower_string_literal_word(bytes);
+                    RevertPayload::ShortString { length, data }
+                }
+                _ => RevertPayload::LongString(symbol),
+            });
         }
 
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -455,28 +451,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let condition = self.builder.imm_bool(false);
         self.builder.require(condition, payload);
         self.builder.invalid();
-    }
-
-    fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
-        let mut expr = expr.peel_parens();
-        for _ in 0..4 {
-            match &expr.kind {
-                ExprKind::Lit(lit) => {
-                    let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-                    return Some(*bytes);
-                }
-                ExprKind::Ident(_) | ExprKind::Member(..) => {
-                    let variable_id = self.cx.gcx.resolved_variable(expr)?;
-                    let variable = self.cx.gcx.hir.variable(variable_id);
-                    if !variable.is_constant() {
-                        return None;
-                    }
-                    expr = variable.initializer?.peel_parens();
-                }
-                _ => return None,
-            }
-        }
-        None
     }
 
     fn prepare_custom_error_payload(
@@ -579,15 +553,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     | TyKind::Tuple(_) => {
                         let mut abi_type = self.types.abi_type(parameter_ty)?;
                         abi_type = self.abi_type_for_value(value, abi_type);
-                        let validated_static =
-                            self.validate_calldata_static_argument(value, parameter_ty);
+                        self.validate_calldata_static_argument(value, parameter_ty);
                         let calldata_dynamic = self.builder.func().value_slice_location(value)
                             == Some(PtrLocation::Calldata)
                             && abi_type.is_dynamic();
-                        if (calldata_dynamic
-                            || self.needs_calldata_materialization(value, &abi_type))
-                            && !validated_static
-                        {
+                        if calldata_dynamic {
                             value = self.materialize_calldata_argument(
                                 parameter_ty,
                                 value,
@@ -621,7 +591,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
                 abi_type = self.abi_type_for_value(value, abi_type);
                 self.check_calldata_array_size(value, parameter_ty, &abi_type);
-                let validated_static = self.validate_calldata_static_argument(value, parameter_ty);
+                self.validate_calldata_static_argument(value, parameter_ty);
                 // The dispatcher validates the elements of an argument that only ABI decoding
                 // passes when an encoding takes it.
                 if Self::is_calldata_word_array(&abi_type)
@@ -629,11 +599,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && !self.is_decoded_external_argument(value)
                 {
                     self.validate_calldata_word_array(value, parameter_ty);
-                }
-                if self.needs_calldata_materialization(value, &abi_type) && !validated_static {
-                    value =
-                        self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
-                    abi_type = Self::memory_abi_type(abi_type);
                 }
                 if matches!(abi_type, AbiType::Word(_)) {
                     value = self.lower_word_value(parameter_ty, argument, value);

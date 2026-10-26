@@ -126,9 +126,10 @@ struct Rewrite {
 }
 
 impl Rewrite {
-    fn saving(&self) -> Improvement {
+    fn saving(&self, target: &Target) -> Improvement {
         Improvement {
-            runtime_gas: i64::from(self.old.gas) - i64::from(self.new.gas),
+            runtime_gas: i64::from(target.runtime_gas(self.old))
+                - i64::from(target.runtime_gas(self.new)),
             bytes: i64::from(self.old.bytes) - i64::from(self.new.bytes),
         }
     }
@@ -242,7 +243,10 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
                 rewrites
                     .into_iter()
                     .filter(|rewrite| {
-                        is_profitable(&target_of(std::slice::from_ref(rewrite)), rewrite.saving())
+                        is_profitable(
+                            &target_of(std::slice::from_ref(rewrite)),
+                            rewrite.saving(&runtime),
+                        )
                     })
                     .map(|rewrite| PreparedRewrite { rewrite, data: None }),
             );
@@ -250,7 +254,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
         }
         let placement = pool.placement(&data);
         let additional_bytes = placement_additional_bytes(&placement, data.len());
-        let mut improvement = rewrite_improvement(&rewrites, additional_bytes);
+        let mut improvement = rewrite_improvement(&rewrites, additional_bytes, &runtime);
         let mut repeats = rewrites.iter().any(|rewrite| rewrite.repeats);
         let mut absorbed = Vec::new();
         for (index, (contained, contained_rewrites)) in
@@ -259,7 +263,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
             let Some(offset) = contained.find(&data) else {
                 continue;
             };
-            let contained_improvement = rewrite_improvement(contained_rewrites, 0);
+            let contained_improvement = rewrite_improvement(contained_rewrites, 0, &runtime);
             if is_profitable(&target_of(contained_rewrites), contained_improvement) {
                 improvement.add(contained_improvement);
                 repeats |= contained_rewrites.iter().any(|rewrite| rewrite.repeats);
@@ -574,10 +578,14 @@ fn instruction_cost(target: &Target, inst: &Instruction) -> Option<Cost> {
     }
 }
 
-fn rewrite_improvement(rewrites: &[Rewrite], additional_bytes: isize) -> Improvement {
+fn rewrite_improvement(
+    rewrites: &[Rewrite],
+    additional_bytes: isize,
+    target: &Target,
+) -> Improvement {
     let mut improvement = Improvement { runtime_gas: 0, bytes: -(additional_bytes as i64) };
     for rewrite in rewrites {
-        improvement.add(rewrite.saving());
+        improvement.add(rewrite.saving(target));
     }
     improvement
 }

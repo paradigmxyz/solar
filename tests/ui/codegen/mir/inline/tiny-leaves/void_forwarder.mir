@@ -56,6 +56,12 @@ fn @discard_caller(arg0: i256) {
     ret
 }
 
+fn @discard_other_caller(arg0: i256) {
+  bb0:
+    icall @discard, arg0
+    ret
+}
+
 fn @discard(arg0: i256) {
   bb0:
     v0 = icall @value_sink, arg0
@@ -77,6 +83,12 @@ fn @value_sink(arg0: i256) -> i256 {
 fn @effect_caller(arg0: i256, arg1: i256) {
   bb0:
     icall @effect, arg0, arg1
+    ret
+}
+
+fn @effect_other_caller(arg0: i256, arg1: i256) {
+  bb0:
+    icall @effect, arg1, arg0
     ret
 }
 

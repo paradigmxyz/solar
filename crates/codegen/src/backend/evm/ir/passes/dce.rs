@@ -9,15 +9,17 @@
 //! The simulation stops when an ordinary instruction consumes the selected occurrence, when the
 //! target cannot encode a required replacement stack operation, or when another live occurrence
 //! cannot be reached. Candidate costs use the target's lowered stack operations. A rewrite must
-//! improve bytes or static gas without making the other metric worse; size mode also disables
-//! optional duplicate retargeting that can trade bytes for gas.
+//! improve bytes or static gas without making the other metric worse. Duplicate retargeting also
+//! runs in size mode, where it shrank runtime code across the benchmark corpus with one contract
+//! growing by one byte.
 //!
 //! Non-expanding edits compact instructions in place; edits that add stack operations use a
 //! reusable scratch buffer.
 //!
 //! This is a post-scheduling cleanup. It removes duplicated stack values within one block, then
-//! removes a trailing pure stack computation before a halting terminal, including across an
-//! unconditional edge to a block that never reads its incoming stack.
+//! removes a trailing stack computation before a halting terminal, including across an
+//! unconditional edge to a block that never reads its incoming stack. The computation may use pure
+//! operations and reads of the call's context, whose only effect is their static gas.
 
 use super::EvmPass;
 use crate::backend::evm::{
@@ -37,11 +39,7 @@ impl EvmPass for Dce {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let copies_changed = eliminate_dead_stack_copies(
-            module,
-            !gcx.sess.opts.optimization.is_size(),
-            gcx.sess.opts.evm_version,
-        );
+        let copies_changed = eliminate_dead_stack_copies(module, gcx.sess.opts.evm_version);
         cleanup_dead_stack_tails(module) || copies_changed
     }
 }
@@ -125,7 +123,9 @@ fn discardable_tail_start(instructions: &[Instruction]) -> Option<usize> {
 fn is_discardable_tail_instruction(inst: &Instruction) -> bool {
     inst.is_encoded_push()
         || inst.as_stack_op().is_some()
-        || inst.as_evm_opcode().is_some_and(op::is_pure)
+        || inst
+            .as_evm_opcode()
+            .is_some_and(|opcode| op::is_pure(opcode) || op::is_context_read(opcode))
 }
 
 /// Removes stack copies that are eventually discarded without being consumed.
@@ -137,22 +137,13 @@ fn is_discardable_tail_instruction(inst: &Instruction) -> bool {
 /// they do not consume it. A rewrite is applied only when the omitted
 /// occurrence reaches a `POP` and the resulting sequence improves either gas
 /// or size without regressing the other.
-fn eliminate_dead_stack_copies(
-    module: &mut Module,
-    allow_dup_retargeting: bool,
-    evm_version: EvmVersion,
-) -> bool {
+fn eliminate_dead_stack_copies(module: &mut Module, evm_version: EvmVersion) -> bool {
     let mut changed = false;
     let mut edits = Vec::new();
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        changed |= eliminate_in_block(
-            &mut block.instructions,
-            &mut edits,
-            &mut scratch,
-            allow_dup_retargeting,
-            evm_version,
-        ) != 0;
+        changed |=
+            eliminate_in_block(&mut block.instructions, &mut edits, &mut scratch, evm_version) != 0;
     }
     changed
 }
@@ -161,7 +152,6 @@ fn eliminate_in_block(
     instructions: &mut Vec<Instruction>,
     edits: &mut Vec<Edit>,
     scratch: &mut Vec<Instruction>,
-    allow_dup_retargeting: bool,
     evm_version: EvmVersion,
 ) -> usize {
     let mut rewrites = 0;
@@ -189,32 +179,11 @@ fn eliminate_in_block(
             let depth = usize::from(depth);
             let candidate = if depth == 1 {
                 better_candidate(
-                    find_candidate(
-                        walked,
-                        start,
-                        depth,
-                        Ghost::Original,
-                        allow_dup_retargeting,
-                        evm_version,
-                    ),
-                    find_candidate(
-                        walked,
-                        start,
-                        depth,
-                        Ghost::Duplicate,
-                        allow_dup_retargeting,
-                        evm_version,
-                    ),
+                    find_candidate(walked, start, depth, Ghost::Original, evm_version),
+                    find_candidate(walked, start, depth, Ghost::Duplicate, evm_version),
                 )
             } else {
-                find_candidate(
-                    walked,
-                    start,
-                    depth,
-                    Ghost::Duplicate,
-                    allow_dup_retargeting,
-                    evm_version,
-                )
+                find_candidate(walked, start, depth, Ghost::Duplicate, evm_version)
             };
             let Some(candidate) = candidate else {
                 start += 1;
@@ -340,7 +309,6 @@ fn find_candidate(
     start: usize,
     duplicate_depth: usize,
     ghost: Ghost,
-    allow_dup_retargeting: bool,
     evm_version: EvmVersion,
 ) -> Option<Candidate> {
     let max_stack_access = evm_version.reachable_stack_depth();
@@ -375,12 +343,6 @@ fn find_candidate(
                 } else {
                     physical_depth(&slots, slots.len() - depth)
                 };
-                // Changing a `DUPn` depth is byte-neutral and can perturb the
-                // later size-oriented layout. Gas mode keeps the substitution
-                // because it unlocks profitable copy cleanup.
-                if !allow_dup_retargeting && physical_depth != depth {
-                    return None;
-                }
                 let replacement = StackOp::Dup(u8::try_from(physical_depth).ok()?);
                 candidate.replace(
                     index,

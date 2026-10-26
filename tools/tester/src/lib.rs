@@ -390,6 +390,12 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }) {
         config.program.args.retain(|arg| arg != "-j1");
     }
+    if src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@") && line.contains("compile-flags") && line.contains("-Zvalidate-ir")
+    }) {
+        config.program.args.retain(|arg| arg != "-Zvalidate-ir=true");
+    }
 }
 
 fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {

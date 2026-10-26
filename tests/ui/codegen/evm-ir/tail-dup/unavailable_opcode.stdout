@@ -1,0 +1,44 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-dup/unavailable_opcode.evmir (before tail-dup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-dup/unavailable_opcode.evmir (after tail-dup) ===
+  @module UnavailableOpcode
+  bb0:
+    push 3
+    push 0
+    jump bb1
+  bb1 [loop]:
+    dup 2
+    dup 2
+    lt
+    push bb2
+    jumpi
+    jump bb6
+  bb2 [loop]:
+    dup 1
+    push 1
+    and
+    push bb4
+    jumpi
+    push 7
+    pop
+    jump bb5
+  bb4 [loop]:
+    push 9
+    pop
+    jump bb5
+  bb5 [loop]:
+    selfbalance
+    pop
+    push 1
+    add
+-   jump bb1
++   dup 2
++   dup 2
++   lt
++   push bb2
++   jumpi
++   jump bb6
+  bb6:
+    pop
+    pop
+    stop
+  

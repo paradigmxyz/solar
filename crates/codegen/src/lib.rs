@@ -29,7 +29,7 @@ pub use link::{
     ContractBytecodes, EmbeddedBytecodes, LibraryId, LibraryRelocation, LibraryTable,
     QualifiedName, RelocatableBytecode, qualified_name,
 };
-
+mod isle_log;
 mod source_info;
 
 pub(crate) mod target;

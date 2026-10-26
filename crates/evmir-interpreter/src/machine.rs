@@ -22,11 +22,9 @@
 //! next block in layout order, and past the last block the code ends, which stops. A raw `jumpi`
 //! and a dynamic `jump` take their target from the stack.
 //!
-//! Before Constantinople, legalization expands shifts into arithmetic with the same results, so
-//! shifts run on every target. Before Byzantium, it turns `revert` into `invalid`, so a revert
-//! halts there. Any other opcode the target lacks halts as undefined, as it does in the EVM, and
-//! so does a stack operation that only the target's missing `DUPN`, `SWAPN`, or `EXCHANGE` could
-//! encode.
+//! An opcode the target lacks, such as `shl` before Constantinople or `revert` before Byzantium,
+//! halts as undefined, as it does in the EVM, and so does a stack operation that only the target's
+//! missing `DUPN`, `SWAPN`, or `EXCHANGE` could encode.
 //!
 //! # Code layout
 //!
@@ -675,11 +673,7 @@ impl<'m> Run<'_, 'm, '_> {
             self.trace(block, site, &[], None);
             return Err(Outcome::Halt(Halt::UndefinedOpcode(opcode)));
         };
-        // Legalization expands shifts for targets that lack them, and turns `revert` into
-        // `invalid`, so only shifts run where the target lacks them.
-        if !definition.is_available(self.machine.evm_version)
-            && !matches!(opcode, op::SHL | op::SHR | op::SAR)
-        {
+        if !definition.is_available(self.machine.evm_version) {
             self.trace(block, site, &[], None);
             return Err(Outcome::Halt(Halt::UndefinedOpcode(opcode)));
         }

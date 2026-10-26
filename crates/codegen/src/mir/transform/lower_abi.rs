@@ -146,7 +146,6 @@ struct LowerAbiCx {
     calldata_slice_helper: Option<FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
     validated_abi_arguments: super::call_cleanup::ArgumentBits,
-    has_bitwise_shifting: bool,
     /// How compiler-generated decoding reverts are encoded.
     revert_strings: RevertStrings,
 }
@@ -155,10 +154,13 @@ struct LowerAbiCx {
 struct DecodeOptions<'a> {
     constructor: bool,
     input_end: ValueId,
+    /// Whether `input_end` is at most `u64::MAX` above the input's base: calldata and constructor
+    /// arguments are, while `abi.decode` takes its length from a memory word or a slice that
+    /// inline assembly can set up to `2**255 - 1`.
+    bounded_input: bool,
     head_checked: bool,
     validate_array_elements: bool,
     helpers: Option<&'a FxHashMap<AbiParamType, FunctionId>>,
-    has_bitwise_shifting: bool,
     /// The debug message for an out-of-range head offset, which depends on whether the value is
     /// a tuple element, a struct member, or an array element.
     offset_reason: RevertReason,
@@ -183,20 +185,24 @@ struct StaticBytesReturn {
 }
 
 impl DecodeOptions<'_> {
-    fn new(constructor: bool, input_end: ValueId, has_bitwise_shifting: bool) -> Self {
+    fn new(constructor: bool, input_end: ValueId) -> Self {
         Self {
             constructor,
             input_end,
+            bounded_input: false,
             head_checked: false,
             validate_array_elements: true,
             helpers: None,
-            has_bitwise_shifting,
             offset_reason: RevertReason::InvalidTupleOffset,
         }
     }
 
     fn checked(self) -> Self {
         Self { head_checked: true, ..self }
+    }
+
+    fn bounded(self) -> Self {
+        Self { bounded_input: true, ..self }
     }
 
     /// Decodes a value nested in an aggregate whose offsets report `offset_reason`.
@@ -211,7 +217,6 @@ impl LowerAbiCx {
         if module.phase() == MirPhase::Lowered {
             return false;
         }
-        self.has_bitwise_shifting = evm_version.has_bitwise_shifting();
         self.function_params =
             module.functions.iter().map(|func| func.params.iter().copied().collect()).collect();
 
@@ -429,7 +434,6 @@ impl LowerAbiCx {
         static_bytes_return: Option<StaticBytesReturn>,
         decoded_params: &[Option<ValueId>],
     ) {
-        let has_bitwise_shifting = self.has_bitwise_shifting;
         let revert_strings = self.revert_strings;
         let Some(mut layout) = func.abi_returns.take() else { return };
         let return_blocks = func
@@ -535,17 +539,16 @@ impl LowerAbiCx {
                     if return_types.get(index) == Some(&MirType::Slice(PtrLocation::Calldata))
                         && match &ty {
                             AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. } => true,
-                            AbiParamType::DynamicArray(_) => !layout.types[index]
-                                .accepts_input_type(MirType::Slice(PtrLocation::Calldata)),
+                            // Returns copy arrays of composite elements to memory and
+                            // canonicalize them there, with the ABI decoder's revert messages.
+                            AbiParamType::DynamicArray(element) => {
+                                !element.is_scalar_word()
+                                    && !matches!(element.as_ref(), AbiParamType::Bytes)
+                            }
                             _ => false,
                         }
                     {
-                        return materialize_calldata_return(
-                            &mut builder,
-                            &ty,
-                            value,
-                            has_bitwise_shifting,
-                        );
+                        return materialize_calldata_return(&mut builder, &ty, value);
                     }
                     // The encoder cleans each word it reads from a memory aggregate, so a
                     // cleaned copy would only clean every word twice.
@@ -636,7 +639,6 @@ impl LowerAbiCx {
                 module,
                 &ty,
                 &memory_type_helpers,
-                self.has_bitwise_shifting,
             );
             memory_type_helpers.insert(ty, helper);
         }
@@ -686,12 +688,9 @@ impl LowerAbiCx {
                     let result = builder.func().inst_result_value(inst);
                     if builder.func().value_slice_location(data) == Some(PtrLocation::Calldata) {
                         let layout = layout.clone();
-                        let Some(values) = decode_calldata_tuple(
-                            &mut builder,
-                            data,
-                            layout.as_ref(),
-                            self.has_bitwise_shifting,
-                        ) else {
+                        let Some(values) =
+                            decode_calldata_tuple(&mut builder, data, layout.as_ref())
+                        else {
                             return false;
                         };
                         if let Some(result) = result {
@@ -732,7 +731,6 @@ impl LowerAbiCx {
                         length,
                         layout.as_ref(),
                         (!memory_type_helpers.is_empty()).then_some(&memory_type_helpers),
-                        self.has_bitwise_shifting,
                     ) else {
                         return false;
                     };
@@ -809,7 +807,7 @@ impl LowerAbiCx {
                 &mut current,
                 DecodeOptions {
                     helpers: (!helpers.is_empty()).then_some(helpers),
-                    ..DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked()
+                    ..DecodeOptions::new(false, input_end).checked().bounded()
                 },
             );
             builder.set_return_type(ty.mir_type());
@@ -858,6 +856,7 @@ impl LowerAbiCx {
                 head,
                 tuple_base,
                 input_end,
+                true,
                 &mut current,
                 true,
                 RevertReason::InvalidTupleOffset,
@@ -896,7 +895,6 @@ impl LowerAbiCx {
                 length,
                 layout.as_ref(),
                 (!memory_type_helpers.is_empty()).then_some(memory_type_helpers),
-                self.has_bitwise_shifting,
             )
             .expect("checked ABI layout");
             // field = cast decoded word to the declared field type
@@ -1340,7 +1338,7 @@ impl LowerAbiCx {
                     logical_values[index] = Some(word);
                 }
                 let Some(validator) = validator else { continue };
-                let valid = validator.condition(&mut builder, word, self.has_bitwise_shifting);
+                let valid = validator.condition(&mut builder, word);
                 let next = builder.create_block();
                 builder.branch(valid, next, validator_revert);
                 current = next;
@@ -1384,7 +1382,7 @@ impl LowerAbiCx {
                     let decode_options = DecodeOptions {
                         validate_array_elements,
                         helpers: (!constructor && !helpers.is_empty()).then_some(helpers),
-                        ..DecodeOptions::new(constructor, input_end, self.has_bitwise_shifting)
+                        ..DecodeOptions::new(constructor, input_end).bounded()
                     };
                     if uses.is_empty() {
                         if ty.is_dynamic() && location != AbiParamLocation::Memory {
@@ -1508,7 +1506,8 @@ impl LowerAbiCx {
     }
 
     /// Validates the immediate ABI shape of a dynamic aggregate without
-    /// materializing its memory representation.
+    /// materializing its memory representation. Only entry points call it, so the input is
+    /// bounded.
     fn validate_dynamic_aggregate_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
@@ -1525,6 +1524,7 @@ impl LowerAbiCx {
             tuple_base,
             offset,
             input_end,
+            true,
             ty,
             current,
             RevertReason::InvalidTupleOffset,
@@ -1576,10 +1576,10 @@ impl LowerAbiCx {
         let DecodeOptions {
             constructor,
             input_end,
+            bounded_input,
             head_checked,
             validate_array_elements,
             helpers,
-            has_bitwise_shifting,
             offset_reason,
         } = options;
         builder.switch_to_block(*current);
@@ -1616,6 +1616,7 @@ impl LowerAbiCx {
                 head,
                 tuple_base,
                 input_end,
+                bounded_input,
                 current,
                 head_checked,
                 options.offset_reason,
@@ -1639,6 +1640,7 @@ impl LowerAbiCx {
                 tuple_base,
                 offset,
                 input_end,
+                bounded_input,
                 ty,
                 current,
                 options.offset_reason,
@@ -1665,13 +1667,7 @@ impl LowerAbiCx {
                     Self::aggregate_short_reason(ty, to_calldata),
                 );
             }
-            return Self::decode_static_calldata_argument(
-                builder,
-                ty,
-                base,
-                current,
-                has_bitwise_shifting,
-            );
+            return Self::decode_static_calldata_argument(builder, ty, base, current);
         }
         match ty {
             crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
@@ -2037,12 +2033,11 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         head: ValueId,
         current: &mut BlockId,
-        has_bitwise_shifting: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
         if let Some(validator) = ty.word_validator() {
             let value = builder.load(head, PtrLocation::Memory);
-            let valid = validator.condition(builder, value, has_bitwise_shifting);
+            let valid = validator.condition(builder, value);
             *current = builder.revert_if_zero(valid, RevertReason::Empty);
             return Self::normalize_abi_word(builder, ty, value);
         }
@@ -2050,17 +2045,19 @@ impl LowerAbiCx {
             return builder.load(head, PtrLocation::Memory);
         }
         let value = Self::decode_aggregate(builder, ty, head, |builder, ty, head, current| {
-            Self::decode_static_memory_argument(builder, ty, head, current, has_bitwise_shifting)
+            Self::decode_static_memory_argument(builder, ty, head, current)
         });
         *current = builder.current_block();
         value
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn decode_calldata_bytes_slice_values(
         builder: &mut FunctionBuilder<'_>,
         head: ValueId,
         tuple_base: ValueId,
         input_end: ValueId,
+        bounded_input: bool,
         current: &mut BlockId,
         head_checked: bool,
         offset_reason: RevertReason,
@@ -2079,14 +2076,13 @@ impl LowerAbiCx {
         let offset = builder.load(head, PtrLocation::Calldata);
         let base = builder.add(tuple_base, offset);
         let word = builder.imm(32);
-        let target_end = builder.add(base, word);
-        let max_offset = builder.imm(u64::MAX);
-        let offset_overflow = builder.gt(offset, max_offset);
-        let head_out_of_range = builder.gt(target_end, input_end);
-        let head_invalid = builder.or(offset_overflow, head_out_of_range);
         if builder.encodes_revert_reasons() {
             // Report solc's checks separately: an unencodable offset belongs to the enclosing
             // tuple, struct, or array, then the head range, length, and stride checks.
+            let target_end = builder.add(base, word);
+            let max_offset = builder.imm(u64::MAX);
+            let offset_overflow = builder.gt(offset, max_offset);
+            let head_out_of_range = builder.gt(target_end, input_end);
             *current = builder.revert_if(offset_overflow, offset_reason);
             *current =
                 builder.revert_if(head_out_of_range, RevertReason::InvalidCalldataArrayOffset);
@@ -2095,6 +2091,10 @@ impl LowerAbiCx {
             Self::guard_bytes_data(builder, data, len, input_end, current, false);
             return (base, data, len);
         }
+        // if offset > input_end - tuple_base - 32 { revert(Error("invalid calldata array offset"))
+        // } for a bounded input, as in `fused_offset_invalid`.
+        let head_invalid =
+            Self::fused_offset_invalid(builder, tuple_base, offset, input_end, bounded_input);
         let len = builder.load(base, PtrLocation::Calldata);
         let data = builder.add(base, word);
         let remaining = builder.sub(input_end, data);
@@ -2109,12 +2109,10 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         head: ValueId,
         current: &mut BlockId,
-        has_bitwise_shifting: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let mut valid = builder.imm(1);
-        let value =
-            Self::decode_static_calldata_value(builder, ty, head, &mut valid, has_bitwise_shifting);
+        let value = Self::decode_static_calldata_value(builder, ty, head, &mut valid);
         let invalid = builder.eq_zero(valid);
         *current = builder.revert_if(invalid, RevertReason::Empty);
         value
@@ -2125,11 +2123,10 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         head: ValueId,
         valid: &mut ValueId,
-        has_bitwise_shifting: bool,
     ) -> ValueId {
         if let Some(validator) = ty.word_validator() {
             let value = builder.load(head, PtrLocation::Calldata);
-            let condition = validator.condition(builder, value, has_bitwise_shifting);
+            let condition = validator.condition(builder, value);
             *valid = builder.and(*valid, condition);
             return Self::normalize_abi_word(builder, ty, value);
         }
@@ -2153,7 +2150,6 @@ impl LowerAbiCx {
                         element,
                         element_head,
                         &mut current,
-                        has_bitwise_shifting,
                     );
                     builder.switch_to_block(current);
                 });
@@ -2166,7 +2162,7 @@ impl LowerAbiCx {
             return object;
         }
         Self::decode_aggregate(builder, ty, head, |builder, ty, head, current| {
-            Self::decode_static_calldata_argument(builder, ty, head, current, has_bitwise_shifting)
+            Self::decode_static_calldata_argument(builder, ty, head, current)
         })
     }
 
@@ -2243,7 +2239,7 @@ impl LowerAbiCx {
         }
         let value = Self::load_input_word(builder, position, options.constructor);
         if let Some(validator) = ty.word_validator() {
-            Self::validate_abi_word(builder, value, validator, options.has_bitwise_shifting);
+            Self::validate_abi_word(builder, value, validator);
             *current = builder.current_block();
         }
         Self::normalize_abi_word(builder, ty, value)
@@ -2261,6 +2257,7 @@ impl LowerAbiCx {
         base: ValueId,
         offset: ValueId,
         input_end: ValueId,
+        bounded_input: bool,
         ty: &crate::mir::AbiParamType,
         current: &mut BlockId,
         offset_reason: RevertReason,
@@ -2273,7 +2270,8 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
         );
         if builder.encodes_revert_reasons() {
-            // The same comparisons as below, split so each reports its own message:
+            // Split so each comparison reports its own message; without revert strings, arrays
+            // and bytes fuse them into one comparison below:
             // if offset > 0xffffffffffffffff { revert(Error(offset_reason)) }
             // if offset > input_end - base { revert(Error("struct ... too short" | "stride")) }
             //   or, for arrays and bytes,
@@ -2302,16 +2300,41 @@ impl LowerAbiCx {
             return target;
         }
 
-        // Every dynamic ABI value starts with a word-sized head. Check that
-        // word while forming the absolute address so nested offsets cannot
-        // wrap or require a second range guard in the value-specific decoder.
+        // Every dynamic ABI value starts with a word-sized head, so one offset comparison proves
+        // the head word fits and the value-specific decoder needs no second range guard.
+        let invalid = Self::fused_offset_invalid(builder, base, offset, input_end, bounded_input);
+        *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayOffset);
+        target
+    }
+
+    /// Tests that a dynamic value's head offset is unencodable or puts its head word outside the
+    /// input, without revert strings.
+    ///
+    /// A bounded input is checked against `input_end - base - 32`, which cannot wrap given the
+    /// checked head word and also rejects offsets above `u64::MAX` and offsets that wrap
+    /// `base + offset + 32`. An unbounded one keeps the `u64::MAX` test, since `abi.decode` of a
+    /// long input would otherwise accept offsets solc rejects.
+    fn fused_offset_invalid(
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        offset: ValueId,
+        input_end: ValueId,
+        bounded_input: bool,
+    ) -> ValueId {
+        if bounded_input {
+            // offset > input_end - base - 32
+            let remaining = builder.sub(input_end, base);
+            let word = builder.imm(32);
+            let max_offset = builder.sub(remaining, word);
+            return builder.gt(offset, max_offset);
+        }
+        // offset > u64::MAX || base + offset + 32 > input_end
+        let target = builder.add(base, offset);
         let target_end = builder.add_u64_offset(target, 32);
         let max_offset = builder.imm(u64::MAX);
         let overflow = builder.gt(offset, max_offset);
         let out_of_range = builder.gt(target_end, input_end);
-        let invalid = builder.or(overflow, out_of_range);
-        *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayOffset);
-        target
+        builder.or(overflow, out_of_range)
     }
 
     /// The debug message for a static aggregate whose head does not fit the input. Like solc,
@@ -2529,9 +2552,8 @@ impl LowerAbiCx {
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
         validator: AbiWordValidator,
-        has_bitwise_shifting: bool,
     ) -> ValueId {
-        let valid = validator.condition(builder, value, has_bitwise_shifting);
+        let valid = validator.condition(builder, value);
         builder.revert_if_zero(valid, RevertReason::Empty);
         value
     }
@@ -2566,7 +2588,6 @@ fn decode_memory_tuple(
     length: ValueId,
     layout: &AbiParamLayout,
     helpers: Option<&FxHashMap<crate::mir::AbiParamType, FunctionId>>,
-    has_bitwise_shifting: bool,
 ) -> Option<Vec<ValueId>> {
     let head_size = layout.checked_head_size()?;
     let mut current = builder.current_block();
@@ -2579,13 +2600,7 @@ fn decode_memory_tuple(
     for ty in &layout.types {
         let head = builder.add_u64_offset(base, head_offset);
         let value = if static_layout {
-            LowerAbiCx::decode_static_memory_argument(
-                builder,
-                ty,
-                head,
-                &mut current,
-                has_bitwise_shifting,
-            )
+            LowerAbiCx::decode_static_memory_argument(builder, ty, head, &mut current)
         } else {
             LowerAbiCx::decode_aggregate_argument(
                 builder,
@@ -2594,10 +2609,7 @@ fn decode_memory_tuple(
                 head,
                 base,
                 &mut current,
-                DecodeOptions {
-                    helpers,
-                    ..DecodeOptions::new(true, input_end, has_bitwise_shifting).checked()
-                },
+                DecodeOptions { helpers, ..DecodeOptions::new(true, input_end).checked() },
             )
         };
         values.push(value);
@@ -2631,7 +2643,6 @@ fn decode_calldata_tuple(
     builder: &mut FunctionBuilder<'_>,
     data: ValueId,
     layout: &AbiParamLayout,
-    has_bitwise_shifting: bool,
 ) -> Option<Vec<ValueId>> {
     let head_size = layout.checked_head_size()?;
     // base = ptrtoint (extract_value data, 0)
@@ -2650,13 +2661,7 @@ fn decode_calldata_tuple(
         builder.switch_to_block(current);
         let head = builder.add_u64_offset(base, head_offset);
         let value = if static_layout {
-            LowerAbiCx::decode_static_calldata_argument(
-                builder,
-                ty,
-                head,
-                &mut current,
-                has_bitwise_shifting,
-            )
+            LowerAbiCx::decode_static_calldata_argument(builder, ty, head, &mut current)
         } else {
             LowerAbiCx::decode_aggregate_argument(
                 builder,
@@ -2665,9 +2670,7 @@ fn decode_calldata_tuple(
                 head,
                 base,
                 &mut current,
-                DecodeOptions {
-                    ..DecodeOptions::new(false, input_end, has_bitwise_shifting).checked()
-                },
+                DecodeOptions::new(false, input_end).checked(),
             )
         };
         values.push(value);
@@ -2782,7 +2785,6 @@ fn synthesize_memory_decode_helper(
     module: &mut Module,
     ty: &AbiParamType,
     helpers: &FxHashMap<AbiParamType, FunctionId>,
-    has_bitwise_shifting: bool,
 ) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_type));
     {
@@ -2800,7 +2802,7 @@ fn synthesize_memory_decode_helper(
             &mut current,
             DecodeOptions {
                 helpers: (!helpers.is_empty()).then_some(helpers),
-                ..DecodeOptions::new(true, input_end, has_bitwise_shifting).checked()
+                ..DecodeOptions::new(true, input_end).checked()
             },
         );
         builder.set_return_type(ty.mir_type());
@@ -3000,6 +3002,12 @@ fn is_canonical_return_value_inner(
     if !ty.needs_return_cleanup()
         || (source == ReturnValueSource::Scalar
             && reuses_validated_input(func, value, input_params, ty))
+    {
+        return true;
+    }
+    // Element cleanup's proof covers every write into the array this function returns.
+    if let AbiParamType::DynamicArray(element) | AbiParamType::FixedArray { element, .. } = ty
+        && returns_proved_array(func, element, value)
     {
         return true;
     }
@@ -3599,13 +3607,7 @@ fn is_canonical_return_array_param(
     calls: &CanonicalCallProof<'_>,
 ) -> bool {
     let Some(bits) = abi_element_bits(element) else { return false };
-    // The array this function returns, whether it built it or received it.
-    if func.attributes.array_return_element_bits.is_some_and(|proved| proved <= bits)
-        && func.blocks.iter().any(|block| {
-            matches!(&block.terminator, Some(Terminator::Return { values })
-                if values.first() == Some(&object))
-        })
-    {
+    if returns_proved_array(func, element, object) {
         return true;
     }
     // An array a call returned and nothing has written since.
@@ -3627,6 +3629,17 @@ fn is_canonical_return_array_param(
     }
     let Value::Arg(index) = *func.value(object) else { return false };
     func.attributes.array_element_bits.get(&index).is_some_and(|&proved| proved <= bits)
+}
+
+/// Whether `object` is the array this function returns, whether it built it or received it,
+/// and element cleanup proved its words narrow enough for the ABI element type.
+fn returns_proved_array(func: &Function, element: &AbiParamType, object: ValueId) -> bool {
+    abi_element_bits(element).is_some_and(|bits| {
+        func.attributes.array_return_element_bits.is_some_and(|proved| proved <= bits)
+    }) && func.blocks.iter().any(|block| {
+        matches!(&block.terminator, Some(Terminator::Return { values })
+            if values.first() == Some(&object))
+    })
 }
 
 /// The width the ABI validates for a scalar array element, when it validates one.
@@ -3732,7 +3745,7 @@ fn encoder_cleans_return(abi: &AbiType, ty: &AbiParamType) -> bool {
                 && fields.iter().zip(tys).all(|(abi, ty)| encoder_cleans_return(abi, ty))
         }
         (
-            AbiType::FixedArray { element, len },
+            AbiType::FixedArray { element, len, .. },
             AbiParamType::FixedArray { element: ty, len: ty_len },
         ) => len == ty_len && encoder_cleans_return(element, ty),
         (
@@ -3967,7 +3980,6 @@ fn materialize_calldata_return(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiParamType,
     base: ValueId,
-    has_bitwise_shifting: bool,
 ) -> ValueId {
     if matches!(ty, AbiParamType::DynamicArray(_)) {
         // len = extract_value returned_slice, 1
@@ -3975,7 +3987,7 @@ fn materialize_calldata_return(
         // object = copy_calldata_value(data, len)
         let len = builder.slice_len(base);
         let data = builder.slice_ptr(base);
-        return copy_calldata_value(builder, ty, data, Some(len), has_bitwise_shifting);
+        return copy_calldata_value(builder, ty, data, Some(len));
     }
     // base = extract_value returned_slice, 0
     // check_range(base, head_size)
@@ -3993,7 +4005,7 @@ fn materialize_calldata_return(
         reason,
     );
     builder.switch_to_block(current);
-    copy_calldata_value(builder, ty, base, None, has_bitwise_shifting)
+    copy_calldata_value(builder, ty, base, None)
 }
 
 /// Copies a calldata value to memory with the checks solc applies when it re-encodes calldata
@@ -4007,7 +4019,6 @@ fn copy_calldata_value(
     ty: &AbiParamType,
     position: ValueId,
     length: Option<ValueId>,
-    has_bitwise_shifting: bool,
 ) -> ValueId {
     match ty {
         AbiParamType::Bytes => {
@@ -4042,13 +4053,7 @@ fn copy_calldata_value(
                 length,
                 position,
                 |builder, element, head, current| {
-                    let value = copy_calldata_member(
-                        builder,
-                        element,
-                        position,
-                        head,
-                        has_bitwise_shifting,
-                    );
+                    let value = copy_calldata_member(builder, element, position, head);
                     *current = builder.current_block();
                     value
                 },
@@ -4058,8 +4063,7 @@ fn copy_calldata_value(
         AbiParamType::FixedArray { .. } | AbiParamType::Tuple(_) if ty.is_dynamic() => {
             // for each member { object.member = copy_calldata_member(position + member_offset) }
             LowerAbiCx::decode_aggregate(builder, ty, position, |builder, member, head, current| {
-                let value =
-                    copy_calldata_member(builder, member, position, head, has_bitwise_shifting);
+                let value = copy_calldata_member(builder, member, position, head);
                 *current = builder.current_block();
                 value
             })
@@ -4067,13 +4071,8 @@ fn copy_calldata_value(
         _ => {
             // value = decode_static(position)
             let mut current = builder.current_block();
-            let value = LowerAbiCx::decode_static_calldata_argument(
-                builder,
-                ty,
-                position,
-                &mut current,
-                has_bitwise_shifting,
-            );
+            let value =
+                LowerAbiCx::decode_static_calldata_argument(builder, ty, position, &mut current);
             builder.switch_to_block(current);
             value
         }
@@ -4088,10 +4087,9 @@ fn copy_calldata_member(
     ty: &AbiParamType,
     base: ValueId,
     head: ValueId,
-    has_bitwise_shifting: bool,
 ) -> ValueId {
     if !ty.is_dynamic() {
-        return copy_calldata_value(builder, ty, head, None, has_bitwise_shifting);
+        return copy_calldata_value(builder, ty, head, None);
     }
     // offset = calldataload(head)
     // check_calldata_tail_offset(base, offset)
@@ -4103,11 +4101,11 @@ fn copy_calldata_member(
     builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size());
     let position = builder.add(base, offset);
     let Some(stride) = ty.calldata_stride() else {
-        return copy_calldata_value(builder, ty, position, None, has_bitwise_shifting);
+        return copy_calldata_value(builder, ty, position, None);
     };
     // length = calldataload(position)
     // data = calldata_tail_data(position + 32, length, stride)
     let length = builder.load(position, PtrLocation::Calldata);
     let data = builder.calldata_tail_data(tail, position, 32, length, end, stride);
-    copy_calldata_value(builder, ty, data, Some(length), has_bitwise_shifting)
+    copy_calldata_value(builder, ty, data, Some(length))
 }

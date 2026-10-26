@@ -17,7 +17,7 @@ pub(super) mod data;
 mod dce;
 mod inline_returns;
 mod late_structural;
-mod legalize_shifts;
+mod legalize_revert;
 mod loop_layout;
 mod outline;
 mod peephole;
@@ -25,13 +25,14 @@ mod reorder_pushes;
 mod share_reverts;
 mod stack_normalize;
 mod stack_reschedule;
+mod tail_dup;
 mod tail_duplicate;
 mod tail_merge;
 mod terminal_dedup;
 mod terminal_layout;
 pub(super) mod utils;
 
-pub(in crate::backend) use legalize_shifts::legalize_shifts;
+pub(in crate::backend) use legalize_revert::legalize_revert;
 pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
 use super::Module;
@@ -103,11 +104,12 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &compact_pushes::CompactPushes,
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
-    &legalize_shifts::LegalizeShifts,
+    &legalize_revert::LegalizeRevert,
     &cfg_simplify::CfgSimplify::FINAL,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
+    &tail_dup::TailDup,
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
@@ -163,7 +165,6 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify::EARLY,
     &reorder_pushes::FINAL_REORDER_PUSHES,
     &peephole::Peephole::EARLY,
-    &peephole::Cleanup(block_cse::BlockCse),
     &peephole::Cleanup(dce::Dce),
     &peephole::Cleanup(stack_normalize::StackNormalize::EARLY),
     &block_layout::BlockLayout,
@@ -183,6 +184,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &late_structural::LateStructural,
     &peephole::Peephole::FINAL,
     &peephole::Cleanup(inline_returns::InlineReturns),
+    // Copy loop joins only after the last tail merge, which would share the copies again.
+    &peephole::Cleanup(tail_dup::TailDup),
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,

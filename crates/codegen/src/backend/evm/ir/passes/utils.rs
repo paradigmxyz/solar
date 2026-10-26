@@ -4,7 +4,6 @@
 //! of the rest of the IR. The helpers here rebuild block storage and remap every
 //! entry, push, and terminator reference together.
 
-use super::compact_pushes::selected_len;
 use crate::{
     backend::evm::{
         ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
@@ -162,7 +161,7 @@ pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> 
         return Target::new(gcx).opcode(op::push(type_size.bytes())).bytes as usize;
     }
     if let Some(value) = inst.concrete_immediate() {
-        return selected_len(gcx, value);
+        return Target::new(gcx).push(value).bytes as usize;
     }
     // Labels and data offsets are address-sensitive. They may resolve to
     // zero, so one byte is the only safe lower bound before assembly.

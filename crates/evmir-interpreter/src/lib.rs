@@ -440,21 +440,10 @@ bb0:
         let module = "@module test\nbb0:\n  push 0\n  push 0\n  revert\n";
         let execution = transact(module, &[], &mut Zero, options(EvmVersion::Homestead)).unwrap();
         assert_eq!(execution.outcome, Outcome::Halt(Halt::UndefinedOpcode(0xfd)));
-        // Legalization expands shifts for targets without them.
-        let module = "@module test
-bb0:
-  push 1
-  push 4
-  shl
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-";
+        let module = "@module test\nbb0:\n  push 1\n  push 4\n  shl\n  stop\n";
         let execution = transact(module, &[], &mut Zero, options(EvmVersion::Homestead)).unwrap();
-        assert_eq!(execution.outcome, Outcome::Success(word(16)));
-        // Other opcodes the target lacks are undefined there.
+        assert_eq!(execution.outcome, Outcome::Halt(Halt::UndefinedOpcode(0x1b)));
+        // Opcodes the target lacks are undefined there.
         let module = "@module test\nbb0:\n  push 0\n  tload\n  stop\n";
         let execution = transact(module, &[], &mut Zero, options(EvmVersion::Shanghai)).unwrap();
         assert_eq!(execution.outcome, Outcome::Halt(Halt::UndefinedOpcode(0x5c)));

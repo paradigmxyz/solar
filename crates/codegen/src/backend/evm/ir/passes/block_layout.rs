@@ -16,13 +16,12 @@
 
 use super::{
     EvmPass,
-    compact_pushes::selected_len,
     utils::{is_terminal_boundary, remap_block_order},
 };
 use crate::{
     backend::{
         assembler::assembly::{
-            estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound,
+            TablePacking, estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound,
         },
         evm::{
             ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
@@ -231,7 +230,7 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
 }
 
 // Reserve space for tables whose absolute targets fit in one-byte entries. Widening
-// such a table replaces BYTE with shifts and masking on every dispatch.
+// such a table replaces the BYTE pick with a larger stride table.
 fn terminal_packing_budget(
     gcx: Gcx<'_>,
     module: &Module,
@@ -271,7 +270,7 @@ fn terminal_packing_budget(
                     targets.len(),
                     1,
                     gcx.sess.opts.evm_version,
-                    gcx.sess.opts.optimization.is_size(),
+                    TablePacking::new(&gcx.sess.opts),
                 );
             }
         }
@@ -348,12 +347,12 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
         target.opcode(op::push(size.bytes())).bytes as usize
     } else if inst.is_encoded_push() {
         match &inst.value {
-            Some(PushValue::Immediate(value)) => selected_len(gcx, *value),
+            Some(PushValue::Immediate(value)) => target.push(*value).bytes as usize,
             Some(PushValue::Library(_)) => target.opcode(op::PUSH20).bytes as usize,
             Some(PushValue::Block(_)) => target.label_push().bytes as usize,
             // Data follows the code, so assume its offsets need a third byte.
             Some(PushValue::Data(_)) => target.opcode(op::PUSH3).bytes as usize,
-            Some(PushValue::DataSize(size)) => selected_len(gcx, size.bound()),
+            Some(PushValue::DataSize(size)) => target.push(size.bound()).bytes as usize,
             _ => 1,
         }
     } else if let Some(stack_op) = inst.as_stack_op() {
@@ -394,7 +393,7 @@ fn estimated_terminator_size(
                 targets.len(),
                 target_width as u8,
                 gcx.sess.opts.evm_version,
-                gcx.sess.opts.optimization.is_size(),
+                TablePacking::new(&gcx.sess.opts),
             )
         }
         TerminatorKind::Op(opcode) => model.opcode(*opcode).bytes as usize,

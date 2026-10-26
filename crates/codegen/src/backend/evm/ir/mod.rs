@@ -32,7 +32,7 @@ pub(in crate::backend) use passes::{
         ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
     },
     data::pack_linked_data,
-    legalize_shifts,
+    legalize_revert,
 };
 
 /// The cost model of a module's code.

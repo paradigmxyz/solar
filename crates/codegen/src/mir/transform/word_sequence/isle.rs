@@ -36,6 +36,8 @@ const MAX_TEMPORARIES: usize = 64;
     unused_variables
 )]
 mod generated {
+    use crate::isle_log as log;
+
     include!(concat!(env!("OUT_DIR"), "/word_sequence.isle.rs"));
 }
 
