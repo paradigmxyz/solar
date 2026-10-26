@@ -30,7 +30,10 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::{cell::RefCell, collections::BTreeMap};
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeMap,
+};
 
 /// The modeled stack of a block being planned and the steps that produced it.
 #[derive(Clone, Default)]
@@ -207,7 +210,7 @@ pub(super) struct Planner<'a> {
     /// fresh at its uses elsewhere.
     held: FxHashMap<ValueId, DenseBitSet<BlockId>>,
     /// The block being planned.
-    current: BlockId,
+    current: Cell<BlockId>,
     /// Number of operand positions reading each value.
     use_counts: IndexVec<ValueId, u32>,
     /// Blocks that return the results of their last instruction, an internal call, which
@@ -544,7 +547,7 @@ impl<'a> Planner<'a> {
             arg_defs,
             constant_defs: Vec::new(),
             held: FxHashMap::default(),
-            current: BlockId::ENTRY,
+            current: Cell::new(BlockId::ENTRY),
             use_counts,
             tail_calls,
             args,
@@ -574,7 +577,7 @@ impl<'a> Planner<'a> {
     pub(super) fn plan(mut self) -> Result<Planned, Fail> {
         let cfg = self.cfg;
         for &block in cfg.rpo() {
-            self.current = block;
+            self.current.set(block);
             self.resolve_join(block)?;
             let layout = match self.layouts[block].clone() {
                 Some(layout) => layout,
@@ -1344,7 +1347,7 @@ impl<'a> Planner<'a> {
     /// Whether a value is pushed fresh at each use in the block being planned.
     fn is_remat(&self, value: ValueId) -> bool {
         self.remat.contains(value)
-            && !self.held.get(&value).is_some_and(|held| held.contains(self.current))
+            && !self.held.get(&value).is_some_and(|held| held.contains(self.current.get()))
     }
 
     fn can_spill(&self, value: ValueId) -> bool {
@@ -2483,6 +2486,7 @@ impl<'a> Planner<'a> {
                     continue;
                 }
                 let mut sim = Sim::new(edge.stack.clone());
+                self.current.set(edge.pred);
                 match self.adopt(&mut sim, edge.pred, join) {
                     Ok(candidate) if !candidates.contains(&candidate) => candidates.push(candidate),
                     Ok(_) => {}
@@ -2491,6 +2495,7 @@ impl<'a> Planner<'a> {
                     }
                 }
             }
+            self.current.set(join);
             for candidate in candidates {
                 let total = self.incoming_cost(&pending, join, &candidate);
                 if best.as_ref().is_none_or(|(best, _)| self.target.cmp(total, *best).is_lt()) {
@@ -2513,6 +2518,8 @@ impl<'a> Planner<'a> {
         }
         let layout = self.layouts[join].clone().unwrap();
         for edge in pending {
+            // The edge's code runs in its predecessor, where a retained constant may not be held.
+            self.current.set(edge.pred);
             let mut sim = Sim::new(edge.stack.clone());
             let target = self.edge_target(edge.pred, join, &layout, sim.height());
             match edge.side {
@@ -2546,6 +2553,7 @@ impl<'a> Planner<'a> {
                 }
             }
         }
+        self.current.set(join);
         Ok(())
     }
 
@@ -2658,6 +2666,18 @@ impl<'a> Planner<'a> {
 
     /// Prices one recorded edge into a candidate join layout.
     fn edge_cost(&self, edge: &Pending, join: BlockId, layout: &Layout) -> Result<Cost, Fail> {
+        let join_block = self.current.replace(edge.pred);
+        let cost = self.edge_cost_in_pred(edge, join, layout);
+        self.current.set(join_block);
+        cost
+    }
+
+    fn edge_cost_in_pred(
+        &self,
+        edge: &Pending,
+        join: BlockId,
+        layout: &Layout,
+    ) -> Result<Cost, Fail> {
         let mut sim = Sim::new(edge.stack.clone());
         let target = self.edge_target(edge.pred, join, layout, sim.height());
         if edge.side.is_none() {
