@@ -867,6 +867,7 @@ def _write_project(
             "        bytes32[] memory prefixResults =\n"
             f"            new bytes32[]({len(prefix_calldata)});\n"
         )
+    log_calls = len(prefix_calldata) + 1
     prefix_calls_a = []
     prefix_calls_b = []
     for index, calldata in enumerate(prefix_calldata):
@@ -878,6 +879,7 @@ def _write_project(
                 f'                target.call(hex"{payload}");',
                 f"            prefixResults[{index}] =",
                 "                keccak256(abi.encode(ok, ret));",
+                f"            logsA[{index}] = _committedLogs(ok);",
                 "        }",
             )
         )
@@ -888,6 +890,7 @@ def _write_project(
                 f'                target.call(hex"{payload}");',
                 f"            assert(prefixResults[{index}] ==",
                 "                keccak256(abi.encode(ok, ret)));",
+                f"            logsB[{index}] = _committedLogs(ok);",
                 "        }",
             )
         )
@@ -918,6 +921,8 @@ def _write_project(
         observe_a=observe_a,
         observe_b=observe_b,
         max_returndata=max_returndata_bytes,
+        log_calls=log_calls,
+        last_log_call=log_calls - 1,
         prefix_results=prefix_results,
         prefix_calls_a="\n".join(prefix_calls_a),
         prefix_calls_b="\n".join(prefix_calls_b),
@@ -1297,12 +1302,13 @@ contract SymbolicDifferentialTest {{
         uint256 snapshot = vm.snapshotState();
         vm.record();
         vm.recordLogs();
+        Vm.Log[][] memory logsA = new Vm.Log[][]({log_calls});
         address target = _deploy(SOLC_CODE);
 {prefix_calls_a}
 {prank}        (bool okA, bytes memory retA) =
             target.{call_kind}(callData);
         (, bytes32[] memory writesA) = vm.accesses(target);
-        Vm.Log[] memory logsA = vm.getRecordedLogs();
+        logsA[{last_log_call}] = _committedLogs(okA);
         bytes32[] memory valuesA = new bytes32[](writesA.length);
         for (uint256 i; i < writesA.length; ++i) {{
             valuesA[i] = vm.load(target, writesA[i]);
@@ -1315,23 +1321,18 @@ contract SymbolicDifferentialTest {{
             vm.store(STATE_MIRROR, writesA[i], valuesA[i]);
         }}
         vm.record();
+        Vm.Log[][] memory logsB = new Vm.Log[][]({log_calls});
         assert(_deploy(SOLAR_CODE) == target);
 {prefix_calls_b}
 {prank}        (bool okB, bytes memory retB) =
             target.{call_kind}(callData);
         (, bytes32[] memory writesB) = vm.accesses(target);
-        Vm.Log[] memory logsB = vm.getRecordedLogs();
+        logsB[{last_log_call}] = _committedLogs(okB);
 
         assert(okA == okB);
         _assertSameBytes(retA, retB);
-        assert(logsA.length == logsB.length);
         for (uint256 i; i < logsA.length; ++i) {{
-            assert(logsA[i].emitter == logsB[i].emitter);
-            assert(logsA[i].topics.length == logsB[i].topics.length);
-            for (uint256 j; j < logsA[i].topics.length; ++j) {{
-                assert(logsA[i].topics[j] == logsB[i].topics[j]);
-            }}
-            _assertSameBytes(logsA[i].data, logsB[i].data);
+            _assertSameLogs(logsA[i], logsB[i]);
         }}
         // A slot written by neither runtime still holds its initial zero.
         for (uint256 i; i < writesA.length; ++i) {{
@@ -1343,6 +1344,29 @@ contract SymbolicDifferentialTest {{
         assert(target.balance == balanceA);
         assert(vm.getNonce(target) == nonceA);
 {observe_b}    }}
+
+    // Foundry keeps the logs of reverted frames, so a reverted top-level or
+    // prefix call contributes none. Logs of inner frames that revert inside a
+    // successful call are still recorded.
+    function _committedLogs(bool ok) private returns (Vm.Log[] memory logs) {{
+        logs = vm.getRecordedLogs();
+        if (!ok) logs = new Vm.Log[](0);
+    }}
+
+    function _assertSameLogs(
+        Vm.Log[] memory a,
+        Vm.Log[] memory b
+    ) private pure {{
+        assert(a.length == b.length);
+        for (uint256 i; i < a.length; ++i) {{
+            assert(a[i].emitter == b[i].emitter);
+            assert(a[i].topics.length == b[i].topics.length);
+            for (uint256 j; j < a[i].topics.length; ++j) {{
+                assert(a[i].topics[j] == b[i].topics[j]);
+            }}
+            _assertSameBytes(a[i].data, b[i].data);
+        }}
+    }}
 
     function _assertSameBytes(bytes memory a, bytes memory b) private pure {{
         assert(a.length == b.length);

@@ -53,6 +53,7 @@ def _forge_report(
             "max_solver_queries": 100,
             "max_calldata_bytes": 512,
             "max_dynamic_length": max_dynamic_length,
+            "max_depth": symbolic.SYMBOLIC_MAX_DEPTH,
             "exploration_order": "bfs",
             "storage_layout": "solidity",
             "default_array_lengths": [0, 1],
@@ -362,13 +363,15 @@ class ProjectGenerationTests(unittest.TestCase):
         self.assertEqual(test_source.count("target.call(callData)"), 2)
         self.assertNotIn("vm.etch", test_source)
         self.assertEqual(test_source.count("vm.accesses(target)"), 2)
-        self.assertEqual(test_source.count("vm.getRecordedLogs()"), 2)
+        self.assertEqual(test_source.count("vm.getRecordedLogs()"), 1)
+        self.assertIn("logsA[0] = _committedLogs(okA);", test_source)
+        self.assertIn("logsB[0] = _committedLogs(okB);", test_source)
         self.assertIn("vm.store(STATE_MIRROR, writesA[i], valuesA[i])", test_source)
         self.assertIn(
             "assert(vm.load(STATE_MIRROR, writesB[i]) == vm.load(target, writesB[i]))",
             test_source,
         )
-        self.assertIn("_assertSameBytes(logsA[i].data, logsB[i].data)", test_source)
+        self.assertIn("_assertSameBytes(a[i].data, b[i].data)", test_source)
         self.assertIn("assert(target.balance == balanceA)", test_source)
         self.assertIn("assert(vm.getNonce(target) == nonceA)", test_source)
         self.assertNotIn("observer", test_source)
@@ -431,6 +434,9 @@ class ProjectGenerationTests(unittest.TestCase):
             test_source = (project / "test" / "SymbolicDifferential.t.sol").read_text()
 
         symbolic_start = test_source.index("function checkSymbolicDifferential")
+        self.assertIn("logsA[1] = _committedLogs(ok);", test_source)
+        self.assertIn("logsB[1] = _committedLogs(ok);", test_source)
+        self.assertIn("logsA[2] = _committedLogs(okA);", test_source)
         self.assertEqual(test_source.count('hex"12345678"'), 2)
         self.assertEqual(test_source.count('hex""'), 2)
         first_prefix_a = test_source.index('hex"12345678"')

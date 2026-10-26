@@ -317,7 +317,9 @@ same `address(this)`, external self-calls, and log emitter. The property
 compares:
 
 - success or revert status and exact returndata of every call;
-- ordered logs, including emitter, topics, and data;
+- ordered logs of the calls that succeeded, including emitter, topics, and
+  data; logs of a reverted call are ignored, but logs of an inner frame that
+  reverts inside a successful call are not filtered;
 - every target storage slot either runtime wrote, read back after the last
   call; slots neither runtime wrote keep their initial zero;
 - the target's final balance and nonce; and
