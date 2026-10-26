@@ -8,6 +8,7 @@
 //@ run-call: stashAfterBlock 101 => 103
 //@ run-call: restoredPointer 101 => true
 //@ run-call: refreshedInLoop 101 => 203
+//@ run-call: harmlessArrayStore 101 => 7
 
 contract Test {
     /// @custom:solar-noinline
@@ -118,5 +119,21 @@ contract Test {
             require(temporary(word) != bytes32(0));
             result += loaded;
         }
+    }
+
+    /// @custom:solar-noinline
+    function storeArrayWord(uint256[] memory saved) internal pure {
+        saved[0] = 7;
+    }
+
+    function harmlessArrayStore(uint256 x) external pure returns (uint256) {
+        uint256[] memory saved = new uint256[](1);
+        storeArrayWord(saved);
+        /// @custom:solar-scratch
+        {
+            bytes memory encoded = abi.encode(x);
+            require(keccak256(encoded) != bytes32(0));
+        }
+        return saved[0];
     }
 }

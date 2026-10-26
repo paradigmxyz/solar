@@ -198,3 +198,37 @@ fn @refreshedInLoop(arg0: i256) -> i256 [selector=0x53c6d1b0, pure, abi_params=[
     v11 = checked_add uint256, v2, 1
     jump bb1
 }
+
+fn @storeArrayWord(arg0: ptr<memory>) [pure] {
+  bb0:
+    v0 = mload arg0
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptradd arg0, 32
+    mstore v3, 7
+    ret
+}
+
+fn @harmlessArrayStore(arg0: i256) -> i256 [selector=0xe2caba65, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    icall @storeArrayWord, v0
+    v1 = fmp
+    v2 = abi_encode [word], object, args arg0
+    v3 = ptradd v2, 32
+    v4 = mload v2
+    v5 = keccak256 v3, v4
+    v6 = ne v5, 0
+    v7 = eq v6, false
+    icall revert_if<empty>, v7
+    set_fmp v1
+    v8 = mload v0
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = ptradd v0, 32
+    v12 = mload v11
+    ret v12
+}

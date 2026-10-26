@@ -137,4 +137,25 @@ contract Test {
         require(keccak256(later) != bytes32(0));
         assembly { result := mload(add(pointer, 0x20)) } //~ ERROR: memory of a `@custom:solar-scratch` block is used after the block
     }
+
+    /// @custom:solar-noinline
+    function stashInArray(uint256[] memory saved) internal pure {
+        uint256 pointer;
+        assembly { pointer := mload(0x40) }
+        saved[0] = pointer;
+    }
+
+    function helperStashesArray(uint256 x) external pure returns (uint256 result) {
+        uint256[] memory saved = new uint256[](1);
+        stashInArray(saved); //~ ERROR: this call may store a reference to memory of a `@custom:solar-scratch` block where code after the block can reach it
+        /// @custom:solar-scratch
+        {
+            bytes memory encoded = abi.encode(x);
+            require(keccak256(encoded) != bytes32(0));
+        }
+        bytes memory later = abi.encode(x + 2);
+        require(keccak256(later) != bytes32(0));
+        uint256 pointer = saved[0];
+        assembly { result := mload(add(pointer, 0x20)) }
+    }
 }
