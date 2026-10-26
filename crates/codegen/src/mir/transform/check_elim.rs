@@ -208,7 +208,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::{IndexVec, index_vec},
-    map::{FxHashMap, FxHashSet, FxIndexMap},
+    map::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet},
 };
 use std::rc::Rc;
 
@@ -777,7 +777,7 @@ struct CheckEliminator<'a> {
     /// Header bounds assumed on entry to their headers: the bounds under proof, or the proven
     /// ones in the final walks.
     header_bounds: Vec<HeaderBound>,
-    /// What the bounds under proof require of the values their backedges carry.
+    /// What the bounds under proof require of the values their backedges carry, by block.
     obligations: Vec<BoundObligation>,
     /// The bounds under proof with an obligation the last walk could not prove.
     failed_bounds: FxHashSet<usize>,
@@ -1238,9 +1238,13 @@ impl<'a> CheckEliminator<'a> {
     /// Checks the obligations of the bounds under proof that fall on `block`, in the scope at its
     /// end.
     fn check_obligations(&mut self, func: &Function, block: BlockId) {
-        for index in 0..self.obligations.len() {
+        let start = self.obligations.partition_point(|obligation| obligation.block < block);
+        for index in start..self.obligations.len() {
             let BoundObligation { bound, block: home, value } = self.obligations[index];
-            if home != block || self.failed_bounds.contains(&bound) {
+            if home != block {
+                break;
+            }
+            if self.failed_bounds.contains(&bound) {
                 continue;
             }
             let HeaderBound { limit, upper, .. } = self.header_bounds[bound];
@@ -3127,6 +3131,10 @@ fn header_bound_candidates(
 /// bound: the value from outside the loop unless it is the limit, and the values the backedges
 /// carry. A phi joining paths inside the loop keeps the bound when each of its incoming values
 /// does at the end of its predecessor; the bounded phi itself keeps it by assumption.
+///
+/// A join that several paths reach expands once at each depth, and each obligation is kept once,
+/// so nested joins add their incoming values rather than multiplying them. The obligations are
+/// sorted by block, for [`CheckEliminator::check_obligations`] to find the ones of a block.
 fn bound_obligations(
     func: &Function,
     cfg: &CfgInfo,
@@ -3138,9 +3146,11 @@ fn bound_obligations(
     let mut obligations = Vec::new();
     for (bound, &HeaderBound { header, value: phi, limit, .. }) in bounds.iter().enumerate() {
         let Some(InstKind::Phi(incoming)) = inst_kind(func, phi) else { continue };
+        let mut kept = FxIndexSet::default();
+        let mut expanded = FxHashSet::default();
         for &(block, value) in incoming {
             if !dominators.dominates(header, block) && value != limit {
-                obligations.push(BoundObligation { bound, block, value });
+                kept.insert((block, value));
             }
         }
         let mut pending: Vec<_> = incoming
@@ -3159,12 +3169,20 @@ fn bound_obligations(
                 && join != header
                 && dominators.dominates(header, join)
             {
-                pending.extend(joined.iter().map(|&(block, value)| (block, value, depth + 1)));
+                if expanded.insert((*inst, depth)) {
+                    pending.extend(joined.iter().map(|&(block, value)| (block, value, depth + 1)));
+                }
                 continue;
             }
-            obligations.push(BoundObligation { bound, block, value });
+            kept.insert((block, value));
         }
+        obligations.extend(kept.into_iter().map(|(block, value)| BoundObligation {
+            bound,
+            block,
+            value,
+        }));
     }
+    obligations.sort_by_key(|obligation| obligation.block);
     obligations
 }
 
@@ -3473,5 +3491,75 @@ fn difference_operands(func: &Function, value: ValueId) -> Option<(ValueId, Valu
             rhs,
         } => Some((lhs, rhs, true)),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::parser::parse_module;
+    use solar_interface::{ColorChoice, Session};
+    use std::fmt::Write;
+
+    /// A loop whose backedge value reaches the header through `levels` joins of `fan` paths each,
+    /// every path into a join carrying the value from the join before it.
+    fn fanned_joins(fan: usize, levels: usize) -> String {
+        let mut text = String::from(
+            "@module Joins\n\nfn @f(arg0: i256, arg1: i256) -> i256 {\n  bb0:\n    v0 = add arg0, 1\n    jump bb1\n",
+        );
+        let latch = 2 + levels * (fan + 1);
+        let exit = latch + 1;
+        writeln!(text, "  bb1:\n    v1 = phi [bb0: 0], [bb{latch}: v{}]", 3 + levels).unwrap();
+        writeln!(
+            text,
+            "    v2 = lt v1, v0\n    jumpi v2, bb2, bb{exit}\n  bb2:\n    v3 = add v1, 1"
+        )
+        .unwrap();
+        for level in 1..=levels {
+            // switch arg1 -> fan blocks -> join
+            let first = 3 + (level - 1) * (fan + 1);
+            let join = first + fan;
+            let cases: Vec<_> =
+                (1..fan).map(|case| format!("{case} => bb{}", first + case)).collect();
+            writeln!(text, "    switch arg1, default bb{first}, [{}]", cases.join(", ")).unwrap();
+            for block in first..join {
+                writeln!(text, "  bb{block}:\n    jump bb{join}").unwrap();
+            }
+            let incoming: Vec<_> =
+                (first..join).map(|block| format!("[bb{block}: v{}]", 2 + level)).collect();
+            writeln!(text, "  bb{join}:\n    v{} = phi {}", 3 + level, incoming.join(", "))
+                .unwrap();
+        }
+        writeln!(text, "    jump bb1\n  bb{exit}:\n    ret v1\n}}").unwrap();
+        text
+    }
+
+    #[test]
+    fn join_obligations_count_each_once() {
+        let fan = 32;
+        let text = fanned_joins(fan, 4);
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(&sess, &text).expect("the joins parse");
+            let func = module.functions.iter().next().expect("one function");
+            let cfg = CfgInfo::new(func);
+            // The header holds the only two-way phi; the limit is the entry's first value.
+            let (header, phi) = func
+                .blocks
+                .iter_enumerated()
+                .find_map(|(block, data)| {
+                    let &inst = data.instructions.first()?;
+                    matches!(&func.inst(inst).kind, InstKind::Phi(incoming) if incoming.len() == 2)
+                        .then(|| (block, func.inst_result_value(inst).unwrap()))
+                })
+                .expect("a header phi");
+            let limit =
+                func.inst_result_value(func.blocks[BlockId::ENTRY].instructions[0]).unwrap();
+            let bound = HeaderBound { header, value: phi, limit, upper: true };
+            let obligations = bound_obligations(func, &cfg, &[bound]);
+            // The entry's zero, and the body's value at the end of each path into the first join,
+            // however many paths reach that join.
+            assert_eq!(obligations.len(), fan + 1);
+        });
     }
 }
