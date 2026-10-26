@@ -1450,6 +1450,11 @@ impl AliasAnalysis {
         // non-allocation base is likewise `MayAlias`.
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
+        if Self::absolute_below_allocation(first, second)
+            || Self::absolute_below_allocation(second, first)
+        {
+            return AliasResult::NoAlias;
+        }
         match (first_alloc, second_alloc) {
             (Some((a, a_dynamic)), Some((b, b_dynamic))) => {
                 if a != b {
@@ -1477,6 +1482,26 @@ impl AliasAnalysis {
             return AliasResult::MayAlias;
         }
         Self::compare_offsets(first, second)
+    }
+
+    /// Whether `absolute` is a heap-start-or-higher absolute range that ends at or below the
+    /// lowest address `allocation` can start at: every allocation lies at or above the heap
+    /// start, as [`Self::pointer_lower_bound`] trusts. Reserved low memory stays `MayAlias`,
+    /// since the free-memory-pointer slot there reflects allocations.
+    fn absolute_below_allocation(absolute: MemoryLocation, allocation: MemoryLocation) -> bool {
+        let (MemoryBase::Absolute, Some(_), LocationSize::Const(size)) =
+            (absolute.address.base, Self::allocation_base(allocation.address.base), absolute.size)
+        else {
+            return false;
+        };
+        let start = EvmMemoryLayout::HEAP_START.checked_add(allocation.address.offset);
+        absolute.address.offset >= EvmMemoryLayout::HEAP_START
+            && absolute
+                .address
+                .offset
+                .checked_add(size)
+                .zip(start)
+                .is_some_and(|(end, start)| end <= start)
     }
 
     /// Compares two ranges that share a base, by offset and width.
