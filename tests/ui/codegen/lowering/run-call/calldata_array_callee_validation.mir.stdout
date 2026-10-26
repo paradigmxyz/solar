@@ -1,0 +1,144 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/calldata_array_callee_validation.sol:CalldataArrayCalleeValidation ===
+@module CalldataArrayCalleeValidation
+fn @onlyLength(arg0: slice<calldata>) -> i256 [selector=0xed774813, abi_params=[array<_, address>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    icall @_count, arg0
+    v0 = extract_value slice<calldata>, arg0, 1
+    ret v0
+}
+
+fn @passThrough(arg0: slice<calldata>) -> i256 [selector=0xf4211c4b, abi_params=[array<_, address>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @_same, arg0
+    v1 = extract_value slice<calldata>, v0, 1
+    ret v1
+}
+
+fn @readFirst(arg0: slice<calldata>) -> i256 [selector=0xeae7722d, abi_params=[array<_, address>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @_first, arg0
+    ret v0
+}
+
+fn @copyFirst(arg0: slice<calldata>) -> i256 [selector=0xcbe181d1, abi_params=[array<_, address>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @_copyFirst, arg0
+    ret v0
+}
+
+fn @_count(arg0: slice<calldata>) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v4]
+    v2 = extract_value slice<calldata>, v0, 1
+    v3 = ne v1, v2
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    mstore 0, v1 !metadata(memory=scratch)
+    log 0, 32, 0xd643c01d22702743c4086499fc0fb9fe5e06272216181007be2387d3f1680d1e
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v4 = checked_add uint256, v1, 1
+    jump bb1
+}
+
+fn @_same(arg0: slice<calldata>) -> slice<calldata> {
+  bb0:
+    mstore 0, 0 !metadata(memory=scratch)
+    log 0, 32, 0xd643c01d22702743c4086499fc0fb9fe5e06272216181007be2387d3f1680d1e
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    ret arg0
+}
+
+fn @_first(arg0: slice<calldata>) -> i256 {
+  bb0:
+    mstore 0, 0 !metadata(memory=scratch)
+    log 0, 32, 0xd643c01d22702743c4086499fc0fb9fe5e06272216181007be2387d3f1680d1e
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 0
+    v6 = calldataload v5
+    v7 = shr v6, 160
+    v8 = eq v7, 0
+    v9 = eq v8, false
+    icall revert_if<empty>, v9
+    v10 = trunc i256 v6 to i160
+    v11 = zext i160 v10 to i256
+    ret v11
+}
+
+fn @_copyFirst(arg0: slice<calldata>) -> i256 {
+  bb0:
+    mstore 0, 0 !metadata(memory=scratch)
+    log 0, 32, 0xd643c01d22702743c4086499fc0fb9fe5e06272216181007be2387d3f1680d1e
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
+    v2 = mul v0, 32
+    v3 = eq 32, 0
+    v4 = div v2, 32
+    v5 = eq v4, v0
+    v6 = or v3, v5
+    v7 = zext i1 v6 to i256
+    v8 = eq v7, 0
+    icall panic_if<0x41>, v8
+    v9 = calldatasize
+    v10 = ptrtoint ptr<calldata> v1 to i256
+    v11 = sub v9, v10
+    v12 = slt v11, v2
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = mul v0, 32
+    v14 = eq 32, 0
+    v15 = div v13, 32
+    v16 = eq v15, v0
+    v17 = or v14, v16
+    v18 = zext i1 v17 to i256
+    v19 = eq v18, 0
+    icall panic_if<0x41>, v19
+    v20 = add 32, v13
+    v21 = lt v20, 32
+    icall panic_if<0x41>, v21
+    v22 = alloc v20
+    mstore v22, v0
+    jump bb1
+  bb1:
+    v23 = phi [bb0: 0], [bb2: v35]
+    v24 = lt v23, v0
+    jumpi v24, bb2, bb3
+  bb3:
+    v36 = mload v22
+    v37 = lt 0, v36
+    v38 = eq v37, false
+    icall panic_if<0x32>, v38
+    v39 = ptradd v22, 32
+    v40 = mload v39
+    v41 = trunc i256 v40 to i160
+    v42 = zext i160 v41 to i256
+    ret v42
+  bb2:
+    v25 = mul v23, 32
+    v26 = ptrtoint ptr<calldata> v1 to i256
+    v27 = add v26, v25
+    v28 = calldataload v27
+    v29 = shr v28, 160
+    v30 = eq v29, 0
+    v31 = eq v30, false
+    icall revert_if<empty>, v31
+    v32 = shl v23, 5
+    v33 = ptradd v22, v32
+    v34 = ptradd v33, 32
+    mstore v34, v28
+    v35 = add v23, 1
+    jump bb1
+}

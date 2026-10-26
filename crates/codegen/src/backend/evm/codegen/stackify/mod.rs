@@ -38,9 +38,12 @@
 //! model. Blocks are visited in reverse postorder. A block with one forward predecessor takes
 //! that predecessor's stack, with words dead in the block marked as junk and phi inputs renamed
 //! to their results. A join waits until all its forward predecessors are planned and then takes
-//! the candidate layout that minimizes the weighted cost of every incoming shuffle. Acyclic blocks
-//! that never return keep a floating layout: they name only the top of the stack and ignore the
-//! words below, so predecessors with different depths share them without a shuffle.
+//! the predecessor proposal that minimizes the weighted cost of every incoming shuffle. Outside
+//! loops, the join's wanted order, its words by first read with the first on top, replaces that
+//! proposal when its incoming shuffles plus a trial plan of the join's own instructions and the
+//! operands its terminator reads cost less. Acyclic blocks that never return keep a floating
+//! layout: they name only the top of the stack and ignore the words below, so predecessors with
+//! different depths share them without a shuffle.
 //!
 //! A conditional branch shares one physical stack between its successors. A successor whose
 //! fixed layout that stack does not satisfy receives a trampoline carrying the shuffle. Before

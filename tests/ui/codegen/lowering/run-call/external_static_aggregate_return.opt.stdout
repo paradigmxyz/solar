@@ -18,12 +18,8 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     v6 = eq v5, 0
     jumpi v6, bb1, bb2
   bb2:
-    mstore v2, arg0
-    v17 = add v2, 32
-    mstore v17, v5
     mstore 128, arg0
-    v12 = mload v17
-    mstore 160, v12
+    mstore 160, v5
     returndata 128, 64
   bb1:
     mstore 32, 17 !metadata(memory=scratch)
@@ -104,8 +100,7 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
   bb3:
     v14 = mload v2
     mstore 128, v14
-    v17 = mload v23
-    mstore 160, v17
+    mstore 160, v8
     mstore 192, v10
     returndata 128, 96
   bb1:
