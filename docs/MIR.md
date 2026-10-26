@@ -362,7 +362,9 @@ object identity and field/element accesses where proven; raw pointer or assembly
 accesses must conservatively alias unless a disjointness proof exists. Allocation
 provenance uses shared CFG cycle facts to distinguish joins from loops. Data
 pointers retain a proven lower bound from their object, so writes to allocation
-contents do not appear to reset the free-memory pointer. Raw pointer conversions
+contents do not appear to reset the free-memory pointer. The sum of an allocation's
+pointer and size, marked `alloc_ptr`, keeps the bound of the pointer, since a wrapped
+sum is checked or unreachable. Raw pointer conversions
 still need a proof that they avoid reserved memory. An access beyond a proven
 fresh allocation can overlap other heap objects while retaining its heap region;
 loop allocations lose their distinct site identities after a possible pointer
@@ -564,7 +566,10 @@ returnability analysis follows tail-call chains, including cycles, so forwarding
 cannot hide an incompatible return signature. Proven nonreturning chains stay
 exempt. Call-to-tail-call conversion uses the same returnability facts, so it
 cannot discard a continuation after a returning tail-call chain. Calls to proven
-nonreturning bodies lose their dead continuation even when they produce a result.
+nonreturning bodies lose their dead continuation even when they produce a result:
+`noreturn-calls` cuts it at the start of the semantic pipeline, so the passes after
+it see a failing branch through a revert helper leave, and `lower-evm-shaped` cuts
+again on the final call graph.
 When frame rules prevent a tail jump, the call remains an ordinary `icall` followed
 by `invalid`. The function keeps its declared result type: it describes a normal return, not a promise to
 return. Slices as well as structs must be gone at the EVM-shaped boundary.

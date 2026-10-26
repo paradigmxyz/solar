@@ -68,14 +68,16 @@
 //! the value instead of reading memory; the ordinary clobber rules retire the
 //! entry. An exact `sstore` or `tstore` seeds the cache the same way, which exposes packed
 //! field updates as word expressions for storage DSE and forwards a transient write to its
-//! reads. In the storage-only mode below, a storage or transient read whose earlier read of
-//! the same slot has no later use stays and replaces the cache entry, so forwarding never
-//! makes a loaded word live longer. A stored word is forwarded, since the store already keeps
-//! it live, unless it is itself an unused earlier read of that slot. Inside loops, a cheap load is
-//! only replaced by a value cached in a dominating block when that value is already live into the
-//! loading block or the address is loop-invariant: reviving a dead value across the loop body
-//! costs the scheduler more stack traffic than the load it removes. Acyclic
-//! reuse is unchanged. Loop and liveness facts are built only when a candidate reuse needs them.
+//! reads. A constant-size `memory_zero` seeds the cache with zero for each full word it covers, up
+//! to a cap, so a later load of such a word folds to the constant. In the storage-only mode
+//! below, a storage or transient read whose earlier read of the same slot has no later use stays
+//! and replaces the cache entry, so forwarding never makes a loaded word live longer. A stored word
+//! is forwarded, since the store already keeps it live, unless it is itself an unused earlier read
+//! of that slot. Inside loops, a cheap load is only replaced by a value cached in a dominating
+//! block when that value is already live into the loading block or the address is loop-invariant:
+//! reviving a dead value across the loop body costs the scheduler more stack traffic than the load
+//! it removes. Acyclic reuse is unchanged. Loop and liveness facts are built only when a candidate
+//! reuse needs them.
 //!
 //! `storage-cse` runs the same walk over storage and transient-storage reads and stores alone.
 //! It leaves arithmetic, memory reads, and phi sinking to the full pass, which grows bytecode
@@ -87,7 +89,7 @@
 
 use crate::mir::{
     BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Value, ValueId,
+    Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -170,7 +172,7 @@ impl MirPass for Cse {
                         InstKind::Store(
                             ..,
                             PtrLocation::Memory | PtrLocation::Storage | PtrLocation::Transient
-                        )
+                        ) | InstKind::MemoryZero(..)
                     )
                 })
             {
@@ -220,6 +222,9 @@ struct CommonSubexprEliminator {
     pure_calls: Option<Arc<DenseBitSet<FunctionId>>>,
     /// Common only storage and transient-storage reads.
     storage_only: bool,
+    /// The zero word a `memory_zero` forwards to later loads of the words it clears, if the
+    /// function has one.
+    zero_word: Option<ValueId>,
 }
 
 /// A normalized expression key for CSE lookup.
@@ -265,8 +270,8 @@ enum ExprKey {
     StorageArrayElementSlot(OperandKey, OperandKey, u64),
     MakeSlice(OperandKey, OperandKey, PtrLocation),
     ExtractValue(OperandKey, u32),
-    SLoad(StorageAlias),
-    TLoad(StorageAlias),
+    /// A storage or transient-storage slot read.
+    SlotLoad(Location),
     CalldataLoad(OperandKey),
     ExtCodeSize(OperandKey),
     ExtCodeHash(OperandKey),
@@ -303,6 +308,10 @@ type MemRangeKey = MemoryLocation;
 /// instead of reloaded: the `DUP` reach less room for the block's own
 /// temporaries.
 const DIRECT_REUSE_LIVE_BUDGET: usize = 12;
+
+/// Words of one `memory_zero` that seed the cache with zero, bounding the entries a large fill
+/// adds.
+const MAX_ZERO_FILL_WORDS: u64 = 32;
 
 /// What decides whether a dominated block should reuse a cheap memory read
 /// instead of reloading it.
@@ -394,34 +403,10 @@ type SideEffectClobbers = FxHashMap<InstId, (usize, Range<usize>)>;
 enum Clobber {
     /// A direct or interprocedural gas observation.
     GasObservation,
-    /// A memory write.
-    Memory(ClobberScope<MemRangeKey>),
-    /// A persistent-storage write.
-    Storage(ClobberScope<StorageAlias>),
-    /// A transient-storage write.
-    Transient(ClobberScope<StorageAlias>),
-    /// An immutable assignment.
-    Immutable(ClobberScope<ImmutableId>),
+    /// A write to one location or to an entire address space.
+    Write(Access),
     /// An effect that may change account balances or deployed code.
     AccountEnvironment,
-}
-
-/// The scope of a cache-invalidating effect.
-#[derive(Clone, Copy, Debug)]
-enum ClobberScope<T> {
-    /// One possibly-aliasing target.
-    Specific(T),
-    /// Every target in the address space.
-    All,
-}
-
-impl<T: Copy> ClobberScope<T> {
-    fn preserves(self, cached: T, may_alias: impl FnOnce(T, T) -> bool) -> bool {
-        match self {
-            Self::Specific(write) => !may_alias(cached, write),
-            Self::All => false,
-        }
-    }
 }
 
 struct PhiExpressionCandidate {
@@ -488,6 +473,7 @@ impl CommonSubexprEliminator {
         // fixed point. Drop only its value-address memo between iterations instead of rebuilding
         // alias analysis after every productive round.
         self.refresh_alias(func);
+        self.zero_word = (!self.storage_only).then(|| Self::zero_word(func)).flatten();
         self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
             let (before, merged) = (self.eliminated_count, self.eliminated_settled);
@@ -998,7 +984,7 @@ impl CommonSubexprEliminator {
     fn is_path_sensitive_expr(key: &ExprKey) -> bool {
         Self::is_memory_expr(key)
             || Self::is_account_environment_expr(key)
-            || matches!(key, ExprKey::SLoad(_) | ExprKey::TLoad(_) | ExprKey::LoadImmutable(..))
+            || matches!(key, ExprKey::SlotLoad(_) | ExprKey::LoadImmutable(..))
     }
 
     fn is_path_sensitive_kind(kind: &InstKind) -> bool {
@@ -1115,14 +1101,56 @@ impl CommonSubexprEliminator {
                     slot,
                     replacements,
                 );
-                let key = match location {
-                    PtrLocation::Storage => ExprKey::SLoad(alias),
-                    _ => ExprKey::TLoad(alias),
-                };
-                Some((key, value(stored)))
+                Some((ExprKey::SlotLoad(Location::slot(location, alias)?), value(stored)))
             }
             _ => None,
         }
+    }
+
+    /// Seeds `cache` with zero for each full word a constant-size `memory_zero` clears.
+    ///
+    /// memory_zero dest, size; ...; load word within it => 0
+    fn forward_zero_fill(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        kind: &InstKind,
+        replacements: &FxHashMap<ValueId, ValueId>,
+        cache: &mut ExprCache,
+    ) {
+        let (InstKind::MemoryZero(dest, size), Some(zero)) = (kind, self.zero_word) else { return };
+        let words = func
+            .value_u64(mir_utils::resolve_replacement(*size, replacements))
+            .map_or(0, |size| (size / 32).min(MAX_ZERO_FILL_WORDS));
+        if words == 0 {
+            return;
+        }
+        let dest = mir_utils::resolve_replacement(*dest, replacements);
+        let Some(fill) =
+            self.memory_range_key(func, inst_id, dest, LocationSize::Const(words * 32))
+        else {
+            return;
+        };
+        for word in 0..words {
+            let Some(address) = fill.address.checked_add(word * 32) else { return };
+            let key = MemRangeKey::new(address, LocationSize::Const(32));
+            cache.insert(ExprKey::MLoad(key), zero);
+        }
+    }
+
+    /// The function's `i256` zero for [`Self::forward_zero_fill`], created on first need.
+    fn zero_word(func: &mut Function) -> Option<ValueId> {
+        if !func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MemoryZero(..)))
+        {
+            return None;
+        }
+        let existing = (0..func.num_values()).map(ValueId::from_usize).find(|&value| {
+            matches!(func.value(value), Value::Immediate(Immediate::I256(word)) if word.is_zero())
+        });
+        Some(
+            existing
+                .unwrap_or_else(|| func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)))),
+        )
     }
 
     /// Whether forwarding `cached` to the read `key` would only stretch the live range of a loaded
@@ -1144,9 +1172,12 @@ impl CommonSubexprEliminator {
         }
         let Value::Inst(def) = *func.value(cached) else { return false };
         let loaded = match (key, &func.inst(def).kind) {
-            (ExprKey::SLoad(alias), InstKind::Load(slot, PtrLocation::Storage))
-            | (ExprKey::TLoad(alias), InstKind::Load(slot, PtrLocation::Transient)) => {
-                self.alias().storage_alias(func, def, *slot) == *alias
+            (
+                ExprKey::SlotLoad(read),
+                InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)),
+            ) => {
+                Location::slot(*location, self.alias().storage_alias(func, def, *slot))
+                    == Some(*read)
             }
             _ => false,
         };
@@ -1319,12 +1350,15 @@ impl CommonSubexprEliminator {
                 Some(ExprKey::ExtractValue(operand(*aggregate), *index))
             }
 
-            InstKind::Load(slot, PtrLocation::Storage) => Some(ExprKey::SLoad(
-                self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
-            )),
-            InstKind::Load(slot, PtrLocation::Transient) => Some(ExprKey::TLoad(
-                self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
-            )),
+            InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)) => {
+                let alias = self.alias().storage_alias_after_replacements(
+                    func,
+                    inst_id,
+                    *slot,
+                    replacements,
+                );
+                Location::slot(*location, alias).map(ExprKey::SlotLoad)
+            }
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
 
@@ -1376,6 +1410,7 @@ impl CommonSubexprEliminator {
             // store word, value; load word -> value
             expr_cache.insert(key, stored);
         }
+        self.forward_zero_fill(func, inst_id, kind, replacements, expr_cache);
     }
 
     /// Collects the cache-invalidating effects of a side-effecting instruction.
@@ -1389,26 +1424,7 @@ impl CommonSubexprEliminator {
     ) {
         let effects =
             self.alias().instruction_mod_ref_with_replacements(func, inst_id, replacements);
-        for &write in effects.writes() {
-            clobbers.push(match write {
-                Access::Location(Location::Memory(location)) => {
-                    Clobber::Memory(ClobberScope::Specific(location))
-                }
-                Access::Location(Location::Storage(alias)) => {
-                    Clobber::Storage(ClobberScope::Specific(alias))
-                }
-                Access::Location(Location::Transient(alias)) => {
-                    Clobber::Transient(ClobberScope::Specific(alias))
-                }
-                Access::Location(Location::Immutable(id)) => {
-                    Clobber::Immutable(ClobberScope::Specific(id))
-                }
-                Access::Any(AddressSpace::Memory) => Clobber::Memory(ClobberScope::All),
-                Access::Any(AddressSpace::Storage) => Clobber::Storage(ClobberScope::All),
-                Access::Any(AddressSpace::Transient) => Clobber::Transient(ClobberScope::All),
-                Access::Any(AddressSpace::Immutable) => Clobber::Immutable(ClobberScope::All),
-            });
-        }
+        clobbers.extend(effects.writes().iter().map(|&write| Clobber::Write(write)));
         if kind.may_change_account_state() {
             clobbers.push(Clobber::AccountEnvironment);
         }
@@ -1418,66 +1434,53 @@ impl CommonSubexprEliminator {
     fn apply_clobber(&self, expr_cache: &mut ExprCache, clobber: &Clobber) {
         match *clobber {
             Clobber::GasObservation => expr_cache.clear_stateful(),
-            Clobber::Memory(write) => self.invalidate_memory(expr_cache, write),
-            Clobber::Storage(write) => {
-                expr_cache.retain_stateful(|key, _| match key {
-                    ExprKey::SLoad(cached) => write.preserves(*cached, |cached, assigned| {
-                        AliasAnalysis::alias_locations(
-                            Location::Storage(cached),
-                            Location::Storage(assigned),
-                        )
-                        .may_alias()
-                    }),
-                    _ => true,
-                });
-            }
-            Clobber::Transient(write) => {
-                expr_cache.retain_stateful(|key, _| match key {
-                    ExprKey::TLoad(cached) => write.preserves(*cached, |cached, assigned| {
-                        AliasAnalysis::alias_locations(
-                            Location::Transient(cached),
-                            Location::Transient(assigned),
-                        )
-                        .may_alias()
-                    }),
-                    _ => true,
-                });
-            }
-            Clobber::Immutable(write) => {
-                expr_cache.retain_stateful(|key, _| match key {
-                    ExprKey::LoadImmutable(cached) => {
-                        write.preserves(*cached, |cached, assigned| cached == assigned)
-                    }
-                    _ => true,
-                });
-            }
+            Clobber::Write(write) => expr_cache.retain_stateful(|key, _| self.survives(key, write)),
             Clobber::AccountEnvironment => {
                 expr_cache.retain_stateful(|key, _| !Self::is_account_environment_expr(key));
             }
         }
     }
 
-    fn invalidate_memory(&self, expr_cache: &mut ExprCache, write: ClobberScope<MemRangeKey>) {
-        expr_cache.retain_stateful(|key, _| match key {
-            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write
-                .preserves(*read, |read, write| {
-                    AliasAnalysis::memory_alias_locations(read, write).may_alias()
-                }),
-            ExprKey::MappingSlot(..)
-            | ExprKey::StorageArrayDataSlot(..)
-            | ExprKey::StorageArrayElementSlot(..) => {
-                let words = if matches!(key, ExprKey::MappingSlot(..)) { 2 } else { 1 };
-                let scratch = MemoryLocation::new(
-                    MemoryAddress::absolute(0),
-                    LocationSize::Const(words * EvmMemoryLayout::WORD_SIZE),
-                );
-                write.preserves(scratch, |scratch, write| {
-                    AliasAnalysis::memory_alias_locations(scratch, write).may_alias()
-                })
+    /// Whether the cached read `key` survives `write`.
+    fn survives(&self, key: &ExprKey, write: Access) -> bool {
+        let Some(read) = Self::read_location(key) else {
+            // A restoring call's reads are not tracked, so any memory write ends its reuse.
+            return !matches!(key, ExprKey::RestoringCall(..))
+                || write.address_space() != AddressSpace::Memory;
+        };
+        if read.address_space() != write.address_space() {
+            return true;
+        }
+        match (read, write) {
+            (Location::Memory(read), Access::Location(Location::Memory(write))) => {
+                !self.alias().memory_alias(read, write).may_alias()
             }
-            ExprKey::RestoringCall(..) => false,
-            _ => true,
-        });
+            (_, Access::Location(write)) => {
+                !AliasAnalysis::alias_locations(read, write).may_alias()
+            }
+            (_, Access::Any(_)) => false,
+        }
+    }
+
+    /// The location a cached state-dependent read observes. A slot expression reads the scratch
+    /// words that hash its operands.
+    fn read_location(key: &ExprKey) -> Option<Location> {
+        let scratch = |words| {
+            Location::Memory(MemoryLocation::new(
+                MemoryAddress::absolute(0),
+                LocationSize::Const(words * EvmMemoryLayout::WORD_SIZE),
+            ))
+        };
+        match key {
+            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => Some(Location::Memory(*read)),
+            ExprKey::MappingSlot(..) => Some(scratch(2)),
+            ExprKey::StorageArrayDataSlot(..) | ExprKey::StorageArrayElementSlot(..) => {
+                Some(scratch(1))
+            }
+            ExprKey::SlotLoad(read) => Some(*read),
+            ExprKey::LoadImmutable(id) => Some(Location::Immutable(*id)),
+            _ => None,
+        }
     }
 
     fn is_memory_expr(key: &ExprKey) -> bool {
@@ -1526,8 +1529,7 @@ impl CommonSubexprEliminator {
                 | ExprKey::MappingSlot(..)
                 | ExprKey::StorageArrayDataSlot(..)
                 | ExprKey::StorageArrayElementSlot(..)
-                | ExprKey::SLoad(_)
-                | ExprKey::TLoad(_)
+                | ExprKey::SlotLoad(_)
                 | ExprKey::CalldataLoad(..)
                 | ExprKey::ExtCodeSize(_)
                 | ExprKey::ExtCodeHash(_)

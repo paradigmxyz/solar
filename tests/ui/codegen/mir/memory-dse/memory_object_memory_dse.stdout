@@ -36,10 +36,10 @@
     bb1:
       v1 = alloc 64
       v2 = ptrtoint ptr<memory> v1 to i256
-      mstore v2, 39
+-     mstore v2, 39
       v3 = ptradd v1, 32
       v4 = ptrtoint ptr<memory> v3 to i256
-      mstore v4, 7
+-     mstore v4, 7
 -     v5 = mload v2
       v6 = ne arg1, 0
       jumpi v6, bb3, bb2
@@ -85,11 +85,9 @@
       jumpi v0, bb3, bb1
     bb1:
       v1 = alloc 64
-      v2 = ptrtoint ptr<memory> v1 to i256
-      mstore v2, 39
-      v3 = ptradd v1, 32
-      v4 = ptrtoint ptr<memory> v3 to i256
-      mstore v4, 7
+-     v2 = ptrtoint ptr<memory> v1 to i256
+-     v3 = ptradd v1, 32
+-     v4 = ptrtoint ptr<memory> v3 to i256
       v6 = ne arg1, 0
       jumpi v6, bb3, bb2
     bb2:

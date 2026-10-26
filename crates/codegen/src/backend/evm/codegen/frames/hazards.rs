@@ -169,7 +169,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         match address.base {
             MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::InternalFrame => false,
+            | MemoryBase::InternalFrame
+            | MemoryBase::FreeMemory(_) => false,
             MemoryBase::Absolute => address.offset < LOW_MEMORY_BOUND,
             MemoryBase::Value(value) => {
                 let mut visiting = DenseBitSet::new_empty(func.num_values());

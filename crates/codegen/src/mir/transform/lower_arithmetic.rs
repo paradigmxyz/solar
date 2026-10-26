@@ -4,6 +4,9 @@
 //! checked widths and signedness; wrapping signed division still checks zero. As in solc, a
 //! product of operands of at most 128 bits only checks its range, wider ones also test the
 //! quotient, and only a 256-bit signed product tests `min * -1`, which the quotient misses.
+//! A constant nonnegative base needs no loop: its powers grow monotonically, so the exponent
+//! overflows exactly when it exceeds the largest one whose power fits, and the power is one
+//! `exp`. A negative base keeps the loop, as its powers alternate in sign.
 //! Splitting blocks redirects successor phi predecessors locally, and every emitted operation
 //! inherits the source instruction's debug context. Later cleanup can combine exposed checks and
 //! scalar expressions.
@@ -163,6 +166,26 @@ impl ArithmeticLowerer<'_, '_> {
     }
 
     fn checked_pow(&mut self, base: ValueId, exponent: ValueId, kind: ArithmeticKind) -> ValueId {
+        if let Some(constant) = self.builder.func().value_u256(base) {
+            let max = match kind {
+                ArithmeticKind::Unsigned(bits) => Some(integer_mask(bits.into())),
+                ArithmeticKind::Signed(bits) if !constant.bit(255) => {
+                    Some(integer_mask(u32::from(bits) - 1))
+                }
+                ArithmeticKind::Signed(_) => None,
+            };
+            if let Some(max) = max {
+                // Every power of 0 and 1 fits.
+                if constant > U256::ONE {
+                    // panic_if exponent > limit
+                    let limit = self.builder.imm(U256::from(power_limit(constant, max)));
+                    let overflow = self.builder.gt(exponent, limit);
+                    self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                }
+                // power = exp base, exponent
+                return self.builder.exp(base, exponent);
+            }
+        }
         // power = 1
         // current_base = base
         // current_exponent = exponent
@@ -333,4 +356,17 @@ fn signed_bounds(bits: u16, builder: &mut FunctionBuilder<'_>) -> (ValueId, Valu
     let min = builder.imm(U256::MAX - magnitude + U256::ONE);
     let max = builder.imm(magnitude - U256::ONE);
     (min, max)
+}
+
+/// The largest exponent whose power of `base`, at least 2, is at most `max`.
+fn power_limit(base: U256, max: U256) -> u32 {
+    let mut limit = 0;
+    let mut power = U256::ONE;
+    while let Some(next) = power.checked_mul(base)
+        && next <= max
+    {
+        power = next;
+        limit += 1;
+    }
+    limit
 }

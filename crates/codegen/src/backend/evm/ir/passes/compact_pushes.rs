@@ -4,25 +4,37 @@
 //! concrete immediate, this pass compares the literal encoding with a fixed set of equivalent
 //! recipes: `PUSH0; NOT` for an all-ones word, `NOT` of a shorter inverse, and shift-based forms
 //! for masks or values with trailing zero bytes. It then emits the recipe with the fewest encoded
-//! bytes, whatever the tune, keeping the literal on ties so the pass never increases code size.
+//! bytes, whatever the tune, keeping the literal on ties so the pass never increases code size. In
+//! size builds and cold blocks, division of the all-ones word and multiplication also synthesize
+//! repeated byte patterns. Gas-mode hot blocks retain the existing shift and inverse recipes.
 //!
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
-//! target supports them. `Target::push` uses the same selector, so other EVM IR passes can
-//! compare a prospective rewrite with the bytes, static gas, and instructions that this pass will
-//! emit.
+//! target supports them. A gas build keeps the literal where the recipe's extra runtime gas
+//! outweighs the deposit of the bytes it saves, as the cost model prices it over the expected
+//! executions and, for a push in a hot loop, over the loop's iterations, so a loop does not
+//! rebuild a mask on every iteration. `Target::push` uses the same selector, so other EVM IR
+//! passes can compare a prospective rewrite with the bytes, static gas, and instructions that
+//! this pass will emit. NOTE: the size-only repeated-pattern recipes are emitted here; the common
+//! cost helper conservatively retains the larger estimate for those constants.
 //!
 //! Recipe emission recursively selects materializations for child pushes, so one pass reaches a
 //! fixed point. The default pipeline expands recipes once before structural cleanup because tail
 //! merging and outlining profit from the concrete instruction shape. Push reordering and
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
+//! Before increasing a literal's transient stack use, query upper entry depths from the stack
+//! verifier and account for each preceding instruction. Growing cycles and dynamically entered
+//! paths have unknown entry depths; there, keep the original straight-line path's peak as an upper
+//! bound. A physical conditional jump ends that path, since its taken edge can skip later stack
+//! growth. Keep the literal when the complete, recursively expanded recipe would overflow.
 
 use super::EvmPass;
 use crate::{
     backend::evm::{
-        ir::{Instruction, Metadata, Module},
+        codegen::MAX_STACK_DEPTH,
+        ir::{Instruction, Metadata, Module, verify::Verifier},
         op::{self, WORD_BYTES},
     },
-    target::Cost,
+    target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -44,28 +56,78 @@ const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
+    let target = module.target(gcx);
     let mut changed = false;
     let mut scratch = Vec::new();
-    for block in &mut module.blocks {
+    let mut limits = Vec::new();
+    let mut entry_depths = None;
+    for block_id in module.blocks.indices() {
+        let block = &module.blocks[block_id];
+        let in_loop = block.metadata.in_loop && !block.metadata.hotness.is_cold();
+        let repeated = gcx.sess.opts.optimization.is_size() || block.metadata.hotness.is_cold();
         if !block.instructions.iter().any(|inst| {
             inst.concrete_immediate().is_some_and(|value| {
-                !matches!(select(evm_version, value).recipe, CompactPush::Literal)
+                !matches!(select_recipe(evm_version, value, repeated).recipe, CompactPush::Literal)
             })
         }) {
             continue;
         }
+        if entry_depths.is_none()
+            && block.instructions.iter().any(|inst| {
+                inst.concrete_immediate().is_some_and(|value| {
+                    ImmediateMaterialization::with_repeated(evm_version, value, repeated)
+                        .stack_peak()
+                        > 1
+                })
+            })
+        {
+            entry_depths = Some(Verifier::stack_entry_upper_bounds(module, evm_version));
+        }
+        let mut stack =
+            entry_depths.as_ref().and_then(|depths| depths[block_id]).unwrap_or(MAX_STACK_DEPTH);
+        // The original path must fit as well. Propagate its stack limit backwards, stopping at
+        // physical branches so growth on a fallthrough cannot justify growth on a taken edge.
+        limits.resize(block.instructions.len(), MAX_STACK_DEPTH);
+        let mut limit = MAX_STACK_DEPTH
+            - block
+                .terminator
+                .as_ref()
+                .map_or(0, |term| term.kind.lowering_stack_growth(module.next_block(block_id)));
+        for (at, inst) in block.instructions.iter().enumerate().rev() {
+            if inst
+                .as_evm_opcode()
+                .is_some_and(|opcode| opcode == op::JUMPI || op::is_terminal(opcode))
+            {
+                limit = MAX_STACK_DEPTH;
+            }
+            let effect = inst.stack_effect();
+            limit = (limit + usize::from(effect.inputs))
+                .saturating_sub(usize::from(effect.outputs))
+                .min(MAX_STACK_DEPTH);
+            limits[at] = limit;
+        }
+        let block = &mut module.blocks[block_id];
         scratch.clear();
         std::mem::swap(&mut block.instructions, &mut scratch);
         block.instructions.reserve(scratch.len());
-        for inst in scratch.drain(..) {
+        for (at, inst) in scratch.drain(..).enumerate() {
+            let effect = inst.stack_effect();
+            let (inputs, outputs) = (usize::from(effect.inputs), usize::from(effect.outputs));
+            let before = stack.min(limits[at]);
+            stack = before.saturating_sub(inputs) + outputs;
             let Some(value) = inst.concrete_immediate() else {
                 block.instructions.push(inst);
                 continue;
             };
-            let materialization = ImmediateMaterialization::new(evm_version, value);
-            if matches!(materialization.recipe, CompactPush::Literal) {
+            let materialization =
+                ImmediateMaterialization::with_repeated(evm_version, value, repeated);
+            if matches!(materialization.recipe, CompactPush::Literal)
+                || !materialization.repays(&target, in_loop)
+                || materialization.stack_peak() > MAX_STACK_DEPTH - before
+            {
                 block.instructions.push(inst);
             } else {
+                // push value => selected_recipe(value)
                 materialize_selected(&mut block.instructions, materialization, &inst.metadata);
                 changed = true;
             }
@@ -91,17 +153,43 @@ pub(in crate::backend) struct ImmediateMaterialization {
     evm_version: EvmVersion,
     value: U256,
     recipe: CompactPush,
+    repeated: bool,
 }
 
 impl ImmediateMaterialization {
     /// Returns the materialization selected for `value` on `evm_version`.
     pub(in crate::backend) fn new(evm_version: EvmVersion, value: U256) -> Self {
-        Self { evm_version, value, recipe: select(evm_version, value).recipe }
+        Self::with_repeated(evm_version, value, false)
+    }
+
+    fn with_repeated(evm_version: EvmVersion, value: U256, repeated: bool) -> Self {
+        Self {
+            evm_version,
+            value,
+            repeated,
+            recipe: select_recipe(evm_version, value, repeated).recipe,
+        }
+    }
+
+    fn child(self, value: U256) -> Self {
+        Self::with_repeated(self.evm_version, value, self.repeated)
     }
 
     /// Returns the materialization's maximum relative stack height.
     pub(in crate::backend) fn stack_peak(self) -> usize {
         self.metrics().stack_peak
+    }
+
+    /// Whether the selected recipe is better code than the literal push, by the target's pricing
+    /// of the bytes it saves against the runtime gas it adds, inside a loop or not.
+    fn repays(self, target: &Target, in_loop: bool) -> bool {
+        let literal = select_literal(self.evm_version, self.value);
+        let recipe = select_recipe(self.evm_version, self.value, self.repeated).cost;
+        target.compacts_immediate(
+            u64::from(literal.bytes.saturating_sub(recipe.bytes)),
+            u64::from(target.runtime_gas(recipe).saturating_sub(target.runtime_gas(literal))),
+            in_loop,
+        )
     }
 
     /// Visits each concrete instruction in execution order.
@@ -115,23 +203,37 @@ impl ImmediateMaterialization {
         match self.recipe {
             CompactPush::Literal => f(push(self.value)),
             CompactPush::FullWord => {
-                Self::new(self.evm_version, U256::ZERO).for_each_inner(f);
+                self.child(U256::ZERO).for_each_inner(f);
                 f(opcode(op::NOT));
             }
             CompactPush::LowerAllOnesMask { shift } => {
-                Self::new(self.evm_version, U256::ZERO).for_each_inner(f);
+                self.child(U256::ZERO).for_each_inner(f);
                 f(opcode(op::NOT));
-                Self::new(self.evm_version, U256::from(shift)).for_each_inner(f);
+                self.child(U256::from(shift)).for_each_inner(f);
                 f(opcode(op::SHR));
             }
             CompactPush::Not => {
-                Self::new(self.evm_version, !self.value).for_each_inner(f);
+                self.child(!self.value).for_each_inner(f);
                 f(opcode(op::NOT));
             }
             CompactPush::Shl { shift } => {
-                Self::new(self.evm_version, self.value >> usize::from(shift)).for_each_inner(f);
-                Self::new(self.evm_version, U256::from(shift)).for_each_inner(f);
+                self.child(self.value >> usize::from(shift)).for_each_inner(f);
+                self.child(U256::from(shift)).for_each_inner(f);
                 f(opcode(op::SHL));
+            }
+            // divisor; MAX; DIV
+            CompactPush::AllOnesDiv { divisor } => {
+                self.child(divisor).for_each_inner(f);
+                self.child(U256::MAX).for_each_inner(f);
+                f(opcode(op::DIV));
+            }
+            // divisor; MAX; DIV; factor; MUL
+            CompactPush::Repeat { factor, divisor } => {
+                self.child(divisor).for_each_inner(f);
+                self.child(U256::MAX).for_each_inner(f);
+                f(opcode(op::DIV));
+                self.child(factor).for_each_inner(f);
+                f(opcode(op::MUL));
             }
         }
     }
@@ -237,6 +339,10 @@ pub(in crate::backend) fn immediate_materialization_len(
 }
 
 fn select(evm_version: EvmVersion, value: U256) -> Selected {
+    select_recipe(evm_version, value, false)
+}
+
+fn select_recipe(evm_version: EvmVersion, value: U256, repeated: bool) -> Selected {
     let width = push_width(evm_version, value);
     let literal =
         Selected { cost: select_literal(evm_version, value), recipe: CompactPush::Literal };
@@ -276,9 +382,42 @@ fn select(evm_version: EvmVersion, value: U256) -> Selected {
         let inverted = !value;
         if push_width(evm_version, inverted) < width {
             consider(
-                select(evm_version, inverted).cost + Cost::fixed_opcode(op::NOT),
+                select_recipe(evm_version, inverted, repeated).cost + Cost::fixed_opcode(op::NOT),
                 CompactPush::Not,
             );
+        }
+    }
+
+    // Restrict divisions and multiplications to size-first code. Every child is narrower,
+    // so recursive selection terminates, and strict byte savings are required.
+    let child = |word| select_recipe(evm_version, word, repeated).cost;
+    let narrower = |word| push_width(evm_version, word) < width;
+    if repeated && value < U256::MAX {
+        let full = child(U256::MAX);
+        let divisor = U256::MAX / value;
+        if (U256::MAX % value).is_zero() && narrower(divisor) {
+            consider(
+                child(divisor) + full + Cost::fixed_opcode(op::DIV),
+                CompactPush::AllOnesDiv { divisor },
+            );
+        }
+        for period in [1usize, 2, 4, 8, 16] {
+            let divisor = (U256::ONE << (period * 8)) - U256::ONE;
+            let ones = U256::MAX / divisor;
+            if !(value % ones).is_zero() {
+                continue;
+            }
+            let factor = value / ones;
+            if factor > U256::ONE && narrower(factor) && narrower(divisor) {
+                consider(
+                    child(factor)
+                        + child(divisor)
+                        + full
+                        + Cost::fixed_opcode(op::DIV)
+                        + Cost::fixed_opcode(op::MUL),
+                    CompactPush::Repeat { factor, divisor },
+                );
+            }
         }
     }
 
@@ -290,8 +429,8 @@ fn select(evm_version: EvmVersion, value: U256) -> Selected {
         let shift = trailing_zero_bytes * 8;
         let shifted = value >> shift;
         consider(
-            select(evm_version, shifted).cost
-                + select(evm_version, U256::from(shift)).cost
+            select_recipe(evm_version, shifted, repeated).cost
+                + select_recipe(evm_version, U256::from(shift), repeated).cost
                 + Cost::fixed_opcode(op::SHL),
             CompactPush::Shl { shift: shift as u8 },
         );
@@ -336,6 +475,8 @@ fn push_width(evm_version: EvmVersion, value: U256) -> u8 {
 
 #[derive(Clone, Copy)]
 enum CompactPush {
+    AllOnesDiv { divisor: U256 },
+    Repeat { factor: U256, divisor: U256 },
     Literal,
     FullWord,
     LowerAllOnesMask { shift: u8 },

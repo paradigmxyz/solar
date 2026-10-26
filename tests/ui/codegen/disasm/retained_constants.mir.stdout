@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/disasm/retained_constants.sol:C ===
+@module C
+fn @f(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xbf06dbf1, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffff
+    v2 = add v0, v1
+    switch arg2, default bb4, [0 => bb2, 1 => bb3]
+  bb3:
+    v11 = mul v2, arg1
+    v12 = and v11, 0xffffffffffffffff
+    v13 = xor v2, v12
+    v14 = and arg0, 0xffffffffffffffffffffffffffffffff
+    v15 = add v13, v14
+    v16 = mul v15, v15
+    v17 = and v16, 0xffffffffffffffffffffffffffffffff
+    v18 = xor v15, v17
+    jump bb1
+  bb2:
+    v3 = mul v2, arg0
+    v4 = and v3, 0xffffffffffffffff
+    v5 = xor v2, v4
+    v6 = and arg1, 0xffffffffffffffffffffffffffffffff
+    v7 = add v5, v6
+    v8 = mul v7, v7
+    v9 = and v8, 0xffffffffffffffffffffffffffffffff
+    v10 = xor v7, v9
+    jump bb1
+  bb4:
+    v19 = and v2, 0xffffffffffffffff
+    v20 = mul v2, v19
+    jump bb1
+  bb1:
+    v21 = phi [bb2: v10], [bb3: v18], [bb4: v20]
+    v22 = and arg1, 0xffffffffffffffff
+    v23 = mul v21, v22
+    v24 = and arg0, 0xffffffffffffffffffffffffffffffff
+    v25 = add v23, v24
+    ret v25
+}

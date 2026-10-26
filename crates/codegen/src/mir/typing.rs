@@ -94,8 +94,19 @@ pub(super) fn memory_object(func: &Function, value: ValueId) -> MirType {
     }
 }
 
-pub(super) fn address_call_types(gas: bool, value: bool) -> SmallVec<[MirType; 8]> {
-    let mut types = smallvec![MirType::I160, MirType::MEMPTR];
+/// The operands of `address_call`: its input is a bytes object, or a memory slice the call reads
+/// where it lies.
+pub(super) fn address_call_types(
+    func: &Function,
+    input: ValueId,
+    gas: bool,
+    value: bool,
+) -> SmallVec<[MirType; 8]> {
+    let input = match func.value_ty(input) {
+        Some(ty @ MirType::Slice(PtrLocation::Memory)) => ty,
+        _ => MirType::MEMPTR,
+    };
+    let mut types = smallvec![MirType::I160, input];
     types.extend(std::iter::repeat_n(MirType::I256, usize::from(gas) + usize::from(value)));
     types
 }

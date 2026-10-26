@@ -3,8 +3,8 @@
 @phase lowered
 fn @sizes() [selector=0xebf5a899, abi_wrapper, pure] {
   bb0:
-    v12 = icall @decode_calldata_type
-    v0 = mload v12
+    v10 = icall @decode_calldata_type
+    v0 = mload v10
     v1 = ne v0, 32
     jumpi v1, bb1, bb2
   bb2:
@@ -28,8 +28,8 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v9 = add v0, 32
     v10 = add v9, 63
     v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v55 = mload 64 !metadata(memory=scratch)
-    v56 = add v55, v13
+    v55 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v56 = add v55, v13 !metadata(alloc_ptr)
     mstore 64, v56 !metadata(memory=scratch)
     mstore v55, v9
     v43 = add v55, 32
@@ -68,8 +68,8 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     jumpi v9, bb3, bb4
   bb4:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, v11
+    v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v25 = add v24, v11 !metadata(alloc_ptr)
     v26 = lt v25, v24
     v27 = gt v25, 0xffffffffffffffff
     v28 = or v26, v27
