@@ -955,7 +955,7 @@ impl Bounds {
 struct LabelFlow {
     /// The continuations the block's terminator calls into, with the effect of that call.
     returns: SmallVec<[(BlockId, StackEffect); 1]>,
-    /// The pushes, by instruction index, of addresses that are consumed by a call or popped.
+    /// The pushes, by instruction index, of addresses that a call consumes.
     ///
     /// Any other pushed address may be copied, stored, or carried into a successor, and so can
     /// enter its block at a depth the walk does not model.
@@ -1007,8 +1007,9 @@ fn label_flow(module: &Module, block: &Block) -> LabelFlow {
                 swap_slots(&mut words, height - 1 - isize::from(n), height - 1 - isize::from(m));
             }
             Some(op::StackOp::Pop) => {
+                // A branch earlier in the block may have returned through the word.
                 if let Some(index) = slot_of(&words, height - 1) {
-                    flow.accounted.push(words.swap_remove(index).push);
+                    words.swap_remove(index);
                 }
                 height -= 1;
             }
