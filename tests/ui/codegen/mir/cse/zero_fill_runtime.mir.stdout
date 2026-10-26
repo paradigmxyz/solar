@@ -1,0 +1,31 @@
+// === ROOT/tests/ui/codegen/mir/cse/zero_fill_runtime.sol:ZeroFill ===
+@module ZeroFill
+fn @get(arg0: i160, arg1: i128) -> ptr<memory> [selector=0x68e4440b, pure, abi_params=[address, uint128], abi_returns=[tuple<word<uint128>, word<uint128>, word<uint128>, word<uint40>, word<uint16>, word<uint160>, word<uint8>>], abi_return_params=[tuple<uint128, uint128, uint128, uint40, uint16, address, uint8>]] {
+  bb0:
+    v0 = trunc i160 arg0 to i16
+    v1 = alloc 224 !metadata(preserves_fmp)
+    memory_zero v1, 224
+    v2 = zext i16 v0 to i256
+    v3 = ptradd v1, 128
+    mstore v3, v2
+    v4 = zext i128 arg1 to i256
+    v5 = ptradd v1, 32
+    mstore v5, v4
+    ret v1
+}
+
+fn @overwrite(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xc22e8f19, pure, abi_params=[uint256, uint256], abi_returns=[tuple<word, word, word>], abi_return_params=[tuple<uint256, uint256, uint256>]] {
+  bb0:
+    v0 = mod arg1, 3
+    v1 = mul v0, 32
+    v2 = alloc 96 !metadata(preserves_fmp)
+    mstore v2, 0
+    v3 = ptradd v2, 32
+    mstore v3, 0
+    v4 = ptradd v2, 64
+    mstore v4, 0
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, v1
+    mstore v6, arg0
+    ret v2
+}

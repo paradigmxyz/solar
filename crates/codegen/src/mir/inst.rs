@@ -615,6 +615,12 @@ impl EffectKind {
                 | Self::EnvironmentRead
         )
     }
+
+    /// Whether this reads or writes memory.
+    #[must_use]
+    pub(crate) const fn is_memory(self) -> bool {
+        matches!(self, Self::MemoryRead | Self::MemoryWrite)
+    }
 }
 
 /// Initialization performed for a newly reserved range.

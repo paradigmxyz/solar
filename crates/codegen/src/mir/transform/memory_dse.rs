@@ -31,10 +31,29 @@
 //!   union of several later overwrites, and it leaves a store whose only surviving byte is the
 //!   last. A byte store kills nothing across blocks, so narrowing can hide an earlier dead store of
 //!   the same word in another block from the cross-block rewrites.
-//! - Write-only deferred allocations: a deferred allocation whose pointer only ever addresses
-//!   stores, as a decoded struct does once forwarding has replaced the reads of its used fields,
-//!   loses those stores. Static placement already keeps every other way to reach its words out of
-//!   the function.
+//! - Dead allocation stores: a constant-offset `mstore` or `mstore8` into an `alloc` whose pointer
+//!   does not escape is removed when no read reachable after it overlaps its bytes. The pass
+//!   derives the object's pointers through `ptrtoint`, `inttoptr`, and constant `add` and `ptradd`;
+//!   a pointer moved by a runtime index may land anywhere in the object, since address arithmetic
+//!   wraps, so reads through it cover all of it. Exact loads, hashes, logs, creations, call inputs,
+//!   memory copies, and the data of `revert` and `returndata` are the reads. A range with a runtime
+//!   length covers the bytes from its start on, so a `bytes` length word dies once forwarding has
+//!   replaced its loads and the call or terminator reads only the data after it. Any other use of a
+//!   derived pointer (a stored value, a phi, an internal call argument, a `ret`, a `sub`, a
+//!   runtime-offset `add`) leaves the object alone, as does a heap object that follows a
+//!   free-memory pointer reset and so may lie over an earlier one, as does every exposed object of
+//!   a function that writes through a runtime index, which may wrap and rewind the pointer. Other
+//!   allocations do not overlap. Assembly can still rebuild a pointer into a heap object from the
+//!   free-memory pointer, so every other read that may touch heap memory, such as a load through an
+//!   unrelated pointer, `msize`, or a callee with unknown reads, reads the whole object. A `ret` or
+//!   tail call reads no object whose pointer it does not receive. A read that may leave its own
+//!   allocation reaches the objects allocated after it, not the ones before. A write-only deferred
+//!   object, which static placement keeps unrelated to the free-memory pointer, ignores them. A
+//!   store that may reach past the end of its object may write over the next one and stays: the
+//!   size of an infallible allocation, whose arithmetic cannot wrap, is bounded below through sums
+//!   and word-rounding masks, and other runtime sizes have no bound. Functions observing gas keep
+//!   their stores, since the stores pay for memory expansion. Writes the object receives from
+//!   copies and calls stay: only stores are candidates.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
@@ -49,21 +68,29 @@
 //!   none. Liveness runs before block-local forwarding, which replaces a reloaded pointer by the
 //!   stored word.
 //!
+//! NOTE: Codegen does not track which inline assembly is annotated memory-safe, so no block is
+//! treated as unsafe. A `ret` or tail call is assumed to read no dead object of its function.
+//! Assembly that reads such an object in the caller through a forged pointer, such as one rebuilt
+//! from the free-memory pointer, is unsupported. Memory-safe assembly may only use pointers it was
+//! given, later objects already reuse dead regions, and our heap layout differs from solc's.
+//!
 //! Keys come from alias analysis, which canonicalizes an address as a base plus a constant offset.
 //! Allocation-based keys require the complete access range to fit; wider accesses may overlap
 //! adjacent allocations. Every other instruction is classified through its shared ModRef effects:
 //! a possible write invalidates the remembered words it may overlap, and only the explicit writes
 //! above count as definite overwrites. The pass runs late in semantic optimization and again in
-//! lowering, after ABI and aggregate lowering expose word stores. A final `-Ogas` run after
-//! allocation lowering removes fills that only become explicit there, before memory-zero lowering
-//! turns them into copies or loops.
+//! lowering, after ABI and aggregate lowering expose word stores. Another run follows the CSE that
+//! forwards the length words of `bytes` objects, while allocations are still atomic, so the dead
+//! allocation stores go before allocation lowering turns the object into free-memory-pointer
+//! traffic. A final `-Ogas` run after allocation lowering removes fills that only become explicit
+//! there, before memory-zero lowering turns them into copies or loops.
 
 use crate::mir::{
-    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, MirType, Module,
-    PtrLocation, Terminator, Value, ValueId,
+    AllocationFailure, BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion,
+    MirType, Module, PtrLocation, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
-        MemoryAddress, MemoryBase, MemoryLocation,
+        MemoryAddress, MemoryBase, MemoryLocation, ModRef,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -498,7 +525,7 @@ impl MemoryStoreEliminator {
             self.process_block(func, block_id, has_precise_reads, scratch);
             self.alias().clear_cached_addresses();
         }
-        self.remove_write_only_allocation_stores(func);
+        self.remove_dead_allocation_stores(func);
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
 
@@ -1754,99 +1781,123 @@ impl MemoryStoreEliminator {
         self.is_memory_or_gas_observer(func, inst_id)
     }
 
-    /// Removes the stores into a deferred allocation whose pointer only ever addresses stores.
+    /// Removes the stores into an allocation that no later read can observe.
     ///
-    /// Static placement already proved that such an object lives in one external entry, runs
-    /// once, and is never related to the free-memory pointer, so only values derived from its
-    /// pointer can reach its words. When every such value ends as the address of a store, as
-    /// the fields of a decoded struct do once forwarding has replaced the reads of the fields
-    /// the code uses, nothing reads what the stores write. The allocation stays: placement
-    /// handles it, and the address arithmetic and the loads feeding the stores die with them.
-    /// Removing writes can lower memory expansion, so functions observing gas keep their stores.
-    fn remove_write_only_allocation_stores(&mut self, func: &mut Function) {
-        let allocations: Vec<ValueId> = func
+    /// An `alloc` whose pointer does not escape is addressed only through the values derived from
+    /// it. The derivation follows `ptrtoint`, `inttoptr`, and `add` or `ptradd` of a constant,
+    /// which keep an exact offset, and `ptradd` of a runtime index, which can land anywhere in the
+    /// object and so reads all of it. A derived value may address a load, store, fill, copy, hash,
+    /// log, creation or call range, or the data of `revert` and `returndata`. Any other use, such
+    /// as storing it as a value, passing it to an internal call, joining it in a phi, or
+    /// subtracting from it, leaves the allocation untouched.
+    ///
+    /// A constant-offset `mstore` or `mstore8` inside the object is dead when no read that is
+    /// reachable after it overlaps the bytes it writes. A range read from offset `a` with a
+    /// runtime length covers the bytes from `a` on, which is how the length word of a `bytes`
+    /// object goes once forwarding has replaced its loads and the call or terminator reads only
+    /// the data after it. Other allocations do not overlap, so reads inside them never count,
+    /// unless a free-memory-pointer reset precedes the object, which then keeps its stores.
+    /// Assembly can still reach a heap object through a pointer rebuilt from the free-memory
+    /// pointer, so every other read that may touch heap memory reads all of it. A `ret` or tail
+    /// call reads no object whose pointer it does not receive. A read that may leave its own
+    /// allocation reaches the objects allocated after it, not the ones before. A write-only
+    /// deferred object, which static placement keeps unrelated to the free-memory pointer,
+    /// ignores them.
+    /// The allocation stays: later passes size and place it, and the address arithmetic feeding
+    /// the store dies with it.
+    ///
+    /// Removing a write can lower memory expansion, so functions observing gas keep their stores.
+    fn remove_dead_allocation_stores(&mut self, func: &mut Function) {
+        let allocations: Vec<_> = func
             .instructions()
-            .filter(|&inst| {
-                matches!(func.inst(inst).kind, InstKind::Alloc { .. })
-                    && func.inst(inst).metadata.deferred_alloc()
-            })
-            .filter_map(|inst| func.inst_result_value(inst))
+            .filter(|&inst| matches!(func.inst(inst).kind, InstKind::Alloc { .. }))
+            .filter_map(|inst| func.inst_result_value(inst).map(|value| (inst, value)))
             .collect();
         if allocations.is_empty() {
             return;
         }
+        let mut users: FxHashMap<ValueId, SmallVec<[AllocUse; 4]>> = FxHashMap::default();
+        let mut positions = FxHashMap::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for (index, &inst) in block.instructions.iter().enumerate() {
+                if matches!(func.inst(inst).kind, InstKind::Alloc { .. }) {
+                    positions.insert(inst, (block_id, index));
+                }
+                func.inst(inst).kind.visit_operands(|operand| {
+                    users.entry(operand).or_default().push(AllocUse::Inst(inst, block_id, index));
+                });
+            }
+            if let Some(terminator) = &block.terminator {
+                terminator.visit_operands(|operand| {
+                    users.entry(operand).or_default().push(AllocUse::Terminator(block_id));
+                });
+            }
+        }
+        let candidates: Vec<_> = allocations
+            .into_iter()
+            .filter_map(|(alloc, pointer)| {
+                let access = Self::allocation_accesses(func, &users, alloc, pointer)?;
+                // Static placement keeps a write-only deferred object unrelated to the heap. One
+                // that is read is placed by the free-memory pointer, so it stays heap-visible.
+                let exposed =
+                    !func.inst(alloc).metadata.deferred_alloc() || !access.reads.is_empty();
+                // After a free-memory-pointer reset, an object may lie over an earlier one.
+                if exposed && self.allocation_site(func, pointer) != Some(alloc) {
+                    return None;
+                }
+                (!access.stores.is_empty()).then_some((alloc, access, exposed))
+            })
+            .collect();
+        if candidates.is_empty() {
+            return;
+        }
+
         let cfg = &*self.cfg;
         let gas = GasObservations::new(func, cfg, self.alias());
         if func.instructions().any(|inst| gas.observes(inst)) {
             return;
         }
 
-        let mut users: FxHashMap<ValueId, SmallVec<[InstId; 4]>> = FxHashMap::default();
-        for inst in func.instructions() {
-            func.inst(inst)
-                .kind
-                .visit_operands(|operand| users.entry(operand).or_default().push(inst));
-        }
-        let mut terminator_uses = FxHashSet::default();
-        for block in func.blocks.iter() {
+        let mut heap_reads = Vec::new();
+        let mut wrapping_writes = false;
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for (index, &inst) in block.instructions.iter().enumerate() {
+                let effects = self.alias().instruction_mod_ref(func, inst);
+                self.collect_heap_reads(func, &effects, (block_id, index), &mut heap_reads);
+                wrapping_writes |= self.alias().instruction_may_wrap_write(func, inst);
+            }
             if let Some(terminator) = &block.terminator {
-                terminator.visit_operands(|operand| {
-                    terminator_uses.insert(operand);
-                });
+                let effects = self.alias().terminator_mod_ref(func, terminator);
+                self.collect_heap_reads(func, &effects, (block_id, usize::MAX), &mut heap_reads);
             }
         }
 
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for allocation in allocations {
-            let mut derived = FxHashSet::default();
-            let mut worklist = vec![allocation];
-            let mut stores = Vec::new();
-            let mut write_only = true;
-            while let Some(value) = worklist.pop() {
-                if !derived.insert(value) {
-                    continue;
-                }
-                if terminator_uses.contains(&value) {
-                    write_only = false;
-                    break;
-                }
-                for &user in users.get(&value).map(|users| users.as_slice()).unwrap_or_default() {
-                    let result = func.inst_result_value(user);
-                    match func.inst(user).kind {
-                        // mstore value, x: the pointer only addresses the write.
-                        InstKind::Store(address, stored, PtrLocation::Memory)
-                        | InstKind::Store8(address, stored)
-                            if address == value && stored != value =>
-                        {
-                            stores.push(user);
-                        }
-                        // ptradd value, offset | add value, offset: another address of the object.
-                        InstKind::PtrAdd(base, offset) | InstKind::Add(base, offset)
-                            if base == value && offset != value =>
-                        {
-                            worklist.extend(result);
-                        }
-                        InstKind::Add(offset, base) if base == value && offset != value => {
-                            worklist.extend(result);
-                        }
-                        InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => {
-                            worklist.extend(result)
-                        }
-                        _ => {
-                            write_only = false;
-                            break;
-                        }
-                    }
-                }
-                if !write_only {
-                    break;
-                }
+        for (alloc, access, exposed) in candidates {
+            let (alloc_block, alloc_index) = positions[&alloc];
+            // A write that wraps may rewind the free-memory pointer, which freshness ignores, and
+            // put any object over an earlier one.
+            if exposed && wrapping_writes {
+                continue;
             }
-            // A derived value stored as data escapes, which the store arm already rejects; an
-            // offset derived from the object itself never reaches here either.
-            if write_only {
-                for store in stores {
-                    dead.insert(store);
+            // An out-of-bounds read of an object that precedes this one can reach it.
+            let heap_reads = heap_reads.iter().filter(|read| {
+                exposed
+                    && read.beyond.is_none_or(|object| {
+                        let (block, index) = positions[&object];
+                        object != alloc
+                            && (block == alloc_block && index < alloc_index
+                                || Self::block_reaches(cfg, block, alloc_block))
+                    })
+            });
+            let heap_reads = heap_reads.collect::<Vec<_>>();
+            for store in &access.stores {
+                if !access.reads.iter().any(|read| Self::read_reaches(cfg, store, read))
+                    && !heap_reads.iter().any(|read| {
+                        Self::position_reaches(cfg, (store.block, store.index), read.position)
+                    })
+                {
+                    dead.insert(store.inst);
                 }
             }
         }
@@ -1857,6 +1908,393 @@ impl MemoryStoreEliminator {
         self.eliminated_count += dead.count();
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|&inst| !dead.contains(inst));
+        }
+    }
+
+    /// Records the reads in `effects` that may touch a heap object other than through the
+    /// pointer of one allocation, which the derivation of that pointer covers.
+    fn collect_heap_reads(
+        &self,
+        func: &Function,
+        effects: &ModRef,
+        position: (BlockId, usize),
+        heap_reads: &mut Vec<HeapRead>,
+    ) {
+        for access in effects.reads() {
+            let beyond = match *access {
+                Access::Any(AddressSpace::Memory) => None,
+                // A runtime-indexed access wraps, and so may land in any object.
+                Access::Location(Location::Memory(location))
+                    if location.size == LocationSize::Unknown =>
+                {
+                    None
+                }
+                Access::Location(Location::Memory(location)) => match location.address.base {
+                    // An access within the bounds of an allocation.
+                    MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_) => continue,
+                    // A slot of the frame below the heap. A longer range may run into the heap.
+                    MemoryBase::InternalFrame
+                        if location
+                            .size
+                            .as_const()
+                            .is_some_and(|size| size <= EvmMemoryLayout::WORD_SIZE) =>
+                    {
+                        continue;
+                    }
+                    MemoryBase::InternalFrame => None,
+                    MemoryBase::Absolute => {
+                        // The reserved words below the heap.
+                        let reserved = match location.size.as_const() {
+                            Some(0) => true,
+                            Some(size) => location
+                                .address
+                                .offset
+                                .checked_add(size)
+                                .is_some_and(|end| EvmMemoryLayout::is_reserved(end - 1)),
+                            None => false,
+                        };
+                        if reserved {
+                            continue;
+                        }
+                        None
+                    }
+                    // An access that may leave its allocation names it by its pointer, and
+                    // reaches only the objects above it.
+                    MemoryBase::Value(pointer) => self.allocation_site(func, pointer),
+                },
+                Access::Any(_) | Access::Location(_) => continue,
+            };
+            heap_reads.push(HeapRead { position, beyond });
+        }
+    }
+
+    /// Returns the allocation `pointer` is the result of, if it has a fresh provenance.
+    fn allocation_site(&self, func: &Function, pointer: ValueId) -> Option<InstId> {
+        let Value::Inst(inst) = func.value(pointer) else { return None };
+        (matches!(func.inst(*inst).kind, InstKind::Alloc { .. })
+            && self.alias().memory_address(func, pointer).is_some_and(|address| {
+                matches!(
+                    address.base,
+                    MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site)
+                        if site == *inst
+                )
+            }))
+        .then_some(*inst)
+    }
+
+    /// Collects the constant-offset stores into the allocation `alloc` and every read of its
+    /// bytes, or returns `None` when its pointer is used in a way this analysis does not model.
+    fn allocation_accesses(
+        func: &Function,
+        users: &FxHashMap<ValueId, SmallVec<[AllocUse; 4]>>,
+        alloc: InstId,
+        pointer: ValueId,
+    ) -> Option<AllocAccesses> {
+        let InstKind::Alloc { size, semantics } = func.inst(alloc).kind else { return None };
+        let mut walk = AllocWalk {
+            func,
+            size: if semantics.failure == AllocationFailure::Infallible {
+                AllocWalk::size_lower_bound(func, size, 4)
+            } else {
+                func.value_u64(size).unwrap_or(0)
+            },
+            derived: FxHashMap::from_iter([(pointer, AllocPointer::START)]),
+            worklist: vec![pointer],
+            accesses: AllocAccesses::default(),
+        };
+        while let Some(value) = walk.worklist.pop() {
+            let at = walk.derived[&value];
+            for &user in users.get(&value).map(|users| users.as_slice()).unwrap_or_default() {
+                // `value` may only appear as an address; any other operand position is an escape.
+                let (addresses, operands) = match user {
+                    AllocUse::Inst(inst, block, index) => {
+                        let mut operands = 0;
+                        func.inst(inst)
+                            .kind
+                            .visit_operands(|operand| operands += usize::from(operand == value));
+                        (walk.inst_addresses(value, at, inst, block, index)?, operands)
+                    }
+                    AllocUse::Terminator(block) => {
+                        let terminator = func.blocks[block].terminator.as_ref()?;
+                        let mut operands = 0;
+                        terminator
+                            .visit_operands(|operand| operands += usize::from(operand == value));
+                        (walk.terminator_addresses(value, at, block, terminator), operands)
+                    }
+                };
+                if addresses != operands {
+                    return None;
+                }
+            }
+        }
+        Some(walk.accesses)
+    }
+
+    /// Returns whether `read` may observe bytes `store` wrote: it overlaps them and runs after
+    /// the store.
+    fn read_reaches(cfg: &CfgInfo, store: &AllocStore, read: &AllocRead) -> bool {
+        read.range.overlaps(store.range)
+            && Self::position_reaches(cfg, (store.block, store.index), (read.block, read.index))
+    }
+
+    /// Returns whether `to` runs after `from`: later in its block or in a block `from`'s block
+    /// can reach.
+    fn position_reaches(cfg: &CfgInfo, from: (BlockId, usize), to: (BlockId, usize)) -> bool {
+        from.0 == to.0 && from.1 < to.1 || Self::block_reaches(cfg, from.0, to.0)
+    }
+
+    /// Returns whether a path of at least one edge leads from `from` to `to`.
+    fn block_reaches(cfg: &CfgInfo, from: BlockId, to: BlockId) -> bool {
+        cfg.transitive_reachability(from).is_none_or(|reachable| reachable.contains(to))
+    }
+}
+
+/// A read that may touch any heap object, or only the objects above the allocation `beyond`.
+struct HeapRead {
+    position: (BlockId, usize),
+    beyond: Option<InstId>,
+}
+
+/// A use of a value: an instruction at an index of its block, or a block's terminator.
+#[derive(Clone, Copy)]
+enum AllocUse {
+    Inst(InstId, BlockId, usize),
+    Terminator(BlockId),
+}
+
+/// A pointer derived from an allocation: its constant offset from the object start, and whether
+/// a runtime index has moved it by an unknown amount.
+#[derive(Clone, Copy)]
+struct AllocPointer {
+    offset: u64,
+    runtime_index: bool,
+}
+
+impl AllocPointer {
+    const START: Self = Self { offset: 0, runtime_index: false };
+
+    /// The object bytes an access of `len` bytes from this pointer covers: everything from the
+    /// pointer on when the length is not constant, nothing for an empty access, and the whole
+    /// object when a runtime index moved the pointer, since address arithmetic wraps and an index
+    /// can land anywhere in it.
+    fn range(self, len: Option<u64>) -> Option<AllocRange> {
+        if self.runtime_index {
+            return Some(AllocRange { start: 0, end: None });
+        }
+        let end = match len {
+            Some(0) => return None,
+            Some(len) => self.offset.checked_add(len),
+            None => None,
+        };
+        Some(AllocRange { start: self.offset, end })
+    }
+}
+
+/// A byte range of an allocation, open-ended when `end` is `None`.
+#[derive(Clone, Copy)]
+struct AllocRange {
+    start: u64,
+    end: Option<u64>,
+}
+
+impl AllocRange {
+    fn overlaps(self, other: Self) -> bool {
+        self.end.is_none_or(|end| end > other.start) && other.end.is_none_or(|end| end > self.start)
+    }
+}
+
+struct AllocStore {
+    inst: InstId,
+    block: BlockId,
+    index: usize,
+    range: AllocRange,
+}
+
+struct AllocRead {
+    block: BlockId,
+    /// `usize::MAX` for a terminator, which runs after every instruction.
+    index: usize,
+    range: AllocRange,
+}
+
+#[derive(Default)]
+struct AllocAccesses {
+    stores: Vec<AllocStore>,
+    reads: Vec<AllocRead>,
+}
+
+/// The walk over the values derived from one allocation pointer.
+struct AllocWalk<'a> {
+    func: &'a Function,
+    /// A lower bound of the allocation's byte size.
+    size: u64,
+    derived: FxHashMap<ValueId, AllocPointer>,
+    worklist: Vec<ValueId>,
+    accesses: AllocAccesses,
+}
+
+impl AllocWalk<'_> {
+    /// Records the accesses `inst` makes through `value`, derived pointer `at`, and returns the
+    /// number of its operand positions that hold `value` as an address, or `None` when the
+    /// derivation overflows.
+    fn inst_addresses(
+        &mut self,
+        value: ValueId,
+        at: AllocPointer,
+        inst: InstId,
+        block: BlockId,
+        index: usize,
+    ) -> Option<usize> {
+        let func = self.func;
+        let is = |address| usize::from(address == value);
+        Some(match func.inst(inst).kind {
+            InstKind::Load(address, PtrLocation::Memory) => {
+                self.read(address == value, at, block, index, Some(32));
+                is(address)
+            }
+            InstKind::Keccak256(address, len)
+            | InstKind::Log { offset: address, size: len, .. }
+            | InstKind::Create(_, address, len)
+            | InstKind::Create2(_, address, len, _) => {
+                self.read(address == value, at, block, index, func.value_u64(len));
+                is(address)
+            }
+            InstKind::Call { args_offset, args_size, ret_offset, .. }
+            | InstKind::CallCode { args_offset, args_size, ret_offset, .. }
+            | InstKind::StaticCall { args_offset, args_size, ret_offset, .. }
+            | InstKind::DelegateCall { args_offset, args_size, ret_offset, .. } => {
+                self.read(args_offset == value, at, block, index, func.value_u64(args_size));
+                is(args_offset) + is(ret_offset)
+            }
+            InstKind::Copy(dest, source, len, PtrLocation::Memory) => {
+                self.read(source == value, at, block, index, func.value_u64(len));
+                is(dest) + is(source)
+            }
+            InstKind::Store(address, _, PtrLocation::Memory) => {
+                self.store(address == value, at, inst, block, index, 32);
+                is(address)
+            }
+            InstKind::Store8(address, _) => {
+                self.store(address == value, at, inst, block, index, 1);
+                is(address)
+            }
+            InstKind::MemoryZero(address, _)
+            | InstKind::Copy(address, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
+            | InstKind::DataCopy(_, address, _)
+            | InstKind::CodeCopy(address, ..)
+            | InstKind::ExtCodeCopy(_, address, ..) => is(address),
+            InstKind::PtrAdd(base, offset) if base == value => {
+                let next = match func.value_u64(offset) {
+                    Some(offset) => AllocPointer { offset: at.offset.checked_add(offset)?, ..at },
+                    None => AllocPointer { runtime_index: true, ..at },
+                };
+                self.derive(inst, next);
+                1
+            }
+            InstKind::Add(base, offset) | InstKind::Add(offset, base)
+                if base == value
+                    && let Some(offset) = func.value_u64(offset) =>
+            {
+                self.derive(inst, AllocPointer { offset: at.offset.checked_add(offset)?, ..at });
+                1
+            }
+            InstKind::PtrToInt(operand, 256) | InstKind::IntToPtr(operand) if operand == value => {
+                self.derive(inst, at);
+                1
+            }
+            _ => 0,
+        })
+    }
+
+    /// As [`Self::inst_addresses`], for a terminator.
+    fn terminator_addresses(
+        &mut self,
+        value: ValueId,
+        at: AllocPointer,
+        block: BlockId,
+        terminator: &Terminator,
+    ) -> usize {
+        match *terminator {
+            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
+                // A terminator runs after every instruction of its block.
+                self.read(offset == value, at, block, usize::MAX, self.func.value_u64(size));
+                usize::from(offset == value)
+            }
+            _ => 0,
+        }
+    }
+
+    fn read(
+        &mut self,
+        addresses: bool,
+        at: AllocPointer,
+        block: BlockId,
+        index: usize,
+        len: Option<u64>,
+    ) {
+        if addresses && let Some(range) = at.range(len) {
+            self.accesses.reads.push(AllocRead { block, index, range });
+        }
+    }
+
+    /// Records a `width`-byte store at the exact offset `at` of the object, if it fits. A store
+    /// past the end of the object may write over the next one, which it then leaves alone.
+    fn store(
+        &mut self,
+        addresses: bool,
+        at: AllocPointer,
+        inst: InstId,
+        block: BlockId,
+        index: usize,
+        width: u64,
+    ) {
+        if addresses
+            && let Some(range) = at.range(Some(width))
+            && range.end.is_some_and(|end| end <= self.size)
+        {
+            self.accesses.stores.push(AllocStore { inst, block, index, range });
+        }
+    }
+
+    /// A lower bound of the size of an infallible allocation, whose size arithmetic has been
+    /// proven not to wrap: constants, sums, and masks that clear low bits, such as the rounding
+    /// of a length to whole words.
+    fn size_lower_bound(func: &Function, size: ValueId, depth: u32) -> u64 {
+        if let Some(size) = func.value_u256(size) {
+            return crate::mir::utils::u256_to_u64(size).unwrap_or(u64::MAX);
+        }
+        let (Value::Inst(inst), Some(depth)) = (func.value(size), depth.checked_sub(1)) else {
+            return 0;
+        };
+        let bound = |value| Self::size_lower_bound(func, value, depth);
+        match func.inst(*inst).kind {
+            // A constant that does not fit a word count is a wrapped subtraction, such as
+            // `add x, 2^256 - 32` for `x - 32`, which lowers the sum.
+            InstKind::Add(a, b)
+                if [a, b]
+                    .iter()
+                    .any(|&v| func.value_u64(v).is_none() && func.value_u256(v).is_some()) =>
+            {
+                0
+            }
+            InstKind::Add(a, b) => bound(a).saturating_add(bound(b)),
+            // `and x, mask` is monotonic in `x` when the mask only clears low bits.
+            InstKind::And(x, mask) | InstKind::And(mask, x)
+                if let Some(mask) = func.value_u256(mask)
+                    && (!mask & (!mask).wrapping_add(U256::from(1))).is_zero() =>
+            {
+                crate::mir::utils::u256_to_u64(U256::from(bound(x)) & mask).unwrap_or(u64::MAX)
+            }
+            _ => 0,
+        }
+    }
+
+    /// Follows the result of `inst`, a pointer derived from `at`.
+    fn derive(&mut self, inst: InstId, next: AllocPointer) {
+        if let Some(result) = self.func.inst_result_value(inst)
+            && self.derived.insert(result, next).is_none()
+        {
+            self.worklist.push(result);
         }
     }
 }

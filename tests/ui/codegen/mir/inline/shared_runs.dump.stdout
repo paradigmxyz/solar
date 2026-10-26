@@ -74,7 +74,7 @@ fn @paintBool() -> i256 [may_return_memory, pure] {
 
 fn @wrap(arg0: i256) -> i256 [may_return_memory, pure] {
   bb0:
-    v21 = add arg0, 32
+    v23 = add arg0, 32
     v2 = mload arg0
     v5 = add v2, 1
     v6 = add v2, 2
@@ -83,18 +83,21 @@ fn @wrap(arg0: i256) -> i256 [may_return_memory, pure] {
     jumpi v8, bb1, bb2
   bb2:
     v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v33 = add v32, v10 !metadata(alloc_ptr)
-    mstore 64, v33 !metadata(memory=scratch)
-    mstore v32, v6
-    v23 = add v32, 32
-    mstore v23, 0x3c00000000000000000000000000000000000000000000000000000000000000
-    v25 = add v32, 33
-    mcopy v25, v21, v2
-    v27 = add v32, v5
-    v28 = add v27, 32
-    mstore v28, 0x3e00000000000000000000000000000000000000000000000000000000000000
-    ret v32
+    v37 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v38 = add v37, v10 !metadata(alloc_ptr)
+    mstore 64, v38 !metadata(memory=scratch)
+    mstore v37, v6
+    v25 = add v37, 32
+    mstore v25, 0x3c00000000000000000000000000000000000000000000000000000000000000
+    v27 = add v37, 33
+    mcopy v27, v23, v2
+    v29 = add v37, v5
+    v30 = add v29, 32
+    mstore v30, 0x3e00000000000000000000000000000000000000000000000000000000000000
+    v32 = add v37, v6
+    v33 = add v32, 32
+    mstore v33, 0
+    ret v37
   bb1:
     tail_call @revert_stub
 }

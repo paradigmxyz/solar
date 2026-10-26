@@ -2420,7 +2420,9 @@ impl LowerAbiCx {
     ///
     /// Calldata indexing validates the selected word at the point of access.
     /// A full pass is only needed when the array itself crosses another ABI or
-    /// memory boundary, such as encoding or passing it to another function.
+    /// memory boundary, such as encoding it or passing it to an external call.
+    /// An internal callee that takes it as a calldata slice validates the
+    /// elements it reads, copies or encodes, so passing it there needs none.
     fn needs_full_calldata_array_validation(
         &self,
         func: &Function,
@@ -2460,7 +2462,13 @@ impl LowerAbiCx {
                             || callee_params.and_then(|params| params.get(index))
                                 == Some(&MirType::Slice(PtrLocation::Calldata))
                     });
-                    !preserves_calldata
+                    // A callee that takes the array as a calldata slice validates each element
+                    // where it reads, copies or encodes it, as solc does, so the call alone
+                    // needs no validation here, whether or not it returns a value.
+                    if preserves_calldata {
+                        continue;
+                    }
+                    true
                 }
                 InstKind::ExtractValue { ty: MirType::Slice(_), .. } => false,
                 InstKind::Load(
@@ -3002,6 +3010,12 @@ fn is_canonical_return_value_inner(
     if !ty.needs_return_cleanup()
         || (source == ReturnValueSource::Scalar
             && reuses_validated_input(func, value, input_params, ty))
+    {
+        return true;
+    }
+    // Element cleanup's proof covers every write into the array this function returns.
+    if let AbiParamType::DynamicArray(element) | AbiParamType::FixedArray { element, .. } = ty
+        && returns_proved_array(func, element, value)
     {
         return true;
     }
@@ -3601,13 +3615,7 @@ fn is_canonical_return_array_param(
     calls: &CanonicalCallProof<'_>,
 ) -> bool {
     let Some(bits) = abi_element_bits(element) else { return false };
-    // The array this function returns, whether it built it or received it.
-    if func.attributes.array_return_element_bits.is_some_and(|proved| proved <= bits)
-        && func.blocks.iter().any(|block| {
-            matches!(&block.terminator, Some(Terminator::Return { values })
-                if values.first() == Some(&object))
-        })
-    {
+    if returns_proved_array(func, element, object) {
         return true;
     }
     // An array a call returned and nothing has written since.
@@ -3629,6 +3637,17 @@ fn is_canonical_return_array_param(
     }
     let Value::Arg(index) = *func.value(object) else { return false };
     func.attributes.array_element_bits.get(&index).is_some_and(|&proved| proved <= bits)
+}
+
+/// Whether `object` is the array this function returns, whether it built it or received it,
+/// and element cleanup proved its words narrow enough for the ABI element type.
+fn returns_proved_array(func: &Function, element: &AbiParamType, object: ValueId) -> bool {
+    abi_element_bits(element).is_some_and(|bits| {
+        func.attributes.array_return_element_bits.is_some_and(|proved| proved <= bits)
+    }) && func.blocks.iter().any(|block| {
+        matches!(&block.terminator, Some(Terminator::Return { values })
+            if values.first() == Some(&object))
+    })
 }
 
 /// The width the ABI validates for a scalar array element, when it validates one.

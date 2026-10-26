@@ -54,10 +54,7 @@ bb6:
   dup 2
   lt
   swap 1
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   lt
   or
   push bb8
@@ -66,9 +63,6 @@ bb6:
   calldatasize
   dup 3
   calldatacopy
-  push 3
-  dup 2
-  mstore
   push 7
   push 96
   dup 3

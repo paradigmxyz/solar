@@ -399,6 +399,17 @@ impl Target {
     /// The most bytes the copies of a completely unrolled loop's body may take, whatever its
     /// pricing, so that a contract near the code size limit cannot grow past it.
     pub(crate) const MAX_LOOP_COPY_BYTES: u32 = 256;
+    /// The most bytes one copy of a loop block into a path that jumps to it may take: a latch
+    /// and the header test that the paths of a branching loop body then repeat. On the safe
+    /// Solady benchmarks the gas saved stops growing past this size, while the runtime corpus
+    /// keeps growing.
+    pub(crate) const MAX_LOOP_JOIN_COPY_BYTES: u32 = 40;
+    /// Below [`Self::LOOP_COPY_MIN_RUNS`], the copies of loop blocks into the paths that jump to
+    /// them may add one part in this many of a small module's code.
+    pub(crate) const LOOP_JOIN_COPY_SHARE: u64 = 20;
+    /// The code size below which a module counts as small when its copies are weighed against
+    /// it: a contract built around a loop or two, a sixth of EIP-170's limit.
+    pub(crate) const SMALL_CODE_BYTES: u64 = 4_096;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
@@ -490,6 +501,44 @@ impl Target {
     /// Whether the build expects enough executions to copy loop bodies for runtime gas.
     pub(crate) fn copies_loops(&self) -> bool {
         self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
+    }
+
+    /// Whether copying a loop block whose code costs `copy`, entered on `paths` paths, into a loop
+    /// block that jumps to it pays. In gas builds the copy saves the jump's label push, `JUMP` and
+    /// `JUMPDEST` on each iteration through the edge: [`Self::UNCOUNTED_LOOP_ITERATIONS`] per
+    /// execution, shared equally by the paths into the block, against the deposit of the copied
+    /// bytes beyond the removed label push and `JUMP`. No copy is larger than
+    /// [`Self::MAX_LOOP_JOIN_COPY_BYTES`].
+    pub(crate) fn duplicates_loop_block(&self, copy: Cost, paths: u32) -> bool {
+        if !self.optimization.is_gas() || paths == 0 || copy.bytes > Self::MAX_LOOP_JOIN_COPY_BYTES
+        {
+            return false;
+        }
+        let (added, saved) = self.loop_block_copy(copy, paths);
+        !self.deposit_repays_gas(added, saved)
+    }
+
+    /// The bytes a copy of a loop block whose code costs `copy`, entered on `paths` paths, adds
+    /// beyond the label push and `JUMP` it replaces, and the gas it saves on each execution: the
+    /// jump on [`Self::UNCOUNTED_LOOP_ITERATIONS`] iterations, shared equally by the paths.
+    pub(crate) fn loop_block_copy(&self, copy: Cost, paths: u32) -> (u64, u64) {
+        let removed = self.label_push() + self.opcode(op::JUMP);
+        let saved =
+            u64::from(self.jump().gas) * Self::UNCOUNTED_LOOP_ITERATIONS / u64::from(paths.max(1));
+        (u64::from(copy.bytes.saturating_sub(removed.bytes)), saved)
+    }
+
+    /// The most bytes the copies of loop blocks may add to a module of `code_bytes` bytes. From
+    /// [`Self::LOOP_COPY_MIN_RUNS`] on, and in a module of at least [`Self::SMALL_CODE_BYTES`],
+    /// every copy that pays goes. Below those runs, as at the default 200, a build still values
+    /// its code size, and in a small module a couple of copies of its one loop grow it by a tenth
+    /// or more: they may add one part in [`Self::LOOP_JOIN_COPY_SHARE`] of its code.
+    pub(crate) fn loop_join_copy_budget(&self, code_bytes: u64) -> u64 {
+        if self.copies_loops() || code_bytes >= Self::SMALL_CODE_BYTES {
+            u64::MAX
+        } else {
+            code_bytes / Self::LOOP_JOIN_COPY_SHARE
+        }
     }
 
     /// Static gas of one opcode; unknown opcodes are free.
@@ -857,6 +906,35 @@ impl Target {
             > u128::from(gas) * u128::from(self.expected_executions)
     }
 
+    /// Whether a compact recipe for an immediate, `saved_bytes` shorter than its literal push and
+    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas builds
+    /// take them when the deposit they save covers the extra gas over the expected executions,
+    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a loop, so a hot loop
+    /// pushes a mask as a literal rather than rebuilding it on every iteration; a tie takes the
+    /// bytes, which cost no more over the deployment's lifetime.
+    ///
+    /// The push is priced over at most [`Self::DEFAULT_EXPECTED_EXECUTIONS`]: it runs only on the
+    /// calls whose path reaches it, a fraction of the deployment's calls once they spread over its
+    /// entry points. Priced at the full count, a contract built for 1,000 runs keeps each
+    /// left-aligned string literal as a `PUSH32`, 26 bytes longer than a shifted `PUSH3`, to save
+    /// 6 gas on the calls that reach it, and each `not(31)` of its loops as a `PUSH32`, 30 bytes
+    /// longer than `PUSH1 31 NOT`, to save 3 gas an iteration.
+    pub(crate) fn compacts_immediate(
+        &self,
+        saved_bytes: u64,
+        extra_gas: u64,
+        in_loop: bool,
+    ) -> bool {
+        if !self.optimization.is_gas() {
+            return true;
+        }
+        let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
+        let executions = self.expected_executions.min(Self::DEFAULT_EXPECTED_EXECUTIONS);
+        saved_bytes != 0
+            && u128::from(saved_bytes) * u128::from(self.byte_gas())
+                >= u128::from(extra_gas) * u128::from(iterations) * u128::from(executions)
+    }
+
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
     pub(crate) fn improves(&self, gas_saving: i64, byte_saving: i64) -> bool {
@@ -1048,6 +1126,19 @@ impl Target {
             return false;
         }
         (jump.times(sites) + copy + self.opcode(op::JUMPDEST)).bytes < copy.times(sites).bytes
+    }
+
+    /// Whether code shared from a site inside a loop pays for itself when the bytes it saves at
+    /// that site, `saved_bytes`, cost `transfer_gas` more on every iteration: the deposit of the
+    /// bytes against the transfers over the expected executions,
+    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times per execution. This holds in size builds too,
+    /// which otherwise take the bytes, so a hot loop keeps code that only its size made worth
+    /// sharing.
+    pub(crate) fn shares_in_loop(&self, saved_bytes: u64, transfer_gas: u64) -> bool {
+        self.deposit_repays_gas(
+            saved_bytes,
+            transfer_gas.saturating_mul(Self::UNCOUNTED_LOOP_ITERATIONS),
+        )
     }
 }
 
@@ -1395,6 +1486,35 @@ mod tests {
     }
 
     #[test]
+    fn compact_immediates_repay_their_gas() {
+        // `type(uint128).max`: `PUSH16` is 17 bytes for 3 gas, `PUSH0 NOT PUSH1 128 SHR` 5 bytes
+        // for 11: 12 bytes deposit 2,400 gas against 8 gas on 200 executions, 1,600, or 16,000
+        // ten times over in a loop.
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        assert!(target.compacts_immediate(12, 8, false));
+        assert!(!target.compacts_immediate(12, 8, true));
+        // `type(uint64).max`: 4 bytes, 800 gas, do not repay 8 gas on 200 executions.
+        assert!(!target.compacts_immediate(4, 8, false));
+        // A recipe that costs no more gas always wins.
+        assert!(target.compacts_immediate(1, 0, true));
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        assert!(size.compacts_immediate(12, 8, true));
+        // A tie takes the bytes: `not(31)` in a loop saves 30 bytes, 6,000 gas, for 3 gas ten
+        // times over on 200 executions, 6,000.
+        assert!(target.compacts_immediate(30, 3, true));
+        // A recipe that saves no bytes does not win.
+        assert!(!target.compacts_immediate(0, 0, false));
+        // More runs than the default price a push at the default: the 26 bytes of a left-aligned
+        // `"abc"`, 5,200 gas, repay 6 gas on 200 executions, though not on 1,000, nor ten times
+        // over in a loop, and `not(31)` still ties in a loop.
+        let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 1_000);
+        assert!(hot.compacts_immediate(26, 6, false));
+        assert!(!hot.compacts_immediate(26, 6, true));
+        assert!(!hot.compacts_immediate(4, 8, false));
+        assert!(hot.compacts_immediate(30, 3, true));
+    }
+
+    #[test]
     fn deposit_repays_gas_over_expected_executions() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         // 10 bytes deposit 2,000 gas; 9 gas on 200 executions is 1,800.
@@ -1530,5 +1650,58 @@ mod tests {
         let many = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
         assert_eq!(many.legacy_shift_factor(shift(224)), Some(U256::ONE << 224));
         assert_eq!(many.legacy_shift_factor(shift(256)), Some(U256::ZERO));
+    }
+
+    #[test]
+    fn loop_sites_share_by_lifetime_gas() {
+        // A pooled `PUSH32` saves 25 bytes at a site and adds 27 gas of transfers to every
+        // iteration: 5,000 gas of deposit against 54,000 over 200 runs of ten iterations, or 270
+        // over one run.
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = |runs| Target::with(EvmVersion::Cancun, optimization, runs);
+            assert!(!target(200).shares_in_loop(25, 27));
+            assert!(target(1).shares_in_loop(25, 27));
+            assert!(!target(1).shares_in_loop(0, 27));
+        }
+    }
+
+    #[test]
+    fn loop_blocks_are_duplicated_by_lifetime_gas() {
+        let gas = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
+        // A 12-byte latch on one of three paths saves 12 gas on a third of ten iterations: 8,000
+        // gas over 200 runs against 8 more bytes, 1,600 gas of deposit.
+        assert!(gas.duplicates_loop_block(Cost::new(30, 12), 3));
+        // Then the saving repays at most 40 added bytes, and on the only path any copy that
+        // fits the size limit.
+        assert!(gas.duplicates_loop_block(Cost::new(0, 40), 3));
+        assert!(!gas.duplicates_loop_block(Cost::new(0, 40), 4));
+        assert!(gas.duplicates_loop_block(Cost::new(0, Target::MAX_LOOP_JOIN_COPY_BYTES), 1));
+        assert!(!gas.duplicates_loop_block(Cost::new(0, Target::MAX_LOOP_JOIN_COPY_BYTES + 1), 1));
+        // One expected execution repays no added byte.
+        let once = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 1);
+        assert!(once.duplicates_loop_block(Cost::new(0, 4), 1));
+        assert!(!once.duplicates_loop_block(Cost::new(0, 5), 1));
+        let size = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
+        assert!(!size.duplicates_loop_block(Cost::new(30, 12), 1));
+    }
+
+    #[test]
+    fn loop_join_copies_keep_to_a_share_of_the_code() {
+        let gas = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
+        // A 12-byte latch adds 8 bytes beyond the label push and jump it replaces, and saves the
+        // jump on a third of ten iterations.
+        assert_eq!(
+            gas.loop_block_copy(Cost::new(30, 12), 3),
+            (8, u64::from(gas.jump().gas) * 10 / 3)
+        );
+        // At 200 runs, a 194-byte contract built around one loop may grow by 9 bytes, the
+        // largest small one by 204, and a large one by every copy that pays.
+        assert_eq!(gas.loop_join_copy_budget(194), 9);
+        assert_eq!(gas.loop_join_copy_budget(Target::SMALL_CODE_BYTES - 1), 204);
+        assert_eq!(gas.loop_join_copy_budget(Target::SMALL_CODE_BYTES), u64::MAX);
+        // From the runs that copy loop bodies on, every copy that pays goes.
+        let hot =
+            Target::with(EvmVersion::Cancun, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
+        assert_eq!(hot.loop_join_copy_budget(194), u64::MAX);
     }
 }

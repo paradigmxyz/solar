@@ -453,7 +453,15 @@ bb28:
   push 32
   dup 2
   add
-  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  push 0
+  not
+  push 128
+  shr
+  push 0
+  not
+  div
+  push 0x112233445566778899aabbccddeeff00
+  mul
   dup 1
   dup 3
   mstore
