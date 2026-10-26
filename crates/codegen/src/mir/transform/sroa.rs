@@ -121,14 +121,14 @@ impl SroaCx {
         candidate: &Candidate,
     ) -> Option<bool> {
         let &Candidate { object, inst: alloc, size: zero_size } = candidate;
-        let scanned = &scan.objects[index - scan.first];
+        let scanned = &scan.objects[index];
         if scanned.rejected {
             return None;
         }
 
         let location = alias.bare_memory_location(func, object, LocationSize::Const(zero_size))?;
         let effects = scan.effects.get_or_insert_default();
-        if effects.touches(func, alias, location, zero_size, alloc, scanned) {
+        if effects.touches(func, alias, location, alloc, scanned) {
             return None;
         }
 
@@ -187,10 +187,9 @@ impl SroaCx {
     }
 }
 
-/// What one walk of the function says about each candidate from `first` on, and, once a
-/// candidate asks, about the memory effects of the whole function.
+/// What one walk of the function says about each candidate from the one that started it on,
+/// and, once a candidate asks, about the memory effects of the whole function.
 struct Scan {
-    first: usize,
     objects: Vec<ObjectScan>,
     effects: Option<Effects>,
 }
@@ -247,13 +246,11 @@ impl Scan {
         candidates: &[Candidate],
         first: usize,
     ) -> Self {
-        let candidates = &candidates[first..];
-
         // Pointer casts and constant `ptradd`s of an object address its words; map each derived
         // address to its object and byte offset. A derivation is no phi, so its operand comes
         // first in reverse postorder.
         let mut roots = FxHashMap::default();
-        for (index, candidate) in candidates.iter().enumerate() {
+        for (index, candidate) in candidates.iter().enumerate().skip(first) {
             if !alias.value_escapes(func, candidate.object) {
                 roots.insert(candidate.object, (index, 0_u64));
             }
@@ -333,7 +330,7 @@ impl Scan {
                 });
             }
         }
-        Self { first, objects, effects: None }
+        Self { objects, effects: None }
     }
 
     /// Classifies how `inst` uses the addresses of object `index`.
@@ -384,10 +381,12 @@ impl Scan {
 /// as it needs to find something that touches its object, and later candidates resume there.
 #[derive(Default)]
 struct Effects {
-    /// The instruction (`None` for a terminator) of each access that may overlap any object.
+    /// The instruction (`None` for a terminator) of each access to unknown memory.
     blockers: Vec<Option<InstId>>,
-    /// Accesses to each allocation site, with the instruction making them (`None` for a
-    /// terminator).
+    /// Accesses based on something other than an allocation site, with the instruction making
+    /// them (`None` for a terminator).
+    elsewhere: Vec<(Option<InstId>, MemoryLocation)>,
+    /// Accesses to each allocation site, with the instruction making them.
     touched: FxHashMap<InstId, Vec<(Option<InstId>, MemoryLocation)>>,
     /// The instructions of the candidate being checked.
     own: GrowableBitSet<InstId>,
@@ -404,7 +403,6 @@ impl Effects {
         func: &Function,
         alias: &AliasAnalysis,
         location: MemoryLocation,
-        zero_size: u64,
         alloc: InstId,
         object: &ObjectScan,
     ) -> bool {
@@ -419,7 +417,7 @@ impl Effects {
         for inst in own() {
             self.own.insert(inst);
         }
-        let touches = self.scan(func, alias, location, zero_size, alloc);
+        let touches = self.scan(func, alias, location, alloc);
         for inst in own() {
             self.own.remove(inst);
         }
@@ -431,18 +429,23 @@ impl Effects {
         func: &Function,
         alias: &AliasAnalysis,
         location: MemoryLocation,
-        zero_size: u64,
         alloc: InstId,
     ) -> bool {
         let is_other = |owner: Option<InstId>, own: &GrowableBitSet<InstId>| {
             owner.is_none_or(|inst| !own.contains(inst))
         };
-        let (mut blockers, mut touched) = (0, 0);
+        let (mut blockers, mut elsewhere, mut touched) = (0, 0, 0);
         loop {
-            // A base other than an allocation site may overlap any object.
             while blockers < self.blockers.len() {
                 blockers += 1;
-                if zero_size != 0 && is_other(self.blockers[blockers - 1], &self.own) {
+                if is_other(self.blockers[blockers - 1], &self.own) {
+                    return true;
+                }
+            }
+            while elsewhere < self.elsewhere.len() {
+                elsewhere += 1;
+                let (owner, other) = self.elsewhere[elsewhere - 1];
+                if is_other(owner, &self.own) && alias.memory_alias(other, location).may_alias() {
                     return true;
                 }
             }
@@ -484,22 +487,23 @@ impl Effects {
     }
 
     fn record(&mut self, owner: Option<InstId>, effects: &ModRef) {
-        let mut blocks = false;
+        let mut unknown = false;
         for &access in effects.reads().iter().chain(effects.writes()) {
             match access {
-                Access::Any(AddressSpace::Memory) => blocks = true,
+                Access::Any(AddressSpace::Memory) => unknown = true,
                 Access::Location(Location::Memory(location)) => match location.address.base {
+                    // Accesses to other allocation sites never overlap the object.
                     MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => {
                         self.touched.entry(site).or_default().push((owner, location));
                     }
                     MemoryBase::Absolute | MemoryBase::InternalFrame | MemoryBase::Value(_) => {
-                        blocks |= location.size != LocationSize::Const(0);
+                        self.elsewhere.push((owner, location));
                     }
                 },
                 Access::Any(_) | Access::Location(_) => {}
             }
         }
-        if blocks {
+        if unknown {
             self.blockers.push(owner);
         }
     }
