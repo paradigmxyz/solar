@@ -3,8 +3,8 @@
 @phase lowered
 fn @sizes() [selector=0xebf5a899, abi_wrapper, pure] {
   bb0:
-    v12 = icall @decode_calldata_type
-    v0 = mload v12
+    v10 = icall @decode_calldata_type
+    v0 = mload v10
     v1 = ne v0, 32
     jumpi v1, bb1, bb2
   bb2:
@@ -17,36 +17,39 @@ fn @sizes() [selector=0xebf5a899, abi_wrapper, pure] {
 
 fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
   bb0:
-    v24 = icall @decode_calldata_type
-    v0 = mload v24
+    v26 = icall @decode_calldata_type
+    v0 = mload v26
     v1 = eq v0, 64
     jumpi v1, bb2, bb1
   bb1:
     revert 0, 0
   bb2:
-    v39 = add v24, 32
+    v41 = add v26, 32
     v9 = add v0, 32
     v10 = add v9, 63
     v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v50 = mload 64 !metadata(memory=scratch)
-    v51 = add v50, v13
-    mstore 64, v51 !metadata(memory=scratch)
-    mstore v50, v9
-    v41 = add v50, 32
-    mcopy v41, v39, v0
-    v43 = add v50, v0
-    v44 = add v43, 32
-    mstore v44, 64
-    v30 = add v9, 31
-    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v34 = add v41, v32
-    mstore v34, 0
-    v46 = add v50, 64
-    mcopy v46, v41, v9
-    mstore v50, 32
-    mstore v41, v9
-    v36 = add v32, 64
-    returndata v50, v36
+    v55 = mload 64 !metadata(memory=scratch)
+    v56 = add v55, v13
+    mstore 64, v56 !metadata(memory=scratch)
+    mstore v55, v9
+    v43 = add v55, 32
+    mcopy v43, v41, v0
+    v45 = add v55, v0
+    v46 = add v45, 32
+    mstore v46, 64
+    v48 = add v55, v9
+    v49 = add v48, 32
+    mstore v49, 0
+    v32 = add v9, 31
+    v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = add v43, v34
+    mstore v36, 0
+    v51 = add v55, 64
+    mcopy v51, v43, v9
+    mstore v55, 32
+    mstore v43, v9
+    v38 = add v34, 64
+    returndata v55, v38
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

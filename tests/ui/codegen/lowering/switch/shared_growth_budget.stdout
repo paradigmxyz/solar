@@ -32,26 +32,31 @@ bb0:
   gt
   callvalue
   or
-  push bb18
+  push bb19
   jumpi
   push 192
   mload
   dup 1
   push 0x87d912cb
   gt
-  push bb6
+  push bb7
   jumpi
   dup 1
-  push 0x87d912cb
+  push 0x920f5c73
+  gt
+  push bb4
+  jumpi
+  dup 1
+  push 0x920f5c73
   sub
   push bb2
   jumpi
   pop
-  push 301
+  push 302
   push 0
   sstore
-  jump bb19
-bb19:
+  jump bb20
+bb20:
   push 198
   dup 1
   push_data SwitchSharedGrowthBudget_runtime_code_0
@@ -61,71 +66,71 @@ bb19:
   return
 bb2:
   dup 1
-  push 0x905f7d67
-  sub
-  push bb3
-  jumpi
-  pop
-  push 305
-  push 0
-  sstore
-  jump bb19
-bb3:
-  dup 1
-  push 0x920f5c73
-  sub
-  push bb4
-  jumpi
-  pop
-  push 302
-  push 0
-  sstore
-  jump bb19
-bb4:
-  dup 1
   push 0xcbf99d38
   sub
-  push bb19
+  push bb20
   jumpi
   pop
   push 300
   push 0
   sstore
-  jump bb19
-bb6:
+  jump bb20
+bb4:
+  dup 1
+  push 0x87d912cb
+  sub
+  push bb5
+  jumpi
+  pop
+  push 301
+  push 0
+  sstore
+  jump bb20
+bb5:
+  dup 1
+  push 0x905f7d67
+  sub
+  push bb20
+  jumpi
+  pop
+  push 305
+  push 0
+  sstore
+  jump bb20
+bb7:
   dup 1
   push 0x3b88f6c2
   sub
-  push bb7
+  push bb8
   jumpi
   pop
   push 306
   push 0
   sstore
-  jump bb19
-bb7:
+  jump bb20
+bb8:
   dup 1
   push 0x41052a0d
   sub
-  push bb8
+  push bb9
   jumpi
   pop
   push 303
   push 0
   sstore
-  jump bb19
-bb8:
+  jump bb20
+bb9:
   dup 1
   push 0x7238232f
   sub
-  push bb19
+  push bb20
   jumpi
   pop
   push 304
   push 0
   sstore
-  jump bb19
-bb18 [cold]:
+  jump bb20
+bb19 [cold]:
   push 0
   push 0
   revert

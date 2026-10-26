@@ -1,8 +1,8 @@
-//@ compile-flags: -Zevm-ir-pipeline=none -O size -Zdump=disasm-runtime
+//@ compile-flags: -Zevm-ir-pipeline=none -O size -Zpack-wide-jump-tables -Zdump=disasm-runtime
 //@ filecheck:
 
-// 33 one-byte entries do not fit one word, so the size-optimized table splits
-// them across two words and selects one without a branch.
+// With `-Zpack-wide-jump-tables`, 33 one-byte entries do not fit one word, so the
+// size-optimized table splits them across two words and selects one without a branch.
 @module two_words
 
 // CHECK-LABEL: // === two_words (runtime) ===

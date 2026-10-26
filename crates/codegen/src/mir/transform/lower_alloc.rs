@@ -26,7 +26,10 @@
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
     Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-    PtrLocation, ValueId, analysis::FreshFmpReads, memory::EvmMemoryLayout, pass::MirPass,
+    PtrLocation, ValueId,
+    analysis::FreshFmpReads,
+    memory::EvmMemoryLayout,
+    pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
     transform::utils::redirect_successor_predecessors,
 };
 use solar_config::OptimizationMode;
@@ -46,27 +49,23 @@ impl MirPass for LowerAlloc {
         true
     }
 
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let optimization = gcx.sess.opts.optimization;
         let fresh = if optimization == OptimizationMode::None {
             FreshFmpReads::none()
         } else {
             FreshFmpReads::new(module, || analyses.call_summaries(module), optimization.is_gas())
         };
-        lower_alloc(module, &fresh)
+        lower_alloc(module, analyses, &fresh)
     }
 }
 
-fn lower_alloc(module: &mut Module, fresh: &FreshFmpReads) -> bool {
-    let mut changed = share_checked_allocations(module, fresh);
-    for (id, func) in module.functions.iter_mut_enumerated() {
-        changed |= lower_function(func, |inst| fresh.contains(id, inst));
-    }
+fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &FreshFmpReads) -> bool {
+    let mut changed = share_checked_allocations(module, analyses, fresh);
+    changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
+        let id = function_analyses.function();
+        lower_function(func, |inst| fresh.contains(id, inst))
+    });
     changed
 }
 
@@ -75,7 +74,11 @@ fn lower_alloc(module: &mut Module, fresh: &FreshFmpReads) -> bool {
 ///
 /// The helper owns only the pointer load, checked bump, panic, and update.
 /// Callers retain their initialization, so allocation ordering stays intact.
-fn share_checked_allocations(module: &mut Module, fresh: &FreshFmpReads) -> bool {
+fn share_checked_allocations(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    fresh: &FreshFmpReads,
+) -> bool {
     let count = module
         .functions
         .iter_enumerated()
@@ -96,7 +99,8 @@ fn share_checked_allocations(module: &mut Module, fresh: &FreshFmpReads) -> bool
     }
 
     let helper = create_checked_alloc(module);
-    for (func_id, func) in module.functions.iter_mut_enumerated() {
+    run_lowering_function_pass(module, analyses, |func, function_analyses| {
+        let func_id = function_analyses.function();
         let mut replacements = FxHashMap::default();
         let blocks = func.blocks.indices();
         for block in blocks {
@@ -124,8 +128,8 @@ fn share_checked_allocations(module: &mut Module, fresh: &FreshFmpReads) -> bool
             }
         }
         func.replace_uses_canonicalized(&replacements);
-    }
-    true
+        true
+    })
 }
 
 fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {

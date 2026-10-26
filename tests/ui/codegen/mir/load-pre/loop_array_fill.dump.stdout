@@ -125,47 +125,47 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v38 = shr arg0, 64
     v39 = and v38, 0xffffffff
     v40 = eq v39, 0
-    v49 = zext i1 v40 to i256
-    v51 = sub 3, v49
+    v42 = zext i1 v40 to i256
+    v44 = sub 3, v42
     jump bb4
   bb4:
-    v41 = phi [bb0: 0], [bb5: 1], [bb6: v51]
+    v41 = phi [bb0: 0], [bb5: 1], [bb6: v44]
     v8 = add v41, 1
     v10 = shl v8, 5
-    v72 = heap_floor
-    v73 = add v72, v10
-    v74 = lt v73, v72
-    v75 = gt v73, 0xffffffffffffffff
-    v76 = or v74, v75
-    jumpi v76, bb8, bb7
+    v65 = heap_floor
+    v66 = add v65, v10
+    v67 = lt v66, v65
+    v68 = gt v66, 0xffffffffffffffff
+    v69 = or v67, v68
+    jumpi v69, bb8, bb7
   bb7:
-    mstore 64, v73 !metadata(memory=scratch)
-    v78 = calldatasize
-    calldatacopy v72, v78, v10
-    mstore v72, v41
-    v79 = add v72, 32
+    mstore 64, v66 !metadata(memory=scratch)
+    v71 = calldatasize
+    calldatacopy v65, v71, v10
+    mstore v65, v41
+    v72 = add v65, 32
     jump bb1
   bb1:
     v21 = phi [bb7: 0], [bb3: v32]
-    v80 = phi [bb7: v79], [bb3: v81]
+    v73 = phi [bb7: v72], [bb3: v74]
     v22 = lt v21, v41
     jumpi v22, bb3, bb2
   bb2:
-    v64 = add v72, 32
-    v59 = shl v41, 5
-    v66 = add v72, 64
-    mcopy v66, v64, v59
-    mstore v72, 32
-    mstore v64, v41
-    v61 = add v59, 64
-    returndata v72, v61
+    v57 = add v65, 32
+    v52 = shl v41, 5
+    v59 = add v65, 64
+    mcopy v59, v57, v52
+    mstore v65, 32
+    mstore v57, v41
+    v54 = add v52, 64
+    returndata v65, v54
   bb3:
-    v42 = shl v21, 5
-    v24 = shr arg0, v42
+    v23 = shl v21, 5
+    v24 = shr arg0, v23
     v25 = and v24, 0xffffffff
-    mstore v80, v25
+    mstore v73, v25
     v32 = add v21, 1
-    v81 = add v80, 32
+    v74 = add v73, 32
     jump bb1
   bb8:
     mstore 32, 65 !metadata(memory=scratch)

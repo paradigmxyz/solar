@@ -1,0 +1,66 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/offset_bounds.sol:OffsetBounds ===
+@module OffsetBounds
+@phase lowered
+fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
+  bb0:
+    v0 = calldatasize
+    v33 = add v0, 64
+    v4 = add v33, 63
+    v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v57 = heap_floor
+    v58 = add v57, v7
+    v59 = lt v58, v57
+    v60 = gt v58, 0xffffffffffffffff
+    v61 = or v59, v60
+    jumpi v61, bb5, bb4
+  bb4:
+    mstore 64, v58 !metadata(memory=scratch)
+    v63 = calldatasize
+    calldatacopy v57, v63, v7
+    mstore v57, v33
+    jump bb1
+  bb1:
+    v11 = phi [bb4: 0], [bb3: v32]
+    v12 = lt v11, v0
+    jumpi v12, bb3, bb2
+  bb2:
+    v49 = add v57, 32
+    v40 = add v33, 31
+    v42 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v44 = add v49, v42
+    mstore v44, 0
+    v51 = add v57, 64
+    mcopy v51, v49, v33
+    mstore v57, 32
+    mstore v49, v33
+    v46 = add v42, 64
+    returndata v57, v46
+  bb3:
+    v22 = calldataload v11
+    v23 = byte 0, v22
+    v25 = add v11, 64
+    v53 = add v57, v25
+    v54 = add v53, 32
+    mstore8 v54, v23
+    v32 = add v11, 1
+    jump bb1
+  bb5:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xf4f1833d => bb2]
+  bb2:
+    tail_call @copyHigh
+  bb3:
+    revert 0, 0
+}

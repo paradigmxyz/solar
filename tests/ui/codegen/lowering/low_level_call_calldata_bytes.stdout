@@ -64,23 +64,7 @@ bb7 [continuation]:
   swap 1
   push 32
   add
-  push 63
-  dup 3
-  add
-  push 31
-  not
-  and
   push 128
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 3
-  dup 2
-  mstore
-  push 32
-  add
   dup 3
   dup 3
   dup 3
@@ -114,23 +98,7 @@ bb11 [continuation]:
   swap 1
   push 32
   add
-  push 63
-  dup 3
-  add
-  push 31
-  not
-  and
   push 128
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 3
-  dup 2
-  mstore
-  push 32
-  add
   dup 3
   dup 3
   dup 3
