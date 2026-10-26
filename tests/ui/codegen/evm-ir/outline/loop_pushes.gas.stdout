@@ -1,0 +1,27 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/loop_pushes.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/loop_pushes.evmir (after outline) ===
+  @module LoopPushes
+  bb0:
+    push 0
+    calldataload
+    jump bb1
+  bb1 [loop]:
+    push 0x3030303030303030303030303030303030303030303030303030303030303030
+    add
+    dup 1
+    push bb1
+    jumpi
+    jump bb2
+  bb2:
+    push 0x3030303030303030303030303030303030303030303030303030303030303030
+    or
+    push 0x3030303030303030303030303030303030303030303030303030303030303030
+    xor
+    push 0x3030303030303030303030303030303030303030303030303030303030303030
+    and
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

@@ -1535,8 +1535,8 @@ impl AliasAnalysis {
             return AliasResult::NoAlias;
         }
         if self.wraps.get() == Some(false)
-            && (Self::absolute_below_allocation(first, second)
-                || Self::absolute_below_allocation(second, first))
+            && (Self::absolute_below_unique_allocation(first, second)
+                || Self::absolute_below_unique_allocation(second, first))
         {
             return AliasResult::NoAlias;
         }
@@ -1544,6 +1544,8 @@ impl AliasAnalysis {
     }
 
     /// Returns whether `other` is an absolute range that ends at or below the start of `alloc`.
+    /// Unlike [`Self::absolute_below_allocation`], it also covers the reserved words below the
+    /// heap, which holds for unique allocations only.
     ///
     /// No reset of the free-memory pointer precedes a unique allocation, so its pointer is at
     /// or above the heap start, and a location at offset `n` in it starts at or above
@@ -1554,7 +1556,7 @@ impl AliasAnalysis {
     /// free-memory pointer slot used to keep passes from trusting it.
     // NOTE: Like `pointer_lower_bound`, this trusts the pointer to enter the function at or above
     // the heap start, which memory-unsafe assembly in a caller could violate.
-    fn absolute_below_allocation(alloc: MemoryLocation, other: MemoryLocation) -> bool {
+    fn absolute_below_unique_allocation(alloc: MemoryLocation, other: MemoryLocation) -> bool {
         if matches!(alloc.address.base, MemoryBase::Allocation(_))
             && other.address.base == MemoryBase::Absolute
             && let Some(size) = other.size.as_const()
@@ -1565,6 +1567,26 @@ impl AliasAnalysis {
         } else {
             false
         }
+    }
+
+    /// Whether `absolute` is a heap-start-or-higher absolute range that ends at or below the
+    /// lowest address `allocation` can start at: every allocation lies at or above the heap
+    /// start, as [`Self::pointer_lower_bound`] trusts. Reserved low memory stays `MayAlias`,
+    /// since the free-memory-pointer slot there reflects allocations.
+    fn absolute_below_allocation(absolute: MemoryLocation, allocation: MemoryLocation) -> bool {
+        let (MemoryBase::Absolute, Some(_), LocationSize::Const(size)) =
+            (absolute.address.base, Self::allocation_base(allocation.address.base), absolute.size)
+        else {
+            return false;
+        };
+        let start = EvmMemoryLayout::HEAP_START.checked_add(allocation.address.offset);
+        absolute.address.offset >= EvmMemoryLayout::HEAP_START
+            && absolute
+                .address
+                .offset
+                .checked_add(size)
+                .zip(start)
+                .is_some_and(|(end, start)| end <= start)
     }
 
     /// Computes a memory-range relationship after addresses are canonicalized.
@@ -1589,6 +1611,11 @@ impl AliasAnalysis {
         // non-allocation base is likewise `MayAlias`.
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
+        if Self::absolute_below_allocation(first, second)
+            || Self::absolute_below_allocation(second, first)
+        {
+            return AliasResult::NoAlias;
+        }
         match (first_alloc, second_alloc) {
             (Some((a, a_dynamic)), Some((b, b_dynamic))) => {
                 if a != b {
