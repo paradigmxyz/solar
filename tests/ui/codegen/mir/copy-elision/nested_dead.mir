@@ -1,0 +1,115 @@
+//@compile-flags: -Zmir-pipeline=copy-elision,dce
+//@filecheck:
+@module NestedDead
+
+// A struct, the nested object it points to, and the pointer between them are never read, so
+// every store into either object goes. The allocations stay.
+// CHECK-LABEL: after copy-elision
+// CHECK: {{^[ +].*}}fn @nested{{[( ]}}
+// CHECK: - mstore {{v[0-9]+}}, arg0
+// CHECK: - mstore {{v[0-9]+}}, arg0
+// CHECK: - mstore {{v[0-9]+}}, {{v[0-9]+}}
+fn @nested(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    v2 = ptrtoint ptr<memory> v1 to i256
+    mstore v2, arg0
+    v3 = ptradd v0, 32
+    mstore v0, arg0
+    mstore v3, v2
+    ret arg0
+}
+
+// A pointer stored into its own object does not escape either.
+// CHECK-LABEL: {{^[ +].*}}fn @self_store{{[( ]}}
+// CHECK: - mstore {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: - mstore {{v[0-9]+}}, arg0
+fn @self_store(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = ptradd v0, 32
+    mstore v2, v1
+    mstore v0, arg0
+    ret arg0
+}
+
+// A member that something reads keeps its stores, and so does every object whose pointer it
+// holds: the reader could follow the pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @outer_read{{[( ]}}
+// CHECK-NOT: - mstore
+fn @outer_read(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    v2 = ptrtoint ptr<memory> v1 to i256
+    mstore v2, arg0
+    v3 = ptradd v0, 32
+    mstore v0, arg0
+    mstore v3, v2
+    v4 = mload v0
+    ret v4
+}
+
+// A read of the inner object keeps only the inner object's stores: nothing reads the outer
+// object, so no reader follows the pointer it holds.
+// CHECK-LABEL: {{^[ +].*}}fn @inner_read{{[( ]}}
+// CHECK: - mstore {{v[0-9]+}}, arg0
+// CHECK: - mstore {{v[0-9]+}}, {{v[0-9]+}}
+fn @inner_read(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    v2 = ptrtoint ptr<memory> v1 to i256
+    mstore v2, arg0
+    v3 = ptradd v0, 32
+    mstore v0, arg0
+    mstore v3, v2
+    v4 = mload v2
+    ret v4
+}
+
+// An inner object that escapes keeps its stores; the unread outer object still loses the
+// pointer to it.
+// CHECK-LABEL: {{^[ +].*}}fn @inner_escapes{{[( ]}}
+// CHECK: {{^ .*}}mstore {{v[0-9]+}}, arg0
+// CHECK: - mstore {{v[0-9]+}}, {{v[0-9]+}}
+fn @inner_escapes(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    v2 = ptrtoint ptr<memory> v1 to i256
+    mstore v2, arg0
+    v3 = ptradd v0, 32
+    mstore v3, v2
+    ret v2
+}
+
+// A pointer stored into a live object, here an argument's memory, escapes with it.
+// CHECK-LABEL: {{^[ +].*}}fn @stored_into_live{{[( ]}}
+// CHECK-NOT: - mstore
+fn @stored_into_live(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, arg0
+    mstore arg1, v1
+    ret arg0
+}
+
+// A pointer stored into an object that is read escapes with it, even when the object holding
+// the pointer is itself unread.
+// CHECK-LABEL: {{^[ +].*}}fn @stored_into_read{{[( ]}}
+// CHECK-NOT: - mstore
+fn @stored_into_read(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = alloc 64
+    v2 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, arg0
+    v3 = ptradd v1, 32
+    mstore v3, v2
+    v4 = mload v3
+    ret v4
+}

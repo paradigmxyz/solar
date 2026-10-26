@@ -115,7 +115,9 @@ struct MemoryCopy {
     index: usize,
     site: InstId,
     offset: u64,
-    size: u64,
+    size: ValueId,
+    /// The size when it is a known constant.
+    constant: Option<u64>,
 }
 
 impl CopyElisionCx {
@@ -502,6 +504,7 @@ impl CopyElisionCx {
         writes.retain(|&inst_id| !func.inst(inst_id).kind.effects().control.any());
         Some(ObjectUses { object, derived, writes, stored_at })
     }
+
     /// Returns the constant width of an access by `inst`, including a size that a dominating
     /// branch proves constant.
     fn constant_size(
@@ -592,9 +595,8 @@ impl CopyElisionCx {
                             offset,
                             ..
                         }) = alias.memory_address(func, source)
-                            && let Some(size) = Self::known_constant(func, cfg, block_id, size)
-                            && size > 0
                         {
+                            let constant = Self::known_constant(func, cfg, block_id, size);
                             copies.push(MemoryCopy {
                                 inst,
                                 block: block_id,
@@ -602,6 +604,7 @@ impl CopyElisionCx {
                                 site,
                                 offset,
                                 size,
+                                constant,
                             });
                         }
                     }
@@ -617,15 +620,11 @@ impl CopyElisionCx {
         for copy in &copies {
             let InstKind::Copy(_, source, _, _) = func.inst(copy.inst).kind else { continue };
             let Some(address) = alias.memory_address(func, source) else { continue };
-            let read = MemoryLocation::new(address, LocationSize::Const(copy.size));
+            let read = MemoryLocation::new(address, alias.location_size(func, copy.size));
             let fill = fills.iter().find(|fill| {
                 fill.site == copy.site
                     && fill.offset <= copy.offset
-                    && Self::known_constant(func, cfg, fill.block, fill.size).is_some_and(|size| {
-                        (copy.offset - fill.offset)
-                            .checked_add(copy.size)
-                            .is_some_and(|end| end <= size)
-                    })
+                    && Self::fits_fill(func, cfg, fill, copy)
                     && Self::dominates(cfg, fill.block, fill.index, copy.block, copy.index)
                     && !Self::written_between(func, alias, cfg, fill, copy, read)
             });
@@ -652,9 +651,24 @@ impl CopyElisionCx {
                 source
             };
             // calldatacopy dest, source, size
-            func.inst_mut(inst).kind = InstKind::Copy(dest, source, size, PtrLocation::Calldata);
+            let instruction = func.inst_mut(inst);
+            instruction.kind = InstKind::Copy(dest, source, size, PtrLocation::Calldata);
+            // The flag says the `mcopy` source and destination do not overlap.
+            instruction.metadata.set_disjoint(false);
         }
         changed
+    }
+
+    /// Returns whether the copied range lies inside the filled one: both sizes are constants, the
+    /// fill's perhaps proven at the copy, and the range ends in the fill; or the copy starts where
+    /// the fill does and takes the fill's size value.
+    fn fits_fill(func: &Function, cfg: &CfgInfo, fill: &CalldataFill, copy: &MemoryCopy) -> bool {
+        match (copy.constant, Self::known_constant(func, cfg, copy.block, fill.size)) {
+            (Some(copy_size), Some(fill_size)) => (copy.offset - fill.offset)
+                .checked_add(copy_size)
+                .is_some_and(|end| end <= fill_size),
+            _ => copy.size == fill.size && copy.offset == fill.offset,
+        }
     }
 
     /// Returns whether the first instruction runs before the second on every path.

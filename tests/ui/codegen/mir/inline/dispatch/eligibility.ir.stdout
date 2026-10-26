@@ -152,7 +152,7 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v51 = add v56, 32
     calldatacopy v51, v35, v2
     v53 = add v56, 64
-    mcopy v53, v51, v2
+    calldatacopy v53, v35, v2
     mstore v56, 32
     mstore v51, v34
     v48 = add v2, 64

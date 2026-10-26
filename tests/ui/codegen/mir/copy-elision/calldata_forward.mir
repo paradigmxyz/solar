@@ -1,0 +1,178 @@
+//@compile-flags: -Zmir-pipeline=copy-elision
+//@filecheck:
+@module CalldataForward
+
+// A copy out of a buffer that one calldata copy filled reads calldata instead, and the buffer
+// is then unread.
+// CHECK-LABEL: after copy-elision
+// CHECK: {{^[ +].*}}fn @constant{{[( ]}}
+// CHECK: - calldatacopy {{v[0-9]+}}, arg0, 64
+// CHECK: - mcopy {{v[0-9]+}}, {{v[0-9]+}}, 64
+// CHECK: + calldatacopy {{v[0-9]+}}, arg0, 64
+fn @constant(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    calldatacopy v1, arg0, 64
+    v2 = alloc 64
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mcopy v3, v1, 64
+    v4 = mload v3
+    ret v4
+}
+
+// A copy from inside the filled range starts that far into calldata.
+// CHECK-LABEL: {{^[ +].*}}fn @inside{{[( ]}}
+// CHECK: + {{v[0-9]+}} = add arg0, 32
+// CHECK: + calldatacopy {{v[0-9]+}}, {{v[0-9]+}}, 32
+fn @inside(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    calldatacopy v1, arg0, 64
+    v2 = alloc 32
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v5 = add v1, 32
+    mcopy v3, v5, 32
+    v4 = mload v3
+    ret v4
+}
+
+// Equal size values compare equal, whatever they are.
+// CHECK-LABEL: {{^[ +].*}}fn @same_size{{[( ]}}
+// CHECK: + calldatacopy {{v[0-9]+}}, arg0, arg1
+fn @same_size(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    calldatacopy v1, arg0, arg1
+    v2 = alloc 64
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mcopy v3, v1, arg1
+    v4 = mload v3
+    ret v4
+}
+
+// A branch that proves the fill size equal to the copy size bounds it, as a length check does.
+// CHECK-LABEL: {{^[ +].*}}fn @checked{{[( ]}}
+// CHECK: + calldatacopy {{v[0-9]+}}, arg0, 64
+fn @checked(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    calldatacopy v1, arg0, arg1
+    v5 = ne arg1, 64
+    jumpi v5, bb2, bb1
+  bb1:
+    v2 = alloc 64
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mcopy v3, v1, 64
+    v4 = mload v3
+    ret v4
+  bb2:
+    ret 0
+}
+
+// A write that may reach the copied range keeps the copy.
+// CHECK-LABEL: {{^[ +].*}}fn @written_between{{[( ]}}
+// CHECK-NOT: + calldatacopy
+// CHECK: {{^ .*}}mcopy {{v[0-9]+}}, {{v[0-9]+}}, 64
+fn @written_between(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    calldatacopy v1, arg0, 64
+    v6 = add v1, 32
+    mstore v6, 7
+    v2 = alloc 64
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mcopy v3, v1, 64
+    v4 = mload v3
+    ret v4
+}
+
+// A write outside the copied range does not.
+// CHECK-LABEL: {{^[ +].*}}fn @written_elsewhere{{[( ]}}
+// CHECK: + calldatacopy {{v[0-9]+}}, {{v[0-9]+}}, 32
+fn @written_elsewhere(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    calldatacopy v1, arg0, 64
+    mstore v1, 7
+    v2 = alloc 32
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v1, 32
+    mcopy v3, v6, 32
+    v4 = mload v3
+    ret v4
+}
+
+// A copy that reads past the filled range keeps the copy.
+// CHECK-LABEL: {{^[ +].*}}fn @past_fill{{[( ]}}
+// CHECK-NOT: + calldatacopy
+// CHECK: {{^ .*}}mcopy {{v[0-9]+}}, {{v[0-9]+}}, 64
+fn @past_fill(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    calldatacopy v1, arg0, 32
+    v2 = alloc 64
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mcopy v3, v1, 64
+    v4 = mload v3
+    ret v4
+}
+
+// A fill of unknown size may be shorter than the copy.
+// CHECK-LABEL: {{^[ +].*}}fn @unknown_fill{{[( ]}}
+// CHECK-NOT: + calldatacopy
+// CHECK: {{^ .*}}mcopy {{v[0-9]+}}, {{v[0-9]+}}, 64
+fn @unknown_fill(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    calldatacopy v1, arg0, arg1
+    v2 = alloc 64
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mcopy v3, v1, 64
+    v4 = mload v3
+    ret v4
+}
+
+// Return data changes with every call, so a buffer it filled is not a stand-in for it.
+// CHECK-LABEL: {{^[ +].*}}fn @returndata{{[( ]}}
+// CHECK-NOT: + calldatacopy
+// CHECK: {{^ .*}}mcopy {{v[0-9]+}}, {{v[0-9]+}}, 32
+fn @returndata() -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    returndatacopy v1, 0, 32
+    v2 = alloc 32
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mcopy v3, v1, 32
+    v4 = mload v3
+    ret v4
+}
+
+// A fill that runs on only one path does not dominate the copy.
+// CHECK-LABEL: {{^[ +].*}}fn @conditional_fill{{[( ]}}
+// CHECK-NOT: + calldatacopy
+// CHECK: {{^ .*}}mcopy {{v[0-9]+}}, {{v[0-9]+}}, 32
+fn @conditional_fill(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v7 = ne arg1, 0
+    jumpi v7, bb1, bb2
+  bb1:
+    calldatacopy v1, arg0, 32
+    jump bb2
+  bb2:
+    v2 = alloc 32
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mcopy v3, v1, 32
+    v4 = mload v3
+    ret v4
+}

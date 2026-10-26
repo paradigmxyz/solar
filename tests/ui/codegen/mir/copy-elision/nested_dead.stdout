@@ -1,0 +1,158 @@
+- // === ROOT/tests/ui/codegen/mir/copy-elision/nested_dead.mir (before copy-elision) ===
++ // === ROOT/tests/ui/codegen/mir/copy-elision/nested_dead.mir (after copy-elision) ===
+  @module NestedDead
+  fn @nested(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v1 to i256
+-     mstore v2, arg0
+      v3 = ptradd v0, 32
+-     mstore v0, arg0
+-     mstore v3, v2
+      ret arg0
+  }
+  
+  fn @self_store(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = ptradd v0, 32
+-     mstore v2, v1
+-     mstore v0, arg0
+      ret arg0
+  }
+  
+  fn @outer_read(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v1 to i256
+      mstore v2, arg0
+      v3 = ptradd v0, 32
+      mstore v0, arg0
+      mstore v3, v2
+      v4 = mload v0
+      ret v4
+  }
+  
+  fn @inner_read(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v1 to i256
+      mstore v2, arg0
+      v3 = ptradd v0, 32
+-     mstore v0, arg0
+-     mstore v3, v2
+      v4 = mload v2
+      ret v4
+  }
+  
+  fn @inner_escapes(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v1 to i256
+      mstore v2, arg0
+      v3 = ptradd v0, 32
+-     mstore v3, v2
+      ret v2
+  }
+  
+  fn @stored_into_live(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v0, arg0
+      mstore arg1, v1
+      ret arg0
+  }
+  
+  fn @stored_into_read(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v0 to i256
+      mstore v0, arg0
+      v3 = ptradd v1, 32
+      mstore v3, v2
+      v4 = mload v3
+      ret v4
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/copy-elision/nested_dead.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/copy-elision/nested_dead.mir (after dce) ===
+  @module NestedDead
+  fn @nested(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+-     v2 = ptrtoint ptr<memory> v1 to i256
+-     v3 = ptradd v0, 32
+      ret arg0
+  }
+  
+  fn @self_store(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+-     v1 = ptrtoint ptr<memory> v0 to i256
+-     v2 = ptradd v0, 32
+      ret arg0
+  }
+  
+  fn @outer_read(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v1 to i256
+      mstore v2, arg0
+      v3 = ptradd v0, 32
+      mstore v0, arg0
+      mstore v3, v2
+      v4 = mload v0
+      ret v4
+  }
+  
+  fn @inner_read(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v1 to i256
+      mstore v2, arg0
+-     v3 = ptradd v0, 32
+      v4 = mload v2
+      ret v4
+  }
+  
+  fn @inner_escapes(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v1 to i256
+      mstore v2, arg0
+-     v3 = ptradd v0, 32
+      ret v2
+  }
+  
+  fn @stored_into_live(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v0, arg0
+      mstore arg1, v1
+      ret arg0
+  }
+  
+  fn @stored_into_read(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v0 to i256
+      mstore v0, arg0
+      v3 = ptradd v1, 32
+      mstore v3, v2
+      v4 = mload v3
+      ret v4
+  }
+  
