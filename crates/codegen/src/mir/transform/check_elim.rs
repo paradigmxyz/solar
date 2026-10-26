@@ -335,6 +335,8 @@ pub(crate) struct ParamFacts {
     pub(crate) below_size: FxHashSet<usize>,
     /// Upper bounds of parameters.
     pub(crate) bounds: FxHashMap<usize, U256>,
+    /// A lower bound of `calldatasize`, which holds at every call.
+    pub(crate) size_floor: U256,
 }
 
 /// Evaluates `conditions`, each an existing value that need not be one a block computes, by the
@@ -353,7 +355,7 @@ pub(crate) fn facts_at(
     params: &ParamFacts,
     conditions: &[(InstId, ValueId)],
 ) -> FxHashSet<ValueId> {
-    walk_queries(func, size, params, conditions, &[]).refuted
+    walk_queries(func, size, params, conditions, &[], &[]).refuted
 }
 
 /// The index of the first `calldatasize` that `func` reads.
@@ -370,20 +372,46 @@ pub(crate) fn calldatasize_value(func: &Function) -> Option<ValueId> {
 /// parameter of this kind. Only internal functions called directly qualify. Each round builds on
 /// the one before, so a call that depends on its own function's parameter is not taken as proof
 /// of it.
+///
+/// Every function also gets a lower bound of `calldatasize`: all frames of a transaction share one
+/// calldata, so the least bound that holds at each call of it holds throughout. The dispatch
+/// `entry` is the only way into an ABI wrapper, and the checks it hoists dominate its tail calls.
 pub(crate) fn argument_facts(module: &Module) -> FxHashMap<FunctionId, ParamFacts> {
-    // Functions that something other than a direct internal call can reach take arguments no
-    // caller here controls.
-    let mut reached_otherwise = FxHashSet::default();
+    // Functions that something other than a direct call can reach take arguments no caller here
+    // controls. Of those, the ABI wrappers that the dispatch `entry` tail-calls still have every
+    // way in in view.
+    let dispatch = module.dispatch_entry();
+    let mut outside = FxHashSet::default();
+    let mut entered_by_dispatch = FxHashSet::default();
+    let mut tail_called_elsewhere = FxHashSet::default();
+    let mut tails = IndexVec::<FunctionId, Vec<(BlockId, FunctionId)>>::new();
     for (id, func) in module.functions.iter_enumerated() {
         if func.is_public() || func.is_external_entry() {
-            reached_otherwise.insert(id);
+            outside.insert(id);
         }
-        for block in &func.blocks {
-            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                reached_otherwise.insert(*function);
+        let mut found = Vec::new();
+        for (block, data) in func.blocks.iter_enumerated() {
+            if let Some(Terminator::TailCall { function, .. }) = &data.terminator {
+                if Some(id) == dispatch {
+                    entered_by_dispatch.insert(*function);
+                    found.push((block, *function));
+                } else {
+                    tail_called_elsewhere.insert(*function);
+                }
             }
         }
+        tails.push(found);
     }
+    let takes_arguments = |callee: &FunctionId| {
+        !outside.contains(callee)
+            && !entered_by_dispatch.contains(callee)
+            && !tail_called_elsewhere.contains(callee)
+    };
+    let has_floor = |callee: &FunctionId| {
+        !tail_called_elsewhere.contains(callee)
+            && !module.functions[*callee].attributes.is_constructor
+            && (entered_by_dispatch.contains(callee) || !outside.contains(callee))
+    };
     // The direct internal calls of each function: the call, its callee, and the arguments.
     let mut calls = IndexVec::<FunctionId, Vec<_>>::new();
     for func in &module.functions {
@@ -391,37 +419,87 @@ pub(crate) fn argument_facts(module: &Module) -> FxHashMap<FunctionId, ParamFact
         for inst in func.instructions() {
             if let InstKind::ICall { function: Callee::Function(callee), args } =
                 &func.inst(inst).kind
-                && !reached_otherwise.contains(callee)
-                && !args.is_empty()
+                && has_floor(callee)
             {
                 found.push((inst, *callee, args.clone()));
             }
         }
         calls.push(found);
     }
+    // What each call and tail call establishes, from the facts its caller had when it was last
+    // walked.
+    let mut established = calls
+        .iter()
+        .map(|calls| vec![CallFacts::default(); calls.len()])
+        .collect::<IndexVec<FunctionId, _>>();
+    let mut tail_floors = tails
+        .iter()
+        .map(|tails| vec![U256::ZERO; tails.len()])
+        .collect::<IndexVec<FunctionId, _>>();
     let mut known = FxHashMap::<FunctionId, ParamFacts>::default();
+    let mut dirty = module
+        .functions
+        .indices()
+        .filter(|&id| !calls[id].is_empty() || !tails[id].is_empty())
+        .collect::<Vec<_>>();
     for _ in 0..ARGUMENT_FACT_ROUNDS {
-        let mut below = FxHashMap::<(FunctionId, usize), bool>::default();
-        let mut bounds = FxHashMap::<(FunctionId, usize), U256>::default();
-        for (caller, func) in module.functions.iter_enumerated() {
-            if calls[caller].is_empty() {
-                continue;
-            }
+        for &caller in &dirty {
+            let func = &module.functions[caller];
+            let size = calldatasize_value(func);
             let queries = calls[caller]
                 .iter()
                 .flat_map(|(inst, _, args)| args.iter().map(|&arg| (*inst, arg)))
+                .chain(
+                    size.into_iter()
+                        .flat_map(|size| calls[caller].iter().map(move |(inst, ..)| (*inst, size))),
+                )
                 .collect::<Vec<_>>();
+            let blocks = tails[caller].iter().map(|&(block, _)| block).collect::<Vec<_>>();
             let params = known.get(&caller).cloned().unwrap_or_default();
-            let walked = walk_queries(func, calldatasize_value(func), &params, &[], &queries);
-            for (inst, callee, args) in &calls[caller] {
-                for (index, &arg) in args.iter().enumerate() {
-                    let holds = walked.below_size.contains(&(*inst, arg));
+            let walked = walk_queries(func, size, &params, &[], &queries, &blocks);
+            for ((inst, _, args), facts) in calls[caller].iter().zip(&mut established[caller]) {
+                // The caller's own floor holds wherever it calls, and the scope may add to it.
+                let scope = size
+                    .and_then(|size| walked.value_floors.get(&(*inst, size)).copied())
+                    .unwrap_or_default();
+                facts.size_floor = scope.max(params.size_floor);
+                facts.below_size =
+                    args.iter().map(|&arg| walked.below_size.contains(&(*inst, arg))).collect();
+                facts.bounds = args
+                    .iter()
+                    .map(|&arg| {
+                        walked.value_bounds.get(&(*inst, arg)).copied().unwrap_or(U256::MAX)
+                    })
+                    .collect();
+            }
+            for ((block, _), floor) in tails[caller].iter().zip(&mut tail_floors[caller]) {
+                *floor = walked.block_floors.get(block).copied().unwrap_or_default();
+            }
+        }
+        // A fact about a parameter holds when it holds at every call.
+        let mut below = FxHashMap::<(FunctionId, usize), bool>::default();
+        let mut bounds = FxHashMap::<(FunctionId, usize), U256>::default();
+        let mut floors = FxHashMap::<FunctionId, U256>::default();
+        for (caller, calls) in calls.iter_enumerated() {
+            for ((_, callee, _), facts) in calls.iter().zip(&established[caller]) {
+                let floor = floors.entry(*callee).or_insert(U256::MAX);
+                *floor = (*floor).min(facts.size_floor);
+                if !takes_arguments(callee) {
+                    continue;
+                }
+                for (index, (&holds, &bound)) in
+                    facts.below_size.iter().zip(&facts.bounds).enumerate()
+                {
                     *below.entry((*callee, index)).or_insert(true) &= holds;
-                    let bound =
-                        walked.value_bounds.get(&(*inst, arg)).copied().unwrap_or(U256::MAX);
                     let widest = bounds.entry((*callee, index)).or_insert(U256::ZERO);
                     *widest = (*widest).max(bound);
                 }
+            }
+        }
+        for (caller, tails) in tails.iter_enumerated() {
+            for ((_, callee), &scope) in tails.iter().zip(&tail_floors[caller]) {
+                let floor = floors.entry(*callee).or_insert(U256::MAX);
+                *floor = (*floor).min(scope);
             }
         }
         let mut next = FxHashMap::<FunctionId, ParamFacts>::default();
@@ -435,12 +513,33 @@ pub(crate) fn argument_facts(module: &Module) -> FxHashMap<FunctionId, ParamFact
                 next.entry(function).or_default().bounds.insert(index, bound);
             }
         }
-        if next == known {
+        for (function, floor) in floors {
+            if !floor.is_zero() {
+                next.entry(function).or_default().size_floor = floor;
+            }
+        }
+        // Only a function whose parameter facts changed can establish more at its own calls.
+        dirty = module
+            .functions
+            .indices()
+            .filter(|id| {
+                (!calls[*id].is_empty() || !tails[*id].is_empty()) && next.get(id) != known.get(id)
+            })
+            .collect();
+        known = next;
+        if dirty.is_empty() {
             break;
         }
-        known = next;
     }
     known
+}
+
+/// What one call establishes about its callee, by argument index.
+#[derive(Clone, Default)]
+struct CallFacts {
+    below_size: Vec<bool>,
+    bounds: Vec<U256>,
+    size_floor: U256,
 }
 
 /// Builds the facts of `func` and walks its blocks once, answering every query.
@@ -450,6 +549,7 @@ fn walk_queries<'a>(
     params: &ParamFacts,
     conditions: &[(InstId, ValueId)],
     size_queries: &[(InstId, ValueId)],
+    floor_blocks: &[BlockId],
 ) -> CheckEliminator<'a> {
     let mut eliminator = CheckEliminator::new(None);
     eliminator.non_strict_sums = true;
@@ -461,10 +561,12 @@ fn walk_queries<'a>(
     for &(inst, value) in size_queries {
         eliminator.size_queries.entry(inst).or_default().push(value);
     }
+    eliminator.floor_blocks.extend(floor_blocks);
     let cfg = CfgInfo::new(func);
     let mut relevant = branch_inputs(func, &cfg);
     let mut pending = conditions.iter().map(|&(_, condition)| condition).collect::<Vec<_>>();
     pending.extend(size_queries.iter().map(|&(_, value)| value));
+    pending.extend(size.filter(|_| !floor_blocks.is_empty()));
     while let Some(value) = pending.pop() {
         if relevant.insert(value)
             && let Value::Inst(inst) = func.value(value)
@@ -672,7 +774,7 @@ const MAX_CHECK_SUM_DEPTH: usize = 2;
 const MAX_QUERY_SUM_DEPTH: usize = 6;
 
 /// How many times [`argument_facts`] rebuilds the facts from the ones before.
-const ARGUMENT_FACT_ROUNDS: usize = 3;
+const ARGUMENT_FACT_ROUNDS: usize = 16;
 
 /// Statistics from check elimination.
 #[derive(Debug, Default, Clone)]
@@ -852,6 +954,12 @@ struct CheckEliminator<'a> {
     below_size: FxHashSet<(InstId, ValueId)>,
     /// The upper bound of each queried value.
     value_bounds: FxHashMap<(InstId, ValueId), U256>,
+    /// The lower bound of each queried value.
+    value_floors: FxHashMap<(InstId, ValueId), U256>,
+    /// Blocks where to record the lower bound of `calldatasize`.
+    floor_blocks: FxHashSet<BlockId>,
+    /// The lower bound of `calldatasize` where each of `floor_blocks` starts.
+    block_floors: FxHashMap<BlockId, U256>,
     /// Loop header phis that advance by at most a constant: the entry value and the step.
     cursors: FxHashMap<ValueId, (ValueId, U256)>,
     /// Statistics from the last run.
@@ -1104,11 +1212,20 @@ impl<'a> CheckEliminator<'a> {
                         }
                     }
 
+                    if self.floor_blocks.contains(&block)
+                        && let Some(size) = self.size
+                    {
+                        let floor = self.range_of(func, size, MAX_DEPTH).lo;
+                        self.block_floors.insert(block, floor);
+                    }
+
                     for &id in &func.blocks[block].instructions {
                         if let Some(values) = self.size_queries.get(&id).cloned() {
                             for value in values {
                                 let bound = self.upper_bound(func, value, MAX_BOUND_DEPTH);
                                 self.value_bounds.insert((id, value), bound);
+                                let floor = self.range_of(func, value, MAX_DEPTH).lo;
+                                self.value_floors.insert((id, value), floor);
                                 if let Some(size) = self.size
                                     && self.has_relation(func, Relation::Le(value, size))
                                 {
@@ -1457,6 +1574,10 @@ impl<'a> CheckEliminator<'a> {
                 self.assume(func, a, false, depth);
                 self.assume(func, b, false, depth);
             }
+            // A widened test is nonzero iff the test is, as dispatch guards combine their checks.
+            InstKind::Zext(source) if self.non_strict_sums => {
+                self.assume(func, source, truth, depth);
+            }
             // `x >> k` is zero iff `x < 2^k`, the range test word-sequence prefers.
             InstKind::Shr(shift, x)
                 if let Some(shift) = const_of(func, shift)
@@ -1767,6 +1888,13 @@ impl<'a> CheckEliminator<'a> {
         self.ensure_difference_index(func);
         self.sum_depth += 1;
         let found = [(first, second), (second, first)].into_iter().any(|(base, offset)| {
+            if self.non_strict_sums
+                && !strict
+                && let Some(reach) = const_of(func, base).and_then(|base| base.checked_add(extra))
+                && self.offset_fits_below_limit(func, offset, reach, limit)
+            {
+                return true;
+            }
             // Equal constants are separate values until the pipeline ends, so a constant base
             // finds the differences of every equal constant.
             let candidates = self.difference_index.as_ref().map_or_else(
@@ -1982,6 +2110,34 @@ impl<'a> CheckEliminator<'a> {
         })
     }
 
+    /// Whether the scope keeps `offset + reach` at or below `limit`, as a check of `offset`
+    /// against `minuend - c` for a constant `c` of at least `reach` that `minuend` is at least,
+    /// where `minuend` is `limit` or at most it. The sum cannot wrap.
+    fn offset_fits_below_limit(
+        &mut self,
+        func: &Function,
+        offset: ValueId,
+        reach: U256,
+        limit: Option<ValueId>,
+    ) -> bool {
+        let edges = self
+            .relations
+            .iter()
+            .filter_map(|&relation| match relation {
+                Relation::Le(a, b) | Relation::Lt(a, b) if a == offset => Some(b),
+                _ => None,
+            })
+            .collect::<SmallVec<[ValueId; 4]>>();
+        edges.into_iter().any(|edge| {
+            let Some(&InstKind::Sub(minuend, step)) = inst_kind(func, edge) else { return false };
+            const_of(func, step).is_some_and(|step| step >= reach)
+                && self.range_of(func, minuend, MAX_DEPTH).lo >= const_of(func, step).unwrap()
+                && limit.is_none_or(|limit| {
+                    minuend == limit || self.has_relation(func, Relation::Le(minuend, limit))
+                })
+        })
+    }
+
     /// Whether `value` is a parameter every call keeps at or below `calldatasize`, or a constant
     /// that the scope keeps `calldatasize` above.
     fn value_below_size(&mut self, func: &Function, value: ValueId) -> bool {
@@ -2052,6 +2208,11 @@ impl<'a> CheckEliminator<'a> {
             self.ranges.get(&value).and_then(|range| range.intersect(full)).unwrap_or(full);
         if let Some(bound) = self.trip_bounds.get(&value) {
             range = range.intersect(*bound).unwrap_or(range);
+        }
+        if !self.params.size_floor.is_zero()
+            && matches!(inst_kind(func, value), Some(InstKind::CalldataSize))
+        {
+            range.lo = range.lo.max(self.params.size_floor);
         }
         if range.lo.is_zero() && self.has_strict_lower_bound(func, value) {
             range.lo = U256::ONE;

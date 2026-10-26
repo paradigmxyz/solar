@@ -48,7 +48,11 @@
 //!   link at a time;
 //! - a parameter of an internal function is bounded or below `calldatasize` at every call, which
 //!   `argument_facts` takes from the checks that dominate each call, round by round through the
-//!   callers. Only functions that are called directly qualify.
+//!   callers. Only functions that are called directly qualify. The same walk gives each function a
+//!   lower bound of `calldatasize`, the least the checks before each call, or before the dispatch
+//!   `entry` tail-calls an ABI wrapper, establish. With that bound `calldatasize - c` cannot wrap,
+//!   so a nested decoder's offset check against it keeps `base + offset + c` inside calldata, and
+//!   so does the pointer it passes on.
 //!
 //! Other runs keep their loads.
 //!

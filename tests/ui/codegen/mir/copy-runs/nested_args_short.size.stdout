@@ -1,0 +1,129 @@
+// === ROOT/tests/ui/codegen/mir/copy-runs/nested_args_short.sol:Test ===
+@module Test
+@phase lowered
+fn @copy3(arg0: i256) -> i256 [may_return_memory, pure] {
+  bb0:
+    v18 = mload 64 !metadata(memory=scratch)
+    v19 = add v18, 128
+    v20 = lt v19, v18
+    v21 = gt v19, 0xffffffffffffffff
+    v22 = or v20, v21
+    jumpi v22, bb4, bb3
+  bb3:
+    mstore 64, v19 !metadata(memory=scratch)
+    v24 = calldatasize
+    calldatacopy v18, v24, 128
+    mstore v18, 96
+    v3 = calldatasize
+    v4 = sub v3, arg0
+    v5 = lt v4, 96
+    jumpi v5, bb1, bb2
+  bb2:
+    v9 = add v18, 32
+    v10 = calldataload arg0
+    mstore v9, v10
+    v11 = add arg0, 32
+    v12 = calldataload v11
+    v13 = add v9, 32
+    mstore v13, v12
+    v14 = add arg0, 64
+    v15 = calldataload v14
+    v16 = add v9, 64
+    mstore v16, v15
+    ret v18
+  bb1:
+    revert 0, 0
+  bb4:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @p1() [selector=0xc2a2747b, abi_wrapper, pure] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 100
+    v4 = calldataload 4
+    v5 = calldatasize
+    v6 = sub v5, 100
+    v7 = gt v4, v6
+    v33 = or v1, v7
+    jumpi v33, bb1, bb2
+  bb2:
+    v12 = add v4, 4
+    v13 = lt v12, v4
+    jumpi v13, bb3, bb4
+  bb4:
+    v11 = icall @copy3, v12
+    v17 = mload v11
+    v28 = add v11, 32
+    v19 = add v17, 31
+    v21 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = add v28, v21
+    mstore v23, 0
+    v30 = add v11, 64
+    mcopy v30, v28, v17
+    mstore v11, 32
+    mstore v28, v17
+    v25 = add v21, 64
+    returndata v11, v25
+  bb3:
+    tail_call @revert_stub
+  bb1:
+    revert 0, 0
+}
+
+fn @p2() [selector=0x81d01ed3, abi_wrapper, pure] {
+  bb0:
+    v0 = calldataload 36
+    v1 = calldatasize
+    v2 = sub v1, 100
+    v3 = gt v0, v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v8 = add v0, 4
+    v9 = lt v8, v0
+    jumpi v9, bb3, bb4
+  bb4:
+    v7 = icall @copy3, v8
+    v13 = mload v7
+    v24 = add v7, 32
+    v15 = add v13, 31
+    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v24, v17
+    mstore v19, 0
+    v26 = add v7, 64
+    mcopy v26, v24, v13
+    mstore v7, 32
+    mstore v24, v13
+    v21 = add v17, 64
+    returndata v7, v21
+  bb3:
+    tail_call @revert_stub
+  bb1:
+    revert 0, 0
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x81d01ed3 => bb2, 0xc2a2747b => bb3]
+  bb3:
+    tail_call @p1
+  bb2:
+    tail_call @p2
+  bb4:
+    revert 0, 0
+}
