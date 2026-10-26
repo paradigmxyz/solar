@@ -3,88 +3,157 @@
 @phase lowered
 fn @loadSome() [selector=0x982de5a7, abi_wrapper, pure] {
   bb0:
-    v40 = calldatasize
-    v41 = lt v40, 100
-    jumpi v41, bb3, bb4
-  bb4:
-    v42 = icall @decode_calldata_type
-    v19 = ne arg2, 0
-    v20 = mload v42
+    v35 = calldatasize
+    v36 = lt v35, 100
+    jumpi v36, bb5, bb6
+  bb6:
+    v37 = icall @decode_calldata_type
+    v19 = eq arg2, 0
+    jumpi v19, bb1, bb2
+  bb2:
+    v20 = mload v37
     v21 = lt v20, arg2
     v22 = sub v20, arg2
     v23 = gt arg1, v22
     v24 = or v21, v23
-    v26 = zext i1 v19 to i256
-    v28 = and v24, v19
-    jumpi v28, bb1, bb2
-  bb2:
-    v30 = mul arg1, v26
-    v45 = add v42, v30
-    v46 = add v45, 32
-    v33 = mload v46
-    v34 = lt arg2, 32
-    v35 = select v34, arg2, 32
-    v36 = shl v35, 3
-    v37 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v36
-    v38 = not v37
-    v39 = and v33, v38
-    mstore 0, v39 !metadata(memory=scratch)
-    returndata 0, 32
-  bb1:
-    tail_call @revert_stub
+    jumpi v24, bb3, bb4
+  bb4:
+    v40 = add v37, arg1
+    v41 = add v40, 32
+    v28 = mload v41
+    v29 = lt arg2, 32
+    v30 = select v29, arg2, 32
+    v31 = shl v30, 3
+    v32 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v31
+    v33 = not v32
+    v34 = and v28, v33
+    jump bb1
   bb3:
+    tail_call @revert_stub
+  bb1:
+    v3 = phi [bb6: 0], [bb4: v34]
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
+  bb5:
     revert 0, 0
 }
 
 fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
   bb0:
-    v46 = calldatasize
-    v47 = lt v46, 132
-    jumpi v47, bb3, bb4
-  bb4:
-    v48 = icall @decode_calldata_type
-    v19 = ne arg3, 0
-    v20 = mload v48
+    v42 = calldatasize
+    v43 = lt v42, 132
+    jumpi v43, bb5, bb6
+  bb6:
+    v44 = icall @decode_calldata_type
+    v19 = eq arg3, 0
+    jumpi v19, bb1, bb2
+  bb2:
+    v20 = mload v44
     v21 = lt v20, arg3
     v22 = sub v20, arg3
     v23 = gt arg1, v22
     v24 = or v21, v23
-    v25 = zext i1 v24 to i256
-    v26 = zext i1 v19 to i256
-    v27 = and v25, v26
-    v28 = gt arg3, 32
-    v29 = zext i1 v28 to i256
-    v30 = or v27, v29
-    v31 = ne v30, 0
-    jumpi v31, bb1, bb2
-  bb2:
-    v33 = mul arg1, v26
-    v63 = add v48, v33
+    v26 = gt arg3, 32
+    v29 = or v24, v26
+    jumpi v29, bb3, bb4
+  bb4:
+    v63 = add v44, arg1
     v64 = add v63, 32
-    v36 = lt arg3, 32
-    v37 = select v36, arg3, 32
-    v38 = shl v37, 3
-    v39 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v38
-    v40 = not v39
-    v42 = mload v64
-    v43 = and v42, v39
-    v44 = and arg2, v40
-    v45 = or v43, v44
-    mstore v64, v45
-    v66 = add v48, 32
-    v54 = add v20, 31
-    v56 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v58 = add v66, v56
-    mstore v58, 0
-    v68 = add v48, 64
-    mcopy v68, v66, v20
-    mstore v48, 32
-    mstore v66, v20
-    v60 = add v56, 64
-    returndata v48, v60
-  bb1:
-    tail_call @revert_stub
+    v32 = lt arg3, 32
+    v33 = select v32, arg3, 32
+    v34 = shl v33, 3
+    v35 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v34
+    v36 = not v35
+    v38 = mload v64
+    v39 = and v38, v35
+    v40 = and arg2, v36
+    v41 = or v39, v40
+    mstore v64, v41
+    jump bb1
   bb3:
+    tail_call @revert_stub
+  bb1:
+    v48 = mload v44
+    v59 = add v44, 32
+    v50 = add v48, 31
+    v52 = and v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v54 = add v59, v52
+    mstore v54, 0
+    v61 = add v44, 64
+    mcopy v61, v59, v48
+    mstore v44, 32
+    mstore v59, v48
+    v56 = add v52, 64
+    returndata v44, v56
+  bb5:
+    revert 0, 0
+}
+
+fn @loadNowhere() [selector=0x620282bd, abi_wrapper, pure] {
+  bb0:
+    v15 = calldatasize
+    v16 = lt v15, 68
+    jumpi v16, bb5, bb6
+  bb6:
+    v2 = eq arg1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    v4 = mload arg0
+    v5 = lt v4, arg1
+    jumpi v5, bb3, bb4
+  bb4:
+    v18 = add arg0, 32
+    v7 = mload v18
+    v8 = lt arg1, 32
+    v9 = select v8, arg1, 32
+    v10 = shl v9, 3
+    v11 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v10
+    v12 = not v11
+    v13 = and v7, v12
+    jump bb1
+  bb3:
+    tail_call @revert_stub
+  bb1:
+    v3 = phi [bb6: 0], [bb4: v13]
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
+  bb5:
+    revert 0, 0
+}
+
+fn @storeNowhere() [selector=0x5a29af63, abi_wrapper, pure] {
+  bb0:
+    v17 = calldatasize
+    v18 = lt v17, 100
+    jumpi v18, bb5, bb6
+  bb6:
+    v1 = eq arg2, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = mload arg0
+    v3 = lt v2, arg2
+    v4 = gt arg2, 32
+    v5 = or v3, v4
+    jumpi v5, bb3, bb4
+  bb4:
+    v20 = add arg0, 32
+    v7 = lt arg2, 32
+    v8 = select v7, arg2, 32
+    v9 = shl v8, 3
+    v10 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v9
+    v11 = not v10
+    v13 = mload v20
+    v14 = and v13, v10
+    v15 = and arg1, v11
+    v16 = or v14, v15
+    mstore v20, v16
+    jump bb1
+  bb3:
+    tail_call @revert_stub
+  bb1:
+    mstore 0, arg2 !metadata(memory=scratch)
+    returndata 0, 32
+  bb5:
     revert 0, 0
 }
 
@@ -139,15 +208,19 @@ fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb4, bb1
+    jumpi v1, bb6, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb4, [0x26843d1f => bb2, 0x982de5a7 => bb3]
-  bb3:
+    switch v3, default bb6, [0x26843d1f => bb2, 0x5a29af63 => bb3, 0x620282bd => bb4, 0x982de5a7 => bb5]
+  bb5:
     tail_call @loadSome
+  bb4:
+    tail_call @loadNowhere
+  bb3:
+    tail_call @storeNowhere
   bb2:
     tail_call @storeSome
-  bb4:
+  bb6:
     revert 0, 0
 }

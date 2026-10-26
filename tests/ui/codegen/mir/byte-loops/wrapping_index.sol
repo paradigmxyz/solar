@@ -13,6 +13,9 @@
 //@ run-call-fail: mixedDown 0x0102, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: sourceFirst 0x0102030405, 1, 0, 3 => 0x020304
 //@ run-call-fail: sourceFirst 0x0102, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: destinationFirst 0x01, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: wrappedCopy 0x, 4 => 0x00bd307f
+//@ run-call: wrappedWord 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x00c280cc68000000000000000000000000000000000000000000000000000000
 
 // A downward copy's first iteration indexes `offset + count - 1`. A checked addition that wraps
 // panics there with `Panic(0x11)`. An unchecked one wraps silently, and the falling index then
@@ -93,6 +96,51 @@ contract Test {
                 at = from + k - 1;
             }
             out[to + k - 1] = src[at];
+        }
+    }
+
+    // A destination index computed in an earlier statement fails before the source's check, so the
+    // loop stays.
+    // CHECK-LABEL: fn @destinationFirst(
+    // CHECK: mstore8
+    function destinationFirst(bytes calldata src, uint256 from, uint256 to, uint256 count)
+        external
+        pure
+        returns (bytes memory out)
+    {
+        out = new bytes(count);
+        for (uint256 k = count; k > 0; --k) {
+            uint256 at = to + k - 1;
+            out[at] = src[from + k - 1];
+        }
+    }
+
+    // A slice offset inline assembly set near `2^256` wraps: the loop reads the start of calldata
+    // past the wrap, where `calldatacopy` and `calldataload` read zeros, so both keep their loops
+    // behind a run-time test.
+    // CHECK-LABEL: fn @wrappedCopy(
+    // CHECK: calldatacopy
+    // CHECK: mstore8
+    function wrappedCopy(bytes calldata data, uint256 n) external pure returns (bytes memory out) {
+        assembly {
+            data.offset := not(0)
+            data.length := n
+        }
+        out = new bytes(n);
+        for (uint256 k; k < n; ++k) {
+            out[k] = data[k];
+        }
+    }
+
+    // CHECK-LABEL: fn @wrappedWord(
+    // CHECK: calldataload
+    // CHECK: byte 0
+    function wrappedWord(bytes calldata data) external pure returns (bytes32 result) {
+        assembly {
+            data.offset := not(0)
+        }
+        for (uint256 k; k < 32; ++k) {
+            result |= bytes32(data[k]) >> (8 * k);
         }
     }
 }

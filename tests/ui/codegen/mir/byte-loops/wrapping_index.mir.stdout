@@ -213,3 +213,153 @@ fn @sourceFirst(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> pt
     v32 = checked_sub uint256, v10, 1
     jump bb1
 }
+
+fn @destinationFirst(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selector=0x5072325f, pure, abi_params=[bytes, uint256, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = add arg3, 63
+    v1 = lt v0, arg3
+    icall panic_if<0x41>, v1
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc zeroed checked v3
+    mstore v4, arg3
+    jump bb1
+  bb1:
+    v5 = phi [bb0: arg0], [bb3: v5]
+    v6 = phi [bb0: arg1], [bb3: v6]
+    v7 = phi [bb0: arg2], [bb3: v7]
+    v8 = phi [bb0: arg3], [bb3: v8]
+    v9 = phi [bb0: v4], [bb3: v9]
+    v10 = phi [bb0: arg3], [bb3: v32]
+    v11 = gt v10, 0
+    jumpi v11, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v9
+  bb4:
+    v12 = checked_add uint256, v7, v10
+    v13 = checked_sub uint256, v12, 1
+    v14 = checked_add uint256, v6, v10
+    v15 = checked_sub uint256, v14, 1
+    v16 = extract_value slice<calldata>, v5, 1
+    v17 = lt v15, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = extract_value slice<calldata>, v5, 0
+    v20 = extract_value slice<calldata>, v5, 0
+    v21 = ptrtoint ptr<calldata> v20 to i256
+    v22 = add v21, v15
+    v23 = calldataload v22
+    v24 = byte 0, v23
+    v25 = shl v24, 248
+    v26 = mload v9
+    v27 = lt v13, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = byte 0, v25
+    v30 = ptradd v9, v13
+    v31 = ptradd v30, 32
+    mstore8 v31, v29
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v32 = checked_sub uint256, v10, 1
+    jump bb1
+}
+
+fn @wrappedCopy(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0xbd307fab, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = not 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = inttoptr i256 v0 to ptr<calldata>
+    v3 = make_calldata_slice v2, v1
+    v4 = extract_value slice<calldata>, v3, 0
+    v5 = make_calldata_slice v4, arg1
+    v6 = add arg1, 63
+    v7 = lt v6, arg1
+    icall panic_if<0x41>, v7
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc zeroed checked v9
+    mstore v10, arg1
+    jump bb1
+  bb1:
+    v11 = phi [bb0: v5], [bb3: v11]
+    v12 = phi [bb0: arg1], [bb3: v12]
+    v13 = phi [bb0: v10], [bb3: v13]
+    v14 = phi [bb0: 0], [bb3: v32]
+    v15 = lt v14, v12
+    jumpi v15, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v13
+  bb4:
+    v16 = extract_value slice<calldata>, v11, 1
+    v17 = lt v14, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = extract_value slice<calldata>, v11, 0
+    v20 = extract_value slice<calldata>, v11, 0
+    v21 = ptrtoint ptr<calldata> v20 to i256
+    v22 = add v21, v14
+    v23 = calldataload v22
+    v24 = byte 0, v23
+    v25 = shl v24, 248
+    v26 = mload v13
+    v27 = lt v14, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = byte 0, v25
+    v30 = ptradd v13, v14
+    v31 = ptradd v30, 32
+    mstore8 v31, v29
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v32 = checked_add uint256, v14, 1
+    jump bb1
+}
+
+fn @wrappedWord(arg0: slice<calldata>) -> i256 [selector=0xc280cc68, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = not 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = inttoptr i256 v0 to ptr<calldata>
+    v3 = make_calldata_slice v2, v1
+    jump bb1
+  bb1:
+    v4 = phi [bb0: v3], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v20]
+    v6 = phi [bb0: 0], [bb3: v21]
+    v7 = lt v6, 32
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v5
+  bb4:
+    v8 = extract_value slice<calldata>, v4, 1
+    v9 = lt v6, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = extract_value slice<calldata>, v4, 0
+    v12 = extract_value slice<calldata>, v4, 0
+    v13 = ptrtoint ptr<calldata> v12 to i256
+    v14 = add v13, v6
+    v15 = calldataload v14
+    v16 = byte 0, v15
+    v17 = shl v16, 248
+    v18 = checked_mul uint256, 8, v6
+    v19 = shr v17, v18
+    v20 = or v5, v19
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v21 = checked_add uint256, v6, 1
+    jump bb1
+}

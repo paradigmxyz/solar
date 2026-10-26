@@ -8,6 +8,7 @@
 //@ run-call-fail: word 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20, 31 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: fill 32 => 0x6161616161616161616161616161616161616161616161616161616161616161, 0
 //@ run-call-fail: fill 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: grownPast() => 0x0101010101010101010101010101010101010101010101010101010101010101
 
 // A buffer allocated in whole words takes its length from a trusted `mstore(b, n)` after
 // `new bytes`, as a port that must leave its result zero right padded under legacy solc
@@ -84,6 +85,24 @@ contract Test {
                 let last := mload(add(add(b, 0x20), and(length, not(0x1f))))
                 tail := shl(mul(8, and(length, 0x1f)), last)
             }
+        }
+    }
+
+    /// A source length grown past its allocation runs into the next one, where the destination
+    /// starts inside the source range: the loop copies bytes it already wrote, so it stays.
+    function grownPast() external pure returns (bytes32 word) {
+        bytes memory a = new bytes(1);
+        bytes memory b = new bytes(64);
+        assembly {
+            mstore(a, 200)
+            mstore(add(a, 0x20), not(0))
+            mstore(add(a, 0x40), 0x0101010101010101010101010101010101010101010101010101010101010101)
+        }
+        for (uint256 k; k < 64; ++k) {
+            b[k] = a[k + 40];
+        }
+        assembly {
+            word := mload(add(b, 0x40))
         }
     }
 }

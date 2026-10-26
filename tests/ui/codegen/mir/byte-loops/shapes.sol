@@ -44,6 +44,7 @@
 //@ run-call: fillSome 0x0102030405, 0x61 => 0x6161616105
 //@ run-call-fail: fillSome 0x010203, 0x61 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call-fail: viaHelper 0x0102030405, 2, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: fillPastWord 36 => 0x61616161616161616161616161616161616161616161616161616161616161616161616100000000000000000000000000000000000000000000000000000000
 
 // A gather from calldata is one `calldataload`.
 // CHECK-LABEL: fn @fromCalldata(
@@ -259,6 +260,16 @@ contract Test {
     function _copy(bytes memory dst, uint256 at, bytes memory src, uint256 from, uint256 count) private pure {
         for (uint256 k; k < count; ++k) {
             dst[at + k] = src[from + k];
+        }
+    }
+
+    /// An unrelated array's check bounds the count at 40, past a word, so the fill stays a loop.
+    function fillPastWord(uint256 n) external pure returns (bytes memory b) {
+        b = new bytes(64);
+        uint256[40] memory other;
+        for (uint256 k; k < n; ++k) {
+            b[k] = 0x61;
+            other[k];
         }
     }
 }

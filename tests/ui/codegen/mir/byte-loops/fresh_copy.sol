@@ -18,6 +18,7 @@
 //@ run-call: overlapRest 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627, 3, 32 => 0x00000000000000000000000000000000000000000000000000000000250000000000000000
 //@ run-call: overlapRest 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627, 3, 48 => 0x030405060708090a0b0c0d0e0f000000000000000000000000000000000000000000000000
 //@ run-call: overlapRest 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627, 3, 96 => 0x030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627
+//@ run-call: lengthWordCovered() => 0x0101010101010101010101010101010101010101010101010101010101010101
 
 // A copy into a buffer `new bytes(n)` just allocated overwrites its zeroing. Unless a zero word
 // stored after the copied bytes clears the padding, a zero store to the allocation's last word
@@ -141,6 +142,29 @@ contract Test {
                 let last := mload(add(add(b, 0x20), and(length, not(0x1f))))
                 tail := shl(mul(8, and(length, 0x1f)), last)
             }
+        }
+    }
+
+    /// A source whose length word straddles the end of the buffer: the copy's stores reach the
+    /// length the loop reloads, which grows past the bound midway, so the loop stays.
+    function lengthWordCovered() external pure returns (bytes memory) {
+        bytes memory s;
+        assembly {
+            s := add(mload(0x40), 0x30)
+            mstore(s, 20)
+            mstore(add(s, 0x20), 0x0101010101010101010101010101010101010101010101010101010101010101)
+        }
+        return _count(s, 32);
+    }
+
+    /// @custom:solar-noinline
+    function _count(bytes memory s, uint256 n) private pure returns (bytes memory r) {
+        r = new bytes(n);
+        for (uint256 k; k < n; ++k) {
+            r[k] = s[k];
+        }
+        assembly ("memory-safe") {
+            mstore(add(add(r, 0x20), mload(r)), 0)
         }
     }
 }
