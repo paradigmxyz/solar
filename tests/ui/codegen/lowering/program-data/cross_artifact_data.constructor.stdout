@@ -13,18 +13,17 @@ bb0:
   jumpi
   push 64
   mload
-  dup 1
-  dup 1
   push 256
+  dup 2
   add
   push 64
+  mstore
+  push 224
+  dup 2
   mstore
   push 32
   add
   push 224
-  dup 1
-  dup 4
-  mstore
   push_data literal_0
   dup 3
   codecopy
@@ -36,37 +35,24 @@ bb0:
   push 32
   dup 3
   mstore
-  swap 3
-  mload
-  push 31
+  push 32
   dup 2
   add
-  push 31
-  not
-  and
-  push 32
-  dup 6
-  add
   push 0
-  dup 3
-  dup 8
+  push 224
+  dup 4
   add
   mstore
-  dup 3
+  push 224
   swap 1
-  swap 6
+  swap 2
   mstore
-  dup 5
-  add
-  swap 1
+  push 224
   swap 2
   swap 3
   swap 1
-  swap 4
   mcopy
-  dup 1
-  swap 2
-  sub
+  push 288
   push 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
   swap 2
   log1
