@@ -33,8 +33,8 @@ fn @message() [selector=0x91fdccfd, abi_wrapper, pure] {
     jumpi v29, bb1, bb2
   bb2:
     v31 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v117 = mload 64 !metadata(memory=scratch)
-    v118 = add v117, v31
+    v117 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v118 = add v117, v31 !metadata(alloc_ptr)
     mstore 64, v118
     mstore v117, v27
     v79 = add v117, 32
@@ -91,8 +91,8 @@ fn @overlapping() [selector=0x206097d8, abi_wrapper, pure] {
     jumpi v17, bb1, bb2
   bb2:
     v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v41 = mload 64 !metadata(memory=scratch)
-    v42 = add v41, v19
+    v41 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v42 = add v41, v19 !metadata(alloc_ptr)
     mstore 64, v42
     mstore v41, v11
     v32 = add v41, 32
@@ -304,8 +304,8 @@ fn @mcopy_words(arg0: i256, arg1: i256, arg2: i256) {
 
 fn @alloc(arg0: i256) -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v2 = add v0, arg0
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
     v7 = shr v2, 64
     v4 = ne v7, 0
