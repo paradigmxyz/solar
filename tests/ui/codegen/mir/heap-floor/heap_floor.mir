@@ -829,3 +829,34 @@ fn @heap_store() -> i256 {
     mstore v2, 1
     ret 0
 }
+
+fn @low_word() -> i256 {
+  bb0:
+    v0 = calldataload 4
+    ret v0
+}
+
+fn @tail_to_low_word() -> i256 {
+  bb0:
+    tail_call @low_word
+}
+
+// A function that tail calls another returns what the callee returns, so a callee that returns a
+// low word makes the call result one too, and a store through it may land on the slot.
+// CHECK-LABEL: {{^[ +].*}}fn @tail_called_result{{[( ]}}
+// CHECK: [[WORD:v[0-9]+]] = icall @tail_to_low_word
+// CHECK-NEXT: mstore [[WORD]], 128
+// CHECK-NEXT: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], 1
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[POINTER]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[POINTER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], 1
+fn @tail_called_result() -> i256 {
+  bb0:
+    v0 = icall @tail_to_low_word
+    mstore v0, 128
+    v1 = mload 64
+    mstore v1, 1
+    ret 0
+}

@@ -577,8 +577,9 @@ fn module_heap_addresses(
             params
         })
         .collect::<IndexVec<FunctionId, _>>();
-    // A function returns a heap pointer when every return does. A call result is one only then,
-    // not by its type, since the callee's assembly may have cast any word to the type.
+    // A function returns a heap pointer when every return and tail call does. A call result is one
+    // only then, not by its type, since the callee's assembly may have cast any word to the
+    // type.
     let mut returns = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
         if func.return_components().len() == 1 {
@@ -596,9 +597,13 @@ fn module_heap_addresses(
         let mut changed = false;
         for (func_id, func) in module.functions.iter_enumerated() {
             if returns.contains(func_id)
-                && func.blocks.iter().any(|block| {
-                    matches!(&block.terminator, Some(Terminator::Return { values })
-                        if values.first().is_none_or(|&value| !heap[func_id].contains(value)))
+                && func.blocks.iter().any(|block| match &block.terminator {
+                    Some(Terminator::Return { values }) => {
+                        values.first().is_none_or(|&value| !heap[func_id].contains(value))
+                    }
+                    // A tail call returns what its callee returns.
+                    Some(Terminator::TailCall { function, .. }) => !returns.contains(*function),
+                    _ => false,
                 })
             {
                 returns.remove(func_id);

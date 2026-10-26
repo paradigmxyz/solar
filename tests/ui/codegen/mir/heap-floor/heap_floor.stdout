@@ -647,3 +647,32 @@
       ret 0
   }
   
+  fn @low_word() -> i256 {
+    bb0:
+      v0 = calldataload 4
+      ret v0
+  }
+  
+  fn @tail_to_low_word() -> i256 {
+    bb0:
+      tail_call @low_word
+  }
+  
+  fn @tail_called_result() -> i256 {
+    bb0:
+      v0 = icall @tail_to_low_word
+      mstore v0, 128
+      v1 = mload 64
+-     mstore v1, 1
++     v6 = heap_floor
++     v7 = lt v1, v6
++     v8 = select v7, v6, v1
++     mstore v8, 1
++     v2 = mload 64 !metadata(memory=scratch)
++     v3 = heap_floor
++     v4 = lt v2, v3
++     v5 = select v4, v3, v2
++     mstore 64, v5 !metadata(memory=scratch)
+      ret 0
+  }
+  
