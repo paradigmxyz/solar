@@ -3,24 +3,34 @@
   @module VoidForwarder
   fn @caller(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      icall @forward_void, arg0, arg1, 7
+-     icall @forward_void, arg0, arg1, 7
++     jump bb2
++   bb2:
++     icall @sink, arg1, arg0, 7
++     jump bb1
++   bb1:
       v0 = sload 0
       ret v0
   }
   
   fn @other(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      icall @forward_void, arg1, arg0, 9
+-     icall @forward_void, arg1, arg0, 9
++     jump bb2
++   bb2:
++     icall @sink, arg0, arg1, 9
++     jump bb1
++   bb1:
       v0 = sload 0
       ret v0
   }
   
-  fn @forward_void(arg0: i256, arg1: i256, arg2: i256) {
-    bb0:
-      icall @sink, arg1, arg0, arg2
-      ret
-  }
-  
+- fn @forward_void(arg0: i256, arg1: i256, arg2: i256) {
+-   bb0:
+-     icall @sink, arg1, arg0, arg2
+-     ret
+- }
+- 
   fn @explicit_return(arg0: i256, arg1: i256) {
     bb0:
 -     icall @forward_return, arg0, arg1
@@ -108,14 +118,23 @@
   
   fn @shared_extra_caller(arg0: i256, arg1: i256) {
     bb0:
-      icall @shared_extra, arg0, arg1
-      icall @shared_extra, arg1, arg0
-      ret
-  }
-  
-  fn @shared_extra(arg0: i256, arg1: i256) {
-    bb0:
+-     icall @shared_extra, arg0, arg1
+-     icall @shared_extra, arg1, arg0
+-     ret
+- }
+- 
+- fn @shared_extra(arg0: i256, arg1: i256) {
+-   bb0:
++     jump bb2
++   bb2:
       icall @sink, arg0, arg1, 13
++     jump bb1
++   bb1:
++     jump bb4
++   bb4:
++     icall @sink, arg1, arg0, 13
++     jump bb3
++   bb3:
       ret
   }
   
@@ -124,22 +143,24 @@
   @module VoidForwarder
   fn @caller(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      icall @forward_void, arg0, arg1, 7
+-     jump bb2
+-   bb2:
+      icall @sink, arg1, arg0, 7
+-     jump bb1
+-   bb1:
       v0 = sload 0
       ret v0
   }
   
   fn @other(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      icall @forward_void, arg1, arg0, 9
+-     jump bb2
+-   bb2:
+      icall @sink, arg0, arg1, 9
+-     jump bb1
+-   bb1:
       v0 = sload 0
       ret v0
-  }
-  
-  fn @forward_void(arg0: i256, arg1: i256, arg2: i256) {
-    bb0:
-      icall @sink, arg1, arg0, arg2
-      ret
   }
   
   fn @explicit_return(arg0: i256, arg1: i256) {
@@ -216,14 +237,16 @@
   
   fn @shared_extra_caller(arg0: i256, arg1: i256) {
     bb0:
-      icall @shared_extra, arg0, arg1
-      icall @shared_extra, arg1, arg0
-      ret
-  }
-  
-  fn @shared_extra(arg0: i256, arg1: i256) {
-    bb0:
+-     jump bb2
+-   bb2:
       icall @sink, arg0, arg1, 13
+-     jump bb1
+-   bb1:
+-     jump bb4
+-   bb4:
+      icall @sink, arg1, arg0, 13
+-     jump bb3
+-   bb3:
       ret
   }
   

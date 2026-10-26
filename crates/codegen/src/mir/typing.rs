@@ -29,16 +29,8 @@ impl AbiType {
             return false;
         }
         match (self, actual) {
-            (Self::FixedArray { .. } | Self::Tuple(_), MirType::Slice(PtrLocation::Calldata)) => {
-                !self.is_dynamic()
-            }
-            (
-                Self::DynamicArray { element, .. },
-                MirType::Slice(location @ (PtrLocation::Calldata | PtrLocation::Returndata)),
-            ) => {
+            (Self::DynamicArray { element, .. }, MirType::Slice(PtrLocation::Returndata)) => {
                 matches!(element.as_ref(), Self::Word(_) | Self::Function)
-                    || (location == PtrLocation::Calldata
-                        && matches!(element.as_ref(), Self::Bytes(_)))
             }
             _ => true,
         }
@@ -102,8 +94,19 @@ pub(super) fn memory_object(func: &Function, value: ValueId) -> MirType {
     }
 }
 
-pub(super) fn address_call_types(gas: bool, value: bool) -> SmallVec<[MirType; 8]> {
-    let mut types = smallvec![MirType::I160, MirType::MEMPTR];
+/// The operands of `address_call`: its input is a bytes object, or a memory slice the call reads
+/// where it lies.
+pub(super) fn address_call_types(
+    func: &Function,
+    input: ValueId,
+    gas: bool,
+    value: bool,
+) -> SmallVec<[MirType; 8]> {
+    let input = match func.value_ty(input) {
+        Some(ty @ MirType::Slice(PtrLocation::Memory)) => ty,
+        _ => MirType::MEMPTR,
+    };
+    let mut types = smallvec![MirType::I160, input];
     types.extend(std::iter::repeat_n(MirType::I256, usize::from(gas) + usize::from(value)));
     types
 }
@@ -148,7 +151,7 @@ pub(super) fn callee_types(
         Builtin::Require(kind) => {
             let mut types = smallvec![MirType::I1];
             match kind {
-                RequireKind::EmptyString => {}
+                RequireKind::EmptyString | RequireKind::LongString(_) => {}
                 RequireKind::ShortString => types.extend([MirType::I256, MirType::I256]),
                 RequireKind::ErrorString => types.push(bytes),
                 RequireKind::CustomError(layout) => {

@@ -21,7 +21,8 @@
 
 use crate::mir::{
     AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType, Module,
-    PtrLocation, Value, pass::MirPass,
+    PtrLocation, Value,
+    pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -39,12 +40,7 @@ impl MirPass for LowerMemoryObjects {
         true
     }
 
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         if module.has_struct_values() {
             analyses.fail(
                 gcx.dcx()
@@ -55,11 +51,7 @@ impl MirPass for LowerMemoryObjects {
             );
             return false;
         }
-        let mut changed = false;
-        for func in module.functions.iter_mut() {
-            changed |= lower_function(func);
-        }
-        changed
+        run_lowering_function_pass(module, analyses, |func, _| lower_function(func))
     }
 }
 

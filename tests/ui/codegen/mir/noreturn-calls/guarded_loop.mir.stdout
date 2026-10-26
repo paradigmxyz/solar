@@ -1,0 +1,53 @@
+// === ROOT/tests/ui/codegen/mir/noreturn-calls/guarded_loop.sol:GuardedLoop ===
+@module GuardedLoop
+fn @sumFrom(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xd9941e3f, pure, abi_params=[bytes, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = lt arg1, v0
+    v2 = eq v1, false
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @_fail
+    jump bb3
+  bb3:
+    jump bb4
+  bb4:
+    v3 = phi [bb3: arg0], [bb7: v3]
+    v4 = phi [bb3: arg1], [bb7: v18]
+    v5 = phi [bb3: 0], [bb7: v17]
+    v6 = mload v3
+    v7 = lt v4, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v3, v4
+    v10 = ptradd v9, 32
+    v11 = mload v10
+    v12 = byte 0, v11
+    v13 = shl v12, 248
+    v14 = shr v13, 248
+    v15 = trunc i256 v14 to i8
+    v16 = zext i8 v15 to i256
+    v17 = checked_add uint256, v5, v16
+    jump bb6
+  bb6:
+    v18 = checked_add uint256, v4, 1
+    v19 = mload v3
+    v20 = lt v18, v19
+    jumpi v20, bb7, bb8
+  bb8:
+    jump bb5
+  bb5:
+    ret v17
+  bb7:
+    jump bb4
+  bb9:
+    invalid
+}
+
+fn @_fail() [pure] {
+  bb0:
+    icall require<custom_error []>, false, 0xe143a03400000000000000000000000000000000000000000000000000000000
+    invalid
+}

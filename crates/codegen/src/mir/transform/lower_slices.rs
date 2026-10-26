@@ -19,8 +19,9 @@
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
-    MirType, Module, PtrLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
-    pass::MirPass,
+    MirType, Module, PtrLocation, Terminator, Value, ValueId,
+    memory::EvmMemoryLayout,
+    pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
 };
 use solar_data_structures::{
     index::IndexVec,
@@ -40,16 +41,11 @@ impl MirPass for LowerSlices {
         true
     }
 
-    fn run_pass(
-        &self,
-        _gcx: Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         // NOTE: Rewriting a projection of a lowered memory object into a load is not reported
         // as a change on its own.
         analyses.note_unreported_module_edit();
-        Self::run(module)
+        Self::run(module, analyses)
     }
 }
 
@@ -682,7 +678,7 @@ impl LowerSlices {
         }
         true
     }
-    fn run(module: &mut Module) -> bool {
+    fn run(module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         if module.has_struct_values() {
             return false;
         }
@@ -756,8 +752,9 @@ impl LowerSlices {
         }) {
             return false;
         }
-        let mut changed = false;
-        for (id, func) in module.functions.iter_mut_enumerated() {
+        run_lowering_function_pass(module, analyses, |func, function_analyses| {
+            let id = function_analyses.function();
+            let mut changed = false;
             // Eliminate slice-typed `select`/`phi` first, so every remaining
             // slice is a `make_slice` result or a projection that the later
             // stages can expand or fold.
@@ -773,7 +770,7 @@ impl LowerSlices {
             while Self::lower_projections(func) {
                 changed = true;
             }
-        }
-        changed
+            changed
+        })
     }
 }

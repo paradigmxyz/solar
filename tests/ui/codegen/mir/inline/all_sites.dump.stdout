@@ -1,0 +1,73 @@
+// === ROOT/tests/ui/codegen/mir/inline/all_sites.sol:AllSites ===
+@module AllSites
+@phase lowered
+fn @accumulate() [selector=0xb4e7d02a, abi_wrapper] {
+  bb0:
+    v1 = lt arg0, 0x3e9
+    jumpi v1, bb5, bb4
+  bb4:
+    revert 0, 0
+  bb5:
+    v2 = sload 0
+    jump bb1
+  bb1:
+    v5 = phi [bb5: v2], [bb7: v13]
+    v6 = phi [bb5: 0], [bb7: v16]
+    v7 = lt v6, arg0
+    jumpi v7, bb3, bb2
+  bb2:
+    sstore 0, v5
+    mstore 0, v5
+    returndata 0, 32
+  bb3:
+    v13 = add v5, v6
+    v14 = lt v13, v5
+    jumpi v14, bb6, bb7
+  bb7:
+    v16 = add v6, 1
+    jump bb1
+  bb6:
+    tail_call @panicArithmetic
+}
+
+fn @increment() [selector=0x7cf5dab0, abi_wrapper] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v6 = add v0, arg0
+    v7 = lt v6, v0
+    jumpi v7, bb1, bb2
+  bb2:
+    sstore 0, v6
+    mstore 0, v6
+    returndata 0, 32
+  bb1:
+    tail_call @panicArithmetic
+}
+
+fn @panicArithmetic() [pure] {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x7cf5dab0 => bb3, 0xb4e7d02a => bb4]
+  bb4:
+    tail_call @accumulate
+  bb3:
+    tail_call @increment
+  bb1:
+    revert 0, 0
+}
