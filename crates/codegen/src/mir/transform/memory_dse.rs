@@ -44,15 +44,15 @@
 //!   a function that writes through a runtime index, which may wrap and rewind the pointer. Other
 //!   allocations do not overlap. Assembly can still rebuild a pointer into a heap object from the
 //!   free-memory pointer, so every other read that may touch heap memory, such as a load through an
-//!   unrelated pointer, `msize`, or a callee with unknown reads, and every `ret` and tail call,
-//!   reads the whole object. A read that may leave its own allocation reaches the objects allocated
-//!   after it, not the ones before. A write-only deferred object, which static placement keeps
-//!   unrelated to the free-memory pointer, ignores them. A store that may reach past the end of its
-//!   object may write over the next one and stays: the size of an infallible allocation, whose
-//!   arithmetic cannot wrap, is bounded below through sums and word-rounding masks, and other
-//!   runtime sizes have no bound. Functions observing gas keep their stores, since the stores pay
-//!   for memory expansion. Writes the object receives from copies and calls stay: only stores are
-//!   candidates.
+//!   unrelated pointer, `msize`, or a callee with unknown reads, reads the whole object. A `ret` or
+//!   tail call reads no object whose pointer it does not receive. A read that may leave its own
+//!   allocation reaches the objects allocated after it, not the ones before. A write-only deferred
+//!   object, which static placement keeps unrelated to the free-memory pointer, ignores them. A
+//!   store that may reach past the end of its object may write over the next one and stays: the
+//!   size of an infallible allocation, whose arithmetic cannot wrap, is bounded below through sums
+//!   and word-rounding masks, and other runtime sizes have no bound. Functions observing gas keep
+//!   their stores, since the stores pay for memory expansion. Writes the object receives from
+//!   copies and calls stay: only stores are candidates.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
 //!   removed, and a store that the single jump successor overwrites first, with no memory or gas
 //!   observer in between, is removed.
@@ -60,6 +60,12 @@
 //!   full-word store that no path reads before overwriting it. A symbolic or unbounded read, a
 //!   call, a return to the caller, and a tail call make all memory live; revert and return data
 //!   keep only the words they cover, and halts such as `stop` keep none.
+//!
+//! NOTE: Codegen does not track which inline assembly is annotated memory-safe, so no block is
+//! treated as unsafe. A `ret` or tail call is assumed to read no dead object of its function.
+//! Assembly that reads such an object in the caller through a forged pointer, such as one rebuilt
+//! from the free-memory pointer, is unsupported. Memory-safe assembly may only use pointers it was
+//! given, later objects already reuse dead regions, and our heap layout differs from solc's.
 //!
 //! Keys come from alias analysis, which canonicalizes an address as a base plus a constant offset.
 //! Allocation-based keys require the complete access range to fit; wider accesses may overlap
@@ -1706,12 +1712,13 @@ impl MemoryStoreEliminator {
     /// the data after it. Other allocations do not overlap, so reads inside them never count,
     /// unless a free-memory-pointer reset precedes the object, which then keeps its stores.
     /// Assembly can still reach a heap object through a pointer rebuilt from the free-memory
-    /// pointer, so every other read that may touch heap memory, and every `ret` and tail call,
-    /// reads all of it. A read that may leave its own allocation reaches the objects
-    /// allocated after it, not the ones before. A write-only deferred object, which static
-    /// placement keeps unrelated to the free-memory pointer, ignores them. The allocation stays:
-    /// later passes size and place it, and the address arithmetic feeding the store dies with
-    /// it.
+    /// pointer, so every other read that may touch heap memory reads all of it. A `ret` or tail
+    /// call reads no object whose pointer it does not receive. A read that may leave its own
+    /// allocation reaches the objects allocated after it, not the ones before. A write-only
+    /// deferred object, which static placement keeps unrelated to the free-memory pointer,
+    /// ignores them.
+    /// The allocation stays: later passes size and place it, and the address arithmetic feeding
+    /// the store dies with it.
     ///
     /// Removing a write can lower memory expansion, so functions observing gas keep their stores.
     fn remove_dead_allocation_stores(&mut self, func: &mut Function) {
@@ -1774,12 +1781,8 @@ impl MemoryStoreEliminator {
                 wrapping_writes |= self.alias().instruction_may_wrap_write(func, inst);
             }
             if let Some(terminator) = &block.terminator {
-                let position = (block_id, usize::MAX);
-                if matches!(terminator, Terminator::Return { .. } | Terminator::TailCall { .. }) {
-                    heap_reads.push(HeapRead { position, beyond: None });
-                }
                 let effects = self.alias().terminator_mod_ref(func, terminator);
-                self.collect_heap_reads(func, &effects, position, &mut heap_reads);
+                self.collect_heap_reads(func, &effects, (block_id, usize::MAX), &mut heap_reads);
             }
         }
 

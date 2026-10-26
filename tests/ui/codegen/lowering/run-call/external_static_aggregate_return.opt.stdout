@@ -10,12 +10,9 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     v8 = lt v7, 36
     jumpi v8, bb3, bb4
   bb4:
-    v22 = mload 64 !metadata(memory=scratch)
-    v23 = add v22, 64
-    mstore 64, v23 !metadata(memory=scratch)
-    mstore v22, 0
-    v19 = add v22, 32
-    mstore v19, 0
+    v19 = mload 64 !metadata(memory=scratch)
+    v20 = add v19, 64
+    mstore 64, v20 !metadata(memory=scratch)
     v2 = alloc 64 !metadata(deferred_alloc)
     v5 = add arg0, 1
     v6 = eq v5, 0
@@ -90,12 +87,9 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     v13 = lt v12, 36
     jumpi v13, bb4, bb5
   bb5:
-    v29 = mload 64 !metadata(memory=scratch)
-    v30 = add v29, 64
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, 0
-    v25 = add v29, 32
-    mstore v25, 0
+    v26 = mload 64 !metadata(memory=scratch)
+    v27 = add v26, 64
+    mstore 64, v27 !metadata(memory=scratch)
     v2 = alloc 64 !metadata(deferred_alloc)
     v8 = add arg0, 1
     v9 = eq v8, 0

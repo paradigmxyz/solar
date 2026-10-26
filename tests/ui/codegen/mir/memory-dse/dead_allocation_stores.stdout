@@ -167,7 +167,7 @@
   fn @returns_to_caller(arg0: i256) -> i256 {
     bb0:
       v0 = alloc 64
-      mstore v0, arg0
+-     mstore v0, arg0
       ret 0
   }
   
@@ -285,6 +285,30 @@
       mstore v0, arg0
       v1 = internal_frame_addr 0
       revert v1, arg1
+  }
+  
+  fn @tail_calls(arg0: i256) {
+    bb0:
+      v0 = alloc 64
+-     mstore v0, arg0
+      tail_call @tail_target
+  }
+  
+  fn @tail_target() {
+    bb0:
+      stop
+  }
+  
+  fn @tail_calls_pointer(arg0: i256) {
+    bb0:
+      v0 = alloc 64
+      mstore v0, arg0
+      tail_call @tail_pointer, v0
+  }
+  
+  fn @tail_pointer(arg0: ptr<memory>) {
+    bb0:
+      stop
   }
   
   fn @indexed_write_before(arg0: i256, arg1: i256) {
