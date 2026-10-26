@@ -357,6 +357,21 @@ fn @wrapped_size(arg0: i256) {
     stop
 }
 
+// A sum whose operand wraps is not the sum of the bounds: `32 - n` bytes may be less than 32.
+// CHECK-LABEL: {{^[ +].*}}fn @wrapped_dynamic_size{{[( ]}}
+// CHECK: {{^ +}}mstore v3, 1
+fn @wrapped_dynamic_size(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 31
+    v2 = sub 0, v1
+    v3 = add v2, 32
+    v4 = alloc v3
+    mstore v4, 1
+    v5 = alloc 32
+    v6 = mload v5
+    ret v6
+}
+
 // A runtime index of another allocation wraps and may land in this one.
 // CHECK-LABEL: {{^[ +].*}}fn @indexed_other{{[( ]}}
 // CHECK: {{^ +}}mstore v0, arg0

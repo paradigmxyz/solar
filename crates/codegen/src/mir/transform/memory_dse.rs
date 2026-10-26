@@ -96,7 +96,7 @@ use crate::{
         MirType, Module, PtrLocation, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
-            MemoryAddress, MemoryBase, MemoryLocation, ModRef,
+            MemoryAddress, MemoryBase, MemoryLocation, ModRef, integers::no_wrap_with,
         },
         memory::EvmMemoryLayout,
         pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -2319,9 +2319,8 @@ impl AllocWalk<'_> {
         }
     }
 
-    /// A lower bound of the size of an infallible allocation, whose size arithmetic has been
-    /// proven not to wrap: constants, sums, and masks that clear low bits, such as the rounding
-    /// of a length to whole words.
+    /// A lower bound of the size of an infallible allocation: constants, sums that provably do not
+    /// wrap, and masks that clear low bits, such as the rounding of a length to whole words.
     fn size_lower_bound(func: &Function, size: ValueId, depth: u32) -> u64 {
         if let Some(size) = func.value_u256(size) {
             return crate::mir::utils::u256_to_u64(size).unwrap_or(u64::MAX);
@@ -2331,16 +2330,14 @@ impl AllocWalk<'_> {
         };
         let bound = |value| Self::size_lower_bound(func, value, depth);
         match func.inst(*inst).kind {
-            // A constant that does not fit a word count is a wrapped subtraction, such as
-            // `add x, 2^256 - 32` for `x - 32`, which lowers the sum.
+            // A sum is at least the sum of its bounds only when it does not wrap: a wrapped
+            // subtraction, such as `add x, 2^256 - 32` for `x - 32` or `add (sub 0, n), 32`,
+            // lowers it.
             InstKind::Add(a, b)
-                if [a, b]
-                    .iter()
-                    .any(|&v| func.value_u64(v).is_none() && func.value_u256(v).is_some()) =>
+                if no_wrap_with(func, size, &|value| Self::environment_size(func, value)) =>
             {
-                0
+                bound(a).saturating_add(bound(b))
             }
-            InstKind::Add(a, b) => bound(a).saturating_add(bound(b)),
             // `and x, mask` is monotonic in `x` when the mask only clears low bits.
             InstKind::And(x, mask) | InstKind::And(mask, x)
                 if let Some(mask) = func.value_u256(mask)
@@ -2350,6 +2347,17 @@ impl AllocWalk<'_> {
             }
             _ => 0,
         }
+    }
+
+    /// The range of `value` when it reads the size of calldata, return data, or code, which gas
+    /// keeps far below 2^64 bytes.
+    fn environment_size(func: &Function, value: ValueId) -> Option<(U256, U256)> {
+        let Value::Inst(inst) = func.value(value) else { return None };
+        matches!(
+            func.inst(*inst).kind,
+            InstKind::CalldataSize | InstKind::ReturnDataSize | InstKind::CodeSize
+        )
+        .then_some((U256::ZERO, U256::from(u64::MAX)))
     }
 
     /// Follows the result of `inst`, a pointer derived from `at`.
