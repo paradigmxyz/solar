@@ -1,0 +1,1370 @@
+{
+ "description": "evm2 replay of the runtime benchmark's deploy-and-call bundles (26 cases, 515 calls, the calls the runtime bench compares). For each call evm2 runs 7 timed batches without committing and takes the median, then commits; per call we keep the minimum over rounds and sum per case. Cycles and instructions are user-mode perf counters; evm2 does not report wall time. Variants: solar-gas is Solar -Ogas, solar-size is Solar -Osize (optimizer runs 1), solc-*200 and solc-*1 are solc legacy and via-IR at optimizer runs 200 and 1. gas is anvil-checked transaction gas from round 0.",
+ "solar_commit": "fe4b93c213ffc129099b15b362a0961cb90020ef",
+ "solc": "0.8.38+commit.1835d247",
+ "evm2": "comb4 source (evm2 main c4cfe1eb + #799 + #796 + local bundle harness 20368b58), cargo --profile profiling --all-features, -Ctarget-cpu=znver4; JIT LLVM -O2 with gas metering; Osaka",
+ "machine": "boxctl m4-metal-large, AMD EPYC 9254, pinned to core 30, nothing else running",
+ "rounds": 5,
+ "totals": {
+  "solc-ir200": {
+   "calls": 515,
+   "gas": 19602454,
+   "interp_cycles": 21616116,
+   "interp_instructions": 75427728,
+   "jit_cycles": 7864769,
+   "jit_instructions": 20167392
+  },
+  "solc-ir1": {
+   "calls": 515,
+   "gas": 19630705,
+   "interp_cycles": 21683256,
+   "interp_instructions": 75838253,
+   "jit_cycles": 7853905,
+   "jit_instructions": 20167137
+  },
+  "solc-legacy200": {
+   "calls": 515,
+   "gas": 19722152,
+   "interp_cycles": 21912836,
+   "interp_instructions": 75679584,
+   "jit_cycles": 7313603,
+   "jit_instructions": 20194777
+  },
+  "solc-legacy1": {
+   "calls": 515,
+   "gas": 19820099,
+   "interp_cycles": 22161808,
+   "interp_instructions": 76536556,
+   "jit_cycles": 7346928,
+   "jit_instructions": 20223448
+  },
+  "solar-gas": {
+   "calls": 515,
+   "gas": 17654303,
+   "interp_cycles": 16554976,
+   "interp_instructions": 56761287,
+   "jit_cycles": 6246388,
+   "jit_instructions": 17818280
+  },
+  "solar-size": {
+   "calls": 515,
+   "gas": 18337689,
+   "interp_cycles": 18263802,
+   "interp_instructions": 62617876,
+   "jit_cycles": 6355563,
+   "jit_instructions": 18358755
+  }
+ },
+ "repeat_run_totals": {
+  "solc-ir200": {
+   "calls": 515,
+   "gas": 19602454,
+   "interp_cycles": 21602204,
+   "interp_instructions": 75427520,
+   "jit_cycles": 7855997,
+   "jit_instructions": 20167327
+  },
+  "solc-ir1": {
+   "calls": 515,
+   "gas": 19630705,
+   "interp_cycles": 21686999,
+   "interp_instructions": 75838109,
+   "jit_cycles": 7864761,
+   "jit_instructions": 20167139
+  },
+  "solc-legacy200": {
+   "calls": 515,
+   "gas": 19722152,
+   "interp_cycles": 21897307,
+   "interp_instructions": 75679623,
+   "jit_cycles": 7316605,
+   "jit_instructions": 20194872
+  },
+  "solc-legacy1": {
+   "calls": 515,
+   "gas": 19820099,
+   "interp_cycles": 22162178,
+   "interp_instructions": 76536576,
+   "jit_cycles": 7323253,
+   "jit_instructions": 20223452
+  },
+  "solar-gas": {
+   "calls": 515,
+   "gas": 17654303,
+   "interp_cycles": 16515617,
+   "interp_instructions": 56761267,
+   "jit_cycles": 6211623,
+   "jit_instructions": 17818336
+  },
+  "solar-size": {
+   "calls": 515,
+   "gas": 18337689,
+   "interp_cycles": 18221196,
+   "interp_instructions": 62617790,
+   "jit_cycles": 6334751,
+   "jit_instructions": 18358927
+  }
+ },
+ "cases": {
+  "solc-ir200": {
+   "factorial": {
+    "calls": 6,
+    "gas": 224150,
+    "interp_cycles": 102040,
+    "interp_instructions": 305668,
+    "jit_cycles": 86134,
+    "jit_instructions": 177835
+   },
+   "counter": {
+    "calls": 5,
+    "gas": 148641,
+    "interp_cycles": 16440,
+    "interp_instructions": 35203,
+    "jit_cycles": 16580,
+    "jit_instructions": 31516
+   },
+   "counter-loop": {
+    "calls": 6,
+    "gas": 281488,
+    "interp_cycles": 280457,
+    "interp_instructions": 906204,
+    "jit_cycles": 35319,
+    "jit_instructions": 94347
+   },
+   "minimal-proxy": {
+    "calls": 5,
+    "gas": 184963,
+    "interp_cycles": 28159,
+    "interp_instructions": 71572,
+    "jit_cycles": 24720,
+    "jit_instructions": 49221
+   },
+   "sum-array": {
+    "calls": 4,
+    "gas": 229585,
+    "interp_cycles": 166578,
+    "interp_instructions": 508047,
+    "jit_cycles": 131340,
+    "jit_instructions": 273319
+   },
+   "arithmetic": {
+    "calls": 3,
+    "gas": 158915,
+    "interp_cycles": 127618,
+    "interp_instructions": 397835,
+    "jit_cycles": 97241,
+    "jit_instructions": 184728
+   },
+   "verified-words": {
+    "calls": 3,
+    "gas": 80901,
+    "interp_cycles": 56434,
+    "interp_instructions": 180420,
+    "jit_cycles": 12484,
+    "jit_instructions": 23556
+   },
+   "word-recipes": {
+    "calls": 7,
+    "gas": 183539,
+    "interp_cycles": 105056,
+    "interp_instructions": 334350,
+    "jit_cycles": 27257,
+    "jit_instructions": 62781
+   },
+   "seeded-words": {
+    "calls": 4,
+    "gas": 107028,
+    "interp_cycles": 66525,
+    "interp_instructions": 202930,
+    "jit_cycles": 17269,
+    "jit_instructions": 31369
+   },
+   "division-words": {
+    "calls": 10,
+    "gas": 378501,
+    "interp_cycles": 452933,
+    "interp_instructions": 1496989,
+    "jit_cycles": 180176,
+    "jit_instructions": 308222
+   },
+   "calldata-loops": {
+    "calls": 5,
+    "gas": 728589,
+    "interp_cycles": 1489466,
+    "interp_instructions": 5114931,
+    "jit_cycles": 418442,
+    "jit_instructions": 709927
+   },
+   "compiler-optimizations": {
+    "calls": 19,
+    "gas": 489885,
+    "interp_cycles": 127310,
+    "interp_instructions": 359732,
+    "jit_cycles": 66853,
+    "jit_instructions": 132161
+   },
+   "openzeppelin-erc20-mock": {
+    "calls": 8,
+    "gas": 381273,
+    "interp_cycles": 39706,
+    "interp_instructions": 99089,
+    "jit_cycles": 35581,
+    "jit_instructions": 69341
+   },
+   "openzeppelin-vesting-wallet": {
+    "calls": 16,
+    "gas": 382338,
+    "interp_cycles": 70855,
+    "interp_instructions": 177406,
+    "jit_cycles": 60813,
+    "jit_instructions": 111300
+   },
+   "nitro-one-step-proof": {
+    "calls": 14,
+    "gas": 366562,
+    "interp_cycles": 201797,
+    "interp_instructions": 674452,
+    "jit_cycles": 102061,
+    "jit_instructions": 275523
+   },
+   "aave-l2-encoder": {
+    "calls": 23,
+    "gas": 635069,
+    "interp_cycles": 313656,
+    "interp_instructions": 990205,
+    "jit_cycles": 133660,
+    "jit_instructions": 300604
+   },
+   "lilweb3-ens": {
+    "calls": 12,
+    "gas": 468068,
+    "interp_cycles": 62119,
+    "interp_instructions": 161598,
+    "jit_cycles": 51695,
+    "jit_instructions": 100417
+   },
+   "lilweb3-flashloan": {
+    "calls": 17,
+    "gas": 491157,
+    "interp_cycles": 68879,
+    "interp_instructions": 167869,
+    "jit_cycles": 64002,
+    "jit_instructions": 121149
+   },
+   "lilweb3-fractional": {
+    "calls": 12,
+    "gas": 331376,
+    "interp_cycles": 51792,
+    "interp_instructions": 134094,
+    "jit_cycles": 48795,
+    "jit_instructions": 93651
+   },
+   "maple-erc20": {
+    "calls": 13,
+    "gas": 446527,
+    "interp_cycles": 64681,
+    "interp_instructions": 167086,
+    "jit_cycles": 55168,
+    "jit_instructions": 106929
+   },
+   "openzeppelin-governor": {
+    "calls": 21,
+    "gas": 584397,
+    "interp_cycles": 347574,
+    "interp_instructions": 1138155,
+    "jit_cycles": 170448,
+    "jit_instructions": 459705
+   },
+   "openzeppelin-p256": {
+    "calls": 4,
+    "gas": 709111,
+    "interp_cycles": 4739099,
+    "interp_instructions": 15441716,
+    "jit_cycles": 3035055,
+    "jit_instructions": 9667136
+   },
+   "solady-signature-checker": {
+    "calls": 12,
+    "gas": 288465,
+    "interp_cycles": 69534,
+    "interp_instructions": 186434,
+    "jit_cycles": 49273,
+    "jit_instructions": 102823
+   },
+   "solady-lib-string": {
+    "calls": 48,
+    "gas": 2010240,
+    "interp_cycles": 2719788,
+    "interp_instructions": 9156113,
+    "jit_cycles": 567248,
+    "jit_instructions": 1325272
+   },
+   "solady-encoding": {
+    "calls": 153,
+    "gas": 6756092,
+    "interp_cycles": 7944711,
+    "interp_instructions": 30560042,
+    "jit_cycles": 1752559,
+    "jit_instructions": 3707181
+   },
+   "solady-algorithms": {
+    "calls": 85,
+    "gas": 2555594,
+    "interp_cycles": 1902909,
+    "interp_instructions": 6459588,
+    "jit_cycles": 624596,
+    "jit_instructions": 1647379
+   }
+  },
+  "solc-ir1": {
+   "factorial": {
+    "calls": 6,
+    "gas": 224150,
+    "interp_cycles": 102085,
+    "interp_instructions": 305668,
+    "jit_cycles": 86339,
+    "jit_instructions": 177835
+   },
+   "counter": {
+    "calls": 5,
+    "gas": 148641,
+    "interp_cycles": 16365,
+    "interp_instructions": 35203,
+    "jit_cycles": 16618,
+    "jit_instructions": 31516
+   },
+   "counter-loop": {
+    "calls": 6,
+    "gas": 281488,
+    "interp_cycles": 280398,
+    "interp_instructions": 906204,
+    "jit_cycles": 35325,
+    "jit_instructions": 94347
+   },
+   "minimal-proxy": {
+    "calls": 5,
+    "gas": 185107,
+    "interp_cycles": 28607,
+    "interp_instructions": 74726,
+    "jit_cycles": 24392,
+    "jit_instructions": 49217
+   },
+   "sum-array": {
+    "calls": 4,
+    "gas": 229585,
+    "interp_cycles": 165609,
+    "interp_instructions": 508047,
+    "jit_cycles": 130616,
+    "jit_instructions": 273319
+   },
+   "arithmetic": {
+    "calls": 3,
+    "gas": 158915,
+    "interp_cycles": 127654,
+    "interp_instructions": 397835,
+    "jit_cycles": 96169,
+    "jit_instructions": 184728
+   },
+   "verified-words": {
+    "calls": 3,
+    "gas": 80901,
+    "interp_cycles": 56190,
+    "interp_instructions": 180420,
+    "jit_cycles": 12414,
+    "jit_instructions": 23559
+   },
+   "word-recipes": {
+    "calls": 7,
+    "gas": 183539,
+    "interp_cycles": 105080,
+    "interp_instructions": 334353,
+    "jit_cycles": 26991,
+    "jit_instructions": 62781
+   },
+   "seeded-words": {
+    "calls": 4,
+    "gas": 107028,
+    "interp_cycles": 66544,
+    "interp_instructions": 202930,
+    "jit_cycles": 16940,
+    "jit_instructions": 31376
+   },
+   "division-words": {
+    "calls": 10,
+    "gas": 378501,
+    "interp_cycles": 451246,
+    "interp_instructions": 1496989,
+    "jit_cycles": 181879,
+    "jit_instructions": 308221
+   },
+   "calldata-loops": {
+    "calls": 5,
+    "gas": 728733,
+    "interp_cycles": 1499275,
+    "interp_instructions": 5117151,
+    "jit_cycles": 419258,
+    "jit_instructions": 709939
+   },
+   "compiler-optimizations": {
+    "calls": 19,
+    "gas": 489945,
+    "interp_cycles": 126694,
+    "interp_instructions": 360562,
+    "jit_cycles": 67291,
+    "jit_instructions": 132165
+   },
+   "openzeppelin-erc20-mock": {
+    "calls": 8,
+    "gas": 381447,
+    "interp_cycles": 39882,
+    "interp_instructions": 102060,
+    "jit_cycles": 35917,
+    "jit_instructions": 70693
+   },
+   "openzeppelin-vesting-wallet": {
+    "calls": 16,
+    "gas": 382248,
+    "interp_cycles": 70578,
+    "interp_instructions": 175629,
+    "jit_cycles": 60126,
+    "jit_instructions": 111308
+   },
+   "nitro-one-step-proof": {
+    "calls": 14,
+    "gas": 366976,
+    "interp_cycles": 202489,
+    "interp_instructions": 678142,
+    "jit_cycles": 101402,
+    "jit_instructions": 275693
+   },
+   "aave-l2-encoder": {
+    "calls": 23,
+    "gas": 637628,
+    "interp_cycles": 329856,
+    "interp_instructions": 1020919,
+    "jit_cycles": 132653,
+    "jit_instructions": 300524
+   },
+   "lilweb3-ens": {
+    "calls": 12,
+    "gas": 468500,
+    "interp_cycles": 63234,
+    "interp_instructions": 168258,
+    "jit_cycles": 50952,
+    "jit_instructions": 100417
+   },
+   "lilweb3-flashloan": {
+    "calls": 17,
+    "gas": 491157,
+    "interp_cycles": 68689,
+    "interp_instructions": 167889,
+    "jit_cycles": 63711,
+    "jit_instructions": 121153
+   },
+   "lilweb3-fractional": {
+    "calls": 12,
+    "gas": 331376,
+    "interp_cycles": 53206,
+    "interp_instructions": 137021,
+    "jit_cycles": 48897,
+    "jit_instructions": 93632
+   },
+   "maple-erc20": {
+    "calls": 13,
+    "gas": 446527,
+    "interp_cycles": 64994,
+    "interp_instructions": 167083,
+    "jit_cycles": 54782,
+    "jit_instructions": 106891
+   },
+   "openzeppelin-governor": {
+    "calls": 21,
+    "gas": 584586,
+    "interp_cycles": 347488,
+    "interp_instructions": 1141040,
+    "jit_cycles": 170481,
+    "jit_instructions": 459246
+   },
+   "openzeppelin-p256": {
+    "calls": 4,
+    "gas": 715482,
+    "interp_cycles": 4767279,
+    "interp_instructions": 15502325,
+    "jit_cycles": 3031575,
+    "jit_instructions": 9666949
+   },
+   "solady-signature-checker": {
+    "calls": 12,
+    "gas": 288618,
+    "interp_cycles": 70088,
+    "interp_instructions": 191219,
+    "jit_cycles": 48885,
+    "jit_instructions": 102748
+   },
+   "solady-lib-string": {
+    "calls": 48,
+    "gas": 2021787,
+    "interp_cycles": 2730772,
+    "interp_instructions": 9324139,
+    "jit_cycles": 571990,
+    "jit_instructions": 1324391
+   },
+   "solady-encoding": {
+    "calls": 153,
+    "gas": 6759798,
+    "interp_cycles": 7941575,
+    "interp_instructions": 30645107,
+    "jit_cycles": 1746298,
+    "jit_instructions": 3707121
+   },
+   "solady-algorithms": {
+    "calls": 85,
+    "gas": 2558042,
+    "interp_cycles": 1907379,
+    "interp_instructions": 6497334,
+    "jit_cycles": 622004,
+    "jit_instructions": 1647368
+   }
+  },
+  "solc-legacy200": {
+   "factorial": {
+    "calls": 6,
+    "gas": 238153,
+    "interp_cycles": 127998,
+    "interp_instructions": 425725,
+    "jit_cycles": 96632,
+    "jit_instructions": 182506
+   },
+   "counter": {
+    "calls": 5,
+    "gas": 148875,
+    "interp_cycles": 17093,
+    "interp_instructions": 37255,
+    "jit_cycles": 16695,
+    "jit_instructions": 31648
+   },
+   "counter-loop": {
+    "calls": 6,
+    "gas": 395367,
+    "interp_cycles": 595178,
+    "interp_instructions": 1846195,
+    "jit_cycles": 137656,
+    "jit_instructions": 144481
+   },
+   "minimal-proxy": {
+    "calls": 5,
+    "gas": 185722,
+    "interp_cycles": 32279,
+    "interp_instructions": 82764,
+    "jit_cycles": 24817,
+    "jit_instructions": 49512
+   },
+   "sum-array": {
+    "calls": 4,
+    "gas": 265045,
+    "interp_cycles": 245573,
+    "interp_instructions": 813935,
+    "jit_cycles": 153491,
+    "jit_instructions": 288244
+   },
+   "arithmetic": {
+    "calls": 3,
+    "gas": 213642,
+    "interp_cycles": 240998,
+    "interp_instructions": 779583,
+    "jit_cycles": 140992,
+    "jit_instructions": 262249
+   },
+   "verified-words": {
+    "calls": 3,
+    "gas": 81596,
+    "interp_cycles": 58336,
+    "interp_instructions": 182463,
+    "jit_cycles": 10459,
+    "jit_instructions": 22314
+   },
+   "word-recipes": {
+    "calls": 7,
+    "gas": 199675,
+    "interp_cycles": 140189,
+    "interp_instructions": 465927,
+    "jit_cycles": 27295,
+    "jit_instructions": 63426
+   },
+   "seeded-words": {
+    "calls": 4,
+    "gas": 108876,
+    "interp_cycles": 71219,
+    "interp_instructions": 213566,
+    "jit_cycles": 13640,
+    "jit_instructions": 29452
+   },
+   "division-words": {
+    "calls": 10,
+    "gas": 435965,
+    "interp_cycles": 624062,
+    "interp_instructions": 2007123,
+    "jit_cycles": 206856,
+    "jit_instructions": 357365
+   },
+   "calldata-loops": {
+    "calls": 5,
+    "gas": 770122,
+    "interp_cycles": 1678905,
+    "interp_instructions": 5701761,
+    "jit_cycles": 450473,
+    "jit_instructions": 619327
+   },
+   "compiler-optimizations": {
+    "calls": 19,
+    "gas": 499029,
+    "interp_cycles": 160741,
+    "interp_instructions": 463038,
+    "jit_cycles": 78024,
+    "jit_instructions": 138547
+   },
+   "openzeppelin-erc20-mock": {
+    "calls": 8,
+    "gas": 384105,
+    "interp_cycles": 48187,
+    "interp_instructions": 129129,
+    "jit_cycles": 36074,
+    "jit_instructions": 70646
+   },
+   "openzeppelin-vesting-wallet": {
+    "calls": 16,
+    "gas": 386804,
+    "interp_cycles": 83882,
+    "interp_instructions": 212978,
+    "jit_cycles": 62605,
+    "jit_instructions": 115898
+   },
+   "nitro-one-step-proof": {
+    "calls": 14,
+    "gas": 353746,
+    "interp_cycles": 170729,
+    "interp_instructions": 566014,
+    "jit_cycles": 96781,
+    "jit_instructions": 258113
+   },
+   "aave-l2-encoder": {
+    "calls": 23,
+    "gas": 655322,
+    "interp_cycles": 380654,
+    "interp_instructions": 1184569,
+    "jit_cycles": 137821,
+    "jit_instructions": 313046
+   },
+   "lilweb3-ens": {
+    "calls": 12,
+    "gas": 471360,
+    "interp_cycles": 71460,
+    "interp_instructions": 195365,
+    "jit_cycles": 51427,
+    "jit_instructions": 102229
+   },
+   "lilweb3-flashloan": {
+    "calls": 17,
+    "gas": 494146,
+    "interp_cycles": 77338,
+    "interp_instructions": 196173,
+    "jit_cycles": 64195,
+    "jit_instructions": 122263
+   },
+   "lilweb3-fractional": {
+    "calls": 12,
+    "gas": 332293,
+    "interp_cycles": 56777,
+    "interp_instructions": 151302,
+    "jit_cycles": 48788,
+    "jit_instructions": 94476
+   },
+   "maple-erc20": {
+    "calls": 13,
+    "gas": 448041,
+    "interp_cycles": 70306,
+    "interp_instructions": 185252,
+    "jit_cycles": 55968,
+    "jit_instructions": 108525
+   },
+   "openzeppelin-governor": {
+    "calls": 21,
+    "gas": 577338,
+    "interp_cycles": 339689,
+    "interp_instructions": 1114236,
+    "jit_cycles": 170811,
+    "jit_instructions": 454048
+   },
+   "openzeppelin-p256": {
+    "calls": 4,
+    "gas": 534674,
+    "interp_cycles": 4229542,
+    "interp_instructions": 13457773,
+    "jit_cycles": 3160020,
+    "jit_instructions": 10145742
+   },
+   "solady-signature-checker": {
+    "calls": 12,
+    "gas": 286764,
+    "interp_cycles": 64400,
+    "interp_instructions": 173437,
+    "jit_cycles": 47315,
+    "jit_instructions": 101487
+   },
+   "solady-lib-string": {
+    "calls": 48,
+    "gas": 1989555,
+    "interp_cycles": 2726793,
+    "interp_instructions": 9129206,
+    "jit_cycles": 445426,
+    "jit_instructions": 1154892
+   },
+   "solady-encoding": {
+    "calls": 153,
+    "gas": 6723522,
+    "interp_cycles": 7727727,
+    "interp_instructions": 29653834,
+    "jit_cycles": 1003877,
+    "jit_instructions": 3367810
+   },
+   "solady-algorithms": {
+    "calls": 85,
+    "gas": 2542415,
+    "interp_cycles": 1872781,
+    "interp_instructions": 6310981,
+    "jit_cycles": 575465,
+    "jit_instructions": 1596531
+   }
+  },
+  "solc-legacy1": {
+   "factorial": {
+    "calls": 6,
+    "gas": 238153,
+    "interp_cycles": 129157,
+    "interp_instructions": 425725,
+    "jit_cycles": 98390,
+    "jit_instructions": 182506
+   },
+   "counter": {
+    "calls": 5,
+    "gas": 148875,
+    "interp_cycles": 17206,
+    "interp_instructions": 37255,
+    "jit_cycles": 16935,
+    "jit_instructions": 31648
+   },
+   "counter-loop": {
+    "calls": 6,
+    "gas": 395367,
+    "interp_cycles": 597672,
+    "interp_instructions": 1846195,
+    "jit_cycles": 137536,
+    "jit_instructions": 144481
+   },
+   "minimal-proxy": {
+    "calls": 5,
+    "gas": 185770,
+    "interp_cycles": 32065,
+    "interp_instructions": 83872,
+    "jit_cycles": 24946,
+    "jit_instructions": 49512
+   },
+   "sum-array": {
+    "calls": 4,
+    "gas": 265045,
+    "interp_cycles": 240658,
+    "interp_instructions": 813935,
+    "jit_cycles": 155538,
+    "jit_instructions": 288244
+   },
+   "arithmetic": {
+    "calls": 3,
+    "gas": 213642,
+    "interp_cycles": 241264,
+    "interp_instructions": 779584,
+    "jit_cycles": 138732,
+    "jit_instructions": 262249
+   },
+   "verified-words": {
+    "calls": 3,
+    "gas": 81596,
+    "interp_cycles": 58475,
+    "interp_instructions": 182463,
+    "jit_cycles": 10547,
+    "jit_instructions": 22312
+   },
+   "word-recipes": {
+    "calls": 7,
+    "gas": 199675,
+    "interp_cycles": 140004,
+    "interp_instructions": 465927,
+    "jit_cycles": 27458,
+    "jit_instructions": 63434
+   },
+   "seeded-words": {
+    "calls": 4,
+    "gas": 108876,
+    "interp_cycles": 71304,
+    "interp_instructions": 213566,
+    "jit_cycles": 13881,
+    "jit_instructions": 29452
+   },
+   "division-words": {
+    "calls": 10,
+    "gas": 436290,
+    "interp_cycles": 624256,
+    "interp_instructions": 2009023,
+    "jit_cycles": 207495,
+    "jit_instructions": 357443
+   },
+   "calldata-loops": {
+    "calls": 5,
+    "gas": 770266,
+    "interp_cycles": 1684692,
+    "interp_instructions": 5703981,
+    "jit_cycles": 451200,
+    "jit_instructions": 619327
+   },
+   "compiler-optimizations": {
+    "calls": 19,
+    "gas": 499736,
+    "interp_cycles": 162625,
+    "interp_instructions": 468438,
+    "jit_cycles": 78831,
+    "jit_instructions": 138771
+   },
+   "openzeppelin-erc20-mock": {
+    "calls": 8,
+    "gas": 384587,
+    "interp_cycles": 48985,
+    "interp_instructions": 132054,
+    "jit_cycles": 36209,
+    "jit_instructions": 70770
+   },
+   "openzeppelin-vesting-wallet": {
+    "calls": 16,
+    "gas": 388324,
+    "interp_cycles": 88292,
+    "interp_instructions": 233878,
+    "jit_cycles": 62768,
+    "jit_instructions": 115562
+   },
+   "nitro-one-step-proof": {
+    "calls": 14,
+    "gas": 354430,
+    "interp_cycles": 172091,
+    "interp_instructions": 573005,
+    "jit_cycles": 96968,
+    "jit_instructions": 259441
+   },
+   "aave-l2-encoder": {
+    "calls": 23,
+    "gas": 661515,
+    "interp_cycles": 396519,
+    "interp_instructions": 1236928,
+    "jit_cycles": 140415,
+    "jit_instructions": 318107
+   },
+   "lilweb3-ens": {
+    "calls": 12,
+    "gas": 471792,
+    "interp_cycles": 72624,
+    "interp_instructions": 202025,
+    "jit_cycles": 51717,
+    "jit_instructions": 102229
+   },
+   "lilweb3-flashloan": {
+    "calls": 17,
+    "gas": 494216,
+    "interp_cycles": 78058,
+    "interp_instructions": 196711,
+    "jit_cycles": 64625,
+    "jit_instructions": 122297
+   },
+   "lilweb3-fractional": {
+    "calls": 12,
+    "gas": 332293,
+    "interp_cycles": 57945,
+    "interp_instructions": 154072,
+    "jit_cycles": 49017,
+    "jit_instructions": 94473
+   },
+   "maple-erc20": {
+    "calls": 13,
+    "gas": 449039,
+    "interp_cycles": 72244,
+    "interp_instructions": 191137,
+    "jit_cycles": 55986,
+    "jit_instructions": 108620
+   },
+   "openzeppelin-governor": {
+    "calls": 21,
+    "gas": 588135,
+    "interp_cycles": 364780,
+    "interp_instructions": 1192488,
+    "jit_cycles": 170542,
+    "jit_instructions": 456033
+   },
+   "openzeppelin-p256": {
+    "calls": 4,
+    "gas": 535394,
+    "interp_cycles": 4233950,
+    "interp_instructions": 13463604,
+    "jit_cycles": 3159808,
+    "jit_instructions": 10144983
+   },
+   "solady-signature-checker": {
+    "calls": 12,
+    "gas": 288849,
+    "interp_cycles": 70467,
+    "interp_instructions": 193878,
+    "jit_cycles": 48918,
+    "jit_instructions": 102571
+   },
+   "solady-lib-string": {
+    "calls": 48,
+    "gas": 2055963,
+    "interp_cycles": 2867583,
+    "interp_instructions": 9649320,
+    "jit_cycles": 467488,
+    "jit_instructions": 1174645
+   },
+   "solady-encoding": {
+    "calls": 153,
+    "gas": 6727408,
+    "interp_cycles": 7758201,
+    "interp_instructions": 29738748,
+    "jit_cycles": 1005909,
+    "jit_instructions": 3367809
+   },
+   "solady-algorithms": {
+    "calls": 85,
+    "gas": 2544863,
+    "interp_cycles": 1880691,
+    "interp_instructions": 6348744,
+    "jit_cycles": 575069,
+    "jit_instructions": 1596529
+   }
+  },
+  "solar-gas": {
+   "factorial": {
+    "calls": 6,
+    "gas": 186088,
+    "interp_cycles": 51649,
+    "interp_instructions": 153216,
+    "jit_cycles": 40765,
+    "jit_instructions": 68693
+   },
+   "counter": {
+    "calls": 5,
+    "gas": 148318,
+    "interp_cycles": 15570,
+    "interp_instructions": 32072,
+    "jit_cycles": 16349,
+    "jit_instructions": 30800
+   },
+   "counter-loop": {
+    "calls": 6,
+    "gas": 243169,
+    "interp_cycles": 185298,
+    "interp_instructions": 594554,
+    "jit_cycles": 25986,
+    "jit_instructions": 65516
+   },
+   "minimal-proxy": {
+    "calls": 5,
+    "gas": 183935,
+    "interp_cycles": 24445,
+    "interp_instructions": 58138,
+    "jit_cycles": 24293,
+    "jit_instructions": 46493
+   },
+   "sum-array": {
+    "calls": 4,
+    "gas": 149688,
+    "interp_cycles": 71492,
+    "interp_instructions": 223876,
+    "jit_cycles": 14673,
+    "jit_instructions": 32118
+   },
+   "arithmetic": {
+    "calls": 3,
+    "gas": 115794,
+    "interp_cycles": 61844,
+    "interp_instructions": 207353,
+    "jit_cycles": 30841,
+    "jit_instructions": 56451
+   },
+   "verified-words": {
+    "calls": 3,
+    "gas": 73808,
+    "interp_cycles": 33919,
+    "interp_instructions": 99251,
+    "jit_cycles": 10395,
+    "jit_instructions": 23147
+   },
+   "word-recipes": {
+    "calls": 7,
+    "gas": 170904,
+    "interp_cycles": 69647,
+    "interp_instructions": 215338,
+    "jit_cycles": 25785,
+    "jit_instructions": 57844
+   },
+   "seeded-words": {
+    "calls": 4,
+    "gas": 99098,
+    "interp_cycles": 46682,
+    "interp_instructions": 137012,
+    "jit_cycles": 13725,
+    "jit_instructions": 31806
+   },
+   "division-words": {
+    "calls": 10,
+    "gas": 276312,
+    "interp_cycles": 192143,
+    "interp_instructions": 634364,
+    "jit_cycles": 89671,
+    "jit_instructions": 156749
+   },
+   "calldata-loops": {
+    "calls": 5,
+    "gas": 375523,
+    "interp_cycles": 610356,
+    "interp_instructions": 2124204,
+    "jit_cycles": 238202,
+    "jit_instructions": 320298
+   },
+   "compiler-optimizations": {
+    "calls": 19,
+    "gas": 474710,
+    "interp_cycles": 85511,
+    "interp_instructions": 218366,
+    "jit_cycles": 59158,
+    "jit_instructions": 114819
+   },
+   "openzeppelin-erc20-mock": {
+    "calls": 8,
+    "gas": 379759,
+    "interp_cycles": 36073,
+    "interp_instructions": 86261,
+    "jit_cycles": 35007,
+    "jit_instructions": 68381
+   },
+   "openzeppelin-vesting-wallet": {
+    "calls": 16,
+    "gas": 377790,
+    "interp_cycles": 59846,
+    "interp_instructions": 137642,
+    "jit_cycles": 58877,
+    "jit_instructions": 107111
+   },
+   "nitro-one-step-proof": {
+    "calls": 14,
+    "gas": 338188,
+    "interp_cycles": 122067,
+    "interp_instructions": 395125,
+    "jit_cycles": 85529,
+    "jit_instructions": 224548
+   },
+   "aave-l2-encoder": {
+    "calls": 23,
+    "gas": 600636,
+    "interp_cycles": 218623,
+    "interp_instructions": 623351,
+    "jit_cycles": 117508,
+    "jit_instructions": 232535
+   },
+   "lilweb3-ens": {
+    "calls": 12,
+    "gas": 463764,
+    "interp_cycles": 52397,
+    "interp_instructions": 130026,
+    "jit_cycles": 47412,
+    "jit_instructions": 91521
+   },
+   "lilweb3-flashloan": {
+    "calls": 17,
+    "gas": 486906,
+    "interp_cycles": 59885,
+    "interp_instructions": 137452,
+    "jit_cycles": 61341,
+    "jit_instructions": 115448
+   },
+   "lilweb3-fractional": {
+    "calls": 12,
+    "gas": 330445,
+    "interp_cycles": 46495,
+    "interp_instructions": 113905,
+    "jit_cycles": 47751,
+    "jit_instructions": 91465
+   },
+   "maple-erc20": {
+    "calls": 13,
+    "gas": 442747,
+    "interp_cycles": 55567,
+    "interp_instructions": 136708,
+    "jit_cycles": 54578,
+    "jit_instructions": 106123
+   },
+   "openzeppelin-governor": {
+    "calls": 21,
+    "gas": 565866,
+    "interp_cycles": 241999,
+    "interp_instructions": 780743,
+    "jit_cycles": 156014,
+    "jit_instructions": 421169
+   },
+   "openzeppelin-p256": {
+    "calls": 4,
+    "gas": 446864,
+    "interp_cycles": 3734777,
+    "interp_instructions": 11952062,
+    "jit_cycles": 3041803,
+    "jit_instructions": 9568585
+   },
+   "solady-signature-checker": {
+    "calls": 12,
+    "gas": 284916,
+    "interp_cycles": 56110,
+    "interp_instructions": 143561,
+    "jit_cycles": 46840,
+    "jit_instructions": 98310
+   },
+   "solady-lib-string": {
+    "calls": 48,
+    "gas": 1673136,
+    "interp_cycles": 1847681,
+    "interp_instructions": 6051748,
+    "jit_cycles": 432923,
+    "jit_instructions": 1060191
+   },
+   "solady-encoding": {
+    "calls": 153,
+    "gas": 6327002,
+    "interp_cycles": 7241792,
+    "interp_instructions": 27006083,
+    "jit_cycles": 994892,
+    "jit_instructions": 3461749
+   },
+   "solady-algorithms": {
+    "calls": 85,
+    "gas": 2438937,
+    "interp_cycles": 1333108,
+    "interp_instructions": 4368876,
+    "jit_cycles": 476070,
+    "jit_instructions": 1166410
+   }
+  },
+  "solar-size": {
+   "factorial": {
+    "calls": 6,
+    "gas": 188090,
+    "interp_cycles": 60190,
+    "interp_instructions": 169902,
+    "jit_cycles": 40883,
+    "jit_instructions": 71971
+   },
+   "counter": {
+    "calls": 5,
+    "gas": 148318,
+    "interp_cycles": 15471,
+    "interp_instructions": 32072,
+    "jit_cycles": 16348,
+    "jit_instructions": 30799
+   },
+   "counter-loop": {
+    "calls": 6,
+    "gas": 255468,
+    "interp_cycles": 209810,
+    "interp_instructions": 677405,
+    "jit_cycles": 25864,
+    "jit_instructions": 64410
+   },
+   "minimal-proxy": {
+    "calls": 5,
+    "gas": 184085,
+    "interp_cycles": 25053,
+    "interp_instructions": 60339,
+    "jit_cycles": 23834,
+    "jit_instructions": 46628
+   },
+   "sum-array": {
+    "calls": 4,
+    "gas": 152141,
+    "interp_cycles": 79783,
+    "interp_instructions": 261302,
+    "jit_cycles": 18463,
+    "jit_instructions": 43646
+   },
+   "arithmetic": {
+    "calls": 3,
+    "gas": 115921,
+    "interp_cycles": 63965,
+    "interp_instructions": 213692,
+    "jit_cycles": 29609,
+    "jit_instructions": 54854
+   },
+   "verified-words": {
+    "calls": 3,
+    "gas": 75988,
+    "interp_cycles": 37994,
+    "interp_instructions": 114548,
+    "jit_cycles": 10401,
+    "jit_instructions": 23426
+   },
+   "word-recipes": {
+    "calls": 7,
+    "gas": 178025,
+    "interp_cycles": 87413,
+    "interp_instructions": 278075,
+    "jit_cycles": 27864,
+    "jit_instructions": 67324
+   },
+   "seeded-words": {
+    "calls": 4,
+    "gas": 101990,
+    "interp_cycles": 52158,
+    "interp_instructions": 157186,
+    "jit_cycles": 13690,
+    "jit_instructions": 31814
+   },
+   "division-words": {
+    "calls": 10,
+    "gas": 290550,
+    "interp_cycles": 230405,
+    "interp_instructions": 783981,
+    "jit_cycles": 112276,
+    "jit_instructions": 207699
+   },
+   "calldata-loops": {
+    "calls": 5,
+    "gas": 430401,
+    "interp_cycles": 772681,
+    "interp_instructions": 2787162,
+    "jit_cycles": 188470,
+    "jit_instructions": 386497
+   },
+   "compiler-optimizations": {
+    "calls": 19,
+    "gas": 477100,
+    "interp_cycles": 92987,
+    "interp_instructions": 241959,
+    "jit_cycles": 60830,
+    "jit_instructions": 119399
+   },
+   "openzeppelin-erc20-mock": {
+    "calls": 8,
+    "gas": 380301,
+    "interp_cycles": 36441,
+    "interp_instructions": 89899,
+    "jit_cycles": 35144,
+    "jit_instructions": 68600
+   },
+   "openzeppelin-vesting-wallet": {
+    "calls": 16,
+    "gas": 378300,
+    "interp_cycles": 61152,
+    "interp_instructions": 140374,
+    "jit_cycles": 59252,
+    "jit_instructions": 107717
+   },
+   "nitro-one-step-proof": {
+    "calls": 14,
+    "gas": 340196,
+    "interp_cycles": 125333,
+    "interp_instructions": 412401,
+    "jit_cycles": 87116,
+    "jit_instructions": 226626
+   },
+   "aave-l2-encoder": {
+    "calls": 23,
+    "gas": 604435,
+    "interp_cycles": 225226,
+    "interp_instructions": 655240,
+    "jit_cycles": 117361,
+    "jit_instructions": 237281
+   },
+   "lilweb3-ens": {
+    "calls": 12,
+    "gas": 464204,
+    "interp_cycles": 53428,
+    "interp_instructions": 134571,
+    "jit_cycles": 48227,
+    "jit_instructions": 91785
+   },
+   "lilweb3-flashloan": {
+    "calls": 17,
+    "gas": 486970,
+    "interp_cycles": 61213,
+    "interp_instructions": 137985,
+    "jit_cycles": 60662,
+    "jit_instructions": 115634
+   },
+   "lilweb3-fractional": {
+    "calls": 12,
+    "gas": 330480,
+    "interp_cycles": 46174,
+    "interp_instructions": 115909,
+    "jit_cycles": 47879,
+    "jit_instructions": 91530
+   },
+   "maple-erc20": {
+    "calls": 13,
+    "gas": 443844,
+    "interp_cycles": 57821,
+    "interp_instructions": 143744,
+    "jit_cycles": 54697,
+    "jit_instructions": 106574
+   },
+   "openzeppelin-governor": {
+    "calls": 21,
+    "gas": 572475,
+    "interp_cycles": 281940,
+    "interp_instructions": 907111,
+    "jit_cycles": 156967,
+    "jit_instructions": 425451
+   },
+   "openzeppelin-p256": {
+    "calls": 4,
+    "gas": 513472,
+    "interp_cycles": 3797408,
+    "interp_instructions": 12520003,
+    "jit_cycles": 3059842,
+    "jit_instructions": 9619301
+   },
+   "solady-signature-checker": {
+    "calls": 12,
+    "gas": 287070,
+    "interp_cycles": 61867,
+    "interp_instructions": 165500,
+    "jit_cycles": 47250,
+    "jit_instructions": 99459
+   },
+   "solady-lib-string": {
+    "calls": 48,
+    "gas": 1853103,
+    "interp_cycles": 2312417,
+    "interp_instructions": 7463145,
+    "jit_cycles": 474380,
+    "jit_instructions": 1178132
+   },
+   "solady-encoding": {
+    "calls": 153,
+    "gas": 6603450,
+    "interp_cycles": 7897583,
+    "interp_instructions": 29100861,
+    "jit_cycles": 1021979,
+    "jit_instructions": 3599446
+   },
+   "solady-algorithms": {
+    "calls": 85,
+    "gas": 2481312,
+    "interp_cycles": 1517889,
+    "interp_instructions": 4853510,
+    "jit_cycles": 516275,
+    "jit_instructions": 1242752
+   }
+  }
+ }
+}
