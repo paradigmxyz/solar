@@ -17,15 +17,19 @@
 // CHECK-NEXT: push {{bb[0-9]+}}
 // CHECK-NEXT: jump [[HELPER:bb[0-9]+]]
 // CHECK-NEXT: [[HELPER]]{{( \[loop\])?}}:
-// CHECK: dup 4
+// CHECK: swap 4
+// CHECK-NEXT: dup 5
+// CHECK-NEXT: dup 2
 // CHECK-NEXT: sub
 // CHECK-NEXT: push [[BODY:bb[0-9]+]]
 // CHECK-NEXT: jumpi
 // CHECK: [[BODY]] [loop]:
 // CHECK: push 2
 // CHECK-NEXT: add
+// CHECK-NEXT: swap 4
+// CHECK-NEXT: mstore8
 // CHECK-NEXT: dup 5
-// CHECK-NEXT: dup 4
+// CHECK-NEXT: dup 2
 // CHECK-NEXT: sub
 // CHECK-NEXT: push [[BODY]]
 // CHECK-NEXT: jumpi

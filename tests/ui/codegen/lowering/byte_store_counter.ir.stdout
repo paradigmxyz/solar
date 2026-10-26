@@ -497,22 +497,21 @@ bb60 [loop]:
   iszero
   push bb63
   jumpi
-  swap 1
-  dup 5
-  mstore8
-  swap 1
-  push 15
-  and
+  push 1
   push 0x30313233343536373839616263646566
   push 128
   shl
-  swap 1
+  swap 3
+  dup 7
+  mstore8
+  add
+  dup 7
+  gt
+  swap 2
+  push 15
+  and
   byte
   swap 1
-  push 1
-  add
-  dup 6
-  gt
   iszero
   push bb63
   jumpi
