@@ -1,6 +1,6 @@
 //@ revisions: gas size runtime
 //@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime
-//@[gas] filecheck:
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime
 //@[size] filecheck: --check-prefixes=CHECK,SIZE
 //@[runtime] compile-flags: -O size
@@ -69,6 +69,7 @@ contract FourFunctions {
 }
 
 contract PartialTerminalDispatch {
+    // GAS-LABEL: small_dispatch.sol:PartialTerminalDispatch (runtime) ===
     // SIZE-LABEL: small_dispatch.sol:PartialTerminalDispatch (runtime) ===
     // SIZE: gt
     // SIZE-NOT: gt
