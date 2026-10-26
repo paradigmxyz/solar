@@ -61,7 +61,7 @@ fn @observes_msize(arg0: i256) {
     returndata 128, 32
 }
 
-// A heap allocation may be reached from the free-memory pointer.
+// A read that may alias the allocation, such as `returndata 128, 32`, keeps its stores.
 // CHECK-NOT: {{^-}} mstore
 fn @heap_allocation(arg0: i256) {
   bb0:

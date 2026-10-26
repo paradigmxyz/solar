@@ -151,9 +151,7 @@ impl WriteOnlyUses {
                 inst.visit_operands(|operand| uses.entry(operand).or_default().push(inst_id));
             }
             if let Some(terminator) = &block.terminator {
-                terminator.visit_operands(|operand| {
-                    terminator_uses.insert(operand);
-                });
+                terminator_uses.extend(terminator.operands());
             }
         }
         Self { uses, indexed_stores, terminator_uses }
@@ -209,7 +207,8 @@ impl WriteOnlyUses {
                 let inst = func.inst(inst_id);
                 match &inst.kind {
                     // Writes to the allocation: the address is a derived value.
-                    InstKind::Store(addr, value, PtrLocation::Memory) => {
+                    InstKind::Store(addr, value, PtrLocation::Memory)
+                    | InstKind::Store8(addr, value) => {
                         if derived.contains(value) {
                             return None; // Storing an interior address elsewhere is a read/escape.
                         }
@@ -217,27 +216,11 @@ impl WriteOnlyUses {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::Store8(addr, value) => {
-                        if derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryZero(addr, _) => {
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
+                    InstKind::MemoryZero(dest, _)
+                    | InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
                     | InstKind::DataCopy(_, dest, _)
-                    | InstKind::CodeCopy(dest, _, _) => {
-                        if derived.contains(dest) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::ExtCodeCopy(_, dest, _, _) => {
+                    | InstKind::CodeCopy(dest, _, _)
+                    | InstKind::ExtCodeCopy(_, dest, _, _) => {
                         if derived.contains(dest) {
                             writes.push(inst_id);
                         }
