@@ -1518,9 +1518,10 @@ impl<'a> Eliminator<'a> {
         }
         for (&group, words) in &index.memory_words {
             // An access beyond the extent of a unique allocation starts at its offset in the
-            // allocation's own words.
+            // allocation's own words, so the two names share one offset space.
             let mut written_group = written.address;
-            if let (MemoryBase::Allocation(site), MemoryBase::FreeMemory(fresh)) =
+            if let (MemoryBase::Allocation(site), MemoryBase::FreeMemory(fresh))
+            | (MemoryBase::FreeMemory(site), MemoryBase::Allocation(fresh)) =
                 (group.base, written.address.base)
                 && site == fresh
             {
