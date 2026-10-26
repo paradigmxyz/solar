@@ -43,5 +43,4 @@ bb0:
 bb1 [loop]:
   push 0xffffffffffffffffffffffffffffffffffffffff
   and
-  push bb1
-  jump
+  jump bb1

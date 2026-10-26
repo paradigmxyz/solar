@@ -3,8 +3,9 @@
 //! After ABI and dispatch lowering, some internal calls still target bodies that
 //! terminate execution instead of returning. This pass drops the continuation of
 //! every call to a bodied callee proven unable to return, including calls with
-//! results. It replaces eligible calls with [`Terminator::TailCall`]; other calls
-//! remain ordinary instructions followed by an unreachable `invalid` terminator.
+//! results, as `noreturn-calls` does early in the semantic pipeline. It replaces
+//! eligible calls with tail calls; other calls remain ordinary instructions followed
+//! by an unreachable `invalid` terminator.
 //!
 //! The pass then erases pointer types: every pointer becomes the `i256` word it holds and the
 //! casts between the two disappear, so the backend sees one value for each address. It verifies
@@ -24,17 +25,10 @@
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
 
 use crate::mir::{
-    Callee, Function, Immediate, InstKind, MirPhase, MirType, Module, Terminator, Value, ValueId,
-    analysis::{CallGraphInfo, Liveness},
-    pass::MirPass,
-    transform::cfg_simplify::remove_unreachable_blocks,
-    utils::{replace_terminator, split_edge},
+    Function, Immediate, InstKind, MirPhase, MirType, Module, Value, ValueId, analysis::Liveness,
+    pass::MirPass, transform::cfg_simplify::end_nonreturning_calls, utils::split_edge,
 };
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::index_vec,
-    map::{FxHashMap, FxHashSet},
-};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::cell::LazyCell;
 
 /// Shapes call edges and checks the final MIR phase transition.
@@ -72,114 +66,7 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
         return false;
     }
 
-    // Skip call-graph analysis when no internal calls remain.
-    let has_candidate = module.functions.iter().any(|func| {
-        func.instructions().any(|inst_id| {
-            matches!(func.inst(inst_id).kind, InstKind::ICall { function: Callee::Function(_), .. })
-        })
-    });
-    if has_candidate {
-        let call_graph = CallGraphInfo::new(module);
-        let returning = module.returning_functions();
-        let mut nonreturning = DenseBitSet::new_empty(module.functions.len());
-        let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if func.blocks.is_empty() {
-                continue;
-            }
-            if !returning.contains(func_id) {
-                nonreturning.insert(func_id);
-            }
-            if func.selector.is_none()
-                && !func.attributes.is_receive
-                && !func.attributes.is_fallback
-                && !call_graph.is_recursive(func_id)
-            {
-                tail_callable.insert(func_id);
-            }
-        }
-
-        // Keep reverse edges even when cleanup removes a call: stale edges only
-        // cause a redundant visit, and function IDs stay stable through block cleanup.
-        let mut callers = index_vec![Vec::new(); module.functions.len()];
-        for caller in module.functions.indices() {
-            for callee in call_graph.callees(caller) {
-                callers[callee].push(caller);
-            }
-        }
-        let mut worklist = Vec::new();
-        let mut queued = DenseBitSet::new_empty(module.functions.len());
-        for callee in &nonreturning {
-            for &caller in &callers[callee] {
-                if queued.insert(caller) {
-                    worklist.push(caller);
-                }
-            }
-        }
-        while let Some(func_id) = worklist.pop() {
-            queued.remove(func_id);
-            let func = &mut module.functions[func_id];
-            let mut function_changed = false;
-            for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
-                let insts = &func.blocks[block_id].instructions;
-                let Some((position, function)) =
-                    insts.iter().enumerate().find_map(|(position, &inst_id)| {
-                        let inst = func.inst(inst_id);
-                        if let InstKind::ICall { function: Callee::Function(function), .. } =
-                            &inst.kind
-                            && nonreturning.contains(*function)
-                        {
-                            Some((position, *function))
-                        } else {
-                            None
-                        }
-                    })
-                else {
-                    continue;
-                };
-
-                let inst = func.inst(insts[position]);
-                let metadata = inst.metadata.debug_context();
-                let InstKind::ICall { args, .. } = &inst.kind else { unreachable!() };
-                if tail_callable.contains(function) {
-                    // result = icall callee, args -> tail_call callee, args
-                    let terminator =
-                        Terminator::TailCall { function, args: args.iter().copied().collect() };
-                    func.blocks[block_id].instructions.truncate(position);
-                    replace_terminator(func, block_id, terminator);
-                    func.blocks[block_id].terminator_metadata = metadata;
-                } else {
-                    // result = icall callee, args
-                    // invalid
-                    func.blocks[block_id].instructions.truncate(position + 1);
-                    replace_terminator(func, block_id, Terminator::Invalid);
-                    // NOTE: The unreachable terminator has no source checkpoint.
-                    func.blocks[block_id].terminator_metadata.mark_debug_info_dropped();
-                }
-                function_changed = true;
-            }
-            if function_changed {
-                let _ = remove_unreachable_blocks(func);
-            }
-            if !nonreturning.contains(func_id)
-                && !func.blocks.is_empty()
-                && !func.blocks.iter().any(|block| match &block.terminator {
-                    Some(Terminator::Return { .. }) => true,
-                    Some(Terminator::TailCall { function, .. }) => {
-                        !nonreturning.contains(*function)
-                    }
-                    _ => false,
-                })
-            {
-                nonreturning.insert(func_id);
-                for &caller in &callers[func_id] {
-                    if queued.insert(caller) {
-                        worklist.push(caller);
-                    }
-                }
-            }
-        }
-    }
+    end_nonreturning_calls(module, true);
     for func in &mut module.functions {
         erase_pointer_types(func);
         split_clobbering_phi_edges(func);

@@ -35,6 +35,5 @@
 +   push 96
 +   shr
     and
-    push bb1
-    jump
+    jump bb1
   

@@ -56,22 +56,27 @@
 //! in the order a single heap would.
 //!
 //! The search is exponential in the run's operations and stack height, and dominated the compile
-//! time of small contracts with a hot loop, so its budgets are tight. A run longer than its
-//! budget's operations is searched in windows cut after its checks, or skipped, the stack may grow
-//! at most [`STACK_SLACK`] words above the run's entry and exit heights, and a run that yields no
-//! cheaper schedule within the first part of its [`Limits`] keeps its code, while one that does
-//! keeps refining for the rest, or until no cheaper schedule turned up for its stall part, as later
-//! improvements are rare and small. Runs in hot loop blocks get [`LOOP_BUDGET`] when optimizing for
-//! gas, which takes longer runs and looks longer near the bound, as their code runs many times per
-//! call; all others get [`BLOCK_BUDGET`]. A run whose bound already reaches its cost in the
-//! objective's first part is not searched, as only the second part could improve, and one at most a
-//! swap above it gets its budget's smaller near limits. Equal runs share their result, as unrolled
-//! copies and repeated checks repeat them, and so do runs that push other immediates of the same
-//! widths: a schedule depends only on which pushes repeat a value and how wide each is. Programs
-//! and contracts repeat each other's runs too, as tests embed the same library and helper code,
-//! so a search that this program's cache misses and that would expand states is looked up in a
-//! cache shared by every program of the compilation, kept on its global context, keyed by
-//! everything the search reads of the run and its target prices.
+//! time of small contracts with a hot loop, so its budgets are tight, and large only in hot loops.
+//! A run longer than its budget's operations is searched in windows cut after its checks, or
+//! skipped, the stack may grow at most [`STACK_SLACK`] words above the run's entry and exit
+//! heights, and a run that yields no cheaper schedule within the first part of its [`Limits`] keeps
+//! its code, while one that does keeps refining for the rest, or until no cheaper schedule turned
+//! up for its stall part, as later improvements are rare and small. Runs in hot loop blocks get
+//! [`LOOP_BUDGET`], which takes longer runs and waits longer for a first cheaper schedule, as their
+//! code runs many times per call: the schedule of a loop that carries four words and stores two
+//! bytes per trip turns up only after about a thousand states. All others get [`BLOCK_BUDGET`]. A
+//! run of one operation, where a dead word is popped before the operation instead of swapped around
+//! it, is searched in hot loop blocks and when optimizing for size, the latter through
+//! [`SIZE_BLOCK_BUDGET`]; elsewhere in gas mode it saved no gas in the benchmarks and grew the
+//! code. A run whose bound already reaches its cost in the objective's first part is not searched,
+//! as only the second part could improve, and one at most a swap above it gets its budget's smaller
+//! near limits. Equal runs share their result, as unrolled copies and repeated checks repeat them,
+//! and so do runs that push other immediates of the same widths: a schedule depends only on which
+//! pushes repeat a value and how wide each is. Programs and contracts repeat each other's runs too,
+//! as tests embed the same library and helper code, so a search that this program's cache misses
+//! and that would expand states is looked up in a cache shared by every program of the compilation,
+//! kept on its global context, keyed by everything the search reads of the run and its target
+//! prices.
 //!
 //! Safety: the replacement performs exactly the original operations on the same operand words,
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
@@ -120,6 +125,8 @@ const STACK_SLACK: usize = 3;
 /// How large a run the search takes and how many states it may expand for it.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Budget {
+    /// Operations a searched run must perform at least.
+    min_operations: usize,
     /// Operations a searched run may perform.
     operations: usize,
     /// The states a run may expand.
@@ -141,19 +148,24 @@ struct Limits {
     stall: usize,
 }
 
-/// The budget of a run in a hot loop block, when optimizing for gas: longer runs, and a closer
-/// look near the bound, as every swap saved there is saved on every iteration.
+/// The budget of a run in a hot loop block: longer runs, and a longer search for a first cheaper
+/// schedule, as their code runs many times per call.
 const LOOP_BUDGET: Budget = Budget {
+    min_operations: 1,
     operations: 16,
-    states: Limits { first: 200, refine: 600, stall: 100 },
+    states: Limits { first: 1600, refine: 2400, stall: 100 },
     near: Limits { first: 100, refine: 200, stall: 50 },
 };
 /// The budget of any other run, whose code runs at most a few times per call.
 const BLOCK_BUDGET: Budget = Budget {
+    min_operations: 2,
     operations: 12,
     states: Limits { first: 200, refine: 600, stall: 100 },
     near: Limits { first: 50, refine: 100, stall: 25 },
 };
+/// The budget of a run outside hot loops when optimizing for size, which searches runs of one
+/// operation too.
+const SIZE_BLOCK_BUDGET: Budget = Budget { min_operations: 1, ..BLOCK_BUDGET };
 /// How many times its bound the search adds to a state's cost to order it: greedier than an
 /// exact search, it reaches cheaper schedules after far fewer states.
 const BOUND_WEIGHT: u64 = 3;
@@ -189,10 +201,14 @@ impl EvmPass for StackReschedule {
         let mut changed = false;
         for block in &mut module.blocks {
             let target = &block.target(gcx, code_follows);
-            let hot_loop = target.optimization().is_gas()
-                && block.metadata.in_loop
-                && !block.metadata.hotness.is_cold();
-            let budget = if hot_loop { LOOP_BUDGET } else { BLOCK_BUDGET };
+            let hot_loop = block.metadata.in_loop && !block.metadata.hotness.is_cold();
+            let budget = if hot_loop {
+                LOOP_BUDGET
+            } else if target.optimization().is_size() {
+                SIZE_BLOCK_BUDGET
+            } else {
+                BLOCK_BUDGET
+            };
             changed |=
                 reschedule_block(&mut block.instructions, target, budget, &halts, &mut scratch);
         }
@@ -612,7 +628,7 @@ fn scalar(cost: Cost, target: &Target) -> u64 {
 fn summarize(
     run: &[Instruction],
     target: &Target,
-    max_operations: usize,
+    budget: Budget,
     halts: &DenseBitSet<BlockId>,
 ) -> Option<Run> {
     let mut stack = SmallVec::<[Word; 24]>::new();
@@ -700,8 +716,8 @@ fn summarize(
         peak = peak.max(stack.len());
         position += 1;
     }
-    (operations.len() >= 2
-        && operations.len() <= max_operations
+    (operations.len() >= budget.min_operations
+        && operations.len() <= budget.operations
         && entry <= REACH
         && keys.len() <= 8)
         .then_some(Run { operations, pushes, constant_costs, entry, exit: stack, cost, peak })
@@ -1328,7 +1344,7 @@ fn schedule(
         scheduled.push(last.clone());
         return Some(scheduled);
     }
-    let summary = summarize(run, target, budget.operations, halts)?;
+    let summary = summarize(run, target, budget, halts)?;
     // Unrolled copies and repeated checks produce the same runs over and over, and runs that
     // only push other immediates of the same widths take the same schedule.
     let mut immediates = SmallVec::<[U256; 8]>::new();
@@ -1370,7 +1386,7 @@ fn search_key(run: &Run, prices: [u64; 4], budget: Budget) -> SmallVec<[u8; 192]
     for &exit in &run.exit {
         word(&mut key, exit);
     }
-    let Budget { operations, states, near } = budget;
+    let Budget { operations, states, near, .. } = budget;
     for limit in
         [operations, states.first, states.refine, states.stall, near.first, near.refine, near.stall]
     {

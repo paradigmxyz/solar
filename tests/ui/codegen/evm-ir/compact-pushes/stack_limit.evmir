@@ -1,0 +1,135 @@
+//@ revisions: size gas
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=compact-pushes
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=compact-pushes
+//@[size] filecheck: --check-prefixes=CHECK,SIZE
+//@[gas] filecheck:
+@module StackLimit
+
+// Neither a repeated recipe nor a shift fits above 1023 live words.
+// A one-word inversion still fits.
+// CHECK-LABEL: bb0 [stack=1023]:
+// CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+// CHECK: bb1 [stack=1023]:
+// CHECK-NEXT: {{^ +}}push 0x100000000000000000000000000000000
+// CHECK: + push 0
+// CHECK-NEXT: + not
+bb0 [stack=1023]:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  pop
+  jump bb1
+
+bb1 [stack=1023]:
+  push 0x100000000000000000000000000000000
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// A known entry depth with enough available words retains the repeated recipe.
+// SIZE-LABEL: bb2 [stack=1021]:
+// SIZE: + push 255
+// SIZE-NEXT: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + div
+// SIZE-NEXT: + push 48
+// SIZE-NEXT: + mul
+bb2 [stack=1021]:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  pop
+  stop
+
+// A CFG edge can enter above a declared root's depth. Use the maximum of both.
+// CHECK-LABEL: bb3 [stack=1022]:
+// CHECK-NEXT: {{^ +}}push 1
+// CHECK-NEXT: {{^ +}}jump bb4
+// CHECK: bb4 [stack=0]:
+// CHECK-NEXT: {{^ +}}push 0x100000000000000000000000000000000
+bb3 [stack=1022]:
+  push 1
+  jump bb4
+
+bb4 [stack=0]:
+  push 0x100000000000000000000000000000000
+  stop
+
+// A growing cycle's second traversal is not a bound on later entries.
+// CHECK-LABEL: bb5 [stack=0]:
+// CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+bb5 [stack=0]:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  jump bb12
+
+bb12:
+  jump bb5
+
+// Dynamic entries have unknown depth. Popping three words establishes enough
+// headroom for any of the recipes, without trusting the declared entry root.
+bb6 [stack=3]:
+  push bb7
+  jump
+
+// CHECK-LABEL: bb7:
+// CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+bb7:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  pop
+  pop
+  pop
+  pop
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  stop
+
+// The taken edge skips the fallthrough's higher peak. That later growth must
+// not make a two-word recipe appear safe on both paths.
+bb8 [stack=1]:
+  push bb9
+  jump
+
+// CHECK-LABEL: bb9:
+// CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+bb9:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  pop
+  push bb10
+  jumpi
+  push 1
+  push 2
+  push 3
+  stop
+
+bb10:
+  stop
+
+// A stack-balanced loop has a finite upper bound and retains its size recipe.
+// SIZE-LABEL: bb11 [stack=1021]:
+// SIZE: + push 255
+// SIZE-NEXT: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + div
+// SIZE-NEXT: + push 48
+// SIZE-NEXT: + mul
+bb11 [stack=1021]:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  pop
+  jump bb11
+
+// Cold gas-mode blocks also use repeated recipes and need the same guard.
+// CHECK-LABEL: bb13 [cold] [stack=1023]:
+// CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+bb13 [cold] [stack=1023]:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  pop
+  stop
+
+// The reordered recipe needs only two words, including its transient peak.
+// SIZE-LABEL: bb14 [stack=1022]:
+// SIZE: + push 255
+// SIZE-NEXT: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + div
+// SIZE-NEXT: + push 48
+// SIZE-NEXT: + mul
+bb14 [stack=1022]:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  pop
+  stop
