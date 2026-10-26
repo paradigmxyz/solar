@@ -1,49 +1,47 @@
-# Solar: 100× faster Solidity compilation, cheaper contracts
+# Solar: 100× faster Solidity
 
-*By DaniPopes, Djordje Todorovic, Georgios Konstantopoulos [byline TBD]*
+*By DaniPopes, djtodoro, Georgios Konstantopoulos*
 
-**Today we are excited to release Solar v0.3, our Solidity compiler written in Rust, and the first version that generates EVM bytecode. Solar compiles Morpho Blue over 100× faster than solc, its contracts are cheaper to deploy and to run, and safe Solidity compiled with Solar beats hand-written assembly. It ships in Forge today.**
+Two years ago, [we introduced Solar](https://www.paradigm.xyz/writing/solar) ☀️ as a fast, modular Solidity frontend. Since then, we've added a full optimizing compiler, with a typed middle end that models Solidity and a back end that models the EVM. Today we're releasing Solar v0.3, our Solidity compiler written in Rust, and the first version that generates EVM bytecode. It ships in Forge, and it introduces:
 
-Two years ago, [we introduced Solar](https://www.paradigm.xyz/writing/solar) ☀️ as a fast, modular Solidity frontend. Since then, we have built a full optimizing compiler behind it: a typed middle end that models Solidity, and a back end that models the EVM. Specifically:
-
-* **Over 100× faster builds:** Solar compiles Morpho Blue in 0.22 seconds, against 33 seconds for solc.
-* **Cheaper contracts by default:** On real-world contracts, Solar's code uses 4% less gas to run, costs 26% less to deploy and is 30% smaller than solc's. On average, it also beats solx and every other Solidity compiler we tested.
-* **Safe code that beats assembly:** We rewrote Solady without inline assembly or `unchecked` math. Compiled with Solar, it uses 19% less gas than the original assembly compiled with solc.
-* **A language server in Forge:** `forge lsp` brings Solar's analysis to any editor: go to definition, rename, completion and errors as you type.
-
-If that sounds exciting, read on!
+* **100× faster builds:** Solar builds six widely used Solidity projects 100× faster than solc on average with via-IR, and up to 159× faster.
+* **Cheaper contracts by default:** Solar's code uses 5% less gas to run, costs 26% less to deploy and is 29% smaller than solc's, and on average beats every other Solidity compiler we tested.
+* **Safe code that beats assembly:** Solady rewritten without inline assembly or `unchecked` math uses **19% less gas** with Solar than the original does with solc.
+* **A language server in Forge:** `forge lsp` brings Solar's analysis to any editor.
 
 # Solar is fast.
 
-Solar compiles Morpho Blue in 0.22 seconds. solc takes 33.
+Compilation is the inner loop of smart contract development: both `forge build` and `forge test` wait for it. With solc's via-IR pipeline enabled for cheaper code, it often takes tens of seconds per build. As we wrote when we announced Solar, solc had become Foundry's bottleneck.
 
-Compilation is the inner loop of smart contract development. Every `forge build` and `forge test` waits on it, and teams that turn on solc's via-IR pipeline for cheaper code often wait tens of seconds per build. As we [wrote when we announced Solar](https://www.paradigm.xyz/writing/solar), testing was no longer Foundry's bottleneck; the compiler was.
+We compiled Morpho Blue with every Solidity compiler we could find (solc, slang-solx, the Slang preview and oksolc), using the same settings for all of them:
 
-We compiled Morpho Blue with every Solidity compiler we could find, using the same settings for all of them:
+![Morpho Blue build time: solc 29.64 s, oksolc 4.38 s, slang-solx 4.33 s, Slang preview 1.25 s, Solar 0.19 s](images/compile-morpho.png)
 
-![Compiling Morpho Blue with every Solidity compiler](images/compile-morpho.png)
+*Median of five runs with via-IR and the Cancun EVM target, the only settings every compiler accepts: solc 0.8.38, slang-solx 0.1.8, the Slang preview (build 5e6ec5e1), oksolc 0.2.2 and Solar at commit 0303bb7d. Solar uses its default eight threads; solc uses one.*
 
-*Settings: via-IR and the Cancun EVM target, the only ones every compiler accepts.*
+Solar keeps its lead over solc across six widely used codebases:
 
-The gap holds across the ecosystem. On six widely used codebases, Solar builds the whole project 60× to 149× faster than solc:
+![Build time of six projects with solc and Solar; Solar is 76× to 159× faster](images/compile-projects.png)
 
-![Solar vs. solc build time on six projects](images/compile-projects.png)
+With these settings, solc cannot build Uniswap v4 core or Seaport at all, because it runs out of stack slots. Solar builds both, and it is the only compiler we tested that builds Seaport.
 
-With these settings, solc cannot build Uniswap v4 core or Seaport at all; it runs out of stack slots. Solar builds Uniswap v4 in 0.39 seconds and is the only compiler we tested that builds Seaport.
-
-Across every project we built, including ones not shown here, Solar is 80× faster than solc on average with these settings, and still 30× faster when each project keeps its own settings, where many use solc's quicker legacy pipeline. It also needs a fraction of the memory: 322 MiB to build Solady, where solc needs 2.7 GiB. Solar spreads work over eight threads by default, but even on one thread it compiles Morpho Blue over 20× faster than solc.
+With each project's own settings, many of them on solc's quicker legacy pipeline, Solar is still over 30× faster on average. It needs about a third of solc's memory, and although it uses eight threads by default, on one thread it still compiles Morpho Blue over 20× faster.
 
 # Solar makes your contracts cheaper.
 
-A fast compiler is only useful if its output is good. So we built a [benchmark suite](https://github.com/paradigmxyz/solar/tree/main/benches/runtime) from real contracts by OpenZeppelin, Solady, Aave, Arbitrum, Maple, Tempo and others. For each one, we deploy every compiler's bytecode to a local node, replay the same transactions, and check that all of them return the same results.
+We built a [benchmark suite](https://github.com/paradigmxyz/solar/tree/main/benches/runtime) from real contracts by OpenZeppelin, Solady, Aave, Arbitrum, Maple, Tempo and others. For each one, we deploy every compiler's bytecode to a local node, replay the same transactions and check that all of them return the same results.
 
 With each project's own settings, Solar beats solc on every one of these workloads:
 
-![Gas saved by Solar vs. solc on each workload](images/gas-vs-solc.png)
+![Gas Solar saves against solc on 15 workloads, from 0.3% to 16.4%](images/gas-vs-solc.png)
 
-Compute-heavy code gains the most, such as OpenZeppelin's P256 signature verification and Solady's string library. Even simple token calls get cheaper, although the 21,000 gas every transaction pays before running any code limits the gain. Solar's contracts also cost 26% less to deploy and are 30% smaller.
+Compute-heavy code gains the most. Simple token calls gain less, since the 21,000 gas every transaction pays before running any code limits the saving. Solar's contracts also cost about a quarter less to deploy.
 
-Developers have learned to hand-optimize around the compiler, and Solar makes much of that unnecessary. Take the first example from [solx's launch post](https://paragraph.com/@zksync/solx-the-new-solidity-compiler-why-it-matters-to-you), a factorial that writes to storage on every iteration:
+Solar's code does less work, too. It executes far fewer opcodes, including a tenth as many `JUMP` instructions as solc's, so EVM implementations run it faster too. In the [evm2](https://github.com/alloy-rs/evm2) interpreter, the same calls take about a fifth fewer CPU cycles:
+
+![Per workload, Solar executes 13% to 47% fewer opcodes than the better solc pipeline, 37% fewer on average, and the evm2 interpreter runs it in 6% to 32% fewer cycles, 19% fewer on average](images/execution.png)
+
+Developers often hand-optimize around the compiler; with Solar, much of that is unnecessary. Take a factorial that writes to storage on every iteration, the first example in Matter Labs' [launch post for solx](https://paragraph.com/@zksync/solx-the-new-solidity-compiler-why-it-matters-to-you):
 
 ```solidity
 contract FactorialStorage {
@@ -58,49 +56,41 @@ contract FactorialStorage {
 }
 ```
 
-solx needed `unchecked` math to move the storage write out of the loop. Solar does not: it keeps `result` on the stack, with every overflow check intact, and writes storage once at the end, since a revert would undo any earlier write anyway.
+That post used `unchecked` math to move the storage write out of the loop. Solar does it with every overflow check intact: it keeps `result` on the stack and writes storage once at the end, since a revert would undo any earlier write anyway.
 
-![Gas cost of the checked factorial with each compiler](images/gas-factorial.png)
-
-Write the obvious code; Solar makes it cheap.
+![Checked factorial gas: solc 224,150, slang-solx 209,744, Slang preview 209,561, Solar 186,088](images/gas-factorial.png)
 
 # How does Solar compare?
 
-We are glad to see more teams investing in Solidity compilers. We measured solc, [solx](https://github.com/NomicFoundation/solx) from the Nomic Foundation (the team behind Hardhat), the October preview of its upcoming Slang-based rewrite, and [oksolc](https://github.com/okcontract/oksolc), a port of solc to Zig, all on the same inputs and settings. Solar builds whole projects faster than all of them, and its code costs less to run and to deploy:
+We are glad to see more teams investing in Solidity compilers. [slang-solx](https://github.com/NomicFoundation/solx) began at Matter Labs as solx, and the Nomic Foundation, the team behind Hardhat, now maintains it. Slang is Nomic's rewrite of it on their own Solidity frontend, and we tested its October preview. [oksolc](https://github.com/okcontract/oksolc) is a port of solc to Zig. On the same inputs and settings, Solar builds whole projects faster than every one of them, and its code costs less to run and to deploy:
 
-![Solar vs. every Solidity compiler: build speed, runtime gas and deployment gas](images/compare-compilers.png)
+![Against solc, slang-solx, the Slang preview and oksolc, Solar on average builds 7× to 83× faster, uses 1.7% to 6.5% less gas per call and 29% to 42% less gas to deploy](images/compare-compilers.png)
 
-These numbers use one setting for every compiler, so the solc figures differ from those above: forcing via-IR slows solc down and makes its code more expensive on projects built for its legacy pipeline. Solar does not win everywhere. solx beats it on P256 signature verification, and the Slang preview on four of fifteen workloads.
+These numbers use one setting for every compiler, so solc's gas and deploy figures differ from those above: forcing via-IR makes solc's code more expensive on projects built for its legacy pipeline. Solar does not win every workload: slang-solx beats it on one, and the Slang preview on three.
 
 The full results are in our [benchmark suite](https://github.com/paradigmxyz/solar/tree/main/benches/runtime).
 
 # With Solar, safe Solidity beats assembly.
 
-Today, the cheapest Solidity is written in inline assembly with `unchecked` math. Libraries like [Solady](https://github.com/Vectorized/solady) save every unit of gas by hand, but every line of assembly skips the compiler's checks, and one mistake can cost users their funds. We think the compiler should do this work, not the developer.
+Today, developers write the cheapest Solidity in inline assembly with `unchecked` math. Libraries like [Solady](https://github.com/Vectorized/solady) save every unit of gas by hand, but every line of assembly skips the compiler's checks, and one mistake can cost users their funds. We think the compiler should do this work.
 
-To test that idea, we rewrote Solady in plain, checked Solidity ([safe Solady](https://github.com/djolertrk/solady/tree/feat/safe-solady-natspec) [move to paradigmxyz before publishing]). Assembly and `unchecked` remain only in small functions tagged for review, which do what Solidity cannot express, such as reading a raw storage slot or bubbling up a revert. The rewrite keeps every function Solady exposes.
+To test that idea, we rewrote Solady in plain, checked Solidity ([safe Solady](https://github.com/paradigmxyz/solady/tree/feat/safe-solady-natspec)). Assembly and `unchecked` remain only in small functions tagged for review, which do what Solidity cannot express, such as reading a raw storage slot or bubbling up a revert. The rewrite keeps every function Solady exposes.
 
-We then ran Solady's own test suite against both versions. They produce the same results. Compiled with Solar, safe Solady uses **19% less gas** per test on average than the original assembly compiled with solc, and it is cheaper in nearly every test:
+We then ran Solady's own test suite against both versions. They produce the same results. Compiled with Solar, safe Solady is cheaper than the original compiled with solc in nearly every test:
 
-![Safe Solady compiled by Solar vs. Solady compiled by solc](images/safe-solady.png)
-
-Readable, checked code that is cheaper than hand-written assembly. That is what a compiler should give you.
-
-*[Editorial: this section depends on [paradigmxyz/solar#1999](https://github.com/paradigmxyz/solar/pull/1999) landing before the release.]*
+![Safe Solady compiled by Solar uses 56% to 101% of Solady's gas in the 13 suites shown, 81% per test on average](images/safe-solady.png)
 
 # How is Solar built?
 
-Solar follows the design of modern compilers like rustc and LLVM, where each stage has one job:
+Like rustc and LLVM, Solar lowers code through several intermediate representations (IRs):
 
 ![Solar's pipeline: Solidity, AST, HIR, MIR, EVM IR, bytecode](images/pipeline.png)
 
-MIR is a typed view of your contract that still knows what a mapping or a checked addition is, so it can remove redundant checks and keep values out of storage and memory. EVM IR sits close to the machine and handles the stack, block layout and peephole rewrites. Keeping each optimization at the level where it belongs makes it small, easy to test and easy to build on.
+MIR is a typed view of your contract that still knows what a mapping or a checked addition is, so it can remove redundant checks and keep values out of storage and memory. EVM IR sits close to the machine and handles the stack, block layout and peephole rewrites. Keeping each optimization at the level where it belongs makes it small and easy to test.
 
 # Solar runs in your editor.
 
-`forge lsp`, a Solidity language server built into Forge, runs on Solar's frontend. It reads your `foundry.toml` and remappings, so it resolves imports the way `forge build` does, and it analyzes the whole project, not only the open files.
-
-In a project, `forge lsp` opens VS Code with the bundled Foundry Solidity extension. Other editors with language server support, such as Neovim, Zed or Helix, can run `forge lsp --stdio`. You get go to definition, find references and rename across the project; completion with NatSpec tags, hover docs and signature help; inlay hints, call and type hierarchies; formatting; and compiler errors as you type.
+`forge lsp` is a Solidity language server built on Solar's frontend. It answers requests such as hover and go to definition 3× to 9× faster than other language servers [provisional: CI smoke run on a 28-line fixture; replace with the full run on Uniswap v4, Aave and Optimism], and also supports rename, completion and errors as you type. Install the extension for [VS Code](TBD) (also on [Open VSX](TBD)) or [Zed](TBD) [links and Open VSX TBD].
 
 # Solar ships in Forge.
 
@@ -120,24 +110,20 @@ forge test --use solar
 
 To try the language server, run `forge lsp` in your project.
 
-If your project does not build, or a test behaves differently than with solc, please [open an issue](https://github.com/paradigmxyz/solar/issues). No feedback helps us more.
+If your project does not build, or a test behaves differently than it does with solc, please [open an issue](https://github.com/paradigmxyz/solar/issues) or tell us on [Telegram](https://t.me/paradigm_solar).
 
 # Where do we go from here?
 
-In the last two years, we have:
+Solar already runs `forge lint` and `forge fmt`, and now builds and analyzes your contracts too. Next, we are most excited about:
 
-1. [Announced Solar](https://www.paradigm.xyz/writing/solar) as a fast Solidity frontend.
-2. Integrated Solar into Forge, where it runs `forge lint` and `forge fmt`.
-3. Built a typed middle end (MIR) and a machine-level back end (EVM IR).
-4. Shipped code generation that beats solc on speed and gas, and `forge lsp` (this post).
-
-Next, we are most excited about:
-
-* **Security from the compiler:** Our IRs know far more about a contract than its bytecode does. We will use them to prove that optimizations preserve behavior, extend the Lean proofs we already have for our rewrite rules, and flag dangerous patterns before they ship. Safe Solady is the first step, and Solar will report which contracts contain no assembly or `unchecked` code outside reviewed functions.
-* **A Solar standard library**, so that safe primitives need no assembly at all.
-* **Debug info** through [ethdebug](https://github.com/ethdebug/format), so optimized contracts stay easy to debug.
-* **LLM-assisted optimizations**, where models propose transformations and the compiler proves them correct before applying them.
+* **Security from the compiler:** our IRs know far more about a contract than its bytecode does. We will use that knowledge to flag dangerous patterns before they ship. Safe Solady is the first step, and we will report which contracts contain no assembly or `unchecked` code outside reviewed functions.
+* **Formally verified optimizations:** we already prove individual rewrite rules in Lean. Next, we plan to build tooling inspired by [Alive2](https://github.com/AliveToolkit/alive2) to check that our optimization passes preserve behavior by comparing the IR before and after optimization. This complements [Solidus](https://www.paradigm.xyz/writing/solidus)'s work toward an end-to-end verified Solidity compiler in Lean.
+* **A Solar standard library:** safe primitives that need no assembly at all.
+* **Debug info:** support for [ethdebug](https://github.com/ethdebug/format), so optimized contracts stay easy to debug.
+* **LLM-assisted optimizations:** models propose transformations, and Solar applies only those it proves correct.
 
 Run `foundryup`, try Solar on your contracts and tell us what you find.
+
+If you're a great compiler engineer looking to work on Solar or other bleeding-edge projects at Tempo, please reach out to [georgios@paradigm.xyz](mailto:georgios@paradigm.xyz).
 
 See you on [GitHub](https://github.com/paradigmxyz/solar)!

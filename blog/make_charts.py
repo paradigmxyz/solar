@@ -32,6 +32,7 @@ EVIDENCE = BLOG / "solar-blog-evidence"
 GREEN = "#00E10A"
 GREY = "#D9D9D9"
 PALE = "#DDE8DD"
+MID = "#8CEB90"
 FRAME = "#E3E3E3"
 GRID = "#EFEFEF"
 MUTED = "#8C8C8C"
@@ -222,10 +223,10 @@ def corpus_ratios(path, ref, suites):
 def morpho():
     case = "morpho-blue-project"
     bars = [
-        ("solc 0.8.37", ctime(SHARED, case, "solc"), GREY),
+        ("solc 0.8.38", ctime(SHARED, case, "solc"), GREY),
         ("oksolc 0.2.2", ctime(SHARED, case, "oksolc"), GREY),
-        ("solx 0.1.8", ctime(SHARED, case, "solx"), GREY),
-        ("solx 0.2 preview", ctime(SLANG, case, "solx"), GREY),
+        ("slang-solx 0.1.8", ctime(SHARED, case, "solx"), GREY),
+        ("Slang preview", ctime(SLANG, case, "solx"), GREY),
         ("Solar", ctime(SHARED, case, "solar"), GREEN),
     ]
     fig = figure(
@@ -282,7 +283,7 @@ def projects():
         "Whole project (seconds)",
         [HW, ("via-IR, Cancun, median of 5", "mono"), SRC],
     )
-    legend(fig, [("solc 0.8.37", GREY), ("Solar", GREEN)])
+    legend(fig, [("solc 0.8.38", GREY), ("Solar", GREEN)])
     ax = fig.add_axes([0.09, 0.25, 0.88, 0.5])
     w = 0.36
     for i, (case, _) in enumerate(PROJECTS):
@@ -301,10 +302,10 @@ def projects():
 
 def compare():
     refs = [
-        ("solc 0.8.37", "shared-all-results.json", "solc"),
-        ("solx 0.1.8", "shared-all-results.json", "solx"),
-        ("solx 0.2 preview", "shared-slang-results.json", "solx"),
-        ("oksolc 0.2.2", "shared-all-results.json", "oksolc"),
+        ("vs. solc 0.8.38", "shared-all-results.json", "solc"),
+        ("vs. slang-solx 0.1.8", "shared-all-results.json", "solx"),
+        ("vs. Slang preview", "shared-slang-results.json", "solx"),
+        ("vs. oksolc 0.2.2", "shared-all-results.json", "oksolc"),
     ]
     rows = []
     for label, path, ref in refs:
@@ -413,9 +414,9 @@ def factorial():
     case = "factorial"
     s = ORIGINAL[case]["solar"]
     bars = [
-        ("solc 0.8.37", mt.gas(ORIGINAL[case]["solc"], s), GREY),
-        ("solx 0.1.8", mt.gas(ORIGINAL[case]["solx"], s), GREY),
-        ("solx 0.2 preview", mt.gas(SLANG[case]["solx"], SLANG[case]["solar"]), GREY),
+        ("solc 0.8.38", mt.gas(ORIGINAL[case]["solc"], s), GREY),
+        ("slang-solx 0.1.8", mt.gas(ORIGINAL[case]["solx"], s), GREY),
+        ("Slang preview", mt.gas(SLANG[case]["solx"], SLANG[case]["solar"]), GREY),
         ("Solar", mt.gas(s, ORIGINAL[case]["solc"]), GREEN),
     ]
     fig = figure(
@@ -605,6 +606,78 @@ def pipeline():
     save(fig, "pipeline.png")
 
 
+def execution():
+    ops = json.loads((BOX / "opcodes-per-case.json").read_text())["objectives"]["gas"][
+        "cases"
+    ]
+    evm2 = json.loads((BOX / "evm2-per-case.json").read_text())["cases"]
+    rows = []
+    for case, label in WORKLOADS.items():
+        o = ops.get(case, {})
+        s, legacy, ir = (
+            evm2[v].get(case) for v in ("solar-gas", "solc-legacy200", "solc-ir200")
+        )
+        if not (
+            all(
+                "steps" in o.get(k, {}) for k in ("solar", "solc-legacy", "solc-via-ir")
+            )
+            and s
+            and legacy
+            and ir
+        ):
+            continue
+        steps = o["solar"]["steps"] / min(
+            o["solc-legacy"]["steps"], o["solc-via-ir"]["steps"]
+        )
+        cycles = s["interp_cycles"] / min(legacy["interp_cycles"], ir["interp_cycles"])
+        rows.append((label, 100 * (1 - steps), 100 * (1 - cycles)))
+    rows.sort(key=lambda r: r[1])
+
+    def gm(i):
+        return 100 * (
+            1 - math.exp(sum(math.log(1 - r[i] / 100) for r in rows) / len(rows))
+        )
+
+    h = 8.4
+    fig = figure(
+        "Fewer Opcodes, Faster Execution",
+        "Per call vs. the better solc pipeline",
+        [("-Ogas vs. legacy or via-IR; evm2 interpreter", "mono"), SRC],
+        height=h,
+    )
+    legend(
+        fig,
+        [
+            (f"Opcodes executed, {gm(1):.0f}% fewer", GREEN),
+            (f"Interpreter cycles, {gm(2):.0f}% fewer", MID),
+        ],
+        height=h,
+        x=0.56,
+    )
+    ax = fig.add_axes([0.33, 0.11, 0.6, 0.72])
+    w = 0.38
+    for y, (_, steps, cycles) in enumerate(rows):
+        for dy, v, color in ((w / 2, steps, GREEN), (-w / 2, cycles, MID)):
+            ax.barh(y + dy, v, w, color=color)
+            ax.text(
+                v + 0.6,
+                y + dy,
+                f"{v:.0f}%",
+                va="center",
+                fontsize=9.5,
+                color=INK,
+                fontfamily=MONO["family"],
+            )
+    ax.set_yticks(range(len(rows)), [r[0] for r in rows])
+    ax.set_xlim(0, 55)
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+    style_axes(ax, xgrid=True)
+    for label in ax.get_yticklabels():
+        label.set_fontfamily(SERIF["family"])
+        label.set_fontsize(13)
+    save(fig, "execution.png")
+
+
 if __name__ == "__main__":
     load_fonts()
     morpho()
@@ -614,3 +687,4 @@ if __name__ == "__main__":
     factorial()
     safe_solady()
     pipeline()
+    execution()
