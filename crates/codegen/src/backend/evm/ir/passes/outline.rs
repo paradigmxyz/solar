@@ -37,7 +37,6 @@
 
 use super::{
     EvmPass,
-    compact_pushes::selected_len,
     utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point},
 };
 use crate::{
@@ -194,9 +193,9 @@ fn transfer_size(target: &Target) -> usize {
 
 /// Returns the gas of one call and return, excluding the shared body's rotations.
 fn transfer_gas(target: &Target) -> u32 {
-    target.opcode_gas(op::PUSH2) * 2
-        + target.opcode_gas(op::JUMP) * 2
-        + target.opcode_gas(op::JUMPDEST) * 2
+    target.runtime_gas(
+        (target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST)).times(2),
+    )
 }
 
 /// Returns the per-site bytes, shared body bytes, and transfer gas of a push share.
@@ -208,7 +207,11 @@ fn push_share_costs(target: &Target) -> (usize, usize, u32) {
     let body_bytes = (target.opcode(op::JUMPDEST).bytes
         + target.opcode(op::SWAP1).bytes
         + target.opcode(op::JUMP).bytes) as usize;
-    (transfer_size(target), body_bytes, transfer_gas(target) + target.opcode_gas(op::SWAP1))
+    (
+        transfer_size(target),
+        body_bytes,
+        transfer_gas(target) + target.runtime_gas(target.opcode(op::SWAP1)),
+    )
 }
 
 fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -345,7 +348,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 target
             };
             let transfer_gas = transfer_gas(&target)
-                + target.opcode_gas(op::SWAP1)
+                + target.runtime_gas(target.opcode(op::SWAP1))
                     * u32::from(first.outputs.saturating_add(first.inputs));
             if !target
                 .deposit_repays_gas(saved_bytes as u64, free.len() as u64 * u64::from(transfer_gas))
@@ -722,7 +725,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             if state.inline_store_literals.contains(&value) {
                 return None;
             }
-            let push_size = selected_len(gcx, value);
+            let push_size = target.push(value).bytes as usize;
             // Sites that may run more than once pay the transfer gas at the runtime price.
             let (target, transfer_gas) =
                 if repeats(module, occurrences.iter().map(|&(block, _)| block)) {

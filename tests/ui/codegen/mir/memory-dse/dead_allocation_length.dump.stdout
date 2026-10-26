@@ -147,40 +147,26 @@ fn @fallback.body(arg0: i256, arg1: i256) {
     v0: i256 = address
     v1 = gas
     v5 = lt arg1, 4
-    v8 = sub arg1, 4
-    v53 = add arg0, 4
-    v13 = calldatasize
-    v48 = shr v8, 64
-    v64 = zext i1 v5 to i256
-    v65 = or v64, v48
-    v15 = sub v13, v8
-    v17 = sgt v53, v15
-    v67 = zext i1 v17 to i256
-    v68 = or v65, v67
-    v69 = ne v68, 0
-    jumpi v69, bb3, bb4
+    jumpi v5, bb3, bb4
   bb4:
-    v19 = add v8, 63
-    v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v60 = mload 64 !metadata(memory=scratch)
-    v61 = add v60, v22
-    mstore 64, v61 !metadata(memory=scratch)
-    v55 = add v60, 32
-    calldatacopy v55, v53, v8
-    v37 = delegatecall v1, v0, v55, v8, 0, 0
-    v38 = returndatasize
-    v39 = add v38, 63
-    v42 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v62 = mload 64 !metadata(memory=scratch)
-    v63 = add v62, v42
-    mstore 64, v63 !metadata(memory=scratch)
-    v57 = add v62, 32
-    returndatacopy v57, 0, v38
-    jumpi v37, bb2, bb1
+    v8 = sub arg1, 4
+    v39 = add arg0, 4
+    v45 = mload 64 !metadata(memory=scratch)
+    calldatacopy v45, v39, v8
+    v25 = delegatecall v1, v0, v45, v8, 0, 0
+    v26 = returndatasize
+    v27 = add v26, 63
+    v30 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v46 = mload 64 !metadata(memory=scratch)
+    v47 = add v46, v30
+    mstore 64, v47 !metadata(memory=scratch)
+    v41 = add v46, 32
+    returndatacopy v41, 0, v26
+    jumpi v25, bb2, bb1
   bb1:
-    revert v57, v38
+    revert v41, v26
   bb2:
-    returndata v57, v38
+    returndata v41, v26
   bb3:
     revert 0, 0
 }

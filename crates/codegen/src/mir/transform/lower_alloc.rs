@@ -19,7 +19,9 @@
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
     Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-    PtrLocation, ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    PtrLocation, ValueId,
+    memory::EvmMemoryLayout,
+    pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
     transform::utils::redirect_successor_predecessors,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -38,21 +40,14 @@ impl MirPass for LowerAlloc {
         true
     }
 
-    fn run_pass(
-        &self,
-        _gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        lower_alloc(module)
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        lower_alloc(module, analyses)
     }
 }
 
-fn lower_alloc(module: &mut Module) -> bool {
-    let mut changed = share_checked_allocations(module);
-    for func in module.functions.iter_mut() {
-        changed |= lower_function(func);
-    }
+fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    let mut changed = share_checked_allocations(module, analyses);
+    changed |= run_lowering_function_pass(module, analyses, |func, _| lower_function(func));
     changed
 }
 
@@ -61,7 +56,7 @@ fn lower_alloc(module: &mut Module) -> bool {
 ///
 /// The helper owns only the pointer load, checked bump, panic, and update.
 /// Callers retain their initialization, so allocation ordering stays intact.
-fn share_checked_allocations(module: &mut Module) -> bool {
+fn share_checked_allocations(module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
     let count = module
         .functions
         .iter()
@@ -81,7 +76,7 @@ fn share_checked_allocations(module: &mut Module) -> bool {
     }
 
     let helper = create_checked_alloc(module);
-    for func in &mut module.functions {
+    run_lowering_function_pass(module, analyses, |func, _| {
         let mut replacements = FxHashMap::default();
         let blocks = func.blocks.indices();
         for block in blocks {
@@ -108,8 +103,8 @@ fn share_checked_allocations(module: &mut Module) -> bool {
             }
         }
         func.replace_uses_canonicalized(&replacements);
-    }
-    true
+        true
+    })
 }
 
 fn create_checked_alloc(module: &mut Module) -> crate::mir::FunctionId {

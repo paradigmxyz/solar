@@ -888,9 +888,11 @@ fn lifetime_saving(
         MainTest::AheadBelow(offset) | MainTest::AheadBeyond(offset) => {
             let advance = target.opcode(op::ADD) + target.push(offset);
             let skipped = skip.times(groups.saturating_mul(factor - 1).saturating_sub(1));
-            skipped.gas.saturating_sub(advance.times(groups.saturating_add(1)).gas)
+            target
+                .runtime_gas(skipped)
+                .saturating_sub(target.runtime_gas(advance.times(groups.saturating_add(1))))
         }
-        MainTest::Below => skip.times(groups.saturating_sub(1)).gas,
+        MainTest::Below => target.runtime_gas(skip.times(groups.saturating_sub(1))),
         // Every pair skips a test and a back edge, and entering the loop tests the parity of
         // the remaining count once.
         MainTest::Parity => {
@@ -899,7 +901,7 @@ fn lifetime_saving(
             if zeros != 0 {
                 parity += target.opcode(op::SHR) + target.push(U256::from(zeros));
             }
-            skip.times(groups).gas.saturating_sub(parity.gas)
+            target.runtime_gas(skip.times(groups)).saturating_sub(target.runtime_gas(parity))
         }
     };
     // The new code holds `factor` copies of the body and one of the header.
@@ -1028,7 +1030,7 @@ fn plan_peel(
     let test = target.opcode(op::JUMPI) + target.opcode(op::PUSH2) + target.dup();
     let skipped = test.times(u32::try_from(tests.len()).unwrap_or(u32::MAX));
     let iterations = u32::try_from(Target::UNCOUNTED_LOOP_ITERATIONS - 1).unwrap_or(u32::MAX);
-    let saving = skipped.times(iterations).gas;
+    let saving = target.runtime_gas(skipped.times(iterations));
     let growth: Cost = l.blocks.iter().map(|block| target.block_code_estimate(func, block)).sum();
     (target.lifetime_gas(Cost::new(saving, 0)) > target.lifetime_gas(Cost::new(0, growth.bytes)))
         .then(|| Peel {
@@ -1085,16 +1087,17 @@ fn plan_full(
     }
     let header = target.block_code_estimate(func, l.header);
     let growth = body.times(trips - 1).bytes.saturating_sub(header.bytes);
-    (target.lifetime_gas(Cost::new(saving.gas, 0)) > target.lifetime_gas(Cost::new(0, growth)))
-        .then(|| Full {
-            header: l.header,
-            preheader: shape.preheader,
-            latch: shape.latch,
-            body: shape.body,
-            exit: shape.exit,
-            blocks: l.blocks.clone(),
-            trips,
-        })
+    (target.lifetime_gas(Cost::new(target.runtime_gas(saving), 0))
+        > target.lifetime_gas(Cost::new(0, growth)))
+    .then(|| Full {
+        header: l.header,
+        preheader: shape.preheader,
+        latch: shape.latch,
+        body: shape.body,
+        exit: shape.exit,
+        blocks: l.blocks.clone(),
+        trips,
+    })
 }
 
 /// Each header phi with the value it takes from `latch`.
