@@ -1936,8 +1936,8 @@ impl MemoryStoreEliminator {
         let mut dead = DenseBitSet::new_empty(func.num_insts());
         for (alloc, access, exposed) in candidates {
             let (alloc_block, alloc_index) = positions[&alloc];
-            // A write that wraps may rewind the free-memory pointer, which freshness ignores, and
-            // put any object over an earlier one.
+            // A write that wraps may rewind the free-memory pointer and put any object over an
+            // earlier one, which allocation uniqueness ignores.
             if exposed && wrapping_writes {
                 continue;
             }

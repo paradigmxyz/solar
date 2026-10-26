@@ -422,9 +422,11 @@ enum AddressState {
     Resolved(Option<MemoryAddress>),
 }
 
-/// The order of unique allocations relative to the free-memory-pointer reads no reset precedes.
+/// The order of unique allocations relative to the free-memory-pointer reads that neither a reset
+/// nor a wrapped write precedes.
 ///
-/// No path from the entry to such a read `P` resets the pointer, so every unique `alloc` that
+/// No path from the entry to such a read `P` resets the pointer or may write through a wrapped
+/// index, so every unique `alloc` that
 /// executes before `P` ends at or below the pointer `P` returns, and an access at a nonnegative
 /// offset from `P` cannot reach it.
 #[derive(Clone, Debug)]
@@ -532,7 +534,9 @@ impl PointerProvenance {
         };
         let (reachable, poisoned) = poison(&first_resets);
         // A write through a wrapped runtime index may land on the FMP word, so it ends the
-        // freshness of the reads after it, though it keeps the allocations before it unique.
+        // freshness of the reads after it.
+        // NOTE: Allocations keep their uniqueness, which assumes that an access based on an
+        // allocation stays inside it.
         let first_rewinds = func
             .blocks
             .iter()
@@ -552,7 +556,8 @@ impl PointerProvenance {
         };
 
         let mut allocations = FxHashMap::default();
-        // The unique `alloc`s and the free-memory-pointer reads that no reset precedes.
+        // The unique `alloc`s and the free-memory-pointer reads that neither a reset nor a wrapped
+        // write precedes.
         let mut positions = FxHashMap::default();
         let (mut has_alloc, mut has_read) = (false, false);
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -1958,11 +1963,13 @@ impl AliasAnalysis {
     #[must_use]
     pub(crate) fn instruction_may_wrap_write(&self, func: &Function, inst: InstId) -> bool {
         match func.inst(inst).kind {
-            InstKind::ICall { function: Callee::Function(function), .. } => self
-                .call_summaries
-                .as_deref()
-                .and_then(|summaries| summaries.get(function))
-                .is_none_or(|summary| summary.may_wrap_write()),
+            InstKind::ICall { function: Callee::Function(_), .. } => {
+                Self::instruction_may_wrap_write_with_summaries(
+                    func,
+                    inst,
+                    self.call_summaries.as_deref(),
+                )
+            }
             _ => self.instruction_writes_through_runtime_index(func, inst),
         }
     }

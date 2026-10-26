@@ -282,6 +282,15 @@
       ret v5
   }
   
+  fn @environment_size() {
+    bb0:
+      v0 = calldatasize
+      v1 = add v0, 32
+      v2 = alloc v1
+-     mstore v2, 1
+      stop
+  }
+  
   fn @indexed_other(arg0: i256, arg1: i256) {
     bb0:
       v0 = alloc 64

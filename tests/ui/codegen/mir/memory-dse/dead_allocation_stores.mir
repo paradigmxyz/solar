@@ -374,6 +374,19 @@ fn @wrapped_dynamic_size(arg0: i256) -> i256 {
     ret v6
 }
 
+// A copy of the calldata, return data, or code sizes plus a header cannot wrap, so the header
+// store fits the allocation.
+// CHECK-LABEL: {{^[ +].*}}fn @environment_size{{[( ]}}
+// CHECK: {{^-}} mstore v2, 1
+fn @environment_size() {
+  bb0:
+    v0 = calldatasize
+    v1 = add v0, 32
+    v2 = alloc v1
+    mstore v2, 1
+    stop
+}
+
 // A runtime index of another allocation wraps and may land in this one.
 // CHECK-LABEL: {{^[ +].*}}fn @indexed_other{{[( ]}}
 // CHECK: {{^ +}}mstore v0, arg0

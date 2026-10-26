@@ -260,6 +260,54 @@ fn @wrapped_write_after_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     ret v7
 }
 
+// A wrapped write in a loop reaches the read through the back edge.
+// CHECK-LABEL: @wrapped_write_in_loop
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @wrapped_write_in_loop(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v13 = alloc 32
+    jump bb1
+  bb1:
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    v12 = ptradd v13, arg2
+    v4 = ptrtoint ptr<memory> v12 to i256
+    mstore v4, 5
+    jumpi arg3, bb1, bb2
+  bb2:
+    ret v7
+}
+
+// A wrapped write in a predecessor ends the freshness of the read in its successor.
+// CHECK-LABEL: @wrapped_write_in_predecessor
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore {{v[0-9]+}}, arg1
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @wrapped_write_in_predecessor(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    v13 = alloc 32
+    v12 = ptradd v13, arg2
+    v4 = ptrtoint ptr<memory> v12 to i256
+    mstore v4, 5
+    jump bb1
+  bb1:
+    mstore v2, arg0
+    v11 = fmp
+    v3 = ptrtoint ptr<memory> v11 to i256
+    mstore v3, arg1
+    v7 = mload v2
+    ret v7
+}
+
 // A callee that may reset the pointer, between the allocation and the read, ends freshness.
 // CHECK-LABEL: @call_may_reset
 // CHECK:       mstore [[ADDR:v[0-9]+]], arg0
