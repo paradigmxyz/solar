@@ -115,3 +115,21 @@ fn @reset_between(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v7 = mload v2
     ret v7
 }
+
+// A runtime index wraps, so a write at one may land below its allocation, in an earlier one.
+// CHECK-LABEL: @indexed_write
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK:       mstore
+// CHECK:       {{v[0-9]+}} = mload [[ADDR]]
+fn @indexed_write(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v10 = alloc 32
+    v2 = ptrtoint ptr<memory> v10 to i256
+    mstore v2, arg0
+    v11 = alloc arg1
+    v12 = ptradd v11, arg2
+    v13 = ptradd v12, 32
+    mstore v13, 9
+    v7 = mload v2
+    ret v7
+}
