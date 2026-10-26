@@ -8,8 +8,6 @@
 fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
   bb0:
     v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v25 = add v24, 288 !metadata(alloc_ptr)
-    mstore 64, v25
     mstore v24, 241
     v17 = add v24, 256
     mstore v17, 0
@@ -27,8 +25,6 @@ fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
 fn @inner() [selector=0x4adb7729, abi_wrapper, pure] {
   bb0:
     v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v25 = add v24, 224 !metadata(alloc_ptr)
-    mstore 64, v25
     mstore v24, 161
     v17 = add v24, 192
     mstore v17, 0
@@ -111,11 +107,6 @@ bb6:
   dup 1
   push 64
   mstore
-  push 288
-  dup 2
-  add
-  push 64
-  mstore
   push 241
   dup 2
   mstore
@@ -154,11 +145,6 @@ bb6:
 bb7:
   push 128
   dup 1
-  push 64
-  mstore
-  push 224
-  dup 2
-  add
   push 64
   mstore
   push 161

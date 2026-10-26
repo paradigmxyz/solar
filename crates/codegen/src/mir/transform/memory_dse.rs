@@ -85,8 +85,10 @@
 //! lowering, after ABI and aggregate lowering expose word stores. Another run follows the CSE that
 //! forwards the length words of `bytes` objects, while allocations are still atomic, so the dead
 //! allocation stores go before allocation lowering turns the object into free-memory-pointer
-//! traffic. A final `-Ogas` run after allocation lowering removes fills that only become explicit
-//! there, before memory-zero lowering turns them into copies or loops.
+//! traffic. A final run after allocation lowering removes fills that only become explicit there,
+//! before memory-zero lowering turns them into copies or loops, and forwards the free-memory
+//! pointer and the stores that allocation lowering exposes to the loads that read them. It runs
+//! under both objectives, since the forwarded words shrink the code.
 
 use crate::{
     mir::{

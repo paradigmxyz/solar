@@ -4,8 +4,6 @@
 fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
   bb0:
     v44 = icall @alloc, 128
-    v47 = calldatasize
-    calldatacopy v44, v47, 128
     mstore v44, 3
     v36 = add v44, 32
     mstore v36, 1
@@ -49,8 +47,6 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     v61 = add v69, 32
     icall @mcopy_words, v49, v61, 33
     v71 = mload 64 !metadata(alloc_ptr)
-    v72 = add v71, 160
-    mstore 64, v72
     mstore v71, 128
     v20 = add v71, 128
     v21 = mload v20
@@ -116,8 +112,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     v4 = add v0, 128
     mstore 64, v4
     v6 = keccak256 v1, 70
-    v39 = mload 64 !metadata(alloc_ptr)
-    v18 = add v39, 32
+    v18 = add v4, 32
     v19 = add v18, 64
     mstore v18, 64
     v21 = mload v0
@@ -136,10 +131,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     v33 = lt v32, v30
     jumpi v33, bb1, bb2
   bb2:
-    v35 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v40 = mload 64 !metadata(alloc_ptr)
-    v41 = add v40, v35 !metadata(alloc_ptr)
-    mstore 64, v41
     mstore v40, v30
     v10 = add v40, 128
     v11 = keccak256 v10, 70
@@ -156,8 +148,6 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
 fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
   bb0:
     v85 = icall @alloc, 96
-    v89 = calldatasize
-    calldatacopy v85, v89, 96
     mstore v85, 64
     v4 = add v85, 32
     mstore v4, 0x1111111111111111111111111111111111111111111111111111111111111111
@@ -258,8 +248,6 @@ fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
 fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
   bb0:
     v37 = icall @alloc, 128
-    v39 = calldatasize
-    calldatacopy v37, v39, 128
     mstore v37, 3
     v23 = add v37, 32
     mstore v23, 1
@@ -289,7 +277,6 @@ fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
   bb0:
     v23 = icall @alloc, 32
     mstore v23, 0
-    mstore v23, 0
     mstore v23, 32
     v11 = add v23, 32
     mstore v11, 0
@@ -299,8 +286,6 @@ fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
 fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, pure] {
   bb0:
     v84 = icall @alloc, 96
-    v88 = calldatasize
-    calldatacopy v84, v88, 96
     mstore v84, 63
     v4 = add v84, 32
     mstore v4, 0x1111111111111111111111111111111111111111111111111111111111111111
