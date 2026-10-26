@@ -125,10 +125,11 @@ a matching reference result exists.
   checks. Live `--oksolc` results override saved ones.
 
 Reference compiler failures stay in the raw results but raise no report warnings or PR comments;
-failures of our compiler (`solar`, `solar-size`), and mismatches involving it, do. Single-run
-reports show `solc-legacy` and `solar-size` as columns beside solc, with every delta measured
-against `solar`. The compile-time sums count only cases that every shown compiler compiled, so cases
-that `solc-legacy` fails drop out of all columns.
+failures of our compiler (`solar`, `solar-size`), and mismatches involving it, raise warnings, and
+only `solar` decides whether a baseline comparison comments. Single-run reports show `solc-legacy`
+and `solar-size` as columns beside solc, with every delta measured against `solar`. The
+compile-time sums count only cases that every shown compiler compiled, so cases that `solc-legacy`
+fails drop out of all columns.
 
 In CI, PRs pass the exact-base result as `--reference-results`, so solc runs only on the base
 revision. Solx 0.1.8 is pinned and runs only on pushes to main, never in PR jobs, even ones that
