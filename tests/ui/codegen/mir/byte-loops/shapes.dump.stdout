@@ -736,17 +736,17 @@ fn @asciiWords() [selector=0x581c0829, abi_wrapper, pure] {
 
 fn @copyWords() [selector=0xaedd6ca2, abi_wrapper, pure] {
   bb0:
-    v73 = calldatasize
-    v74 = lt v73, 68
-    jumpi v74, bb14, bb15
+    v79 = calldatasize
+    v80 = lt v79, 68
+    jumpi v80, bb14, bb15
   bb15:
-    v75 = icall @decode_calldata_type.22
-    v0 = mload v75
-    v69 = sub v0, arg1
-    v70 = lt v0, arg1
-    jumpi v70, bb12, bb13
+    v81 = icall @decode_calldata_type.22
+    v0 = mload v81
+    v74 = sub v0, arg1
+    v75 = lt v0, arg1
+    jumpi v75, bb12, bb13
   bb13:
-    v9 = add v69, 1
+    v9 = add v74, 1
     v10 = eq v9, 0
     jumpi v10, bb6, bb7
   bb7:
@@ -755,65 +755,65 @@ fn @copyWords() [selector=0xaedd6ca2, abi_wrapper, pure] {
     v17 = ne v13, v9
     jumpi v17, bb6, bb8
   bb8:
-    v105 = icall @alloc, v11
-    v107 = calldatasize
-    calldatacopy v105, v107, v11
-    mstore v105, v69
-    v40 = eq v69, 0
+    v111 = icall @alloc, v11
+    v113 = calldatasize
+    calldatacopy v111, v113, v11
+    mstore v111, v74
+    v40 = eq v74, 0
     jumpi v40, bb2, bb4
   bb4:
-    v41 = shl v69, 5
+    v41 = shl v74, 5
     v42 = shl arg1, 5
-    v90 = add v75, v42
-    v91 = add v90, 32
-    v93 = add v105, 32
-    v49 = add v91, v41
-    v50 = add v93, v41
-    v51 = lt v93, v49
-    v52 = lt v75, v50
+    v96 = add v81, v42
+    v97 = add v96, 32
+    v99 = add v111, 32
+    v49 = add v97, v41
+    v50 = add v99, v41
+    v51 = lt v99, v49
+    v52 = lt v81, v50
     v53 = and v51, v52
     jumpi v53, bb1, bb5
   bb5:
-    v55 = mload v75
-    v56 = lt v55, v69
-    v57 = sub v55, v69
-    v58 = gt arg1, v57
-    v59 = or v56, v58
-    jumpi v59, bb9, bb11
+    v60 = mload v81
+    v61 = lt v60, v74
+    v62 = sub v60, v74
+    v63 = gt arg1, v62
+    v64 = or v61, v63
+    jumpi v64, bb9, bb11
   bb11:
-    mcopy v93, v91, v41
+    mcopy v99, v97, v41
     jump bb2
   bb1:
     v23 = phi [bb4: 0], [bb10: v39]
-    v24 = lt v23, v69
+    v24 = lt v23, v74
     jumpi v24, bb3, bb2
   bb3:
-    v71 = add arg1, v23
-    v26 = mload v75
-    v27 = lt v71, v26
+    v76 = add arg1, v23
+    v26 = mload v81
+    v27 = lt v76, v26
     jumpi v27, bb10, bb9
   bb9:
     tail_call @revert_stub.18
   bb10:
-    v29 = shl v71, 5
-    v95 = add v75, v29
-    v96 = add v95, 32
-    v32 = mload v96
+    v29 = shl v76, 5
+    v101 = add v81, v29
+    v102 = add v101, 32
+    v32 = mload v102
     v36 = shl v23, 5
-    v98 = add v105, v36
-    v99 = add v98, 32
-    mstore v99, v32
+    v104 = add v111, v36
+    v105 = add v104, 32
+    mstore v105, v32
     v39 = add v23, 1
     jump bb1
   bb2:
-    v86 = add v105, 32
-    v81 = shl v69, 5
-    v88 = add v105, 64
-    mcopy v88, v86, v81
-    mstore v105, 32
-    mstore v86, v69
-    v83 = add v81, 64
-    returndata v105, v83
+    v92 = add v111, 32
+    v87 = shl v74, 5
+    v94 = add v111, 64
+    mcopy v94, v92, v87
+    mstore v111, 32
+    mstore v92, v74
+    v89 = add v87, 64
+    returndata v111, v89
   bb6:
     tail_call @revert_stub.19
   bb12:
@@ -876,69 +876,71 @@ fn @wordsFromCalldata() [selector=0xd35cf802, abi_wrapper, pure] {
 
 fn @withinWords() [selector=0x3c3b880f, abi_wrapper, pure] {
   bb0:
-    v62 = calldatasize
-    v63 = lt v62, 132
-    jumpi v63, bb13, bb14
+    v68 = calldatasize
+    v69 = lt v68, 132
+    jumpi v69, bb13, bb14
   bb14:
-    v64 = icall @decode_calldata_type.22
+    v70 = icall @decode_calldata_type.22
     v23 = eq arg3, 0
     jumpi v23, bb2, bb4
   bb4:
     v24 = shl arg3, 5
     v25 = shl arg1, 5
-    v79 = add v64, v25
-    v80 = add v79, 32
+    v85 = add v70, v25
+    v86 = add v85, 32
     v28 = shl arg2, 5
-    v82 = add v64, v28
-    v83 = add v82, 32
-    v33 = add v80, v24
-    v34 = lt v80, v83
-    v35 = lt v83, v33
+    v88 = add v70, v28
+    v89 = add v88, 32
+    v33 = add v86, v24
+    v34 = lt v86, v89
+    v35 = lt v89, v33
     v36 = and v34, v35
-    jumpi v36, bb1, bb5
+    v39 = gt arg3, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v42 = or v36, v39
+    jumpi v42, bb1, bb5
   bb5:
-    v38 = mload v64
-    v39 = lt v38, arg3
-    v40 = sub v38, arg3
-    v41 = gt arg1, v40
-    v42 = or v39, v41
-    v47 = gt arg2, v40
-    v48 = or v39, v47
-    v51 = or v42, v48
-    jumpi v51, bb6, bb9
+    v43 = mload v70
+    v44 = lt v43, arg3
+    v45 = sub v43, arg3
+    v46 = gt arg1, v45
+    v47 = or v44, v46
+    v52 = gt arg2, v45
+    v53 = or v44, v52
+    v56 = or v47, v53
+    jumpi v56, bb6, bb9
   bb9:
-    mcopy v83, v80, v24
+    mcopy v89, v86, v24
     jump bb2
   bb1:
     v5 = phi [bb4: 0], [bb8: v22]
     v6 = lt v5, arg3
     jumpi v6, bb3, bb2
   bb3:
-    v58 = add arg1, v5
-    v59 = lt v58, arg1
-    jumpi v59, bb10, bb11
+    v63 = add arg1, v5
+    v64 = lt v63, arg1
+    jumpi v64, bb10, bb11
   bb11:
-    v8 = mload v64
-    v9 = lt v58, v8
+    v8 = mload v70
+    v9 = lt v63, v8
     jumpi v9, bb7, bb6
   bb7:
-    v11 = shl v58, 5
-    v85 = add v64, v11
-    v86 = add v85, 32
-    v14 = mload v86
-    v60 = add arg2, v5
-    v61 = lt v60, arg2
-    jumpi v61, bb10, bb12
+    v11 = shl v63, 5
+    v91 = add v70, v11
+    v92 = add v91, 32
+    v14 = mload v92
+    v65 = add arg2, v5
+    v66 = lt v65, arg2
+    jumpi v66, bb10, bb12
   bb12:
-    v17 = lt v60, v8
+    v17 = lt v65, v8
     jumpi v17, bb8, bb6
   bb6:
     tail_call @revert_stub.18
   bb8:
-    v19 = shl v60, 5
-    v88 = add v64, v19
-    v89 = add v88, 32
-    mstore v89, v14
+    v19 = shl v65, 5
+    v94 = add v70, v19
+    v95 = add v94, 32
+    mstore v95, v14
     v22 = add v5, 1
     jump bb1
   bb10:
@@ -946,15 +948,15 @@ fn @withinWords() [selector=0x3c3b880f, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v68 = mload v64
-    v75 = add v64, 32
-    v70 = shl v68, 5
-    v77 = add v64, 64
-    mcopy v77, v75, v70
-    mstore v64, 32
-    mstore v75, v68
-    v72 = add v70, 64
-    returndata v64, v72
+    v74 = mload v70
+    v81 = add v70, 32
+    v76 = shl v74, 5
+    v83 = add v70, 64
+    mcopy v83, v81, v76
+    mstore v70, 32
+    mstore v81, v74
+    v78 = add v76, 64
+    returndata v70, v78
   bb13:
     revert 0, 0
 }

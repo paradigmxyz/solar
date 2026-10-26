@@ -59,10 +59,13 @@
 //! bounds check or gas ends first. A calldata word's shift `index << 5` fails at an index of
 //! `2^251` or more, past a decoded slice's length. Assembly can forge a longer slice, so a
 //! guarded word copy keeps its loop if scaling its index range could overflow, preserving the
-//! original `Panic(0x41)` and its order relative to other checks. Otherwise the first failure is
-//! `Panic(0x32)`, and the replacement raises it exactly when the bound is not zero and the bound
-//! exceeds the length or the offset exceeds the length minus the bound, for every buffer, or a
-//! scatter's bound exceeds its value's width. The replacement compares against the length read
+//! original `Panic(0x41)` and its order relative to other checks. Memory word indices scale
+//! unchecked, but the bulk byte count must not truncate: a guarded memory copy keeps its loop
+//! when the count exceeds `2^251 - 1`. Unlike an offset, which may legitimately wrap to a low
+//! address, such a count describes more bytes than a single `mcopy` can represent. Otherwise the
+//! first failure is `Panic(0x32)`, and the replacement raises it when the bound is not zero and the
+//! bound exceeds the length or the offset exceeds the length minus the bound, for every buffer, or
+//! a scatter's bound exceeds its value's width. The replacement compares against the length read
 //! before the loop, so the two fail on the same inputs whatever that value is. A panic
 //! reverts the call frame, so the bytes a failing loop wrote before it panicked were never
 //! observable.
@@ -105,9 +108,9 @@
 //! legacy solc, or the source's length read before the allocation proves the copy's range, the
 //! allocation stops zeroing: that word, or else a zero store to the allocation's last word before
 //! the copy, clears the padding. Nothing between the allocation and the loop may touch memory but
-//! the store of its length, so nothing reads the bytes unzeroed. The bound must be the length the
-//! allocation's block stores, and the allocation's size `(bound + 63) & ~31`, so the padding fits
-//! in one word.
+//! stores of its length, so nothing reads the bytes unzeroed. Each such store must keep the
+//! bound as the length, and the allocation's size must be `(bound + 63) & ~31`, so the padding
+//! fits in one word and the loop cannot fail a destination bounds check.
 //!
 //! An argument source may overlap the allocation, and the loop would then read its zeroed bytes.
 //! So a guarded copy takes its fast path only when the source the loop reads, its length word and
@@ -1274,7 +1277,7 @@ fn only_pattern_effects(func: &Function, lp: &Counted, used: &[InstId]) -> bool 
 /// Matches a byte copy, counting up, of the whole of a destination that `new bytes(bound)`
 /// allocated, zeroed, on the only way into the loop: its size is `(bound + 63) & ~31`, its
 /// block stores `bound` into its length word last, and nothing between the allocation and the
-/// loop touches memory but that store.
+/// loop touches memory but stores of that same length.
 fn fresh_destination(
     func: &Function,
     l: &Loop,
@@ -1322,7 +1325,8 @@ fn fresh_destination(
         .flat_map(|&block| func.blocks[block].instructions.iter().copied())
         .chain(first[after..].iter().copied())
         .all(|inst| {
-            func.memory_length_store(inst).is_some_and(|(stored, _)| stored == object)
+            func.memory_length_store(inst)
+                .is_some_and(|(stored, len)| stored == object && same_value(func, len, lp.bound, 2))
                 || !touches_memory(inst)
         });
     if !quiet {
@@ -1843,12 +1847,12 @@ fn fresh_guarded_copy(
 }
 
 /// Emits whether a guarded copy runs its loop, where the copy would differ from it: a calldata
-/// range that wraps, or a memory destination that leads into its source. The loop reloads the
-/// source's length after every store, unless it compares with a length from before the loop,
-/// while the copy reads it once, so for a source other than the destination the loop also stays
-/// for a destination that meets the source's length word. That word lies below the source's
-/// data, so a test of the span from it to the end of the source range also catches every overlap
-/// of either direction.
+/// range that wraps, a word count whose byte size truncates, or a memory destination that leads
+/// into its source. The loop reloads the source's length after every store, unless it compares
+/// with a length from before the loop, while the copy reads it once. For a source other than
+/// the destination, the loop also stays for a destination that meets the source's length word.
+/// That word lies below the source's data, so a test of the span from it to the end of the
+/// source range also catches every overlap of either direction.
 fn keeps_loop(
     builder: &mut FunctionBuilder<'_>,
     lp: &Counted,
@@ -1864,7 +1868,7 @@ fn keeps_loop(
     let to = memory_data_address(builder, dst);
     let from = builder.cast(from, MirType::I256);
     let to = builder.cast(to, MirType::I256);
-    if let Buffer::Memory(object) = src.buffer
+    let overlaps = if let Buffer::Memory(object) = src.buffer
         && src.len.is_none()
         && src.buffer != dst.buffer
     {
@@ -1885,7 +1889,16 @@ fn keeps_loop(
         let after = builder.lt(lead, trail);
         let inside = builder.lt(trail, end);
         builder.and(after, inside)
+    };
+    if src.shift == 0 {
+        return overlaps;
     }
+    // scale_wraps = ne (shr bound, 256 - shift), 0
+    // keeps_loop = or overlaps, scale_wraps
+    let bits = builder.imm(256 - u32::from(src.shift));
+    let high = builder.shr(lp.bound, bits);
+    let scale_wraps = builder.ne_zero(high);
+    builder.or(overlaps, scale_wraps)
 }
 
 /// Unless a zero word stored at the end of the copied bytes clears it, clears the padding of a
