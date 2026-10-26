@@ -328,17 +328,8 @@ impl MirPass for LateCheckElim {
     }
 }
 
-/// What [`facts_at`] proved.
-#[derive(Default)]
-pub(crate) struct ProvenFacts {
-    /// The queried conditions that are false wherever their instruction runs.
-    pub(crate) false_conditions: FxHashSet<ValueId>,
-    /// The instructions where a queried calldata run cannot wrap past `2^256`.
-    pub(crate) bounded_runs: FxHashSet<InstId>,
-}
-
 /// What every call of a function establishes about its parameters, by index.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 pub(crate) struct ParamFacts {
     /// Parameters at or below `calldatasize`.
     pub(crate) below_size: FxHashSet<usize>,
@@ -346,19 +337,12 @@ pub(crate) struct ParamFacts {
     pub(crate) bounds: FxHashMap<usize, U256>,
 }
 
-/// A calldata run to bound: its first start address and the distance to its last word.
-pub(crate) struct RunQuery {
-    pub(crate) inst: InstId,
-    pub(crate) start: ValueId,
-    pub(crate) reach: U256,
-}
-
-/// Evaluates `conditions`, each an existing value that need not be one a block computes, and the
-/// calldata `runs`, by the facts the dominating branches and checks establish where each
-/// instruction runs. `size` is the function's `calldatasize`, if it reads one. The function is not
+/// Evaluates `conditions`, each an existing value that need not be one a block computes, by the
+/// facts the dominating branches and checks establish where each instruction runs, and returns
+/// the false ones. `size` is the function's `calldatasize`, if it reads one. The function is not
 /// changed.
 ///
-/// A run cannot wrap when an upper bound of its start plus its reach fits the word. The bound
+/// A sum `x + y` cannot wrap when upper bounds of `x` and `y` add within the word. The bound
 /// takes each value's range, the bound `calldatasize` gives a value that a passed check keeps at
 /// or below it, and the sum, product and shift of bounded values. A loop cursor that steps by a
 /// constant is bounded by its entry value plus the step over the target's trip limit: every
@@ -368,10 +352,8 @@ pub(crate) fn facts_at(
     size: Option<ValueId>,
     params: &ParamFacts,
     conditions: &[(InstId, ValueId)],
-    runs: &[RunQuery],
-) -> ProvenFacts {
-    let eliminator = walk_queries(func, size, params, conditions, runs, &[]);
-    ProvenFacts { false_conditions: eliminator.refuted, bounded_runs: eliminator.bounded_runs }
+) -> FxHashSet<ValueId> {
+    walk_queries(func, size, params, conditions, &[]).refuted
 }
 
 /// The index of the first `calldatasize` that `func` reads.
@@ -383,43 +365,12 @@ pub(crate) fn calldatasize_value(func: &Function) -> Option<ValueId> {
     })
 }
 
-/// What every call in the module establishes about the parameters of each internal function, by
-/// `(function, index)`.
-#[derive(Default, PartialEq)]
-pub(crate) struct ArgumentFacts {
-    /// Parameters every call keeps at or below `calldatasize`.
-    pub(crate) below_size: FxHashSet<(FunctionId, usize)>,
-    /// Upper bounds of parameters, which every call keeps below.
-    pub(crate) bounds: FxHashMap<(FunctionId, usize), U256>,
-}
-
-impl ArgumentFacts {
-    /// The facts about the parameters of `function`.
-    pub(crate) fn of(&self, function: FunctionId) -> ParamFacts {
-        ParamFacts {
-            below_size: self
-                .below_size
-                .iter()
-                .filter(|(owner, _)| *owner == function)
-                .map(|&(_, index)| index)
-                .collect(),
-            bounds: self
-                .bounds
-                .iter()
-                .filter(|((owner, _), _)| *owner == function)
-                .map(|(&(_, index), &bound)| (index, bound))
-                .collect(),
-        }
-    }
-}
-
 /// The parameter facts that every call in the module establishes: each call passes a value that
 /// the checks dominating it keep at or below `calldatasize`, or under a bound, or a caller's own
 /// parameter of this kind. Only internal functions called directly qualify. Each round builds on
 /// the one before, so a call that depends on its own function's parameter is not taken as proof
 /// of it.
-pub(crate) fn argument_facts(module: &Module) -> ArgumentFacts {
-    let mut known = ArgumentFacts::default();
+pub(crate) fn argument_facts(module: &Module) -> FxHashMap<FunctionId, ParamFacts> {
     // Functions that something other than a direct internal call can reach take arguments no
     // caller here controls.
     let mut reached_otherwise = FxHashSet::default();
@@ -433,30 +384,36 @@ pub(crate) fn argument_facts(module: &Module) -> ArgumentFacts {
             }
         }
     }
-    for _ in 0..3 {
+    // The direct internal calls of each function: the call, its callee, and the arguments.
+    let mut calls = IndexVec::<FunctionId, Vec<_>>::new();
+    for func in &module.functions {
+        let mut found = Vec::new();
+        for inst in func.instructions() {
+            if let InstKind::ICall { function: Callee::Function(callee), args } =
+                &func.inst(inst).kind
+                && !reached_otherwise.contains(callee)
+                && !args.is_empty()
+            {
+                found.push((inst, *callee, args.clone()));
+            }
+        }
+        calls.push(found);
+    }
+    let mut known = FxHashMap::<FunctionId, ParamFacts>::default();
+    for _ in 0..ARGUMENT_FACT_ROUNDS {
         let mut below = FxHashMap::<(FunctionId, usize), bool>::default();
         let mut bounds = FxHashMap::<(FunctionId, usize), U256>::default();
         for (caller, func) in module.functions.iter_enumerated() {
-            let mut calls = Vec::new();
-            for inst in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(callee), args } =
-                    &func.inst(inst).kind
-                    && !reached_otherwise.contains(callee)
-                    && !args.is_empty()
-                {
-                    calls.push((inst, *callee, args.clone()));
-                }
-            }
-            if calls.is_empty() {
+            if calls[caller].is_empty() {
                 continue;
             }
-            let queries = calls
+            let queries = calls[caller]
                 .iter()
                 .flat_map(|(inst, _, args)| args.iter().map(|&arg| (*inst, arg)))
                 .collect::<Vec<_>>();
-            let walked =
-                walk_queries(func, calldatasize_value(func), &known.of(caller), &[], &[], &queries);
-            for (inst, callee, args) in &calls {
+            let params = known.get(&caller).cloned().unwrap_or_default();
+            let walked = walk_queries(func, calldatasize_value(func), &params, &[], &queries);
+            for (inst, callee, args) in &calls[caller] {
                 for (index, &arg) in args.iter().enumerate() {
                     let holds = walked.below_size.contains(&(*inst, arg));
                     *below.entry((*callee, index)).or_insert(true) &= holds;
@@ -467,13 +424,17 @@ pub(crate) fn argument_facts(module: &Module) -> ArgumentFacts {
                 }
             }
         }
-        let next = ArgumentFacts {
-            below_size: below
-                .into_iter()
-                .filter_map(|(parameter, holds)| holds.then_some(parameter))
-                .collect(),
-            bounds: bounds.into_iter().filter(|&(_, bound)| bound < U256::MAX).collect(),
-        };
+        let mut next = FxHashMap::<FunctionId, ParamFacts>::default();
+        for ((function, index), holds) in below {
+            if holds {
+                next.entry(function).or_default().below_size.insert(index);
+            }
+        }
+        for ((function, index), bound) in bounds {
+            if bound < U256::MAX {
+                next.entry(function).or_default().bounds.insert(index, bound);
+            }
+        }
         if next == known {
             break;
         }
@@ -488,7 +449,6 @@ fn walk_queries<'a>(
     size: Option<ValueId>,
     params: &ParamFacts,
     conditions: &[(InstId, ValueId)],
-    runs: &[RunQuery],
     size_queries: &[(InstId, ValueId)],
 ) -> CheckEliminator<'a> {
     let mut eliminator = CheckEliminator::new(None);
@@ -498,16 +458,12 @@ fn walk_queries<'a>(
     for &(inst, condition) in conditions {
         eliminator.queries.entry(inst).or_default().push(condition);
     }
-    for run in runs {
-        eliminator.run_queries.insert(run.inst, (run.start, run.reach));
-    }
     for &(inst, value) in size_queries {
         eliminator.size_queries.entry(inst).or_default().push(value);
     }
     let cfg = CfgInfo::new(func);
     let mut relevant = branch_inputs(func, &cfg);
     let mut pending = conditions.iter().map(|&(_, condition)| condition).collect::<Vec<_>>();
-    pending.extend(runs.iter().map(|run| run.start));
     pending.extend(size_queries.iter().map(|&(_, value)| value));
     while let Some(value) = pending.pop() {
         if relevant.insert(value)
@@ -518,10 +474,11 @@ fn walk_queries<'a>(
     }
     eliminator.universal_relations = universal_relations(func, &relevant);
     let facts = eliminator.join_facts(func, &cfg, &relevant);
-    for (value, bound) in counter_bounds(func, &cfg, &relevant) {
+    let phis = loop_phis(func, &cfg);
+    for (value, bound) in counter_bounds(func, &phis, &relevant) {
         eliminator.trip_bounds.entry(value).or_insert(bound);
     }
-    for (phi, initial, next) in loop_phis(func, &cfg) {
+    for &(phi, initial, next) in &phis {
         if let Some(step) = largest_step(func, phi, next) {
             eliminator.cursors.insert(phi, (initial, step));
         }
@@ -708,6 +665,15 @@ const MAX_DEPTH: usize = 12;
 /// How many operations deep [`CheckEliminator::upper_bound`] follows a value.
 const MAX_BOUND_DEPTH: usize = 6;
 
+/// How many nested sums a check elimination proof follows.
+const MAX_CHECK_SUM_DEPTH: usize = 2;
+
+/// How many nested sums a [`facts_at`] query follows.
+const MAX_QUERY_SUM_DEPTH: usize = 6;
+
+/// How many times [`argument_facts`] rebuilds the facts from the ones before.
+const ARGUMENT_FACT_ROUNDS: usize = 3;
+
 /// Statistics from check elimination.
 #[derive(Debug, Default, Clone)]
 struct CheckElimStats {
@@ -871,20 +837,16 @@ struct CheckEliminator<'a> {
     equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
     unfailing: Vec<(InstId, InstKind)>,
-    /// Conditions to evaluate where an instruction runs, for [`conditions_false`].
+    /// Conditions to evaluate where an instruction runs, for [`facts_at`].
     queries: FxHashMap<InstId, SmallVec<[ValueId; 2]>>,
     /// The conditions of `queries` that are false wherever their instruction runs.
     refuted: FxHashSet<ValueId>,
-    /// Calldata runs to bound where an instruction runs, for [`facts_at`]: start and reach.
-    run_queries: FxHashMap<InstId, (ValueId, U256)>,
-    /// The instructions of `run_queries` whose run cannot wrap.
-    bounded_runs: FxHashSet<InstId>,
     /// The function's `calldatasize`, whose range bounds the values kept below it.
     size: Option<ValueId>,
     /// Parameters that every call keeps at or below `calldatasize`, by index.
     params: ParamFacts,
     /// Values to test against `calldatasize` where an instruction runs, for
-    /// [`arguments_below_calldatasize`].
+    /// [`argument_facts`].
     size_queries: FxHashMap<InstId, SmallVec<[ValueId; 4]>>,
     /// The `(instruction, value)` pairs of `size_queries` that hold.
     below_size: FxHashSet<(InstId, ValueId)>,
@@ -908,7 +870,7 @@ struct CheckEliminator<'a> {
     /// Differences indexed under their subtrahend: `b` maps to every `(a, a - b)`.
     difference_index: Option<DifferenceIndex>,
     /// Whether `a + b <= end` follows from `b <= end - a` and `a <= end`, as well as from
-    /// `b < end - a`. Set only for [`conditions_false`], which no pass's output relies on.
+    /// `b < end - a`. Set only for [`facts_at`], which no pass's output relies on.
     non_strict_sums: bool,
     /// Depth of the sum-bound lemma, which asks relational questions of its own.
     sum_depth: usize,
@@ -991,7 +953,7 @@ impl<'a> CheckEliminator<'a> {
                 self.trip_bounds.insert(phi.value, bound);
             }
         }
-        for (value, bound) in counter_bounds(func, &cfg, &relevant) {
+        for (value, bound) in counter_bounds(func, &loop_phis(func, &cfg), &relevant) {
             self.trip_bounds.entry(value).or_insert(bound);
         }
         let mut proven = Vec::new();
@@ -1153,14 +1115,6 @@ impl<'a> CheckEliminator<'a> {
                                     self.below_size.insert((id, value));
                                 }
                             }
-                        }
-                        if let Some(&(start, reach)) = self.run_queries.get(&id)
-                            && self
-                                .upper_bound(func, start, MAX_BOUND_DEPTH)
-                                .checked_add(reach)
-                                .is_some()
-                        {
-                            self.bounded_runs.insert(id);
                         }
                         if !self.queries.is_empty()
                             && let Some(conditions) = self.queries.get(&id).cloned()
@@ -1792,7 +1746,8 @@ impl<'a> CheckEliminator<'a> {
         strict: bool,
     ) -> bool {
         // The queries of [`facts_at`] follow chains of nested offsets, one lemma per link.
-        let max_sum_depth = if self.non_strict_sums { 6 } else { 2 };
+        let max_sum_depth =
+            if self.non_strict_sums { MAX_QUERY_SUM_DEPTH } else { MAX_CHECK_SUM_DEPTH };
         if self.sum_depth >= max_sum_depth {
             return false;
         }
@@ -2240,7 +2195,6 @@ impl<'a> CheckEliminator<'a> {
         range
     }
 
-    /// Evaluates the truthiness (`!= 0`) of `value`, if provable.
     /// An upper bound of `value` in the current scope. See [`facts_at`].
     fn upper_bound(&mut self, func: &Function, value: ValueId, depth: usize) -> U256 {
         let mut bound = self.range_of(func, value, MAX_DEPTH).hi;
@@ -2284,6 +2238,7 @@ impl<'a> CheckEliminator<'a> {
         derived.map_or(bound, |derived| bound.min(derived))
     }
 
+    /// Evaluates the truthiness (`!= 0`) of `value`, if provable.
     fn eval_truth(&mut self, func: &Function, value: ValueId, depth: usize) -> Option<bool> {
         if let Some(constant) = const_of(func, value) {
             return Some(!constant.is_zero());
@@ -2393,7 +2348,15 @@ impl<'a> CheckEliminator<'a> {
         {
             let rx = self.range_of(func, x, depth);
             let ry = self.range_of(func, y, depth);
-            if rx.hi.checked_add(ry.hi).is_some_and(|hi| hi <= integer_max(func, a)) {
+            let (hx, hy) = if self.non_strict_sums {
+                (
+                    self.upper_bound(func, x, MAX_BOUND_DEPTH),
+                    self.upper_bound(func, y, MAX_BOUND_DEPTH),
+                )
+            } else {
+                (rx.hi, ry.hi)
+            };
+            if hx.checked_add(hy).is_some_and(|hi| hi <= integer_max(func, a)) {
                 return Some(false);
             }
             if rx.lo.checked_add(ry.lo).is_none_or(|lo| lo > integer_max(func, a)) {
@@ -3036,11 +2999,11 @@ fn widened_nonzero_test(func: &Function, kind: &InstKind) -> Option<ValueId> {
 /// start, when the far end fits in `p`'s type.
 fn counter_bounds(
     func: &Function,
-    cfg: &CfgInfo,
+    phis: &[(ValueId, ValueId, ValueId)],
     relevant: &DenseBitSet<ValueId>,
 ) -> Vec<(ValueId, Range)> {
     let mut bounds = Vec::new();
-    for (value, initial, next) in loop_phis(func, cfg) {
+    for &(value, initial, next) in phis {
         if !relevant.contains(value) {
             continue;
         }

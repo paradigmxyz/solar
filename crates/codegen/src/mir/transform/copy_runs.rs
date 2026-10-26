@@ -73,7 +73,7 @@
 
 use super::{
     byte_run::{address_key, sweep_dead},
-    check_elim::{ParamFacts, RunQuery, argument_facts, calldatasize_value, facts_at},
+    check_elim::{ParamFacts, argument_facts, calldatasize_value, facts_at},
     egraph::use_counts,
     lower_mcopy::{CopyDirection, copy_direction_of},
 };
@@ -107,13 +107,16 @@ impl MirPass for CopyRuns {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let target = Target::new(gcx);
         // What every call establishes about the parameters, once a block holds a calldata run.
-        let arguments = if module.functions.iter().any(has_calldata_pair) {
+        let has_runs = |func: &Function| {
+            func.blocks.indices().any(|block| collect_pairs(func, block).len() >= 2)
+        };
+        let arguments = if module.functions.iter().any(has_runs) {
             argument_facts(module)
         } else {
             Default::default()
         };
         run_function_pass_with_alias(module, analyses, |func, analyses| {
-            let params = arguments.of(analyses.function());
+            let params = arguments.get(&analyses.function()).cloned().unwrap_or_default();
             run_function(func, analyses.alias(), &target, &params)
         })
     }
@@ -258,10 +261,8 @@ fn non_wrapping_calldata_runs(
     let mark = func.allocation_mark();
     let mut queries = Vec::new();
     let mut conditions = Vec::new();
-    let mut runs = Vec::new();
     for candidate in unproven {
         let reach = U256::from(WORD * (candidate.words() - 1));
-        runs.push(RunQuery { inst: candidate.store, start: candidate.src, reach });
         let reach_value = func.alloc_value(Value::Immediate(Immediate::I256(reach)));
         // wraps = lt (add start, reach), start
         let end = alloc_inst(func, InstKind::Add(candidate.src, reach_value), MirType::I256);
@@ -283,15 +284,12 @@ fn non_wrapping_calldata_runs(
         }
         conditions.push((candidate.store, proofs));
     }
-    let proven = facts_at(func, size, params, &queries, &runs);
+    let refuted = facts_at(func, size, params, &queries);
     func.truncate_to(mark);
-    exact.extend(proven.bounded_runs);
     exact.extend(
         conditions
             .into_iter()
-            .filter(|(_, proofs)| {
-                proofs.iter().any(|proof| proven.false_conditions.contains(proof))
-            })
+            .filter(|(_, proofs)| proofs.iter().any(|proof| refuted.contains(proof)))
             .map(|(store, _)| store),
     );
     exact
@@ -471,21 +469,4 @@ fn reads_multi_return_buffer_pointer(func: &Function, value: ValueId) -> bool {
     matches!(*func.value(value), Value::Inst(inst)
         if matches!(func.inst(inst).kind, InstKind::Load(slot, PtrLocation::Memory)
             if func.value_u64(slot) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT)))
-}
-
-/// Whether `func` stores a calldata word to memory twice in one block, the shape of a calldata
-/// run.
-fn has_calldata_pair(func: &Function) -> bool {
-    func.blocks.iter().any(|block| {
-        block
-            .instructions
-            .iter()
-            .filter(|&&inst| {
-                matches!(func.inst(inst).kind, InstKind::Store(_, value, PtrLocation::Memory)
-                    if matches!(*func.value(value), Value::Inst(load)
-                        if matches!(func.inst(load).kind, InstKind::Load(_, PtrLocation::Calldata))))
-            })
-            .nth(1)
-            .is_some()
-    })
 }
