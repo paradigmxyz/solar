@@ -103,10 +103,7 @@ bb0:
   dup 2
   dup 4
   lt
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   dup 5
   gt
   or

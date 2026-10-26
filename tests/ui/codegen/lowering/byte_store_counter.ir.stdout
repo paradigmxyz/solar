@@ -157,10 +157,7 @@ bb81:
   dup 3
   dup 2
   lt
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   dup 3
   gt
   or
@@ -399,10 +396,7 @@ bb41 [loop]:
   dup 2
   dup 2
   lt
-  push 0
-  not
-  push 192
-  shr
+  push 0xffffffffffffffff
   dup 3
   gt
   or
@@ -492,9 +486,7 @@ bb61 [loop]:
   mload
   push 0
   byte
-  push 0x30313233343536373839616263646566
-  push 128
-  shl
+  push 0x3031323334353637383961626364656600000000000000000000000000000000
   dup 2
   push 4
   shr
@@ -509,29 +501,27 @@ bb61 [loop]:
   push bb64
   jumpi
   push 1
-  push 0x30313233343536373839616263646566
-  push 128
-  shl
-  swap 3
-  dup 7
-  mstore8
   add
   dup 7
   gt
-  swap 2
-  push 15
-  and
-  byte
   swap 1
+  dup 5
+  mstore8
   iszero
   push bb64
   jumpi
+  push 15
+  and
+  push 0x3031323334353637383961626364656600000000000000000000000000000000
   push 1
-  dup 4
+  dup 5
   push 2
   add
-  swap 4
+  swap 5
   add
+  swap 2
+  byte
+  swap 1
   mstore8
   push 1
   add
