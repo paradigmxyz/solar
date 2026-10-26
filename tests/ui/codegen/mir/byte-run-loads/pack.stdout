@@ -97,8 +97,8 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     jumpi v9, bb3, bb4
   bb4:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, v11
+    v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v25 = add v24, v11 !metadata(alloc_ptr)
     v26 = lt v25, v24
     v27 = gt v25, 0xffffffffffffffff
     v28 = or v26, v27
