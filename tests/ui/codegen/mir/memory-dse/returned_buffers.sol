@@ -6,13 +6,13 @@
 //@ run-call: loadThenAllocate => 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627, 0x010000
 
 // A helper that copies a long storage value into a fresh buffer writes the scratch word for the
-// value's data slot, whose hash folds to a constant. Its callers read only the heap after the
-// call, the buffer it returns included, so the scratch store is dead. One caller allocates
-// after the call, so the free memory pointer bump stays.
+// value's data slot, whose hash folds to a constant. A caller bumps the free memory pointer
+// in assembly without a no-wrap proof, so the module cannot assume that subsequent raw
+// pointer reads stay in the heap. Retain the scratch store and the allocation's FMP bump.
 
 // CHECK-LABEL: fn @_copy(
 // CHECK: mstore 64,
-// CHECK-NOT: mstore 0, 0{{( |$)}}
+// CHECK: mstore 0, 0{{( |$)}}
 // CHECK-LABEL: fn @clear_storage_words(
 
 contract Test {

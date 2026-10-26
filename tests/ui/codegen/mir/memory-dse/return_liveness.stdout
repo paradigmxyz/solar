@@ -4,8 +4,8 @@
   fn @fresh(arg0: i256) -> i256 {
     bb0:
 -     mstore 0, arg0
-      v0 = mload 64
-      v1 = add v0, 64
+      v0 = mload 64 !metadata(alloc_ptr)
+      v1 = add v0, 64 !metadata(alloc_ptr)
 -     mstore 64, v1
       mstore v0, 32
       ret v0
@@ -20,8 +20,8 @@
   
   fn @bumped() -> i256 {
     bb0:
-      v0 = mload 64
-      v1 = add v0, 64
+      v0 = mload 64 !metadata(alloc_ptr)
+      v1 = add v0, 64 !metadata(alloc_ptr)
       mstore 64, v1
       ret v0
   }
@@ -82,7 +82,7 @@
   fn @start_recursion(arg0: i256) {
     bb0:
       icall @recurse, arg0
-      v0 = mload 64
+      v0 = mload 64 !metadata(alloc_ptr)
       returndata v0, 32
   }
   

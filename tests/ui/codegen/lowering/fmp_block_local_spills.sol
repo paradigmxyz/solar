@@ -11,8 +11,8 @@
 
 // The free-memory pointer read in each switch arm stays on the stack, so no
 // level reserves a spill slot for it and the frame floor stays at 128.
-// Optimized builds also drop both bumps, which nothing reads before the call
-// returns the hash.
+// The raw assembly bumps have no no-wrap proof, so optimized builds retain them
+// without assigning the pointers spill homes.
 // NONE-LABEL: @module FmpBlockLocalSpills_runtime
 // NONE: push 128
 // NONE-NEXT: push 64
@@ -30,16 +30,25 @@
 // GAS-NEXT: push 64
 // GAS-NEXT: mstore
 // GAS: mload
-// GAS-NEXT: swap 1
+// GAS-NEXT: push 32
+// GAS-NEXT: dup 2
+// GAS-NEXT: dup 2
+// GAS-NEXT: add
+// GAS-NEXT: push 64
+// GAS-NEXT: mstore
+// GAS-NEXT: swap 2
 // GAS-NEXT: dup 2
 // GAS-NEXT: mstore
-// GAS-NOT: push 64{{[[:space:]]+}}mstore
 // GAS: keccak256
 // GAS: mload
+// GAS-NEXT: push 64
+// GAS-NEXT: dup 2
+// GAS-NEXT: add
+// GAS-NEXT: push 64
+// GAS-NEXT: mstore
 // GAS-NEXT: swap 1
 // GAS-NEXT: dup 2
 // GAS-NEXT: mstore
-// GAS-NOT: push 64{{[[:space:]]+}}mstore
 // GAS: keccak256
 //
 // SIZE-LABEL: @module FmpBlockLocalSpills_runtime
@@ -47,16 +56,25 @@
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mstore
 // SIZE: mload
-// SIZE-NEXT: swap 1
+// SIZE-NEXT: push 32
+// SIZE-NEXT: dup 2
+// SIZE-NEXT: dup 2
+// SIZE-NEXT: add
+// SIZE-NEXT: push 64
+// SIZE-NEXT: mstore
+// SIZE-NEXT: swap 2
 // SIZE-NEXT: dup 2
 // SIZE-NEXT: mstore
-// SIZE-NOT: push 64{{[[:space:]]+}}mstore
 // SIZE: keccak256
 // SIZE: mload
+// SIZE-NEXT: push 64
+// SIZE-NEXT: dup 2
+// SIZE-NEXT: add
+// SIZE-NEXT: push 64
+// SIZE-NEXT: mstore
 // SIZE-NEXT: swap 1
 // SIZE-NEXT: dup 2
 // SIZE-NEXT: mstore
-// SIZE-NOT: push 64{{[[:space:]]+}}mstore
 // SIZE: keccak256
 contract FmpBlockLocalSpills {
     function hashBranch(

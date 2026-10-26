@@ -24,9 +24,9 @@
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
     AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee, FrameMode,
-    FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind, MAX_SCRATCH_ERROR_WORDS, MemoryRegion,
-    MirType, PtrLocation,
-    RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind, MAX_SCRATCH_ERROR_WORDS,
+    MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RequireKind, StorageAlias, Terminator,
+    Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -2318,10 +2318,30 @@ impl AliasAnalysis {
     /// Returns whether an instruction may write the free-memory-pointer word.
     ///
     /// Unlike [`Self::instruction_may_reset_fmp`], this also counts allocations that bump the
-    /// word, so a cached copy of it stays valid across an instruction only when this is false. A
-    /// heap pointer plus a constant never reaches the word, so such writes do not count.
+    /// word, so a cached copy of it stays valid across an instruction only when this is false.
+    /// Raw accesses keep their address expression, including bounds established before the write.
     #[must_use]
     pub(crate) fn instruction_may_write_fmp(&self, func: &Function, inst: InstId) -> bool {
+        let mut raw_write = false;
+        let mut raw_overlap = false;
+        func.inst(inst).kind.visit_raw_memory(|access, address, size| {
+            if access == RawMemoryAccess::Read {
+                return;
+            }
+            raw_write = true;
+            let size = size.constant(func);
+            if size == Some(0) {
+                return;
+            }
+            raw_overlap |= match func.value_u64(address) {
+                Some(address) => Self::const_range_may_overlap_fmp(address, size),
+                None => Self::read_lower_bound_at(func, address, &|_| None, false, inst)
+                    .is_none_or(|bound| bound < EvmMemoryLayout::HEAP_START),
+            };
+        });
+        if raw_write && !raw_overlap {
+            return false;
+        }
         self.instruction_mod_ref(func, inst).writes().iter().any(|&access| match access {
             Access::Any(AddressSpace::Memory) => true,
             Access::Location(Location::Memory(location)) => {
@@ -2402,6 +2422,17 @@ impl AliasAnalysis {
         if let Some(address) = address.as_absolute() {
             return Self::const_range_may_overlap_fmp(address, size.as_const());
         }
+        if let MemoryBase::Value(base) = address.base
+            && let LocationSize::Const(size) = size
+            && address.offset != 0
+            && address.offset.checked_add(size).is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT)
+            && Self::untrusted_read_lower_bound(func, base)
+                .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
+        {
+            // A wrapped base + offset lies below offset, so the access ends before the FMP
+            // slot. A non-wrapped sum remains at or above the heap start.
+            return false;
+        }
         Self::address_lower_bound(func, address, size)
             .is_none_or(|bound| bound < EvmMemoryLayout::HEAP_START)
     }
@@ -2421,17 +2452,25 @@ impl AliasAnalysis {
         match address.base {
             MemoryBase::Absolute => Some(address.offset),
             // An allocation is a heap pointer.
-            MemoryBase::Allocation(_) | MemoryBase::UnboundedAllocation(_) | MemoryBase::DynamicAllocation(_) => {
+            MemoryBase::Allocation(_)
+            | MemoryBase::UnboundedAllocation(_)
+            | MemoryBase::DynamicAllocation(_) => {
                 EvmMemoryLayout::HEAP_START.checked_add(address.offset)
             }
             MemoryBase::Value(base) => {
+                if !Self::constant_offset_no_wrap(func, base, address.offset) {
+                    return None;
+                }
                 Self::untrusted_read_lower_bound(func, base)?.checked_add(address.offset)
             }
             // The pointer read's result is the symbolic base, bounded only if it is the
             // allocator's own read.
             MemoryBase::FreeMemory(read) => {
-                Self::untrusted_read_lower_bound(func, func.inst_result_value(read)?)?
-                    .checked_add(address.offset)
+                let value = func.inst_result_value(read)?;
+                if !Self::constant_offset_no_wrap(func, value, address.offset) {
+                    return None;
+                }
+                Self::untrusted_read_lower_bound(func, value)?.checked_add(address.offset)
             }
             MemoryBase::InternalFrame => None,
         }
@@ -2451,7 +2490,7 @@ impl AliasAnalysis {
 
     /// Returns a lower bound for a pointer that also holds when assembly forges the free-memory
     /// pointer or a runtime `ptradd` offset wraps, for deciding which slots a read may observe.
-    pub(crate) fn untrusted_read_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
+    fn untrusted_read_lower_bound(func: &Function, value: ValueId) -> Option<u64> {
         Self::lower_bound(func, value, 0, false)
     }
 
@@ -2470,7 +2509,7 @@ impl AliasAnalysis {
         call: &dyn Fn(FunctionId) -> Option<u64>,
         free_pointer: bool,
     ) -> Option<u64> {
-        Self::constant_offset_lower_bound(func, value, call, free_pointer, 0)
+        Self::constant_offset_lower_bound(func, value, call, free_pointer, None, 0)
     }
 
     /// Returns the least address a word at `offset` of the current internal-call frame can
@@ -2487,6 +2526,7 @@ impl AliasAnalysis {
         value: ValueId,
         call: &dyn Fn(FunctionId) -> Option<u64>,
         free_pointer: bool,
+        before: Option<InstId>,
         depth: usize,
     ) -> Option<u64> {
         if depth > 8 {
@@ -2496,8 +2536,9 @@ impl AliasAnalysis {
             return Some(value);
         }
         let Value::Inst(inst) = func.value(value) else { return None };
-        let bound =
-            |value| Self::constant_offset_lower_bound(func, value, call, free_pointer, depth + 1);
+        let bound = |value| {
+            Self::constant_offset_lower_bound(func, value, call, free_pointer, before, depth + 1)
+        };
         match &func.inst(*inst).kind {
             InstKind::Fmp | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
                 Some(EvmMemoryLayout::HEAP_START)
@@ -2506,17 +2547,23 @@ impl AliasAnalysis {
                 Some(EvmMemoryLayout::HEAP_START)
             }
             InstKind::Load(address, PtrLocation::Memory)
-                if free_pointer && func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                if (free_pointer || func.inst(*inst).metadata.alloc_ptr())
+                    && func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 Some(EvmMemoryLayout::HEAP_START)
             }
             InstKind::InternalFrameAddr(offset) => Some(Self::frame_lower_bound(*offset)),
             InstKind::ICall { function: Callee::Function(function), .. } => call(*function),
             InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => bound(*value),
-            InstKind::Add(first, second) if super::integers::integer_bits(func, value) == 256 => {
+            InstKind::Add(first, second)
+                if func.inst(*inst).metadata.alloc_ptr()
+                    || super::integers::arithmetic_no_wrap(func, value)
+                    || Self::constant_add_after_access_at(func, value, before.unwrap_or(*inst)) =>
+            {
                 bound(*first)
                     .and_then(|base| base.checked_add(func.value_u64(*second)?))
                     .or_else(|| bound(*second)?.checked_add(func.value_u64(*first)?))
+                    .or_else(|| func.inst(*inst).metadata.alloc_ptr().then(|| bound(*first))?)
             }
             InstKind::PtrAdd(base, offset) => bound(*base)?.checked_add(func.value_u64(*offset)?),
             InstKind::Phi(incoming) => incoming
@@ -2565,33 +2612,36 @@ impl AliasAnalysis {
                 Self::lower_bound(func, *value, depth + 1, trusted)
             }
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
-            InstKind::Add(first, second)
-                if (super::integers::integer_bits(func, value) == 256
-                    || super::integers::arithmetic_no_wrap(func, value)) =>
-            {
-                Self::lower_bound(func, *first, depth + 1, trusted)
-                    .and_then(|base| base.checked_add(func.value_u64(*second)?))
-                    .or_else(|| {
-                        Self::lower_bound(func, *second, depth + 1, trusted)
-                            .and_then(|base| base.checked_add(func.value_u64(*first)?))
-                    })
-                    .or_else(|| {
-                        // The allocator's bump `p + size` is not below `p`: allocation proved or
-                        // checked that it does not wrap. A sum the program computes, such as an
-                        // index, may wrap, so it keeps no bound.
-                        func.inst(*inst)
-                            .metadata
-                            .alloc_ptr()
-                            .then(|| Self::lower_bound(func, *first, depth + 1, trusted))?
-                    })
-                    .or_else(|| {
-                        if !trusted {
-                            return None;
-                        }
-                        let object = Self::payload_end(func, value)?;
-                        Self::lower_bound(func, object, depth + 1, trusted)?
-                            .checked_add(EvmMemoryLayout::WORD_SIZE)
-                    })
+            InstKind::Add(first, second) => {
+                // Adding to a lower bound alone does not prove that the actual sum cannot wrap.
+                (super::integers::arithmetic_no_wrap(func, value)
+                    || Self::constant_add_after_access(func, value))
+                .then(|| {
+                    Self::lower_bound(func, *first, depth + 1, trusted)
+                        .and_then(|base| base.checked_add(func.value_u64(*second)?))
+                        .or_else(|| {
+                            Self::lower_bound(func, *second, depth + 1, trusted)
+                                .and_then(|base| base.checked_add(func.value_u64(*first)?))
+                        })
+                })
+                .flatten()
+                .or_else(|| {
+                    // The allocator's bump `p + size` is not below `p`: allocation proved or
+                    // checked that it does not wrap. A sum the program computes, such as an
+                    // index, may wrap, so it keeps no bound.
+                    func.inst(*inst)
+                        .metadata
+                        .alloc_ptr()
+                        .then(|| Self::lower_bound(func, *first, depth + 1, trusted))?
+                })
+                .or_else(|| {
+                    if !trusted {
+                        return None;
+                    }
+                    let object = Self::payload_end(func, value)?;
+                    Self::lower_bound(func, object, depth + 1, trusted)?
+                        .checked_add(EvmMemoryLayout::WORD_SIZE)
+                })
             }
             InstKind::Sub(base, offset)
                 if (super::integers::integer_bits(func, value) == 256
@@ -2741,6 +2791,89 @@ impl AliasAnalysis {
                 }),
             }
         })
+    }
+
+    /// Whether adding a canonical byte offset preserves the ordering of the actual base.
+    /// Canonical addresses describe modular equality, so a lower bound for the base alone
+    /// cannot rule out a sum wrapping into reserved memory.
+    pub(crate) fn constant_offset_no_wrap(func: &Function, base: ValueId, offset: u64) -> bool {
+        offset == 0
+            || super::integers::unsigned_bounds(func, base)
+                .1
+                .checked_add(U256::from(offset))
+                .is_some()
+    }
+
+    /// Whether a constant word addition follows an access that bounds its base below `2^64`.
+    /// A successful nonempty memory access cannot reach a larger address, so adding a `u64`
+    /// constant to that same value cannot wrap a word. Only earlier accesses in the addition's
+    /// own block count; zero-length accesses and partial writes prove nothing. The search is
+    /// bounded to avoid rescanning a large function for every address query.
+    fn constant_add_after_access(func: &Function, value: ValueId) -> bool {
+        let Value::Inst(user) = *func.value(value) else { return false };
+        Self::constant_add_after_access_at(func, value, user)
+    }
+
+    /// Like [`Self::constant_add_after_access`], using accesses before `user` rather than before
+    /// the addition. The address may have been computed before the access bounds its base.
+    fn constant_add_after_access_at(func: &Function, value: ValueId, user: InstId) -> bool {
+        if super::integers::integer_bits(func, value) != 256 {
+            return false;
+        }
+        let Value::Inst(add) = *func.value(value) else { return false };
+        let InstKind::Add(first, second) = func.inst(add).kind else { return false };
+        let base = if func.value_u64(second).is_some() {
+            first
+        } else if func.value_u64(first).is_some() {
+            second
+        } else {
+            return false;
+        };
+        let base = Self::memory_address_value(func, base);
+        let mut budget = 256usize;
+        for block in &func.blocks {
+            let mut accessed = false;
+            for &inst in &block.instructions {
+                let Some(remaining) = budget.checked_sub(1) else { return false };
+                budget = remaining;
+                if inst == user {
+                    return accessed;
+                }
+                if !accessed {
+                    func.inst(inst).kind.visit_raw_memory(|access, address, size| {
+                        accessed |= access != RawMemoryAccess::PartialWrite
+                            && size.constant(func).is_some_and(|size| size != 0)
+                            && Self::memory_address_value(func, address) == base;
+                    });
+                }
+            }
+        }
+        false
+    }
+
+    /// Follows only casts that preserve every bit of a memory address.
+    fn memory_address_value(func: &Function, mut value: ValueId) -> ValueId {
+        for _ in 0..8 {
+            let Value::Inst(inst) = *func.value(value) else { break };
+            match func.inst(inst).kind {
+                InstKind::PtrToInt(pointer, 256) | InstKind::IntToPtr(pointer) => value = pointer,
+                _ => break,
+            }
+        }
+        value
+    }
+
+    /// Like [`Self::read_lower_bound`], using successful memory accesses before `user` to prove
+    /// that constant additions cannot wrap. Only accesses in `user`'s own block count.
+    #[must_use]
+    pub(crate) fn read_lower_bound_at(
+        func: &Function,
+        value: ValueId,
+        call: &dyn Fn(FunctionId) -> Option<u64>,
+        free_pointer: bool,
+        user: InstId,
+    ) -> Option<u64> {
+        Self::constant_offset_lower_bound(func, value, call, free_pointer, Some(user), 0)
     }
 }
 

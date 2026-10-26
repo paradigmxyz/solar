@@ -194,7 +194,6 @@ bb12 [continuation]:
   dup 5
   add
   mstore
-  pop
   push 96
   dup 5
   add

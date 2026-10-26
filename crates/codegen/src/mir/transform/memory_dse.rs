@@ -69,21 +69,23 @@
 //!   full-word store that no path reads before overwriting it. Writes keep nothing live. A read of
 //!   unknown extent keeps every word from its address on when an allocation, a frame, or a read of
 //!   the free memory pointer bounds that address from below through constant offsets, as the heap
-//!   and the frames lie above the scratch space and the free memory pointer, and all memory
-//!   otherwise: a runtime index past a length that assembly forged can wrap a read around to low
-//!   memory. A word loaded from the free memory pointer's slot bounds a read only when nothing in
-//!   the module can leave a word below the heap there, as a copy into the slot can, and a decoded
-//!   value only when it is a memory object; an encoding or decoding that allocates reads the free
-//!   memory pointer. The pointer an internal call returns is bounded the same way when every return
-//!   of the callee is. An internal call keeps what its callee's memory summary may read, and a call
-//!   or tail call to a function that never returns and calls nothing, as a shared revert helper is,
-//!   keeps what that function reads before writing. A return keeps what the callers may read right
-//!   after their calls when the module shows every call site, joined over them to a fixpoint, so a
-//!   helper that returns a fresh string to a wrapper that only encodes it loses its scratch stores
-//!   and its free memory pointer bump. External entries, functions nothing calls, and functions
-//!   with several results, whose tail the backend passes back through memory, keep all memory at
-//!   their returns, as does any other tail call; revert and return data keep only the words they
-//!   cover, and halts such as `stop` keep none.
+//!   and the frames lie above the scratch space and the free memory pointer. Constant additions
+//!   need a no-wrap proof; without one, a fixed-size read keeps both the wrapped low range and the
+//!   non-wrapped heap range live. Unknown ranges keep all memory live: a runtime index past a
+//!   length that assembly forged can wrap a read around to low memory. A word loaded from the free
+//!   memory pointer's slot bounds a read only when nothing in the module can leave a word below the
+//!   heap there, as a copy into the slot can, and a decoded value only when it is a memory object;
+//!   an encoding or decoding that allocates reads the free memory pointer. The pointer an internal
+//!   call returns is bounded the same way when every return of the callee is. An internal call
+//!   keeps what its callee's memory summary may read, and a call or tail call to a function that
+//!   never returns and calls nothing, as a shared revert helper is, keeps what that function reads
+//!   before writing. A return keeps what the callers may read right after their calls when the
+//!   module shows every call site, joined over them to a fixpoint, so a helper that returns a fresh
+//!   string to a wrapper that only encodes it loses its scratch stores and its free memory pointer
+//!   bump. External entries, functions nothing calls, and functions with several results, whose
+//!   tail the backend passes back through memory, keep all memory at their returns, as does any
+//!   other tail call; revert and return data keep only the words they cover, and halts such as
+//!   `stop` keep none.
 //!
 //! Keys come from alias analysis, which canonicalizes an address as a base plus a constant offset.
 //! Allocation-based keys require the complete access range to fit; wider accesses may overlap
@@ -397,13 +399,13 @@ fn has_memory_writes(func: &Function) -> bool {
 
 /// Whether nothing in the module can leave a word below the heap in the free memory pointer's
 /// slot, so that a word loaded from it bounds the reads through it; see
-/// [`AliasAnalysis::read_lower_bound`]. A whole-word store keeps a pointer there: heap-floor raises
-/// the ones that would lower it, and a valid program stores no other word that it then uses as
-/// the pointer. The compiler's own updates keep one too, and so do stores that reach only the
-/// slot's high bytes, where no pointer below 2^64 has bits, as Solady writes call data across
-/// them. A copy, a byte store, or a store across the low bytes, as assembly may write, can leave
-/// any word there, unless its block halts the call with no memory read after it, as a revert's
-/// scratch payload does.
+/// [`AliasAnalysis::read_lower_bound`]. A whole-word store keeps a pointer there only when its
+/// low bytes retain a proven heap floor. This pass can run without heap-floor, and raw slot words
+/// need not be clamped even in the normal pipeline. The compiler's own updates keep one too, as do
+/// stores that reach only the slot's high bytes, where no pointer below 2^64 has bits, as Solady
+/// writes call data across them. A copy, a byte store, or a store across the low bytes, as assembly
+/// may write, can leave any word there, unless its block halts the call with no memory read after
+/// it, as a revert's scratch payload does.
 fn free_pointer_trusted(module: &Module) -> bool {
     module.functions.iter().all(|func| {
         let alias = AliasAnalysis::new(func);
@@ -430,16 +432,28 @@ fn free_pointer_trusted(module: &Module) -> bool {
     })
 }
 
-/// Whether `inst` may write the low bytes of the free memory pointer's slot, other than with a
-/// whole-word store or one of the compiler's own updates; see [`free_pointer_trusted`].
+/// Whether `inst` may write the low bytes of the free memory pointer's slot, other than with
+/// a proven heap pointer or one of the compiler's own updates; see [`free_pointer_trusted`].
 fn forges_free_pointer(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
     match func.inst(inst).kind {
-        InstKind::Store(address, _, PtrLocation::Memory)
+        InstKind::Store(address, value, PtrLocation::Memory)
             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
         {
-            return false;
+            if let Some(value) = func.value_u256(value) {
+                return value.as_limbs()[0] < EvmMemoryLayout::HEAP_START;
+            }
+            let Value::Inst(stored) = *func.value(value) else { return true };
+            let stored = func.inst(stored);
+            // Allocator results preserve the heap pointer; reloading the slot preserves the
+            // invariant too. An arbitrary word may lose its floor when a high-byte write follows.
+            return !stored.metadata.alloc_ptr()
+                && !matches!(stored.kind, InstKind::Load(slot, PtrLocation::Memory)
+                    if func.value_u64(slot) == Some(EvmMemoryLayout::FMP_SLOT));
         }
-        InstKind::SetFmp(_) | InstKind::Alloc { .. } => return false,
+        // Internal callees are checked separately by the module-wide scan.
+        InstKind::SetFmp(_)
+        | InstKind::Alloc { .. }
+        | InstKind::ICall { function: Callee::Function(_), .. } => return false,
         _ => {}
     }
     // The last eight bytes of the slot hold every pointer below 2^64.
@@ -456,6 +470,12 @@ fn forges_free_pointer(func: &Function, alias: &AliasAnalysis, inst: InstId) -> 
             };
             start < slot_end && end > low
         }
+        Access::Location(Location::Memory(location)) => {
+            location.size != LocationSize::Const(0)
+                && AliasAnalysis::address_lower_bound(func, location.address, location.size)
+                    .is_none_or(|bound| bound < slot_end)
+        }
+        Access::Any(AddressSpace::Memory) => true,
         _ => false,
     })
 }
@@ -1050,7 +1070,7 @@ impl MemoryStoreEliminator {
         match func.blocks[block].terminator.as_ref() {
             Some(Terminator::Revert { offset, size })
             | Some(Terminator::ReturnData { offset, size }) => {
-                self.mark_read(func, live, *offset, *size);
+                self.mark_read(func, live, *offset, *size, None);
             }
             // A `return` value may be a memory pointer the caller dereferences: keep
             // what the callers read after their calls when the module shows them all,
@@ -1097,12 +1117,15 @@ impl MemoryStoreEliminator {
             InstKind::Load(addr, PtrLocation::Memory) => match self.word_aligned_const(func, *addr)
             {
                 Some(slot) => live.add_addr(slot),
-                None => self.mark_from(func, live, *addr),
+                None => self.mark_from(func, live, *addr, Some(32), Some(inst_id)),
             },
             InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
             InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
-            InstKind::Keccak256(offset, size) | InstKind::Log { offset, size, .. } => {
-                self.mark_read(func, live, *offset, *size);
+            InstKind::Keccak256(offset, size)
+            | InstKind::Log { offset, size, .. }
+            | InstKind::Copy(_, offset, size, PtrLocation::Memory) => {
+                // Keep the original address: canonical offsets discard local no-wrap proofs.
+                self.mark_read(func, live, *offset, *size, Some(inst_id));
             }
             // Byte stores never fully define a word (so cannot make an
             // earlier store dead) and read nothing: leave the set as is.
@@ -1188,11 +1211,14 @@ impl MemoryStoreEliminator {
             MemoryBase::Allocation(_)
             | MemoryBase::UnboundedAllocation(_)
             | MemoryBase::DynamicAllocation(_) => EvmMemoryLayout::HEAP_START.checked_add(offset),
-            MemoryBase::FreeMemory(read) => func.inst_result_value(read)
+            MemoryBase::FreeMemory(read) => func
+                .inst_result_value(read)
+                .filter(|&value| AliasAnalysis::constant_offset_no_wrap(func, value, offset))
                 .and_then(|value| self.read_bound(func, value))
                 .and_then(|bound| bound.checked_add(offset)),
-            MemoryBase::Value(value) => self.read_bound(func, value)
-                .and_then(|bound| bound.checked_add(offset)),
+            MemoryBase::Value(value) => AliasAnalysis::constant_offset_no_wrap(func, value, offset)
+                .then(|| self.read_bound(func, value)?.checked_add(offset))
+                .flatten(),
         };
         match bound {
             Some(bound) => live.add_from(bound),
@@ -1200,25 +1226,53 @@ impl MemoryStoreEliminator {
         }
     }
 
-    /// Marks every word from a read's address on live when a compiler-owned base bounds that
-    /// address from below through constant offsets, and all memory otherwise.
-    fn mark_from(&self, func: &Function, live: &mut MemLive, address: ValueId) {
-        match self.read_bound(func, address) {
+    /// Marks every word from a read's proven lower bound on live. An unproven constant addition
+    /// keeps both possible ranges live; an address or extent without useful bounds keeps all.
+    fn mark_from(
+        &self,
+        func: &Function,
+        live: &mut MemLive,
+        address: ValueId,
+        size: Option<u64>,
+        user: Option<InstId>,
+    ) {
+        let bound = match user {
+            Some(user) => AliasAnalysis::read_lower_bound_at(
+                func,
+                address,
+                &|function| self.returns.bounds.get(&function).copied(),
+                self.free_pointer,
+                user,
+            ),
+            None => self.read_bound(func, address),
+        };
+        match bound {
             Some(bound) => live.add_from(bound),
-            None => *live = MemLive::all(),
+            None => {
+                if !self.mark_wrapping_read(func, live, address, size) {
+                    *live = MemLive::all();
+                }
+            }
         }
     }
 
     /// Marks the word-aligned slots a memory read `[offset, offset + size)` may
     /// observe as live: those of a constant range, and for any other every word
     /// from a lower bound of `offset` on.
-    fn mark_read(&self, func: &Function, live: &mut MemLive, offset: ValueId, size: ValueId) {
-        if live.is_all() {
+    fn mark_read(
+        &self,
+        func: &Function,
+        live: &mut MemLive,
+        offset: ValueId,
+        size: ValueId,
+        user: Option<InstId>,
+    ) {
+        if live.is_all() || func.value_u64(size) == Some(0) {
             return;
         }
         match (func.value_u64(offset), func.value_u64(size)) {
             (Some(offset), Some(size)) => Self::mark_range(live, offset, size),
-            _ => self.mark_from(func, live, offset),
+            _ => self.mark_from(func, live, offset, func.value_u64(size), user),
         }
     }
 
@@ -2493,6 +2547,7 @@ impl MemoryStoreEliminator {
                     {
                         Some(site)
                     }
+                    MemoryBase::UnboundedAllocation(alloc) => Some(alloc),
                     // A read at the free-memory pointer may reach any object allocated after it.
                     MemoryBase::FreeMemory(_) => None,
                 },
@@ -2580,6 +2635,33 @@ impl MemoryStoreEliminator {
     /// Returns whether a path of at least one edge leads from `from` to `to`.
     fn block_reaches(cfg: &CfgInfo, from: BlockId, to: BlockId) -> bool {
         cfg.transitive_reachability(from).is_none_or(|reachable| reachable.contains(to))
+    }
+
+    /// Marks both possible ranges of a constant-offset read whose base has a lower bound but
+    /// no upper bound. A wrapped sum lies below the offset; a non-wrapped sum retains the
+    /// base's floor. Unknown lengths cannot leave a gap between those ranges.
+    fn mark_wrapping_read(
+        &self,
+        func: &Function,
+        live: &mut MemLive,
+        address: ValueId,
+        size: Option<u64>,
+    ) -> bool {
+        let Some(size) = size else { return false };
+        let Some(address) = self.alias().memory_address(func, address) else { return false };
+        let base = match address.base {
+            MemoryBase::Value(base) => base,
+            MemoryBase::FreeMemory(read) => {
+                let Some(base) = func.inst_result_value(read) else { return false };
+                base
+            }
+            _ => return false,
+        };
+        let Some(bound) = self.read_bound(func, base) else { return false };
+        let Some(end) = address.offset.checked_add(size) else { return false };
+        Self::mark_range(live, 0, end);
+        live.add_from(bound.checked_add(address.offset).unwrap_or(bound));
+        true
     }
 }
 

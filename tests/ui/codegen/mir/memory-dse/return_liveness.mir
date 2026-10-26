@@ -4,7 +4,7 @@
 
 // A helper hands a fresh buffer to a caller that only reads the buffer before it halts, so
 // nothing reads the helper's scratch word or free memory pointer once it returns: its pointer
-// result lies in the heap.
+// result lies in the heap. The read and bump carry the compiler allocator's guarantees.
 // CHECK-LABEL: {{^[ +].*}}fn @fresh{{[( ]}}
 // CHECK: - mstore 0, arg0
 // CHECK: - mstore 64, {{v[0-9]+}}
@@ -12,8 +12,8 @@
 fn @fresh(arg0: i256) -> i256 {
   bb0:
     mstore 0, arg0
-    v0 = mload 64
-    v1 = add v0, 64
+    v0 = mload 64 !metadata(alloc_ptr)
+    v1 = add v0, 64 !metadata(alloc_ptr)
     mstore 64, v1
     mstore v0, 32
     ret v0
@@ -31,8 +31,8 @@ fn @encode_fresh(arg0: i256) {
 // CHECK: {{^ +}}mstore 64, {{v[0-9]+}}
 fn @bumped() -> i256 {
   bb0:
-    v0 = mload 64
-    v1 = add v0, 64
+    v0 = mload 64 !metadata(alloc_ptr)
+    v1 = add v0, 64 !metadata(alloc_ptr)
     mstore 64, v1
     ret v0
 }
@@ -104,7 +104,7 @@ fn @recurse(arg0: i256) {
 fn @start_recursion(arg0: i256) {
   bb0:
     icall @recurse, arg0
-    v0 = mload 64
+    v0 = mload 64 !metadata(alloc_ptr)
     returndata v0, 32
 }
 
