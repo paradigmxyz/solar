@@ -1,178 +1,97 @@
-//! Elision of copies into write-only memory allocations.
+//! Removal of writes into allocations that nothing reads, for `memory-dse`.
 //!
-//! An allocation that never escapes and is never read is dead no matter what is
-//! written into it: the copies and stores that fill it produce no observable
-//! effect. The allocation itself remains because its free-memory-pointer bump
-//! and failure behavior are independently observable. This arises after other
-//! passes strip the readers of a materialized buffer — a scalar-replaced
-//! struct, an inlined helper whose result is discarded, a re-encoded argument
-//! that is dropped — leaving a copy whose destination no one observes.
+//! An allocation whose contents are never observed is dead no matter what fills it: the stores and
+//! copies into it produce no effect. The allocation stays, since its free-memory-pointer bump and
+//! failure behavior are observable on their own. Such buffers appear after other passes strip
+//! their readers: a scalar-replaced or decoded struct, an inlined helper whose result is dropped, a
+//! re-encoded argument that is never used.
 //!
-//! Ordinary dead-store elimination keeps such copies because they write
-//! memory; proving the destination allocation is unread lets them go. The pass
-//! is conservative: any read of the allocation (`mload`, `keccak256`, a copy
-//! that reads it, or an escape into a call/return) keeps every write, and a write that can fail
-//! on its own, such as `returndatacopy`, always stays. Writes must fit a known
-//! allocation extent; writes outside it can affect other objects, even when this object is unread.
-//! Indexed element stores also qualify when their sole incoming edge proves an unsigned index
-//! bound whose final word fits the allocation. Other dynamic addresses remain conservative.
-//! An allocation that runs once reads the free-memory pointer before its object exists, so that
-//! read does not count; an allocation in a loop reads it again after the previous instance's
-//! writes and keeps them. Every other read of the pointer's slot still counts. Callers' later
-//! reads of the slot cannot see the removed writes: allocations start at or above the heap floor
-//! (see `heap-floor`), above the slot.
+//! One walk finds the writes. It collects every value derived from the allocation (`ptradd`, `add`,
+//! `sub`, casts, slice pointers) and gives up on the first use that may read the allocation: a
+//! load, a hash, a copy source, a slice length, an escape through a store or terminator, or any
+//! other instruction taking a derived value. What remains are the stores, fills, and copies whose
+//! destination is derived. A write that can fail on its own, such as `returndatacopy` past the end
+//! of the return data, always stays.
+//!
+//! Two proofs then make the walk's result safe to remove:
+//!
+//! - A deferred allocation was placed statically with every pointer use an in-bounds address
+//!   derivation, so no other way to reach its words exists. Functions that observe gas keep its
+//!   writes, since removing them can lower memory expansion.
+//! - Any other allocation needs alias analysis. Its pointer must not escape, no instruction or
+//!   terminator may read an address that may alias its extent, and every write must lie inside its
+//!   constant-size extent. An indexed element store also qualifies when its sole incoming edge
+//!   proves an unsigned index bound whose last word fits. Other dynamic addresses stay
+//!   conservative. An allocation that runs once reads the free-memory pointer before its object
+//!   exists, so that read does not count; one in a loop reads it again after the previous
+//!   instance's writes and keeps them. Every other read of the slot still counts. Callers' later
+//!   reads of the slot cannot see the removed writes: allocations start at or above the heap floor
+//!   (see `heap-floor`), above the slot.
+//!
+//! The rewrite runs inside the `memory-dse` fixpoint, so removing a copy that read one allocation
+//! lets the next round remove the writes into that allocation.
 
+use super::MemoryStoreEliminator;
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryBase, MemoryLocation},
+    BlockId, Function, InstId, InstKind, MirType, PtrLocation, Terminator, Value, ValueId,
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, GasObservations, Location, MemoryBase, MemoryLocation,
+    },
     memory::EvmMemoryLayout,
-    pass::{MirPass, run_function_pass_with_alias},
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 
-/// Copy-elision pass over write-only memory allocations.
-pub(crate) struct CopyElision;
-
-impl MirPass for CopyElision {
-    fn name(&self) -> &'static str {
-        "copy-elision"
-    }
-
-    fn run_pass(
-        &self,
-        _gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        run_function_pass_with_alias(module, analyses, |func, analyses| {
-            CopyElisionCx::default().run(func, analyses.alias())
-        })
-    }
-}
-
-#[derive(Debug, Default)]
-struct CopyElisionCx {
-    /// Number of write-only allocations eliminated.
-    eliminated: usize,
-    /// Instruction uses indexed by operand value.
-    uses: FxHashMap<ValueId, Vec<InstId>>,
-    /// Blocks containing indexed element stores that may need an edge bounds proof.
-    indexed_stores: FxHashMap<InstId, BlockId>,
-    /// Values used by terminators.
-    terminator_uses: FxHashSet<ValueId>,
-}
-
-impl CopyElisionCx {
-    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
-        let allocs: Vec<ValueId> = func
+impl MemoryStoreEliminator {
+    /// Removes the writes into allocations that nothing reads.
+    pub(super) fn remove_write_only_allocation_writes(&mut self, func: &mut Function) {
+        let allocations: Vec<_> = func
             .instructions()
-            .filter_map(|inst_id| {
-                matches!(func.inst(inst_id).kind, InstKind::Alloc { .. })
-                    .then(|| func.inst_result_value(inst_id))
-                    .flatten()
+            .filter(|&inst| matches!(func.inst(inst).kind, InstKind::Alloc { .. }))
+            .filter_map(|inst| {
+                Some((func.inst_result_value(inst)?, func.inst(inst).metadata.deferred_alloc()))
             })
             .collect();
-        if allocs.is_empty() {
-            return false;
+        if allocations.is_empty() {
+            return;
         }
-        let mut changed = false;
-        loop {
-            self.uses.clear();
-            self.indexed_stores.clear();
-            self.terminator_uses.clear();
-            self.index_uses(func);
 
-            let mut dead = FxHashSet::default();
-            for &object in &allocs {
-                if alias.value_escapes(func, object)
-                    || self.allocation_may_be_read(func, alias, object)
-                {
-                    continue;
-                }
-                if let Some(writes) = self.write_only_writes(func, object)
-                    && self.writes_fit_allocation(func, alias, object, &writes)
-                {
-                    dead.extend(writes);
-                    self.eliminated += 1;
-                }
-            }
-            if dead.is_empty() {
-                break;
-            }
-            // stores confined to an unread allocation -> removed
-            for block in func.blocks.iter_mut() {
-                block.instructions.retain(|inst| !dead.contains(inst));
-            }
-            changed = true;
-        }
-        changed
-    }
-
-    fn writes_fit_allocation(
-        &self,
-        func: &Function,
-        alias: &AliasAnalysis,
-        object: ValueId,
-        writes: &[InstId],
-    ) -> bool {
-        if let Value::Inst(inst) = func.value(object)
-            && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
-            && let Some(size) = func.value_u64(size)
-            && let Some(address) = alias.memory_address(func, object)
-            && let Some(end) = address.offset.checked_add(size)
-        {
-            writes.iter().all(|&inst| {
-                if self.guarded_element_end(func, object, inst).is_some_and(|end| end <= size) {
-                    return true;
-                }
-                alias.instruction_mod_ref(func, inst).writes().iter().all(|access| {
-                    if let Access::Location(Location::Memory(location)) = access
-                        && location.address.base == address.base
-                        && location.address.offset >= address.offset
-                        && let Some(size) = location.size.as_const()
-                        && let Some(write_end) = location.address.offset.checked_add(size)
-                    {
-                        write_end <= end
-                    } else {
-                        false
-                    }
+        let uses = WriteOnlyUses::new(func);
+        let mut observes_gas = None;
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        for (object, deferred) in allocations {
+            let Some(writes) = uses.write_only_writes(func, object) else { continue };
+            let removable = if deferred {
+                !*observes_gas.get_or_insert_with(|| {
+                    let gas = GasObservations::new(func, &self.cfg, self.alias());
+                    func.instructions().any(|inst| gas.observes(inst))
                 })
-            })
-        } else {
-            false
+            } else {
+                !self.alias().value_escapes(func, object)
+                    && !self.allocation_may_be_read(func, object)
+                    && uses.writes_fit_allocation(func, self.alias(), object, &writes)
+            };
+            if removable {
+                for write in writes {
+                    dead.insert(write);
+                }
+            }
+        }
+
+        if dead.is_empty() {
+            return;
+        }
+        self.eliminated_count += dead.count();
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|&inst| !dead.contains(inst));
         }
     }
 
-    fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
-        let block = *self.indexed_stores.get(&inst)?;
-        let InstKind::Store(address, _, PtrLocation::Memory) = func.inst(inst).kind else {
-            return None;
-        };
-        // A dynamic object's elements follow its length word; a fixed one's start at it.
-        let (target, data_offset, index) = func.element_address(address)?;
-        if target == object
-            && let [pred] = func.blocks[block].predecessors.as_slice()
-            && let Some(Terminator::Branch { condition, then_block, else_block }) =
-                func.blocks[*pred].terminator
-            && then_block == block
-            && else_block != block
-            && let Value::Inst(condition) = *func.value(condition)
-            && let InstKind::Lt(value, bound) = func.inst(condition).kind
-            && value == index
-        {
-            let bound = func.value_u64(bound).filter(|&bound| bound > 0)?;
-            data_offset.checked_add(bound.checked_mul(EvmMemoryLayout::WORD_SIZE)?)
-        } else {
-            None
-        }
-    }
-
-    fn allocation_may_be_read(
-        &self,
-        func: &Function,
-        alias: &AliasAnalysis,
-        object: ValueId,
-    ) -> bool {
+    fn allocation_may_be_read(&self, func: &Function, object: ValueId) -> bool {
+        let alias = self.alias();
         let (allocation, alloc_inst) = if let Value::Inst(inst) = func.value(object)
             && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
             && let Some(address) = alias.memory_address(func, object)
@@ -204,26 +123,40 @@ impl CopyElisionCx {
             alias.terminator_mod_ref(func, terminator).reads().iter().copied().any(reads_allocation)
         })
     }
+}
 
-    fn index_uses(&mut self, func: &Function) {
+/// Operand users of one function, shared by the proofs of all its allocations.
+struct WriteOnlyUses {
+    /// Instruction uses indexed by operand value.
+    uses: FxHashMap<ValueId, SmallVec<[InstId; 4]>>,
+    /// Blocks containing indexed element stores that may need an edge bounds proof.
+    indexed_stores: FxHashMap<InstId, BlockId>,
+    /// Values used by terminators.
+    terminator_uses: FxHashSet<ValueId>,
+}
+
+impl WriteOnlyUses {
+    fn new(func: &Function) -> Self {
+        let mut uses = FxHashMap::<_, SmallVec<_>>::default();
+        let mut indexed_stores = FxHashMap::default();
+        let mut terminator_uses = FxHashSet::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
                 if let InstKind::Store(address, _, PtrLocation::Memory) = inst.kind
                     && func.element_address(address).is_some()
                 {
-                    self.indexed_stores.insert(inst_id, block_id);
+                    indexed_stores.insert(inst_id, block_id);
                 }
-                inst.visit_operands(|operand| {
-                    self.uses.entry(operand).or_default().push(inst_id);
+                inst.visit_operands(|operand| uses.entry(operand).or_default().push(inst_id));
+            }
+            if let Some(terminator) = &block.terminator {
+                terminator.visit_operands(|operand| {
+                    terminator_uses.insert(operand);
                 });
             }
         }
-        for block in &func.blocks {
-            if let Some(terminator) = &block.terminator {
-                self.terminator_uses.extend(terminator.operands());
-            }
-        }
+        Self { uses, indexed_stores, terminator_uses }
     }
 
     /// If every access to the allocation writes it, returns the write
@@ -233,8 +166,7 @@ impl CopyElisionCx {
         // instead of rescanning every instruction for each derived value.
         let mut derived = FxHashSet::default();
         derived.insert(object);
-        let mut worklist = Vec::new();
-        worklist.push(object);
+        let mut worklist = vec![object];
         let mut seen = FxHashSet::default();
         while let Some(value) = worklist.pop() {
             for &inst_id in self.uses.get(&value).into_iter().flatten() {
@@ -367,5 +299,64 @@ impl CopyElisionCx {
         // data, stays even though its destination is unread.
         writes.retain(|&inst_id| !func.inst(inst_id).kind.effects().control.any());
         (!writes.is_empty()).then_some(writes)
+    }
+
+    fn writes_fit_allocation(
+        &self,
+        func: &Function,
+        alias: &AliasAnalysis,
+        object: ValueId,
+        writes: &[InstId],
+    ) -> bool {
+        if let Value::Inst(inst) = func.value(object)
+            && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
+            && let Some(size) = func.value_u64(size)
+            && let Some(address) = alias.memory_address(func, object)
+            && let Some(end) = address.offset.checked_add(size)
+        {
+            writes.iter().all(|&inst| {
+                if self.guarded_element_end(func, object, inst).is_some_and(|end| end <= size) {
+                    return true;
+                }
+                alias.instruction_mod_ref(func, inst).writes().iter().all(|access| {
+                    if let Access::Location(Location::Memory(location)) = access
+                        && location.address.base == address.base
+                        && location.address.offset >= address.offset
+                        && let Some(size) = location.size.as_const()
+                        && let Some(write_end) = location.address.offset.checked_add(size)
+                    {
+                        write_end <= end
+                    } else {
+                        false
+                    }
+                })
+            })
+        } else {
+            false
+        }
+    }
+
+    fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
+        let block = *self.indexed_stores.get(&inst)?;
+        let InstKind::Store(address, _, PtrLocation::Memory) = func.inst(inst).kind else {
+            return None;
+        };
+        // A dynamic object's elements follow its length word; a fixed one's start at it.
+        let (target, data_offset, index) = func.element_address(address)?;
+        if target == object
+            && let [pred] = func.blocks[block].predecessors.as_slice()
+            && let Some(Terminator::Branch { condition, then_block, else_block }) =
+                func.blocks[*pred].terminator
+            && then_block == block
+            && else_block != block
+            && let Value::Inst(condition) = *func.value(condition)
+            && let InstKind::Lt(value, bound) = func.inst(condition).kind
+            && value == index
+        {
+            let bound = func.value_u64(bound).filter(|&bound| bound > 0)?;
+            data_offset.checked_add(bound.checked_mul(EvmMemoryLayout::WORD_SIZE)?)
+        } else {
+            None
+        }
     }
 }

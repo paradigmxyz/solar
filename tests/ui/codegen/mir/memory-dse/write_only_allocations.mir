@@ -70,3 +70,20 @@ fn @heap_allocation(arg0: i256) {
     mstore 128, arg0
     returndata 128, 32
 }
+
+// Copies and fills into the object are writes too, but a failing `returndatacopy` stays.
+// CHECK-LABEL: {{^[ +].*}}fn @copies{{[( ]}}
+// CHECK: alloc 64 !metadata(deferred_alloc)
+// CHECK-NEXT: {{^ .*}}v1 = ptradd v0, 32
+// CHECK-NEXT: - calldatacopy
+// CHECK-NEXT: - memory_zero
+// CHECK-NEXT: {{^ .*}}returndatacopy
+fn @copies() {
+  bb0:
+    v0 = alloc 64 !metadata(deferred_alloc)
+    v1 = ptradd v0, 32
+    calldatacopy v1, 4, 32
+    memory_zero v0, 32
+    returndatacopy v1, 0, 32
+    returndata 128, 32
+}

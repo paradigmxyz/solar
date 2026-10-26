@@ -83,7 +83,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &coalesce_allocs::CoalesceAllocs,
     &static_alloc::DeferAlloc,
     &sroa::Sroa,
-    &copy_elision::CopyElision,
     &dce::Dce,
     &lower_arithmetic::LowerArithmetic,
     &lower_builtins::LowerBuiltins,
@@ -258,7 +257,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Small pure diamonds become selects once folded conditions are gone.
     &if_convert::IfConvert,
     &frame_promotion::FrameSlotPromotion,
-    &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
     &lower_abi::LowerAbi,
     // ABI lowering exposes canonical-word helpers to the same inlining policy.

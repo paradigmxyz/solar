@@ -1,12 +1,12 @@
-//@compile-flags: -Zmir-pipeline=copy-elision,dce
+//@compile-flags: -Zmir-pipeline=memory-dse,dce
 //@filecheck:
-@module CopyElision
+@module WriteOnlyHeapAllocations
 
 // An object filled by a copy but never read loses the copy. The allocation's
 // own free-memory-pointer read happens before the object exists, so it does
 // not read it. The checked allocation remains because its failure and FMP
 // bump are observable.
-// CHECK-LABEL: after copy-elision
+// CHECK-LABEL: after memory-dse
 // CHECK: {{^[ +].*}}fn @unread{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc zeroed checked 64
 // CHECK: - calldatacopy {{v[0-9]+}}, 4, 32

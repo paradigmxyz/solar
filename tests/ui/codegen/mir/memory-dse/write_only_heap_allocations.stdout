@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before copy-elision) ===
-+ // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after copy-elision) ===
-  @module CopyElision
+- // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_heap_allocations.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_heap_allocations.mir (after memory-dse) ===
+  @module WriteOnlyHeapAllocations
   fn @unread(arg0: i256) -> i256 {
     bb0:
       v0 = alloc zeroed checked 64
@@ -136,9 +136,9 @@
       ret 7
   }
   
-- // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after dce) ===
-  @module CopyElision
+- // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_heap_allocations.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_heap_allocations.mir (after dce) ===
+  @module WriteOnlyHeapAllocations
   fn @unread(arg0: i256) -> i256 {
     bb0:
       v0 = alloc zeroed checked 64
