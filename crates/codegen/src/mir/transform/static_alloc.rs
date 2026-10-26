@@ -752,6 +752,7 @@ impl UnreservedAnalysis<'_> {
             MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => {
                 !write || site == alloc
             }
+            MemoryBase::FreeMemory(_) => !write,
             MemoryBase::Value(value) => {
                 derived.contains_key(&value)
                     || (!write && !AliasAnalysis::range_may_overlap_fmp(self.func, value, None))
