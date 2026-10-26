@@ -41,22 +41,21 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     v9 = lt v8, 100
     v10 = calldataload 4
     v11 = shr v10, 160
-    v31 = zext i1 v9 to i256
-    v32 = or v31, v11
+    v30 = zext i1 v9 to i256
+    v31 = or v30, v11
     v13 = calldataload 36
     v14 = shr v13, 160
-    v34 = or v32, v14
-    v35 = ne v34, 0
-    jumpi v35, bb1, bb2
+    v33 = or v31, v14
+    v34 = ne v33, 0
+    jumpi v34, bb1, bb2
   bb2:
     v0 = gas
-    v29 = mload 64 !metadata(memory=scratch)
-    v30 = add v29, 128
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, 68
-    v25 = add v29, 32
+    v28 = mload 64 !metadata(memory=scratch)
+    v29 = add v28, 128
+    mstore 64, v29 !metadata(memory=scratch)
+    v25 = add v28, 32
     mstore v25, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v27 = add v29, 36
+    v27 = add v28, 36
     mstore v27, arg1
     v23 = add v27, 32
     mstore v23, arg2

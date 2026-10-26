@@ -3005,6 +3005,12 @@ fn is_canonical_return_value_inner(
     {
         return true;
     }
+    // Element cleanup's proof covers every write into the array this function returns.
+    if let AbiParamType::DynamicArray(element) | AbiParamType::FixedArray { element, .. } = ty
+        && returns_proved_array(func, element, value)
+    {
+        return true;
+    }
     if !ty.is_scalar_word()
         && !memory_writes_stay_private(func, calls.module, &mut FxHashSet::default())
     {
@@ -3601,13 +3607,7 @@ fn is_canonical_return_array_param(
     calls: &CanonicalCallProof<'_>,
 ) -> bool {
     let Some(bits) = abi_element_bits(element) else { return false };
-    // The array this function returns, whether it built it or received it.
-    if func.attributes.array_return_element_bits.is_some_and(|proved| proved <= bits)
-        && func.blocks.iter().any(|block| {
-            matches!(&block.terminator, Some(Terminator::Return { values })
-                if values.first() == Some(&object))
-        })
-    {
+    if returns_proved_array(func, element, object) {
         return true;
     }
     // An array a call returned and nothing has written since.
@@ -3629,6 +3629,17 @@ fn is_canonical_return_array_param(
     }
     let Value::Arg(index) = *func.value(object) else { return false };
     func.attributes.array_element_bits.get(&index).is_some_and(|&proved| proved <= bits)
+}
+
+/// Whether `object` is the array this function returns, whether it built it or received it,
+/// and element cleanup proved its words narrow enough for the ABI element type.
+fn returns_proved_array(func: &Function, element: &AbiParamType, object: ValueId) -> bool {
+    abi_element_bits(element).is_some_and(|bits| {
+        func.attributes.array_return_element_bits.is_some_and(|proved| proved <= bits)
+    }) && func.blocks.iter().any(|block| {
+        matches!(&block.terminator, Some(Terminator::Return { values })
+            if values.first() == Some(&object))
+    })
 }
 
 /// The width the ABI validates for a scalar array element, when it validates one.
