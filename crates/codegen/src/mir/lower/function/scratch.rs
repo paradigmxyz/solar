@@ -400,12 +400,12 @@ fn pure_derivation(func: &Function, inst: InstId) -> Option<ValueId> {
 }
 
 /// Whether `inst` reads the free memory pointer.
-fn reads_free_pointer(func: &Function, inst: InstId) -> bool {
+fn reads_free_pointer(constants: &mut ConstantWords<'_>, inst: InstId) -> bool {
+    let func = constants.func;
     match func.inst(inst).kind {
         InstKind::Fmp => true,
         InstKind::Load(address, PtrLocation::Memory) => {
-            constant_word(func, address, &mut FxHashSet::default())
-                == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
+            constants.get(address) == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
         }
         _ => false,
     }
@@ -484,14 +484,14 @@ fn runs_before(
 /// Whether `inst` takes `value` as data, which it may keep where a later load finds it, rather
 /// than only as the address or size of memory it accesses: as the word a store writes, other than
 /// into the free memory pointer, or as an operand of a call or an encoding.
-fn captures(func: &Function, inst: InstId, value: ValueId) -> bool {
+fn captures(constants: &mut ConstantWords<'_>, inst: InstId, value: ValueId) -> bool {
+    let func = constants.func;
     let kind = &func.inst(inst).kind;
     if matches!(kind, InstKind::SetFmp(_)) {
         return false;
     }
     if let InstKind::Store(address, _, PtrLocation::Memory) = *kind
-        && constant_word(func, address, &mut FxHashSet::default())
-            == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
+        && constants.get(address) == Some(U256::from(EvmMemoryLayout::FMP_SLOT))
     {
         return false;
     }
@@ -588,6 +588,7 @@ impl PointerWrites {
         let func = &function.func;
         let mut writes = Self::default();
         writes.other.any = assembly;
+        let mut constants = ConstantWords::new(func);
         let mut free = FxHashSet::default();
         loop {
             let before = free.len();
@@ -595,7 +596,7 @@ impl PointerWrites {
                 let kind = &func.inst(inst).kind;
                 if let Some(result) = func.inst_result_value(inst)
                     && may_hold_pointer(func.value_ty(result))
-                    && (reads_free_pointer(func, inst)
+                    && (reads_free_pointer(&mut constants, inst)
                         || matches!(kind, InstKind::ICall { function: Callee::Function(callee), .. }
                             if summaries.get(callee).is_some_and(|summary| summary.returns_free))
                         || (kind.effect_kind() == EffectKind::Pure
@@ -618,7 +619,7 @@ impl PointerWrites {
                 && kind
                     .operands()
                     .iter()
-                    .any(|value| free.contains(value) && captures(func, inst, *value)))
+                    .any(|value| free.contains(value) && captures(&mut constants, inst, *value)))
                 || matches!(kind, InstKind::ICall { function: Callee::Function(callee), .. }
                     if summaries.get(callee).is_some_and(|summary| summary.captures_free))
         });
@@ -758,31 +759,6 @@ impl PointerWrites {
     }
 }
 
-/// Folds an address without changing executable MIR. Cyclic phis and nonconstant operands are
-/// unknown; evaluation uses the same widths and wrapping semantics as the optimizer.
-fn constant_word(
-    func: &Function,
-    value: ValueId,
-    visiting: &mut FxHashSet<ValueId>,
-) -> Option<U256> {
-    if !visiting.insert(value) {
-        return None;
-    }
-    let result = if let Some(value) = func.value_u256(value) {
-        Some(value)
-    } else if let Value::Inst(inst) = *func.value(value) {
-        crate::mir::utils::eval::eval_typed_inst(func, &func.inst(inst).kind, |operand| {
-            constant_word(func, operand, visiting).ok_or(())
-        })
-        .ok()
-        .flatten()
-    } else {
-        None
-    };
-    visiting.remove(&value);
-    result
-}
-
 /// Instruction and terminator uses, with trivial lowering phis resolved.
 struct UseSites {
     instructions: FxHashMap<ValueId, Vec<InstId>>,
@@ -871,6 +847,7 @@ fn check_free_pointers(
     inside: impl Fn(InstId) -> bool,
     escapes: &mut Vec<(Option<Span>, Escape)>,
 ) {
+    let mut constants = ConstantWords::new(func);
     let prior = runs_before(func, boundary, None);
     let boundary_inst = func.blocks[boundary.0].instructions[boundary.1];
     for inst in prior.iter() {
@@ -890,7 +867,7 @@ fn check_free_pointers(
             if inside(read)
                 || !prior.contains(read)
                 || saved.contains(&pointer)
-                || !(reads_free_pointer(func, read) || returns_free)
+                || !(reads_free_pointer(&mut constants, read) || returns_free)
             {
                 continue;
             }
@@ -913,11 +890,11 @@ fn check_free_pointers(
                         {
                             stack.push(result);
                         }
-                    } else if inst == boundary_inst && captures(func, inst, value) {
+                    } else if inst == boundary_inst && captures(&mut constants, inst, value) {
                         escapes.push((func.inst(inst).metadata.source_span(), Escape::Passed));
                     } else if later.contains(inst) {
                         escapes.push((func.inst(inst).metadata.source_span(), Escape::Outlives));
-                    } else if earlier.contains(inst) && captures(func, inst, value) {
+                    } else if earlier.contains(inst) && captures(&mut constants, inst, value) {
                         let escape = match func.inst(inst).kind {
                             InstKind::ICall { function: Callee::Function(callee), .. } => {
                                 Escape::Call(callee)
@@ -978,5 +955,110 @@ fn report_escapes(
             });
         }
         err.help("keep only values past the block, or remove the tag").emit();
+    }
+}
+
+/// Folds addresses in one immutable function without changing executable MIR. Cache both
+/// constants and unknown values so shared expressions stay shared, including across queries.
+/// An explicit stack avoids recursion on deep expressions. Cycles and nonconstant operands are
+/// unknown; evaluation uses the same widths and wrapping semantics as the optimizer.
+struct ConstantWords<'a> {
+    func: &'a Function,
+    /// `None` is unvisited; `Some(None)` is pending or known to be nonconstant.
+    values: IndexVec<ValueId, Option<Option<U256>>>,
+}
+
+impl<'a> ConstantWords<'a> {
+    fn new(func: &'a Function) -> Self {
+        Self { func, values: index_vec![None; func.num_values()] }
+    }
+
+    fn get(&mut self, root: ValueId) -> Option<U256> {
+        if let Some(value) = self.values[root] {
+            return value;
+        }
+        self.values[root] = Some(None);
+        let mut pending = vec![root];
+        while let Some(&value) = pending.last() {
+            let result = if let Some(word) = self.func.value_u256(value) {
+                Ok(Some(word))
+            } else if let Value::Inst(inst) = *self.func.value(value) {
+                crate::mir::utils::eval::eval_typed_inst(
+                    self.func,
+                    &self.func.inst(inst).kind,
+                    |operand| match self.values[operand] {
+                        Some(word) => word.ok_or(None),
+                        None => Err(Some(operand)),
+                    },
+                )
+            } else {
+                Ok(None)
+            };
+            match result {
+                Err(Some(operand)) => {
+                    // Mark the dependency before visiting it so a cycle stays unknown.
+                    self.values[operand] = Some(None);
+                    pending.push(operand);
+                }
+                result => {
+                    self.values[value] = Some(result.ok().flatten());
+                    pending.pop();
+                }
+            }
+        }
+        self.values[root].flatten()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constant_words_share_deep_dependencies() {
+        let mut func = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut func);
+        let mut address = builder.imm(0);
+        // address = add address, address
+        for _ in 0..20_000 {
+            address = builder.add(address, address);
+        }
+        // address = add address, 64
+        let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
+        let address = builder.add(address, slot);
+
+        let mut constants = ConstantWords::new(&func);
+        assert_eq!(constants.get(address), Some(U256::from(EvmMemoryLayout::FMP_SLOT)));
+        assert_eq!(constants.get(address), constants.get(slot));
+    }
+
+    #[test]
+    fn constant_words_keep_widths_and_unknowns() {
+        let mut func = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut func);
+        let input = builder.add_param(MirType::I256);
+        let max = builder.imm(U256::MAX);
+        let one = builder.imm(1);
+        // wrapped = add max, 1
+        // narrow = trunc i256 max to i160
+        // word = zext i160 narrow to i256
+        // unknown = add input, wrapped
+        let wrapped = builder.add(max, one);
+        let narrow = builder.cast(max, MirType::I160);
+        let word = builder.cast(narrow, MirType::I256);
+        let unknown = builder.add(input, wrapped);
+        let header = builder.create_block();
+        let latch = builder.create_block();
+        builder.switch_to_block(header);
+        // cycle = phi [entry: 0], [latch: cycle]
+        let cycle = builder.phi(vec![(BlockId::ENTRY, wrapped)]);
+        builder.add_phi_incoming(cycle, latch, cycle);
+
+        let mut constants = ConstantWords::new(&func);
+        assert_eq!(constants.get(unknown), None);
+        assert_eq!(constants.get(cycle), None);
+        assert_eq!(constants.get(wrapped), Some(U256::ZERO));
+        assert_eq!(constants.get(word), Some(U256::MAX >> 96));
+        assert_eq!(constants.get(unknown), None);
     }
 }
