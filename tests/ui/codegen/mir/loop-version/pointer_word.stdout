@@ -17,7 +17,7 @@ fn @lastIndicesIn() [selector=0x16134912, abi_wrapper, pure] {
     mstore v0, v8
     v2 = icall @_lastIndicesIn, v0, v7, v9
     v11 = zext i1 v2 to i256
-    v36 = mload 64 !metadata(memory=scratch)
+    v36 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v17 = add v36, 64
     mstore v36, v11
     v19 = add v36, 32
@@ -93,6 +93,7 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     v76 = eq v87, 0
     jumpi v76, bb8, bb1
   bb8:
+    v114 = add arg2, 32
     jump bb5
   bb5:
     v33 = phi [bb8: v7], [bb15: v35]
@@ -129,8 +130,7 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     revert 28, 36
   bb15:
     v52 = shl v49, 5
-    v103 = add arg2, v52
-    v104 = add v103, 32
+    v104 = add v114, v52
     mstore v104, v35
     jump bb5
   bb16:
@@ -158,8 +158,8 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb4:
     v9 = add v6, 1
     v10 = shl v9, 5
-    v25 = mload 64 !metadata(memory=scratch)
-    v26 = add v25, v10
+    v25 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v26 = add v25, v10 !metadata(alloc_ptr)
     v27 = lt v26, v25
     v28 = gt v26, 0xffffffffffffffff
     v29 = or v27, v28

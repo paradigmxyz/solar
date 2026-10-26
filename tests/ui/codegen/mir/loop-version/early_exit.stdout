@@ -14,7 +14,7 @@ fn @splitUntilZero() [selector=0x8ecf6ff0, abi_wrapper, pure] {
     v7 = icall @decode_calldata_type, 36
     v8 = icall @decode_calldata_type, 68
     v0 = icall @_splitUntilZero, v6, v7, v8
-    v44 = mload 64 !metadata(memory=scratch)
+    v44 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v14 = add v44, 96
     mstore v44, v0
     v16 = add v44, 32
@@ -52,7 +52,7 @@ fn @overlappingSplit() [selector=0x69394704, abi_wrapper, pure] {
     v11 = icall @decode_calldata_type, 36
     v1 = add v11, 64
     v3 = icall @_splitUntilZero, v10, v11, v1
-    v45 = mload 64 !metadata(memory=scratch)
+    v45 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v17 = add v45, 96
     mstore v45, v3
     v19 = add v45, 32
@@ -203,8 +203,8 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb4:
     v9 = add v6, 1
     v10 = shl v9, 5
-    v25 = mload 64 !metadata(memory=scratch)
-    v26 = add v25, v10
+    v25 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v26 = add v25, v10 !metadata(alloc_ptr)
     v27 = lt v26, v25
     v28 = gt v26, 0xffffffffffffffff
     v29 = or v27, v28

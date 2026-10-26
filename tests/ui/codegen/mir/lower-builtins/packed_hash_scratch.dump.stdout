@@ -56,7 +56,7 @@ fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
   bb2:
-    v17 = mload 64 !metadata(memory=scratch)
+    v17 = heap_floor !metadata(alloc_ptr)
     mstore v17, arg0
     v3 = add v17, 32
     mstore v3, arg1

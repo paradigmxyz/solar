@@ -11,6 +11,7 @@
 contract PackedHashScratch {
     // CHECK-LABEL: fn @threeItems(
     // CHECK-NOT: mload 64
+    // CHECK-NOT: heap_floor
     // CHECK: keccak256 0, 56
     function threeItems(uint256 role, address holder) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(role, uint32(0xee9853bb), holder));
@@ -18,6 +19,7 @@ contract PackedHashScratch {
 
     // CHECK-LABEL: fn @twoItems(
     // CHECK-NOT: mload 64
+    // CHECK-NOT: heap_floor
     // CHECK: keccak256 0, 56
     function twoItems(uint256 role, address holder) external pure returns (bytes32) {
         return keccak256(
@@ -25,10 +27,11 @@ contract PackedHashScratch {
         );
     }
 
-    // A third store would reach past 0x40, so the bytes go to the free memory pointer.
+    // A third store would reach past 0x40, so the bytes go to the initial heap floor.
     // CHECK-LABEL: fn @tooLong(
-    // CHECK: mload 64
-    // CHECK: keccak256
+    // CHECK: [[HEAP:v[0-9]+]] = heap_floor
+    // CHECK: mstore [[HEAP]], arg0
+    // CHECK: keccak256 [[HEAP]], 68
     function tooLong(uint256 a, uint256 b, uint32 c) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, b, c));
     }
