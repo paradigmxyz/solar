@@ -363,9 +363,13 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
-      # The perf site imports this when the base has no benchmark run of its own.
+      # The perf site imports this when the base has no benchmark run of its own. It ignores
+      # fork runs, which run their own workflow, so do not upload one there.
       - name: Upload exact-base results
-        if: always() && steps.exact-base.outputs.named == 'true'
+        if: >-
+          always() &&
+          steps.exact-base.outputs.named == 'true' &&
+          github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: codegen-runtime-exact-base
